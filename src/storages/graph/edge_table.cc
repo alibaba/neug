@@ -61,6 +61,77 @@ filterInvalidEdges(const std::vector<vid_t>& src_lid,
                          std::move(valid_flags));
 }
 
+template <typename EDATA_T, typename ARROW_COL_T>
+std::vector<Property> extract_edge_data(
+    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  std::vector<Property> edge_data;
+  assert([&]() {
+    int64_t total = 0;
+    for (auto rb : data_batches) {
+      total += rb->num_rows();
+    }
+    return total == static_cast<int64_t>(valid_flags.size());
+  }());
+  edge_data.reserve(std::count(valid_flags.begin(), valid_flags.end(), true));
+  size_t cur_index = 0;
+  for (auto rb : data_batches) {
+    auto array = rb->column(0);
+    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      if (valid_flags[cur_index++]) {
+        // edge_data.emplace_back(casted->GetView(i));
+        edge_data.emplace_back(
+            gs::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
+      }
+    }
+  }
+  return edge_data;
+}
+
+std::vector<Property> extract_bundled_edge_data_from_batches(
+    std::shared_ptr<const EdgeSchema> meta,
+    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  assert(meta->is_bundled());
+  if (meta->properties.empty() || meta->properties[0] == PropertyType::kEmpty) {
+    return std::vector<Property>();
+  } else if (meta->properties[0] == PropertyType::kInt32) {
+    return extract_edge_data<int32_t, arrow::Int32Array>(data_batches,
+                                                         valid_flags);
+  } else if (meta->properties[0] == PropertyType::kUInt32) {
+    return extract_edge_data<uint32_t, arrow::UInt32Array>(data_batches,
+                                                           valid_flags);
+  } else if (meta->properties[0] == PropertyType::kInt64) {
+    return extract_edge_data<int64_t, arrow::Int64Array>(data_batches,
+                                                         valid_flags);
+  } else if (meta->properties[0] == PropertyType::kUInt64) {
+    return extract_edge_data<uint64_t, arrow::UInt64Array>(data_batches,
+                                                           valid_flags);
+  } else if (meta->properties[0] == PropertyType::kFloat) {
+    return extract_edge_data<float, arrow::FloatArray>(data_batches,
+                                                       valid_flags);
+  } else if (meta->properties[0] == PropertyType::kDouble) {
+    return extract_edge_data<double, arrow::DoubleArray>(data_batches,
+                                                         valid_flags);
+  } else if (meta->properties[0] == PropertyType::kTimestamp) {
+    return extract_edge_data<TimeStamp, arrow::TimestampArray>(data_batches,
+                                                               valid_flags);
+  } else if (meta->properties[0] == PropertyType::kDate) {
+    return extract_edge_data<Date, arrow::Date32Array>(data_batches,
+                                                       valid_flags);
+  } else if (meta->properties[0] == PropertyType::kDateTime) {
+    return extract_edge_data<DateTime, arrow::TimestampArray>(data_batches,
+                                                              valid_flags);
+  } else if (meta->properties[0] == PropertyType::kInterval) {
+    return extract_edge_data<Interval, arrow::LargeStringArray>(data_batches,
+                                                                valid_flags);
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
+                                  meta->properties[0].ToString());
+  }
+}
+
 template <typename EDATA_T>
 void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
                                              const std::vector<vid_t>& dst_lid,
@@ -159,6 +230,273 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
   } else {
     LOG(FATAL) << "not support edge data type";
     return nullptr;
+  }
+}
+
+static void parse_endpoint_column(const IndexerType& indexer,
+                                  const std::shared_ptr<arrow::Array>& array,
+                                  std::vector<vid_t>& lids) {
+  if (array->type()->Equals(arrow::utf8())) {
+    auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto str = casted->GetView(i);
+      std::string_view sv(str.data(), str.size());
+      auto vid = indexer.get_index(Property::From(sv));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::large_utf8())) {
+    auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto str = casted->GetView(i);
+      std::string_view sv(str.data(), str.size());
+      auto vid = indexer.get_index(Property::From(sv));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::int64())) {
+    auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::uint64())) {
+    auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::int32())) {
+    auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else if (array->type()->Equals(arrow::uint32())) {
+    auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
+    for (int64_t i = 0; i < casted->length(); ++i) {
+      auto vid = indexer.get_index(Property::From(casted->Value(i)));
+      lids.push_back(vid);
+    }
+  } else {
+    LOG(FATAL) << "not support type " << array->type()->ToString();
+  }
+}
+
+void insert_edges_empty_impl(TypedCsrBase<grape::EmptyType>* out_csr,
+                             TypedCsrBase<grape::EmptyType>* in_csr,
+                             const std::vector<vid_t>& src_lid,
+                             const std::vector<vid_t>& dst_lid) {
+  std::vector<grape::EmptyType> empty_data(src_lid.size());
+  out_csr->batch_put_edges(src_lid, dst_lid, empty_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
+}
+
+template <typename EDATA_T>
+void insert_edges_bundled_typed_impl(
+    TypedCsrBase<EDATA_T>* out_csr, TypedCsrBase<EDATA_T>* in_csr,
+    const std::vector<vid_t>& src_lid, const std::vector<vid_t>& dst_lid,
+    const std::vector<Property>& property_vec) {
+  std::vector<EDATA_T> edge_data;
+  edge_data.reserve(edge_data.size());
+  for (const auto& prop : property_vec) {
+    edge_data.push_back(PropUtils<EDATA_T>::to_typed(prop));
+  }
+  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
+}
+
+void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
+                                 TypedCsrBase<uint64_t>* in_csr,
+                                 const std::vector<vid_t>& src_lid,
+                                 const std::vector<vid_t>& dst_lid,
+                                 size_t offset) {
+  std::vector<uint64_t> edge_data(src_lid.size());
+  for (size_t i = 0; i < src_lid.size(); ++i) {
+    edge_data[i] = offset + i;
+  }
+  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
+  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
+}
+
+static std::vector<Property> get_row_from_recordbatch(
+    const std::vector<PropertyType>& prop_types,
+    const std::vector<std::shared_ptr<arrow::DataType>>& expected_types,
+    const std::shared_ptr<arrow::RecordBatch>& rb, int64_t row_idx) {
+  std::vector<Property> row;
+  if ((int32_t) expected_types.size() != rb->num_columns()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "property types size not match recordbatch column size");
+  }
+  for (int i = 0; i < rb->num_columns(); ++i) {
+    auto array = rb->column(i);
+    if (!array->type()->Equals(expected_types[i])) {
+      // Except for large string and string
+      if ((expected_types[i]->Equals(arrow::utf8()) &&
+           array->type()->Equals(arrow::large_utf8())) ||
+          (expected_types[i]->Equals(arrow::large_utf8()) &&
+           array->type()->Equals(arrow::utf8()))) {
+        // pass
+      } else {
+        THROW_INVALID_ARGUMENT_EXCEPTION(
+            std::string("property type not match recordbatch column type: ") +
+            prop_types[i].ToString() + "(" + expected_types[i]->ToString() +
+            ") vs " + array->type()->ToString());
+      }
+    }
+    if (array->IsNull(row_idx)) {
+      row.push_back(Property());
+      continue;
+    } else if (prop_types[i] == PropertyType::kInt32) {
+      auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
+      row.push_back(Property::from_int32(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropertyType::kInt64) {
+      auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
+      row.push_back(Property::from_int64(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropertyType::kUInt32) {
+      auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
+      row.push_back(Property::from_uint32(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropertyType::kUInt64) {
+      auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
+      row.push_back(Property::from_uint64(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropertyType::kFloat) {
+      auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
+      row.push_back(Property::from_float(casted->Value(row_idx)));
+    } else if (prop_types[i] == PropertyType::kDouble) {
+      auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
+      row.push_back(Property::from_double(casted->Value(row_idx)));
+    } else if (prop_types[i].type_enum == impl::PropertyTypeImpl::kStringView) {
+      if (array->type()->Equals(arrow::utf8())) {
+        auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+        auto str = casted->GetView(row_idx);
+        row.push_back(
+            Property::from_string(std::string(str.data(), str.size())));
+      } else if (array->type()->Equals(arrow::large_utf8())) {
+        auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+        auto str = casted->GetView(row_idx);
+        row.push_back(
+            Property::from_string(std::string(str.data(), str.size())));
+      } else {
+        LOG(FATAL) << "not support type " << array->type()->ToString();
+      }
+    } else if (prop_types[i] == PropertyType::kDate) {
+      auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
+      Date d;
+      d.from_num_days(casted->Value(row_idx));
+      row.push_back(Property::from_date(d));
+    } else if (prop_types[i] == PropertyType::kTimestamp) {
+      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
+      row.push_back(
+          Property::from_timestamp(TimeStamp(casted->Value(row_idx))));
+    } else if (prop_types[i] == PropertyType::kDateTime) {
+      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
+      row.push_back(Property::from_date_time(DateTime(casted->Value(row_idx))));
+    } else if (prop_types[i] == PropertyType::kInterval) {
+      auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+      row.push_back(
+          Property::from_interval(Interval(casted->GetView(row_idx))));
+    } else {
+      LOG(FATAL) << "not support type " << array->type()->ToString();
+    }
+  }
+  return row;
+}
+
+void batch_add_unbundled_edges_impl(
+    const std::vector<vid_t>& src_lid_list,
+    const std::vector<vid_t>& dst_lid_list, TypedCsrBase<uint64_t>* out_csr,
+    TypedCsrBase<uint64_t>* in_csr, Table* table_,
+    std::atomic<uint64_t>& table_idx_,
+    const std::vector<PropertyType>& prop_types,
+    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
+    const std::vector<bool>& valid_flags) {
+  size_t offset = table_idx_.fetch_add(src_lid_list.size());
+  insert_edges_separated_impl(out_csr, in_csr, src_lid_list, dst_lid_list,
+                              offset);
+  table_->resize(table_idx_.load());
+  std::vector<std::shared_ptr<arrow::DataType>> expected_types;
+  for (auto pt : prop_types) {
+    expected_types.emplace_back(PropertyTypeToArrowType(pt));
+  }
+  // assert the totoal number of rows in data_batches equals to
+  // src_lid.size()
+  assert([&]() {
+    int64_t total = 0;
+    for (auto rb : data_batches) {
+      total += rb->num_rows();
+    }
+    return total == static_cast<int64_t>(valid_flags.size());
+  }());
+  size_t cur_index = 0;
+  for (auto rb : data_batches) {
+    for (int64_t i = 0; i < rb->num_rows(); ++i) {
+      assert(cur_index < valid_flags.size());
+      if (valid_flags[cur_index++]) {
+        auto row = get_row_from_recordbatch(prop_types, expected_types, rb, i);
+        table_->insert(offset++, row);
+      }
+    }
+  }
+}
+
+void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
+                                  const std::vector<PropertyType>& prop_types,
+                                  const std::vector<vid_t>& src_lid_list,
+                                  const std::vector<vid_t>& dst_lid_list,
+                                  const std::vector<Property>& edge_data) {
+  if (prop_types.empty() || prop_types[0] == PropertyType::kEmpty) {
+    insert_edges_empty_impl(
+        dynamic_cast<TypedCsrBase<grape::EmptyType>*>(out_csr),
+        dynamic_cast<TypedCsrBase<grape::EmptyType>*>(in_csr), src_lid_list,
+        dst_lid_list);
+  } else if (prop_types[0] == PropertyType::kInt32) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<int32_t>*>(out_csr),
+        dynamic_cast<TypedCsrBase<int32_t>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kUInt32) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<uint32_t>*>(out_csr),
+        dynamic_cast<TypedCsrBase<uint32_t>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kInt64) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<int64_t>*>(out_csr),
+        dynamic_cast<TypedCsrBase<int64_t>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kUInt64) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr),
+        dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kTimestamp) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<TimeStamp>*>(out_csr),
+        dynamic_cast<TypedCsrBase<TimeStamp>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kDouble) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<double>*>(out_csr),
+        dynamic_cast<TypedCsrBase<double>*>(in_csr), src_lid_list, dst_lid_list,
+        edge_data);
+  } else if (prop_types[0] == PropertyType::kFloat) {
+    insert_edges_bundled_typed_impl(dynamic_cast<TypedCsrBase<float>*>(out_csr),
+                                    dynamic_cast<TypedCsrBase<float>*>(in_csr),
+                                    src_lid_list, dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kDate) {
+    insert_edges_bundled_typed_impl(dynamic_cast<TypedCsrBase<Date>*>(out_csr),
+                                    dynamic_cast<TypedCsrBase<Date>*>(in_csr),
+                                    src_lid_list, dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kDateTime) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<DateTime>*>(out_csr),
+        dynamic_cast<TypedCsrBase<DateTime>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else if (prop_types[0] == PropertyType::kInterval) {
+    insert_edges_bundled_typed_impl(
+        dynamic_cast<TypedCsrBase<Interval>*>(out_csr),
+        dynamic_cast<TypedCsrBase<Interval>*>(in_csr), src_lid_list,
+        dst_lid_list, edge_data);
+  } else {
+    LOG(FATAL) << "not support edge data type: " << prop_types[0].ToString();
   }
 }
 
@@ -330,6 +668,11 @@ void EdgeTable::BatchDeleteEdges(const std::vector<vid_t>& src_list,
   in_csr_->batch_delete_edges(dst_list, src_list);
 }
 
+void EdgeTable::RemoveEdge(vid_t src_lid, vid_t dst_lid, timestamp_t ts) {
+  out_csr_->delete_edge(src_lid, dst_lid, ts);
+  in_csr_->delete_edge(dst_lid, src_lid, ts);
+}
+
 void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
   out_csr_->resize(src_vertex_num);
   in_csr_->resize(dst_vertex_num);
@@ -414,193 +757,28 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
   }
 }
 
-static void parse_endpoint_column(const IndexerType& indexer,
-                                  const std::shared_ptr<arrow::Array>& array,
-                                  std::vector<vid_t>& lids) {
-  if (array->type()->Equals(arrow::utf8())) {
-    auto casted = std::static_pointer_cast<arrow::StringArray>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto str = casted->GetView(i);
-      std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Property::From(sv));
-      lids.push_back(vid);
-    }
-  } else if (array->type()->Equals(arrow::large_utf8())) {
-    auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto str = casted->GetView(i);
-      std::string_view sv(str.data(), str.size());
-      auto vid = indexer.get_index(Property::From(sv));
-      lids.push_back(vid);
-    }
-  } else if (array->type()->Equals(arrow::int64())) {
-    auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
-      lids.push_back(vid);
-    }
-  } else if (array->type()->Equals(arrow::uint64())) {
-    auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
-      lids.push_back(vid);
-    }
-  } else if (array->type()->Equals(arrow::int32())) {
-    auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
-      lids.push_back(vid);
-    }
-  } else if (array->type()->Equals(arrow::uint32())) {
-    auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      auto vid = indexer.get_index(Property::From(casted->Value(i)));
-      lids.push_back(vid);
-    }
+void EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
+                        const std::vector<Property>& edge_data, timestamp_t ts,
+                        Allocator& alloc) {
+  if (meta_->is_bundled()) {
+    assert(edge_data.size() == 1 ||
+           (edge_data.size() == 0 &&
+            (meta_->properties.empty() ||
+             meta_->properties[0] == PropertyType::kEmpty)));
+    in_csr_->put_generic_edge(dst_lid, src_lid, edge_data[0], ts, alloc);
+    out_csr_->put_generic_edge(src_lid, dst_lid, edge_data[0], ts, alloc);
   } else {
-    LOG(FATAL) << "not support type " << array->type()->ToString();
-  }
-}
-
-void insert_edges_empty_impl(TypedCsrBase<grape::EmptyType>* out_csr,
-                             TypedCsrBase<grape::EmptyType>* in_csr,
-                             const std::vector<vid_t>& src_lid,
-                             const std::vector<vid_t>& dst_lid) {
-  std::vector<grape::EmptyType> empty_data(src_lid.size());
-  out_csr->batch_put_edges(src_lid, dst_lid, empty_data);
-  in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
-}
-
-template <typename EDATA_T, typename ARROW_COL_T>
-std::vector<EDATA_T> extract_edge_data(
-    const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
-    const std::vector<bool>& valid_flags) {
-  std::vector<EDATA_T> edge_data;
-  assert([&]() {
-    int64_t total = 0;
-    for (auto rb : data_batches) {
-      total += rb->num_rows();
+    if (meta_->properties.size() != edge_data.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "edge data size not match edge table property size");
     }
-    return total == static_cast<int64_t>(valid_flags.size());
-  }());
-  edge_data.reserve(std::count(valid_flags.begin(), valid_flags.end(), true));
-  size_t cur_index = 0;
-  for (auto rb : data_batches) {
-    auto array = rb->column(0);
-    auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
-    for (int64_t i = 0; i < casted->length(); ++i) {
-      if (valid_flags[cur_index++]) {
-        edge_data.emplace_back(casted->GetView(i));
-      }
-    }
+    size_t row_id = table_idx_.fetch_add(1);
+    Property prop;
+    prop.set_uint64(row_id);
+    in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
+    out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    table_->insert(row_id, edge_data);
   }
-  return edge_data;
-}
-
-template <typename EDATA_T>
-void insert_edges_bundled_typed_impl(TypedCsrBase<EDATA_T>* out_csr,
-                                     TypedCsrBase<EDATA_T>* in_csr,
-                                     const std::vector<vid_t>& src_lid,
-                                     const std::vector<vid_t>& dst_lid,
-                                     const std::vector<EDATA_T>& edge_data) {
-  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
-  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
-}
-
-void insert_edges_separated_impl(TypedCsrBase<uint64_t>* out_csr,
-                                 TypedCsrBase<uint64_t>* in_csr,
-                                 const std::vector<vid_t>& src_lid,
-                                 const std::vector<vid_t>& dst_lid,
-                                 size_t offset) {
-  std::vector<uint64_t> edge_data(src_lid.size());
-  for (size_t i = 0; i < src_lid.size(); ++i) {
-    edge_data[i] = offset + i;
-  }
-  out_csr->batch_put_edges(src_lid, dst_lid, edge_data);
-  in_csr->batch_put_edges(dst_lid, src_lid, edge_data);
-}
-
-static std::vector<Property> get_row_from_recordbatch(
-    const std::vector<PropertyType>& prop_types,
-    const std::vector<std::shared_ptr<arrow::DataType>>& expected_types,
-    const std::shared_ptr<arrow::RecordBatch>& rb, int64_t row_idx) {
-  std::vector<Property> row;
-  if ((int32_t) expected_types.size() != rb->num_columns()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "property types size not match recordbatch column size");
-  }
-  for (int i = 0; i < rb->num_columns(); ++i) {
-    auto array = rb->column(i);
-    if (!array->type()->Equals(expected_types[i])) {
-      // Except for large string and string
-      if ((expected_types[i]->Equals(arrow::utf8()) &&
-           array->type()->Equals(arrow::large_utf8())) ||
-          (expected_types[i]->Equals(arrow::large_utf8()) &&
-           array->type()->Equals(arrow::utf8()))) {
-        // pass
-      } else {
-        THROW_INVALID_ARGUMENT_EXCEPTION(
-            std::string("property type not match recordbatch column type: ") +
-            prop_types[i].ToString() + "(" + expected_types[i]->ToString() +
-            ") vs " + array->type()->ToString());
-      }
-    }
-    if (array->IsNull(row_idx)) {
-      row.push_back(Property());
-      continue;
-    } else if (prop_types[i] == PropertyType::kInt32) {
-      auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-      row.push_back(Property::from_int32(casted->Value(row_idx)));
-    } else if (prop_types[i] == PropertyType::kInt64) {
-      auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-      row.push_back(Property::from_int64(casted->Value(row_idx)));
-    } else if (prop_types[i] == PropertyType::kUInt32) {
-      auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-      row.push_back(Property::from_uint32(casted->Value(row_idx)));
-    } else if (prop_types[i] == PropertyType::kUInt64) {
-      auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-      row.push_back(Property::from_uint64(casted->Value(row_idx)));
-    } else if (prop_types[i] == PropertyType::kFloat) {
-      auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-      row.push_back(Property::from_float(casted->Value(row_idx)));
-    } else if (prop_types[i] == PropertyType::kDouble) {
-      auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-      row.push_back(Property::from_double(casted->Value(row_idx)));
-    } else if (prop_types[i].type_enum == impl::PropertyTypeImpl::kStringView) {
-      if (array->type()->Equals(arrow::utf8())) {
-        auto casted = std::static_pointer_cast<arrow::StringArray>(array);
-        auto str = casted->GetView(row_idx);
-        row.push_back(
-            Property::from_string(std::string(str.data(), str.size())));
-      } else if (array->type()->Equals(arrow::large_utf8())) {
-        auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-        auto str = casted->GetView(row_idx);
-        row.push_back(
-            Property::from_string(std::string(str.data(), str.size())));
-      } else {
-        LOG(FATAL) << "not support type " << array->type()->ToString();
-      }
-    } else if (prop_types[i] == PropertyType::kDate) {
-      auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
-      Date d;
-      d.from_num_days(casted->Value(row_idx));
-      row.push_back(Property::from_date(d));
-    } else if (prop_types[i] == PropertyType::kTimestamp) {
-      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(
-          Property::from_timestamp(TimeStamp(casted->Value(row_idx))));
-    } else if (prop_types[i] == PropertyType::kDateTime) {
-      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(Property::from_date_time(DateTime(casted->Value(row_idx))));
-    } else if (prop_types[i] == PropertyType::kInterval) {
-      auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-      row.push_back(
-          Property::from_interval(Interval(casted->GetView(row_idx))));
-    } else {
-      LOG(FATAL) << "not support type " << array->type()->ToString();
-    }
-  }
-  return row;
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
@@ -627,118 +805,49 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   std::vector<bool> valid_flags;  // true for valid edges
   std::tie(src_lid, dst_lid, valid_flags) =
       filterInvalidEdges(src_lid, dst_lid);
-
   if (meta_->is_bundled()) {
-    if (meta_->properties.empty() ||
-        meta_->properties[0] == PropertyType::kEmpty) {
-      insert_edges_empty_impl(
-          dynamic_cast<TypedCsrBase<grape::EmptyType>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<grape::EmptyType>*>(in_csr_.get()), src_lid,
-          dst_lid);
-    } else if (meta_->properties[0] == PropertyType::kInt32) {
-      auto edge_data = extract_edge_data<int32_t, arrow::Int32Array>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<int32_t>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<int32_t>*>(in_csr_.get()), src_lid, dst_lid,
-          edge_data);
-    } else if (meta_->properties[0] == PropertyType::kUInt32) {
-      auto edge_data = extract_edge_data<uint32_t, arrow::UInt32Array>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<uint32_t>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<uint32_t>*>(in_csr_.get()), src_lid,
-          dst_lid, edge_data);
-    } else if (meta_->properties[0] == PropertyType::kInt64) {
-      auto edge_data = extract_edge_data<int64_t, arrow::Int64Array>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<int64_t>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<int64_t>*>(in_csr_.get()), src_lid, dst_lid,
-          edge_data);
-    } else if (meta_->properties[0] == PropertyType::kUInt64) {
-      auto edge_data = extract_edge_data<uint64_t, arrow::UInt64Array>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get()), src_lid,
-          dst_lid, edge_data);
-    } else if (meta_->properties[0] == PropertyType::kTimestamp) {
-      auto edge_data = extract_edge_data<TimeStamp, arrow::TimestampArray>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<TimeStamp>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<TimeStamp>*>(in_csr_.get()), src_lid,
-          dst_lid, edge_data);
-    } else if (meta_->properties[0] == PropertyType::kDouble) {
-      auto edge_data = extract_edge_data<double, arrow::DoubleArray>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<double>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<double>*>(in_csr_.get()), src_lid, dst_lid,
-          edge_data);
-    } else if (meta_->properties[0] == PropertyType::kFloat) {
-      auto edge_data = extract_edge_data<float, arrow::FloatArray>(data_batches,
-                                                                   valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<float>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<float>*>(in_csr_.get()), src_lid, dst_lid,
-          edge_data);
-    } else if (meta_->properties[0] == PropertyType::kDate) {
-      auto edge_data = extract_edge_data<Date, arrow::Date32Array>(data_batches,
-                                                                   valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<Date>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<Date>*>(in_csr_.get()), src_lid, dst_lid,
-          edge_data);
-    } else if (meta_->properties[0] == PropertyType::kDateTime) {
-      auto edge_data = extract_edge_data<DateTime, arrow::TimestampArray>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<DateTime>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<DateTime>*>(in_csr_.get()), src_lid,
-          dst_lid, edge_data);
-    } else if (meta_->properties[0] == PropertyType::kInterval) {
-      auto edge_data = extract_edge_data<Interval, arrow::LargeStringArray>(
-          data_batches, valid_flags);
-      insert_edges_bundled_typed_impl(
-          dynamic_cast<TypedCsrBase<Interval>*>(out_csr_.get()),
-          dynamic_cast<TypedCsrBase<Interval>*>(in_csr_.get()), src_lid,
-          dst_lid, edge_data);
-    } else {
-      LOG(FATAL) << "not support edge data type: "
-                 << meta_->properties[0].ToString();
-    }
+    auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
+                                                        valid_flags);
+    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
+                                 meta_->properties, src_lid, dst_lid, edges);
   } else {
-    size_t offset = table_idx_.fetch_add(src_lid.size());
-    insert_edges_separated_impl(
-        dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get()),
-        dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get()), src_lid, dst_lid,
-        offset);
-    table_->resize(table_idx_.load());
-    std::vector<std::shared_ptr<arrow::DataType>> expected_types;
-    for (auto pt : meta_->properties) {
-      expected_types.emplace_back(PropertyTypeToArrowType(pt));
+    auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
+    auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
+    assert(oe_csr != nullptr && ie_csr != nullptr);
+    batch_add_unbundled_edges_impl(src_lid, dst_lid, oe_csr, ie_csr,
+                                   table_.get(), table_idx_, meta_->properties,
+                                   data_batches, valid_flags);
+  }
+}
+
+void EdgeTable::BatchAddEdges(
+    const std::vector<vid_t>& src_lid_list,
+    const std::vector<vid_t>& dst_lid_list,
+    const std::vector<std::vector<Property>>& edge_data_list) {
+  if (meta_->is_bundled()) {
+    std::vector<Property> flat_edge_data;
+    assert(meta_->properties.size() == 1);
+    if (meta_->properties[0] == PropertyType::kEmpty) {
+    } else {
+      flat_edge_data.reserve(edge_data_list.size());
+      for (const auto& edata : edge_data_list) {
+        assert(edata.size() == 1);
+        flat_edge_data.push_back(edata[0]);
+      }
     }
-    // assert the totoal number of rows in data_batches equals to
-    // src_lid.size()
-    assert([&]() {
-      int64_t total = 0;
-      for (auto rb : data_batches) {
-        total += rb->num_rows();
-      }
-      return total == static_cast<int64_t>(valid_flags.size());
-    }());
-    size_t cur_index = 0;
-    for (auto rb : data_batches) {
-      for (int64_t i = 0; i < rb->num_rows(); ++i) {
-        assert(cur_index < valid_flags.size());
-        if (valid_flags[cur_index++]) {
-          auto row = get_row_from_recordbatch(meta_->properties, expected_types,
-                                              rb, i);
-          table_->insert(offset++, row);
-        }
-      }
+    batch_add_bundled_edges_impl(out_csr_.get(), in_csr_.get(),
+                                 meta_->properties, src_lid_list, dst_lid_list,
+                                 flat_edge_data);
+  } else {
+    auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
+    auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
+    assert(oe_csr != nullptr && ie_csr != nullptr);
+    size_t offset = table_idx_.fetch_add(src_lid_list.size());
+    insert_edges_separated_impl(oe_csr, ie_csr, src_lid_list, dst_lid_list,
+                                offset);
+    table_->resize(offset + src_lid_list.size());
+    for (size_t i = 0; i < edge_data_list.size(); ++i) {
+      table_->insert(offset + i, edge_data_list[i]);
     }
   }
 }

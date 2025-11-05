@@ -89,6 +89,8 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   void batch_delete_edges(const std::vector<vid_t>& src_list,
                           const std::vector<vid_t>& dst_list) override;
 
+  void delete_edge(vid_t src, vid_t dst, timestamp_t ts) override;
+
   void batch_put_edges(const std::vector<vid_t>& src_list,
                        const std::vector<vid_t>& dst_list,
                        const std::vector<EDATA_T>& data_list,
@@ -173,6 +175,8 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void batch_delete_edges(const std::vector<vid_t>& src_list,
                           const std::vector<vid_t>& dst_list) override;
+
+  void delete_edge(vid_t src, vid_t dst, timestamp_t ts) override;
 
   void batch_put_edges(const std::vector<vid_t>& src_list,
                        const std::vector<vid_t>& dst_list,

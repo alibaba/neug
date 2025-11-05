@@ -437,6 +437,32 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
 }
 
 template <typename EDATA_T>
+void MutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst, timestamp_t ts) {
+  if (src >= adj_list_size_.size()) {
+    return;
+  }
+  const nbr_t* read_ptr = adj_list_buffer_[src];
+  const nbr_t* read_end = read_ptr + adj_list_size_[src].load();
+  nbr_t* write_ptr = adj_list_buffer_[src];
+  int removed = 0;
+  while (read_ptr != read_end) {
+    vid_t nbr = read_ptr->neighbor;
+    if (nbr != dst) {
+      if (removed) {
+        *write_ptr = *read_ptr;
+      }
+      ++write_ptr;
+    } else {
+      if (read_ptr->timestamp.load() <= ts) {
+        ++removed;
+      }
+    }
+    ++read_ptr;
+  }
+  adj_list_size_[src] -= removed;
+}
+
+template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
                                           const std::vector<vid_t>& dst_list,
                                           const std::vector<EDATA_T>& data_list,
@@ -652,6 +678,21 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     }
     auto& nbr = nbr_list_[src];
     if (nbr.neighbor == dst) {
+      nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
+    }
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst,
+                                            timestamp_t ts) {
+  vid_t vnum = nbr_list_.size();
+  if (src >= vnum) {
+    return;
+  }
+  auto& nbr = nbr_list_[src];
+  if (nbr.neighbor == dst) {
+    if (nbr.timestamp.load() <= ts) {
       nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     }
   }

@@ -85,6 +85,17 @@ class EdgeTable {
                      const IndexerType& dst_indexer,
                      std::shared_ptr<IRecordBatchSupplier> supplier);
 
+  // Add edges in batch to the edge table.
+  void BatchAddEdges(const std::vector<vid_t>& src_lid_list,
+                     const std::vector<vid_t>& dst_lid_list,
+                     const std::vector<std::vector<Property>>& edge_data_list);
+
+  // Add a single edge to the edge table. Note this method requires an Allocator
+  // to allocate memory for the edge data. Should be called in tp mode.
+  void AddEdge(vid_t src_lid, vid_t dst_lid,
+               const std::vector<Property>& properties, timestamp_t ts,
+               Allocator& alloc);
+
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
@@ -92,6 +103,8 @@ class EdgeTable {
                      const std::vector<PropertyType>&);
 
   void DeleteProperties(const std::vector<std::string>& col_names);
+
+  void RemoveEdge(vid_t src_lid, vid_t dst_lid, timestamp_t ts);
 
   inline Table& get_properties_table() { return *table_; }
   inline const Table& get_properties_table() const { return *table_; }

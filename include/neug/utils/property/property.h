@@ -593,6 +593,9 @@ struct PropUtils<TimeStamp> {
   static Property to_prop(const TimeStamp& v) {
     return Property::from_timestamp(v);
   }
+  static Property to_prop(int64_t mill_seconds) {
+    return Property::from_timestamp(TimeStamp(mill_seconds));
+  }
 };
 
 template <>
@@ -600,6 +603,9 @@ struct PropUtils<Date> {
   static PropertyType prop_type() { return PropertyType::kDate; }
   static Date to_typed(const Property& prop) { return prop.as_date(); }
   static Property to_prop(const Date& v) { return Property::from_date(v); }
+  static Property to_prop(int32_t num_days) {
+    return Property::from_date(Date(num_days));
+  }
 };
 
 template <>
@@ -608,6 +614,9 @@ struct PropUtils<DateTime> {
   static DateTime to_typed(const Property& prop) { return prop.as_date_time(); }
   static Property to_prop(const DateTime& v) {
     return Property::from_date_time(v);
+  }
+  static Property to_prop(int64_t mill_seconds) {
+    return Property::from_date_time(DateTime(mill_seconds));
   }
 };
 
@@ -628,6 +637,9 @@ struct PropUtils<Interval> {
   static Interval to_typed(const Property& prop) { return prop.as_interval(); }
   static Property to_prop(const Interval& v) {
     return Property::from_interval(v);
+  }
+  static Property to_prop(const std::string_view& str) {
+    return Property::from_interval(Interval(str));
   }
 };
 

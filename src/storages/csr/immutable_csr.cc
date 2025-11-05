@@ -255,6 +255,37 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
 }
 
 template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst, timestamp_t ts) {
+  if (src >= adj_lists_.size()) {
+    return;
+  }
+  const nbr_t* read_ptr = adj_lists_[src];
+  const nbr_t* read_end = read_ptr + degree_list_[src];
+  nbr_t* write_ptr = adj_lists_[src];
+  int removed = 0;
+  while (read_ptr != read_end) {
+    vid_t nbr = read_ptr->neighbor;
+    if (nbr != dst) {
+      if (removed) {
+        *write_ptr = *read_ptr;
+      }
+      ++write_ptr;
+    } else {
+      ++removed;
+    }
+    ++read_ptr;
+  }
+  degree_list_[src] -= removed;
+  nbr_list_.resize(nbr_list_.size() - removed);
+  vid_t vnum = adj_lists_.size();
+  nbr_t* ptr = nbr_list_.data();
+  for (vid_t i = 0; i < vnum; ++i) {
+    adj_lists_[i] = ptr;
+    ptr += degree_list_[i];
+  }
+}
+
+template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_put_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list,
     const std::vector<EDATA_T>& data_list, timestamp_t ts) {
@@ -447,6 +478,18 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     if (nbr_list_[src].neighbor == dst) {
       nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
     }
+  }
+}
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst,
+                                              timestamp_t ts) {
+  vid_t vnum = nbr_list_.size();
+  if (src >= vnum) {
+    return;
+  }
+  if (nbr_list_[src].neighbor == dst) {
+    nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
   }
 }
 

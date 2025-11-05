@@ -80,6 +80,8 @@ class CsrBase {
   virtual void batch_delete_edges(const std::vector<vid_t>& src_list,
                                   const std::vector<vid_t>& dst_list) = 0;
 
+  virtual void delete_edge(vid_t src, vid_t dst, timestamp_t ts) = 0;
+
   virtual void put_generic_edge(vid_t src, vid_t dst, const Property& data,
                                 timestamp_t ts, Allocator& alloc) = 0;
 

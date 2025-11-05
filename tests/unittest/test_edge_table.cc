@@ -18,6 +18,7 @@
 
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/utils/allocators.h"
 #include "utils.h"
 
 class GeneratedRecordBatchSupplier : public gs::IRecordBatchSupplier {
@@ -49,6 +50,9 @@ class EdgeTableTest : public ::testing::Test {
         ("edge_table_" + std::to_string(::getpid()) + "_" + GetTestName());
     if (std::filesystem::exists(temp_dir_)) {
       std::filesystem::remove_all(temp_dir_);
+    }
+    if (std::filesystem::exists(allocator_dir_)) {
+      std::filesystem::remove_all(allocator_dir_);
     }
     std::filesystem::create_directories(temp_dir_);
     std::filesystem::create_directories(SnapshotDirectory());
@@ -85,10 +89,15 @@ class EdgeTableTest : public ::testing::Test {
     edge_label_int_ = schema_.get_edge_label_id("create1");
     edge_label_str_ = schema_.get_edge_label_id("create2");
     edge_label_str_int_ = schema_.get_edge_label_id("create3");
+    allocator_dir_ =
+        "/tmp/edge_table_test_allocator_" + std::to_string(::getpid()) + "_";
   }
   void TearDown() override {
     if (std::filesystem::exists(temp_dir_)) {
       std::filesystem::remove_all(temp_dir_);
+    }
+    if (std::filesystem::exists(allocator_dir_)) {
+      std::filesystem::remove_all(allocator_dir_);
     }
   }
 
@@ -192,12 +201,29 @@ class EdgeTableTest : public ::testing::Test {
     }
   }
 
+  gs::vid_t GetSrcLid(const gs::Property& src_oid) {
+    gs::vid_t src_lid;
+    if (!src_indexer.get_index(src_oid, src_lid)) {
+      LOG(FATAL) << "Cannot find src oid " << src_oid.to_string();
+    }
+    return src_lid;
+  }
+
+  gs::vid_t GetDstLid(const gs::Property& dst_oid) {
+    gs::vid_t dst_lid;
+    if (!dst_indexer.get_index(dst_oid, dst_lid)) {
+      LOG(FATAL) << "Cannot find dst oid " << dst_oid.to_string();
+    }
+    return dst_lid;
+  }
+
   std::unique_ptr<gs::EdgeTable> edge_table = nullptr;
   gs::LFIndexer<gs::vid_t> src_indexer;
   gs::LFIndexer<gs::vid_t> dst_indexer;
   gs::Schema schema_;
   gs::label_t src_label_, dst_label_, edge_label_int_, edge_label_str_,
       edge_label_str_int_;
+  std::string allocator_dir_;
 
  private:
   std::filesystem::path temp_dir_;
@@ -507,4 +533,185 @@ TEST_F(EdgeTableTest, TestCountEdgeNum) {
   this->BatchInsert(std::move(batches));
 
   EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
+}
+
+TEST_F(EdgeTableTest, TestDeleteEdge) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+
+  int64_t src_num = 100;
+  int64_t dst_num = 100;
+  size_t edge_num = 1000;
+
+  // auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
+  // auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
+  std::vector<int64_t> src_list, dst_list;
+  for (size_t i = 0; i < edge_num; ++i) {
+    src_list.push_back(i % src_num);
+    dst_list.push_back((i + 1 + (i / dst_num)) % dst_num);
+  }
+
+  auto data_list = generate_random_data<int>(edge_num);
+
+  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
+  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
+  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+
+  auto batches = convert_to_record_batches({"src", "dst", "data"},
+                                           {src_arrs, dst_arrs, data_arrs});
+
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTable();
+  this->BatchInsert(std::move(batches));
+
+  size_t delete_count = 0;
+  for (size_t i = 0; i < edge_num; ++i) {
+    if (i % 10 == 0) {
+      gs::vid_t src_lid = GetSrcLid(gs::Property::from_int64(src_list[i]));
+      gs::vid_t dst_lid = GetDstLid(gs::Property::from_int64(dst_list[i]));
+      this->edge_table->RemoveEdge(src_lid, dst_lid, gs::MAX_TIMESTAMP);
+      delete_count++;
+    }
+  }
+
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num - delete_count);
+  ASSERT_EQ(dsts.size(), edge_num - delete_count);
+}
+
+TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 100;
+  int64_t dst_num = 100;
+  size_t edge_num = 1000;
+
+  auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
+  auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
+  auto data_list = generate_random_data<int>(edge_num);
+  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
+  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
+  auto data_arrs = convert_to_arrow_arrays(data_list, 10);
+  auto batches = convert_to_record_batches({"src", "dst", "data"},
+                                           {src_arrs, dst_arrs, data_arrs});
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  this->BatchInsert(std::move(batches));
+  EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
+
+  // Generate more edges
+  int64_t more_edge_num = 50;
+  auto more_src_list = generate_random_vertices<gs::vid_t>(
+      this->src_indexer.size(), more_edge_num);
+  auto more_dst_list = generate_random_vertices<gs::vid_t>(
+      this->dst_indexer.size(), more_edge_num);
+  auto more_data_list = generate_random_data<int>(more_edge_num);
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < more_edge_num; ++i) {
+    edge_data.push_back({gs::Property::from_int32(more_data_list[i])});
+  }
+
+  // Insert more edges
+
+  this->edge_table->BatchAddEdges(more_src_list, more_dst_list, edge_data);
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num + more_edge_num);
+  ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
+}
+
+TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 100;
+  int64_t dst_num = 100;
+  size_t edge_num = 1000;
+
+  auto src_list = generate_random_vertices<int64_t>(src_num, edge_num);
+  auto dst_list = generate_random_vertices<int64_t>(dst_num, edge_num);
+  auto data0_list = generate_random_data<std::string>(edge_num);
+  auto data1_list = generate_random_data<int>(edge_num);
+  auto src_arrs = convert_to_arrow_arrays(src_list, 10);
+  auto dst_arrs = convert_to_arrow_arrays(dst_list, 10);
+  auto data0_arrs = convert_to_arrow_arrays(data0_list, 10);
+  auto data1_arrs = convert_to_arrow_arrays(data1_list, 10);
+  auto batches =
+      convert_to_record_batches({"src", "dst", "data0", "data1"},
+                                {src_arrs, dst_arrs, data0_arrs, data1_arrs});
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  this->BatchInsert(std::move(batches));
+  EXPECT_EQ(this->edge_table->EdgeNum(), edge_num);
+
+  // Generate more edges
+  int64_t more_edge_num = 50;
+  auto more_src_list = generate_random_vertices<gs::vid_t>(
+      this->src_indexer.size(), more_edge_num);
+  auto more_dst_list = generate_random_vertices<gs::vid_t>(
+      this->dst_indexer.size(), more_edge_num);
+  auto more_data_list0 = generate_random_data<std::string>(more_edge_num);
+  auto more_data_list1 = generate_random_data<int>(more_edge_num);
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < more_edge_num; ++i) {
+    edge_data.push_back({gs::Property::from_string_view(more_data_list0[i]),
+                         gs::Property::from_int32(more_data_list1[i])});
+  }
+
+  // Insert more edges
+
+  this->edge_table->BatchAddEdges(more_src_list, more_dst_list, edge_data);
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num + more_edge_num);
+  ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
+}
+
+TEST_F(EdgeTableTest, TestAddEdge) {
+  // Test add with AddEdge()
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 10;
+  int64_t dst_num = 10;
+  int64_t edge_num = 100;
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<int64_t> src_oids =
+      generate_random_vertices<int64_t>(src_num, edge_num);
+  std::vector<int64_t> dst_oids =
+      generate_random_vertices<int64_t>(dst_num, edge_num);
+  for (auto src_oid : src_oids) {
+    gs::vid_t src_lid =
+        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    src_lids.push_back(src_lid);
+  }
+  for (auto dst_oid : dst_oids) {
+    gs::vid_t dst_lid =
+        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    dst_lids.push_back(dst_lid);
+  }
+  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    edge_data.push_back({gs::Property::from_int32(static_cast<int>(i))});
+  }
+
+  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+
+  size_t edge_count = 0;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i],
+                              gs::MAX_TIMESTAMP, allocator);
+    edge_count++;
+  }
+  EXPECT_EQ(edge_count, src_lids.size());
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num);
+  ASSERT_EQ(dsts.size(), edge_num);
 }
