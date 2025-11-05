@@ -911,13 +911,15 @@ class EndNodeExpr : public ExprBase {
 
 class ToFloatExpr : public ExprBase {
  public:
-  static double to_double(const RTAny& val) {
+  static float to_float(const RTAny& val) {
     if (val.type() == RTAnyType::kI64Value) {
-      return static_cast<double>(val.as_int64());
+      return static_cast<float>(val.as_int64());
     } else if (val.type() == RTAnyType::kI32Value) {
-      return static_cast<double>(val.as_int32());
+      return static_cast<float>(val.as_int32());
     } else if (val.type() == RTAnyType::kF64Value) {
       return val.as_double();
+    } else if (val.type() == RTAnyType::kF32Value) {
+      return static_cast<float>(val.as_float());
     } else {
       LOG(FATAL) << "invalid type";
       return 0.0;  // avoid compiler warning
@@ -931,7 +933,7 @@ class ToFloatExpr : public ExprBase {
     if (val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return RTAny::from_double(to_double(val));
+    return RTAny::from_float(to_float(val));
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
@@ -940,7 +942,7 @@ class ToFloatExpr : public ExprBase {
     if (val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return RTAny::from_double(to_double(val));
+    return RTAny::from_float(to_float(val));
   }
 
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -950,10 +952,10 @@ class ToFloatExpr : public ExprBase {
     if (val.is_null()) {
       return RTAny(RTAnyType::kNull);
     }
-    return RTAny::from_double(to_double(val));
+    return RTAny::from_float(to_float(val));
   }
 
-  RTAnyType type() const override { return RTAnyType::kF64Value; }
+  RTAnyType type() const override { return RTAnyType::kF32Value; }
   bool is_optional() const override { return args->is_optional(); }
 
  private:
