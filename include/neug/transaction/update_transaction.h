@@ -238,10 +238,10 @@ class UpdateTransaction {
                                   label_t neighbor_label, label_t edge_label,
                                   int prop_id);
 
-  Property GetVertexField(label_t label, vid_t lid, int col_id) const;
+  Property GetVertexProperty(label_t label, vid_t lid, int col_id) const;
 
-  bool SetVertexField(label_t label, vid_t lid, int col_id,
-                      const Property& value);
+  bool UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                            const Property& value);
 
   // set col_id = -1 to set the whole edge data
   void SetEdgeData(bool dir, label_t label, vid_t v, label_t neighbor_label,

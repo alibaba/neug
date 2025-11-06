@@ -375,12 +375,12 @@ Property UpdateTransaction::vertex_iterator::GetId() const {
 vid_t UpdateTransaction::vertex_iterator::GetIndex() const { return cur_; }
 
 Property UpdateTransaction::vertex_iterator::GetField(int col_id) const {
-  return txn_->GetVertexField(label_, cur_, col_id);
+  return txn_->GetVertexProperty(label_, cur_, col_id);
 }
 
 bool UpdateTransaction::vertex_iterator::SetField(int col_id,
                                                   const Property& value) {
-  return txn_->SetVertexField(label_, cur_, col_id, value);
+  return txn_->UpdateVertexProperty(label_, cur_, col_id, value);
 }
 
 UpdateTransaction::edge_iterator::edge_iterator(
@@ -533,8 +533,8 @@ UpdateTransaction::edge_iterator UpdateTransaction::GetInEdgeIterator(
           ed_accessor, prop_id, this};
 }
 
-Property UpdateTransaction::GetVertexField(label_t label, vid_t lid,
-                                           int col_id) const {
+Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
+                                              int col_id) const {
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   if (iter == vertex_offset.end()) {
@@ -557,8 +557,9 @@ bool UpdateTransaction::GetVertexIndex(label_t label, const Property& id,
   return oid_to_lid(label, id, index);
 }
 
-bool UpdateTransaction::SetVertexField(label_t label, vid_t lid, int col_id,
-                                       const Property& value) {
+bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
+                                             int col_id,
+                                             const Property& value) {
   auto& vertex_offset = vertex_offsets_[label];
   auto iter = vertex_offset.find(lid);
   auto& extra_table = extra_vertex_properties_[label];

@@ -131,7 +131,7 @@ CypherUpdateApp::execute_rename_vertex_property(
     const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
   auto& graph_ = graph.graph();
   auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
-  std::vector<std::tuple<std::string, std::string>> rename_pairs;
+  std::vector<std::pair<std::string, std::string>> rename_pairs;
   for (const auto& rename : rename_vertex_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
@@ -168,7 +168,7 @@ CypherUpdateApp::execute_rename_edge_property(
       rename_edge_property_schema.edge_type().src_type_name().name();
   auto dst_type_name =
       rename_edge_property_schema.edge_type().dst_type_name().name();
-  std::vector<std::tuple<std::string, std::string>> rename_pairs;
+  std::vector<std::pair<std::string, std::string>> rename_pairs;
   for (const auto& rename : rename_edge_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }

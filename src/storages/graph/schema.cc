@@ -82,6 +82,7 @@ void VertexSchema::set_properties(
 
 void VertexSchema::rename_properties(const std::vector<std::string>& names,
                                      const std::vector<std::string>& renames) {
+  assert(names.size() == renames.size());
   for (size_t i = 0; i < names.size(); i++) {
     for (size_t j = 0; j < property_names.size(); j++) {
       if (vprop_logical_deleted[j]) {

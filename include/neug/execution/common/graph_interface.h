@@ -101,7 +101,7 @@ class VertexColumn {
       return PROP_T();
     } else {
       return PropUtils<PROP_T>::to_typed(
-          txn_->GetVertexField(label_, v, col_id));
+          txn_->GetVertexProperty(label_, v, col_id));
     }
   }
 
@@ -246,9 +246,9 @@ class GraphUpdateInterface {
   explicit GraphUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
   ~GraphUpdateInterface() {}
 
-  inline void SetVertexField(label_t label, vid_t lid, int col_id,
-                             const Property& value) {
-    txn_.SetVertexField(label, lid, col_id, value);
+  inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
+                                   const Property& value) {
+    txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
   inline Property GetVertexProperty(label_t label, vid_t index,

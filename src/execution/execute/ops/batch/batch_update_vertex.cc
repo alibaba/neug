@@ -109,7 +109,7 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
                             ": expected " + property_types[col_id].ToString() +
                             ", got " + value.type().ToString());
       }
-      graph.SetVertexField(vr.label(), vr.vid(), col_id, value);
+      graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }
   }
   return gs::result<Context>(std::move(ctx));

@@ -399,7 +399,7 @@ Status PropertyGraph::AddEdgeProperties(
 
 Status PropertyGraph::RenameVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<std::string, std::string>>& update_properties,
+    const std::vector<std::pair<std::string, std::string>>& update_properties,
     bool error_on_conflict) {
   RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
                             error_on_conflict);
@@ -432,7 +432,7 @@ Status PropertyGraph::RenameVertexProperties(
 Status PropertyGraph::RenameEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
-    const std::vector<std::tuple<std::string, std::string>>& update_properties,
+    const std::vector<std::pair<std::string, std::string>>& update_properties,
     bool error_on_conflict) {
   RETURN_IF_NOT_OK_CONFLICT(
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name),

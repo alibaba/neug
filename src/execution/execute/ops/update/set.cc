@@ -73,13 +73,13 @@ class SetOpr : public IUpdateOperator {
       return false;
     }
     if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-      graph.SetVertexField(label, vid, prop_id, Property(value));
+      graph.UpdateVertexProperty(label, vid, prop_id, Property(value));
     } else if (type == PropertyType::kInt32) {
-      graph.SetVertexField(label, vid, prop_id,
-                           PropUtils<int>::to_prop(std::stoi(value)));
+      graph.UpdateVertexProperty(label, vid, prop_id,
+                                 PropUtils<int>::to_prop(std::stoi(value)));
     } else if (type == PropertyType::kInt64) {
-      graph.SetVertexField(label, vid, prop_id,
-                           PropUtils<int64_t>::to_prop(std::stoll(value)));
+      graph.UpdateVertexProperty(
+          label, vid, prop_id, PropUtils<int64_t>::to_prop(std::stoll(value)));
     } else {
       LOG(ERROR) << "Property " << key << " type not supported in vertex label "
                  << label;
@@ -103,7 +103,7 @@ class SetOpr : public IUpdateOperator {
                  << label;
       return false;
     }
-    graph.SetVertexField(label, vid, prop_id, value.to_any());
+    graph.UpdateVertexProperty(label, vid, prop_id, value.to_any());
     return true;
   }
 

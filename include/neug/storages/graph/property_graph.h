@@ -237,15 +237,13 @@ class PropertyGraph {
 
   Status RenameVertexProperties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<std::string, std::string>>&
-          rename_properties,
+      const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict = true);
 
   Status RenameEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<std::string, std::string>>&
-          rename_properties,
+      const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict = true);
 
   Status DeleteVertexProperties(
