@@ -25,6 +25,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/runtime/rt_any.h"
+#include "parallel_hashmap/phmap.h"
 
 namespace gs {
 
@@ -60,7 +61,7 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
     delete sig0;
     delete sig1;
   } else if (cols.size() == 3) {
-    std::set<std::tuple<size_t, size_t, size_t>> sigset;
+    phmap::flat_hash_set<std::tuple<size_t, size_t, size_t>> sigset;
     ISigColumn* sig0 = ctx.get(cols[0])->generate_signature();
     ISigColumn* sig1 = ctx.get(cols[1])->generate_signature();
     ISigColumn* sig2 = ctx.get(cols[2])->generate_signature();
@@ -76,7 +77,7 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
     delete sig1;
     delete sig2;
   } else {
-    std::set<std::string> set;
+    phmap::flat_hash_set<std::string> set;
     for (size_t r_i = 0; r_i < row_num; ++r_i) {
       std::vector<char> bytes;
       Encoder encoder(bytes);
