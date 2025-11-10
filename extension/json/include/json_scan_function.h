@@ -15,15 +15,20 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/function/neug_call_function.h"
-#include "neug/compiler/function/scalar_function.h"
 #include "neug/execution/common/context.h"
 #include "neug/utils/property/types.h"
+#include "json_vfs_reader.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
 #include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 namespace extension {
@@ -31,10 +36,12 @@ namespace extension {
 struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
   std::string filePath;
   std::vector<PropertyType> columnTypes;
+  JsonFormat format;
 
   JsonScanFuncInput(const std::string& path,
-                    const std::vector<PropertyType>& types)
-      : filePath(path), columnTypes(types) {}
+                    const std::vector<PropertyType>& types,
+                    JsonFormat fmt)
+      : filePath(std::move(path)), columnTypes(std::move(types)), format(fmt) {}
 };
 
 struct JsonScanFunction {
@@ -70,13 +77,32 @@ struct JsonScanFunction {
   static gs::runtime::Context execFunc(const JsonScanFuncInput& input);
 
  private:
-  // Helper Functions for JSON parsing
-  static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
-      const std::string& filePath,
-      const std::vector<PropertyType>& columnTypes);
+  struct AutoDetectResult {
+    JsonFormat format;
+    std::vector<PropertyType> detectedColumnTypes;
+    std::vector<std::string> detectedColumnNames;
+  };
 
-  static std::shared_ptr<arrow::Array> convertJsonValue(
-      const std::vector<std::string>& jsonValues, PropertyType targetType);
+  static AutoDetectResult autoDetect(
+      const std::string& filePath,
+      common::VirtualFileSystem* vfs,
+      size_t maxRowsToDetect = 2048);
+  
+  static JsonFormat detectFormatFromBuffer(uint8_t* bufferPtr, uint64_t bufferSize);
+  static void skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset, const uint64_t& bufferSize);
+  static const uint8_t* nextNewLine(const uint8_t* ptr, uint64_t size);
+  static const uint8_t* findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size, uint64_t& lineCountInJson);
+
+  static std::vector<std::shared_ptr<arrow::Array>> parseJsonFileStreaming(
+      const std::string& filePath,
+      const std::vector<PropertyType>& columnTypes,
+      common::VirtualFileSystem* vfs,
+      JsonFormat format);
+
+  static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
+      const std::string& filePath, 
+      const std::vector<PropertyType>& columnTypes,
+      common::VirtualFileSystem* vfs);
 };
 
 }  // namespace extension

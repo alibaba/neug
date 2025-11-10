@@ -23,6 +23,8 @@
 #include "neug/utils/proto/plan/physical.pb.h"
 #include "neug/utils/proto/plan/basic_type.pb.h"
 #include "neug/execution/common/columns/arrow_context_column.h"
+#include "neug/compiler/common/file_system/virtual_file_system.h"
+#include "neug/compiler/gopt/g_vfs_holder.h"
 #include <arrow/array.h>
 #include <arrow/type.h>
 #include <arrow/compute/api.h>
@@ -30,13 +32,21 @@
 
 class JsonLoadFunctionTest : public ::testing::Test {
 protected:
+    std::unique_ptr<gs::common::VirtualFileSystem> vfs_;
+    
     void SetUp() override {
+        // Initialize VirtualFileSystem for testing
+        vfs_ = std::make_unique<gs::common::VirtualFileSystem>();
+        gs::common::VFSHolder::setVFS(vfs_.get());
+        
         std::filesystem::create_directories("/tmp/extension_test_data/json");
         createTestJsonArrayFile();
     }
     
     void TearDown() override {
         std::filesystem::remove_all("/tmp/extension_test_data/json");
+        // Note: VFSHolder is static, we don't reset it here to avoid issues
+        // with other tests that might run after this
     }
     
     void createTestJsonArrayFile() {
@@ -62,7 +72,8 @@ TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
     // Create input directly for exec function testing
     gs::extension::JsonScanFuncInput input(
         "/tmp/extension_test_data/json/test_array.json", 
-        columnTypes
+        columnTypes,
+        gs::extension::JsonFormat::ARRAY
     );
     
     gs::runtime::Context result = gs::extension::JsonScanFunction::execFunc(input);

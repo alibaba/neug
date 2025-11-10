@@ -1,0 +1,4 @@
+{"from": 1, "to": 5, "weight": 1.0}
+{"from": 1, "to": 19, "weight": 0.5}
+{"from": 2, "to": 7, "weight": 0.2}
+{"from": 32, "to": 3, "weight": 0.8}

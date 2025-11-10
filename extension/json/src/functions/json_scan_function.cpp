@@ -18,22 +18,96 @@
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
-#include <rapidjson/filereadstream.h>
-#include <rapidjson/istreamwrapper.h>
+#include <unordered_map>
 #include <algorithm>
-#include <fstream>
 
 #include "json_scan_function.h"
+#include "json_streaming_state.h"
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
-#include "neug/utils/proto/plan/physical.pb.h"
+#include "neug/compiler/gopt/g_vfs_holder.h"
+#include "json_vfs_reader.h"
+#include "json_arrow_utils.h"
 
 using namespace gs::common;
 using namespace gs::function;
 using namespace gs::runtime;
 namespace gs {
 namespace extension {
+
+const uint8_t* JsonScanFunction::findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size, 
+                                             uint64_t& lineCountInJson) {
+    lineCountInJson = 0;
+    auto end = ptr + size;
+    
+    // Determine processing strategy based on the first character
+    switch (*ptr) {
+    case '{':
+    case '[':
+    case '"': {
+        // Standard JSON object/array/string, need to track nesting levels
+        uint64_t parents = 0;
+        while (ptr != end) {
+            switch (*ptr++) {
+            case '{':
+            case '[':
+                parents++;
+                continue;
+            case '}':
+            case ']':
+                parents--;
+                break;
+            case '"':
+                // Handle string content, skip escaped characters
+                while (ptr != end) {
+                    auto strChar = *ptr++;
+                    if (strChar == '"') {
+                        break;
+                    } else if (strChar == '\\') {
+                        if (ptr != end) {
+                            ptr++; // Skip escaped character
+                        }
+                    } else if (strChar == '\n') {
+                        ++lineCountInJson;
+                    }
+                }
+                break;
+            case '\n':
+                ++lineCountInJson;
+                // fall through
+            default:
+                continue;
+            }
+
+            if (parents == 0) {
+                break;
+            }
+        }
+        break;
+    }
+    default: {
+        // Special case: JSON array containing JSON values without explicit "parents"
+        // For example: [1, 2, 3] or [true, false, null]
+        while (ptr != end) {
+            switch (*ptr++) {
+            case ',':
+            case ']':
+                ptr--;
+                break;
+            case '\n':
+                ++lineCountInJson;
+                // fall through
+            default:
+                continue;
+            }
+            break;
+        }
+    }
+    }
+
+    return ptr == end ? nullptr : ptr;
+}
 
 std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
     const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
@@ -72,32 +146,50 @@ std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
   }
 
   // Validate file exists
-  std::ifstream file(filePath);
-  if (!file.good()) {
+  auto* vfs = VFSHolder::getVFS();
+  if (!vfs->fileOrPathExists(filePath, nullptr)) {
     THROW_EXTENSION_EXCEPTION("JSON file does not exist: " + filePath);
   }
-  file.close();
 
-  LOG(INFO) << "[JsonScan] Parsed filePath: " << filePath
-            << ", columnTypes: " << columnTypes.size();
+  auto detectResult = autoDetect(filePath, vfs);
+  // TODO: Use auto-detected schema if columnTypes is empty
 
-  // Create input structure
-  return std::make_unique<JsonScanFuncInput>(filePath, columnTypes);
+  LOG(INFO) << "[JsonScan] Binding complete:";
+  LOG(INFO) << "  - File: " << filePath;
+  LOG(INFO) << "  - Format: " << (detectResult.format == JsonFormat::ARRAY ? "ARRAY" : "JSONL");
+  LOG(INFO) << "  - Columns: " << columnTypes.size();
+  LOG(INFO) << "  - Auto-detected column types:";
+  for (size_t i = 0; i < detectResult.detectedColumnTypes.size(); ++i) {
+    LOG(INFO) << "    * " << detectResult.detectedColumnNames[i]
+              << " -> " << detectResult.detectedColumnTypes[i].ToString();
+  }
+
+  return std::make_unique<JsonScanFuncInput>(filePath, columnTypes, detectResult.format);
 }
+
+
 
 Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
   LOG(INFO) << "[JsonScan] Executing function for file: " << input.filePath;
 
   try {
-    // Parse JSON file and convert to Arrow arrays
-    auto arrowArrays = parseJsonFile(input.filePath, input.columnTypes);
+    auto* vfs = VFSHolder::getVFS();
+
+    std::vector<std::shared_ptr<arrow::Array>> arrowArrays;
+
+    if (input.format == JsonFormat::ARRAY) {
+      // JSON Array: Read entire file at once
+      LOG(INFO) << "[JsonScan] Using one-shot loading for ARRAY format";
+      arrowArrays = parseJsonFile(input.filePath, input.columnTypes, vfs);
+    } else {
+      // JSONL: Streaming read + incremental Arrow building
+      LOG(INFO) << "[JsonScan] Using streaming for JSONL format";
+      arrowArrays = parseJsonFileStreaming(input.filePath, input.columnTypes, 
+                                          vfs, input.format);
+    }
 
     // Create context and populate with arrow data
     Context ctx;
-    if (ctx.col_num() != 0) {
-      LOG(ERROR) << "Expect a empty context, but got " << ctx.col_num();
-      THROW_EXTENSION_EXCEPTION("Expected empty context");
-    }
     auto num_columns = static_cast<int>(arrowArrays.size());
     for (int i = 0; i < num_columns; i++) {
       ArrowArrayContextColumnBuilder column_builder;
@@ -106,7 +198,7 @@ Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
     }
 
     auto num_rows = arrowArrays.empty() ? 0 : arrowArrays[0]->length();
-    LOG(INFO) << "[JsonScan] Successfully loaded: got " << num_rows
+    LOG(INFO) << "[JsonScan] Successfully loaded: " << num_rows
               << " rows with " << num_columns << " columns";
 
     return ctx;
@@ -117,23 +209,70 @@ Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
   }
 }
 
-std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
-    const std::string& filePath, const std::vector<PropertyType>& columnTypes) {
-  std::vector<std::vector<std::string>> columnData(columnTypes.size());
 
-  // Parse JSON array format: [{"k1": "v1", "k2": "v2"}, ...]
-  std::ifstream ifs(filePath);
-  if (!ifs.is_open() || !ifs.good()) {
-    THROW_EXTENSION_EXCEPTION("JSON file does not exist: " + filePath);
+
+std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFileStreaming(
+    const std::string& filePath,
+    const std::vector<PropertyType>& columnTypes,
+    VirtualFileSystem* vfs,
+    JsonFormat format) {
+
+  if (format != JsonFormat::NEWLINE_DELIMITED) {
+    THROW_EXTENSION_EXCEPTION(
+        "parseJsonFileStreaming should only be called for JSONL format");
   }
-  rapidjson::IStreamWrapper isw(ifs);
 
+  // Create reader
+  auto reader = std::make_unique<JsonVFSReader>(vfs, filePath);
+
+  // Create streaming state (includes Arrow Builders)
+  JsonStreamingState streamingState(std::move(reader), columnTypes);
+
+  // Loop to read, parse, and build Arrow (all-in-one)
+  size_t batchCount = 0;
+  while (!streamingState.isFinished()) {
+    size_t rowsParsed = streamingState.readNextBatch();
+    
+    if (rowsParsed == 0) {
+      break;
+    }
+    
+    batchCount++;
+    LOG(INFO) << "[JsonScan] Batch " << batchCount << ": parsed " << rowsParsed << " rows";
+  }
+  
+  LOG(INFO) << "[JsonScan] Streaming complete: total " 
+            << streamingState.getTotalRowsParsed() << " rows in " 
+            << batchCount << " batches";
+  
+  // Finish building all Arrow Arrays
+  return streamingState.finishArrays();
+}
+
+
+
+std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
+    const std::string& filePath,
+    const std::vector<PropertyType>& columnTypes,
+    VirtualFileSystem* vfs) {
+  
+  // Read entire file at once
+  JsonVFSReader reader(vfs, filePath);
+  std::string jsonContent = reader.readAll();
+  
+  if (jsonContent.empty()) {
+    THROW_EXTENSION_EXCEPTION("JSON file is empty: " + filePath);
+  }
+
+  // Parse JSON
   rapidjson::Document document;
-  document.ParseStream(isw);
+  document.Parse(jsonContent.c_str(), jsonContent.size());
 
   if (document.HasParseError()) {
-    THROW_EXTENSION_EXCEPTION("JSON parse error at offset " +
-                              std::to_string(document.GetErrorOffset()));
+    THROW_EXTENSION_EXCEPTION(
+        "JSON parse error at offset " +
+        std::to_string(document.GetErrorOffset()) + ": error code " +
+        std::to_string(static_cast<int>(document.GetParseError())));
   }
 
   if (!document.IsArray()) {
@@ -141,181 +280,315 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
   }
 
   if (document.Empty()) {
-    std::vector<std::shared_ptr<arrow::Array>> arrowArrays;
-    arrowArrays.reserve(columnTypes.size());
-    for (size_t i = 0; i < columnTypes.size(); ++i) {
-      arrowArrays.push_back(convertJsonValue({}, columnTypes[i]));
-    }
-    return arrowArrays;
+    THROW_EXTENSION_EXCEPTION("JSON array is empty");
   }
 
+  // Extract field names
   const auto& first = document[0];
   if (!first.IsObject()) {
     THROW_EXTENSION_EXCEPTION("Expected JSON object in array");
   }
 
-  std::vector<std::string> requiredNames;
-  requiredNames.reserve(first.MemberCount());
+  std::vector<std::string> fieldNames;
+  fieldNames.reserve(first.MemberCount());
   for (auto m = first.MemberBegin(); m != first.MemberEnd(); ++m) {
-    requiredNames.emplace_back(m->name.GetString());
+    fieldNames.emplace_back(m->name.GetString());
   }
 
-  if (requiredNames.size() != columnTypes.size()) {
-    THROW_EXTENSION_EXCEPTION("JSON object field count (" +
-                              std::to_string(requiredNames.size()) +
-                              ") does not match expected column count (" +
-                              std::to_string(columnTypes.size()) + ")");
+  if (fieldNames.size() != columnTypes.size()) {
+    THROW_EXTENSION_EXCEPTION(
+        "JSON object field count (" + std::to_string(fieldNames.size()) +
+        ") does not match expected column count (" +
+        std::to_string(columnTypes.size()) + ")");
   }
 
-  auto valueToString = [](const rapidjson::Value& val) -> std::string {
-    if (val.IsString())
-      return std::string(val.GetString());
-    if (val.IsInt())
-      return std::to_string(val.GetInt());
-    if (val.IsInt64())
-      return std::to_string(val.GetInt64());
-    if (val.IsUint())
-      return std::to_string(val.GetUint());
-    if (val.IsUint64())
-      return std::to_string(val.GetUint64());
-    if (val.IsDouble())
-      return std::to_string(val.GetDouble());
-    if (val.IsBool())
-      return val.GetBool() ? "true" : "false";
-    return "";
-  };
+  // Create Arrow Builders (one per column)
+  std::vector<std::unique_ptr<arrow::ArrayBuilder>> arrowBuilders;
+  arrowBuilders.reserve(columnTypes.size());
+  for (const auto& type : columnTypes) {
+    arrowBuilders.push_back(createArrowBuilder(type));
+  }
 
-  for (auto& obj : document.GetArray()) {
+  // Parse line by line and append directly to Arrow Builders
+  for (const auto& obj : document.GetArray()) {
     if (!obj.IsObject()) {
-      THROW_EXTENSION_EXCEPTION("Expected JSON object in array");
-    }
-    for (size_t i = 0; i < requiredNames.size(); ++i) {
-      const auto& name = requiredNames[i];
-      if (!obj.HasMember(name.c_str())) {
-        THROW_EXTENSION_EXCEPTION("Missing required field: " + name);
+      // Skip non-object elements
+      for (auto& builder : arrowBuilders) {
+        auto status = builder->AppendNull();
+        if (!status.ok()) {
+          LOG(WARNING) << "Failed to append null: " << status.ToString();
+        }
       }
-      const rapidjson::Value& val = obj[name.c_str()];
-      columnData[i].push_back(valueToString(val));
+      continue;
+    }
+    
+    // Append each field value to the corresponding Builder
+    for (size_t i = 0; i < fieldNames.size(); ++i) {
+      const auto& fieldName = fieldNames[i];
+      
+      if (!obj.HasMember(fieldName.c_str())) {
+        // Field missing, append null
+        auto status = arrowBuilders[i]->AppendNull();
+        if (!status.ok()) {
+          LOG(WARNING) << "Failed to append null: " << status.ToString();
+        }
+        continue;
+      }
+      
+      const auto& val = obj[fieldName.c_str()];
+      appendJsonValueToBuilder(arrowBuilders[i].get(), val, columnTypes[i]);
     }
   }
 
-  // Convert to Arrow arrays
+  // Finish building all Arrow Arrays
   std::vector<std::shared_ptr<arrow::Array>> arrowArrays;
-  arrowArrays.reserve(columnTypes.size());
-  for (size_t i = 0; i < columnTypes.size(); ++i) {
-    arrowArrays.push_back(convertJsonValue(columnData[i], columnTypes[i]));
+  arrowArrays.reserve(arrowBuilders.size());
+  
+  for (auto& builder : arrowBuilders) {
+    std::shared_ptr<arrow::Array> array;
+    auto status = builder->Finish(&array);
+    if (!status.ok()) {
+      THROW_EXTENSION_EXCEPTION("Failed to finish Arrow array: " + 
+                               status.ToString());
+    }
+    arrowArrays.push_back(std::move(array));
   }
 
   return arrowArrays;
 }
 
-template <typename ArrowBuilderT, typename ConvertFunc>
-std::shared_ptr<arrow::Array> buildSimpleArrowArray(
-    const std::vector<std::string>& jsonValues, ConvertFunc convertFunc) {
-  ArrowBuilderT builder;
-  arrow::Status status;
 
-  for (const auto& val : jsonValues) {
-    if (val.empty()) {
-      status = builder.AppendNull();
-    } else {
-      try {
-        auto convertedVal = convertFunc(val);
-        status = builder.Append(convertedVal);
-      } catch (...) { status = builder.AppendNull(); }
-    }
-    if (!status.ok()) {
-      THROW_EXTENSION_EXCEPTION("Failed to append value: " + status.ToString());
-    }
-  }
 
-  std::shared_ptr<arrow::Array> array;
-  status = builder.Finish(&array);
-  if (!status.ok()) {
-    THROW_EXTENSION_EXCEPTION("Failed to finish array: " + status.ToString());
-  }
-  return array;
+JsonScanFunction::AutoDetectResult JsonScanFunction::autoDetect(
+    const std::string& filePath,
+    common::VirtualFileSystem* vfs,
+    size_t maxRowsToDetect) {
+    
+    LOG(INFO) << "[JsonScan] Auto-detecting format and schema for: " << filePath;
+    
+    AutoDetectResult result;
+
+    // --- Step 1: Detect file format (read only the first buffer) ---
+    auto reader = std::make_unique<JsonVFSReader>(vfs, filePath);
+    std::vector<uint8_t> sampleBuffer(JsonReaderConstants::BUFFER_SIZE + 
+                                      JsonReaderConstants::PADDING_SIZE);
+    uint64_t bytesRead = reader->readNextBuffer(sampleBuffer.data(), 
+                                                 JsonReaderConstants::BUFFER_SIZE);
+    
+    if (bytesRead == 0) {
+        LOG(WARNING) << "[JsonScan] File is empty, defaulting to ARRAY format.";
+        result.format = JsonFormat::ARRAY;
+        return result;
+    }
+    std::memset(sampleBuffer.data() + bytesRead, 0, JsonReaderConstants::PADDING_SIZE);
+    
+    result.format = detectFormatFromBuffer(sampleBuffer.data(), bytesRead);
+    LOG(INFO) << "[JsonScan] Detected format: " 
+              << (result.format == JsonFormat::ARRAY ? "ARRAY" : "NEWLINE_DELIMITED");
+
+    // --- Step 2: Use streaming read to infer column types ---
+    reader = std::make_unique<JsonVFSReader>(vfs, filePath);
+    
+    std::vector<uint8_t> buffer(JsonReaderConstants::BUFFER_SIZE + 
+                                JsonReaderConstants::PADDING_SIZE);
+    uint64_t bufferSize = reader->readNextBuffer(buffer.data(), 
+                                                  JsonReaderConstants::BUFFER_SIZE);
+    
+    if (bufferSize == 0) {
+        LOG(WARNING) << "[JsonScan] File is empty after format detection";
+        return result;
+    }
+    std::memset(buffer.data() + bufferSize, 0, JsonReaderConstants::PADDING_SIZE);
+    
+    std::unordered_map<std::string, PropertyType> columnTypeMap;
+    std::vector<std::string>& columnNamesInOrder = result.detectedColumnNames;
+    size_t rowsScanned = 0;
+    
+    uint64_t bufferOffset = 0;
+    bool isArrayStarted = false;
+    
+    
+    while (rowsScanned < maxRowsToDetect && bufferOffset < bufferSize) {
+        skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+        if (bufferOffset >= bufferSize) break;
+        
+        uint8_t* objStart = buffer.data() + bufferOffset;
+        uint64_t remaining = bufferSize - bufferOffset;
+        const uint8_t* objEnd = nullptr;
+        uint64_t objSize = 0;
+        
+        if (result.format == JsonFormat::ARRAY) {
+            // Handle array start
+            if (!isArrayStarted) {
+                if (*objStart == '[') {
+                    bufferOffset++;
+                    skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+                    isArrayStarted = true;
+                    continue;
+                }
+            }
+            
+            // Check for array end
+            if (*objStart == ']') {
+                break;
+            }
+            
+            // Skip comma
+            if (*objStart == ',') {
+                bufferOffset++;
+                skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+                continue;
+            }
+            
+            // Update pointer and remaining size
+            objStart = buffer.data() + bufferOffset;
+            remaining = bufferSize - bufferOffset;
+            
+            // Use our boundary finding function
+            uint64_t lineCountInJson = 0;
+            objEnd = findNextJsonObjectEnd(objStart, remaining, lineCountInJson);
+            
+            if (objEnd == nullptr) {
+                // Object incomplete in buffer
+                break;  // For autoDetect, stop directly
+            }
+            
+            objSize = objEnd - objStart;
+            
+        } else {  // NEWLINE_DELIMITED
+            auto* lineEnd = nextNewLine(objStart, remaining);
+            if (lineEnd == nullptr) {
+                break;
+            }
+            objSize = lineEnd - objStart;
+        }
+        
+        if (objSize == 0) {
+            bufferOffset++;
+            continue;
+        }
+        
+        // Parse the found object
+        rapidjson::Document doc;
+        doc.Parse(reinterpret_cast<char*>(objStart), objSize);
+        
+        if (doc.HasParseError()) {
+            LOG(WARNING) << "[JsonScan] Parse error: " 
+                        << doc.GetParseError()
+                        << " at offset " << doc.GetErrorOffset();
+            bufferOffset += objSize;
+            continue;
+        }
+        
+        if (!doc.IsObject()) {
+            LOG(WARNING) << "[JsonScan] Parsed value is not an object, type=" 
+                        << doc.GetType();
+            bufferOffset += objSize;
+            continue;
+        }
+        
+        // Infer types
+        for (auto m = doc.MemberBegin(); m != doc.MemberEnd(); ++m) {
+            std::string fieldName = m->name.GetString();
+            PropertyType inferredType = inferPropertyTypeFromValue(m->value);
+            
+            auto it = columnTypeMap.find(fieldName);
+            if (it == columnTypeMap.end()) {
+                columnNamesInOrder.push_back(fieldName);
+                columnTypeMap[fieldName] = inferredType;
+            } else {
+                auto mergedType = mergePropertyTypes(it->second, inferredType);
+                if (mergedType != it->second) {
+                    it->second = mergedType;
+                }
+            }
+        }
+        
+        rowsScanned++;
+        bufferOffset += objSize;
+        
+        if (result.format == JsonFormat::NEWLINE_DELIMITED) {
+            bufferOffset++;  // Skip '\n'
+        }
+    }
+    
+    // Build result
+    result.detectedColumnTypes.reserve(columnNamesInOrder.size());
+    for (const auto& name : columnNamesInOrder) {
+        result.detectedColumnTypes.push_back(columnTypeMap[name]);
+    }
+
+    return result;
 }
 
-template <typename ArrowBuilderT, typename ConvertFunc, typename... Args>
-std::shared_ptr<arrow::Array> buildComplexArrowArray(
-    const std::vector<std::string>& jsonValues, ConvertFunc convertFunc,
-    Args&&... args) {
-  ArrowBuilderT builder(std::forward<Args>(args)...);
-  arrow::Status status;
 
-  for (const auto& val : jsonValues) {
-    if (val.empty()) {
-      status = builder.AppendNull();
-    } else {
-      try {
-        auto convertedVal = convertFunc(val);
-        status = builder.Append(convertedVal);
-      } catch (...) { status = builder.AppendNull(); }
-    }
-    if (!status.ok()) {
-      THROW_EXTENSION_EXCEPTION("Failed to append value: " + status.ToString());
-    }
-  }
 
-  std::shared_ptr<arrow::Array> array;
-  status = builder.Finish(&array);
-  if (!status.ok()) {
-    THROW_EXTENSION_EXCEPTION("Failed to finish array: " + status.ToString());
-  }
-  return array;
+JsonFormat JsonScanFunction::detectFormatFromBuffer(uint8_t* bufferPtr, uint64_t bufferSize) {
+    uint64_t bufferOffset = 0;
+    skipWhitespace(bufferPtr, bufferOffset, bufferSize);
+    if (bufferOffset >= bufferSize) {
+        return JsonFormat::ARRAY; // empty file, default to Array
+    }
+
+    // Check if the first line is a complete JSON
+    auto* lineEnd = nextNewLine(bufferPtr + bufferOffset, bufferSize - bufferOffset);
+    if (lineEnd != nullptr) {
+        uint64_t lineSize = (lineEnd - bufferPtr) - bufferOffset;
+        rapidjson::Document doc;
+        doc.Parse<rapidjson::kParseStopWhenDoneFlag>(reinterpret_cast<char*>(bufferPtr + bufferOffset), lineSize);
+
+        if (!doc.HasParseError()) {
+            // If the first line is a valid JSON object, consider it JSONL
+            if (doc.IsObject()) {
+                return JsonFormat::NEWLINE_DELIMITED;
+            }
+            // If the first line is a valid JSON array and there is no other content, consider it a single-line Array
+            if (doc.IsArray()) {
+                uint64_t endOfArrayOffset = bufferOffset + doc.GetErrorOffset();
+                skipWhitespace(bufferPtr, endOfArrayOffset, bufferSize);
+                if (endOfArrayOffset >= bufferSize) {
+                    return JsonFormat::ARRAY;
+                }
+            }
+        }
+    }
+
+    // If the first line is not a complete JSON or cannot be determined, check the first non-whitespace character
+    bufferOffset = 0;
+    skipWhitespace(bufferPtr, bufferOffset, bufferSize);
+    if (bufferOffset >= bufferSize) {
+        return JsonFormat::ARRAY;
+    }
+
+    if (bufferPtr[bufferOffset] == '{') {
+        return JsonFormat::NEWLINE_DELIMITED;
+    }
+
+    if (bufferPtr[bufferOffset] != '[') {
+        // Neither an object nor an array start, possibly non-standard JSONL
+        return JsonFormat::NEWLINE_DELIMITED;
+    }
+
+    // Starts with '[', try to parse as array
+    rapidjson::Document doc;
+    doc.Parse<rapidjson::kParseStopWhenDoneFlag>(reinterpret_cast<char*>(bufferPtr + bufferOffset), bufferSize - bufferOffset);
+    if (!doc.HasParseError() && doc.IsArray()) {
+        return JsonFormat::ARRAY;
+    }
+
+    // Default case
+    return JsonFormat::ARRAY;
 }
 
-std::shared_ptr<arrow::Array> JsonScanFunction::convertJsonValue(
-    const std::vector<std::string>& jsonValues, PropertyType targetType) {
-  if (targetType == PropertyType::Int32()) {
-    return buildSimpleArrowArray<arrow::Int32Builder>(
-        jsonValues,
-        [](const std::string& val) -> int32_t { return std::stoi(val); });
-  } else if (targetType == PropertyType::Int64()) {
-    return buildSimpleArrowArray<arrow::Int64Builder>(
-        jsonValues,
-        [](const std::string& val) -> int64_t { return std::stoll(val); });
-  } else if (targetType == PropertyType::Double()) {
-    return buildSimpleArrowArray<arrow::DoubleBuilder>(
-        jsonValues,
-        [](const std::string& val) -> double { return std::stod(val); });
-  } else if (targetType == PropertyType::Date()) {
-    return buildSimpleArrowArray<arrow::Date32Builder>(
-        jsonValues, [](const std::string& val) -> int32_t {
-          Date date(val);
-          return date.to_num_days();
-        });
-  } else if (targetType == PropertyType::Bool()) {
-    return buildSimpleArrowArray<arrow::BooleanBuilder>(
-        jsonValues, [](const std::string& val) -> bool {
-          return (val == "true" || val == "1");
-        });
-  } else if (targetType == PropertyType::DateTime()) {
-    return buildComplexArrowArray<arrow::TimestampBuilder>(
-        jsonValues,
-        [](const std::string& val) -> int64_t {
-          DateTime datetime(val);
-          return datetime.milli_second;
-        },
-        arrow::timestamp(arrow::TimeUnit::MILLI), arrow::default_memory_pool());
-  } else if (targetType == PropertyType::Interval()) {
-    return buildComplexArrowArray<arrow::DurationBuilder>(
-        jsonValues,
-        [](const std::string& val) -> int64_t {
-          Interval interval(val);
-          return interval.to_mill_seconds();
-        },
-        arrow::duration(arrow::TimeUnit::MILLI), arrow::default_memory_pool());
-  } else if (targetType == PropertyType::Timestamp()) {
-    return buildComplexArrowArray<arrow::TimestampBuilder>(
-        jsonValues,
-        [](const std::string& val) -> int64_t { return std::stoll(val); },
-        arrow::timestamp(arrow::TimeUnit::MILLI), arrow::default_memory_pool());
-  } else {  // default PropertyType is String
-    return buildSimpleArrowArray<arrow::StringBuilder>(
-        jsonValues, [](const std::string& val) -> std::string { return val; });
-  }
+
+void JsonScanFunction::skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset, const uint64_t& bufferSize) {
+    while (bufferOffset < bufferSize && std::isspace(bufferPtr[bufferOffset])) {
+        bufferOffset++;
+    }
+}
+
+const uint8_t* JsonScanFunction::nextNewLine(const uint8_t* ptr, uint64_t size) {
+    return reinterpret_cast<const uint8_t*>(std::memchr(ptr, '\n', size));
 }
 
 }  // namespace extension

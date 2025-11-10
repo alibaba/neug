@@ -35,6 +35,7 @@
 
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/gopt/g_vfs_holder.h"
 #include "neug/compiler/storage/stats_manager.h"
 
 using namespace gs::catalog;
@@ -47,6 +48,7 @@ namespace main {
 
 MetadataManager::MetadataManager() {
   this->vfs = std::make_unique<VirtualFileSystem>();
+  common::VFSHolder::setVFS(this->vfs.get());
   this->extensionManager = std::make_unique<extension::ExtensionManager>();
   this->memoryManager = std::make_unique<gs::storage::MemoryManager>();
   // the catalog is initialized only once and is empty before data loading
