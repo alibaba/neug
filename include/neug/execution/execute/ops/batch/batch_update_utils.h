@@ -25,18 +25,11 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/utils/property/types.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/proto/plan/expr.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
+#include "neug/utils/property/types.h"
 
 namespace arrow {
 namespace csv {

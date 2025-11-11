@@ -297,6 +297,26 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
+check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
+endif()
+if (COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+endif()
+if (COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
+endif()
+if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-overflow")
+endif()
+if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
+endif()
 
 if (BUILD_WITH_OSS)
     add_definitions(-DBUILD_WITH_OSS)
@@ -450,19 +470,12 @@ set_target_properties(yaml-cpp PROPERTIES DEBUG_POSTFIX "")
 message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
 
 #find protobuf-------------------------------------------------------------------
-find_package(Protobuf)
-if (NOT Protobuf_FOUND)
-    include(cmake/BuildProtobufThirdParty.cmake)
-    build_protobuf_as_third_party()
-    set(USE_SYSTEM_PROTOBUF OFF CACHE BOOL "Use system protobuf")
-else()
-    set(USE_SYSTEM_PROTOBUF ON CACHE BOOL "Use system protobuf")
-    add_compile_definitions(USE_SYSTEM_PROTOBUF)
-endif()
+include(cmake/BuildProtobufThirdParty.cmake)
+build_protobuf_as_third_party()
+
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
-message(STATUS "Use system protobuf: ${USE_SYSTEM_PROTOBUF}")
 
 # Check protobuf version for conditional patching
 if(Protobuf_FOUND AND Protobuf_VERSION)
@@ -490,7 +503,7 @@ else()
     message(STATUS "protobuf version not available, defaulting to applying brpc patch if needed")
 endif()
 
-# Generate config header. Need to placed after protobuf find_package, for macro USE_SYSTEM_PROTOBUF
+# Generate config header. Need to placed after protobuf find_package
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/neug/config.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/include/neug/config.h
@@ -526,6 +539,11 @@ if (BUILD_HTTP_SERVER)
     if (NOT CRYPTO_LIB)
         message(FATAL_ERROR "Fail to find crypto lib")
     endif()
+    find_library(PROTOC_LIB name protoc)
+    if (NOT PROTOC_LIB)
+        message(FATAL_ERROR "Fail to find protoc lib")
+    endif()
+    message(STATUS "ProtoC lib: ${PROTOC_LIB}")
 
     if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
             # Requires gflags, leveldb-dev to be installed.
@@ -563,6 +581,19 @@ if (BUILD_HTTP_SERVER)
             add_subdirectory(third_party/brpc)
             set(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/include)
             set(BRPC_LIB brpc-static)
+            set(BRPC_ALL_LIBS brpc-static BUTIL_LIB PROTO_LIB)
+            foreach(lib ${BRPC_ALL_LIBS})
+                add_dependencies(${lib} ${Protobuf_LIBRARIES})
+                if (TARGET protobuf::libprotobuf)
+                    add_dependencies(${lib}
+                        protobuf::libprotobuf
+                        protobuf::libprotobuf-lite
+                        protobuf::libprotoc)
+                endif()
+                if (TARGET protobuf::protoc)
+                    add_dependencies(${lib} protobuf::protoc)
+                endif()
+            endforeach()
             include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
     endif()
     include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
@@ -572,6 +603,14 @@ endif()
 
 include(cmake/BuildArrowAsThirdParty.cmake)
 build_arrow_as_third_party()
+
+# Add Arrow include directories after building
+if(ARROW_INCLUDE_DIRS)
+    include_directories(SYSTEM ${ARROW_INCLUDE_DIRS})
+    message(STATUS "Arrow include directories: ${ARROW_INCLUDE_DIRS}")
+endif()
+
+message(STATUS "Arrow library: ${ARROW_LIB}")
 
 # Find Doxygen
 if (BUILD_DOC)
@@ -839,22 +878,12 @@ endif()
 
 include(CPack)
 
-# install all headers under include/neug/
-if (USE_SYSTEM_PROTOBUF)
-    #filter out all pb.h files
-    install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.pb.h" EXCLUDE
-    )
-else()
-    install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.h"
-    )
-endif()
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+        DESTINATION include
+        FILES_MATCHING
+        PATTERN "*.h"
+)
 
 # Install the generated version header
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/neug/version.h
@@ -872,11 +901,9 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
             PATTERN "*.hpp"
 )
 
-if (NOT USE_SYSTEM_PROTOBUF)
-    install_neug_target(libprotobuf)
-    install_neug_target(libprotobuf-lite)
-    install_neug_target(libprotoc)
-endif()
+install_neug_target(libprotobuf)
+install_neug_target(libprotobuf-lite)
+install_neug_target(libprotoc)
 
 if (WITH_MIMALLOC)
 	install_neug_target(mimalloc)

@@ -28,6 +28,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/opr_timer.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
@@ -36,11 +37,6 @@
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/app_utils.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 namespace runtime {

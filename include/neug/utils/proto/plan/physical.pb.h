@@ -1507,6 +1507,7 @@ class Unfold final :
   enum : int {
     kTagFieldNumber = 1,
     kAliasFieldNumber = 2,
+    kInputExprFieldNumber = 3,
   };
   // .google.protobuf.Int32Value tag = 1;
   bool has_tag() const;
@@ -1544,6 +1545,24 @@ class Unfold final :
       ::PROTOBUF_NAMESPACE_ID::Int32Value* alias);
   ::PROTOBUF_NAMESPACE_ID::Int32Value* unsafe_arena_release_alias();
 
+  // .common.Expression input_expr = 3;
+  bool has_input_expr() const;
+  private:
+  bool _internal_has_input_expr() const;
+  public:
+  void clear_input_expr();
+  const ::common::Expression& input_expr() const;
+  PROTOBUF_NODISCARD ::common::Expression* release_input_expr();
+  ::common::Expression* mutable_input_expr();
+  void set_allocated_input_expr(::common::Expression* input_expr);
+  private:
+  const ::common::Expression& _internal_input_expr() const;
+  ::common::Expression* _internal_mutable_input_expr();
+  public:
+  void unsafe_arena_set_allocated_input_expr(
+      ::common::Expression* input_expr);
+  ::common::Expression* unsafe_arena_release_input_expr();
+
   // @@protoc_insertion_point(class_scope:physical.Unfold)
  private:
   class _Internal;
@@ -1554,6 +1573,7 @@ class Unfold final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::Int32Value* tag_;
     ::PROTOBUF_NAMESPACE_ID::Int32Value* alias_;
+    ::common::Expression* input_expr_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -8360,6 +8380,91 @@ inline void Unfold::set_allocated_alias(::PROTOBUF_NAMESPACE_ID::Int32Value* ali
   }
   _impl_.alias_ = alias;
   // @@protoc_insertion_point(field_set_allocated:physical.Unfold.alias)
+}
+
+// .common.Expression input_expr = 3;
+inline bool Unfold::_internal_has_input_expr() const {
+  return this != internal_default_instance() && _impl_.input_expr_ != nullptr;
+}
+inline bool Unfold::has_input_expr() const {
+  return _internal_has_input_expr();
+}
+inline const ::common::Expression& Unfold::_internal_input_expr() const {
+  const ::common::Expression* p = _impl_.input_expr_;
+  return p != nullptr ? *p : reinterpret_cast<const ::common::Expression&>(
+      ::common::_Expression_default_instance_);
+}
+inline const ::common::Expression& Unfold::input_expr() const {
+  // @@protoc_insertion_point(field_get:physical.Unfold.input_expr)
+  return _internal_input_expr();
+}
+inline void Unfold::unsafe_arena_set_allocated_input_expr(
+    ::common::Expression* input_expr) {
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.input_expr_);
+  }
+  _impl_.input_expr_ = input_expr;
+  if (input_expr) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:physical.Unfold.input_expr)
+}
+inline ::common::Expression* Unfold::release_input_expr() {
+  
+  ::common::Expression* temp = _impl_.input_expr_;
+  _impl_.input_expr_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
+  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  if (GetArenaForAllocation() == nullptr) { delete old; }
+#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return temp;
+}
+inline ::common::Expression* Unfold::unsafe_arena_release_input_expr() {
+  // @@protoc_insertion_point(field_release:physical.Unfold.input_expr)
+  
+  ::common::Expression* temp = _impl_.input_expr_;
+  _impl_.input_expr_ = nullptr;
+  return temp;
+}
+inline ::common::Expression* Unfold::_internal_mutable_input_expr() {
+  
+  if (_impl_.input_expr_ == nullptr) {
+    auto* p = CreateMaybeMessage<::common::Expression>(GetArenaForAllocation());
+    _impl_.input_expr_ = p;
+  }
+  return _impl_.input_expr_;
+}
+inline ::common::Expression* Unfold::mutable_input_expr() {
+  ::common::Expression* _msg = _internal_mutable_input_expr();
+  // @@protoc_insertion_point(field_mutable:physical.Unfold.input_expr)
+  return _msg;
+}
+inline void Unfold::set_allocated_input_expr(::common::Expression* input_expr) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  if (message_arena == nullptr) {
+    delete reinterpret_cast< ::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.input_expr_);
+  }
+  if (input_expr) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(
+                reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(input_expr));
+    if (message_arena != submessage_arena) {
+      input_expr = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, input_expr, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  _impl_.input_expr_ = input_expr;
+  // @@protoc_insertion_point(field_set_allocated:physical.Unfold.input_expr)
 }
 
 // -------------------------------------------------------------------

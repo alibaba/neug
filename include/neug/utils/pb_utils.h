@@ -21,15 +21,9 @@
 #include <tuple>
 #include <vector>
 
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/plan/basic_type.pb.h"
-#include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"

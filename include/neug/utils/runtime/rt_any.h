@@ -37,15 +37,9 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
-#else
-#include "neug/utils/proto/plan/basic_type.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#include "neug/utils/proto/plan/type.pb.h"
-#endif
 
 namespace arrow {
 class DataType;

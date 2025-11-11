@@ -35,15 +35,10 @@
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
-#include "neug/utils/property/types.h"
-#include "neug/utils/result.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
-#else
-#include "neug/utils/proto/plan/algebra.pb.h"
-#include "neug/utils/proto/plan/expr.pb.h"
-#endif
+#include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 
 namespace gs {
 class Schema;

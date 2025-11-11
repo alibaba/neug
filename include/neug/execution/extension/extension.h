@@ -16,14 +16,9 @@
 
 #include <string>
 #include "neug/compiler/extension/extension.h"
-#include "neug/utils/result.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
+#include "neug/utils/result.h"
 
 namespace gs {
 namespace extension {

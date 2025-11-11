@@ -35,17 +35,11 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/expr.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
-#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {

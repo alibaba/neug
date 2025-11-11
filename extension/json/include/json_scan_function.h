@@ -19,16 +19,12 @@
 #include <string>
 #include <vector>
 
+#include "json_vfs_reader.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
-#include "neug/utils/property/types.h"
-#include "json_vfs_reader.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
+#include "neug/utils/property/types.h"
 
 namespace gs {
 namespace extension {
@@ -39,8 +35,7 @@ struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
   JsonFormat format;
 
   JsonScanFuncInput(const std::string& path,
-                    const std::vector<PropertyType>& types,
-                    JsonFormat fmt)
+                    const std::vector<PropertyType>& types, JsonFormat fmt)
       : filePath(std::move(path)), columnTypes(std::move(types)), format(fmt) {}
 };
 
@@ -83,25 +78,24 @@ struct JsonScanFunction {
     std::vector<std::string> detectedColumnNames;
   };
 
-  static AutoDetectResult autoDetect(
-      const std::string& filePath,
-      common::VirtualFileSystem* vfs,
-      size_t maxRowsToDetect = 2048);
-  
-  static JsonFormat detectFormatFromBuffer(uint8_t* bufferPtr, uint64_t bufferSize);
-  static void skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset, const uint64_t& bufferSize);
+  static AutoDetectResult autoDetect(const std::string& filePath,
+                                     common::VirtualFileSystem* vfs,
+                                     size_t maxRowsToDetect = 2048);
+
+  static JsonFormat detectFormatFromBuffer(uint8_t* bufferPtr,
+                                           uint64_t bufferSize);
+  static void skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset,
+                             const uint64_t& bufferSize);
   static const uint8_t* nextNewLine(const uint8_t* ptr, uint64_t size);
-  static const uint8_t* findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size, uint64_t& lineCountInJson);
+  static const uint8_t* findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size,
+                                              uint64_t& lineCountInJson);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFileStreaming(
-      const std::string& filePath,
-      const std::vector<PropertyType>& columnTypes,
-      common::VirtualFileSystem* vfs,
-      JsonFormat format);
+      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
+      common::VirtualFileSystem* vfs, JsonFormat format);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
-      const std::string& filePath, 
-      const std::vector<PropertyType>& columnTypes,
+      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
       common::VirtualFileSystem* vfs);
 };
 

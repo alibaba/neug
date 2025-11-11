@@ -24,13 +24,9 @@
 #include <vector>
 
 #include "neug/execution/common/graph_interface.h"
+#include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/runtime/rt_any.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/expr.pb.h"
-#else
-#include "neug/utils/proto/plan/expr.pb.h"
-#endif
 
 namespace gs {
 

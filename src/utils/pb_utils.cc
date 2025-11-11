@@ -16,15 +16,6 @@
 #include "neug/utils/pb_utils.h"
 #include <glog/logging.h>
 #include <google/protobuf/stubs/port.h>
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/expr.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
 #include <rapidjson/prettywriter.h>
@@ -43,6 +34,9 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"

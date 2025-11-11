@@ -25,6 +25,9 @@
 #include <thread>
 
 #include "neug/config.h"
+#include "neug/generated/proto/plan/cypher_ddl.pb.h"
+#include "neug/generated/proto/plan/cypher_dml.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/main/connection.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
@@ -34,15 +37,6 @@
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#include "neug/utils/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)

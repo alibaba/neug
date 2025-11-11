@@ -31,6 +31,8 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/stored_procedure.pb.h"
 #include "neug/main/app/app_base.h"
 #include "neug/main/app_manager.h"
 #include "neug/storages/graph/property_graph.h"
@@ -43,13 +45,6 @@
 #include "neug/utils/app_utils.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/stored_procedure.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/stored_procedure.pb.h"
-#endif
 #include "neug/utils/result.h"
 
 namespace gs {

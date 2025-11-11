@@ -56,15 +56,9 @@
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/algebra.pb.h"
-#include "neug/utils/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 namespace gopt {

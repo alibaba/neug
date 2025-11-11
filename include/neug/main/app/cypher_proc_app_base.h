@@ -28,16 +28,11 @@
 #include <rapidjson/document.h>
 #pragma GCC diagnostic pop
 
+#include "neug/generated/proto/plan/results.pb.h"
+#include "neug/generated/proto/plan/stored_procedure.pb.h"
 #include "neug/main/app/app_base.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/utils/property/types.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/results.pb.h"
-#include "neug/generated/proto/plan/stored_procedure.pb.h"
-#else
-#include "neug/utils/proto/plan/results.pb.h"
-#include "neug/utils/proto/plan/stored_procedure.pb.h"
-#endif
 #include "neug/utils/service_utils.h"
 
 namespace gs {

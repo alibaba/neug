@@ -22,11 +22,7 @@
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/expr.pb.h"
-#else
-#include "neug/utils/proto/plan/expr.pb.h"
-#endif
 
 namespace gs {
 

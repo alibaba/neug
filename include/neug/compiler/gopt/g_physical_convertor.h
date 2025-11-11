@@ -22,11 +22,7 @@
 #include "neug/compiler/gopt/g_query_converter.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/simple/logical_extension.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 namespace gopt {

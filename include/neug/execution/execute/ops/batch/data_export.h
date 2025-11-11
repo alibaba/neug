@@ -20,11 +20,7 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/writer/export_writer_factory.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 namespace runtime {

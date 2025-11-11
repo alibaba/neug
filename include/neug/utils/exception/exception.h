@@ -21,7 +21,6 @@
 #include "neug/utils/api.h"
 
 namespace gs {
-
 namespace neug {
 namespace interactive {
 enum Code : int;

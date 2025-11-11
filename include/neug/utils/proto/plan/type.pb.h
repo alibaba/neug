@@ -77,12 +77,13 @@ namespace common {
 enum GraphDataType_GraphElementOpt : int {
   GraphDataType_GraphElementOpt_VERTEX = 0,
   GraphDataType_GraphElementOpt_EDGE = 1,
+  GraphDataType_GraphElementOpt_PATH = 2,
   GraphDataType_GraphElementOpt_GraphDataType_GraphElementOpt_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::min(),
   GraphDataType_GraphElementOpt_GraphDataType_GraphElementOpt_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<int32_t>::max()
 };
 bool GraphDataType_GraphElementOpt_IsValid(int value);
 constexpr GraphDataType_GraphElementOpt GraphDataType_GraphElementOpt_GraphElementOpt_MIN = GraphDataType_GraphElementOpt_VERTEX;
-constexpr GraphDataType_GraphElementOpt GraphDataType_GraphElementOpt_GraphElementOpt_MAX = GraphDataType_GraphElementOpt_EDGE;
+constexpr GraphDataType_GraphElementOpt GraphDataType_GraphElementOpt_GraphElementOpt_MAX = GraphDataType_GraphElementOpt_PATH;
 constexpr int GraphDataType_GraphElementOpt_GraphElementOpt_ARRAYSIZE = GraphDataType_GraphElementOpt_GraphElementOpt_MAX + 1;
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* GraphDataType_GraphElementOpt_descriptor();
@@ -770,6 +771,8 @@ class GraphDataType final :
     GraphDataType_GraphElementOpt_VERTEX;
   static constexpr GraphElementOpt EDGE =
     GraphDataType_GraphElementOpt_EDGE;
+  static constexpr GraphElementOpt PATH =
+    GraphDataType_GraphElementOpt_PATH;
   static inline bool GraphElementOpt_IsValid(int value) {
     return GraphDataType_GraphElementOpt_IsValid(value);
   }

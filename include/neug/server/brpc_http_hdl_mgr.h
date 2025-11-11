@@ -24,6 +24,8 @@
 #include <string_view>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/generated/proto/http_service/http_svc.pb.h"
+#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
@@ -32,13 +34,6 @@
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/http_service/http_svc.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/http_service/http_svc.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
 
 #include "neug/utils/likely.h"
 #include "neug/utils/yaml_utils.h"

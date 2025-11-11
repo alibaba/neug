@@ -106,9 +106,9 @@ extern PathFunction_PathElementKeysDefaultTypeInternal _PathFunction_PathElement
 class Property;
 struct PropertyDefaultTypeInternal;
 extern PropertyDefaultTypeInternal _Property_default_instance_;
-class Reverse;
-struct ReverseDefaultTypeInternal;
-extern ReverseDefaultTypeInternal _Reverse_default_instance_;
+class ScalarFunction;
+struct ScalarFunctionDefaultTypeInternal;
+extern ScalarFunctionDefaultTypeInternal _ScalarFunction_default_instance_;
 class TimeInterval;
 struct TimeIntervalDefaultTypeInternal;
 extern TimeIntervalDefaultTypeInternal _TimeInterval_default_instance_;
@@ -121,15 +121,9 @@ extern ToDatetimeDefaultTypeInternal _ToDatetime_default_instance_;
 class ToInterval;
 struct ToIntervalDefaultTypeInternal;
 extern ToIntervalDefaultTypeInternal _ToInterval_default_instance_;
-class ToLower;
-struct ToLowerDefaultTypeInternal;
-extern ToLowerDefaultTypeInternal _ToLower_default_instance_;
 class ToTuple;
 struct ToTupleDefaultTypeInternal;
 extern ToTupleDefaultTypeInternal _ToTuple_default_instance_;
-class ToUpper;
-struct ToUpperDefaultTypeInternal;
-extern ToUpperDefaultTypeInternal _ToUpper_default_instance_;
 class UserDefinedFunction;
 struct UserDefinedFunctionDefaultTypeInternal;
 extern UserDefinedFunctionDefaultTypeInternal _UserDefinedFunction_default_instance_;
@@ -166,14 +160,12 @@ template<> ::common::PathFunction_PathElementKeyValues* Arena::CreateMaybeMessag
 template<> ::common::PathFunction_PathElementKeyValues_PathElementKeyValue* Arena::CreateMaybeMessage<::common::PathFunction_PathElementKeyValues_PathElementKeyValue>(Arena*);
 template<> ::common::PathFunction_PathElementKeys* Arena::CreateMaybeMessage<::common::PathFunction_PathElementKeys>(Arena*);
 template<> ::common::Property* Arena::CreateMaybeMessage<::common::Property>(Arena*);
-template<> ::common::Reverse* Arena::CreateMaybeMessage<::common::Reverse>(Arena*);
+template<> ::common::ScalarFunction* Arena::CreateMaybeMessage<::common::ScalarFunction>(Arena*);
 template<> ::common::TimeInterval* Arena::CreateMaybeMessage<::common::TimeInterval>(Arena*);
 template<> ::common::ToDate* Arena::CreateMaybeMessage<::common::ToDate>(Arena*);
 template<> ::common::ToDatetime* Arena::CreateMaybeMessage<::common::ToDatetime>(Arena*);
 template<> ::common::ToInterval* Arena::CreateMaybeMessage<::common::ToInterval>(Arena*);
-template<> ::common::ToLower* Arena::CreateMaybeMessage<::common::ToLower>(Arena*);
 template<> ::common::ToTuple* Arena::CreateMaybeMessage<::common::ToTuple>(Arena*);
-template<> ::common::ToUpper* Arena::CreateMaybeMessage<::common::ToUpper>(Arena*);
 template<> ::common::UserDefinedFunction* Arena::CreateMaybeMessage<::common::UserDefinedFunction>(Arena*);
 template<> ::common::Variable* Arena::CreateMaybeMessage<::common::Variable>(Arena*);
 template<> ::common::VariableKeyValue* Arena::CreateMaybeMessage<::common::VariableKeyValue>(Arena*);
@@ -4589,6 +4581,179 @@ class UserDefinedFunction final :
 };
 // -------------------------------------------------------------------
 
+class ScalarFunction final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.ScalarFunction) */ {
+ public:
+  inline ScalarFunction() : ScalarFunction(nullptr) {}
+  ~ScalarFunction() override;
+  explicit PROTOBUF_CONSTEXPR ScalarFunction(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  ScalarFunction(const ScalarFunction& from);
+  ScalarFunction(ScalarFunction&& from) noexcept
+    : ScalarFunction() {
+    *this = ::std::move(from);
+  }
+
+  inline ScalarFunction& operator=(const ScalarFunction& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ScalarFunction& operator=(ScalarFunction&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ScalarFunction& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ScalarFunction* internal_default_instance() {
+    return reinterpret_cast<const ScalarFunction*>(
+               &_ScalarFunction_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    24;
+
+  friend void swap(ScalarFunction& a, ScalarFunction& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ScalarFunction* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ScalarFunction* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ScalarFunction* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ScalarFunction>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const ScalarFunction& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const ScalarFunction& from) {
+    ScalarFunction::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ScalarFunction* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "common.ScalarFunction";
+  }
+  protected:
+  explicit ScalarFunction(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kParametersFieldNumber = 2,
+    kUniqueNameFieldNumber = 1,
+  };
+  // repeated .common.Expression parameters = 2;
+  int parameters_size() const;
+  private:
+  int _internal_parameters_size() const;
+  public:
+  void clear_parameters();
+  ::common::Expression* mutable_parameters(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::common::Expression >*
+      mutable_parameters();
+  private:
+  const ::common::Expression& _internal_parameters(int index) const;
+  ::common::Expression* _internal_add_parameters();
+  public:
+  const ::common::Expression& parameters(int index) const;
+  ::common::Expression* add_parameters();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::common::Expression >&
+      parameters() const;
+
+  // string unique_name = 1;
+  void clear_unique_name();
+  const std::string& unique_name() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_unique_name(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_unique_name();
+  PROTOBUF_NODISCARD std::string* release_unique_name();
+  void set_allocated_unique_name(std::string* unique_name);
+  private:
+  const std::string& _internal_unique_name() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_unique_name(const std::string& value);
+  std::string* _internal_mutable_unique_name();
+  public:
+
+  // @@protoc_insertion_point(class_scope:common.ScalarFunction)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::common::Expression > parameters_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr unique_name_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_expr_2eproto;
+};
+// -------------------------------------------------------------------
+
 class ToDate final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.ToDate) */ {
  public:
@@ -4637,7 +4802,7 @@ class ToDate final :
                &_ToDate_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    25;
 
   friend void swap(ToDate& a, ToDate& b) {
     a.Swap(&b);
@@ -4790,7 +4955,7 @@ class ToDatetime final :
                &_ToDatetime_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    26;
 
   friend void swap(ToDatetime& a, ToDatetime& b) {
     a.Swap(&b);
@@ -4943,7 +5108,7 @@ class ToInterval final :
                &_ToInterval_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    27;
 
   friend void swap(ToInterval& a, ToInterval& b) {
     a.Swap(&b);
@@ -5048,594 +5213,6 @@ class ToInterval final :
 };
 // -------------------------------------------------------------------
 
-class ToUpper final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.ToUpper) */ {
- public:
-  inline ToUpper() : ToUpper(nullptr) {}
-  ~ToUpper() override;
-  explicit PROTOBUF_CONSTEXPR ToUpper(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
-
-  ToUpper(const ToUpper& from);
-  ToUpper(ToUpper&& from) noexcept
-    : ToUpper() {
-    *this = ::std::move(from);
-  }
-
-  inline ToUpper& operator=(const ToUpper& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline ToUpper& operator=(ToUpper&& from) noexcept {
-    if (this == &from) return *this;
-    if (GetOwningArena() == from.GetOwningArena()
-  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
-        && GetOwningArena() != nullptr
-  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
-    ) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const ToUpper& default_instance() {
-    return *internal_default_instance();
-  }
-  enum InputItemCase {
-    kValue = 1,
-    kVar = 2,
-    INPUT_ITEM_NOT_SET = 0,
-  };
-
-  static inline const ToUpper* internal_default_instance() {
-    return reinterpret_cast<const ToUpper*>(
-               &_ToUpper_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    27;
-
-  friend void swap(ToUpper& a, ToUpper& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(ToUpper* other) {
-    if (other == this) return;
-  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() != nullptr &&
-        GetOwningArena() == other->GetOwningArena()) {
-   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() == other->GetOwningArena()) {
-  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(ToUpper* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  ToUpper* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
-    return CreateMaybeMessage<ToUpper>(arena);
-  }
-  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
-  void CopyFrom(const ToUpper& from);
-  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
-  void MergeFrom( const ToUpper& from) {
-    ToUpper::MergeImpl(*this, from);
-  }
-  private:
-  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
-  public:
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  uint8_t* _InternalSerialize(
-      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
-  void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(ToUpper* other);
-
-  private:
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "common.ToUpper";
-  }
-  protected:
-  explicit ToUpper(::PROTOBUF_NAMESPACE_ID::Arena* arena,
-                       bool is_message_owned = false);
-  public:
-
-  static const ClassData _class_data_;
-  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kValueFieldNumber = 1,
-    kVarFieldNumber = 2,
-  };
-  // .common.Value value = 1;
-  bool has_value() const;
-  private:
-  bool _internal_has_value() const;
-  public:
-  void clear_value();
-  const ::common::Value& value() const;
-  PROTOBUF_NODISCARD ::common::Value* release_value();
-  ::common::Value* mutable_value();
-  void set_allocated_value(::common::Value* value);
-  private:
-  const ::common::Value& _internal_value() const;
-  ::common::Value* _internal_mutable_value();
-  public:
-  void unsafe_arena_set_allocated_value(
-      ::common::Value* value);
-  ::common::Value* unsafe_arena_release_value();
-
-  // .common.Variable var = 2;
-  bool has_var() const;
-  private:
-  bool _internal_has_var() const;
-  public:
-  void clear_var();
-  const ::common::Variable& var() const;
-  PROTOBUF_NODISCARD ::common::Variable* release_var();
-  ::common::Variable* mutable_var();
-  void set_allocated_var(::common::Variable* var);
-  private:
-  const ::common::Variable& _internal_var() const;
-  ::common::Variable* _internal_mutable_var();
-  public:
-  void unsafe_arena_set_allocated_var(
-      ::common::Variable* var);
-  ::common::Variable* unsafe_arena_release_var();
-
-  void clear_input_item();
-  InputItemCase input_item_case() const;
-  // @@protoc_insertion_point(class_scope:common.ToUpper)
- private:
-  class _Internal;
-  void set_has_value();
-  void set_has_var();
-
-  inline bool has_input_item() const;
-  inline void clear_has_input_item();
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  struct Impl_ {
-    union InputItemUnion {
-      constexpr InputItemUnion() : _constinit_{} {}
-        ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
-      ::common::Value* value_;
-      ::common::Variable* var_;
-    } input_item_;
-    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    uint32_t _oneof_case_[1];
-
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_expr_2eproto;
-};
-// -------------------------------------------------------------------
-
-class ToLower final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.ToLower) */ {
- public:
-  inline ToLower() : ToLower(nullptr) {}
-  ~ToLower() override;
-  explicit PROTOBUF_CONSTEXPR ToLower(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
-
-  ToLower(const ToLower& from);
-  ToLower(ToLower&& from) noexcept
-    : ToLower() {
-    *this = ::std::move(from);
-  }
-
-  inline ToLower& operator=(const ToLower& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline ToLower& operator=(ToLower&& from) noexcept {
-    if (this == &from) return *this;
-    if (GetOwningArena() == from.GetOwningArena()
-  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
-        && GetOwningArena() != nullptr
-  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
-    ) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const ToLower& default_instance() {
-    return *internal_default_instance();
-  }
-  enum InputItemCase {
-    kValue = 1,
-    kVar = 2,
-    INPUT_ITEM_NOT_SET = 0,
-  };
-
-  static inline const ToLower* internal_default_instance() {
-    return reinterpret_cast<const ToLower*>(
-               &_ToLower_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    28;
-
-  friend void swap(ToLower& a, ToLower& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(ToLower* other) {
-    if (other == this) return;
-  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() != nullptr &&
-        GetOwningArena() == other->GetOwningArena()) {
-   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() == other->GetOwningArena()) {
-  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(ToLower* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  ToLower* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
-    return CreateMaybeMessage<ToLower>(arena);
-  }
-  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
-  void CopyFrom(const ToLower& from);
-  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
-  void MergeFrom( const ToLower& from) {
-    ToLower::MergeImpl(*this, from);
-  }
-  private:
-  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
-  public:
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  uint8_t* _InternalSerialize(
-      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
-  void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(ToLower* other);
-
-  private:
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "common.ToLower";
-  }
-  protected:
-  explicit ToLower(::PROTOBUF_NAMESPACE_ID::Arena* arena,
-                       bool is_message_owned = false);
-  public:
-
-  static const ClassData _class_data_;
-  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kValueFieldNumber = 1,
-    kVarFieldNumber = 2,
-  };
-  // .common.Value value = 1;
-  bool has_value() const;
-  private:
-  bool _internal_has_value() const;
-  public:
-  void clear_value();
-  const ::common::Value& value() const;
-  PROTOBUF_NODISCARD ::common::Value* release_value();
-  ::common::Value* mutable_value();
-  void set_allocated_value(::common::Value* value);
-  private:
-  const ::common::Value& _internal_value() const;
-  ::common::Value* _internal_mutable_value();
-  public:
-  void unsafe_arena_set_allocated_value(
-      ::common::Value* value);
-  ::common::Value* unsafe_arena_release_value();
-
-  // .common.Variable var = 2;
-  bool has_var() const;
-  private:
-  bool _internal_has_var() const;
-  public:
-  void clear_var();
-  const ::common::Variable& var() const;
-  PROTOBUF_NODISCARD ::common::Variable* release_var();
-  ::common::Variable* mutable_var();
-  void set_allocated_var(::common::Variable* var);
-  private:
-  const ::common::Variable& _internal_var() const;
-  ::common::Variable* _internal_mutable_var();
-  public:
-  void unsafe_arena_set_allocated_var(
-      ::common::Variable* var);
-  ::common::Variable* unsafe_arena_release_var();
-
-  void clear_input_item();
-  InputItemCase input_item_case() const;
-  // @@protoc_insertion_point(class_scope:common.ToLower)
- private:
-  class _Internal;
-  void set_has_value();
-  void set_has_var();
-
-  inline bool has_input_item() const;
-  inline void clear_has_input_item();
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  struct Impl_ {
-    union InputItemUnion {
-      constexpr InputItemUnion() : _constinit_{} {}
-        ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
-      ::common::Value* value_;
-      ::common::Variable* var_;
-    } input_item_;
-    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    uint32_t _oneof_case_[1];
-
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_expr_2eproto;
-};
-// -------------------------------------------------------------------
-
-class Reverse final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.Reverse) */ {
- public:
-  inline Reverse() : Reverse(nullptr) {}
-  ~Reverse() override;
-  explicit PROTOBUF_CONSTEXPR Reverse(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
-
-  Reverse(const Reverse& from);
-  Reverse(Reverse&& from) noexcept
-    : Reverse() {
-    *this = ::std::move(from);
-  }
-
-  inline Reverse& operator=(const Reverse& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline Reverse& operator=(Reverse&& from) noexcept {
-    if (this == &from) return *this;
-    if (GetOwningArena() == from.GetOwningArena()
-  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
-        && GetOwningArena() != nullptr
-  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
-    ) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const Reverse& default_instance() {
-    return *internal_default_instance();
-  }
-  enum InputItemCase {
-    kValue = 1,
-    kVar = 2,
-    INPUT_ITEM_NOT_SET = 0,
-  };
-
-  static inline const Reverse* internal_default_instance() {
-    return reinterpret_cast<const Reverse*>(
-               &_Reverse_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    29;
-
-  friend void swap(Reverse& a, Reverse& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(Reverse* other) {
-    if (other == this) return;
-  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() != nullptr &&
-        GetOwningArena() == other->GetOwningArena()) {
-   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() == other->GetOwningArena()) {
-  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(Reverse* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  Reverse* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
-    return CreateMaybeMessage<Reverse>(arena);
-  }
-  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
-  void CopyFrom(const Reverse& from);
-  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
-  void MergeFrom( const Reverse& from) {
-    Reverse::MergeImpl(*this, from);
-  }
-  private:
-  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
-  public:
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  uint8_t* _InternalSerialize(
-      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
-  void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(Reverse* other);
-
-  private:
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "common.Reverse";
-  }
-  protected:
-  explicit Reverse(::PROTOBUF_NAMESPACE_ID::Arena* arena,
-                       bool is_message_owned = false);
-  public:
-
-  static const ClassData _class_data_;
-  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kValueFieldNumber = 1,
-    kVarFieldNumber = 2,
-  };
-  // .common.Value value = 1;
-  bool has_value() const;
-  private:
-  bool _internal_has_value() const;
-  public:
-  void clear_value();
-  const ::common::Value& value() const;
-  PROTOBUF_NODISCARD ::common::Value* release_value();
-  ::common::Value* mutable_value();
-  void set_allocated_value(::common::Value* value);
-  private:
-  const ::common::Value& _internal_value() const;
-  ::common::Value* _internal_mutable_value();
-  public:
-  void unsafe_arena_set_allocated_value(
-      ::common::Value* value);
-  ::common::Value* unsafe_arena_release_value();
-
-  // .common.Variable var = 2;
-  bool has_var() const;
-  private:
-  bool _internal_has_var() const;
-  public:
-  void clear_var();
-  const ::common::Variable& var() const;
-  PROTOBUF_NODISCARD ::common::Variable* release_var();
-  ::common::Variable* mutable_var();
-  void set_allocated_var(::common::Variable* var);
-  private:
-  const ::common::Variable& _internal_var() const;
-  ::common::Variable* _internal_mutable_var();
-  public:
-  void unsafe_arena_set_allocated_var(
-      ::common::Variable* var);
-  ::common::Variable* unsafe_arena_release_var();
-
-  void clear_input_item();
-  InputItemCase input_item_case() const;
-  // @@protoc_insertion_point(class_scope:common.Reverse)
- private:
-  class _Internal;
-  void set_has_value();
-  void set_has_var();
-
-  inline bool has_input_item() const;
-  inline void clear_has_input_item();
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  struct Impl_ {
-    union InputItemUnion {
-      constexpr InputItemUnion() : _constinit_{} {}
-        ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
-      ::common::Value* value_;
-      ::common::Variable* var_;
-    } input_item_;
-    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    uint32_t _oneof_case_[1];
-
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_expr_2eproto;
-};
-// -------------------------------------------------------------------
-
 class ExprOpr final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:common.ExprOpr) */ {
  public:
@@ -5700,9 +5277,7 @@ class ExprOpr final :
     kToDatetime = 20,
     kToInterval = 21,
     kToTuple = 22,
-    kToUpper = 23,
-    kToLower = 24,
-    kReverse = 25,
+    kScalarFunc = 23,
     ITEM_NOT_SET = 0,
   };
 
@@ -5711,7 +5286,7 @@ class ExprOpr final :
                &_ExprOpr_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    30;
+    28;
 
   friend void swap(ExprOpr& a, ExprOpr& b) {
     a.Swap(&b);
@@ -5835,9 +5410,7 @@ class ExprOpr final :
     kToDatetimeFieldNumber = 20,
     kToIntervalFieldNumber = 21,
     kToTupleFieldNumber = 22,
-    kToUpperFieldNumber = 23,
-    kToLowerFieldNumber = 24,
-    kReverseFieldNumber = 25,
+    kScalarFuncFieldNumber = 23,
   };
   // .common.IrDataType node_type = 12;
   bool has_node_type() const;
@@ -6202,59 +5775,23 @@ class ExprOpr final :
       ::common::ToTuple* to_tuple);
   ::common::ToTuple* unsafe_arena_release_to_tuple();
 
-  // .common.ToUpper to_upper = 23;
-  bool has_to_upper() const;
+  // .common.ScalarFunction scalar_func = 23;
+  bool has_scalar_func() const;
   private:
-  bool _internal_has_to_upper() const;
+  bool _internal_has_scalar_func() const;
   public:
-  void clear_to_upper();
-  const ::common::ToUpper& to_upper() const;
-  PROTOBUF_NODISCARD ::common::ToUpper* release_to_upper();
-  ::common::ToUpper* mutable_to_upper();
-  void set_allocated_to_upper(::common::ToUpper* to_upper);
+  void clear_scalar_func();
+  const ::common::ScalarFunction& scalar_func() const;
+  PROTOBUF_NODISCARD ::common::ScalarFunction* release_scalar_func();
+  ::common::ScalarFunction* mutable_scalar_func();
+  void set_allocated_scalar_func(::common::ScalarFunction* scalar_func);
   private:
-  const ::common::ToUpper& _internal_to_upper() const;
-  ::common::ToUpper* _internal_mutable_to_upper();
+  const ::common::ScalarFunction& _internal_scalar_func() const;
+  ::common::ScalarFunction* _internal_mutable_scalar_func();
   public:
-  void unsafe_arena_set_allocated_to_upper(
-      ::common::ToUpper* to_upper);
-  ::common::ToUpper* unsafe_arena_release_to_upper();
-
-  // .common.ToLower to_lower = 24;
-  bool has_to_lower() const;
-  private:
-  bool _internal_has_to_lower() const;
-  public:
-  void clear_to_lower();
-  const ::common::ToLower& to_lower() const;
-  PROTOBUF_NODISCARD ::common::ToLower* release_to_lower();
-  ::common::ToLower* mutable_to_lower();
-  void set_allocated_to_lower(::common::ToLower* to_lower);
-  private:
-  const ::common::ToLower& _internal_to_lower() const;
-  ::common::ToLower* _internal_mutable_to_lower();
-  public:
-  void unsafe_arena_set_allocated_to_lower(
-      ::common::ToLower* to_lower);
-  ::common::ToLower* unsafe_arena_release_to_lower();
-
-  // .common.Reverse reverse = 25;
-  bool has_reverse() const;
-  private:
-  bool _internal_has_reverse() const;
-  public:
-  void clear_reverse();
-  const ::common::Reverse& reverse() const;
-  PROTOBUF_NODISCARD ::common::Reverse* release_reverse();
-  ::common::Reverse* mutable_reverse();
-  void set_allocated_reverse(::common::Reverse* reverse);
-  private:
-  const ::common::Reverse& _internal_reverse() const;
-  ::common::Reverse* _internal_mutable_reverse();
-  public:
-  void unsafe_arena_set_allocated_reverse(
-      ::common::Reverse* reverse);
-  ::common::Reverse* unsafe_arena_release_reverse();
+  void unsafe_arena_set_allocated_scalar_func(
+      ::common::ScalarFunction* scalar_func);
+  ::common::ScalarFunction* unsafe_arena_release_scalar_func();
 
   void clear_item();
   ItemCase item_case() const;
@@ -6281,9 +5818,7 @@ class ExprOpr final :
   void set_has_to_datetime();
   void set_has_to_interval();
   void set_has_to_tuple();
-  void set_has_to_upper();
-  void set_has_to_lower();
-  void set_has_reverse();
+  void set_has_scalar_func();
 
   inline bool has_item() const;
   inline void clear_has_item();
@@ -6316,9 +5851,7 @@ class ExprOpr final :
       ::common::ToDatetime* to_datetime_;
       ::common::ToInterval* to_interval_;
       ::common::ToTuple* to_tuple_;
-      ::common::ToUpper* to_upper_;
-      ::common::ToLower* to_lower_;
-      ::common::Reverse* reverse_;
+      ::common::ScalarFunction* scalar_func_;
     } item_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
     uint32_t _oneof_case_[1];
@@ -6377,7 +5910,7 @@ class Expression final :
                &_Expression_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    29;
 
   friend void swap(Expression& a, Expression& b) {
     a.Swap(&b);
@@ -9471,6 +9004,100 @@ UserDefinedFunction::parameters() const {
 
 // -------------------------------------------------------------------
 
+// ScalarFunction
+
+// string unique_name = 1;
+inline void ScalarFunction::clear_unique_name() {
+  _impl_.unique_name_.ClearToEmpty();
+}
+inline const std::string& ScalarFunction::unique_name() const {
+  // @@protoc_insertion_point(field_get:common.ScalarFunction.unique_name)
+  return _internal_unique_name();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void ScalarFunction::set_unique_name(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.unique_name_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:common.ScalarFunction.unique_name)
+}
+inline std::string* ScalarFunction::mutable_unique_name() {
+  std::string* _s = _internal_mutable_unique_name();
+  // @@protoc_insertion_point(field_mutable:common.ScalarFunction.unique_name)
+  return _s;
+}
+inline const std::string& ScalarFunction::_internal_unique_name() const {
+  return _impl_.unique_name_.Get();
+}
+inline void ScalarFunction::_internal_set_unique_name(const std::string& value) {
+  
+  _impl_.unique_name_.Set(value, GetArenaForAllocation());
+}
+inline std::string* ScalarFunction::_internal_mutable_unique_name() {
+  
+  return _impl_.unique_name_.Mutable(GetArenaForAllocation());
+}
+inline std::string* ScalarFunction::release_unique_name() {
+  // @@protoc_insertion_point(field_release:common.ScalarFunction.unique_name)
+  return _impl_.unique_name_.Release();
+}
+inline void ScalarFunction::set_allocated_unique_name(std::string* unique_name) {
+  if (unique_name != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.unique_name_.SetAllocated(unique_name, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.unique_name_.IsDefault()) {
+    _impl_.unique_name_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:common.ScalarFunction.unique_name)
+}
+
+// repeated .common.Expression parameters = 2;
+inline int ScalarFunction::_internal_parameters_size() const {
+  return _impl_.parameters_.size();
+}
+inline int ScalarFunction::parameters_size() const {
+  return _internal_parameters_size();
+}
+inline void ScalarFunction::clear_parameters() {
+  _impl_.parameters_.Clear();
+}
+inline ::common::Expression* ScalarFunction::mutable_parameters(int index) {
+  // @@protoc_insertion_point(field_mutable:common.ScalarFunction.parameters)
+  return _impl_.parameters_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::common::Expression >*
+ScalarFunction::mutable_parameters() {
+  // @@protoc_insertion_point(field_mutable_list:common.ScalarFunction.parameters)
+  return &_impl_.parameters_;
+}
+inline const ::common::Expression& ScalarFunction::_internal_parameters(int index) const {
+  return _impl_.parameters_.Get(index);
+}
+inline const ::common::Expression& ScalarFunction::parameters(int index) const {
+  // @@protoc_insertion_point(field_get:common.ScalarFunction.parameters)
+  return _internal_parameters(index);
+}
+inline ::common::Expression* ScalarFunction::_internal_add_parameters() {
+  return _impl_.parameters_.Add();
+}
+inline ::common::Expression* ScalarFunction::add_parameters() {
+  ::common::Expression* _add = _internal_add_parameters();
+  // @@protoc_insertion_point(field_add:common.ScalarFunction.parameters)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::common::Expression >&
+ScalarFunction::parameters() const {
+  // @@protoc_insertion_point(field_list:common.ScalarFunction.parameters)
+  return _impl_.parameters_;
+}
+
+// -------------------------------------------------------------------
+
 // ToDate
 
 // string date_str = 1;
@@ -9631,465 +9258,6 @@ inline void ToInterval::set_allocated_interval_str(std::string* interval_str) {
   // @@protoc_insertion_point(field_set_allocated:common.ToInterval.interval_str)
 }
 
-// -------------------------------------------------------------------
-
-// ToUpper
-
-// .common.Value value = 1;
-inline bool ToUpper::_internal_has_value() const {
-  return input_item_case() == kValue;
-}
-inline bool ToUpper::has_value() const {
-  return _internal_has_value();
-}
-inline void ToUpper::set_has_value() {
-  _impl_._oneof_case_[0] = kValue;
-}
-inline ::common::Value* ToUpper::release_value() {
-  // @@protoc_insertion_point(field_release:common.ToUpper.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Value& ToUpper::_internal_value() const {
-  return _internal_has_value()
-      ? *_impl_.input_item_.value_
-      : reinterpret_cast< ::common::Value&>(::common::_Value_default_instance_);
-}
-inline const ::common::Value& ToUpper::value() const {
-  // @@protoc_insertion_point(field_get:common.ToUpper.value)
-  return _internal_value();
-}
-inline ::common::Value* ToUpper::unsafe_arena_release_value() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ToUpper.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ToUpper::unsafe_arena_set_allocated_value(::common::Value* value) {
-  clear_input_item();
-  if (value) {
-    set_has_value();
-    _impl_.input_item_.value_ = value;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ToUpper.value)
-}
-inline ::common::Value* ToUpper::_internal_mutable_value() {
-  if (!_internal_has_value()) {
-    clear_input_item();
-    set_has_value();
-    _impl_.input_item_.value_ = CreateMaybeMessage< ::common::Value >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.value_;
-}
-inline ::common::Value* ToUpper::mutable_value() {
-  ::common::Value* _msg = _internal_mutable_value();
-  // @@protoc_insertion_point(field_mutable:common.ToUpper.value)
-  return _msg;
-}
-
-// .common.Variable var = 2;
-inline bool ToUpper::_internal_has_var() const {
-  return input_item_case() == kVar;
-}
-inline bool ToUpper::has_var() const {
-  return _internal_has_var();
-}
-inline void ToUpper::set_has_var() {
-  _impl_._oneof_case_[0] = kVar;
-}
-inline void ToUpper::clear_var() {
-  if (_internal_has_var()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.input_item_.var_;
-    }
-    clear_has_input_item();
-  }
-}
-inline ::common::Variable* ToUpper::release_var() {
-  // @@protoc_insertion_point(field_release:common.ToUpper.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Variable& ToUpper::_internal_var() const {
-  return _internal_has_var()
-      ? *_impl_.input_item_.var_
-      : reinterpret_cast< ::common::Variable&>(::common::_Variable_default_instance_);
-}
-inline const ::common::Variable& ToUpper::var() const {
-  // @@protoc_insertion_point(field_get:common.ToUpper.var)
-  return _internal_var();
-}
-inline ::common::Variable* ToUpper::unsafe_arena_release_var() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ToUpper.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ToUpper::unsafe_arena_set_allocated_var(::common::Variable* var) {
-  clear_input_item();
-  if (var) {
-    set_has_var();
-    _impl_.input_item_.var_ = var;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ToUpper.var)
-}
-inline ::common::Variable* ToUpper::_internal_mutable_var() {
-  if (!_internal_has_var()) {
-    clear_input_item();
-    set_has_var();
-    _impl_.input_item_.var_ = CreateMaybeMessage< ::common::Variable >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.var_;
-}
-inline ::common::Variable* ToUpper::mutable_var() {
-  ::common::Variable* _msg = _internal_mutable_var();
-  // @@protoc_insertion_point(field_mutable:common.ToUpper.var)
-  return _msg;
-}
-
-inline bool ToUpper::has_input_item() const {
-  return input_item_case() != INPUT_ITEM_NOT_SET;
-}
-inline void ToUpper::clear_has_input_item() {
-  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
-}
-inline ToUpper::InputItemCase ToUpper::input_item_case() const {
-  return ToUpper::InputItemCase(_impl_._oneof_case_[0]);
-}
-// -------------------------------------------------------------------
-
-// ToLower
-
-// .common.Value value = 1;
-inline bool ToLower::_internal_has_value() const {
-  return input_item_case() == kValue;
-}
-inline bool ToLower::has_value() const {
-  return _internal_has_value();
-}
-inline void ToLower::set_has_value() {
-  _impl_._oneof_case_[0] = kValue;
-}
-inline ::common::Value* ToLower::release_value() {
-  // @@protoc_insertion_point(field_release:common.ToLower.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Value& ToLower::_internal_value() const {
-  return _internal_has_value()
-      ? *_impl_.input_item_.value_
-      : reinterpret_cast< ::common::Value&>(::common::_Value_default_instance_);
-}
-inline const ::common::Value& ToLower::value() const {
-  // @@protoc_insertion_point(field_get:common.ToLower.value)
-  return _internal_value();
-}
-inline ::common::Value* ToLower::unsafe_arena_release_value() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ToLower.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ToLower::unsafe_arena_set_allocated_value(::common::Value* value) {
-  clear_input_item();
-  if (value) {
-    set_has_value();
-    _impl_.input_item_.value_ = value;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ToLower.value)
-}
-inline ::common::Value* ToLower::_internal_mutable_value() {
-  if (!_internal_has_value()) {
-    clear_input_item();
-    set_has_value();
-    _impl_.input_item_.value_ = CreateMaybeMessage< ::common::Value >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.value_;
-}
-inline ::common::Value* ToLower::mutable_value() {
-  ::common::Value* _msg = _internal_mutable_value();
-  // @@protoc_insertion_point(field_mutable:common.ToLower.value)
-  return _msg;
-}
-
-// .common.Variable var = 2;
-inline bool ToLower::_internal_has_var() const {
-  return input_item_case() == kVar;
-}
-inline bool ToLower::has_var() const {
-  return _internal_has_var();
-}
-inline void ToLower::set_has_var() {
-  _impl_._oneof_case_[0] = kVar;
-}
-inline void ToLower::clear_var() {
-  if (_internal_has_var()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.input_item_.var_;
-    }
-    clear_has_input_item();
-  }
-}
-inline ::common::Variable* ToLower::release_var() {
-  // @@protoc_insertion_point(field_release:common.ToLower.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Variable& ToLower::_internal_var() const {
-  return _internal_has_var()
-      ? *_impl_.input_item_.var_
-      : reinterpret_cast< ::common::Variable&>(::common::_Variable_default_instance_);
-}
-inline const ::common::Variable& ToLower::var() const {
-  // @@protoc_insertion_point(field_get:common.ToLower.var)
-  return _internal_var();
-}
-inline ::common::Variable* ToLower::unsafe_arena_release_var() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ToLower.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ToLower::unsafe_arena_set_allocated_var(::common::Variable* var) {
-  clear_input_item();
-  if (var) {
-    set_has_var();
-    _impl_.input_item_.var_ = var;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ToLower.var)
-}
-inline ::common::Variable* ToLower::_internal_mutable_var() {
-  if (!_internal_has_var()) {
-    clear_input_item();
-    set_has_var();
-    _impl_.input_item_.var_ = CreateMaybeMessage< ::common::Variable >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.var_;
-}
-inline ::common::Variable* ToLower::mutable_var() {
-  ::common::Variable* _msg = _internal_mutable_var();
-  // @@protoc_insertion_point(field_mutable:common.ToLower.var)
-  return _msg;
-}
-
-inline bool ToLower::has_input_item() const {
-  return input_item_case() != INPUT_ITEM_NOT_SET;
-}
-inline void ToLower::clear_has_input_item() {
-  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
-}
-inline ToLower::InputItemCase ToLower::input_item_case() const {
-  return ToLower::InputItemCase(_impl_._oneof_case_[0]);
-}
-// -------------------------------------------------------------------
-
-// Reverse
-
-// .common.Value value = 1;
-inline bool Reverse::_internal_has_value() const {
-  return input_item_case() == kValue;
-}
-inline bool Reverse::has_value() const {
-  return _internal_has_value();
-}
-inline void Reverse::set_has_value() {
-  _impl_._oneof_case_[0] = kValue;
-}
-inline ::common::Value* Reverse::release_value() {
-  // @@protoc_insertion_point(field_release:common.Reverse.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Value& Reverse::_internal_value() const {
-  return _internal_has_value()
-      ? *_impl_.input_item_.value_
-      : reinterpret_cast< ::common::Value&>(::common::_Value_default_instance_);
-}
-inline const ::common::Value& Reverse::value() const {
-  // @@protoc_insertion_point(field_get:common.Reverse.value)
-  return _internal_value();
-}
-inline ::common::Value* Reverse::unsafe_arena_release_value() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.Reverse.value)
-  if (_internal_has_value()) {
-    clear_has_input_item();
-    ::common::Value* temp = _impl_.input_item_.value_;
-    _impl_.input_item_.value_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void Reverse::unsafe_arena_set_allocated_value(::common::Value* value) {
-  clear_input_item();
-  if (value) {
-    set_has_value();
-    _impl_.input_item_.value_ = value;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.Reverse.value)
-}
-inline ::common::Value* Reverse::_internal_mutable_value() {
-  if (!_internal_has_value()) {
-    clear_input_item();
-    set_has_value();
-    _impl_.input_item_.value_ = CreateMaybeMessage< ::common::Value >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.value_;
-}
-inline ::common::Value* Reverse::mutable_value() {
-  ::common::Value* _msg = _internal_mutable_value();
-  // @@protoc_insertion_point(field_mutable:common.Reverse.value)
-  return _msg;
-}
-
-// .common.Variable var = 2;
-inline bool Reverse::_internal_has_var() const {
-  return input_item_case() == kVar;
-}
-inline bool Reverse::has_var() const {
-  return _internal_has_var();
-}
-inline void Reverse::set_has_var() {
-  _impl_._oneof_case_[0] = kVar;
-}
-inline void Reverse::clear_var() {
-  if (_internal_has_var()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.input_item_.var_;
-    }
-    clear_has_input_item();
-  }
-}
-inline ::common::Variable* Reverse::release_var() {
-  // @@protoc_insertion_point(field_release:common.Reverse.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Variable& Reverse::_internal_var() const {
-  return _internal_has_var()
-      ? *_impl_.input_item_.var_
-      : reinterpret_cast< ::common::Variable&>(::common::_Variable_default_instance_);
-}
-inline const ::common::Variable& Reverse::var() const {
-  // @@protoc_insertion_point(field_get:common.Reverse.var)
-  return _internal_var();
-}
-inline ::common::Variable* Reverse::unsafe_arena_release_var() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.Reverse.var)
-  if (_internal_has_var()) {
-    clear_has_input_item();
-    ::common::Variable* temp = _impl_.input_item_.var_;
-    _impl_.input_item_.var_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void Reverse::unsafe_arena_set_allocated_var(::common::Variable* var) {
-  clear_input_item();
-  if (var) {
-    set_has_var();
-    _impl_.input_item_.var_ = var;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.Reverse.var)
-}
-inline ::common::Variable* Reverse::_internal_mutable_var() {
-  if (!_internal_has_var()) {
-    clear_input_item();
-    set_has_var();
-    _impl_.input_item_.var_ = CreateMaybeMessage< ::common::Variable >(GetArenaForAllocation());
-  }
-  return _impl_.input_item_.var_;
-}
-inline ::common::Variable* Reverse::mutable_var() {
-  ::common::Variable* _msg = _internal_mutable_var();
-  // @@protoc_insertion_point(field_mutable:common.Reverse.var)
-  return _msg;
-}
-
-inline bool Reverse::has_input_item() const {
-  return input_item_case() != INPUT_ITEM_NOT_SET;
-}
-inline void Reverse::clear_has_input_item() {
-  _impl_._oneof_case_[0] = INPUT_ITEM_NOT_SET;
-}
-inline Reverse::InputItemCase Reverse::input_item_case() const {
-  return Reverse::InputItemCase(_impl_._oneof_case_[0]);
-}
 // -------------------------------------------------------------------
 
 // ExprOpr
@@ -11458,225 +10626,77 @@ inline ::common::ToTuple* ExprOpr::mutable_to_tuple() {
   return _msg;
 }
 
-// .common.ToUpper to_upper = 23;
-inline bool ExprOpr::_internal_has_to_upper() const {
-  return item_case() == kToUpper;
+// .common.ScalarFunction scalar_func = 23;
+inline bool ExprOpr::_internal_has_scalar_func() const {
+  return item_case() == kScalarFunc;
 }
-inline bool ExprOpr::has_to_upper() const {
-  return _internal_has_to_upper();
+inline bool ExprOpr::has_scalar_func() const {
+  return _internal_has_scalar_func();
 }
-inline void ExprOpr::set_has_to_upper() {
-  _impl_._oneof_case_[0] = kToUpper;
+inline void ExprOpr::set_has_scalar_func() {
+  _impl_._oneof_case_[0] = kScalarFunc;
 }
-inline void ExprOpr::clear_to_upper() {
-  if (_internal_has_to_upper()) {
+inline void ExprOpr::clear_scalar_func() {
+  if (_internal_has_scalar_func()) {
     if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.item_.to_upper_;
+      delete _impl_.item_.scalar_func_;
     }
     clear_has_item();
   }
 }
-inline ::common::ToUpper* ExprOpr::release_to_upper() {
-  // @@protoc_insertion_point(field_release:common.ExprOpr.to_upper)
-  if (_internal_has_to_upper()) {
+inline ::common::ScalarFunction* ExprOpr::release_scalar_func() {
+  // @@protoc_insertion_point(field_release:common.ExprOpr.scalar_func)
+  if (_internal_has_scalar_func()) {
     clear_has_item();
-    ::common::ToUpper* temp = _impl_.item_.to_upper_;
+    ::common::ScalarFunction* temp = _impl_.item_.scalar_func_;
     if (GetArenaForAllocation() != nullptr) {
       temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
     }
-    _impl_.item_.to_upper_ = nullptr;
+    _impl_.item_.scalar_func_ = nullptr;
     return temp;
   } else {
     return nullptr;
   }
 }
-inline const ::common::ToUpper& ExprOpr::_internal_to_upper() const {
-  return _internal_has_to_upper()
-      ? *_impl_.item_.to_upper_
-      : reinterpret_cast< ::common::ToUpper&>(::common::_ToUpper_default_instance_);
+inline const ::common::ScalarFunction& ExprOpr::_internal_scalar_func() const {
+  return _internal_has_scalar_func()
+      ? *_impl_.item_.scalar_func_
+      : reinterpret_cast< ::common::ScalarFunction&>(::common::_ScalarFunction_default_instance_);
 }
-inline const ::common::ToUpper& ExprOpr::to_upper() const {
-  // @@protoc_insertion_point(field_get:common.ExprOpr.to_upper)
-  return _internal_to_upper();
+inline const ::common::ScalarFunction& ExprOpr::scalar_func() const {
+  // @@protoc_insertion_point(field_get:common.ExprOpr.scalar_func)
+  return _internal_scalar_func();
 }
-inline ::common::ToUpper* ExprOpr::unsafe_arena_release_to_upper() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ExprOpr.to_upper)
-  if (_internal_has_to_upper()) {
+inline ::common::ScalarFunction* ExprOpr::unsafe_arena_release_scalar_func() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:common.ExprOpr.scalar_func)
+  if (_internal_has_scalar_func()) {
     clear_has_item();
-    ::common::ToUpper* temp = _impl_.item_.to_upper_;
-    _impl_.item_.to_upper_ = nullptr;
+    ::common::ScalarFunction* temp = _impl_.item_.scalar_func_;
+    _impl_.item_.scalar_func_ = nullptr;
     return temp;
   } else {
     return nullptr;
   }
 }
-inline void ExprOpr::unsafe_arena_set_allocated_to_upper(::common::ToUpper* to_upper) {
+inline void ExprOpr::unsafe_arena_set_allocated_scalar_func(::common::ScalarFunction* scalar_func) {
   clear_item();
-  if (to_upper) {
-    set_has_to_upper();
-    _impl_.item_.to_upper_ = to_upper;
+  if (scalar_func) {
+    set_has_scalar_func();
+    _impl_.item_.scalar_func_ = scalar_func;
   }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ExprOpr.to_upper)
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ExprOpr.scalar_func)
 }
-inline ::common::ToUpper* ExprOpr::_internal_mutable_to_upper() {
-  if (!_internal_has_to_upper()) {
+inline ::common::ScalarFunction* ExprOpr::_internal_mutable_scalar_func() {
+  if (!_internal_has_scalar_func()) {
     clear_item();
-    set_has_to_upper();
-    _impl_.item_.to_upper_ = CreateMaybeMessage< ::common::ToUpper >(GetArenaForAllocation());
+    set_has_scalar_func();
+    _impl_.item_.scalar_func_ = CreateMaybeMessage< ::common::ScalarFunction >(GetArenaForAllocation());
   }
-  return _impl_.item_.to_upper_;
+  return _impl_.item_.scalar_func_;
 }
-inline ::common::ToUpper* ExprOpr::mutable_to_upper() {
-  ::common::ToUpper* _msg = _internal_mutable_to_upper();
-  // @@protoc_insertion_point(field_mutable:common.ExprOpr.to_upper)
-  return _msg;
-}
-
-// .common.ToLower to_lower = 24;
-inline bool ExprOpr::_internal_has_to_lower() const {
-  return item_case() == kToLower;
-}
-inline bool ExprOpr::has_to_lower() const {
-  return _internal_has_to_lower();
-}
-inline void ExprOpr::set_has_to_lower() {
-  _impl_._oneof_case_[0] = kToLower;
-}
-inline void ExprOpr::clear_to_lower() {
-  if (_internal_has_to_lower()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.item_.to_lower_;
-    }
-    clear_has_item();
-  }
-}
-inline ::common::ToLower* ExprOpr::release_to_lower() {
-  // @@protoc_insertion_point(field_release:common.ExprOpr.to_lower)
-  if (_internal_has_to_lower()) {
-    clear_has_item();
-    ::common::ToLower* temp = _impl_.item_.to_lower_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.item_.to_lower_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::ToLower& ExprOpr::_internal_to_lower() const {
-  return _internal_has_to_lower()
-      ? *_impl_.item_.to_lower_
-      : reinterpret_cast< ::common::ToLower&>(::common::_ToLower_default_instance_);
-}
-inline const ::common::ToLower& ExprOpr::to_lower() const {
-  // @@protoc_insertion_point(field_get:common.ExprOpr.to_lower)
-  return _internal_to_lower();
-}
-inline ::common::ToLower* ExprOpr::unsafe_arena_release_to_lower() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ExprOpr.to_lower)
-  if (_internal_has_to_lower()) {
-    clear_has_item();
-    ::common::ToLower* temp = _impl_.item_.to_lower_;
-    _impl_.item_.to_lower_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ExprOpr::unsafe_arena_set_allocated_to_lower(::common::ToLower* to_lower) {
-  clear_item();
-  if (to_lower) {
-    set_has_to_lower();
-    _impl_.item_.to_lower_ = to_lower;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ExprOpr.to_lower)
-}
-inline ::common::ToLower* ExprOpr::_internal_mutable_to_lower() {
-  if (!_internal_has_to_lower()) {
-    clear_item();
-    set_has_to_lower();
-    _impl_.item_.to_lower_ = CreateMaybeMessage< ::common::ToLower >(GetArenaForAllocation());
-  }
-  return _impl_.item_.to_lower_;
-}
-inline ::common::ToLower* ExprOpr::mutable_to_lower() {
-  ::common::ToLower* _msg = _internal_mutable_to_lower();
-  // @@protoc_insertion_point(field_mutable:common.ExprOpr.to_lower)
-  return _msg;
-}
-
-// .common.Reverse reverse = 25;
-inline bool ExprOpr::_internal_has_reverse() const {
-  return item_case() == kReverse;
-}
-inline bool ExprOpr::has_reverse() const {
-  return _internal_has_reverse();
-}
-inline void ExprOpr::set_has_reverse() {
-  _impl_._oneof_case_[0] = kReverse;
-}
-inline void ExprOpr::clear_reverse() {
-  if (_internal_has_reverse()) {
-    if (GetArenaForAllocation() == nullptr) {
-      delete _impl_.item_.reverse_;
-    }
-    clear_has_item();
-  }
-}
-inline ::common::Reverse* ExprOpr::release_reverse() {
-  // @@protoc_insertion_point(field_release:common.ExprOpr.reverse)
-  if (_internal_has_reverse()) {
-    clear_has_item();
-    ::common::Reverse* temp = _impl_.item_.reverse_;
-    if (GetArenaForAllocation() != nullptr) {
-      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-    }
-    _impl_.item_.reverse_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline const ::common::Reverse& ExprOpr::_internal_reverse() const {
-  return _internal_has_reverse()
-      ? *_impl_.item_.reverse_
-      : reinterpret_cast< ::common::Reverse&>(::common::_Reverse_default_instance_);
-}
-inline const ::common::Reverse& ExprOpr::reverse() const {
-  // @@protoc_insertion_point(field_get:common.ExprOpr.reverse)
-  return _internal_reverse();
-}
-inline ::common::Reverse* ExprOpr::unsafe_arena_release_reverse() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:common.ExprOpr.reverse)
-  if (_internal_has_reverse()) {
-    clear_has_item();
-    ::common::Reverse* temp = _impl_.item_.reverse_;
-    _impl_.item_.reverse_ = nullptr;
-    return temp;
-  } else {
-    return nullptr;
-  }
-}
-inline void ExprOpr::unsafe_arena_set_allocated_reverse(::common::Reverse* reverse) {
-  clear_item();
-  if (reverse) {
-    set_has_reverse();
-    _impl_.item_.reverse_ = reverse;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:common.ExprOpr.reverse)
-}
-inline ::common::Reverse* ExprOpr::_internal_mutable_reverse() {
-  if (!_internal_has_reverse()) {
-    clear_item();
-    set_has_reverse();
-    _impl_.item_.reverse_ = CreateMaybeMessage< ::common::Reverse >(GetArenaForAllocation());
-  }
-  return _impl_.item_.reverse_;
-}
-inline ::common::Reverse* ExprOpr::mutable_reverse() {
-  ::common::Reverse* _msg = _internal_mutable_reverse();
-  // @@protoc_insertion_point(field_mutable:common.ExprOpr.reverse)
+inline ::common::ScalarFunction* ExprOpr::mutable_scalar_func() {
+  ::common::ScalarFunction* _msg = _internal_mutable_scalar_func();
+  // @@protoc_insertion_point(field_mutable:common.ExprOpr.scalar_func)
   return _msg;
 }
 
@@ -11821,10 +10841,6 @@ Expression::operators() const {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
-// -------------------------------------------------------------------
-
-// -------------------------------------------------------------------
-
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

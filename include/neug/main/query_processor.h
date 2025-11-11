@@ -22,14 +22,9 @@
 
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/opr_timer.h"
-#include "neug/main/query_result.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
+#include "neug/main/query_result.h"
 #include "neug/utils/result.h"
 
 namespace gs {

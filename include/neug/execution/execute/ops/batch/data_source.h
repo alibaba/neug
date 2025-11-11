@@ -23,13 +23,8 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 class IRecordBatchSupplier;

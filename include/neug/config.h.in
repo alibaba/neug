@@ -87,12 +87,6 @@ struct NeugDBConfig {
 
 }  // namespace gs
 
-// Protobuf configuration
-#ifndef USE_SYSTEM_PROTOBUF  // Add a guard to avoid conflict with
-                             // target_add_definition in CMakeList
-#cmakedefine USE_SYSTEM_PROTOBUF
-#endif
-
 // Other build configuration options can be added here
 #cmakedefine BUILD_WITH_OSS
 

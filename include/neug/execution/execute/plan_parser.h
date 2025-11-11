@@ -23,11 +23,7 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/pipeline.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 class Schema;

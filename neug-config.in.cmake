@@ -15,6 +15,7 @@ set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
 
 find_package(Threads REQUIRED)
 find_package(Protobuf)
+find_package(ZLIB) # Brought by protobuf WITH_ZLIB option
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)

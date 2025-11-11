@@ -24,13 +24,8 @@
 #include "neug/compiler/gopt/g_query_converter.h"
 #include "neug/compiler/gopt/g_type_utils.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#endif
 #include "neug/utils/exception/exception.h"
 
 #include <memory>

@@ -15,11 +15,7 @@
 
 #include "neug/utils/exception/exception.h"
 #include <utility>
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/error.pb.h"
-#else
-#include "neug/utils/proto/plan/error.pb.h"
-#endif
 
 #ifdef NEUG_BACKTRACE
 #include <cpptrace/cpptrace.hpp>

@@ -22,11 +22,7 @@
 #include <sstream>
 #include <string>
 
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/error.pb.h"
-#else
-#include "neug/utils/proto/plan/error.pb.h"
-#endif
 #include "tl/expected.hpp"
 
 namespace gs {

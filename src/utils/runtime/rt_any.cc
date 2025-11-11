@@ -18,15 +18,9 @@
 #include <arrow/type.h>
 #include <assert.h>
 #include <glog/logging.h>
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
-#else
-#include "neug/utils/proto/plan/basic_type.pb.h"
-#include "neug/utils/proto/plan/results.pb.h"
-#include "neug/utils/proto/plan/type.pb.h"
-#endif
 
 #include <cstdint>
 #include <string>

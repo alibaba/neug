@@ -20,11 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/results.pb.h"
-#else
-#include "neug/utils/proto/plan/results.pb.h"
-#endif
 
 namespace gs {
 /**

@@ -24,13 +24,8 @@
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-#ifdef USE_SYSTEM_PROTOBUF
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#else
-#include "neug/utils/proto/plan/common.pb.h"
-#include "neug/utils/proto/plan/cypher_ddl.pb.h"
-#endif
 
 namespace gs {
 namespace gopt {
