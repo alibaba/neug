@@ -246,9 +246,9 @@ class VertexTable {
           << "Number of columns in the batch (" << columns.size()
           << ") does not match the number of properties ("
           << property_names.size() + 1 << ").";
-      auto pk_array = columns[0];  // primary key column. TODO(zhanglei):
-                                   // make sure the pk is the first column
-      columns.erase(columns.begin());
+      auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
+      auto pk_array = columns[ind];
+      columns.erase(columns.begin() + ind);
       auto cur_size = table_->row_num();
       while (cur_size < indexer_.size() + pk_array->length()) {
         cur_size = std::max(16, 2 * static_cast<int>(cur_size));
