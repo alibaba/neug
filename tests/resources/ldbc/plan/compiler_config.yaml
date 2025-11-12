@@ -1,0 +1,27 @@
+compiler:
+  planner:
+    is_on: true
+    opt: CBO
+    rules:
+      - FilterIntoJoinRule
+      - FilterMatchRule
+      - NotMatchToAntiJoinRule
+      - ExtendIntersectRule
+      - ExpandGetVFusionRule
+      - FlatJoinToExpandRule
+      - FlatJoinToCommonRule
+      - FieldTrimRule
+    trim_class_names: GraphLogicalExpand
+    join_min_pattern_size: 15
+  meta:
+    reader:
+      schema:
+        uri: /data/db-sf10//graph.yaml
+        interval: 1000 # ms
+      statistics:
+        uri: /data/db-sf10//statistics.json
+        interval: 86400000 # ms
+  endpoint:
+    default_listen_address: localhost
+  query_timeout: 40000
+  physical.opt.config: proto
