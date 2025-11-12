@@ -1,14 +1,14 @@
 {
  "plan_id": 0,
  "query_plan": {
-  "mode": "READ_ONLY",
+  "mode": "READ_WRITE",
   "plan": [
    {
     "opr": {
      "procedure_call": {
       "query": {
        "query_name": {
-        "name": "SHOW_LOADED_EXTENSIONS()"
+        "name": "TEST_SHOW_LOADED_EXTENSIONS()"
        },
        "arguments": []
       }

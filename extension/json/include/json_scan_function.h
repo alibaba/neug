@@ -25,6 +25,11 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/property/types.h"
+#ifdef USE_SYSTEM_PROTOBUF
+#include "neug/generated/proto/plan/physical.pb.h"
+#else
+#include "neug/utils/proto/plan/physical.pb.h"
+#endif
 
 namespace gs {
 namespace extension {

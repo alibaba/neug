@@ -47,6 +47,7 @@
 #include "neug/compiler/function/union/vector_union_functions.h"
 #include "neug/compiler/function/utility/vector_utility_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
+#include "neug/compiler/function/show_loaded_extensions_function.h"
 
 using namespace gs::processor;
 
@@ -338,6 +339,8 @@ FunctionCollection* FunctionCollection::getFunctions() {
       AGGREGATE_FUNCTION(AggregateMinFunction),
       AGGREGATE_FUNCTION(AggregateMaxFunction),
       AGGREGATE_FUNCTION(CollectFunction),
+
+      TABLE_FUNCTION(ShowLoadedExtensionsFunction),
 
       FINAL_FUNCTION};
 

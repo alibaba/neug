@@ -94,9 +94,29 @@ TEST_F(TestJsonExtension, LoadAndImportJsonArray) {
 
     LOG(INFO) << "=== Testing JSON Array format at: " << db_path;
 
-    // Load JSON extension
+    // load JSON extension
     auto load_res = conn->Query("LOAD json");
     ASSERT_TRUE(load_res.has_value()) << "LOAD json failed: " << load_res.error().ToString();
+
+    auto show_res = conn->Query("CALL show_loaded_extensions() RETURN *;");
+    ASSERT_TRUE(show_res.has_value()) << "CALL show_loaded_extensions failed: " << show_res.error().ToString();
+
+    if (show_res.has_value()) {
+        auto& rs = show_res.value();
+        int row_idx = 0;
+        while (rs.hasNext()) {
+            auto row = rs.next();
+            std::string name, desc;
+            name = std::string(row.entries()[0]->element().object().str());
+            desc = std::string(row.entries()[1]->element().object().str());
+
+            if (row_idx == 0) {
+                ASSERT_EQ(name, "json");
+                ASSERT_EQ(desc, "Provides functions to read and write JSON files.");
+            }
+            ++row_idx;
+        }
+    }
 
     LOG(INFO) << "=== Testing loading vertex data ===";
 

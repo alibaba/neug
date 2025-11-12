@@ -56,6 +56,7 @@ add_library(neug_extension
         OBJECT
         catalog_extension.cpp
         extension.cpp
+        extension_api.cpp
         extension_entries.cpp
         extension_installer.cpp
         extension_manager.cpp

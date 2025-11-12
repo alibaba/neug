@@ -19,9 +19,25 @@
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
+#include <unordered_map>
+#include <string>
+#include <mutex>
+#include <vector>
 
 namespace gs {
 namespace extension {
+
+/**
+ * @brief Basic information for an extension.
+ *
+ * ExtensionInfo describes the metadata of an extension.
+ * @field name        Unique name of the extension.
+ * @field description Brief description of the extension's functionality.
+ */
+struct ExtensionInfo {
+  std::string name;
+  std::string description;
+};
 
 class ExtensionAPI {
  public:
@@ -38,6 +54,13 @@ class ExtensionAPI {
                                        entryType, std::move(T::name),
                                        std::move(T::getFunctionSet()), false);
   }
+
+  static void registerExtension(const ExtensionInfo& info);
+  static const std::unordered_map<std::string, ExtensionInfo>& getLoadedExtensions();
+
+private:
+  static std::unordered_map<std::string, ExtensionInfo> loaded_extensions_;
+  static std::mutex extensions_mutex_;
 };
 
 }  // namespace extension

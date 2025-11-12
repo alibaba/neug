@@ -159,12 +159,6 @@ struct ShowFunctionsFunction final {
   static function_set getFunctionSet();
 };
 
-struct ShowLoadedExtensionsFunction final {
-  static constexpr const char* name = "SHOW_LOADED_EXTENSIONS";
-
-  static function_set getFunctionSet();
-};
-
 struct ShowOfficialExtensionsFunction final {
   static constexpr const char* name = "SHOW_OFFICIAL_EXTENSIONS";
 

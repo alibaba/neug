@@ -96,19 +96,16 @@ class GResultSchema {
     auto mode = analyzer.analyze(plan);
     if (mode == PhysicalMode::DDL || mode == PhysicalMode::ADMIN) {
       return false;
-    } else if (mode == PhysicalMode::READ_WRITE) {
-      auto opType = plan.getLastOperator()->getOperatorType();
-      if (opType == planner::LogicalOperatorType::COPY_FROM ||
-          opType == planner::LogicalOperatorType::INSERT ||
-          opType == planner::LogicalOperatorType::SET_PROPERTY ||
-          opType == planner::LogicalOperatorType::DELETE) {
-        return false;
-      }
-    } else {
-      auto opType = plan.getLastOperator()->getOperatorType();
-      return opType == planner::LogicalOperatorType::COPY_TO ? false : true;
     }
-    return false;
+    auto opType = plan.getLastOperator()->getOperatorType();
+    if (opType == planner::LogicalOperatorType::COPY_FROM ||
+        opType == planner::LogicalOperatorType::INSERT ||
+        opType == planner::LogicalOperatorType::SET_PROPERTY ||
+        opType == planner::LogicalOperatorType::DELETE ||
+        opType == planner::LogicalOperatorType::COPY_TO) {
+      return false;
+    }
+    return true;
   }
 };
 }  // namespace gopt

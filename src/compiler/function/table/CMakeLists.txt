@@ -15,7 +15,6 @@ add_library(neug_table_function
         show_connection.cpp
         show_functions.cpp
         show_indexes.cpp
-        show_loaded_extensions.cpp
         show_official_extensions.cpp
         show_projected_graphs.cpp
         show_sequences.cpp

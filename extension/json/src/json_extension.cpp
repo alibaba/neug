@@ -33,6 +33,13 @@ void Init() {
 
         gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonDummyFunction>(
             gs::catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
+
+        gs::extension::ExtensionAPI::registerExtension(
+            gs::extension::ExtensionInfo{
+                "json",
+                "Provides functions to read and write JSON files."
+            }
+        );
             
         LOG(INFO) << "[json extension] functions registered successfully";
     } catch (const std::exception& e) {

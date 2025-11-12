@@ -66,7 +66,8 @@ class GPhysicalAnalyzer {
     case planner::LogicalOperatorType::COPY_FROM:
     case planner::LogicalOperatorType::INSERT:
     case planner::LogicalOperatorType::SET_PROPERTY:
-    case planner::LogicalOperatorType::DELETE: {
+    case planner::LogicalOperatorType::DELETE:
+    case planner::LogicalOperatorType::TABLE_FUNCTION_CALL: {
       if (mode == PhysicalMode::DDL) {
         THROW_EXCEPTION_WITH_FILE_LINE(
             "Cannot mix READ_WRITE with DDL operations in the same plan.");

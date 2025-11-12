@@ -47,14 +47,14 @@ struct TestJsonFunctionSet {
 class TestShowExtensionsFunction : public function::NeugCallFunction {
  public:
   TestShowExtensionsFunction()
-      : NeugCallFunction("SHOW_LOADED_EXTENSIONS", {},
+      : NeugCallFunction("TEST_SHOW_LOADED_EXTENSIONS", {},
                          {{"name", common::LogicalTypeID::STRING},
                           {"description", common::LogicalTypeID::STRING},
                           {"path", common::LogicalTypeID::STRING}}) {}
 };
 
 struct TestShowExtensionsFunctionSet {
-  static constexpr const char* name = "SHOW_LOADED_EXTENSIONS";
+  static constexpr const char* name = "TEST_SHOW_LOADED_EXTENSIONS";
   static function::function_set getFunctionSet() {
     function::function_set funcSet;
     funcSet.emplace_back(std::make_unique<TestShowExtensionsFunction>());
@@ -159,7 +159,7 @@ TEST_F(ExtensionTest, JSON_SCAN_EDGE) {
 TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS) {
   extension::ExtensionAPI::registerFunction<TestShowExtensionsFunctionSet>(
       catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-  std::string query = "CALL SHOW_LOADED_EXTENSIONS();";
+  std::string query = "CALL TEST_SHOW_LOADED_EXTENSIONS();";
   auto logical = planLogical(query, schemaData, "", {});
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
@@ -174,7 +174,7 @@ TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS) {
 TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS_RETURN) {
   extension::ExtensionAPI::registerFunction<TestShowExtensionsFunctionSet>(
       catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-  std::string query = "CALL SHOW_LOADED_EXTENSIONS() Return name, path;";
+  std::string query = "CALL TEST_SHOW_LOADED_EXTENSIONS() Return name, path;";
   auto logical = planLogical(query);
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
