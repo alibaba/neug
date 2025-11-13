@@ -56,7 +56,7 @@ void VertexSchema::clear() {
   property_names.clear();
   primary_keys.clear();
   storage_strategies.clear();
-  vprop_logical_deleted.clear();
+  vprop_soft_deleted.clear();
 }
 
 void VertexSchema::add_properties(
@@ -67,7 +67,7 @@ void VertexSchema::add_properties(
     property_names.emplace_back(names[i]);
     property_types.emplace_back(types[i]);
     storage_strategies.emplace_back(strategies[i]);
-    vprop_logical_deleted.emplace_back(false);
+    vprop_soft_deleted.emplace_back(false);
   }
 }
 
@@ -77,7 +77,7 @@ void VertexSchema::set_properties(
   property_types = types;
   storage_strategies = strategies;
   storage_strategies.resize(types.size(), StorageStrategy::kMem);
-  vprop_logical_deleted.resize(property_types.size(), false);
+  vprop_soft_deleted.resize(property_types.size(), false);
 }
 
 void VertexSchema::rename_properties(const std::vector<std::string>& names,
@@ -85,7 +85,7 @@ void VertexSchema::rename_properties(const std::vector<std::string>& names,
   assert(names.size() == renames.size());
   for (size_t i = 0; i < names.size(); i++) {
     for (size_t j = 0; j < property_names.size(); j++) {
-      if (vprop_logical_deleted[j]) {
+      if (vprop_soft_deleted[j]) {
         LOG(ERROR) << "Cannot rename logically deleted property: "
                    << property_names[j];
         continue;
@@ -115,11 +115,22 @@ void VertexSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         property_types.erase(property_types.begin() + j);
         storage_strategies.erase(storage_strategies.begin() + j);
-        vprop_logical_deleted.erase(vprop_logical_deleted.begin() + j);
+        vprop_soft_deleted.erase(vprop_soft_deleted.begin() + j);
       } else {
-        vprop_logical_deleted[j] = true;
+        vprop_soft_deleted[j] = true;
       }
     }
+  }
+}
+
+bool VertexSchema::is_property_soft_deleted(const std::string& prop) const {
+  auto it = std::find(property_names.begin(), property_names.end(), prop);
+  if (it != property_names.end()) {
+    size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
+    assert(idx < vprop_soft_deleted.size());
+    return vprop_soft_deleted[idx];
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Property not found: " + prop);
   }
 }
 
@@ -129,7 +140,7 @@ void VertexSchema::revert_delete_properties(
     auto it = std::find(property_names.begin(), property_names.end(), names[i]);
     if (it != property_names.end()) {
       size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
-      vprop_logical_deleted[j] = false;
+      vprop_soft_deleted[j] = false;
     }
   }
 }
@@ -142,13 +153,33 @@ bool VertexSchema::has_property(const std::string& prop) const {
   auto it = std::find(property_names.begin(), property_names.end(), prop);
   if (it != property_names.end()) {
     size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
-    assert(idx < vprop_logical_deleted.size());
-    if (vprop_logical_deleted[idx]) {
+    assert(idx < vprop_soft_deleted.size());
+    if (vprop_soft_deleted[idx]) {
       return false;
     }
     return true;
   }
   return false;
+}
+
+int32_t VertexSchema::get_property_index(const std::string& prop) const {
+  assert(primary_keys.size() == 1);
+  if (std::get<1>(primary_keys[0]) == prop) {
+    // THROW_INDEX_EXCEPTION("Primary key property does not have index: " +
+    // prop);
+    return std::get<2>(primary_keys[0]);
+  }
+  auto it = std::find(property_names.begin(), property_names.end(), prop);
+  if (it != property_names.end()) {
+    size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
+    assert(idx < vprop_soft_deleted.size());
+    if (vprop_soft_deleted[idx]) {
+      return -1;
+    }
+    auto pk_idx = std::get<2>(primary_keys[0]);
+    return static_cast<int32_t>(idx) + (idx >= pk_idx ? 1 : 0);
+  }
+  return -1;
 }
 
 bool VertexSchema::has_property_internal(const std::string& prop) const {
@@ -180,8 +211,8 @@ bool EdgeSchema::has_property(const std::string& prop) const {
   auto it = std::find(property_names.begin(), property_names.end(), prop);
   if (it != property_names.end()) {
     size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
-    assert(idx < eprop_logical_deleted.size());
-    if (eprop_logical_deleted[idx]) {
+    assert(idx < eprop_soft_deleted.size());
+    if (eprop_soft_deleted[idx]) {
       return false;
     }
     return true;
@@ -204,7 +235,7 @@ void EdgeSchema::add_properties(
     properties.emplace_back(types[i]);
     strategies.emplace_back(new_strategies.size() > i ? new_strategies[i]
                                                       : StorageStrategy::kMem);
-    eprop_logical_deleted.emplace_back(false);
+    eprop_soft_deleted.emplace_back(false);
   }
 }
 
@@ -214,7 +245,7 @@ void EdgeSchema::rename_properties(const std::vector<std::string>& names,
     auto it = std::find(property_names.begin(), property_names.end(), names[i]);
     if (it != property_names.end()) {
       size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
-      if (eprop_logical_deleted[j]) {
+      if (eprop_soft_deleted[j]) {
         THROW_RUNTIME_ERROR("Property name " + names[i] +
                             " has been deleted for edge " + edge_label_name +
                             " from " + src_label_name + " to " +
@@ -239,11 +270,22 @@ void EdgeSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         properties.erase(properties.begin() + j);
         strategies.erase(strategies.begin() + j);
-        eprop_logical_deleted.erase(eprop_logical_deleted.begin() + j);
+        eprop_soft_deleted.erase(eprop_soft_deleted.begin() + j);
       } else {
-        eprop_logical_deleted[j] = true;
+        eprop_soft_deleted[j] = true;
       }
     }
+  }
+}
+
+bool EdgeSchema::is_property_soft_deleted(const std::string& prop) const {
+  auto it = std::find(property_names.begin(), property_names.end(), prop);
+  if (it != property_names.end()) {
+    size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
+    assert(idx < eprop_soft_deleted.size());
+    return eprop_soft_deleted[idx];
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Property not found: " + prop);
   }
 }
 
@@ -253,7 +295,7 @@ void EdgeSchema::revert_delete_properties(
     auto it = std::find(property_names.begin(), property_names.end(), names[i]);
     if (it != property_names.end()) {
       size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
-      eprop_logical_deleted[j] = false;
+      eprop_soft_deleted[j] = false;
     } else {
       THROW_RUNTIME_ERROR("Property name " + names[i] +
                           " does not exist for edge " + edge_label_name +
@@ -415,9 +457,8 @@ std::vector<PropertyType> Schema::get_vertex_properties(
 
 std::vector<PropertyType> Schema::get_vertex_properties(label_t label) const {
   ensure_vertex_label_valid(label);
-  return extract_with_invalid_flags(
-      v_schemas_.at(label)->property_types,
-      v_schemas_.at(label)->vprop_logical_deleted);
+  return extract_with_invalid_flags(v_schemas_.at(label)->property_types,
+                                    v_schemas_.at(label)->vprop_soft_deleted);
 }
 
 std::vector<std::string> Schema::get_vertex_property_names(
@@ -430,7 +471,7 @@ std::vector<std::string> Schema::get_vertex_property_names(
     label_t label) const {
   ensure_vertex_label_valid(label);
   return extract_with_invalid_flags(v_schemas_[label]->property_names,
-                                    v_schemas_[label]->vprop_logical_deleted);
+                                    v_schemas_[label]->vprop_soft_deleted);
 }
 
 const std::string& Schema::get_vertex_description(
@@ -449,7 +490,7 @@ std::vector<StorageStrategy> Schema::get_vertex_storage_strategies(
   label_t index = get_vertex_label_id(label);
   ensure_vertex_label_valid(index);
   return extract_with_invalid_flags(v_schemas_[index]->storage_strategies,
-                                    v_schemas_[index]->vprop_logical_deleted);
+                                    v_schemas_[index]->vprop_soft_deleted);
 }
 
 size_t Schema::get_max_vnum(const std::string& label) const {
@@ -494,9 +535,8 @@ std::vector<PropertyType> Schema::get_edge_properties(label_t src_label,
   ensure_edge_triplet_valid(src_label, dst_label, label);
   uint32_t index = generate_edge_label(src_label, dst_label, label);
   assert(e_schemas_.count(index) > 0);
-  return extract_with_invalid_flags(
-      e_schemas_.at(index)->properties,
-      e_schemas_.at(index)->eprop_logical_deleted);
+  return extract_with_invalid_flags(e_schemas_.at(index)->properties,
+                                    e_schemas_.at(index)->eprop_soft_deleted);
 }
 
 std::string Schema::get_edge_description(const std::string& src_label,
@@ -536,9 +576,8 @@ std::vector<std::string> Schema::get_edge_property_names(
   ensure_edge_triplet_valid(src_label, dst_label, label);
   uint32_t index = generate_edge_label(src_label, dst_label, label);
   assert(e_schemas_.count(index) > 0);
-  return extract_with_invalid_flags(
-      e_schemas_.at(index)->property_names,
-      e_schemas_.at(index)->eprop_logical_deleted);
+  return extract_with_invalid_flags(e_schemas_.at(index)->property_names,
+                                    e_schemas_.at(index)->eprop_soft_deleted);
 }
 
 EdgeStrategy Schema::get_outgoing_edge_strategy(
@@ -1653,19 +1692,62 @@ void Schema::AddVertexProperties(
   // TODO(zhanglei): default_values are ignored
 }
 
-bool Schema::IsVertexLabelLogicalDeleted(const std::string& label) const {
+bool Schema::IsVertexLabelSoftDeleted(const std::string& label) const {
   auto v_label_id = get_vertex_label_id_internal(label);
   return vlabel_tomb_.get(v_label_id) && !v_schemas_[v_label_id]->empty();
 }
 
-bool Schema::IsEdgeLabelLogicalDeleted(const std::string& src_label,
-                                       const std::string& dst_label,
-                                       const std::string& edge_label) const {
+bool Schema::IsVertexLabelSoftDeleted(label_t v_label) const {
+  return vlabel_tomb_.get(v_label) && !v_schemas_[v_label]->empty();
+}
+
+bool Schema::IsEdgeLabelSoftDeleted(const std::string& src_label,
+                                    const std::string& dst_label,
+                                    const std::string& edge_label) const {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id_internal(edge_label);
-  uint32_t index = generate_edge_label(src, dst, edge);
-  return elabel_triplet_tomb_.get(index);
+  return IsEdgeLabelSoftDeleted(src, dst, edge);
+}
+
+bool Schema::IsEdgeLabelSoftDeleted(label_t src_label, label_t dst_label,
+                                    label_t edge_label) const {
+  assert(vertex_label_valid(src_label));
+  assert(vertex_label_valid(dst_label));
+  assert(edge_label_valid(edge_label));
+  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
+  return elabel_triplet_tomb_.get(index) && e_schemas_.count(index) > 0;
+}
+
+bool Schema::IsVertexPropertySoftDeleted(
+    const std::string& label, const std::string& property_name) const {
+  auto v_label_id = get_vertex_label_id(label);
+  assert(v_label_id < v_schemas_.size());
+  return v_schemas_[v_label_id]->is_property_soft_deleted(property_name);
+}
+
+bool Schema::IsVertexPropertySoftDeleted(
+    label_t v_label, const std::string& property_name) const {
+  assert(v_label < v_schemas_.size());
+  return v_schemas_[v_label]->is_property_soft_deleted(property_name);
+}
+
+bool Schema::IsEdgePropertySoftDeleted(const std::string& src_label,
+                                       const std::string& dst_label,
+                                       const std::string& edge_label,
+                                       const std::string& property_name) const {
+  label_t src = get_vertex_label_id(src_label);
+  label_t dst = get_vertex_label_id(dst_label);
+  label_t edge = get_edge_label_id(edge_label);
+  return IsEdgePropertySoftDeleted(src, dst, edge, property_name);
+}
+
+bool Schema::IsEdgePropertySoftDeleted(label_t src_label, label_t dst_label,
+                                       label_t edge_label,
+                                       const std::string& property_name) const {
+  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
+  assert(e_schemas_.count(index) > 0);
+  return e_schemas_.at(index)->is_property_soft_deleted(property_name);
 }
 
 void Schema::RenameVertexProperties(
@@ -1785,14 +1867,21 @@ void Schema::DeleteEdgeProperties(const std::string& src_label,
 }
 
 void Schema::RevertDeleteEdgeProperties(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    const std::vector<std::string>& properties_names) {
+  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
+  assert(e_schemas_.count(index) > 0);
+  e_schemas_.at(index)->revert_delete_properties(properties_names);
+}
+
+void Schema::RevertDeleteEdgeProperties(
     const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label, std::vector<std::string>& properties_names) {
+    const std::string& edge_label,
+    const std::vector<std::string>& properties_names) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);
-  uint32_t index = generate_edge_label(src, dst, edge);
-  assert(e_schemas_.count(index) > 0);
-  e_schemas_.at(index)->revert_delete_properties(properties_names);
+  RevertDeleteEdgeProperties(src, dst, edge, properties_names);
 }
 
 std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
@@ -1906,7 +1995,7 @@ grape::InArchive& operator<<(grape::InArchive& archive,
   archive << v_schema.property_types << v_schema.property_names
           << v_schema.primary_keys << v_schema.storage_strategies
           << v_schema.description << v_schema.max_num
-          << v_schema.vprop_logical_deleted;
+          << v_schema.vprop_soft_deleted;
   return archive;
 }
 
@@ -1914,8 +2003,7 @@ grape::OutArchive& operator>>(grape::OutArchive& archive,
                               VertexSchema& v_schema) {
   archive >> v_schema.property_types >> v_schema.property_names >>
       v_schema.primary_keys >> v_schema.storage_strategies >>
-      v_schema.description >> v_schema.max_num >>
-      v_schema.vprop_logical_deleted;
+      v_schema.description >> v_schema.max_num >> v_schema.vprop_soft_deleted;
   return archive;
 }
 
@@ -1926,7 +2014,7 @@ grape::InArchive& operator<<(grape::InArchive& archive,
           << e_schema.description << e_schema.ie_mutable << e_schema.oe_mutable
           << e_schema.ie_strategy << e_schema.oe_strategy << e_schema.properties
           << e_schema.property_names << e_schema.strategies
-          << e_schema.eprop_logical_deleted;
+          << e_schema.eprop_soft_deleted;
   return archive;
 }
 
@@ -1937,7 +2025,7 @@ grape::OutArchive& operator>>(grape::OutArchive& archive,
       e_schema.description >> e_schema.ie_mutable >> e_schema.oe_mutable >>
       e_schema.ie_strategy >> e_schema.oe_strategy >> e_schema.properties >>
       e_schema.property_names >> e_schema.strategies >>
-      e_schema.eprop_logical_deleted;
+      e_schema.eprop_soft_deleted;
   return archive;
 }
 

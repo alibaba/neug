@@ -419,12 +419,14 @@ TEST_F(CheckpointTest, test_after_add_edge_property2) {
       result_e.emplace_back(row.ToString());
     }
     EXPECT_EQ(result_e.size(), 2);
-    EXPECT_EQ(
-        result_e[0],
-        "<element { object { f64: 0.5 } }, element { object { str: \"\" } }>");
-    EXPECT_EQ(
-        result_e[1],
-        "<element { object { f64: 1 } }, element { object { str: \"\" } }>");
+    if (result_e.size() == 2) {
+      EXPECT_EQ(result_e[0],
+                "<element { object { f64: 0.5 } }, element { object { str: "
+                "\"\" } }>");
+      EXPECT_EQ(
+          result_e[1],
+          "<element { object { f64: 1 } }, element { object { str: \"\" } }>");
+    }
   }
 
   {
@@ -459,12 +461,16 @@ TEST_F(CheckpointTest, test_after_add_edge_property2) {
       result_e.emplace_back(row.ToString());
     }
     EXPECT_EQ(result_e.size(), 2);
-    EXPECT_EQ(result_e[0],
-              "<element { object { f64: 0.5 } }, element { object { str: \"\" "
-              "} }, element { object { str: \"0-00-00\" } }>");
-    EXPECT_EQ(result_e[1],
-              "<element { object { f64: 1 } }, element { object { str: \"\" } "
-              "}, element { object { str: \"0-00-00\" } }>");
+    if (result_e.size() == 2) {
+      EXPECT_EQ(
+          result_e[0],
+          "<element { object { f64: 0.5 } }, element { object { str: \"\" "
+          "} }, element { object { str: \"0-00-00\" } }>");
+      EXPECT_EQ(
+          result_e[1],
+          "<element { object { f64: 1 } }, element { object { str: \"\" } "
+          "}, element { object { str: \"0-00-00\" } }>");
+    }
   }
 }
 

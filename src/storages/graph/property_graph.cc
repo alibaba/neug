@@ -637,7 +637,7 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
   auto status = vertex_label_check(vertex_type_name);
   if (!status.ok()) {
     if (!is_soft) {
-      if (!schema_.IsVertexLabelLogicalDeleted(vertex_type_name)) {
+      if (!schema_.IsVertexLabelSoftDeleted(vertex_type_name)) {
         return status;
       }
     } else {
