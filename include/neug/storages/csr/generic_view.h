@@ -85,14 +85,6 @@ struct NbrIterator {
                      static_cast<const char*>(cur) + cfg.ts_offset);
   }
 
-  inline size_t operator-(const NbrIterator& rhs) const {
-    size_t stride = static_cast<size_t>(cfg.stride);
-    return (stride == 0) ? 0
-                         : (static_cast<const char*>(cur) -
-                            static_cast<const char*>(rhs.cur)) /
-                               stride;
-  }
-
   const void* cur;
   const void* end;
   NbrIterConfig cfg;
@@ -116,14 +108,6 @@ struct NbrList {
   }
 
   bool empty() const { return start_ptr == end_ptr; }
-
-  size_t size() const {
-    size_t stride = static_cast<size_t>(cfg.stride);
-    return (stride == 0) ? 0
-                         : (static_cast<const char*>(end_ptr) -
-                            static_cast<const char*>(start_ptr)) /
-                               stride;
-  }
 
   const void* start_ptr;
   const void* end_ptr;
