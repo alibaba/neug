@@ -46,8 +46,8 @@ struct hash<gs::runtime::VertexRecord> {
 };
 
 template <>
-struct hash<gs::TimeStamp> {
-  size_t operator()(const gs::TimeStamp& date) const {
+struct hash<gs::DateTime> {
+  size_t operator()(const gs::DateTime& date) const {
     return std::hash<int64_t>()(date.milli_second);
   }
 };

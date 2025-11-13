@@ -569,9 +569,6 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
   case RTAnyType::kDateTime: {
     return _make_project_expr<DateTime>(std::move(e), alias, ctx);
   } break;
-  case RTAnyType::kTimestamp: {
-    return _make_project_expr<TimeStamp>(std::move(e), alias, ctx);
-  } break;
   case RTAnyType::kInterval: {
     return _make_project_expr<Interval>(std::move(e), alias, ctx);
   } break;
@@ -652,9 +649,6 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
     } break;
     case RTAnyType::kDateTime: {
       return _make_project_expr<DateTime>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kTimestamp: {
-      return _make_project_expr<TimeStamp>(std::move(e), alias, ctx);
     } break;
     case RTAnyType::kDate: {
       return _make_project_expr<Date>(std::move(e), alias, ctx);

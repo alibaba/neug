@@ -76,9 +76,6 @@ YAML::Node property_type_to_yaml(const PropertyType& type) {
   case impl::PropertyTypeImpl::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
-  case impl::PropertyTypeImpl::kTimestamp:
-    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
-    break;
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unrecognized property type for YAML encoding: " + type.ToString());

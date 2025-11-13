@@ -384,9 +384,6 @@ class ExtractExpr : public ExprBase {
       return extract_time_from_milli_second(val.as_datetime().milli_second,
                                             extract_);
 
-    } else if constexpr (std::is_same_v<T, TimeStamp>) {
-      return extract_time_from_milli_second(val.as_timestamp().milli_second,
-                                            extract_);
     } else if constexpr (std::is_same_v<T, Date>) {
       if (extract_.interval() == ::common::Extract::DAY) {
         return val.as_date().day();
@@ -1009,15 +1006,13 @@ class ToDateTimeExpr : public ExprBase {
     int64_t ts = 0;
     if (val.type() == RTAnyType::kDate) {
       ts = val.as_date().to_timestamp();
-    } else if (val.type() == RTAnyType::kTimestamp) {
-      ts = val.as_timestamp().milli_second;
     } else if (val.type() == RTAnyType::kDateTime) {
       ts = val.as_datetime().milli_second;
     } else {
       THROW_RUNTIME_ERROR("ToDateTime: input value is not date/timestamp");
     }
-    TimeStamp t(ts);
-    return RTAny::from_timestamp(t);
+    DateTime t(ts);
+    return RTAny::from_datetime(t);
   }
   RTAny eval_path(size_t idx, Arena& arena) const override {
     auto val = args->eval_path(idx, arena);
@@ -1034,7 +1029,7 @@ class ToDateTimeExpr : public ExprBase {
     return to_date_time(args->eval_edge(label, src, dst, data, idx, arena));
   }
 
-  RTAnyType type() const override { return RTAnyType::kTimestamp; }
+  RTAnyType type() const override { return RTAnyType::kDateTime; }
 
   bool is_optional() const override { return args->is_optional(); }
 
@@ -1050,9 +1045,6 @@ class ToDate32Expr : public ExprBase {
     int64_t ts = 0;
     if (val.type() == RTAnyType::kDate) {
       ts = val.as_date().to_timestamp();
-    } else if (val.type() == RTAnyType::kTimestamp) {
-      ts = (val.as_timestamp().milli_second / kMilliSecondsOfDay) *
-           kMilliSecondsOfDay;
     } else if (val.type() == RTAnyType::kDateTime) {
       ts = (val.as_datetime().milli_second / kMilliSecondsOfDay) *
            kMilliSecondsOfDay;

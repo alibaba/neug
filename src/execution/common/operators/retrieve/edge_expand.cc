@@ -308,8 +308,8 @@ gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
   } else if (config.param_type == RTAnyType::kI64Value) {
     return expand_edge_with_special_edge_predicate_impl0<int64_t>(
         graph, std::move(ctx), params, config, target_val_str);
-  } else if (config.param_type == RTAnyType::kTimestamp) {
-    return expand_edge_with_special_edge_predicate_impl0<TimeStamp>(
+  } else if (config.param_type == RTAnyType::kDateTime) {
+    return expand_edge_with_special_edge_predicate_impl0<DateTime>(
         graph, std::move(ctx), params, config, target_val_str);
   } else {
     LOG(ERROR) << "not support edge property type "
@@ -450,7 +450,7 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
       auto pt = properties[0];
-      if (pt != PropertyType::Timestamp() && pt != PropertyType::Int64() &&
+      if (pt != PropertyType::DateTime() && pt != PropertyType::Int64() &&
           pt != PropertyType::Int32()) {
         LOG(ERROR) << "not support edge type";
         RETURN_UNSUPPORTED_ERROR("not support edge type");
@@ -466,8 +466,8 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       Direction dir = std::get<2>(label_dir);
       PropertyType pt = ed_types[ld_idx++];
       builder.start_label(nbr_label);
-      if (pt == PropertyType::Timestamp()) {
-        expand_vertex_ep_cmp_impl<TimeStamp>(
+      if (pt == PropertyType::DateTime()) {
+        expand_vertex_ep_cmp_impl<DateTime>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);
       } else if (pt == PropertyType::Int64()) {

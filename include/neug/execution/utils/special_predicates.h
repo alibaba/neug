@@ -816,8 +816,8 @@ gs::result<Context> dispatch_vertex_predicate(
   } else if (config.param_type == RTAnyType::kDate) {
     return dispatch_vertex_predicate_impl_typed<OP_T, Date>(
         graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kTimestamp) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, TimeStamp>(
+  } else if (config.param_type == RTAnyType::kDateTime) {
+    return dispatch_vertex_predicate_impl_typed<OP_T, DateTime>(
         graph, expected_labels, config, params, std::forward<Args>(args)...);
   } else if (config.param_type == RTAnyType::kI32Value) {
     return dispatch_vertex_predicate_impl_typed<OP_T, int32_t>(

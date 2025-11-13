@@ -324,15 +324,15 @@ DateMinusExpr::DateMinusExpr(std::unique_ptr<ExprBase>&& lhs,
     : lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
 
 RTAny DateMinusExpr::eval_path(size_t idx, Arena& arena) const {
-  auto lhs = lhs_->eval_path(idx, arena).as_timestamp();
-  auto rhs = rhs_->eval_path(idx, arena).as_timestamp();
+  auto lhs = lhs_->eval_path(idx, arena).as_datetime();
+  auto rhs = rhs_->eval_path(idx, arena).as_datetime();
   return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
 }
 
 RTAny DateMinusExpr::eval_vertex(label_t label, vid_t v, size_t idx,
                                  Arena& arena) const {
-  auto lhs = lhs_->eval_vertex(label, v, idx, arena).as_timestamp();
-  auto rhs = rhs_->eval_vertex(label, v, idx, arena).as_timestamp();
+  auto lhs = lhs_->eval_vertex(label, v, idx, arena).as_datetime();
+  auto rhs = rhs_->eval_vertex(label, v, idx, arena).as_datetime();
   return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
 }
 
@@ -340,9 +340,9 @@ RTAny DateMinusExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                                const void* data_ptr, size_t idx,
                                Arena& arena) const {
   auto lhs =
-      lhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_timestamp();
+      lhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_datetime();
   auto rhs =
-      rhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_timestamp();
+      rhs_->eval_edge(label, src, dst, data_ptr, idx, arena).as_datetime();
   return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
 }
 
@@ -714,11 +714,8 @@ static RTAny parse_param(const ::common::DynamicParam& param,
       int64_t val = std::stoll(input.at(name));
       return RTAny::from_int64(val);
     } else if (type == RTAnyType::kDateTime) {
-      DateTime val = DateTime(std::stoll(input.at(name)));
+      DateTime val = DateTime(input.at(name));
       return RTAny::from_datetime(val);
-    } else if (type == RTAnyType::kTimestamp) {
-      TimeStamp val = TimeStamp(input.at(name));
-      return RTAny::from_timestamp(val);
     } else if (type == RTAnyType::kInterval) {
       Interval val = Interval(input.at(name));
       return RTAny::from_interval(val);
@@ -954,9 +951,6 @@ static std::unique_ptr<ExprBase> build_expr(
       } else if (hs->type() == RTAnyType::kInterval) {
         return std::make_unique<ExtractExpr<Interval>>(std::move(hs),
                                                        opr.extract());
-      } else if (hs->type() == RTAnyType::kTimestamp) {
-        return std::make_unique<ExtractExpr<TimeStamp>>(std::move(hs),
-                                                        opr.extract());
       } else {
         LOG(FATAL) << "not support" << static_cast<int>(hs->type());
       }

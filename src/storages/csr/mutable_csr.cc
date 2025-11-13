@@ -723,11 +723,9 @@ template class MutableCsr<int64_t>;
 template class MutableCsr<uint64_t>;
 template class MutableCsr<double>;
 template class MutableCsr<float>;
-template class MutableCsr<TimeStamp>;
 template class MutableCsr<DateTime>;
 template class MutableCsr<Interval>;
 
-template class SingleMutableCsr<TimeStamp>;
 template class SingleMutableCsr<float>;
 template class SingleMutableCsr<double>;
 template class SingleMutableCsr<uint64_t>;

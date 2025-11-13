@@ -126,7 +126,6 @@ enum class PropertyTypeImpl {
   kDateTime,
   // kDay,
   kInterval,
-  kTimestamp,  // millisecond timestamp
 };
 
 // Stores additional type information for PropertyTypeImpl
@@ -173,7 +172,6 @@ struct PropertyType {
   static PropertyType Date();
   static PropertyType DateTime();
   static PropertyType Interval();
-  static PropertyType Timestamp();
 
   static const PropertyType kEmpty;
   static const PropertyType kBool;
@@ -192,7 +190,6 @@ struct PropertyType {
   static const PropertyType kDate;
   static const PropertyType kDateTime;
   static const PropertyType kInterval;
-  static const PropertyType kTimestamp;  // millisecond timestamp
 
   bool operator==(const PropertyType& other) const;
   bool operator!=(const PropertyType& other) const;
@@ -518,64 +515,6 @@ struct DateTime {
   int64_t milli_second;
 };
 
-// Although DateTime and TimeStamp are similar, they are different types, parsed
-// from different arrow types, and has different usages.
-struct TimeStamp {
-  TimeStamp() = default;
-  ~TimeStamp() = default;
-
-  explicit TimeStamp(int64_t x) : milli_second(x) {}
-
-  explicit TimeStamp(const std::string& timestamp_str);
-
-  std::string to_string() const;
-
-  __attribute__((always_inline)) bool operator<(const TimeStamp& rhs) const {
-    return milli_second < rhs.milli_second;
-  }
-
-  __attribute__((always_inline)) bool operator==(const TimeStamp& rhs) const {
-    return milli_second == rhs.milli_second;
-  }
-
-  __attribute__((always_inline)) TimeStamp& operator+(
-      const Interval& interval) {
-    milli_second += interval.to_mill_seconds();
-    return *this;
-  }
-
-  __attribute__((always_inline)) TimeStamp& operator+=(
-      const Interval& interval) {
-    milli_second += interval.to_mill_seconds();
-    return *this;
-  }
-
-  __attribute__((always_inline)) TimeStamp& operator-(
-      const Interval& interval) {
-    milli_second -= interval.to_mill_seconds();
-    return *this;
-  }
-
-  __attribute__((always_inline)) TimeStamp& operator-=(
-      const Interval& interval) {
-    milli_second -= interval.to_mill_seconds();
-    return *this;
-  }
-
-  __attribute__((always_inline)) Interval operator-(
-      const TimeStamp& rhs) const {
-    Interval interval;
-    interval.from_mill_seconds(this->milli_second - rhs.milli_second);
-    return interval;
-  }
-
-  __attribute__((always_inline)) Interval operator-=(const TimeStamp& rhs) {
-    return this->operator-(rhs);
-  }
-
-  int64_t milli_second;
-};
-
 Date operator+(const Date& date, const Interval& interval);
 
 Date operator-(const Date& date, const Interval& interval);
@@ -583,10 +522,6 @@ Date operator-(const Date& date, const Interval& interval);
 DateTime operator+(const DateTime& dt, const Interval& interval);
 
 DateTime operator-(const DateTime& dt, const Interval& interval);
-
-TimeStamp operator+(const TimeStamp& ts, const Interval& interval);
-
-TimeStamp operator-(const TimeStamp& ts, const Interval& interval);
 
 Interval operator+(const Interval& lhs, const Interval& rhs);
 
@@ -659,7 +594,6 @@ union AnyValue {
   Date d;
   DateTime dt;
   Interval interval;
-  TimeStamp ts;
 
   StringPtr s_ptr;
 };
@@ -694,7 +628,6 @@ static const double DEFAULT_DOUBLE_VALUE = 0;
 static const float DEFAULT_FLOAT_VALUE = 0;
 static const Date DEFAULT_DATE_VALUE = Date(0);
 static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
-static const TimeStamp DEFAULT_TIME_STAMP_VALUE = TimeStamp(0);
 
 }  // namespace gs
 
@@ -732,11 +665,6 @@ inline ostream& operator<<(ostream& os, const gs::Interval& interval) {
   return os;
 }
 
-inline ostream& operator<<(ostream& os, const gs::TimeStamp& ts) {
-  os << ts.to_string();
-  return os;
-}
-
 inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
   if (pt == gs::PropertyType::Bool()) {
     os << "bool";
@@ -764,8 +692,6 @@ inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
     os << "datetime";
   } else if (pt == gs::PropertyType::Interval()) {
     os << "interval";
-  } else if (pt == gs::PropertyType::Timestamp()) {
-    os << "timestamp";
   } else {
     os << "unknown";
   }
@@ -837,7 +763,7 @@ struct convert<gs::PropertyType> {
       } else if (temporal["interval"]) {
         property_type = gs::PropertyType::Interval();
       } else if (temporal["timestamp"]) {
-        property_type = gs::PropertyType::Timestamp();
+        property_type = gs::PropertyType::DateTime();
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
@@ -876,7 +802,7 @@ struct convert<gs::PropertyType> {
       node["string"]["var_char"]["max_length"] =
           type.additional_type_info.max_length;
     } else if (type == gs::PropertyType::Date()) {
-      node["temporal"]["timestamp"] = "";
+      node["temporal"]["datetime"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;
     }

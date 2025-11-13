@@ -148,7 +148,6 @@ using BoolEmptyColumn = TypedEmptyColumn<bool>;
 using FloatEmptyColumn = TypedEmptyColumn<float>;
 using DoubleEmptyColumn = TypedEmptyColumn<double>;
 using StringEmptyColumn = TypedEmptyColumn<std::string_view>;
-using TimeStampEmptyColumn = TypedEmptyColumn<TimeStamp>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
     PropertyType type, StorageStrategy strategy,
@@ -180,8 +179,6 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<DateTimeEmptyColumn>();
     } else if (type == PropertyType::kInterval) {
       return std::make_shared<IntervalEmptyColumn>();
-    } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
-      return std::make_shared<TimeStampEmptyColumn>();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for empty column: " +
                                     type.ToString());
@@ -217,8 +214,6 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<DateTimeColumn>(strategy);
     } else if (type.type_enum == impl::PropertyTypeImpl::kInterval) {
       return std::make_shared<IntervalColumn>(strategy);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
-      return std::make_shared<TimeStampColumn>(strategy);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
                                     type.ToString());
@@ -286,9 +281,6 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(
   } else if (type == PropertyType::kInterval) {
     return std::make_shared<TypedRefColumn<Interval>>(
         *std::dynamic_pointer_cast<TypedColumn<Interval>>(column));
-  } else if (type == PropertyType::kTimestamp) {
-    return std::make_shared<TypedRefColumn<TimeStamp>>(
-        *std::dynamic_pointer_cast<TypedColumn<TimeStamp>>(column));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
                                   type.ToString());

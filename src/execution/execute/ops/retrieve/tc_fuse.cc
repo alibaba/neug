@@ -255,9 +255,9 @@ std::unique_ptr<IReadOperator> make_tc_opr(
     const physical::GetV& v_opr1, const physical::EdgeExpand& ee_opr2,
     const LabelTriplet& label0, const LabelTriplet& label1,
     const LabelTriplet& label2, const std::array<PropertyType, 3>& eps) {
-  if (eps[0] == PropertyType::Timestamp()) {
-    return std::make_unique<TCOpr<TimeStamp>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
-                                              label0, label1, label2);
+  if (eps[0] == PropertyType::DateTime()) {
+    return std::make_unique<TCOpr<DateTime>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
+                                             label0, label1, label2);
   } else if (eps[0] == PropertyType::Int64()) {
     return std::make_unique<TCOpr<int64_t>>(ee_opr0, ee_opr1, v_opr1, ee_opr2,
                                             label0, label1, label2);

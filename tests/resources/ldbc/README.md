@@ -26,7 +26,7 @@ Navigate to the NEUG root directory and build the project using CMake:
 
 ```bash
 cd ${NEUG_DIR} && mkdir build && cd build
-cmake .. && make -j
+cmake .. -DBUILD_HTTP_SERVER=ON -DBUILD_EXECUTABLES=ON && make -j
 ```
 
 

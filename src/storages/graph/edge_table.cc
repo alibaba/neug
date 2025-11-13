@@ -114,9 +114,6 @@ std::vector<Property> extract_bundled_edge_data_from_batches(
   } else if (meta->properties[0] == PropertyType::kDouble) {
     return extract_edge_data<double, arrow::DoubleArray>(data_batches,
                                                          valid_flags);
-  } else if (meta->properties[0] == PropertyType::kTimestamp) {
-    return extract_edge_data<TimeStamp, arrow::TimestampArray>(data_batches,
-                                                               valid_flags);
   } else if (meta->properties[0] == PropertyType::kDate) {
     return extract_edge_data<Date, arrow::Date32Array>(data_batches,
                                                        valid_flags);
@@ -165,9 +162,6 @@ void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
     batch_put_edges_with_default_edata_impl<float>(src_lid, dst_lid, out_csr);
   } else if (property_type == PropertyType::kDouble) {
     batch_put_edges_with_default_edata_impl<double>(src_lid, dst_lid, out_csr);
-  } else if (property_type == PropertyType::kTimestamp) {
-    batch_put_edges_with_default_edata_impl<TimeStamp>(src_lid, dst_lid,
-                                                       out_csr);
   } else if (property_type == PropertyType::kDate) {
     batch_put_edges_with_default_edata_impl<Date>(src_lid, dst_lid, out_csr);
   } else if (property_type == PropertyType::kDateTime) {
@@ -219,8 +213,6 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
     return create_csr_impl<float>(is_mutable, strategy);
   } else if (property_type == PropertyType::kDouble) {
     return create_csr_impl<double>(is_mutable, strategy);
-  } else if (property_type == PropertyType::kTimestamp) {
-    return create_csr_impl<TimeStamp>(is_mutable, strategy);
   } else if (property_type == PropertyType::kDate) {
     return create_csr_impl<Date>(is_mutable, strategy);
   } else if (property_type == PropertyType::kDateTime) {
@@ -382,13 +374,9 @@ static std::vector<Property> get_row_from_recordbatch(
       Date d;
       d.from_num_days(casted->Value(row_idx));
       row.push_back(Property::from_date(d));
-    } else if (prop_types[i] == PropertyType::kTimestamp) {
-      auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(
-          Property::from_timestamp(TimeStamp(casted->Value(row_idx))));
     } else if (prop_types[i] == PropertyType::kDateTime) {
       auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-      row.push_back(Property::from_date_time(DateTime(casted->Value(row_idx))));
+      row.push_back(Property::from_datetime(DateTime(casted->Value(row_idx))));
     } else if (prop_types[i] == PropertyType::kInterval) {
       auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
       row.push_back(
@@ -466,11 +454,6 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
     insert_edges_bundled_typed_impl(
         dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr),
         dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr), src_lid_list,
-        dst_lid_list, edge_data);
-  } else if (prop_types[0] == PropertyType::kTimestamp) {
-    insert_edges_bundled_typed_impl(
-        dynamic_cast<TypedCsrBase<TimeStamp>*>(out_csr),
-        dynamic_cast<TypedCsrBase<TimeStamp>*>(in_csr), src_lid_list,
         dst_lid_list, edge_data);
   } else if (prop_types[0] == PropertyType::kDouble) {
     insert_edges_bundled_typed_impl(

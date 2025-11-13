@@ -48,8 +48,6 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
   } else if (type.type_enum == impl::PropertyTypeImpl::kInterval) {
     return arrow::large_utf8();  // Use large_utf8 for interval, use
                                  // PropUtils to handle it
-  } else if (type.type_enum == impl::PropertyTypeImpl::kTimestamp) {
-    return arrow::timestamp(arrow::TimeUnit::type::MILLI);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   type.ToString());

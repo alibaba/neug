@@ -15,14 +15,14 @@
 
 #pragma once
 
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
-#include <unordered_map>
-#include <string>
-#include <mutex>
-#include <vector>
 
 namespace gs {
 namespace extension {
@@ -51,14 +51,15 @@ class ExtensionAPI {
       return;
     }
     gCatalog->addFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION,
-                                       entryType, std::move(T::name),
-                                       std::move(T::getFunctionSet()), false);
+                                       entryType, T::name, T::getFunctionSet(),
+                                       false);
   }
 
   static void registerExtension(const ExtensionInfo& info);
-  static const std::unordered_map<std::string, ExtensionInfo>& getLoadedExtensions();
+  static const std::unordered_map<std::string, ExtensionInfo>&
+  getLoadedExtensions();
 
-private:
+ private:
   static std::unordered_map<std::string, ExtensionInfo> loaded_extensions_;
   static std::mutex extensions_mutex_;
 };

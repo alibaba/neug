@@ -46,8 +46,6 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<DateTime>>(ctx, tag);
   case RTAnyType::kDate:
     return std::make_shared<ContextValueAccessor<Date>>(ctx, tag);
-  case RTAnyType::kTimestamp:
-    return std::make_shared<ContextValueAccessor<TimeStamp>>(ctx, tag);
   case RTAnyType::kTuple:
     return std::make_shared<ContextValueAccessor<Tuple>>(ctx, tag);
   case RTAnyType::kList:
@@ -109,10 +107,6 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
     return std::make_shared<
         VertexPropertyPathAccessor<GraphInterface, DateTime>>(graph, ctx, tag,
                                                               prop_name);
-  case RTAnyType::kTimestamp:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, TimeStamp>>(graph, ctx, tag,
-                                                               prop_name);
 
   case RTAnyType::kInterval:
     return std::make_shared<
@@ -171,10 +165,6 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, DateTime>>(graph,
                                                                 prop_name);
-  case RTAnyType::kTimestamp:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, TimeStamp>>(graph,
-                                                                 prop_name);
   case RTAnyType::kInterval:
     return std::make_shared<
         VertexPropertyVertexAccessor<GraphInterface, Interval>>(graph,
@@ -207,10 +197,6 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
       return std::make_shared<
           SLEdgePropertyPathAccessor<GraphInterface, uint32_t>>(graph, name,
                                                                 ctx, tag);
-    case RTAnyType::kTimestamp:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, TimeStamp>>(graph, name,
-                                                                 ctx, tag);
     case RTAnyType::kI64Value:
       return std::make_shared<
           SLEdgePropertyPathAccessor<GraphInterface, int64_t>>(graph, name, ctx,
@@ -268,10 +254,6 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
     case RTAnyType::kF64Value:
       return std::make_shared<EdgePropertyPathAccessor<GraphInterface, double>>(
           graph, name, ctx, tag);
-    case RTAnyType::kTimestamp:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, TimeStamp>>(graph, name, ctx,
-                                                               tag);
     default:
       LOG(FATAL) << "not implemented - " << static_cast<int>(type);
     }
@@ -335,9 +317,6 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
   case RTAnyType::kF64Value:
     return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, double>>(
         graph, prop_name);
-  case RTAnyType::kTimestamp:
-    return std::make_shared<
-        EdgePropertyEdgeAccessor<GraphInterface, TimeStamp>>(graph, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }
@@ -378,7 +357,6 @@ template class VertexPropertyPathAccessor<GraphReadInterface, uint64_t>;
 template class VertexPropertyPathAccessor<GraphReadInterface, std::string_view>;
 template class VertexPropertyPathAccessor<GraphReadInterface, Date>;
 template class VertexPropertyPathAccessor<GraphReadInterface, DateTime>;
-template class VertexPropertyPathAccessor<GraphReadInterface, TimeStamp>;
 template class VertexPropertyPathAccessor<GraphReadInterface, double>;
 template class VertexPropertyPathAccessor<GraphReadInterface, Interval>;
 
@@ -389,7 +367,6 @@ template class ContextValueAccessor<uint64_t>;
 template class ContextValueAccessor<std::string_view>;
 template class ContextValueAccessor<DateTime>;
 template class ContextValueAccessor<Date>;
-template class ContextValueAccessor<TimeStamp>;
 template class ContextValueAccessor<bool>;
 template class ContextValueAccessor<Tuple>;
 template class ContextValueAccessor<List>;
@@ -404,7 +381,6 @@ template class VertexPropertyVertexAccessor<GraphReadInterface,
                                             std::string_view>;
 template class VertexPropertyVertexAccessor<GraphReadInterface, Date>;
 template class VertexPropertyVertexAccessor<GraphReadInterface, DateTime>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, TimeStamp>;
 template class VertexPropertyVertexAccessor<GraphReadInterface, double>;
 
 template class EdgePropertyEdgeAccessor<GraphReadInterface, int64_t>;
@@ -414,7 +390,6 @@ template class EdgePropertyEdgeAccessor<GraphReadInterface, uint64_t>;
 template class EdgePropertyEdgeAccessor<GraphReadInterface, std::string_view>;
 template class EdgePropertyEdgeAccessor<GraphReadInterface, Date>;
 template class EdgePropertyEdgeAccessor<GraphReadInterface, DateTime>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, TimeStamp>;
 template class EdgePropertyEdgeAccessor<GraphReadInterface, double>;
 
 }  // namespace runtime

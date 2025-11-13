@@ -48,7 +48,7 @@ namespace runtime {
   } else if (any.type() == PropertyType::Date()) {
     value->mutable_date()->set_item(any.as_date().to_num_days());
   } else if (any.type() == PropertyType::DateTime()) {
-    value->mutable_timestamp()->set_item(any.as_date_time().milli_second);
+    value->mutable_timestamp()->set_item(any.as_datetime().milli_second);
   } else if (any.type() == PropertyType::UInt64()) {
     value->set_u64(any.as_uint64());
   } else if (any.type() == PropertyType::Interval()) {
@@ -56,8 +56,6 @@ namespace runtime {
     value->set_str(interval_str.data(), interval_str.size());
   } else if (any.type() == PropertyType::Float()) {
     value->set_f32(any.as_float());
-  } else if (any.type() == PropertyType::Timestamp()) {
-    value->mutable_timestamp()->set_item(any.as_timestamp().milli_second);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +
                                   any.type().ToString() +
@@ -85,14 +83,12 @@ namespace runtime {
     value->set_f64(prop.as_double());
   } else if (prop.type() == PropertyType::kFloat) {
     value->set_f32(prop.as_float());
-  } else if (prop.type() == PropertyType::kTimestamp) {
-    value->mutable_timestamp()->set_item(prop.as_timestamp().milli_second);
   } else if (prop.type() == PropertyType::kDate) {
     value->set_u32(prop.as_date().to_u32());
   } else if (prop.type() == PropertyType::kEmpty) {
     value->mutable_none();
   } else if (prop.type() == PropertyType::kDateTime) {
-    value->mutable_timestamp()->set_item(prop.as_date_time().milli_second);
+    value->mutable_timestamp()->set_item(prop.as_datetime().milli_second);
   } else if (prop.type() == PropertyType::kInterval) {
     auto interval_str = prop.as_interval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
@@ -287,8 +283,6 @@ void sink_rt_any(const RTAny& val, const GraphInterface& graph,
     encoder.put_long(val.value().date_val.to_timestamp());
   } else if (type_ == RTAnyType::kDateTime) {
     encoder.put_long(val.value().dt_val.milli_second);
-  } else if (type_ == RTAnyType::kTimestamp) {
-    encoder.put_long(val.value().ts_val.milli_second);
   } else if (type_ == RTAnyType::kInterval) {
     encoder.put_long(val.value().interval_val.millisecond());
   } else if (type_ == RTAnyType::kI64Value) {

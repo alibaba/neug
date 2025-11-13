@@ -56,7 +56,7 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(EDATA_T(dis(gen)));
     }
     return data;
-  } else if constexpr (std::is_same<EDATA_T, gs::TimeStamp>::value) {
+  } else if constexpr (std::is_same<EDATA_T, gs::DateTime>::value) {
     std::vector<EDATA_T> data;
     std::random_device rd;
     std::mt19937 gen(rd());

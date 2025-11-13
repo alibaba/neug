@@ -233,8 +233,6 @@ class ListValueColumn : public ListValueColumnBase {
       return unfold_impl<Date>();
     } else if (elem_type_ == RTAnyType::kDateTime) {
       return unfold_impl<DateTime>();
-    } else if (elem_type_ == RTAnyType::kTimestamp) {
-      return unfold_impl<TimeStamp>();
     } else if (elem_type_ == RTAnyType::kInterval) {
       return unfold_impl<Interval>();
     } else if (elem_type_ == RTAnyType::kF32Value) {

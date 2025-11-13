@@ -961,7 +961,7 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
     out_type = PropertyType::DateTime();
     break;
   case common::Temporal::kTimestamp:
-    out_type = PropertyType::Timestamp();
+    out_type = PropertyType::DateTime();
     break;
   case common::Temporal::kDate:
     // TODO(zhanglei): Parse format
@@ -1186,7 +1186,7 @@ Property expr_opr_value_to_prop(const common::ExprOpr& value) {
     return Property::from_date(Date(value.to_date().date_str()));
   }
   case common::ExprOpr::ItemCase::kToDatetime: {
-    return Property::from_date_time(
+    return Property::from_datetime(
         DateTime(value.to_datetime().datetime_str()));
   }
   case common::ExprOpr::ItemCase::kToInterval: {

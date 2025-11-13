@@ -64,8 +64,6 @@ std::string PrimitivePropertyTypeToString(PropertyType type) {
     return DT_DATETIME;
   } else if (type == PropertyType::kInterval) {
     return DT_INTERVAL;
-  } else if (type == PropertyType::kTimestamp) {
-    return DT_TIMESTAMP;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown property type: " +
                                      type.ToString());
@@ -86,7 +84,7 @@ PropertyType StringToPrimitivePropertyType(const std::string& str) {
   } else if (str == "Interval" || str == DT_INTERVAL) {
     return PropertyType::kInterval;
   } else if (str == "Timestamp" || str == DT_TIMESTAMP) {
-    return PropertyType::kTimestamp;
+    return PropertyType::kDateTime;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
     // DT_STRING is a alias for VARCHAR(GetStringDefaultMaxLength());
     return PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
@@ -111,8 +109,6 @@ YAML::Node TemporalTypeToYAML(PropertyType type) {
     node["date"] = "";
   } else if (type == PropertyType::kDateTime) {
     node["datetime"] = "";
-  } else if (type == PropertyType::kTimestamp) {
-    node["timestamp"] = "";
   } else if (type == PropertyType::kInterval) {
     node["interval"] = "";
   } else {
@@ -172,8 +168,6 @@ const PropertyType PropertyType::kDateTime =
     PropertyType(impl::PropertyTypeImpl::kDateTime);
 const PropertyType PropertyType::kInterval =
     PropertyType(impl::PropertyTypeImpl::kInterval);
-const PropertyType PropertyType::kTimestamp =
-    PropertyType(impl::PropertyTypeImpl::kTimestamp);
 
 bool PropertyType::operator==(const PropertyType& other) const {
   if (type_enum == impl::PropertyTypeImpl::kVarChar &&
@@ -236,8 +230,6 @@ std::string PropertyType::ToString() const {
     return "DateTime";
   case impl::PropertyTypeImpl::kInterval:
     return "Interval";
-  case impl::PropertyTypeImpl::kTimestamp:
-    return "Timestamp";
   default:
     return "Unknown";
   }
@@ -290,10 +282,6 @@ PropertyType PropertyType::DateTime() {
 
 PropertyType PropertyType::Interval() {
   return PropertyType(impl::PropertyTypeImpl::kInterval);
-}
-
-PropertyType PropertyType::Timestamp() {
-  return PropertyType(impl::PropertyTypeImpl::kTimestamp);
 }
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
@@ -524,75 +512,59 @@ Interval Date::operator-=(const Date& interval) const {
 }
 
 DateTime::DateTime(const std::string& date_time_str) {
-  // For input string like "YYYY-MM-DD HH:MM:SS.zzz". the .zzz part is
-  // optional.
-  std::istringstream ss(date_time_str);
-  date::sys_time<std::chrono::milliseconds> sys_time;
-  // Try multiple formats
-  try {
-    date::from_stream(ss, "%Y-%m-%d %H:%M:%S.%f", sys_time);
-    if (ss.fail()) {
-      // If it fails, try with milliseconds
-      ss.clear();
-      ss.str(date_time_str);  // Reset the stream
-      date::from_stream(ss, "%Y-%m-%d %H:%M:%S", sys_time);
-      if (ss.fail()) {
-        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
-      }
-    }
-  } catch (const std::exception& e) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format: " +
-                                     std::string(e.what()));
-  }
-
-  milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
-                     sys_time.time_since_epoch())
-                     .count();
-}
-
-TimeStamp::TimeStamp(const std::string& ts_str) {
-  // For now, just parse as int64_t
-  if (std::all_of(ts_str.begin(), ts_str.end(), ::isdigit)) {
-    milli_second = std::stoll(ts_str);
+  if (std::all_of(date_time_str.begin(), date_time_str.end(), ::isdigit)) {
+    milli_second = std::stoll(date_time_str);
   } else {
-    // If parsing as int64_t fails, try to parse as date time string
-    try {
-      if (ts_str.size() == 10) {
-        std::istringstream ss(ts_str);
+    std::istringstream ss(date_time_str);
+    do {
+      if (date_time_str.size() == 10) {
         date::sys_time<std::chrono::milliseconds> sys_time;
         // Try multiple formats
         date::from_stream(ss, "%Y-%m-%d", sys_time);
-        if (ss.fail()) {
-          ss.clear();
-          ss.str(ts_str);
-          DateTime dt(ts_str);
-          milli_second = dt.milli_second;
-        } else {
+        if (!ss.fail()) {
           milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
                              sys_time.time_since_epoch())
                              .count();
-        }
-      } else {
-        std::istringstream ss(ts_str);
-        date::sys_time<std::chrono::milliseconds> sys_time;
-
-        date::from_stream(ss, "%Y-%m-%dT%H:%M:%S%z", sys_time);
-        if (ss.fail()) {
-          ss.clear();
-          ss.str(ts_str);
-          DateTime dt(ts_str);
-          milli_second = dt.milli_second;
+          break;
         } else {
-          milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
-                             sys_time.time_since_epoch())
-                             .count();
+          ss.clear();
+          ss.str(date_time_str);
         }
       }
+      std::istringstream ss(date_time_str);
+      date::sys_time<std::chrono::milliseconds> sys_time;
 
-    } catch (const std::exception& e) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid timestamp string format: " +
-                                       std::string(e.what()));
-    }
+      date::from_stream(ss, "%Y-%m-%dT%H:%M:%S%z", sys_time);
+      if (!ss.fail()) {
+        milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           sys_time.time_since_epoch())
+                           .count();
+        break;
+      } else {
+        ss.clear();
+        ss.str(date_time_str);
+      }
+      date::from_stream(ss, "%Y-%m-%d %H:%M:%S.%f", sys_time);
+      if (!ss.fail()) {
+        milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           sys_time.time_since_epoch())
+                           .count();
+        break;
+      } else {
+        ss.clear();
+        ss.str(date_time_str);
+      }
+      date::from_stream(ss, "%Y-%m-%d %H:%M:%S", sys_time);
+      if (!ss.fail()) {
+        milli_second = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           sys_time.time_since_epoch())
+                           .count();
+        break;
+      } else {
+        THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date time string format");
+      }
+
+    } while (0);
   }
 }
 
@@ -707,7 +679,8 @@ void Interval::from_mill_seconds(int64_t mill_seconds) {
   }
   int64_t total_seconds = mill_seconds / 1000;
   // internal.year = std::floor(total_seconds / SECOND_PER_YEAR);
-  // Get the floor division for years, months, days, hours, minutes, and seconds
+  // Get the floor division for years, months, days, hours, minutes, and
+  // seconds
   internal.year =
       std::floor(static_cast<double>(total_seconds) / SECOND_PER_YEAR);
   total_seconds -= internal.year * SECOND_PER_YEAR;
@@ -865,10 +838,6 @@ void Interval::adjustMonthYearUnderflow(Interval& interval) {
   }
 }
 
-std::string TimeStamp::to_string() const {
-  return std::to_string(milli_second);
-}
-
 Date operator+(const Date& date, const Interval& interval) {
   Date new_date = date;
   new_date += interval;
@@ -891,18 +860,6 @@ DateTime operator-(const DateTime& dt, const Interval& interval) {
   DateTime new_dt = dt;
   new_dt -= interval;
   return new_dt;
-}
-
-TimeStamp operator+(const TimeStamp& ts, const Interval& interval) {
-  TimeStamp new_ts = ts;
-  new_ts += interval;
-  return new_ts;
-}
-
-TimeStamp operator-(const TimeStamp& ts, const Interval& interval) {
-  TimeStamp new_ts = ts;
-  new_ts -= interval;
-  return new_ts;
 }
 
 Interval operator+(const Interval& lhs, const Interval& rhs) {

@@ -43,7 +43,6 @@ union PropValue {
   StringPtr sp;
   float f;
   double db;
-  struct TimeStamp ts;
   struct Date d;
   struct DateTime dt;
   struct Interval itv;
@@ -132,11 +131,6 @@ class Property {
     value_.db = v;
   }
 
-  void set_timestamp(const TimeStamp& v) {
-    type_ = PropertyType::kTimestamp;
-    value_.ts = v;
-  }
-
   void set_date(const Date& v) {
     type_ = PropertyType::kDate;
     value_.d = v;
@@ -147,12 +141,12 @@ class Property {
     value_.d.from_u32(val);
   }
 
-  void set_date_time(const DateTime& v) {
+  void set_datetime(const DateTime& v) {
     type_ = PropertyType::kDateTime;
     value_.dt = v;
   }
 
-  void set_date_time(int64_t mill_seconds) {
+  void set_datetime(int64_t mill_seconds) {
     type_ = PropertyType::kDateTime;
     value_.dt.milli_second = mill_seconds;
   }
@@ -217,17 +211,12 @@ class Property {
     return value_.db;
   }
 
-  TimeStamp as_timestamp() const {
-    assert(type() == PropertyType::kTimestamp);
-    return value_.ts;
-  }
-
   Date as_date() const {
     assert(type() == PropertyType::kDate);
     return value_.d;
   }
 
-  DateTime as_date_time() const {
+  DateTime as_datetime() const {
     assert(type() == PropertyType::kDateTime);
     return value_.dt;
   }
@@ -255,12 +244,10 @@ class Property {
       return std::to_string(as_float());
     } else if (type == PropertyType::kDouble) {
       return std::to_string(as_double());
-    } else if (type == PropertyType::kTimestamp) {
-      return as_timestamp().to_string();
     } else if (type == PropertyType::kDate) {
       return as_date().to_string();
     } else if (type == PropertyType::kDateTime) {
-      return as_date_time().to_string();
+      return as_datetime().to_string();
     } else if (type == PropertyType::kInterval) {
       return as_interval().to_string();
     } else if (type == PropertyType::kBool) {
@@ -328,21 +315,15 @@ class Property {
     return ret;
   }
 
-  static Property from_timestamp(const TimeStamp& v) {
-    Property ret;
-    ret.set_timestamp(v);
-    return ret;
-  }
-
   static Property from_date(const Date& v) {
     Property ret;
     ret.set_date(v);
     return ret;
   }
 
-  static Property from_date_time(const DateTime& v) {
+  static Property from_datetime(const DateTime& v) {
     Property ret;
-    ret.set_date_time(v);
+    ret.set_datetime(v);
     return ret;
   }
 
@@ -390,12 +371,10 @@ inline Property parse_property_from_string(PropertyType pt,
     return Property::from_float(std::stof(str));
   } else if (pt == PropertyType::kDouble) {
     return Property::from_double(std::stod(str));
-  } else if (pt == PropertyType::kTimestamp) {
-    return Property::from_timestamp(TimeStamp(std::stoll(str)));
   } else if (pt == PropertyType::kDate) {
     return Property::from_date(Date(str));
   } else if (pt == PropertyType::kDateTime) {
-    return Property::from_date_time(DateTime(str));
+    return Property::from_datetime(DateTime(str));
   } else if (pt == PropertyType::kInterval) {
     return Property::from_interval(Interval(str));
   } else {
@@ -423,12 +402,10 @@ inline void serialize_property(grape::InArchive& arc, const Property& prop) {
     arc << prop.as_float();
   } else if (type == PropertyType::kDouble) {
     arc << prop.as_double();
-  } else if (type == PropertyType::kTimestamp) {
-    arc << prop.as_timestamp().milli_second;
   } else if (type == PropertyType::kDate) {
     arc << prop.as_date().to_u32();
   } else if (type == PropertyType::kDateTime) {
-    arc << prop.as_date_time().milli_second;
+    arc << prop.as_datetime().milli_second;
   } else if (type == PropertyType::kInterval) {
     arc << prop.as_interval().to_mill_seconds();
   } else if (type == PropertyType::kEmpty) {
@@ -475,10 +452,6 @@ inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
     double v;
     arc >> v;
     prop.set_double(v);
-  } else if (pt == PropertyType::kTimestamp) {
-    int64_t ts_val;
-    arc >> ts_val;
-    prop.set_timestamp(TimeStamp(ts_val));
   } else if (pt == PropertyType::kDate) {
     uint32_t date_val;
     arc >> date_val;
@@ -488,7 +461,7 @@ inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
   } else if (pt == PropertyType::kDateTime) {
     int64_t dt_val;
     arc >> dt_val;
-    prop.set_date_time(DateTime(dt_val));
+    prop.set_datetime(DateTime(dt_val));
   } else if (pt == PropertyType::kInterval) {
     int64_t iv_val;
     arc >> iv_val;
@@ -585,20 +558,6 @@ struct PropUtils<double> {
 };
 
 template <>
-struct PropUtils<TimeStamp> {
-  static PropertyType prop_type() { return PropertyType::kTimestamp; }
-  static TimeStamp to_typed(const Property& prop) {
-    return prop.as_timestamp();
-  }
-  static Property to_prop(const TimeStamp& v) {
-    return Property::from_timestamp(v);
-  }
-  static Property to_prop(int64_t mill_seconds) {
-    return Property::from_timestamp(TimeStamp(mill_seconds));
-  }
-};
-
-template <>
 struct PropUtils<Date> {
   static PropertyType prop_type() { return PropertyType::kDate; }
   static Date to_typed(const Property& prop) { return prop.as_date(); }
@@ -611,12 +570,12 @@ struct PropUtils<Date> {
 template <>
 struct PropUtils<DateTime> {
   static PropertyType prop_type() { return PropertyType::kDateTime; }
-  static DateTime to_typed(const Property& prop) { return prop.as_date_time(); }
+  static DateTime to_typed(const Property& prop) { return prop.as_datetime(); }
   static Property to_prop(const DateTime& v) {
-    return Property::from_date_time(v);
+    return Property::from_datetime(v);
   }
   static Property to_prop(int64_t mill_seconds) {
-    return Property::from_date_time(DateTime(mill_seconds));
+    return Property::from_datetime(DateTime(mill_seconds));
   }
 };
 

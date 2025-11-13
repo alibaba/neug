@@ -277,7 +277,7 @@ bool is_property_extract(const common::Expression& expr, int& tag,
         return false;
       }
       // only support pod type
-      if (type == RTAnyType::kTimestamp || type == RTAnyType::kDate ||
+      if (type == RTAnyType::kDateTime || type == RTAnyType::kDate ||
           type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
           type == RTAnyType::kF64Value || type == RTAnyType::kU32Value ||
           type == RTAnyType::kU64Value || type == RTAnyType::kF32Value) {
@@ -349,15 +349,15 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
         ProjectExpr<SLPropertyExpr<SLVertexColumn, Date>, decltype(collector)>>(
         std::move(expr), collector, alias);
   }
-  case RTAnyType::kTimestamp: {
+  case RTAnyType::kDateTime: {
     auto expr =
-        SLPropertyExpr<SLVertexColumn, TimeStamp>(graph, column, property_name);
+        SLPropertyExpr<SLVertexColumn, DateTime>(graph, column, property_name);
     PropertyValueCollector<decltype(expr)> collector(ctx);
     if (expr.is_optional()) {
       return nullptr;
     }
     return std::make_unique<ProjectExpr<
-        SLPropertyExpr<SLVertexColumn, TimeStamp>, decltype(collector)>>(
+        SLPropertyExpr<SLVertexColumn, DateTime>, decltype(collector)>>(
         std::move(expr), collector, alias);
   }
   default:
@@ -481,17 +481,6 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
       return nullptr;
     }
     return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, DateTime>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kTimestamp: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, TimeStamp>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, TimeStamp>,
                                         decltype(collector)>>(std::move(expr),
                                                               collector, alias);
   }
@@ -728,8 +717,8 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
           return parse_special_expr_between_impl<int64_t>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_ == RTAnyType::kTimestamp) {
-          return parse_special_expr_between_impl<TimeStamp>(
+        } else if (type_ == RTAnyType::kDateTime) {
+          return parse_special_expr_between_impl<DateTime>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
         }
@@ -766,8 +755,8 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
           if (ptr) {
             return ptr;
           }
-        } else if (type_ == RTAnyType::kTimestamp) {
-          auto ptr = create_sp_pred_case_when<TimeStamp>(
+        } else if (type_ == RTAnyType::kDateTime) {
+          auto ptr = create_sp_pred_case_when<DateTime>(
               ctx, graph, params, vertex_col, ptype, name, target, then_value,
               else_value, alias);
           if (ptr) {
@@ -825,15 +814,12 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
     } else if (type == RTAnyType::kStringValue) {
       return std::make_unique<VertexPropertyExprBuilder<std::string_view>>(
           tag, name, alias);
-    } else if (type == RTAnyType::kTimestamp) {
-      return std::make_unique<VertexPropertyExprBuilder<TimeStamp>>(tag, name,
-                                                                    alias);
-    } else if (type == RTAnyType::kDate) {
-      return std::make_unique<VertexPropertyExprBuilder<Date>>(tag, name,
-                                                               alias);
     } else if (type == RTAnyType::kDateTime) {
       return std::make_unique<VertexPropertyExprBuilder<DateTime>>(tag, name,
                                                                    alias);
+    } else if (type == RTAnyType::kDate) {
+      return std::make_unique<VertexPropertyExprBuilder<Date>>(tag, name,
+                                                               alias);
     } else if (type == RTAnyType::kInterval) {
       return std::make_unique<VertexPropertyExprBuilder<Interval>>(tag, name,
                                                                    alias);
@@ -983,8 +969,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
     return create_case_when_builder_impl0<Date>(ptype, then_type, param_names,
                                                 then_value, else_value, tag,
                                                 name, alias);
-  } else if (when_type == RTAnyType::kTimestamp) {
-    return create_case_when_builder_impl0<TimeStamp>(
+  } else if (when_type == RTAnyType::kDateTime) {
+    return create_case_when_builder_impl0<DateTime>(
         ptype, then_type, param_names, then_value, else_value, tag, name,
         alias);
   } else {

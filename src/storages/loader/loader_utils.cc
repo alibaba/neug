@@ -823,8 +823,6 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
     set_column<float>(col, array, vids);
   } else if (col_type == PropertyType::kDateTime) {
     set_column_from_timestamp_array<DateTime>(col, array, vids);
-  } else if (col_type == PropertyType::kTimestamp) {
-    set_column_from_timestamp_array<TimeStamp>(col, array, vids);
   } else if (col_type == PropertyType::kDate) {
     set_column_from_date_array(col, array, vids);
   } else if (col_type == PropertyType::kInterval) {

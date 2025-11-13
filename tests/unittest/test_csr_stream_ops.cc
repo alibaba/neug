@@ -23,7 +23,7 @@
 
 using StreamCsrTypes = ::testing::Types<
     gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,
-    gs::MutableCsr<grape::EmptyType>, gs::MutableCsr<gs::TimeStamp>,
+    gs::MutableCsr<grape::EmptyType>, gs::MutableCsr<gs::DateTime>,
     gs::SingleMutableCsr<uint32_t>, gs::SingleMutableCsr<uint64_t>,
     gs::SingleMutableCsr<double>, gs::SingleMutableCsr<gs::Date>>;
 

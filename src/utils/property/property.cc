@@ -45,7 +45,7 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
   } else if (value.type() == PropertyType::Date()) {
     in_archive << value.type() << value.as_date().to_u32();
   } else if (value.type() == PropertyType::DateTime()) {
-    in_archive << value.type() << value.as_date_time().milli_second;
+    in_archive << value.type() << value.as_datetime().milli_second;
   } else if (value.type() == PropertyType::Interval()) {
     in_archive << value.type() << value.as_interval().to_mill_seconds();
   } else {
@@ -103,7 +103,7 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value) {
   } else if (pt == PropertyType::DateTime()) {
     int64_t date_time_val;
     out_archive >> date_time_val;
-    value.set_date_time(date_time_val);
+    value.set_datetime(date_time_val);
   } else if (pt == PropertyType::Interval()) {
     uint64_t interval_val;
     out_archive >> interval_val;
@@ -190,8 +190,6 @@ bool Property::operator<(const Property& other) const {
       return value_.d.to_u32() < other.value_.d.to_u32();
     } else if (type() == PropertyType::kDateTime) {
       return value_.dt.milli_second < other.value_.dt.milli_second;
-    } else if (type() == PropertyType::kTimestamp) {
-      return value_.ts.milli_second < other.value_.ts.milli_second;
     } else if (type() == PropertyType::kInterval) {
       return value_.itv < other.value_.itv;
     } else {

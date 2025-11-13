@@ -546,15 +546,14 @@ enum class RTAnyType {
   kUnknown = 10,
   kDate = 11,
   kDateTime = 12,
-  kTimestamp = 13,
-  kInterval = 14,
-  kPath = 15,
-  kNull = 16,
-  kTuple = 17,
-  kList = 18,
-  kMap = 19,
-  kSet = 21,
-  kEmpty = 22,
+  kInterval = 13,
+  kPath = 14,
+  kNull = 15,
+  kTuple = 16,
+  kList = 17,
+  kMap = 18,
+  kSet = 19,
+  kEmpty = 20,
 };
 
 PropertyType rt_type_to_property_type(RTAnyType type);
@@ -611,7 +610,6 @@ union RTAnyValue {
   // Day day;
   Date date_val;
   DateTime dt_val;
-  TimeStamp ts_val;
   Interval interval_val;
   std::string_view str_val;
   Path p;
@@ -650,7 +648,6 @@ class RTAny {
   static RTAny from_string(const std::string_view& str);
   static RTAny from_date(Date v);
   static RTAny from_datetime(DateTime v);
-  static RTAny from_timestamp(TimeStamp v);
 
   static RTAny from_tuple(const Tuple& tuple);
   static RTAny from_list(const List& list);
@@ -668,7 +665,6 @@ class RTAny {
   Date as_date() const;
   DateTime as_datetime() const;
   Interval as_interval() const;
-  TimeStamp as_timestamp() const;
   float as_float() const;
   double as_double() const;
   VertexRecord as_vertex() const;
@@ -820,8 +816,7 @@ struct TypedConverter<DateTime> {
   static RTAny from_typed(DateTime val) { return RTAny::from_datetime(val); }
   static const std::string name() { return "datetime"; }
   static DateTime typed_from_string(const std::string& str) {
-    int64_t val = std::stoll(str);
-    return DateTime(val);
+    return DateTime(str);
   }
 };
 
@@ -836,17 +831,6 @@ struct TypedConverter<Interval> {
     Interval ret;
     ret.from_mill_seconds(val);
     return ret;
-  }
-};
-
-template <>
-struct TypedConverter<TimeStamp> {
-  static RTAnyType type() { return RTAnyType::kTimestamp; }
-  static TimeStamp to_typed(const RTAny& val) { return val.as_timestamp(); }
-  static RTAny from_typed(TimeStamp val) { return RTAny::from_timestamp(val); }
-  static const std::string name() { return "timestamp"; }
-  static TimeStamp typed_from_string(const std::string& str) {
-    return TimeStamp(str);
   }
 };
 

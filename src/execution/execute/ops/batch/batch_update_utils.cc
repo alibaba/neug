@@ -138,13 +138,10 @@ void add_member(rapidjson::Value& object,
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
   } else if (value.type() == PropertyType::kDateTime) {
-    std::string date_time = value.as_date_time().to_string();
+    std::string date_time = value.as_datetime().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date_time.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == PropertyType::kTimestamp) {
-    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_timestamp().milli_second, allocator);
   } else if (value.type().type_enum == impl::PropertyTypeImpl::kStringView) {
     rapidjson::Value valueVal;
     auto str_value = value.as_string_view();
@@ -195,9 +192,9 @@ void add_prop_member(rapidjson::Value& object,
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == PropertyType::kTimestamp) {
+  } else if (value.type() == PropertyType::kDateTime) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
-                     value.as_timestamp().milli_second, allocator);
+                     value.as_datetime().milli_second, allocator);
   } else if (value.type() == PropertyType::kInterval) {
     std::string interval_str = value.as_interval().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),

@@ -168,9 +168,8 @@ class WriteContext {
       } else if (type == PropertyType::kDate) {
         return Property::from_date(
             Date(static_cast<int64_t>(std::stoll(std::string(value)))));
-      } else if (type == PropertyType::kTimestamp) {
-        return Property::from_timestamp(
-            TimeStamp(std::stoll(std::string(value))));
+      } else if (type == PropertyType::kDateTime) {
+        return Property::from_datetime(DateTime(std::string(value)));
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for WriteParams: " +
                                       type.ToString());

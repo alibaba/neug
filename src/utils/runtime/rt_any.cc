@@ -68,10 +68,10 @@ RTAnyType parse_from_data_type(const ::common::DataType& ddt) {
       return RTAnyType::kDateTime;
     } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
       return RTAnyType::kDate;
-    } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
-      return RTAnyType::kTimestamp;
     } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
       return RTAnyType::kInterval;
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
+      return RTAnyType::kDateTime;
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("unrecognized temporal type - " +
                                     ddt.temporal().DebugString());
@@ -189,8 +189,6 @@ PropertyType rt_type_to_property_type(RTAnyType type) {
     return PropertyType::kString;
   case RTAnyType::kDateTime:
     return PropertyType::kDateTime;
-  case RTAnyType::kTimestamp:
-    return PropertyType::kTimestamp;
   case RTAnyType::kDate:
     return PropertyType::kDate;  // FIXME
   case RTAnyType::kInterval:
@@ -221,13 +219,13 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   } else if (type->Equals(arrow::date32())) {
     return RTAnyType::kDate;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::SECOND))) {
-    return RTAnyType::kTimestamp;
+    return RTAnyType::kDateTime;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MILLI))) {
-    return RTAnyType::kTimestamp;
+    return RTAnyType::kDateTime;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MICRO))) {
-    return RTAnyType::kTimestamp;
+    return RTAnyType::kDateTime;
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
-    return RTAnyType::kTimestamp;
+    return RTAnyType::kDateTime;
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected arrow type: " + type->ToString());
   }
@@ -301,10 +299,7 @@ RTAny::RTAny(const Property& val) {
     value_.interval_val = val.as_interval();
   } else if (val.type() == PropertyType::DateTime()) {
     type_ = RTAnyType::kDateTime;
-    value_.dt_val = val.as_date_time();
-  } else if (val.type() == PropertyType::Timestamp()) {
-    type_ = RTAnyType::kTimestamp;
-    value_.ts_val = val.as_timestamp();
+    value_.dt_val = val.as_datetime();
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unexpected property type: " + val.type().ToString() +
@@ -349,8 +344,6 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     value_.dt_val = rhs.value_.dt_val;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value_.ts_val = rhs.value_.ts_val;
   } else if (type_ == RTAnyType::kInterval) {
     value_.interval_val = rhs.value_.interval_val;
   } else if (type_ == RTAnyType::kPath) {
@@ -393,8 +386,6 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     value_.dt_val = rhs.value_.dt_val;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value_.ts_val = rhs.value_.ts_val;
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected RTAny type: " +
                                   std::to_string(static_cast<int>(type_)));
@@ -423,9 +414,7 @@ Property RTAny::to_any() const {
   case RTAnyType::kDate:
     return Property::from_date(value_.date_val);
   case RTAnyType::kDateTime:
-    return Property::from_date_time(value_.dt_val);
-  case RTAnyType::kTimestamp:
-    return Property::from_timestamp(value_.ts_val);
+    return Property::from_datetime(value_.dt_val);
   case RTAnyType::kInterval:
     return Property::from_interval(value_.interval_val);
   default:
@@ -519,13 +508,6 @@ RTAny RTAny::from_datetime(DateTime v) {
   return ret;
 }
 
-RTAny RTAny::from_timestamp(TimeStamp v) {
-  RTAny ret;
-  ret.type_ = RTAnyType::kTimestamp;
-  ret.value_.ts_val = v;
-  return ret;
-}
-
 RTAny RTAny::from_tuple(const Tuple& t) {
   RTAny ret;
   ret.type_ = RTAnyType::kTuple;
@@ -608,11 +590,6 @@ Date RTAny::as_date() const {
 DateTime RTAny::as_datetime() const {
   assert(type_ == RTAnyType::kDateTime);
   return value_.dt_val;
-}
-
-TimeStamp RTAny::as_timestamp() const {
-  assert(type_ == RTAnyType::kTimestamp);
-  return value_.ts_val;
 }
 
 Interval RTAny::as_interval() const {
@@ -920,8 +897,6 @@ bool RTAny::operator<(const RTAny& other) const {
     return value_.date_val < other.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val < other.value_.dt_val;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.ts_val < other.value_.ts_val;
   } else if (type_ == RTAnyType::kInterval) {
     return value_.interval_val < other.value_.interval_val;
   } else if (type_ == RTAnyType::kF32Value) {
@@ -978,8 +953,6 @@ bool RTAny::operator==(const RTAny& other) const {
     return value_.date_val == other.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val == other.value_.dt_val;
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.ts_val == other.value_.ts_val;
   } else if (type_ == RTAnyType::kInterval) {
     return value_.interval_val == other.value_.interval_val;
   }
@@ -1027,13 +1000,6 @@ RTAny RTAny::operator+(const RTAny& other) const {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
-  } else if (type_ == RTAnyType::kTimestamp) {
-    if (other.type() == RTAnyType::kInterval) {
-      return RTAny::from_timestamp(value_.ts_val + other.value_.interval_val);
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "not support for " + std::to_string(static_cast<int>(other.type_)));
-    }
   } else if (type_ == RTAnyType::kInterval) {
     if (other.type() == RTAnyType::kInterval) {
       return RTAny::from_interval(value_.interval_val +
@@ -1042,8 +1008,6 @@ RTAny RTAny::operator+(const RTAny& other) const {
       return RTAny::from_date(other.value_.date_val + value_.interval_val);
     } else if (other.type() == RTAnyType::kDateTime) {
       return RTAny::from_datetime(other.value_.dt_val + value_.interval_val);
-    } else if (other.type() == RTAnyType::kTimestamp) {
-      return RTAny::from_timestamp(other.value_.ts_val + value_.interval_val);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "RTAny::operator+ not support for " +
@@ -1136,16 +1100,6 @@ RTAny RTAny::operator-(const RTAny& other) const {
       return RTAny::from_interval(value_.dt_val - other.value_.dt_val);
     } else if (other.type_ == RTAnyType::kInterval) {
       return RTAny::from_datetime(value_.dt_val - other.value_.interval_val);
-    } else {
-      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
-                          std::to_string(static_cast<int>(type_)) + " and " +
-                          std::to_string(static_cast<int>(other.type_)));
-    }
-  } else if (type_ == RTAnyType::kTimestamp) {
-    if (other.type_ == RTAnyType::kTimestamp) {
-      return RTAny::from_interval(value_.ts_val - other.value_.ts_val);
-    } else if (other.type_ == RTAnyType::kInterval) {
-      return RTAny::from_timestamp(value_.ts_val - other.value_.interval_val);
     } else {
       THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
                           std::to_string(static_cast<int>(type_)) + " and " +
@@ -1367,8 +1321,6 @@ void RTAny::sink_impl(common::Value* value) const {
   } else if (type_ == RTAnyType::kDateTime) {
     auto date_time_str = value_.dt_val.to_string();
     value->set_str(date_time_str.data(), date_time_str.size());
-  } else if (type_ == RTAnyType::kTimestamp) {
-    value->mutable_timestamp()->set_item(value_.ts_val.milli_second);
   } else if (type_ == RTAnyType::kInterval) {
     auto interval_str = value_.interval_val.to_string();
     value->set_str(interval_str.data(), interval_str.size());
@@ -1452,8 +1404,8 @@ void RTAny::encode_sig(RTAnyType type, Encoder& encoder) const {
       encoder.put_byte(nodes[i].label_);
       encoder.put_int(nodes[i].vid_);
     }
-  } else if (type == RTAnyType::kTimestamp) {
-    encoder.put_long(value_.ts_val.milli_second);
+  } else if (type == RTAnyType::kDateTime) {
+    encoder.put_long(value_.dt_val.milli_second);
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type)));
@@ -1540,8 +1492,6 @@ std::string RTAny::to_string() const {
     return value_.dt_val.to_string();
   } else if (type_ == RTAnyType::kDate) {
     return value_.date_val.to_string();
-  } else if (type_ == RTAnyType::kTimestamp) {
-    return value_.ts_val.to_string();
   } else if (type_ == RTAnyType::kInterval) {
     return value_.interval_val.to_string();
   } else {

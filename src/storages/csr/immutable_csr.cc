@@ -517,7 +517,6 @@ template class ImmutableCsr<float>;
 template class ImmutableCsr<double>;
 template class ImmutableCsr<grape::EmptyType>;
 template class ImmutableCsr<Date>;
-template class ImmutableCsr<TimeStamp>;
 template class ImmutableCsr<DateTime>;
 template class ImmutableCsr<Interval>;
 
@@ -529,7 +528,6 @@ template class SingleImmutableCsr<float>;
 template class SingleImmutableCsr<double>;
 template class SingleImmutableCsr<grape::EmptyType>;
 template class SingleImmutableCsr<Date>;
-template class SingleImmutableCsr<TimeStamp>;
 template class SingleImmutableCsr<DateTime>;
 template class SingleImmutableCsr<Interval>;
 

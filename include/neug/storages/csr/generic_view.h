@@ -203,10 +203,7 @@ struct EdgeDataAccessor {
             prop.as_date();
       } else if (data_type_ == PropertyType::kDateTime) {
         *reinterpret_cast<DateTime*>(const_cast<void*>(it.get_data_ptr())) =
-            prop.as_date_time();
-      } else if (data_type_ == PropertyType::kTimestamp) {
-        *reinterpret_cast<TimeStamp*>(const_cast<void*>(it.get_data_ptr())) =
-            prop.as_timestamp();
+            prop.as_datetime();
       } else if (data_type_ == PropertyType::kInterval) {
         *reinterpret_cast<Interval*>(const_cast<void*>(it.get_data_ptr())) =
             prop.as_interval();
@@ -251,11 +248,8 @@ struct EdgeDataAccessor {
       return Property::from_double(get_bundled_data_from_ptr<double>(data_ptr));
     } else if (data_type_ == PropertyType::kDate) {
       return Property::from_date(get_bundled_data_from_ptr<Date>(data_ptr));
-    } else if (data_type_ == PropertyType::kTimestamp) {
-      return Property::from_timestamp(
-          get_bundled_data_from_ptr<TimeStamp>(data_ptr));
     } else if (data_type_ == PropertyType::kDateTime) {
-      return Property::from_date_time(
+      return Property::from_datetime(
           get_bundled_data_from_ptr<DateTime>(data_ptr));
     } else if (data_type_ == PropertyType::kInterval) {
       return Property::from_interval(

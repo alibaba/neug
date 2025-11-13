@@ -175,7 +175,7 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
     } else if (j["temporal"].HasMember("interval")) {
       p = PropertyType::Interval();
     } else if (j["temporal"].HasMember("timestamp")) {
-      p = PropertyType::Timestamp();
+      p = PropertyType::DateTime();
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unknown temporal type: " +
                                        rapidjson_stringify(j));
