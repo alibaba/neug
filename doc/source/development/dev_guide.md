@@ -17,16 +17,53 @@ source ~/.neug_env
 
 #### Building Locally
 
-You can also set up all required dependencies in your local environment using the provided script:
+<!-- You can also set up all required dependencies in your local environment using the provided script: -->
+As nearlly all dependencies are also included as third-party libraries in the NeuG repository, you could build NeuG locally by installing only a few essential packages.
+
+##### On Ubuntu
 
 ```bash
-bash scripts/install_deps.sh --brpc --install-prefix /opt/neug
+sudo apt-get update
+sudo apt-get install -y build-essential cmake git python3-dev python3-pip g++ make libssl-dev openssl
 ```
 
-After installation is complete, set up the environment variables:
+##### On macOS
 
 ```bash
-source ~/.neug_env
+brew update
+brew install cmake git python3 openssl@3
+# No need to install g++ since Apple Clang is also supported.
+```
+
+##### On CentOS7
+
+```bash
+# Update yum repository to use vault.centos.org for CentOS 7, as the main mirrors are no longer available.
+sed -i "s/mirror.centos.org/vault.centos.org/g" /etc/yum.repos.d/*.repo && \
+    sed -i "s/^#.*baseurl=http/baseurl=http/g" /etc/yum.repos.d/*.repo && \
+    sed -i "s/^mirrorlist=http/#mirrorlist=http/g" /etc/yum.repos.d/*.repo
+sudo yum -y install centos-release-scl
+sed -i "s/mirror.centos.org/vault.centos.org/g" /etc/yum.repos.d/*.repo && \
+    sed -i "s/^#.*baseurl=http/baseurl=http/g" /etc/yum.repos.d/*.repo && \
+    sed -i "s/^mirrorlist=http/#mirrorlist=http/g" /etc/yum.repos.d/*.repo
+sudo yum -y install epel-release
+sudo yum -y groupinstall "Development Tools"
+sudo yum -y install git python3 python3-pip make cmake3 openssl openssl-devel
+sudo ln -sf /usr/bin/cmake3 /usr/local/bin/cmake
+
+# Install newer gcc/g++ via devtoolset-10
+sudo yum -y install devtoolset-10
+scl enable devtoolset-10 bash
+```
+
+##### On CentOS8/CentOS Stream 8
+
+```bash
+sudo dnf -y install epel-release dnf-plugins-core
+# Enable PowerTools (called PowerTools in CentOS 8; usually powertools in Stream 8)
+sudo dnf config-manager --set-enabled powertools || sudo dnf config-manager --set-enabled PowerTools
+sudo dnf -y groupinstall "Development Tools"
+sudo dnf -y install git python3 python3-pip cmake gcc-c++ make
 ```
 
 ### Building NeuG
@@ -66,6 +103,21 @@ make python-wheel
 
 Afterwards, the wheel package can be found in `tools/python_bind/dist`.
 
+#### Building C++ Libraries and Executables Only
+
+To build only the C++ libraries and executables without the Python bindings, use:
+
+```bash
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+# Optional: run tests
+ctest
+# Optional: install to the system
+make install
+```
+
+Check `CMakeLists.txt` for more CMake options.
 
 #### Build Options
 
