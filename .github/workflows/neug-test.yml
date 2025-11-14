@@ -287,7 +287,7 @@ jobs:
 
     - name: Run JSON Extension Test
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension/json
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension
         ./json_extension_test
 
     - name: Generate Coverage Report

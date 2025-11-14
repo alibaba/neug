@@ -34,6 +34,7 @@ enum class JsonFormat {
 struct JsonReaderConstants {
   static constexpr uint64_t BUFFER_SIZE = 32 * 1024 * 1024; // 32MB
   static constexpr uint64_t PADDING_SIZE = 4;     // rapidjson padding
+  static constexpr uint64_t MAX_BUFFER_SIZE = 512ULL * 1024 * 1024;  // 512MB
 };
 
 class JsonVFSReader {

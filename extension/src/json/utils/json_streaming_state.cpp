@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include "json_streaming_state.h"
-#include "json_arrow_utils.h" 
+#include "json/json_streaming_state.h"
+#include "json/json_converter.h" 
 #include "neug/utils/exception/exception.h"
 #include <cstring>
 

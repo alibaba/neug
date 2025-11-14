@@ -21,14 +21,14 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "json_scan_function.h"
-#include "json_streaming_state.h"
+#include "json/json_scan_function.h"
+#include "json/json_streaming_state.h"
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/compiler/gopt/g_vfs_holder.h"
-#include "json_vfs_reader.h"
-#include "json_arrow_utils.h"
+#include "json/json_vfs_reader.h"
+#include "json/json_converter.h"
 
 using namespace gs::common;
 using namespace gs::function;

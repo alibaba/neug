@@ -9,14 +9,14 @@
 class TestJsonExtension : public ::testing::Test {
 protected:
     std::string db_path_base = "/tmp/test_json_extension_db";
-    std::string student_jsona = "extension/json/tests/datasets/json_array/student.json";
-    std::string student_jsonl = "extension/json/tests/datasets/json_list/student.json";
-    std::string knows_jsona = "extension/json/tests/datasets/json_array/knows.json";
-    std::string knows_jsonl = "extension/json/tests/datasets/json_list/knows.json";
-    std::string school_jsona = "extension/json/tests/datasets/json_array/school.json";
-    std::string school_jsonl = "extension/json/tests/datasets/json_list/school.json";
-    std::string attends_jsona = "extension/json/tests/datasets/json_array/attends.json";
-    std::string attends_jsonl = "extension/json/tests/datasets/json_list/attends.json";
+    std::string student_jsona = "extension/tests/json/datasets/json_array/student.json";
+    std::string student_jsonl = "extension/tests/json/datasets/json_list/student.json";
+    std::string knows_jsona = "extension/tests/json/datasets/json_array/knows.json";
+    std::string knows_jsonl = "extension/tests/json/datasets/json_list/knows.json";
+    std::string school_jsona = "extension/tests/json/datasets/json_array/school.json";
+    std::string school_jsonl = "extension/tests/json/datasets/json_list/school.json";
+    std::string attends_jsona = "extension/tests/json/datasets/json_array/attends.json";
+    std::string attends_jsonl = "extension/tests/json/datasets/json_list/attends.json";
 
     std::string json_extension_path = std::string(std::getenv("HOME")) + "/.neug/extensions/json/libjson.neug_extension";
 

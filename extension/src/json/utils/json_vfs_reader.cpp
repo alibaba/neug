@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "json_vfs_reader.h"
+#include "json/json_vfs_reader.h"
 #include "neug/utils/exception/exception.h"
 #include <algorithm>
 

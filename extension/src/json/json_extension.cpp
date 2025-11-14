@@ -19,8 +19,8 @@
 #include "neug/compiler/extension/extension_api.h"
 
 // JSON functions
-#include "json_dummy_function.h"
-#include "json_scan_function.h"
+#include "json/json_dummy_function.h"
+#include "json/json_scan_function.h"
 
 extern "C" {
 

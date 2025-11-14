@@ -16,7 +16,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <filesystem>
-#include "json_scan_function.h"
+#include "json/json_scan_function.h"
 #include "neug/utils/property/types.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/execution/common/context.h"

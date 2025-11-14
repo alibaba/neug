@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "json_arrow_utils.h"
+#include "json/json_converter.h"
 #include <glog/logging.h>
 #include <algorithm>
 

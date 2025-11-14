@@ -21,7 +21,7 @@
 #include <vector>
 #include <memory>
 
-#include "json_vfs_reader.h"
+#include "json/json_vfs_reader.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
