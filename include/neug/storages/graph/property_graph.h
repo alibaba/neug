@@ -93,31 +93,6 @@ class PropertyGraph {
   ~PropertyGraph();
 
   /**
-   * @brief Ingest a new edge into the graph with serialized property data.
-   *
-   * This method adds a new edge to the graph by delegating to the appropriate
-   * edge table based on the edge label combination. The edge properties are
-   * provided as a serialized archive.
-   *
-   * @param src_label Source vertex label
-   * @param src_lid Source vertex local ID
-   * @param dst_label Destination vertex label
-   * @param dst_lid Destination vertex local ID
-   * @param edge_label Edge label/type
-   * @param ts Timestamp for the edge
-   * @param arc Serialized archive containing edge property data
-   * @param alloc Memory allocator for edge storage
-   *
-   * Implementation: Generates edge table index from labels, then calls
-   * EdgeTable::IngestEdge() on the corresponding edge table.
-   *
-   * @since v0.1.0
-   */
-  void IngestEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                  vid_t dst_lid, label_t edge_label, timestamp_t ts,
-                  grape::OutArchive& arc, Allocator& alloc);
-
-  /**
    * @brief Open the property graph from persistent storage.
    *
    * @param work_dir Working directory containing graph data files
@@ -308,6 +283,11 @@ class PropertyGraph {
   vid_t AddVertex(label_t label, const Property& id, timestamp_t ts);
 
   vid_t AddVertexSafe(label_t label, const Property& id, timestamp_t ts);
+
+  Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
+                 vid_t dst_lid, label_t edge_label,
+                 const std::vector<Property>& properties, timestamp_t ts,
+                 Allocator& alloc);
 
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,

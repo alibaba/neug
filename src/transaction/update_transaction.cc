@@ -195,21 +195,11 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
     }
   }
 
+  InsertVertexRedo::Serialize(arc_, label, dup_oid, dup_props);
+  op_num_ += 1;
   vid_t row_num = vertex_offsets_[label].size();
   vertex_offsets_[label].emplace(vid, row_num);
-  grape::InArchive arc;
-  arc << static_cast<uint32_t>(dup_props.size());
-  for (size_t i = 0; i < dup_props.size(); ++i) {
-    arc << static_cast<int32_t>(i);
-    serialize_property(arc, dup_props[i]);
-  }
-  grape::OutArchive oarc;
-  oarc.SetSlice(arc.GetBuffer(), arc.GetSize());
-  extra_vertex_properties_[label].ingest(row_num, oarc);
-
-  op_num_ += 1;
-  arc_ << static_cast<uint8_t>(0) << label << dup_oid;
-  arc_.AddBytes(arc.GetBuffer(), arc.GetSize());
+  extra_vertex_properties_[label].insert(row_num, dup_props);
   return true;
 }
 
@@ -289,13 +279,11 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     added_edges_[out_csr_index][src_lid].push_back(dst_lid);
   }
 
+  InsertEdgeRedo::Serialize(arc_, src_label, lid_to_oid(src_label, src_lid),
+                            dst_label, lid_to_oid(dst_label, dst_lid),
+                            edge_label, dup_properties);
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(1) << src_label
-       << lid_to_oid(src_label, src_lid);
-  arc_ << dst_label << lid_to_oid(dst_label, dst_lid);
-  arc_ << edge_label;
 
-  arc_ << static_cast<uint32_t>(dup_properties.size());
   if (!updated_edge_data_[in_csr_index][dst_lid].count(src_lid)) {
     updated_edge_data_[in_csr_index][dst_lid].emplace(
         src_lid, std::vector<std::tuple<Property, int32_t, size_t>>{});
@@ -311,8 +299,13 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
     updated_edge_data_[out_csr_index][src_lid][dst_lid].emplace_back(
         std::tuple<Property, int32_t, size_t>{
             dup_properties[col_id], static_cast<int32_t>(col_id), offset_out});
-    arc_ << (int32_t) col_id;
-    serialize_property(arc_, dup_properties[col_id]);
+  }
+  if (dup_properties.size() == 0) {
+    updated_edge_data_[in_csr_index][dst_lid][src_lid].emplace_back(
+        std::tuple<Property, int32_t, size_t>{Property::empty(), 0, offset_in});
+    updated_edge_data_[out_csr_index][src_lid][dst_lid].emplace_back(
+        std::tuple<Property, int32_t, size_t>{Property::empty(), 0,
+                                              offset_out});
   }
 
   return true;
@@ -600,10 +593,9 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
     }
     extra_table.get_column_by_id(col_id)->set_any(iter->second, dup_value);
   }
-
+  UpdateVertexPropRedo::Serialize(arc_, label, lid_to_oid(label, lid), col_id,
+                                  dup_value);
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(2) << label << lid_to_oid(label, lid);
-  arc_ << col_id << dup_value;
   return true;
 }
 
@@ -655,15 +647,10 @@ void UpdateTransaction::set_edge_data_with_offset(
   updated_edge_data_[csr_index][v][nbr].emplace_back(
       std::tuple<Property, int32_t, size_t>{dup_value, col_id, offset});
 
+  UpdateEdgePropRedo::Serialize(arc_, dir, label, lid_to_oid(label, v),
+                                neighbor_label, lid_to_oid(neighbor_label, nbr),
+                                edge_label, col_id, dup_value);
   op_num_ += 1;
-  arc_ << static_cast<uint8_t>(3) << static_cast<uint8_t>(dir ? 1 : 0) << label;
-  arc_ << lid_to_oid(label, v);
-  arc_ << neighbor_label;
-  arc_ << lid_to_oid(neighbor_label, nbr);
-  arc_ << edge_label;
-  arc_ << (uint32_t) 1;  // number of updated columns
-  arc_ << col_id;        // column id
-  serialize_property(arc_, dup_value);
 
   // Modify the edge data in place, since in this transaction the updated edge
   // data should be visible right now.
@@ -778,89 +765,69 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   grape::OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
-    uint8_t op_type;
+    OpType op_type;
     arc >> op_type;
-    if (op_type == 0) {
-      label_t label;
-      Property oid;
-      label = deserialize_oid(graph, arc, oid);
+    if (op_type == OpType::kInsertVertex) {
+      InsertVertexRedo redo;
+      arc >> redo;
       vid_t vid;
-      if (!graph.get_lid(label, oid, vid, timestamp)) {
-        vid = graph.AddVertexSafe(label, oid, timestamp);
+      if (!graph.get_lid(redo.label, redo.oid, vid, timestamp)) {
+        vid = graph.AddVertexSafe(redo.label, redo.oid, timestamp);
       }
       // Ignore the cases that the vertex already exists.
-      graph.get_vertex_table(label).get_properties_table().ingest(vid, arc);
-    } else if (op_type == 1) {
-      label_t src_label, dst_label, edge_label;
-      Property src, dst;
-      vid_t src_vid, dst_vid;
-      src_label = deserialize_oid(graph, arc, src);
-      dst_label = deserialize_oid(graph, arc, dst);
-      arc >> edge_label;
-      CHECK(graph.get_lid(src_label, src, src_vid, timestamp));
-      CHECK(graph.get_lid(dst_label, dst, dst_vid, timestamp));
-      graph.IngestEdge(src_label, src_vid, dst_label, dst_vid, edge_label,
-                       timestamp, arc, alloc);
-    } else if (op_type == 2) {
-      label_t label;
-      Property oid;
-      int col_id;
-      label = deserialize_oid(graph, arc, oid);
-      arc >> col_id;
-      vid_t vid;
-      CHECK(graph.get_lid(label, oid, vid, timestamp));
-      graph.get_vertex_table(label)
+      graph.get_vertex_table(redo.label)
           .get_properties_table()
-          .get_column_by_id(col_id)
-          ->ingest(vid, arc);
-    } else if (op_type == 3) {
-      uint8_t dir;
-      label_t label, neighbor_label, edge_label;
-      Property v, nbr;
-      vid_t v_lid, nbr_lid;
-      int32_t col_id = 0;
-      arc >> dir;
-      label = deserialize_oid(graph, arc, v);
-      neighbor_label = deserialize_oid(graph, arc, nbr);
-      arc >> edge_label;
-      int32_t num_cols;
-      arc >> num_cols;
-      std::vector<std::pair<int32_t, Property>> values;
+          .insert(vid, redo.props);
+    } else if (op_type == OpType::kInsertEdge) {
+      InsertEdgeRedo redo;
+      arc >> redo;
+      vid_t src_vid, dst_vid;
+      CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
+      CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
+      graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
+                    redo.edge_label, redo.properties, timestamp, alloc);
+    } else if (op_type == OpType::kUpdateVertexProp) {
+      UpdateVertexPropRedo redo;
+      arc >> redo;
+      vid_t vid;
+      CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
+      graph.get_vertex_table(redo.label)
+          .get_properties_table()
+          .get_column_by_id(redo.prop_id)
+          ->set_any(vid, redo.value);
+    } else if (op_type == OpType::kUpdateEdgeProp) {
+      UpdateEdgePropRedo redo;
+      arc >> redo;
       auto edge_prop_types = graph.schema().get_edge_properties(
-          dir == 0 ? label : neighbor_label, dir == 0 ? neighbor_label : label,
-          edge_label);
-      for (size_t i = 0; i < static_cast<size_t>(num_cols); ++i) {
-        arc >> col_id;
-        Property prop;
-        auto pt = edge_prop_types[col_id];
-        deserialize_property(arc, pt, prop);
-        values.emplace_back(col_id, prop);
-      }
-      CHECK(graph.get_lid(label, v, v_lid, timestamp));
-      CHECK(graph.get_lid(neighbor_label, nbr, nbr_lid, timestamp));
+          redo.dir == 0 ? redo.src_label : redo.dst_label,
+          redo.dir == 0 ? redo.dst_label : redo.src_label, redo.edge_label);
+      vid_t v_lid, nbr_lid;
+      CHECK(graph.get_lid(redo.src_label, redo.src, v_lid, timestamp));
+      CHECK(graph.get_lid(redo.dst_label, redo.dst, nbr_lid, timestamp));
 
-      auto view = dir ? graph.GetGenericOutgoingGraphView(label, neighbor_label,
-                                                          edge_label, timestamp)
-                      : graph.GetGenericIncomingGraphView(
-                            neighbor_label, label, edge_label, timestamp);
+      auto view =
+          redo.dir
+              ? graph.GetGenericOutgoingGraphView(
+                    redo.src_label, redo.dst_label, redo.edge_label, timestamp)
+              : graph.GetGenericIncomingGraphView(
+                    redo.dst_label, redo.src_label, redo.edge_label, timestamp);
       auto es = view.get_edges(v_lid);
       auto it = es.begin();
       while (it != es.end()) {
         if (it.get_vertex() == nbr_lid) {
-          for (auto& p : values) {
-            if (p.first >= 0 &&
-                static_cast<size_t>(p.first) >= edge_prop_types.size()) {
-              THROW_RUNTIME_ERROR("Column id out of range for edge properties");
-            }
-            if (p.first >= 0 && p.second.type() != edge_prop_types[p.first]) {
-              THROW_RUNTIME_ERROR(
-                  "Edge property type does not match the schema");
-            }
-            auto ed_accessor = graph.GetEdgeDataAccessor(
-                dir ? label : neighbor_label, dir ? neighbor_label : label,
-                edge_label, p.first);
-            ed_accessor.set_data(it, p.second, timestamp);
+          if (redo.prop_id >= 0 &&
+              static_cast<size_t>(redo.prop_id) >= edge_prop_types.size()) {
+            THROW_RUNTIME_ERROR("Column id out of range for edge properties");
           }
+          if (redo.prop_id >= 0 &&
+              redo.value.type() != edge_prop_types[redo.prop_id]) {
+            THROW_RUNTIME_ERROR("Edge property type does not match the schema");
+          }
+          auto ed_accessor = graph.GetEdgeDataAccessor(
+              redo.dir ? redo.src_label : redo.dst_label,
+              redo.dir ? redo.dst_label : redo.src_label, redo.edge_label,
+              redo.prop_id);
+          ed_accessor.set_data(it, redo.value, timestamp);
           break;
         }
         ++it;
@@ -1028,23 +995,21 @@ void UpdateTransaction::applyEdgesUpdates() {
           std::sort(add_list.begin(), add_list.end());
           auto& edge_data = updated_edge_data_[oe_csr_index];
           for (size_t idx = 0; idx < add_list.size(); ++idx) {
+            // TODO(zhanglei): multiple edges are ignored here.
             if (idx && add_list[idx] == add_list[idx - 1])
               continue;
             auto u = add_list[idx];
-            grape::InArchive iarc;
             if (edge_data.count(v) && edge_data[v].count(u)) {
               auto& tuples = edge_data[v].at(u);
-              iarc << static_cast<uint32_t>(tuples.size());
-              for (const auto& tuple : tuples) {
-                iarc << (int32_t) std::get<1>(tuple);
-                serialize_property(iarc, std::get<0>(tuple));
+              std::vector<Property> props;
+              props.resize(tuples.size());
+              for (size_t i = 0; i < tuples.size(); ++i) {
+                assert(props[std::get<1>(tuples[i])] == Property::empty());
+                props[std::get<1>(tuples[i])] = std::get<0>(tuples[i]);
               }
-            } else {
-              iarc << static_cast<uint32_t>(0);
+              graph_.AddEdge(src_label, v, dst_label, u, edge_label, props,
+                             timestamp_, alloc_);
             }
-            grape::OutArchive oarc(std::move(iarc));
-            graph_.IngestEdge(src_label, v, dst_label, u, edge_label,
-                              timestamp_, oarc, alloc_);
           }
         }
       }

@@ -52,12 +52,9 @@ InsertTransaction::~InsertTransaction() { Abort(); }
 
 bool InsertTransaction::AddVertex(label_t label, const Property& id,
                                   const std::vector<Property>& props) {
-  size_t arc_size = arc_.GetSize();
-  arc_ << static_cast<uint8_t>(0) << label << id;
   std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
-    arc_.Resize(arc_size);
     std::string label_name = graph_.schema().get_vertex_label_name(label);
     LOG(ERROR) << "Vertex [" << label_name
                << "] properties size not match, expected " << types.size()
@@ -65,13 +62,11 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
     return false;
   }
   int col_num = props.size();
-  arc_ << static_cast<uint32_t>(col_num);
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
     if (prop.type() != types[col_i]) {
       if (prop.type().type_enum == impl::PropertyTypeImpl::kStringView) {
       } else {
-        arc_.Resize(arc_size);
         std::string label_name = graph_.schema().get_vertex_label_name(label);
         LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
                    << "] property type not match, expected " << types[col_i]
@@ -79,9 +74,8 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
         return false;
       }
     }
-    arc_ << static_cast<uint32_t>(col_i);
-    serialize_property(arc_, prop);
   }
+  InsertVertexRedo::Serialize(arc_, label, id, props);
   added_vertices_.emplace(label, id);
   return true;
 }
@@ -127,13 +121,8 @@ bool InsertTransaction::AddEdge(label_t src_label, const Property& src,
       return false;
     }
   }
-  arc_ << static_cast<uint8_t>(1);
-  arc_ << src_label << src << dst_label << dst << edge_label;
-  arc_ << static_cast<uint32_t>(properties.size());
-  for (size_t col_id = 0; col_id < properties.size(); ++col_id) {
-    arc_ << static_cast<uint32_t>(col_id);
-    serialize_property(arc_, properties[col_id]);
-  }
+  InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
+                            properties);
   return true;
 }
 
@@ -179,28 +168,25 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
   grape::OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
-    uint8_t op_type;
+    OpType op_type;
     arc >> op_type;
-    if (op_type == 0) {
-      label_t label;
-      Property id;
-      label = deserialize_oid(graph, arc, id);
-      vid_t lid = graph.AddVertex(label, id, timestamp);
-      // Ignore the cases that the vertex already exists.
-      graph.get_vertex_table(label).get_properties_table().ingest(lid, arc);
-    } else if (op_type == 1) {
-      label_t src_label, dst_label, edge_label;
-      Property src, dst;
+    if (op_type == OpType::kInsertVertex) {
+      InsertVertexRedo redo;
+      arc >> redo;
+      vid_t lid = graph.AddVertex(redo.label, redo.oid, timestamp);
+      graph.get_vertex_table(redo.label)
+          .get_properties_table()
+          .insert(lid, redo.props);
+    } else if (op_type == OpType::kInsertEdge) {
+      InsertEdgeRedo redo;
+      arc >> redo;
       vid_t src_lid, dst_lid;
-      src_label = deserialize_oid(graph, arc, src);
-      dst_label = deserialize_oid(graph, arc, dst);
-      arc >> edge_label;
-
-      CHECK(get_vertex_with_retries(graph, src_label, src, src_lid, timestamp));
-      CHECK(get_vertex_with_retries(graph, dst_label, dst, dst_lid, timestamp));
-
-      graph.IngestEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                       timestamp, arc, alloc);
+      CHECK(get_vertex_with_retries(graph, redo.src_label, redo.src, src_lid,
+                                    timestamp));
+      CHECK(get_vertex_with_retries(graph, redo.dst_label, redo.dst, dst_lid,
+                                    timestamp));
+      graph.AddEdge(redo.src_label, src_lid, redo.dst_label, dst_lid,
+                    redo.edge_label, redo.properties, timestamp, alloc);
     } else {
       LOG(FATAL) << "Unexpected op-" << static_cast<int>(op_type);
     }

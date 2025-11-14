@@ -61,9 +61,6 @@ class EdgeTable {
 
   void Dump(const std::string& checkpoint_dir_path);
 
-  void IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc, timestamp_t ts,
-                  Allocator& alloc);
-
   void SortByEdgeData(timestamp_t ts);
 
   void BatchDeleteVertices(const std::set<vid_t>& src_set,

@@ -598,43 +598,6 @@ void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
   }
 }
 
-void EdgeTable::IngestEdge(vid_t src, vid_t dst, grape::OutArchive& oarc,
-                           timestamp_t ts, Allocator& alloc) {
-  Property prop;
-  if (!meta_->is_bundled()) {
-    size_t row_id = table_idx_.fetch_add(1);
-    table_->ingest(row_id, oarc);
-    prop.set_uint64(row_id);
-    out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
-    in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
-  } else {
-    if (meta_->properties.empty() ||
-        meta_->properties[0] == PropertyType::kEmpty) {
-      // Expect a zero
-      uint32_t num_cols;
-      oarc >> num_cols;
-      assert(num_cols == 0);
-      prop = Property::empty();
-      out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
-      in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
-    } else {
-      uint32_t num_cols;
-      oarc >> num_cols;
-      assert(num_cols == 1);
-      for (uint32_t i = 0; i < num_cols; ++i) {
-        int32_t col_id;
-        oarc >> col_id;
-        if (col_id != 0) {
-          LOG(ERROR) << "Bundled edge table only support one property column";
-        }
-        deserialize_property(oarc, meta_->properties[0], prop);
-        out_csr_->put_generic_edge(src, dst, prop, ts, alloc);
-        in_csr_->put_generic_edge(dst, src, prop, ts, alloc);
-      }
-    }
-  }
-}
-
 void EdgeTable::SortByEdgeData(timestamp_t ts) {
   // TODO
 }

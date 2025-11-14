@@ -453,37 +453,6 @@ Implementation: Calculates degree lists for vertices, reserves space in vertex a
 
 ### Public Methods
 
-#### `IngestEdge(...)`
-
-```cpp
-IngestEdge(
-    label_t src_label,
-    vid_t src_lid,
-    label_t dst_label,
-    vid_t dst_lid,
-    label_t edge_label,
-    timestamp_t ts,
-    grape::OutArchive &arc,
-    Allocator &alloc
-)
-```
-
-Ingest a new edge into the graph with serialized property data.
-
-This method adds a new edge to the graph by delegating to the appropriate edge table based on the edge label combination. The edge properties are provided as a serialized archive.
-``EdgeTable::IngestEdge`()` on the corresponding edge table.
-
-- **Parameters:**
-  - `src_label`: Source vertex label
-  - `src_lid`: Source vertex local ID
-  - `dst_label`: Destination vertex label
-  - `dst_lid`: Destination vertex local ID
-  - `edge_label`: Edge label/type
-  - `ts`: Timestamp for the edge
-  - `arc`: Serialized archive containing edge property data
-  - `alloc`: Memory allocator for edge storage
-
-- **Since:** v0.1.0
 
 #### `UpdateEdge(...)`
 

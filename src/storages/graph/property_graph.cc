@@ -1024,14 +1024,6 @@ void PropertyGraph::Dump(bool reopen) {
   }
 }
 
-void PropertyGraph::IngestEdge(label_t src_label, vid_t src_lid,
-                               label_t dst_label, vid_t dst_lid,
-                               label_t edge_label, timestamp_t ts,
-                               grape::OutArchive& arc, Allocator& alloc) {
-  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  edge_tables_.at(index).IngestEdge(src_lid, dst_lid, arc, ts, alloc);
-}
-
 const Schema& PropertyGraph::schema() const { return schema_; }
 
 Schema& PropertyGraph::mutable_schema() { return schema_; }
@@ -1076,6 +1068,22 @@ vid_t PropertyGraph::AddVertex(label_t label, const Property& id,
 vid_t PropertyGraph::AddVertexSafe(label_t label, const Property& id,
                                    timestamp_t ts) {
   return vertex_tables_[label].AddVertexSafe(id, ts);
+}
+
+Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
+                              label_t dst_label, vid_t dst_lid,
+                              label_t edge_label,
+                              const std::vector<Property>& properties,
+                              timestamp_t ts, Allocator& alloc) {
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
+                  "Edge table does not exist for edge label: " +
+                      std::to_string(edge_label));
+  }
+  edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts, alloc);
+  return gs::Status::OK();
 }
 
 std::string PropertyGraph::get_statistics_json() const {
