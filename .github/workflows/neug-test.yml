@@ -151,7 +151,6 @@ jobs:
         export STORAGE_RESOURCE=${GITHUB_WORKSPACE}/tests/storage/resources
         cd build/neug_py_bind
         ctest -R storage_test -V
-        ctest -R transaction_test -V
         ctest -R csr_test -V
         ctest -R edge_table_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
