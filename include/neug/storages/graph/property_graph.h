@@ -197,6 +197,10 @@ class PropertyGraph {
                               const std::string& edge_type_name,
                               bool error_on_conflict = true);
 
+  Status RevertDeleteEdgeType(label_t src_label, label_t dst_label,
+                              label_t edge_label,
+                              bool error_on_conflict = true);
+
   Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -241,6 +245,11 @@ class PropertyGraph {
   Status RevertDeleteEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict = true);
+
+  Status RevertDeleteEdgeProperties(
+      label_t src_label, label_t dst_label, label_t edge_label,
       const std::vector<std::string>& delete_properties,
       bool error_on_conflict = true);
 

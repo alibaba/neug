@@ -165,8 +165,6 @@ bool VertexSchema::has_property(const std::string& prop) const {
 int32_t VertexSchema::get_property_index(const std::string& prop) const {
   assert(primary_keys.size() == 1);
   if (std::get<1>(primary_keys[0]) == prop) {
-    // THROW_INDEX_EXCEPTION("Primary key property does not have index: " +
-    // prop);
     return std::get<2>(primary_keys[0]);
   }
   auto it = std::find(property_names.begin(), property_names.end(), prop);

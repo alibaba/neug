@@ -601,9 +601,20 @@ Status PropertyGraph::RevertDeleteEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
     const std::vector<std::string>& revert_properties, bool error_on_conflict) {
-  if (!schema_.has_edge_label(src_type_name, dst_type_name, edge_type_name)) {
-    std::string msg = "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name + "] does not exist";
+  label_t src_label = schema_.get_vertex_label_id(src_type_name);
+  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
+  label_t e_label = schema_.get_edge_label_id(edge_type_name);
+  return RevertDeleteEdgeProperties(src_label, dst_label, e_label,
+                                    revert_properties, error_on_conflict);
+}
+
+Status PropertyGraph::RevertDeleteEdgeProperties(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    const std::vector<std::string>& revert_properties, bool error_on_conflict) {
+  if (!schema_.has_edge_label(src_label, dst_label, edge_label)) {
+    std::string msg = "Edge [" + std::to_string(edge_label) + "] from [" +
+                      std::to_string(src_label) + "] to [" +
+                      std::to_string(dst_label) + "] does not exist";
     LOG(ERROR) << msg;
     if (error_on_conflict) {
       return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
@@ -611,24 +622,8 @@ Status PropertyGraph::RevertDeleteEdgeProperties(
       return Status(StatusCode::OK, msg);
     }
   }
-  std::vector<std::string> revert_property_names;
-  for (size_t i = 0; i < revert_properties.size(); i++) {
-    auto property_name = revert_properties[i];
-    revert_property_names.emplace_back(property_name);
-  }
-  schema_.RevertDeleteEdgeProperties(src_type_name, dst_type_name,
-                                     edge_type_name, revert_property_names);
-  label_t src_label = schema_.get_vertex_label_id(src_type_name);
-  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
-  label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
-
-  if (edge_tables_.count(index) == 0) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Edge [" + edge_type_name + "] from [" + src_type_name +
-                      "] to [" + dst_type_name +
-                      "] does not exist, cannot revert delete properties.");
-  }
+  schema_.RevertDeleteEdgeProperties(src_label, dst_label, edge_label,
+                                     revert_properties);
   return gs::Status::OK();
 }
 
@@ -747,6 +742,42 @@ Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
       edge_tables_.at(index).mark_as_deleted();
     }
   }
+  return gs::Status::OK();
+}
+
+Status PropertyGraph::RevertDeleteEdgeType(const std::string& src_vertex_type,
+                                           const std::string& dst_vertex_type,
+                                           const std::string& edge_type,
+                                           bool error_on_conflict) {
+  if (!schema_.has_edge_label(src_vertex_type, dst_vertex_type, edge_type)) {
+    std::string msg = "Edge [" + edge_type + "] from [" + src_vertex_type +
+                      "] to [" + dst_vertex_type + "] does not exist";
+    LOG(ERROR) << msg;
+    if (error_on_conflict) {
+      return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
+    } else {
+      return Status(StatusCode::OK, msg);
+    }
+  }
+  label_t src_v_label = schema_.get_vertex_label_id_internal(src_vertex_type);
+  label_t dst_v_label = schema_.get_vertex_label_id_internal(dst_vertex_type);
+  label_t edge_label = schema_.get_edge_label_id(edge_type);
+  return RevertDeleteEdgeType(src_v_label, dst_v_label, edge_label,
+                              error_on_conflict);
+}
+
+Status PropertyGraph::RevertDeleteEdgeType(label_t src_label, label_t dst_label,
+                                           label_t edge_label,
+                                           bool error_on_conflict) {
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    LOG(ERROR) << "Edge label id[" << index << "] does not exist.";
+    return Status(
+        StatusCode::ERR_INVALID_SCHEMA,
+        "Edge label id[" + std::to_string(index) + "] does not exist.");
+  }
+  edge_tables_.at(index).revert_deleted();
+  schema_.RevertDeleteEdgeLabel(src_label, dst_label, edge_label);
   return gs::Status::OK();
 }
 
