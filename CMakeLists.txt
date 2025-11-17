@@ -911,5 +911,6 @@ endif()
 
 if(BUILD_EXTENSIONS)
     message(STATUS "Building extensions: ${BUILD_EXTENSIONS}")
+    find_package(OpenSSL REQUIRED)
     add_subdirectory(extension)
 endif()

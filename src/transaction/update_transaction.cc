@@ -171,13 +171,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
       return false;
     }
   }
-  Property dup_oid;
-  if (oid.type().type_enum == impl::PropertyTypeImpl::kString) {
-    sv_vec_.emplace_back(oid.as_string());
-    dup_oid.set_string_view(std::string_view(sv_vec_.back()));
-  } else {
-    dup_oid = oid;
-  }
+  Property dup_oid = own_property_memory(oid);
 
   if (!oid_to_lid(label, dup_oid, vid)) {
     added_vertices_[label]->_add(dup_oid);
@@ -186,13 +180,7 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
 
   std::vector<Property> dup_props;
   for (size_t i = 0; i < props.size(); ++i) {
-    if (props[i].type().type_enum == impl::PropertyTypeImpl::kString) {
-      sv_vec_.emplace_back(props[i].as_string());
-      dup_props.emplace_back(
-          Property::from_string_view(std::string_view(sv_vec_.back())));
-    } else {
-      dup_props.push_back(props[i]);
-    }
+    dup_props.push_back(own_property_memory(props[i]));
   }
 
   InsertVertexRedo::Serialize(arc_, label, dup_oid, dup_props);
@@ -261,13 +249,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                  << properties[i].type().ToString();
       return false;
     }
-    if (properties[i].type().type_enum == impl::PropertyTypeImpl::kString) {
-      sv_vec_.emplace_back(properties[i].as_string_view());
-      dup_properties.emplace_back(Property::from_string_view(
-          std::string_view(sv_vec_.back().data(), sv_vec_.back().size())));
-    } else {
-      dup_properties.push_back(properties[i]);
-    }
+    dup_properties.push_back(own_property_memory(properties[i]));
   }
 
   size_t in_csr_index = get_in_csr_index(src_label, dst_label, edge_label);
@@ -564,13 +546,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   if (types[col_id] != value.type()) {
     return false;
   }
-  Property dup_value;
-  if (value.type().type_enum == impl::PropertyTypeImpl::kString) {
-    sv_vec_.emplace_back(value.as_string());
-    dup_value.set_string_view(std::string_view(sv_vec_.back()));
-  } else {
-    dup_value = value;
-  }
+  Property dup_value = own_property_memory(value);
   if (iter == vertex_offset.end()) {
     auto& table = graph_.get_vertex_table(label).get_properties_table();
     if (table.col_num() <= static_cast<size_t>(col_id)) {
@@ -628,13 +604,7 @@ void UpdateTransaction::set_edge_data_with_offset(
   if (col_id >= 0 && value.type() != edge_prop_types[col_id]) {
     THROW_RUNTIME_ERROR("Edge property type does not match the schema");
   }
-  Property dup_value;
-  if (value.type().type_enum == impl::PropertyTypeImpl::kString) {
-    sv_vec_.emplace_back(value.as_string());
-    dup_value.set_string_view(std::string_view(sv_vec_.back()));
-  } else {
-    dup_value = value;
-  }
+  Property dup_value = own_property_memory(value);
   if (!updated_edge_data_[csr_index].count(v)) {
     updated_edge_data_[csr_index].emplace(
         v, ska::flat_hash_map<
@@ -1018,6 +988,15 @@ void UpdateTransaction::applyEdgesUpdates() {
 
   added_edges_.clear();
   updated_edge_data_.clear();
+}
+
+Property UpdateTransaction::own_property_memory(const Property& prop) {
+  if (prop.type().type_enum == impl::PropertyTypeImpl::kString) {
+    sv_vec_.emplace_back(prop.as_string_view());
+    return Property::from_string_view(
+        std::string_view(sv_vec_.back().data(), sv_vec_.back().size()));
+  }
+  return prop;
 }
 
 }  // namespace gs

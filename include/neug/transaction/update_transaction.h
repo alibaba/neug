@@ -339,6 +339,8 @@ class UpdateTransaction {
 
   void applyEdgesUpdates();
 
+  Property own_property_memory(const Property& prop);
+
   bool insert_vertex_with_resize_;
 
   PropertyGraph& graph_;
