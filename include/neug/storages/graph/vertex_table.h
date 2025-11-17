@@ -143,9 +143,6 @@ class VertexTable {
     return is_vertex_table_modified_;
   }
 
-  void BatchAddVertices(std::vector<Property>&& ids,
-                        std::unique_ptr<Table> table, timestamp_t ts);
-
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
 
   void AddProperties(

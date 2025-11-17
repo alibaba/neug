@@ -29,7 +29,6 @@ class MetaDataTest : public GOptTest {
   common::cardinality_t getTableCard(main::ClientContext* ctx,
                                      const std::string& tableName) {
     auto catalog = ctx->getCatalog();
-    auto storageManager = ctx->getStatsManager();
     auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
     auto table = ctx->getStatsManager()->getTable(tableEntry->getTableID());

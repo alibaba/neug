@@ -119,6 +119,8 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   gs::vid_t tmp_vid;
   EXPECT_FALSE(table.get_index(oid1, tmp_vid, 0));
   EXPECT_TRUE(table.get_index(oid1, tmp_vid, 1));
+
+  table.Drop();
 }
 
 TEST_F(VertexTableTest, VertexTableDumpAndReload) {
@@ -161,6 +163,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     EXPECT_EQ(new_table.VertexNum(2), 3);
     EXPECT_EQ(new_table.VertexNum(1), 3);
     EXPECT_FALSE(new_table.vertex_table_modified());
+    new_table.Close();
   }
 }
 

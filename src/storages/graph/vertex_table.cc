@@ -185,27 +185,6 @@ void VertexTable::Reserve(size_t cap) {
   }
 }
 
-void VertexTable::BatchAddVertices(std::vector<Property>&& ids,
-                                   std::unique_ptr<Table> table,
-                                   timestamp_t ts) {
-  size_t new_row_num = table_->row_num() + ids.size();
-  Reserve(new_row_num);
-  vid_t vid;
-  size_t cur_idx = 0;
-  for (const auto& id : ids) {
-    if (indexer_.get_index(id, vid)) {
-      cur_idx++;
-      continue;
-    }
-    vid = AddVertex(id, ts);
-    table_->insert(vid, table->get_row(cur_idx++));
-    vertex_ts_.set(vid, ts);
-    if (ts > 0) {  // Only mark update ops when ts > 0
-      is_vertex_table_modified_ = true;
-    }
-  }
-}
-
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
   indexer_.ensure_writable(work_dir_);
   size_t delete_cnt = 0;

@@ -84,7 +84,7 @@ class Utils {
   static std::filesystem::path getTestResourcePath(
       const std::string& relativePath) {
     auto parentPath =
-        getEnvVarOrDefault("TEST_RESOURCE", "/workspaces/neug/src/compiler");
+        getEnvVarOrDefault("TEST_RESOURCE", "/workspaces/neug/tests/compiler");
     return std::filesystem::path(parentPath) / relativePath;
   }
 
@@ -202,7 +202,7 @@ class GOptTest : public ::testing::Test {
   catalog::Catalog* getCatalog() { return database->getCatalog(); }
 
   std::string getGOptResourcePath(const std::string& resourceName) {
-    return Utils::getTestResourcePath("test/gopt/resources/" + resourceName);
+    return Utils::getTestResourcePath("resources/" + resourceName);
   }
   std::unique_ptr<planner::LogicalPlan> planLogical(
       const std::string& query, const std::string& schemaData,
@@ -233,7 +233,7 @@ class GOptTest : public ::testing::Test {
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
     auto physicalPlan = converter.convert(plan);
-    return std::move(physicalPlan);
+    return physicalPlan;
   }
 
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
@@ -242,7 +242,7 @@ class GOptTest : public ::testing::Test {
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
     gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
     auto physicalPlan = converter.convert(plan);
-    return std::move(physicalPlan);
+    return physicalPlan;
   }
 
   void applyRules(std::vector<std::string> rules, planner::LogicalPlan* plan) {

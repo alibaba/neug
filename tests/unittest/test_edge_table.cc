@@ -16,10 +16,14 @@
 #include <filesystem>
 #include <string_view>
 
+#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/allocators.h"
 #include "utils.h"
+
+namespace gs {
+namespace test {
 
 class GeneratedRecordBatchSupplier : public gs::IRecordBatchSupplier {
  public:
@@ -715,3 +719,194 @@ TEST_F(EdgeTableTest, TestAddEdge) {
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
 }
+template <typename EDATA_T, typename ARROW_COL_T>
+struct TypePair {
+  using EdType = EDATA_T;
+  using ArrowType = ARROW_COL_T;
+};
+using Datatypes =
+    ::testing::Types<TypePair<int32_t, arrow::Int32Array>,
+                     TypePair<uint32_t, arrow::UInt32Array>,
+                     TypePair<int64_t, arrow::Int64Array>,
+                     TypePair<uint64_t, arrow::UInt64Array>,
+                     TypePair<float, arrow::FloatArray>,
+                     TypePair<double, arrow::DoubleArray>,
+                     TypePair<gs::Date, arrow::Date32Array>,
+                     TypePair<gs::DateTime, arrow::TimestampArray>,
+                     TypePair<gs::Interval, arrow::LargeStringArray>>;
+
+template <typename T>
+class EdgeTableToolsTest : public ::testing::Test {};
+TYPED_TEST_SUITE(EdgeTableToolsTest, Datatypes);
+
+TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
+  using EdType = typename TypeParam::EdType;
+  const char* var = std::getenv("STORAGE_RESOURCE");
+  std::string resource_path =
+      var ? var : "/workspaces/neug/tests/storage/resources";
+  std::shared_ptr<EdgeSchema> edge_schema = std::make_shared<EdgeSchema>();
+  edge_schema->ie_mutable = true;
+  edge_schema->oe_mutable = true;
+  edge_schema->ie_strategy = EdgeStrategy::kMultiple;
+  edge_schema->oe_strategy = EdgeStrategy::kMultiple;
+  std::vector<std::string> property_name = {"test_property"};
+  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
+
+  std::string file_path;
+  std::vector<PropertyType> column_types = {PropertyType::kUInt32,
+                                            PropertyType::kUInt32};
+  std::unordered_map<std::string, std::string> csv_options;
+  csv_options.insert({"HEADER", "FALSE"});
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  if constexpr (std::is_same_v<EdType, int32_t>) {
+    file_path = resource_path + "/edges_i32.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kInt32};
+    column_types.emplace_back(PropertyType::kInt32);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, int64_t>) {
+    file_path = resource_path + "/edges_i64.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kInt64};
+    column_types.emplace_back(PropertyType::kInt64);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, uint32_t>) {
+    file_path = resource_path + "/edges_u32.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kUInt32};
+    column_types.emplace_back(PropertyType::kUInt32);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, uint64_t>) {
+    file_path = resource_path + "/edges_u64.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kUInt64};
+    column_types.emplace_back(PropertyType::kUInt64);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, float>) {
+    file_path = resource_path + "/edges_float.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kFloat};
+    column_types.emplace_back(PropertyType::kFloat);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, double>) {
+    file_path = resource_path + "/edges_double.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kDouble};
+    column_types.emplace_back(PropertyType::kDouble);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, Date>) {
+    file_path = resource_path + "/edges_date.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kDate};
+    column_types.emplace_back(PropertyType::kDate);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, DateTime>) {
+    file_path = resource_path + "/edges_datetime.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kDateTime};
+    column_types.emplace_back(PropertyType::kDateTime);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else if constexpr (std::is_same_v<EdType, Interval>) {
+    file_path = resource_path + "/edges_interval.csv";
+    std::vector<PropertyType> property_type = {PropertyType::kInterval};
+    column_types.emplace_back(PropertyType::kInterval);
+    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    suppliers = runtime::ops::create_csv_record_suppliers(
+        file_path, column_types, csv_options);
+  } else {
+    FAIL();
+  }
+  EXPECT_EQ(suppliers.size(), 1);
+
+  LFIndexer<vid_t> indexer;
+  indexer.init(PropertyType::kUInt32);
+  indexer.reserve(10);
+  for (uint32_t i = 0; i < 10; i++) {
+    Property oid;
+    oid.set_uint32(i);
+    indexer.insert(oid);
+  }
+
+  EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
+  EXPECT_EQ(e_table.EdgeNum(), 10);
+
+  std::vector<std::string> new_property_name = {"new_property"};
+  std::vector<PropertyType> new_property_type = {PropertyType::kInt32};
+  edge_schema->add_properties(new_property_name, new_property_type);
+  e_table.AddProperties(new_property_name, new_property_type);
+  EXPECT_EQ(e_table.get_properties_table().col_num(), 2);
+}
+
+TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
+  using EdType = typename TypeParam::EdType;
+  const char* var = std::getenv("STORAGE_RESOURCE");
+  std::string resource_path =
+      var ? var : "/workspaces/neug/tests/storage/resources";
+  std::shared_ptr<EdgeSchema> edge_schema = std::make_shared<EdgeSchema>();
+  edge_schema->ie_mutable = true;
+  edge_schema->oe_mutable = true;
+  edge_schema->ie_strategy = EdgeStrategy::kMultiple;
+  edge_schema->oe_strategy = EdgeStrategy::kMultiple;
+  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
+
+  std::string file_path = resource_path + "/edges_empty.csv";
+  std::vector<PropertyType> column_types = {PropertyType::kUInt32,
+                                            PropertyType::kUInt32};
+  std::unordered_map<std::string, std::string> csv_options;
+  csv_options.insert({"HEADER", "FALSE"});
+  std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
+  suppliers = runtime::ops::create_csv_record_suppliers(file_path, column_types,
+                                                        csv_options);
+  EXPECT_EQ(suppliers.size(), 1);
+
+  LFIndexer<vid_t> indexer;
+  indexer.init(PropertyType::kUInt32);
+  indexer.reserve(10);
+  for (uint32_t i = 0; i < 10; i++) {
+    Property oid;
+    oid.set_uint32(i);
+    indexer.insert(oid);
+  }
+
+  std::vector<std::string> new_property_name = {"new_property"};
+  std::vector<PropertyType> new_property_type;
+  EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
+  EXPECT_EQ(e_table.EdgeNum(), 10);
+  if constexpr (std::is_same_v<EdType, int32_t>) {
+    new_property_type = {PropertyType::kInt32};
+  } else if constexpr (std::is_same_v<EdType, int64_t>) {
+    new_property_type = {PropertyType::kInt64};
+  } else if constexpr (std::is_same_v<EdType, uint32_t>) {
+    new_property_type = {PropertyType::kUInt32};
+  } else if constexpr (std::is_same_v<EdType, uint64_t>) {
+    new_property_type = {PropertyType::kUInt64};
+  } else if constexpr (std::is_same_v<EdType, float>) {
+    new_property_type = {PropertyType::kFloat};
+  } else if constexpr (std::is_same_v<EdType, double>) {
+    new_property_type = {PropertyType::kDouble};
+  } else if constexpr (std::is_same_v<EdType, Date>) {
+    new_property_type = {PropertyType::kDate};
+  } else if constexpr (std::is_same_v<EdType, DateTime>) {
+    new_property_type = {PropertyType::kDateTime};
+  } else if constexpr (std::is_same_v<EdType, Interval>) {
+    new_property_type = {PropertyType::kInterval};
+  } else {
+    FAIL();
+  }
+
+  edge_schema->add_properties(new_property_name, new_property_type);
+  e_table.AddProperties(new_property_name, new_property_type);
+}
+
+}  // namespace test
+}  // namespace gs

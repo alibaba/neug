@@ -43,10 +43,3 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} PARENT_SCOPE)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/neug/compiler/common/system_config.h
         DESTINATION include/neug/compiler/common
 )
-
-
-include(CTest)
-enable_testing()
-if (BUILD_TEST)
-    add_subdirectory(test)
-endif()
