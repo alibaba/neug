@@ -142,35 +142,6 @@ class ReadTransaction {
     }
   }
 
-  class vertex_iterator {
-   public:
-    vertex_iterator(label_t label, vid_t cur, vid_t num, timestamp_t ts,
-                    bool vertex_table_modified, const PropertyGraph& graph);
-    ~vertex_iterator();
-
-    bool IsValid() const;
-    void Next();
-    void Goto(vid_t target);
-
-    Property GetId() const;
-    vid_t GetIndex() const;
-
-    Property GetField(int col_id) const;
-    int FieldNum() const;
-
-   private:
-    label_t label_;
-    vid_t cur_;
-    vid_t num_;
-    timestamp_t ts_;
-    bool vertex_table_modifed_;
-    const PropertyGraph& graph_;
-  };
-
-  vertex_iterator GetVertexIterator(label_t label) const;
-
-  vertex_iterator FindVertex(label_t label, const Property& id) const;
-
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
 
   vid_t GetVertexNum(label_t label) const;

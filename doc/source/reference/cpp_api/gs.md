@@ -1123,10 +1123,6 @@ The type of the column.
   - `label`: The label of the vertex.
   - `col_name`: The name of the column.
 
-#### `GetVertexIterator(label_t label) const`
-
-- **Parameters:**
-  - `label`
 
 #### `FindVertex(label_t label, const Any &id) const`
 
@@ -1429,11 +1425,6 @@ AddEdge(
   - `dst`
   - `edge_label`
   - `value`
-
-#### `GetVertexIterator(label_t label)`
-
-- **Parameters:**
-  - `label`
 
 #### `GetOutEdgeIterator(label_t label, vid_t u, label_t neighbor_label, label_t edge_label)`
 
