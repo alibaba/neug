@@ -50,8 +50,7 @@ vid_t ReadTransaction::GetVertexNum(label_t label) const {
 }
 
 VertexSet ReadTransaction::GetVertexSet(label_t label) const {
-  return VertexSet(graph_.LidNum(label), graph_.get_vertex_timestamps(label),
-                   timestamp_, graph_.vertex_table_modified(label));
+  return graph_.GetVertexSet(label, timestamp_);
 }
 
 bool ReadTransaction::IsValidVertex(label_t label, vid_t index) const {

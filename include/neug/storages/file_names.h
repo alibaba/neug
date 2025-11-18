@@ -163,8 +163,8 @@ inline std::string wal_dir(const std::string& work_dir) {
   return work_dir + "/wal/";
 }
 
-inline std::string vertex_timestamp_file(const std::string& label) {
-  return "vertex_ts_" + label + ".ts";
+inline std::string vertex_tracker_file(const std::string& label) {
+  return "vertex_tracker_" + label;
 }
 
 inline std::string runtime_dir(const std::string& work_dir) {

@@ -253,6 +253,8 @@ class PropertyGraph {
       const std::vector<std::string>& delete_properties,
       bool error_on_conflict = true);
 
+  Status Reserve(label_t v_label, vid_t vertex_reserve_size);
+
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
 
@@ -261,6 +263,10 @@ class PropertyGraph {
 
   Status BatchDeleteVertices(const label_t& v_label_id,
                              const std::vector<vid_t>& vids);
+
+  Status DeleteVertex(label_t v_label, const Property& oid, timestamp_t ts);
+
+  Status DeleteVertex(label_t v_label, vid_t lid, timestamp_t ts);
 
   Status BatchDeleteEdges(
       const label_t& src_v_label, const label_t& dst_v_label,
@@ -289,9 +295,9 @@ class PropertyGraph {
 
   Property GetOid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  vid_t AddVertex(label_t label, const Property& id, timestamp_t ts);
-
-  vid_t AddVertexSafe(label_t label, const Property& id, timestamp_t ts);
+  Status AddVertex(label_t label, const Property& id,
+                   const std::vector<Property>& props, vid_t& vid,
+                   timestamp_t ts);
 
   Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                  vid_t dst_lid, label_t edge_label,
@@ -321,16 +327,7 @@ class PropertyGraph {
     return edge_tables_.at(index).get_edge_data_accessor(prop_id);
   }
 
-  inline bool vertex_table_modified(label_t label) const {
-    return vertex_tables_[label].vertex_table_modified();
-  }
-
   void loadSchema(const std::string& filename);
-
-  inline const mmap_array<timestamp_t>& get_vertex_timestamps(
-      label_t label) const {
-    return vertex_tables_[label].get_vertex_timestamps();
-  }
 
   inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
@@ -339,6 +336,11 @@ class PropertyGraph {
 
   inline std::shared_ptr<RefColumnBase> GetVertexIdColumn(uint8_t label) const {
     return vertex_tables_[label].GetVertexIdColumn();
+  }
+
+  inline VertexSet GetVertexSet(label_t label,
+                                timestamp_t ts = MAX_TIMESTAMP) const {
+    return vertex_tables_[label].GetVertexSet(ts);
   }
 
   inline std::string statisticsFilePath() const {

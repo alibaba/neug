@@ -17,13 +17,66 @@
 #define STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
 
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/indexers.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
 
 namespace gs {
+
+class VertexSet {
+ public:
+  VertexSet(vid_t size, const VertexTimestamp& v_ts_, timestamp_t ts)
+      : size_(size), v_ts_(v_ts_), ts_(ts) {}
+  ~VertexSet() {}
+
+  class iterator {
+   public:
+    iterator(vid_t v, vid_t limit, const VertexTimestamp& v_tracker,
+             timestamp_t ts)
+        : v_(v), limit_(limit), v_ts_(v_tracker), ts_(ts) {
+      assert(v_ <= limit_);
+      assert(limit_ <= v_ts_.Capacity());
+      while (v_ < limit_ && !v_ts_.IsVertexValid(v_, ts_)) {
+        ++v_;
+      }
+    }
+    ~iterator() {}
+
+    inline vid_t operator*() const { return v_; }
+
+    inline iterator& operator++() {
+      do {
+        ++v_;
+      } while (v_ < limit_ && !v_ts_.IsVertexValid(v_, ts_));
+      return *this;
+    }
+
+    inline bool operator==(const iterator& rhs) const { return v_ == rhs.v_; }
+
+    inline bool operator!=(const iterator& rhs) const { return v_ != rhs.v_; }
+
+   private:
+    vid_t v_, limit_;
+    const VertexTimestamp& v_ts_;
+    timestamp_t ts_;
+  };
+
+  template <typename FUNC_T>
+  void foreach_vertex(const FUNC_T& func) const {
+    v_ts_.foreach_vertex(func, size_, ts_);
+  }
+
+  inline iterator begin() const { return iterator(0, size_, v_ts_, ts_); }
+  inline iterator end() const { return iterator(size_, size_, v_ts_, ts_); }
+  inline size_t size() const { return size_; }
+
+ private:
+  vid_t size_;
+  const VertexTimestamp& v_ts_;
+  timestamp_t ts_;
+};
 
 class PropertyGraph;
 class VertexTable {
@@ -34,9 +87,9 @@ class VertexTable {
         pk_type_(pk_type),
         v_label_name_(v_label_name),
         vertex_schema_(vertex_schema),
+        v_ts_(),
         memory_level_(1),
-        work_dir_(""),
-        is_vertex_table_modified_(false) {
+        work_dir_("") {
     indexer_.init(pk_type);
   }
 
@@ -46,10 +99,9 @@ class VertexTable {
         pk_type_(other.pk_type_),
         v_label_name_(std::move(other.v_label_name_)),
         vertex_schema_(other.vertex_schema_),
+        v_ts_(std::move(other.v_ts_)),
         memory_level_(other.memory_level_),
-        vertex_ts_(std::move(other.vertex_ts_)),
-        work_dir_(other.work_dir_),
-        is_vertex_table_modified_(false) {}
+        work_dir_(other.work_dir_) {}
 
   VertexTable(const VertexTable&) = delete;
 
@@ -59,10 +111,9 @@ class VertexTable {
     std::swap(v_label_name_, other.v_label_name_);
     std::swap(pk_type_, other.pk_type_);
     std::swap(vertex_schema_, other.vertex_schema_);
-    vertex_ts_.swap(other.vertex_ts_);
+    v_ts_.Swap(other.v_ts_);
     std::swap(memory_level_, other.memory_level_);
     std::swap(work_dir_, other.work_dir_);
-    std::swap(is_vertex_table_modified_, other.is_vertex_table_modified_);
   }
 
   void Open(const std::string& work_dir, int memory_level,
@@ -81,14 +132,17 @@ class VertexTable {
 
   Property GetOid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  vid_t AddVertex(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
-
-  vid_t AddVertexSafe(const Property& id, timestamp_t ts = MAX_TIMESTAMP);
+  // Return false if the reserved space is not enough.
+  bool AddVertex(const Property& id, const std::vector<Property>& props,
+                 vid_t& vid, timestamp_t ts = 0);
 
   size_t VertexNum(timestamp_t ts = MAX_TIMESTAMP) const;
 
-  size_t LidNum() const;  // We don't need a timestamp here since LidNum is
-                          // the size of the indexer
+  size_t LidNum() const;  // We don't need a timestamp here since LidNum is the
+                          // size of the indexer
+
+  // Capacity of the vertex table
+  inline size_t Capacity() const { return indexer_.capacity(); }
 
   bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
@@ -130,20 +184,17 @@ class VertexTable {
     return table_->get_column(prop);
   }
 
-  inline const mmap_array<timestamp_t>& get_vertex_timestamps() const {
-    return vertex_ts_;
-  }
-
-  /**
-   * @brief Check if there are any update operations (add/delete vertex) made
-   * on this vertex table since it was opened.
-   * @return true if there are update operations made, false otherwise.
-   */
-  inline bool vertex_table_modified() const {
-    return is_vertex_table_modified_;
+  inline VertexSet GetVertexSet(timestamp_t ts) const {
+    return VertexSet(LidNum(), v_ts_, ts);
   }
 
   void BatchDeleteVertices(const std::vector<vid_t>& vids);
+
+  void DeleteVertex(const Property& id, timestamp_t ts);
+
+  void DeleteVertex(vid_t lid, timestamp_t ts);
+
+  void RevertDeleteVertex(vid_t lid, timestamp_t ts);
 
   void AddProperties(
       const std::vector<std::string>& property_names,
@@ -159,11 +210,13 @@ class VertexTable {
 
   std::string work_dir() const { return work_dir_; }
 
-  void Compact(bool reset_timestamp, timestamp_t ts);
+  void Compact(bool reset_timestamp, timestamp_t ts = MAX_TIMESTAMP);
 
   inline std::string& work_dir() { return work_dir_; }
 
   void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
+
+  const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
 
  private:
   bool is_deleted() const { return deleted_; }
@@ -171,6 +224,8 @@ class VertexTable {
   void mark_as_deleted() { deleted_ = true; }
 
   void revert_deleted() { deleted_ = false; }
+  vid_t insert_vertex_pk(const Property& id, timestamp_t ts);
+
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -191,11 +246,15 @@ class VertexTable {
 
       for (size_t j = 0; j < row_num; ++j) {
         auto oid = PropUtils<PK_T>::to_prop(casted_array->Value(j));
-        if (indexer_.get_index(oid, vids[j])) {
-          vids[j] = std::numeric_limits<vid_t>::max();
+        if (NEUG_UNLIKELY(indexer_.get_index(oid, vids[j]))) {
+          if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+            vids[j] = std::numeric_limits<vid_t>::max();
+          } else {
+            v_ts_.InsertVertex(vids[j], 0);
+          }
           continue;  // already exists
         }
-        vids[j] = AddVertex(oid, 0);
+        vids[j] = insert_vertex_pk(oid, 0);
       }
     } else {
       if (primary_key_column->type()->Equals(arrow::utf8())) {
@@ -205,10 +264,14 @@ class VertexTable {
           auto oid =
               Property::from_string(std::string(casted_array->GetView(j)));
           if (indexer_.get_index(oid, vids[j])) {
-            vids[j] = std::numeric_limits<vid_t>::max();
+            if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+              vids[j] = std::numeric_limits<vid_t>::max();
+            } else {
+              v_ts_.InsertVertex(vids[j], 0);
+            }
             continue;  // already exists
           }
-          vids[j] = AddVertex(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0);
         }
       } else if (primary_key_column->type()->Equals(arrow::large_utf8())) {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
@@ -217,10 +280,14 @@ class VertexTable {
           auto oid =
               Property::from_string(std::string(casted_array->GetView(j)));
           if (indexer_.get_index(oid, vids[j])) {
-            vids[j] = std::numeric_limits<vid_t>::max();
+            if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
+              vids[j] = std::numeric_limits<vid_t>::max();
+            } else {
+              v_ts_.InsertVertex(vids[j], 0);
+            }
             continue;  // already exists
           }
-          vids[j] = AddVertex(oid, 0);
+          vids[j] = insert_vertex_pk(oid, 0);
         }
       } else {
         LOG(FATAL) << "Not support type: "
@@ -269,11 +336,10 @@ class VertexTable {
   PropertyType pk_type_;
   std::string v_label_name_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
+  VertexTimestamp v_ts_;
   int memory_level_;
-  mmap_array<timestamp_t> vertex_ts_;  // maintains the timestamp of each vertex
 
   std::string work_dir_;
-  bool is_vertex_table_modified_;  // No lock or atomic need,
   bool deleted_;  // indicates whether the vertex table is deleted softly
 
   friend class PropertyGraph;

@@ -219,10 +219,12 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
   neug_append_string_to_field(vit, 2, new_email);
   auto p2_id = neug_generate_id();
   std::string name = "", email = "";
+  vid_t new_vid;
   if (!txn.AddVertex(
           person_label_id, p2_id,
           {Property::from_int64(person2_id), Property::from_string_view(name),
-           Property::from_string_view(email)})) {
+           Property::from_string_view(email)},
+          new_vid)) {
     txn.Abort();
     return false;
   }

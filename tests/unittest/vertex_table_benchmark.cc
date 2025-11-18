@@ -26,6 +26,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
+#include "utils.h"
 
 class VertexTableBenchmark : public ::testing::Test {
  protected:
@@ -45,6 +46,9 @@ class VertexTableBenchmark : public ::testing::Test {
     property_names_ = {"name", "age", "score"};
     property_types_ = {gs::PropertyType::kStringView, gs::PropertyType::kInt32,
                        gs::PropertyType::kDouble};
+    property_values_ = {gs::Property::from_string("Alice"),
+                        gs::Property::from_int32(30),
+                        gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
     pk_types_ = {{gs::PropertyType::kStringView, "name", 0}};
@@ -79,27 +83,19 @@ class VertexTableBenchmark : public ::testing::Test {
       gs::Property vertex_id;
       vertex_id.set_int64(static_cast<int64_t>(i));
 
-      gs::vid_t vid = table.AddVertex(vertex_id, i);
+      gs::vid_t vid;
+      EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
       EXPECT_EQ(vid, i);
-
-      // Set properties
-      auto& props_table = table.get_properties_table();
-
-      // Set name property
-      gs::Property name_value;
-      name_value.set_string_view("person_" + std::to_string(i));
-      props_table.get_column_by_id(0)->set_any(vid, name_value);
-
-      // Set age property
-      gs::Property age_value;
-      age_value.set_int32(age_dist(generator_));
-      props_table.get_column_by_id(1)->set_any(vid, age_value);
-
-      // Set score property
-      gs::Property score_value;
-      score_value.set_double(score_dist(generator_));
-      props_table.get_column_by_id(2)->set_any(vid, score_value);
+      if (i % (count / 100) == 0) {
+        LOG(INFO) << "Added " << i << " vertices so far...";
+      }
     }
+  }
+
+  void BulkLoadVertices(
+      gs::VertexTable& table,
+      std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier) {
+    table.insert_vertices(batch_supplier);
   }
 
   void BatchDeleteVertices(gs::VertexTable& table, size_t delete_count) {
@@ -166,6 +162,7 @@ class VertexTableBenchmark : public ::testing::Test {
   gs::PropertyType pk_type_;
   std::vector<std::string> property_names_;
   std::vector<gs::PropertyType> property_types_;
+  std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
   std::shared_ptr<gs::VertexSchema> v_schema_;
   std::vector<std::tuple<gs::PropertyType, std::string, size_t>> pk_types_;
@@ -186,7 +183,8 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   for (size_t i = 0; i < vertex_count; ++i) {
     gs::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
-    table.AddVertex(vertex_id);
+    gs::vid_t vid;
+    EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -210,16 +208,26 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
 
   CreateAndOpenVertexTable(table);
+  LOG(INFO) << "Finish Open table";
+  auto load_start = std::chrono::high_resolution_clock::now();
   AddVerticesWithProperties(table, vertex_count);
+  auto load_end = std::chrono::high_resolution_clock::now();
+  LOG(INFO) << "Finish add vertices with properties: cost "
+            << std::chrono::duration_cast<std::chrono::seconds>(load_end -
+                                                                load_start)
+                   .count()
+            << " seconds";
 
   // Generate random vertex IDs for lookup
   auto random_vids = GenerateRandomVertexIds(table, lookup_count, vertex_count);
+  LOG(INFO) << "Generated " << random_vids.size() << " random vertex IDs";
 
   // Warm up
   for (auto vid : random_vids) {
     gs::Property oid = table.GetOid(vid, gs::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
+  LOG(INFO) << "Warm-up completed";
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -337,9 +345,7 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   AddVerticesWithProperties(table, vertex_count);
 
   {
-    auto vertex_set =
-        gs::VertexSet(table.LidNum(), table.get_vertex_timestamps(),
-                      gs::MAX_TIMESTAMP, table.vertex_table_modified());
+    auto vertex_set = table.GetVertexSet(gs::MAX_TIMESTAMP);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -358,9 +364,7 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   }
   BatchDeleteVertices(table, 25000);
   {
-    auto vertex_set =
-        gs::VertexSet(table.LidNum(), table.get_vertex_timestamps(),
-                      gs::MAX_TIMESTAMP, table.vertex_table_modified());
+    auto vertex_set = table.GetVertexSet(gs::MAX_TIMESTAMP);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -430,6 +434,48 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
             << duration.count() << " microseconds";
   LOG(INFO) << "Average time per mixed operation: "
             << (double) duration.count() / operation_count << " microseconds";
+
+  table.Close();
+}
+
+TEST_F(VertexTableBenchmark, BulkLoadTest) {
+  const size_t vertex_count = 100000000;
+
+  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+
+  CreateAndOpenVertexTable(table);
+
+  // Bulk load vertices
+  std::vector<int64_t> oid_values;
+  std::vector<std::string> name_values;
+  std::vector<int32_t> age_values;
+  std::vector<double> score_values;
+  for (int64_t i = 0; i < vertex_count; ++i) {
+    oid_values.push_back(i);
+    name_values.push_back("name_" + std::to_string(i));
+    age_values.push_back(static_cast<int32_t>(20 + (i % 30)));
+    score_values.push_back(50.0 + (i % 50));
+  }
+  auto oid_array = convert_to_arrow_arrays(oid_values, 100);
+  auto name_array = convert_to_arrow_arrays(name_values, 100);
+  auto age_array = convert_to_arrow_arrays(age_values, 100);
+  auto score_array = convert_to_arrow_arrays(score_values, 100);
+  auto record_batches = convert_to_record_batches(
+      {"id", "name", "age", "score"},
+      {oid_array, name_array, age_array, score_array});
+  std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier =
+      std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
+
+  auto start = std::chrono::high_resolution_clock::now();
+  BulkLoadVertices(table, batch_supplier);
+  auto end = std::chrono::high_resolution_clock::now();
+
+  auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+
+  LOG(INFO) << "Bulk loaded " << vertex_count << " vertices in "
+            << duration.count() << " seconds";
+
+  EXPECT_EQ(table.VertexNum(), vertex_count);
 
   table.Close();
 }

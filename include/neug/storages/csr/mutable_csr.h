@@ -121,7 +121,11 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                 Allocator& alloc) override {
-    CHECK_LT(src, adj_list_size_.size());
+    if (src >= adj_list_size_.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Source vertex id out of range: " + std::to_string(src) +
+          " >= " + std::to_string(adj_list_size_.size()));
+    }
     locks_[src].lock();
     int sz = adj_list_size_[src];
     int cap = adj_list_capacity_[src];
@@ -257,7 +261,11 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                 Allocator& alloc) override {
-    CHECK_LT(src, nbr_list_.size());
+    if (src >= nbr_list_.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Source vertex id out of range: " + std::to_string(src) +
+          " >= " + std::to_string(nbr_list_.size()));
+    }
     nbr_list_[src].neighbor = dst;
     nbr_list_[src].data = data;
     CHECK_EQ(nbr_list_[src].timestamp, std::numeric_limits<timestamp_t>::max());

@@ -173,10 +173,13 @@ void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
     if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
-      vid_t lid = graph.AddVertex(redo.label, redo.oid, timestamp);
-      graph.get_vertex_table(redo.label)
-          .get_properties_table()
-          .insert(lid, redo.props);
+      vid_t vid;
+      auto ret =
+          graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+      if (!ret.ok()) {
+        THROW_STORAGE_EXCEPTION("Failed to add vertex during WAL ingestion: " +
+                                ret.ToString());
+      }
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;

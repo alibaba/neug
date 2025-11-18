@@ -277,6 +277,5 @@ TEST(DatabaseTest, TestCompaction) {
     gs::NeugDB db3;
     db3.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true,
              true);
-    EXPECT_TRUE(db3.graph().vertex_table_modified(0));
   }
 }

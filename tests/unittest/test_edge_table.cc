@@ -25,27 +25,6 @@
 namespace gs {
 namespace test {
 
-class GeneratedRecordBatchSupplier : public gs::IRecordBatchSupplier {
- public:
-  GeneratedRecordBatchSupplier(
-      std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches)
-      : batches_(std::move(batches)) {}
-  ~GeneratedRecordBatchSupplier() override = default;
-
-  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
-    if (batches_.empty()) {
-      return nullptr;
-    } else {
-      auto batch = batches_.back();
-      batches_.pop_back();
-      return batch;
-    }
-  }
-
- private:
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches_;
-};
-
 class EdgeTableTest : public ::testing::Test {
  protected:
   void SetUp() override {

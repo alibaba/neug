@@ -202,6 +202,8 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
 
 template <typename INDEX_T>
 class LFIndexer {
+  static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
+
  public:
   LFIndexer()
       : indices_(),
@@ -287,7 +289,6 @@ class LFIndexer {
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
 
   void rehash(size_t size) {
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
     size = std::max(size, 4ul);
     keys_->resize(size);
     size =
@@ -309,7 +310,7 @@ class LFIndexer {
     indices_.resize(size);
     indices_size_ = size;
     for (size_t k = 0; k != size; ++k) {
-      indices_[k] = sentinel;
+      indices_[k] = LFIndexer<INDEX_T>::sentinel;
     }
     num_slots_minus_one_ = size - 1;
     for (INDEX_T idx = 0; idx < num_elements; ++idx) {
@@ -318,7 +319,7 @@ class LFIndexer {
         size_t index =
             hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
         while (true) {
-          if (indices_[index] == sentinel) {
+          if (indices_[index] == LFIndexer<INDEX_T>::sentinel) {
             indices_[index] = idx;
             break;
           }
@@ -353,14 +354,9 @@ class LFIndexer {
     keys_->set_any(ind, oid);
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-    static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
     while (true) {
-      if (__sync_bool_compare_and_swap(&indices_.data()[index], deleted, ind)) {
-        break;
-      }
-      if (__sync_bool_compare_and_swap(&indices_.data()[index], sentinel,
-                                       ind)) {
+      if (__sync_bool_compare_and_swap(&indices_.data()[index],
+                                       LFIndexer<INDEX_T>::sentinel, ind)) {
         break;
       }
       index = (index + 1) % (num_slots_minus_one_ + 1);
@@ -368,40 +364,15 @@ class LFIndexer {
     return ind;
   }
 
-  bool remove(const Property& oid) {
-    assert(oid.type() == get_type());
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-    static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
-    size_t index =
-        hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    while (true) {
-      INDEX_T ind = indices_.get(index);
-      if (ind == sentinel) {
-        return false;
-      } else if (ind == deleted) {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      } else if (keys_->get_prop(ind) == oid) {
-        indices_.set(index, deleted);
-        return true;
-      } else {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
-      }
-    }
-  }
-
   INDEX_T get_index(const Property& oid) const {
     assert(oid.type() == get_type());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-    static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
     while (true) {
       INDEX_T ind = indices_.get(index);
-      if (ind == sentinel) {
+      if (ind == LFIndexer<INDEX_T>::sentinel) {
         VLOG(10) << "cannot find " << oid.to_string() << " in lf_indexer";
         return ind;
-      } else if (ind == deleted) {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
       } else if (keys_->get_prop(ind) == oid) {
         return ind;
       } else {
@@ -411,19 +382,18 @@ class LFIndexer {
   }
 
   bool get_index(const Property& oid, INDEX_T& ret) const {
+    if (indices_.size() <= 0) {
+      return false;
+    }
     if (oid.type() != get_type()) {
       return false;
     }
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-    static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
     while (true) {
       INDEX_T ind = indices_.get(index);
-      if (ind == sentinel) {
+      if (ind == LFIndexer<INDEX_T>::sentinel) {
         return false;
-      } else if (ind == deleted) {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
       } else if (keys_->get_prop(ind) == oid) {
         ret = ind;
         return true;
@@ -438,14 +408,10 @@ class LFIndexer {
     assert(oid.type() == get_type());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
-    static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
-    static constexpr INDEX_T deleted = std::numeric_limits<INDEX_T>::max() - 1;
     while (true) {
       INDEX_T ind = indices_.get(index);
-      if (ind == sentinel) {
+      if (ind == LFIndexer<INDEX_T>::sentinel) {
         return false;
-      } else if (ind == deleted) {
-        index = (index + 1) % (num_slots_minus_one_ + 1);
       } else if (keys_->get_prop(ind) == oid) {
         return true;
       } else {
@@ -1113,11 +1079,10 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
   lf.num_slots_minus_one_ = input.num_slots_minus_one_;
   memcpy(lf.indices_.data(), input.indices_.data(),
          lf.indices_.size() * sizeof(INDEX_T));
-  static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
 
   std::vector<INDEX_T> residuals;
   for (size_t idx = lf.indices_.size(); idx < lf.indices_size_; ++idx) {
-    if (input.indices_[idx] != sentinel) {
+    if (input.indices_[idx] != LFIndexer<INDEX_T>::sentinel) {
       residuals.push_back(input.indices_[idx]);
     }
   }
@@ -1128,7 +1093,7 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
     while (true) {
       if (lf.indices_[index] == lid) {
         break;
-      } else if (lf.indices_[index] == sentinel) {
+      } else if (lf.indices_[index] == LFIndexer<INDEX_T>::sentinel) {
         lf.indices_[index] = lid;
         break;
       }

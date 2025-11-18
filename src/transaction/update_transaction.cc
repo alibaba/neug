@@ -312,33 +312,21 @@ bool UpdateTransaction::AddEdge(label_t src_label, const Property& src,
 
 UpdateTransaction::vertex_iterator::vertex_iterator(label_t label, vid_t cur,
                                                     vid_t& num, timestamp_t ts,
-                                                    bool vertex_table_modified,
+
                                                     UpdateTransaction* txn)
-    : label_(label),
-      cur_(cur),
-      num_(num),
-      vertex_table_modifed_(vertex_table_modified),
-      txn_(txn) {
-  if (NEUG_UNLIKELY(vertex_table_modifed_)) {
-    while (cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {
-      ++cur_;
-    }
+    : label_(label), cur_(cur), num_(num), txn_(txn) {
+  while (cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {
+    ++cur_;
   }
 }
 UpdateTransaction::vertex_iterator::~vertex_iterator() = default;
 bool UpdateTransaction::vertex_iterator::IsValid() const { return cur_ < num_; }
 void UpdateTransaction::vertex_iterator::Next() {
-  if (NEUG_LIKELY(vertex_table_modifed_)) {
-    while (++cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {}
-  } else {
-    ++cur_;
-  }
+  while (++cur_ < num_ && !txn_->IsValidLid(label_, cur_)) {}
 }
 void UpdateTransaction::vertex_iterator::Goto(vid_t target) {
-  if (NEUG_UNLIKELY(vertex_table_modifed_)) {
-    if (std::min(target, num_) < num_ && !txn_->IsValidLid(label_, target)) {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is deleted");
-    }
+  if (std::min(target, num_) < num_ && !txn_->IsValidLid(label_, target)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Target vertex is not valid");
   }
   cur_ = std::min(target, num_);
 }
@@ -456,12 +444,7 @@ label_t UpdateTransaction::edge_iterator::GetEdgeLabel() const {
 
 UpdateTransaction::vertex_iterator UpdateTransaction::GetVertexIterator(
     label_t label) {
-  return {label,
-          0,
-          vertex_nums_[label],
-          timestamp_,
-          graph_.vertex_table_modified(label),
-          this};
+  return {label, 0, vertex_nums_[label], timestamp_, this};
 }
 
 vid_t UpdateTransaction::GetVertexNum(label_t label) const {
@@ -672,66 +655,6 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
                                   const std::string& work_dir,
                                   uint32_t timestamp, char* data, size_t length,
                                   Allocator& alloc) {
-  std::vector<std::shared_ptr<IdIndexerBase<vid_t>>> added_vertices;
-  std::vector<vid_t> added_vertices_base;
-  std::vector<vid_t> vertex_nums;
-  std::vector<ska::flat_hash_map<vid_t, vid_t>> vertex_offsets;
-  std::vector<Table> extra_vertex_properties;
-
-  std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges;
-  std::vector<ska::flat_hash_map<vid_t, ska::flat_hash_map<vid_t, Property>>>
-      updated_edge_data;
-
-  size_t vertex_label_num = graph.schema().vertex_label_num();
-  size_t edge_label_num = graph.schema().edge_label_num();
-
-  for (label_t idx = 0; idx < vertex_label_num; ++idx) {
-    auto type = graph.get_vertex_table(idx).get_indexer().get_type();
-    if (type == PropertyType::kInt64) {
-      added_vertices.emplace_back(
-          std::make_shared<IdIndexer<int64_t, vid_t>>());
-    } else if (type == PropertyType::kUInt64) {
-      added_vertices.emplace_back(
-          std::make_shared<IdIndexer<uint64_t, vid_t>>());
-    } else if (type == PropertyType::kInt32) {
-      added_vertices.emplace_back(
-          std::make_shared<IdIndexer<int32_t, vid_t>>());
-    } else if (type == PropertyType::kUInt32) {
-      added_vertices.emplace_back(
-          std::make_shared<IdIndexer<uint32_t, vid_t>>());
-    } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-      added_vertices.emplace_back(
-          std::make_shared<IdIndexer<std::string_view, vid_t>>());
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "Only (u)int64/32 and string_view types for pk are supported, but "
-          "got: " +
-          type.ToString());
-    }
-  }
-
-  added_vertices_base.resize(vertex_label_num);
-  vertex_nums.resize(vertex_label_num);
-  for (size_t i = 0; i < vertex_label_num; ++i) {
-    added_vertices_base[i] = vertex_nums[i] = graph.LidNum(i);
-  }
-  vertex_offsets.resize(vertex_label_num);
-  extra_vertex_properties.resize(vertex_label_num);
-  std::string txn_work_dir = update_txn_dir(work_dir, timestamp);
-  std::filesystem::create_directories(txn_work_dir);
-  for (size_t i = 0; i < vertex_label_num; ++i) {
-    const Table& table = graph.get_vertex_table(i).get_properties_table();
-    std::string v_label = graph.schema().get_vertex_label_name(i);
-    std::string table_prefix = vertex_table_prefix(v_label);
-    extra_vertex_properties[i].init(
-        table_prefix, work_dir, table.column_names(), table.column_types(), {});
-    extra_vertex_properties[i].resize(4096);
-  }
-
-  size_t csr_num = 2 * vertex_label_num * vertex_label_num * edge_label_num;
-  added_edges.resize(csr_num);
-  updated_edge_data.resize(csr_num);
-
   grape::OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
@@ -741,13 +664,19 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       InsertVertexRedo redo;
       arc >> redo;
       vid_t vid;
-      if (!graph.get_lid(redo.label, redo.oid, vid, timestamp)) {
-        vid = graph.AddVertexSafe(redo.label, redo.oid, timestamp);
+      auto& v_table = graph.get_vertex_table(redo.label);
+      if (!graph.get_lid(redo.label, redo.oid, vid, timestamp) ||
+          !graph.IsValidLid(redo.label, vid, timestamp)) {
+        if (v_table.Capacity() < v_table.LidNum() + 1) {
+          graph.Reserve(redo.label, v_table.Capacity() * 2);
+        }
+        auto ret =
+            graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+        if (!ret.ok()) {
+          THROW_STORAGE_EXCEPTION(
+              "Failed to add vertex during WAL ingestion: " + ret.ToString());
+        }
       }
-      // Ignore the cases that the vertex already exists.
-      graph.get_vertex_table(redo.label)
-          .get_properties_table()
-          .insert(vid, redo.props);
     } else if (op_type == OpType::kInsertEdge) {
       InsertEdgeRedo redo;
       arc >> redo;
@@ -908,18 +837,20 @@ void UpdateTransaction::applyVerticesUpdates() {
                 return lhs.first < rhs.first;
               });
 
+    auto& graph_vertex_table = graph_.get_vertex_table(label);
+    if (graph_vertex_table.Capacity() < vertex_nums_[label]) {
+      graph_.Reserve(label, vertex_nums_[label]);
+    }
+
     auto& table = extra_vertex_properties_[label];
     auto& vertex_offset = vertex_offsets_[label];
     for (auto& pair : added_vertices) {
       vid_t offset = vertex_offset.at(pair.first);
-      vid_t lid = graph_.AddVertexSafe(label, pair.second, timestamp_);
-      if (insert_vertex_with_resize_) {
-        graph_.get_vertex_table(label)
-            .get_properties_table()
-            .insert_with_resize(lid, table.get_row(offset));
-      } else {
-        graph_.get_vertex_table(label).get_properties_table().insert(
-            lid, table.get_row(offset));
+      vid_t lid;
+      if (!graph_.get_vertex_table(label).AddVertex(
+              pair.second, table.get_row(offset), lid, timestamp_)) {
+        THROW_STORAGE_EXCEPTION(
+            "Failed to add vertex during applying vertex updates.");
       }
       CHECK_EQ(lid, pair.first);
       vertex_offset.erase(pair.first);

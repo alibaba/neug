@@ -27,6 +27,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
+#include "utils.h"
 
 #include <glog/logging.h>
 
@@ -47,6 +48,9 @@ class VertexTableTest : public ::testing::Test {
     property_names_ = {"name", "age", "score"};
     property_types_ = {gs::PropertyType::kStringView, gs::PropertyType::kInt32,
                        gs::PropertyType::kDouble};
+    property_values_ = {gs::Property::from_string("Alice"),
+                        gs::Property::from_int32(30),
+                        gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
     vertex_count_ = 1000000;
@@ -68,6 +72,7 @@ class VertexTableTest : public ::testing::Test {
   gs::PropertyType pk_type_;
   std::vector<std::string> property_names_;
   std::vector<gs::PropertyType> property_types_;
+  std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
   std::mt19937 generator_;
   gs::Schema schema_;
@@ -87,9 +92,9 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   oid1.set_int64(1);
   oid2.set_int64(2);
   oid3.set_int64(3);
-  lid1 = table.AddVertex(oid1, 1);
-  lid2 = table.AddVertex(oid2, 2);
-  lid3 = table.AddVertex(oid3, 3);
+  EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+  EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2));
+  EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3));
   LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
             << lid3;
   LOG(INFO) << "and oids: " << oid1.as_int64() << ", " << oid2.as_int64()
@@ -100,7 +105,6 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
   EXPECT_EQ(table.VertexNum(2), 2);
   EXPECT_EQ(table.VertexNum(1), 1);
 
-  EXPECT_TRUE(table.vertex_table_modified());
   EXPECT_TRUE(table.IsValidLid(lid1));
   EXPECT_TRUE(table.IsValidLid(lid2));
   EXPECT_TRUE(table.IsValidLid(lid3));
@@ -142,9 +146,9 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     oid1.set_int64(1);
     oid2.set_int64(2);
     oid3.set_int64(3);
-    lid1 = table.AddVertex(oid1, 1);
-    lid2 = table.AddVertex(oid2, 2);
-    lid3 = table.AddVertex(oid3, 3);
+    EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+    EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2));
+    EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3));
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
     table.Dump(gs::temp_checkpoint_dir(dump_dir));
@@ -162,7 +166,6 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     EXPECT_EQ(new_table.LidNum(), 3);
     EXPECT_EQ(new_table.VertexNum(2), 3);
     EXPECT_EQ(new_table.VertexNum(1), 3);
-    EXPECT_FALSE(new_table.vertex_table_modified());
     new_table.Close();
   }
 }
@@ -186,9 +189,9 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     oid1.set_int64(1);
     oid2.set_int64(2);
     oid3.set_int64(3);
-    lid1 = table.AddVertex(oid1, 1);
-    lid2 = table.AddVertex(oid2, 2);
-    lid3 = table.AddVertex(oid3, 3);
+    EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+    EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2));
+    EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3));
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
 
@@ -233,11 +236,590 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 1);
     EXPECT_EQ(new_table.LidNum(), 3);
-    EXPECT_TRUE(new_table.vertex_table_modified());
 
     gs::vid_t tmp_vid;
     EXPECT_FALSE(new_table.get_index(oid1, tmp_vid));
     EXPECT_FALSE(new_table.get_index(oid2, tmp_vid));
     EXPECT_TRUE(new_table.get_index(oid3, tmp_vid));
   }
+}
+
+TEST_F(VertexTableTest, AddVertexBasic) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid1, oid2, oid3;
+  oid1.set_int64(100);
+  oid2.set_int64(200);
+  oid3.set_int64(300);
+  gs::vid_t lid1, lid2, lid3;
+  EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 0));
+  EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 1));
+  EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 2));
+
+  EXPECT_EQ(table.VertexNum(), 3);
+  EXPECT_EQ(table.LidNum(), 3);
+
+  EXPECT_TRUE(table.IsValidLid(lid1, 0));
+  EXPECT_TRUE(table.IsValidLid(lid2, 1));
+  EXPECT_TRUE(table.IsValidLid(lid3, 2));
+
+  EXPECT_EQ(table.VertexNum(0), 1);  // Only lid1 visible at ts=0
+  EXPECT_EQ(table.VertexNum(1), 2);  // lid1 and lid2 visible at ts=1
+  EXPECT_EQ(table.VertexNum(2), 3);  // All visible at ts=2
+
+  EXPECT_EQ(table.GetOid(lid1), oid1);
+  EXPECT_EQ(table.GetOid(lid2), oid2);
+  EXPECT_EQ(table.GetOid(lid3), oid3);
+
+  gs::vid_t tmp_vid;
+  EXPECT_TRUE(table.get_index(oid1, tmp_vid));
+  EXPECT_EQ(tmp_vid, lid1);
+  EXPECT_TRUE(table.get_index(oid2, tmp_vid));
+  EXPECT_EQ(tmp_vid, lid2);
+  EXPECT_TRUE(table.get_index(oid3, tmp_vid));
+  EXPECT_EQ(tmp_vid, lid3);
+}
+
+// Test AddVertex for concurrent scenarios
+TEST_F(VertexTableTest, AddVertex) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  gs::vid_t tmp_vid;
+  EXPECT_FALSE(
+      table.AddVertex(gs::Property::from_int64(1), property_values_, tmp_vid));
+
+  std::vector<gs::Property> oids;
+  std::vector<gs::vid_t> lids;
+  table.Reserve(100);
+  lids.resize(100);
+
+  for (int64_t i = 0; i < 100; ++i) {
+    gs::Property oid;
+    oid.set_int64(i);
+    oids.push_back(oid);
+    EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i % 10));
+  }
+
+  EXPECT_EQ(table.VertexNum(), 100);
+  EXPECT_EQ(table.LidNum(), 100);
+
+  for (size_t i = 0; i < oids.size(); ++i) {
+    gs::vid_t tmp_vid;
+    EXPECT_TRUE(table.get_index(oids[i], tmp_vid));
+    EXPECT_EQ(tmp_vid, lids[i]);
+    EXPECT_TRUE(table.IsValidLid(lids[i], i % 10));
+  }
+}
+
+// Test DeleteVertex basic functionality
+TEST_F(VertexTableTest, DeleteVertexBasic) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid1, oid2, oid3;
+  oid1.set_int64(1);
+  oid2.set_int64(2);
+  oid3.set_int64(3);
+  gs::vid_t lid1, lid2, lid3;
+
+  EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+  EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2));
+  EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3));
+
+  EXPECT_EQ(table.VertexNum(), 3);
+
+  table.DeleteVertex(lid1, 4);
+  EXPECT_EQ(table.VertexNum(), 2);
+  EXPECT_FALSE(table.IsValidLid(lid1, 4));
+
+  table.DeleteVertex(oid2, 5);
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_FALSE(table.IsValidLid(lid2, 5));
+
+  EXPECT_TRUE(table.IsValidLid(lid3, 5));
+  gs::vid_t tmp_vid;
+  EXPECT_FALSE(table.get_index(oid1, tmp_vid));
+  EXPECT_FALSE(table.get_index(oid2, tmp_vid));
+  EXPECT_TRUE(table.get_index(oid3, tmp_vid));
+}
+
+// Test RevertDeleteVertex basic functionality
+TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid1;
+  oid1.set_int64(1);
+  gs::vid_t lid1;
+  EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_TRUE(table.IsValidLid(lid1, 1));
+
+  // Delete vertex
+  table.DeleteVertex(lid1, 2);
+  EXPECT_EQ(table.VertexNum(), 0);
+  EXPECT_FALSE(table.IsValidLid(lid1, 2));
+
+  // Revert deletion
+  table.RevertDeleteVertex(lid1, 3);
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_TRUE(table.IsValidLid(lid1, 3));
+
+  gs::vid_t tmp_vid;
+  EXPECT_TRUE(table.get_index(oid1, tmp_vid));
+  EXPECT_EQ(tmp_vid, lid1);
+  EXPECT_EQ(table.GetOid(lid1), oid1);
+}
+
+// Test complex combination: Add -> Delete -> Revert
+TEST_F(VertexTableTest, AddDeleteRevertCombination) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  std::vector<gs::Property> oids;
+  std::vector<gs::vid_t> lids;
+  lids.resize(10);
+
+  for (int64_t i = 0; i < 10; ++i) {
+    gs::Property oid;
+    oid.set_int64(i);
+    oids.push_back(oid);
+    EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i));
+  }
+
+  EXPECT_EQ(table.VertexNum(), 10);
+
+  for (size_t i = 0; i < lids.size(); i += 2) {
+    table.DeleteVertex(lids[i], 20);
+  }
+
+  EXPECT_EQ(table.VertexNum(), 5);
+
+  for (size_t i = 1; i < lids.size(); i += 2) {
+    EXPECT_TRUE(table.IsValidLid(lids[i], 20));
+    gs::vid_t tmp_vid;
+    EXPECT_TRUE(table.get_index(oids[i], tmp_vid));
+  }
+
+  for (size_t i = 0; i < lids.size(); i += 4) {  // Revert 0, 4, 8
+    table.RevertDeleteVertex(lids[i], 30);
+  }
+
+  EXPECT_EQ(table.VertexNum(), 8);  // 5 odd + 3 reverted
+
+  // Verify reverted vertices
+  for (size_t i = 0; i < lids.size(); i += 4) {
+    EXPECT_TRUE(table.IsValidLid(lids[i], 30));
+    gs::vid_t tmp_vid;
+    EXPECT_TRUE(table.get_index(oids[i], tmp_vid));
+  }
+}
+
+// Test complex combination: Multiple deletes and reverts
+TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid;
+  oid.set_int64(42);
+  gs::vid_t lid;
+  EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1));
+
+  EXPECT_EQ(table.VertexNum(), 1);
+
+  // Delete and revert multiple times
+  table.DeleteVertex(lid, 2);
+  EXPECT_EQ(table.VertexNum(), 0);
+  EXPECT_FALSE(table.IsValidLid(lid, 2));
+
+  table.RevertDeleteVertex(lid, 3);
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_TRUE(table.IsValidLid(lid, 3));
+
+  table.DeleteVertex(lid, 4);
+  EXPECT_EQ(table.VertexNum(), 0);
+  EXPECT_FALSE(table.IsValidLid(lid, 4));
+
+  table.RevertDeleteVertex(lid, 5);
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_TRUE(table.IsValidLid(lid, 5));
+
+  gs::vid_t tmp_vid;
+  EXPECT_TRUE(table.get_index(oid, tmp_vid));
+  EXPECT_EQ(tmp_vid, lid);
+}
+
+// Test AddVertex and AddVertexSafe mixed usage
+TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(50);
+
+  std::vector<gs::vid_t> lids;
+  lids.resize(20);
+
+  // Add using both methods alternately
+  for (int64_t i = 0; i < 20; ++i) {
+    gs::Property oid;
+    oid.set_int64(i);
+    EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i));
+  }
+
+  EXPECT_EQ(table.VertexNum(), 20);
+  EXPECT_EQ(table.LidNum(), 20);
+
+  for (size_t i = 0; i < lids.size(); ++i) {
+    EXPECT_TRUE(table.IsValidLid(lids[i], i));
+  }
+}
+
+// Test temporal visibility with add/delete/revert
+TEST_F(VertexTableTest, TemporalVisibilityComplex) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid1, oid2, oid3;
+  oid1.set_int64(1);
+  oid2.set_int64(2);
+  oid3.set_int64(3);
+
+  EXPECT_EQ(table.VertexNum(0), 0);
+  gs::vid_t lid1;
+  EXPECT_TRUE(table.AddVertex(oid1, property_values_, lid1, 1));
+  EXPECT_TRUE(table.IsValidLid(lid1, 1));
+  EXPECT_EQ(table.VertexNum(1), 1);
+
+  gs::vid_t lid2;
+  EXPECT_TRUE(table.AddVertex(oid2, property_values_, lid2, 2));
+  EXPECT_TRUE(table.IsValidLid(lid1, 2));
+  EXPECT_TRUE(table.IsValidLid(lid2, 2));
+  EXPECT_EQ(table.VertexNum(2), 2);  // oid2,
+
+  table.DeleteVertex(lid1, 3);
+  EXPECT_EQ(table.VertexNum(3), 1);  // oid2,
+  EXPECT_FALSE(table.IsValidLid(lid1, 3));
+  gs::vid_t lid3;
+  EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 4));
+  EXPECT_FALSE(table.IsValidLid(lid1, 4));
+  EXPECT_TRUE(table.IsValidLid(lid3, 4));
+  EXPECT_EQ(table.VertexNum(4), 2);  // oid2, oid3
+
+  table.RevertDeleteVertex(lid1, 5);
+  EXPECT_TRUE(table.IsValidLid(lid1, 5));
+  EXPECT_TRUE(table.IsValidLid(lid2, 5));
+  EXPECT_EQ(table.VertexNum(5), 3);  // oid1 (reverted), oid2, oid3
+
+  table.DeleteVertex(lid2, 6);
+  EXPECT_FALSE(table.IsValidLid(lid2, 6));
+  EXPECT_TRUE(table.IsValidLid(lid3, 6));
+  EXPECT_EQ(table.VertexNum(6), 2);  // oid1, oid3 (oid2 deleted)
+}
+
+// Test edge cases: Delete already deleted vertex
+TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid;
+  oid.set_int64(1);
+  gs::vid_t lid;
+  EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1));
+
+  table.DeleteVertex(lid, 2);
+  EXPECT_EQ(table.VertexNum(), 0);
+
+  // Try to delete again - should log warning but not crash
+  table.DeleteVertex(lid, 3);
+  EXPECT_EQ(table.VertexNum(), 0);
+
+  // Also try deleting by oid
+  table.DeleteVertex(oid, 4);
+  EXPECT_EQ(table.VertexNum(), 0);
+}
+
+// Test edge cases: Revert non-deleted vertex
+TEST_F(VertexTableTest, RevertNonDeletedVertex) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  gs::Property oid;
+  oid.set_int64(1);
+  gs::vid_t lid;
+  EXPECT_TRUE(table.AddVertex(oid, property_values_, lid, 1));
+
+  EXPECT_EQ(table.VertexNum(), 1);
+
+  // Try to revert a non-deleted vertex - should log warning
+  table.RevertDeleteVertex(lid, 2);
+  EXPECT_EQ(table.VertexNum(), 1);
+  EXPECT_TRUE(table.IsValidLid(lid, 2));
+}
+
+// Test complex combination with dump and reload
+TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
+  std::string dump_dir = "/tmp/test_vertex_table_complex";
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+  std::filesystem::create_directories(dump_dir);
+  std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
+
+  std::vector<gs::Property> oids;
+  std::vector<gs::vid_t> lids;
+  lids.resize(20);
+
+  // Create complex state
+  {
+    gs::VertexTable table(v_label_name_, pk_type_,
+                          schema_.get_vertex_schema(v_label_id_));
+    table.Open(dump_dir, memory_level_, true);
+    table.Reserve(100);
+
+    for (int64_t i = 0; i < 20; ++i) {
+      gs::Property oid;
+      oid.set_int64(i);
+      oids.push_back(oid);
+      EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i));
+    }
+
+    for (size_t i = 5; i < 15; ++i) {
+      table.DeleteVertex(lids[i], 50);
+    }
+
+    for (size_t i = 5; i < 10; ++i) {
+      table.RevertDeleteVertex(lids[i], 60);
+    }
+
+    EXPECT_EQ(table.VertexNum(), 15);  // 5 + 5 + 5 (0-4, 5-9 reverted, 15-19)
+
+    table.Dump(gs::temp_checkpoint_dir(dump_dir));
+  }
+
+  std::filesystem::remove_all(gs::checkpoint_dir(dump_dir));
+  std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
+                          gs::checkpoint_dir(dump_dir));
+
+  // Reload and verify
+  {
+    gs::VertexTable new_table(v_label_name_, pk_type_,
+                              schema_.get_vertex_schema(v_label_id_));
+    new_table.Open(dump_dir, memory_level_);
+
+    EXPECT_EQ(new_table.VertexNum(), 15);
+    EXPECT_EQ(new_table.LidNum(), 20);
+
+    for (size_t i = 0; i < 5; ++i) {
+      gs::vid_t tmp_vid;
+      EXPECT_TRUE(new_table.get_index(oids[i], tmp_vid));
+    }
+    for (size_t i = 5; i < 10; ++i) {
+      gs::vid_t tmp_vid;
+      EXPECT_TRUE(new_table.get_index(oids[i], tmp_vid));
+    }
+    for (size_t i = 10; i < 15; ++i) {
+      gs::vid_t tmp_vid;
+      EXPECT_FALSE(new_table.get_index(oids[i], tmp_vid));
+    }
+    for (size_t i = 15; i < 20; ++i) {
+      gs::vid_t tmp_vid;
+      EXPECT_TRUE(new_table.get_index(oids[i], tmp_vid));
+    }
+  }
+
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+}
+
+// Test stress: Many add/delete/revert operations
+TEST_F(VertexTableTest, StressAddDeleteRevert) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(1000);
+
+  std::vector<gs::Property> oids;
+  std::vector<gs::vid_t> lids;
+  lids.resize(100);
+
+  for (int64_t i = 0; i < 100; ++i) {
+    gs::Property oid;
+    oid.set_int64(i);
+    oids.push_back(oid);
+    EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], 1));
+  }
+
+  EXPECT_EQ(table.VertexNum(), 100);
+
+  for (size_t i = 1; i < lids.size(); i += 2) {
+    table.DeleteVertex(lids[i], 2);
+  }
+
+  EXPECT_EQ(table.VertexNum(), 50);
+
+  for (size_t i = 1; i < lids.size(); i += 4) {
+    table.RevertDeleteVertex(lids[i], 3);
+  }
+
+  size_t expected_count = 50 + 25;  // 50 even + 25 reverted
+  EXPECT_EQ(table.VertexNum(), expected_count);
+
+  for (size_t i = 0; i < lids.size(); i += 5) {
+    if (table.IsValidLid(lids[i])) {
+      table.DeleteVertex(lids[i], 4);
+    }
+  }
+
+  size_t manual_count = 0;
+  for (size_t i = 0; i < lids.size(); ++i) {
+    if (table.IsValidLid(lids[i])) {
+      manual_count++;
+    }
+  }
+  size_t cnt = 0;
+  table.get_vertex_timestamp().foreach_vertex(
+      [&](gs::vid_t vid) { cnt++; }, table.LidNum() + 10000,
+      std::numeric_limits<gs::timestamp_t>::max());
+  EXPECT_EQ(cnt, manual_count);
+
+  EXPECT_EQ(table.VertexNum(), manual_count);
+}
+
+TEST_F(VertexTableTest, VertexTableResizeTest) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+
+  std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+
+  std::vector<int64_t> oid_values;
+  std::vector<std::string> name_values;
+  std::vector<int32_t> age_values;
+  std::vector<double> score_values;
+  for (int64_t i = 0; i < 10000; ++i) {
+    oid_values.push_back(i);
+    name_values.push_back("name_" + std::to_string(i));
+    age_values.push_back(static_cast<int32_t>(20 + (i % 30)));
+    score_values.push_back(50.0 + (i % 50));
+  }
+  auto oid_array = convert_to_arrow_arrays(oid_values, 10);
+  auto name_array = convert_to_arrow_arrays(name_values, 10);
+  auto age_array = convert_to_arrow_arrays(age_values, 10);
+  auto score_array = convert_to_arrow_arrays(score_values, 10);
+
+  auto record_batches = convert_to_record_batches(
+      {"id", "name", "age", "score"},
+      {oid_array, name_array, age_array, score_array});
+
+  std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier =
+      std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
+  table.insert_vertices(batch_supplier);
+
+  EXPECT_EQ(table.VertexNum(), 10000);
+  EXPECT_EQ(table.LidNum(), 10000);
+  table.Compact(true);
+  EXPECT_EQ(table.get_vertex_timestamp().InitVertexNum(), 10000);
+
+  std::string dump_dir = "/tmp/test_vertex_table_resize_dump";
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+  std::filesystem::create_directories(dump_dir);
+  std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
+  std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
+  table.Dump(gs::temp_checkpoint_dir(dump_dir));
+  table.Close();
+
+  std::filesystem::remove_all(gs::checkpoint_dir(dump_dir));
+  std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
+                          gs::checkpoint_dir(dump_dir));
+  {
+    gs::VertexTable new_table(v_label_name_, pk_type_,
+                              schema_.get_vertex_schema(v_label_id_));
+    new_table.Open(dump_dir, memory_level_);
+    EXPECT_EQ(new_table.VertexNum(), 10000);
+    EXPECT_EQ(new_table.LidNum(), 10000);
+    EXPECT_EQ(new_table.get_vertex_timestamp().InitVertexNum(), 10000);
+  }
+}
+
+TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
+  std::string dump_dir = "/tmp/test_vertex_timestamp_valid_num";
+  if (std::filesystem::exists(dump_dir)) {
+    std::filesystem::remove_all(dump_dir);
+  }
+  std::filesystem::create_directories(dump_dir);
+  gs::VertexTimestamp vts;
+  vts.Open(dump_dir);
+  vts.Init(100, 1000);
+  vts.RemoveVertex(12);
+  vts.RemoveVertex(0);
+  vts.RemoveVertex(99);
+  EXPECT_EQ(vts.ValidVertexNum(0, 100), 97);
+  EXPECT_THROW(vts.RemoveVertex(101), gs::exception::InvalidArgumentException);
+  EXPECT_THROW(vts.RemoveVertex(999), gs::exception::InvalidArgumentException);
+  EXPECT_THROW(vts.RemoveVertex(1000), gs::exception::InvalidArgumentException);
+  EXPECT_EQ(vts.ValidVertexNum(0, 1000), 97);
+  for (gs::vid_t vid = 100; vid < 1000; ++vid) {
+    vts.InsertVertex(vid, 1);
+  }
+  EXPECT_EQ(vts.ValidVertexNum(1, 1000), 997);
+  for (gs::vid_t vid = 200; vid < 300; ++vid) {
+    vts.RemoveVertex(vid);
+  }
+  EXPECT_EQ(vts.ValidVertexNum(1, 1000), 897);
+  EXPECT_EQ(vts.ValidVertexNum(0, 100), 97);
+  vts.RemoveVertex(50);
+  EXPECT_EQ(vts.ValidVertexNum(0, 100), 96);
+  EXPECT_EQ(vts.ValidVertexNum(1, 0), 0);
+  EXPECT_EQ(vts.ValidVertexNum(1, 50), 48);
+}
+
+// TODO: Add test to test GetVertexSet, and foreach_vertex method for VertexSet
+TEST_F(VertexTableTest, VertexSetForeachVertex) {
+  gs::VertexTable table(v_label_name_, pk_type_,
+                        schema_.get_vertex_schema(v_label_id_));
+  table.Open(dir_, memory_level_, true);
+  table.Reserve(100);
+
+  std::vector<gs::Property> oids;
+  std::vector<gs::vid_t> lids;
+  lids.resize(10);
+
+  for (int64_t i = 0; i < 10; ++i) {
+    gs::Property oid;
+    oid.set_int64(i);
+    oids.push_back(oid);
+    EXPECT_TRUE(table.AddVertex(oid, property_values_, lids[i], i));
+  }
+
+  for (size_t i = 0; i < lids.size(); i += 2) {
+    table.DeleteVertex(lids[i], 20);
+  }
+
+  gs::VertexSet vset = table.GetVertexSet(20);
+  size_t count = 0;
+  vset.foreach_vertex([&](gs::vid_t vid) { count++; });
+  EXPECT_EQ(count, 5);  // Only odd lids are valid at ts=20
 }

@@ -79,6 +79,34 @@ void PropertyGraph::Clear() {
   schema_.Clear();
 }
 
+Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
+  if (schema_.vertex_label_valid(v_label)) {
+    assert(vertex_tables_.size() > v_label);
+    if (vertex_tables_[v_label].Capacity() >= vertex_reserve_size) {
+      return gs::Status::OK();
+    }
+    vertex_tables_[v_label].Reserve(vertex_reserve_size);
+    for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
+      for (label_t e_label = 0; e_label < edge_label_num_; ++e_label) {
+        size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
+        if (edge_tables_.count(index) > 0) {
+          edge_tables_.at(index).Resize(vertex_tables_[v_label].Capacity(),
+                                        vertex_tables_[dst_label].Capacity());
+        }
+        index = schema_.generate_edge_label(dst_label, v_label, e_label);
+        if (edge_tables_.count(index) > 0) {
+          edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
+                                        vertex_tables_[v_label].Capacity());
+        }
+      }
+    }
+    return gs::Status::OK();
+  } else {
+    return Status(StatusCode::ERR_INVALID_SCHEMA,
+                  "Vertex label does not exist.");
+  }
+}
+
 Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
   assert(v_label < vertex_tables_.size());
@@ -803,13 +831,21 @@ Status PropertyGraph::BatchDeleteVertices(const label_t& v_label_id,
   return Status::OK();
 }
 
+Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
+                                   timestamp_t ts) {
+  vertex_tables_.at(label).DeleteVertex(oid, ts);
+  return Status::OK();
+}
+
+Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
+  vertex_tables_.at(label).DeleteVertex(lid, ts);
+  return Status::OK();
+}
+
 Status PropertyGraph::BatchDeleteEdges(
     const label_t& src_v_label, const label_t& dst_v_label,
     const label_t& edge_label,
     const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
-  std::string src_vertex_type = schema_.get_vertex_label_name(src_v_label);
-  std::string dst_vertex_type = schema_.get_vertex_label_name(dst_v_label);
-  std::string edge_type_name = schema_.get_edge_label_name(edge_label);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
   std::vector<vid_t> src_vids, dst_vids;
@@ -1091,14 +1127,13 @@ Property PropertyGraph::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
   return vertex_tables_[label].GetOid(lid, ts);
 }
 
-vid_t PropertyGraph::AddVertex(label_t label, const Property& id,
-                               timestamp_t ts) {
-  return vertex_tables_[label].AddVertex(id, ts);
-}
-
-vid_t PropertyGraph::AddVertexSafe(label_t label, const Property& id,
-                                   timestamp_t ts) {
-  return vertex_tables_[label].AddVertexSafe(id, ts);
+Status PropertyGraph::AddVertex(label_t label, const Property& id,
+                                const std::vector<Property>& props, vid_t& ret,
+                                timestamp_t ts) {
+  if (!vertex_tables_[label].AddVertex(id, props, ret, ts)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
+  }
+  return Status::OK();
 }
 
 Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,

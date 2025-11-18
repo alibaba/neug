@@ -18,8 +18,30 @@
 #include <random>
 #include <vector>
 
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
+
+class GeneratedRecordBatchSupplier : public gs::IRecordBatchSupplier {
+ public:
+  GeneratedRecordBatchSupplier(
+      std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches)
+      : batches_(std::move(batches)) {}
+  ~GeneratedRecordBatchSupplier() override = default;
+
+  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
+    if (batches_.empty()) {
+      return nullptr;
+    } else {
+      auto batch = batches_.back();
+      batches_.pop_back();
+      return batch;
+    }
+  }
+
+ private:
+  std::vector<std::shared_ptr<arrow::RecordBatch>> batches_;
+};
 
 template <typename EDATA_T>
 std::vector<EDATA_T> generate_random_data(size_t len) {

@@ -821,13 +821,6 @@ batch_delete_edges(
   - `id`
   - `ts`
 
-#### `AddVertexSafe(label_t label, const Any &id, timestamp_t ts)`
-
-- **Parameters:**
-  - `label`
-  - `id`
-  - `ts`
-
 #### `get_outgoing_edges(label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const`
 
 - **Parameters:**
@@ -888,20 +881,10 @@ batch_delete_edges(
   - `neighbor_label`
   - `edge_label`
 
-#### `vertex_table_modified(label_t label) const`
-
-- **Parameters:**
-  - `label`
-
 #### `loadSchema(const std::string &filename)`
 
 - **Parameters:**
   - `filename`
-
-#### `get_vertex_timestamps(label_t label) const`
-
-- **Parameters:**
-  - `label`
 
 #### `get_vertex_property_column(uint8_t label, const std::string &prop) const`
 
