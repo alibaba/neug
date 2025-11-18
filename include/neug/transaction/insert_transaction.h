@@ -109,7 +109,7 @@ class InsertTransaction {
    * @since v0.1.0
    */
   bool AddVertex(label_t label, const Property& id,
-                 const std::vector<Property>& props);
+                 const std::vector<Property>& props, vid_t& vid);
 
   /**
    * @brief Add a new edge to the transaction.
@@ -130,9 +130,8 @@ class InsertTransaction {
    *
    * @since v0.1.0
    */
-  bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
-               const Property& dst, label_t edge_label,
-               const std::vector<Property>& properties);
+  bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+               label_t edge_label, const std::vector<Property>& properties);
 
   /**
    * @brief Commit the transaction.
@@ -158,7 +157,13 @@ class InsertTransaction {
 
   const Schema& schema() const;
 
+  bool GetVertexIndex(label_t label, const Property& oid, vid_t& lid) const;
+
+  Property GetVertexId(label_t label, vid_t lid) const;
+
  private:
+  void create_id_indexer_if_not_exists(label_t label);
+
   void clear();
 
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
@@ -166,7 +171,9 @@ class InsertTransaction {
                                       timestamp_t timestamp);
   grape::InArchive arc_;
 
-  std::set<std::pair<label_t, Property>> added_vertices_;
+  std::vector<std::unique_ptr<gs::IdIndexerBase<vid_t>>> added_vertices_;
+  std::vector<vid_t> added_vertices_base_;
+  std::vector<vid_t> vertex_nums_;
 
   PropertyGraph& graph_;
 

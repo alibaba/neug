@@ -52,7 +52,6 @@
 #include "neug/execution/execute/ops/update/edge.h"
 #include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/update/join.h"
-#include "neug/execution/execute/ops/update/load.h"
 #include "neug/execution/execute/ops/update/path.h"
 #include "neug/execution/execute/ops/update/project.h"
 #include "neug/execution/execute/ops/update/scan.h"
@@ -115,7 +114,6 @@ void PlanParser::init() {
   register_read_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
 
   // ------------- Write operators -------------
-  register_write_operator_builder(std::make_unique<ops::LoadOprBuilder>());
   register_write_operator_builder(
       std::make_unique<ops::DedupInsertOprBuilder>());
   register_write_operator_builder(

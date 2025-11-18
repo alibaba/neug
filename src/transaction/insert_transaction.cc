@@ -50,8 +50,32 @@ InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
 
 InsertTransaction::~InsertTransaction() { Abort(); }
 
+bool InsertTransaction::GetVertexIndex(label_t label, const Property& id,
+                                       vid_t& index) const {
+  if (graph_.get_lid(label, id, index, timestamp_)) {
+    return true;
+  }
+  if (added_vertices_[label]->get_index(id, index)) {
+    index += added_vertices_base_[label];
+    return true;
+  }
+  return false;
+}
+
+Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
+  vid_t base = added_vertices_base_[label];
+  if (lid >= base) {
+    Property ret;
+    CHECK(added_vertices_[label]->get_key(lid - base, ret));
+    return ret;
+  } else {
+    return graph_.GetOid(label, lid, timestamp_);
+  }
+}
+
 bool InsertTransaction::AddVertex(label_t label, const Property& id,
-                                  const std::vector<Property>& props) {
+                                  const std::vector<Property>& props,
+                                  vid_t& vid) {
   std::vector<PropertyType> types =
       graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
@@ -75,34 +99,21 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
       }
     }
   }
-  InsertVertexRedo::Serialize(arc_, label, id, props);
-  added_vertices_.emplace(label, id);
+  create_id_indexer_if_not_exists(label);
+  if (!GetVertexIndex(label, id, vid)) {
+    added_vertices_[label]->_add(id);
+    vid = vertex_nums_[label]++;
+    InsertVertexRedo::Serialize(arc_, label, id, props);
+  }
   return true;
 }
 
-bool InsertTransaction::AddEdge(label_t src_label, const Property& src,
-                                label_t dst_label, const Property& dst,
+bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
+                                label_t dst_label, vid_t dst_vid,
                                 label_t edge_label,
                                 const std::vector<Property>& properties) {
-  vid_t lid;
-  if (!graph_.get_lid(src_label, src, lid, timestamp_)) {
-    if (added_vertices_.find(std::make_pair(src_label, src)) ==
-        added_vertices_.end()) {
-      std::string label_name = graph_.schema().get_vertex_label_name(src_label);
-      VLOG(1) << "Source vertex " << label_name << "[" << src.to_string()
-              << "] not found...";
-      return false;
-    }
-  }
-  if (!graph_.get_lid(dst_label, dst, lid, timestamp_)) {
-    if (added_vertices_.find(std::make_pair(dst_label, dst)) ==
-        added_vertices_.end()) {
-      std::string label_name = graph_.schema().get_vertex_label_name(dst_label);
-      VLOG(1) << "Destination vertex " << label_name << "[" << dst.to_string()
-              << "] not found...";
-      return false;
-    }
-  }
+  const auto& src = GetVertexId(src_label, src_vid);
+  const auto& dst = GetVertexId(dst_label, dst_vid);
   const auto& types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   if (properties.size() != types.size()) {
@@ -200,6 +211,8 @@ void InsertTransaction::clear() {
   arc_.Clear();
   arc_.Resize(sizeof(WalHeader));
   added_vertices_.clear();
+  added_vertices_base_.clear();
+  vertex_nums_.clear();
 
   timestamp_ = INVALID_TIMESTAMP;
 }
@@ -222,6 +235,36 @@ bool InsertTransaction::get_vertex_with_retries(PropertyGraph& graph,
 
   LOG(ERROR) << "get_vertex [" << oid.to_string() << "] failed";
   return false;
+}
+
+void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
+  if (label >= added_vertices_.size()) {
+    added_vertices_base_.resize(label + 1, 0);
+    vertex_nums_.resize(label + 1, 0);
+    added_vertices_.resize(label + 1);
+  }
+  if (added_vertices_[label] == nullptr) {
+    const auto& pks = graph_.schema().get_vertex_primary_key(label);
+    PropertyType type = std::get<0>(pks[0]);
+    if (type == PropertyType::kInt64) {
+      added_vertices_[label] = std::make_unique<IdIndexer<int64_t, vid_t>>();
+    } else if (type == PropertyType::kUInt64) {
+      added_vertices_[label] = std::make_unique<IdIndexer<uint64_t, vid_t>>();
+    } else if (type == PropertyType::kInt32) {
+      added_vertices_[label] = std::make_unique<IdIndexer<int32_t, vid_t>>();
+    } else if (type == PropertyType::kUInt32) {
+      added_vertices_[label] = std::make_unique<IdIndexer<uint32_t, vid_t>>();
+    } else if (type == PropertyType::kStringView) {
+      added_vertices_[label] =
+          std::make_unique<IdIndexer<std::string_view, vid_t>>();
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Only (u)int64/32 and string_view types for pk are supported, but "
+          "got: " +
+          type.ToString());
+    }
+    added_vertices_base_[label] = graph_.LidNum(label);
+  }
 }
 
 }  // namespace gs

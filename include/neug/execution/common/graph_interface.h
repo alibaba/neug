@@ -194,12 +194,12 @@ class GraphInsertInterface {
   ~GraphInsertInterface() {}
 
   inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props) {
-    return txn_.AddVertex(label, id, props);
+                        const std::vector<Property>& props, vid_t& vid) {
+    return txn_.AddVertex(label, id, props, vid);
   }
 
-  inline bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
-                      const Property& dst, label_t edge_label,
+  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label,
                       const std::vector<Property>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
