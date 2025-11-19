@@ -110,9 +110,6 @@ class EdgeTable {
                float reserve_ratio, timestamp_t ts);
 
  private:
-  inline void mark_as_deleted() { deleted_ = true; }
-  inline bool is_deleted() const { return deleted_; }
-  inline void revert_deleted() { deleted_ = false; }
   void dropAndCreateNewBundledCSR();
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
@@ -125,7 +122,6 @@ class EdgeTable {
   std::unique_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
-  bool deleted_{false};  // indicates whether the edge table is deleted softly
 
   friend class PropertyGraph;
 };

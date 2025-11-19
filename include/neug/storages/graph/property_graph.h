@@ -176,30 +176,12 @@ class PropertyGraph {
    * @return Status Status indicating success or failure
    */
   Status DeleteVertexType(const std::string& vertex_type_name,
-                          bool error_on_conflict = true, bool is_soft = false);
-
-  /**
-   * @brief Revert a logical deletion of a vertex type.
-   * @param label_id Expect label_id not label_name
-   * @return Status Status indicating success or failure
-   */
-  Status RevertDeleteVertexType(label_t label_id,
-                                bool error_on_conflict = true);
+                          bool error_on_conflict = true);
 
   Status DeleteEdgeType(const std::string& src_vertex_type,
                         const std::string& dst_vertex_type,
                         const std::string& edge_type_name,
-                        bool error_on_conflict = true, bool is_soft = false);
-
-  // Could only revert soft delete
-  Status RevertDeleteEdgeType(const std::string& src_vertex_type,
-                              const std::string& dst_vertex_type,
-                              const std::string& edge_type_name,
-                              bool error_on_conflict = true);
-
-  Status RevertDeleteEdgeType(label_t src_label, label_t dst_label,
-                              label_t edge_label,
-                              bool error_on_conflict = true);
+                        bool error_on_conflict = true);
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,

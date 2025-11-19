@@ -219,13 +219,7 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
 
  private:
-  bool is_deleted() const { return deleted_; }
-
-  void mark_as_deleted() { deleted_ = true; }
-
-  void revert_deleted() { deleted_ = false; }
   vid_t insert_vertex_pk(const Property& id, timestamp_t ts);
-
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -340,7 +334,6 @@ class VertexTable {
   int memory_level_;
 
   std::string work_dir_;
-  bool deleted_;  // indicates whether the vertex table is deleted softly
 
   friend class PropertyGraph;
 };

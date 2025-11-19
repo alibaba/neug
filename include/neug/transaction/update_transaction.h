@@ -21,6 +21,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <stack>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -31,11 +32,27 @@
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/transaction_utils.h"
+#include "neug/transaction/undo_log.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+
+#define ENSURE_VERTEX_LABEL_NOT_DELETED(label)                            \
+  do {                                                                    \
+    if (deleted_vertex_labels_.count(label)) {                            \
+      THROW_RUNTIME_ERROR("Vertex label is deleted in this transaction"); \
+    }                                                                     \
+  } while (0)
+
+#define ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label) \
+  do {                                                                  \
+    if (deleted_edge_labels_.count(                                     \
+            std::make_tuple(src_label, dst_label, edge_label))) {       \
+      THROW_RUNTIME_ERROR("Edge label is deleted in this transaction"); \
+    }                                                                   \
+  } while (0)
 
 namespace gs {
 
@@ -141,6 +158,27 @@ class UpdateTransaction {
   bool Commit();
 
   void Abort();
+
+  bool CreateVertexType(
+      const std::string& name,
+      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+          properties,
+      const std::vector<std::string>& primary_key_names,
+      bool error_on_conflict);
+
+  bool CreateEdgeType(
+      const std::string& src_type, const std::string& dst_type,
+      const std::string& edge_type,
+      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+          properties,
+      bool error_on_conflict, EdgeStrategy oe_edge_strategy,
+      EdgeStrategy ie_edge_strategy);
+
+  bool DeleteVertexType(const std::string& vertex_type_name, bool is_detach,
+                        bool error_on_conflict);
+
+  bool DeleteEdgeType(const std::string& src_type, const std::string& dst_type,
+                      const std::string& edge_type, bool error_on_conflict);
 
   bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props);
@@ -270,6 +308,7 @@ class UpdateTransaction {
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
+    ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
     return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
                                       prop_id);
   }
@@ -287,6 +326,7 @@ class UpdateTransaction {
    */
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
     return graph_.BatchAddVertices(v_label_id, supplier);
   }
 
@@ -294,6 +334,7 @@ class UpdateTransaction {
   inline Status BatchAddEdges(label_t src_label, label_t dst_label,
                               label_t edge_label,
                               std::shared_ptr<IRecordBatchSupplier> supplier) {
+    ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
     return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                                 std::move(supplier));
   }
@@ -301,6 +342,7 @@ class UpdateTransaction {
   // Also executed in batch mode
   inline Status BatchDeleteVertices(label_t v_label_id,
                                     const std::vector<vid_t>& vids) {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
     return graph_.BatchDeleteVertices(v_label_id, vids);
   }
 
@@ -308,6 +350,8 @@ class UpdateTransaction {
   inline Status BatchDeleteEdges(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+    ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
+                                  edge_label_id);
     return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
                                    edge_label_id, edges);
   }
@@ -338,7 +382,14 @@ class UpdateTransaction {
 
   void applyEdgesUpdates();
 
+  void applyVertexTypeDeletions();
+
+  void applyEdgeTypeDeletions();
+
   Property own_property_memory(const Property& prop);
+
+  // Revert all changes made in this transaction.
+  void revert_changes();
 
   bool insert_vertex_with_resize_;
 
@@ -367,6 +418,11 @@ class UpdateTransaction {
       updated_edge_data_;
 
   std::vector<std::string> sv_vec_;
+  std::unordered_set<label_t> deleted_vertex_labels_;
+  std::unordered_set<std::tuple<label_t, label_t, label_t>,
+                     hash_tuple::hash<label_t, label_t, label_t>>
+      deleted_edge_labels_;
+  std::stack<std::unique_ptr<IUndoLog>> undo_logs_;
 };
 
 }  // namespace gs

@@ -209,10 +209,6 @@ Status PropertyGraph::CreateVertexType(
           schema_.get_vertex_schema(vertex_label_id));
 
       vtable.Swap(new_v_table);
-    } else if (vtable.is_deleted()) {  // Soft delete
-      schema_.DeleteVertexLabel(vertex_type_name, true);
-      THROW_NOT_IMPLEMENTED_EXCEPTION(
-          "Reusing softly deleted vertex label is not supported yet.");
     } else {
       return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "Vertex label id conflict.");
@@ -656,29 +652,19 @@ Status PropertyGraph::RevertDeleteEdgeProperties(
 }
 
 Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
-                                       bool error_on_conflict, bool is_soft) {
+                                       bool error_on_conflict) {
   auto status = vertex_label_check(vertex_type_name);
   if (!status.ok()) {
-    if (!is_soft) {
-      if (!schema_.IsVertexLabelSoftDeleted(vertex_type_name)) {
-        return status;
-      }
+    if (error_on_conflict) {
+      return status;
     } else {
-      if (error_on_conflict) {
-        return status;
-      } else {
-        return gs::Status::OK();
-      }
+      return gs::Status::OK();
     }
   }
   label_t v_label_id = schema_.get_vertex_label_id_internal(vertex_type_name);
 
-  schema_.DeleteVertexLabel(vertex_type_name, is_soft);
-  if (!is_soft) {
-    vertex_tables_[v_label_id].Drop();
-  } else {
-    vertex_tables_[v_label_id].mark_as_deleted();
-  }
+  schema_.DeleteVertexLabel(vertex_type_name);
+  vertex_tables_[v_label_id].Drop();
 
   for (label_t i = 0; i < vertex_label_num_; i++) {
     if (!schema_.vertex_label_valid(i)) {
@@ -689,60 +675,18 @@ Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
         continue;
       }
       if (schema_.exist(v_label_id, i, j)) {
-        schema_.DeleteEdgeLabel(v_label_id, i, j, is_soft);
+        schema_.DeleteEdgeLabel(v_label_id, i, j);
         size_t index = schema_.generate_edge_label(v_label_id, i, j);
         if (edge_tables_.count(index) > 0) {
-          if (is_soft) {
-            edge_tables_.at(index).mark_as_deleted();
-          } else {
-            edge_tables_.erase(index);
-          }
+          edge_tables_.erase(index);
         }
       }
       if (schema_.exist(i, v_label_id, j)) {
-        schema_.DeleteEdgeLabel(i, v_label_id, j, is_soft);
+        schema_.DeleteEdgeLabel(i, v_label_id, j);
         size_t index = schema_.generate_edge_label(i, v_label_id, j);
         if (edge_tables_.count(index) > 0) {
-          if (is_soft) {
-            edge_tables_.at(index).mark_as_deleted();
-          } else {
-            edge_tables_.erase(index);
-          }
+          edge_tables_.erase(index);
         }
-      }
-    }
-  }
-
-  return gs::Status::OK();
-}
-
-Status PropertyGraph::RevertDeleteVertexType(label_t label_id,
-                                             bool error_on_conflict) {
-  assert(label_id < vertex_tables_.size());
-  if (!vertex_tables_[label_id].is_deleted()) {
-    LOG(ERROR) << "Vertex label[" << (int32_t) label_id
-               << "] is not logically deleted.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Vertex label[" + std::to_string((int32_t) label_id) +
-                      "] is not logically deleted.");
-  }
-  vertex_tables_[label_id].revert_deleted();
-  schema_.RevertDeleteVertexLabel(label_id);
-
-  for (label_t i = 0; i < vertex_label_num_; i++) {
-    if (!schema_.vertex_label_valid(i)) {
-      continue;
-    }
-    for (label_t j = 0; j < edge_label_num_; j++) {
-      if (schema_.has_edge_label(label_id, i, j)) {
-        uint32_t index =
-            static_cast<uint32_t>(schema_.generate_edge_label(label_id, i, j));
-        edge_tables_.at(index).revert_deleted();
-      }
-      if (schema_.has_edge_label(i, label_id, j)) {
-        uint32_t index =
-            static_cast<uint32_t>(schema_.generate_edge_label(i, label_id, j));
-        edge_tables_.at(index).revert_deleted();
       }
     }
   }
@@ -753,7 +697,7 @@ Status PropertyGraph::RevertDeleteVertexType(label_t label_id,
 Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
                                      const std::string& dst_vertex_type,
                                      const std::string& edge_type,
-                                     bool error_on_conflict, bool is_soft) {
+                                     bool error_on_conflict) {
   RETURN_IF_NOT_OK_CONFLICT(
       edge_triplet_exist(src_vertex_type, dst_vertex_type, edge_type),
       error_on_conflict);
@@ -762,50 +706,10 @@ Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
   label_t edge_label = schema_.get_edge_label_id(edge_type);
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
-  schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label, is_soft);
+  schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label);
   if (edge_tables_.count(index) > 0) {
-    if (!is_soft) {
-      edge_tables_.erase(index);
-    } else {
-      edge_tables_.at(index).mark_as_deleted();
-    }
+    edge_tables_.erase(index);
   }
-  return gs::Status::OK();
-}
-
-Status PropertyGraph::RevertDeleteEdgeType(const std::string& src_vertex_type,
-                                           const std::string& dst_vertex_type,
-                                           const std::string& edge_type,
-                                           bool error_on_conflict) {
-  if (!schema_.has_edge_label(src_vertex_type, dst_vertex_type, edge_type)) {
-    std::string msg = "Edge [" + edge_type + "] from [" + src_vertex_type +
-                      "] to [" + dst_vertex_type + "] does not exist";
-    LOG(ERROR) << msg;
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
-    } else {
-      return Status(StatusCode::OK, msg);
-    }
-  }
-  label_t src_v_label = schema_.get_vertex_label_id_internal(src_vertex_type);
-  label_t dst_v_label = schema_.get_vertex_label_id_internal(dst_vertex_type);
-  label_t edge_label = schema_.get_edge_label_id(edge_type);
-  return RevertDeleteEdgeType(src_v_label, dst_v_label, edge_label,
-                              error_on_conflict);
-}
-
-Status PropertyGraph::RevertDeleteEdgeType(label_t src_label, label_t dst_label,
-                                           label_t edge_label,
-                                           bool error_on_conflict) {
-  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
-  if (edge_tables_.count(index) == 0) {
-    LOG(ERROR) << "Edge label id[" << index << "] does not exist.";
-    return Status(
-        StatusCode::ERR_INVALID_SCHEMA,
-        "Edge label id[" + std::to_string(index) + "] does not exist.");
-  }
-  edge_tables_.at(index).revert_deleted();
-  schema_.RevertDeleteEdgeLabel(src_label, dst_label, edge_label);
   return gs::Status::OK();
 }
 
