@@ -30,19 +30,6 @@ namespace runtime {
 
 namespace ops {
 
-class SinkInsertOprBuilder : public IInsertOperatorBuilder {
- public:
-  SinkInsertOprBuilder() = default;
-  ~SinkInsertOprBuilder() = default;
-
-  std::unique_ptr<IInsertOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kSink;
-  }
-};
-
 class USinkOprBuilder : public IUpdateOperatorBuilder {
  public:
   USinkOprBuilder() = default;

@@ -117,9 +117,8 @@ gs::result<Context> ReadPipeline::Execute(
   return ctx;
 }
 
-template <typename GraphInterface>
-gs::result<WriteContext> InsertPipeline::Execute(
-    GraphInterface& graph, WriteContext&& ctx,
+gs::result<Context> InsertPipeline::Execute(
+    GraphInsertInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
@@ -131,7 +130,7 @@ gs::result<WriteContext> InsertPipeline::Execute(
     }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         gs::result<Context>,
-        [&]() -> gs::result<WriteContext> {
+        [&]() -> gs::result<Context> {
           auto ret =
               operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
@@ -155,23 +154,13 @@ gs::result<WriteContext> InsertPipeline::Execute(
                                   operators_[0]->get_operator_name() + "], " +
                                   err.error_message());
         },
-        [&ctx](gs::result<WriteContext>&& res) {
-          ctx = std::move(res.value());
-        });
+        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
     if (!status.ok()) {
       RETURN_ERROR(status);
     }
   }
   return ctx;
 }
-
-template gs::result<WriteContext> InsertPipeline::Execute(
-    GraphInsertInterface& graph, WriteContext&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer);
-
-template gs::result<WriteContext> InsertPipeline::Execute(
-    GraphUpdateInterface& graph, WriteContext&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer);
 
 gs::result<Context> UpdatePipeline::Execute(
     GraphUpdateInterface& graph, Context&& ctx,
@@ -218,12 +207,6 @@ gs::result<Context> UpdatePipeline::Execute(
   }
 
   return ctx;
-}
-
-gs::result<WriteContext> UpdatePipeline::Execute(
-    GraphUpdateInterface& graph, WriteContext&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer) {
-  return inserts_->Execute(graph, std::move(ctx), params, timer);
 }
 
 }  // namespace runtime

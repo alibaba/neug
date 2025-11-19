@@ -87,14 +87,9 @@ class IInsertOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual gs::result<WriteContext> Eval(
+  virtual gs::result<Context> Eval(
       GraphInsertInterface& graph,
-      const std::map<std::string, std::string>& params, WriteContext&& ctx,
-      OprTimer* timer) = 0;
-
-  virtual gs::result<WriteContext> Eval(
-      GraphUpdateInterface& graph,
-      const std::map<std::string, std::string>& params, WriteContext&& ctx,
+      const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer) = 0;
 };
 

@@ -33,39 +33,6 @@ class OprTimer;
 
 namespace ops {
 
-class SinkInsertOpr : public IInsertOperator {
- public:
-  SinkInsertOpr() {}
-
-  std::string get_operator_name() const override { return "SinkInsertOpr"; }
-
-  template <typename GraphInterface>
-  gs::result<gs::runtime::WriteContext> eval_impl(
-      GraphInterface& graph, const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) {
-    return ctx;
-  }
-
-  gs::result<gs::runtime::WriteContext> Eval(
-      gs::runtime::GraphInsertInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
-    return eval_impl(graph, params, std::move(ctx), timer);
-  }
-
-  gs::result<gs::runtime::WriteContext> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::WriteContext&& ctx, gs::runtime::OprTimer* timer) override {
-    return eval_impl(graph, params, std::move(ctx), timer);
-  }
-};
-
-std::unique_ptr<IInsertOperator> SinkInsertOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-  return std::make_unique<SinkInsertOpr>();
-}
-
 class USinkOpr : public IUpdateOperator {
  public:
   explicit USinkOpr(const std::vector<int>& tag_ids) : tag_ids(tag_ids) {}

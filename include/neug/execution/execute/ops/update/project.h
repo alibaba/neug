@@ -28,20 +28,6 @@ class Schema;
 namespace runtime {
 namespace ops {
 
-class ProjectInsertOprBuilder : public IInsertOperatorBuilder {
- public:
-  ProjectInsertOprBuilder() = default;
-  ~ProjectInsertOprBuilder() = default;
-
-  std::unique_ptr<IInsertOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_id) override;
-
-  physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const override {
-    return physical::PhysicalOpr_Operator::OpKindCase::kProject;
-  }
-};
-
 class UProjectOprBuilder : public IUpdateOperatorBuilder {
  public:
   UProjectOprBuilder() = default;

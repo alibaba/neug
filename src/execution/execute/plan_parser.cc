@@ -48,7 +48,6 @@
 #include "neug/execution/execute/ops/retrieve/unfold.h"
 #include "neug/execution/execute/ops/retrieve/union.h"
 #include "neug/execution/execute/ops/retrieve/vertex.h"
-#include "neug/execution/execute/ops/update/dedup.h"
 #include "neug/execution/execute/ops/update/edge.h"
 #include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/update/join.h"
@@ -58,7 +57,6 @@
 #include "neug/execution/execute/ops/update/select.h"
 #include "neug/execution/execute/ops/update/set.h"
 #include "neug/execution/execute/ops/update/sink.h"
-#include "neug/execution/execute/ops/update/unfold.h"
 #include "neug/execution/execute/ops/update/vertex.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/utils/result.h"
@@ -112,16 +110,6 @@ void PlanParser::init() {
 
   register_read_operator_builder(std::make_unique<ops::SinkOprBuilder>());
   register_read_operator_builder(std::make_unique<ops::DataExportOprBuilder>());
-
-  // ------------- Write operators -------------
-  register_write_operator_builder(
-      std::make_unique<ops::DedupInsertOprBuilder>());
-  register_write_operator_builder(
-      std::make_unique<ops::ProjectInsertOprBuilder>());
-  register_write_operator_builder(
-      std::make_unique<ops::SinkInsertOprBuilder>());
-  register_write_operator_builder(
-      std::make_unique<ops::UnfoldInsertOprBuilder>());
 
   // ------------- Update operators -------------
   register_update_operator_builder(
@@ -426,10 +414,7 @@ gs::result<InsertPipeline> PlanParser::parse_write_pipeline(
 gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     const gs::Schema& schema, const physical::PhysicalPlan& plan) {
   Status status = Status::OK();
-  auto res = parse_write_pipeline(schema, plan);
-  if (res) {
-    return UpdatePipeline(std::move(res.value()));
-  }
+
   std::vector<std::unique_ptr<IUpdateOperator>> operators;
   int opr_num = plan.query_plan().plan_size();
   for (int i = 0; i < opr_num;) {
