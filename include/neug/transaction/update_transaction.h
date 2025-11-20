@@ -118,22 +118,6 @@ class UpdateTransaction {
   ~UpdateTransaction();
 
   /**
-   * @brief Configure whether to resize vertex columns during property updates.
-   *
-   * By default, update transactions will not resize vertex columns when
-   * updating properties. Setting this to true enables column resizing if
-   * needed.
-   *
-   * @param insert_vertex_with_resize true to enable column resizing, false to
-   * disable
-   *
-   * Implementation: Sets insert_vertex_with_resize_ member variable.
-   *
-   * @since v0.1.0
-   */
-  void set_insert_vertex_with_resize(bool insert_vertex_with_resize);
-
-  /**
    * @brief Get the transaction timestamp.
    *
    * @return timestamp_t The timestamp for this transaction
@@ -193,30 +177,7 @@ class UpdateTransaction {
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                label_t edge_label, const std::vector<Property>& properties);
 
-  class vertex_iterator {
-   public:
-    vertex_iterator(label_t label, vid_t cur, vid_t& num, timestamp_t ts,
-                    UpdateTransaction* txn);
-    ~vertex_iterator();
-    bool IsValid() const;
-    void Next();
-    void Goto(vid_t target);
-
-    Property GetId() const;
-
-    vid_t GetIndex() const;
-
-    Property GetField(int col_id) const;
-
-    bool SetField(int col_id, const Property& value);
-
-   private:
-    label_t label_;
-    vid_t cur_;
-
-    vid_t& num_;
-    UpdateTransaction* txn_;
-  };
+  VertexSet GetVertexSet(label_t label) const;
 
   class edge_iterator {
    public:
@@ -263,10 +224,6 @@ class UpdateTransaction {
     size_t offset_;
   };
 
-  vertex_iterator GetVertexIterator(label_t label);
-
-  vid_t GetVertexNum(label_t label) const;
-
   edge_iterator GetOutEdgeIterator(label_t label, vid_t u,
                                    label_t neighbor_label, label_t edge_label,
                                    int prop_id);
@@ -297,14 +254,6 @@ class UpdateTransaction {
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
 
   PropertyGraph& GetGraph() const { return graph_; }
-
-  /**
-   * @brief Check if the vertex with the given label and oid exists.
-   * @param label The label of the vertex.
-   * @param oid The oid of the vertex.
-   * @return true if the vertex exists, false otherwise.
-   */
-  bool HasVertex(label_t label, const Property& oid) const;
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
@@ -370,10 +319,6 @@ class UpdateTransaction {
   size_t get_out_csr_index(label_t src_label, label_t dst_label,
                            label_t edge_label) const;
 
-  bool oid_to_lid(label_t label, const Property& oid, vid_t& lid) const;
-
-  Property lid_to_oid(label_t label, vid_t lid) const;
-
   bool IsValidLid(label_t label, vid_t lid) const;
 
   void release();
@@ -391,8 +336,6 @@ class UpdateTransaction {
   // Revert all changes made in this transaction.
   void revert_changes();
 
-  bool insert_vertex_with_resize_;
-
   PropertyGraph& graph_;
   Allocator& alloc_;
   IWalWriter& logger_;
@@ -405,11 +348,7 @@ class UpdateTransaction {
   size_t vertex_label_num_;
   size_t edge_label_num_;
 
-  std::vector<std::shared_ptr<IdIndexerBase<vid_t>>> added_vertices_;
   std::vector<vid_t> added_vertices_base_;
-  std::vector<vid_t> vertex_nums_;
-  std::vector<ska::flat_hash_map<vid_t, vid_t>> vertex_offsets_;
-  std::vector<Table> extra_vertex_properties_;
 
   std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges_;
   std::vector<ska::flat_hash_map<

@@ -32,10 +32,10 @@ class UScan {
     MSVertexColumnBuilder builder(params.tables[0]);
     for (auto& label : params.tables) {
       builder.start_label(label);
-      auto vit = graph.GetVertexIterator(label);
-      for (; vit.IsValid(); vit.Next()) {
-        if (pred(label, vit.GetIndex())) {
-          builder.push_back_opt(vit.GetIndex());
+      auto vertices = graph.GetVertexSet(label);
+      for (auto vit : vertices) {
+        if (pred(label, vit)) {
+          builder.push_back_opt(vit);
         }
       }
     }

@@ -286,6 +286,9 @@ class PropertyGraph {
                  const std::vector<Property>& properties, timestamp_t ts,
                  Allocator& alloc);
 
+  Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
+                              const Property& value, timestamp_t ts);
+
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
@@ -314,6 +317,11 @@ class PropertyGraph {
   inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
       uint8_t label, const std::string& prop) const {
     return vertex_tables_[label].get_property_column(prop);
+  }
+
+  inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
+      uint8_t label, int32_t col_id) const {
+    return vertex_tables_[label].get_property_column(col_id);
   }
 
   inline std::shared_ptr<RefColumnBase> GetVertexIdColumn(uint8_t label) const {

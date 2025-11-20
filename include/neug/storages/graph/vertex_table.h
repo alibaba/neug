@@ -136,6 +136,9 @@ class VertexTable {
   bool AddVertex(const Property& id, const std::vector<Property>& props,
                  vid_t& vid, timestamp_t ts = 0);
 
+  bool UpdateProperty(vid_t vid, int32_t prop_id, const Property& value,
+                      timestamp_t ts);
+
   size_t VertexNum(timestamp_t ts = MAX_TIMESTAMP) const;
 
   size_t LidNum() const;  // We don't need a timestamp here since LidNum is the
@@ -182,6 +185,11 @@ class VertexTable {
   inline std::shared_ptr<ColumnBase> get_property_column(
       const std::string& prop) const {
     return table_->get_column(prop);
+  }
+
+  inline std::shared_ptr<ColumnBase> get_property_column(int32_t col_id) const {
+    assert(col_id >= 0 && col_id < static_cast<int32_t>(table_->col_num()));
+    return table_->get_column_by_id(col_id);
   }
 
   inline VertexSet GetVertexSet(timestamp_t ts) const {

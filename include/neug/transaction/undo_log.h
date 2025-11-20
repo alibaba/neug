@@ -31,14 +31,14 @@ class PropertyGraph;
 struct IUndoLog {
   virtual ~IUndoLog() = default;
   virtual OpType GetType() const = 0;
-  virtual void Undo(PropertyGraph& graph) const = 0;
+  virtual void Undo(PropertyGraph& graph, timestamp_t ts) const = 0;
 };
 
 struct CreateVertexTypeUndo : public IUndoLog {
   std::string vertex_type;
   CreateVertexTypeUndo(const std::string& vt) : vertex_type(vt) {}
   OpType GetType() const override { return OpType::kCreateVertexType; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct CreateEdgeTypeUndo : public IUndoLog {
@@ -49,7 +49,7 @@ struct CreateEdgeTypeUndo : public IUndoLog {
                      const std::string& e)
       : src_type(s), dst_type(d), edge_type(e) {}
   OpType GetType() const override { return OpType::kCreateEdgeType; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct InsertVertexUndo : public IUndoLog {
@@ -57,7 +57,7 @@ struct InsertVertexUndo : public IUndoLog {
   vid_t vid;
   InsertVertexUndo(label_t v_label, vid_t vid) : v_label(v_label), vid(vid) {}
   OpType GetType() const override { return OpType::kInsertVertex; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct InsertEdgeUndo : public IUndoLog {
@@ -75,7 +75,7 @@ struct InsertEdgeUndo : public IUndoLog {
         oe_offset(oe_offset),
         ie_offset(ie_offset) {}
   OpType GetType() const override { return OpType::kInsertEdge; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct UpdateVertexPropUndo : public IUndoLog {
@@ -87,7 +87,7 @@ struct UpdateVertexPropUndo : public IUndoLog {
                        const Property& value)
       : v_label(v_label), vid(vid), col_id(col_id), value(value) {}
   OpType GetType() const override { return OpType::kUpdateVertexProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct UpdateEdgePropUndo : public IUndoLog {
@@ -109,7 +109,7 @@ struct UpdateEdgePropUndo : public IUndoLog {
         col_id(col_id),
         value(value) {}
   OpType GetType() const override { return OpType::kUpdateEdgeProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct RemoveVertexUndo : public IUndoLog {
@@ -117,7 +117,7 @@ struct RemoveVertexUndo : public IUndoLog {
   vid_t lid;
   RemoveVertexUndo(label_t v_label, vid_t lid) : v_label(v_label), lid(lid) {}
   OpType GetType() const override { return OpType::kRemoveVertex; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct RemoveEdgeUndo : public IUndoLog {
@@ -135,7 +135,7 @@ struct RemoveEdgeUndo : public IUndoLog {
         oe_offset(oe_offset),
         ie_offset(ie_offset) {}
   OpType GetType() const override { return OpType::kRemoveEdge; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct AddVertexPropUndo : public IUndoLog {
@@ -144,7 +144,7 @@ struct AddVertexPropUndo : public IUndoLog {
   AddVertexPropUndo(label_t label, const std::vector<std::string>& prop_names)
       : label(label), prop_names(prop_names) {}
   OpType GetType() const override { return OpType::kAddVertexProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct AddEdgePropUndo : public IUndoLog {
@@ -157,7 +157,7 @@ struct AddEdgePropUndo : public IUndoLog {
         edge_label(edge_label),
         prop_names(prop_names) {}
   OpType GetType() const override { return OpType::kAddEdgeProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 struct RenameVertexPropUndo : public IUndoLog {
   label_t label;
@@ -167,7 +167,7 @@ struct RenameVertexPropUndo : public IUndoLog {
                            old_names_to_new_names)
       : label(label), old_names_to_new_names(old_names_to_new_names) {}
   OpType GetType() const override { return OpType::kRenameVertexProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 struct RenameEdgePropUndo : public IUndoLog {
   label_t src_label, dst_label, edge_label;
@@ -180,7 +180,7 @@ struct RenameEdgePropUndo : public IUndoLog {
         edge_label(edge_label),
         old_names_to_new_names(old_names_to_new_names) {}
   OpType GetType() const override { return OpType::kRenameEdgeProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct DeleteVertexPropUndo : public IUndoLog {
@@ -190,7 +190,7 @@ struct DeleteVertexPropUndo : public IUndoLog {
                        const std::vector<std::string>& prop_names)
       : label(label), prop_names(prop_names) {}
   OpType GetType() const override { return OpType::kDeleteVertexProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct DeleteEdgePropUndo : public IUndoLog {
@@ -203,14 +203,14 @@ struct DeleteEdgePropUndo : public IUndoLog {
         edge_label(edge_label),
         prop_names(prop_names) {}
   OpType GetType() const override { return OpType::kDeleteEdgeProp; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct DeleteVertexTypeUndo : public IUndoLog {
   std::string v_label;
   DeleteVertexTypeUndo(const std::string& v_label) : v_label(v_label) {}
   OpType GetType() const override { return OpType::kDeleteVertexType; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 struct DeleteEdgeTypeUndo : public IUndoLog {
@@ -219,7 +219,7 @@ struct DeleteEdgeTypeUndo : public IUndoLog {
                      const std::string& e)
       : src_label(s), dst_label(d), edge_label(e) {}
   OpType GetType() const override { return OpType::kDeleteEdgeType; }
-  void Undo(PropertyGraph& graph) const override;
+  void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
 }  // namespace gs

@@ -125,6 +125,25 @@ bool VertexTable::AddVertex(const Property& id,
   return true;
 }
 
+bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
+                                 const Property& value, timestamp_t ts) {
+  if (NEUG_UNLIKELY(vid >= indexer_.size())) {
+    LOG(ERROR) << "Lid " << vid << " is out of range.";
+    return false;
+  }
+  if (NEUG_UNLIKELY(!v_ts_.IsVertexValid(vid, ts))) {
+    LOG(ERROR) << "Vertex with lid " << vid << " is not valid at timestamp "
+               << ts << ".";
+    return false;
+  }
+  if (prop_id < 0 || prop_id >= static_cast<int32_t>(table_->col_num())) {
+    LOG(ERROR) << "Property id " << prop_id << " is out of range.";
+    return false;
+  }
+  table_->get_column_by_id(prop_id)->set_any(vid, value);
+  return true;
+}
+
 Property VertexTable::GetOid(vid_t lid, timestamp_t ts) const {
   if (NEUG_UNLIKELY(lid >= indexer_.size())) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +

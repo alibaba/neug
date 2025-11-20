@@ -1056,6 +1056,19 @@ Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
   return gs::Status::OK();
 }
 
+Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
+                                           int32_t prop_id,
+                                           const Property& value,
+                                           timestamp_t ts) {
+  assert(prop_id >= 0);
+  assert(schema_.vertex_label_valid(v_label));
+  if (!vertex_tables_[v_label].UpdateProperty(vid, prop_id, value, ts)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Fail to update vertex property.");
+  }
+  return gs::Status::OK();
+}
+
 std::string PropertyGraph::get_statistics_json() const {
   // Generate json string using rapidjson document
   rapidjson::Document document;

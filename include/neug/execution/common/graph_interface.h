@@ -251,6 +251,10 @@ class GraphUpdateInterface {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
+  inline VertexSet GetVertexSet(label_t label) const {
+    return txn_.GetVertexSet(label);
+  }
+
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
     return txn_.GetGraph().get_vertex_table(label).get_properties_table().at(
@@ -270,11 +274,6 @@ class GraphUpdateInterface {
                                  Property& ret) const {
     return txn_.GetUpdatedEdgeData(dir, label, v, neighbor_label, nbr,
                                    edge_label, prop_id, ret);
-  }
-
-  inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props) {
-    return txn_.AddVertex(label, id, props);
   }
 
   inline bool GetVertexIndex(label_t label, const Property& id,
@@ -307,18 +306,6 @@ class GraphUpdateInterface {
 
   inline Property GetVertexId(label_t label, vid_t index) const {
     return txn_.GetVertexId(label, index);
-  }
-
-  inline vid_t GetVertexNum(label_t label) const {
-    return txn_.GetVertexNum(label);
-  }
-
-  inline bool HasVertex(label_t label, const Property& oid) const {
-    return txn_.HasVertex(label, oid);
-  }
-
-  inline auto GetVertexIterator(label_t label) const {
-    return txn_.GetVertexIterator(label);
   }
 
   inline auto GetOutEdgeIterator(label_t label, vid_t src,

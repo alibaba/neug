@@ -75,6 +75,23 @@ class UpdateTransactionTest : public ::testing::Test {
       std::filesystem::remove_all(db_dir);
     }
   }
+
+  size_t count_edges_filter_src(const gs::ReadTransaction& txn,
+                                gs::label_t src_label,
+                                gs::label_t neighbor_label,
+                                gs::label_t edge_label, gs::vid_t src_vid,
+                                bool oe) {
+    size_t edge_count = 0;
+    auto view = oe ? txn.GetGenericOutgoingGraphView(src_label, neighbor_label,
+                                                     edge_label)
+                   : txn.GetGenericIncomingGraphView(src_label, neighbor_label,
+                                                     edge_label);
+    auto edge_iter = view.get_edges(src_vid);
+    for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+      edge_count++;
+    }
+    return edge_count;
+  }
 };
 
 TEST_F(UpdateTransactionTest, AddVertex) {
@@ -95,6 +112,32 @@ TEST_F(UpdateTransactionTest, AddVertex) {
     auto txn = db.GetReadTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, AddVertexBatch) {
+  // To trigger the internal resize of vertex property columns,
+  // we add a batch of vertices.
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    for (int i = 4; i <= 10000; i++) {
+      EXPECT_TRUE(txn.AddVertex(person_label, gs::Property::from_int64(i),
+                                {gs::Property::from_string("User"),
+                                 gs::Property::from_int64(20 + i % 10)}));
+    }
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 9999);
   }
   db.Close();
 }
@@ -139,6 +182,109 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   db.Close();
 }
 
+TEST_F(UpdateTransactionTest, AddVertexEdge) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    EXPECT_TRUE(txn.AddVertex(
+        person_label, gs::Property::from_int64(4),
+        {gs::Property::from_string("David"), gs::Property::from_int64(32)}));
+    EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(3),
+                              {gs::Property::from_string("NeugDB"),
+                               gs::Property::from_string("C++")}));
+    EXPECT_TRUE(txn.AddEdge(
+        person_label, gs::Property::from_int64(4), software_label,
+        gs::Property::from_int64(3), created_label,
+        {gs::Property::from_double(0.85), gs::Property::from_int64(2023)}));
+    EXPECT_TRUE(txn.AddEdge(
+        person_label, gs::Property::from_int64(2), software_label,
+        gs::Property::from_int64(3), created_label,
+        {gs::Property::from_double(0.75), gs::Property::from_int64(2021)}));
+    EXPECT_TRUE(txn.AddEdge(person_label, gs::Property::from_int64(4),
+                            person_label, gs::Property::from_int64(1),
+                            txn.schema().get_edge_label_id("knows"),
+                            {gs::Property::from_double(0.95)}));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.GetVertexNum(software_label), 3);
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    gs::vid_t david_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(4),
+                                   david_vid));
+    EXPECT_EQ(count_edges_filter_src(txn, person_label, software_label,
+                                     created_label, david_vid, true),
+              1);
+    gs::vid_t neugdb_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(software_label, gs::Property::from_int64(3),
+                                   neugdb_vid));
+    EXPECT_EQ(count_edges_filter_src(txn, software_label, person_label,
+                                     created_label, neugdb_vid, false),
+              2);
+    EXPECT_EQ(count_edges_filter_src(txn, person_label, person_label,
+                                     knows_label, david_vid, true),
+              1);
+  }
+
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    EXPECT_TRUE(txn.AddVertex(
+        person_label, gs::Property::from_int64(5),
+        {gs::Property::from_string("Frank"), gs::Property::from_int64(27)}));
+    EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(4),
+                              {gs::Property::from_string("UltraGraph"),
+                               gs::Property::from_string("Go")}));
+    EXPECT_TRUE(txn.AddEdge(
+        person_label, gs::Property::from_int64(5), software_label,
+        gs::Property::from_int64(4), created_label,
+        {gs::Property::from_double(0.65), gs::Property::from_int64(2022)}));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 2);
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.GetVertexNum(software_label), 2);
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto oe_view = txn.GetGenericOutgoingGraphView(person_label, software_label,
+                                                   created_label);
+    size_t edge_count = 0;
+    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
+      auto edges = oe_view.get_edges(vid);
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        edge_count++;
+      }
+    }
+    EXPECT_EQ(edge_count, 2);
+  }
+  db.Close();
+}
+
 TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   gs::NeugDB db;
   gs::NeugDBConfig config(db_dir);
@@ -148,13 +294,12 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 2) {
-        EXPECT_TRUE(vertex_iter.SetField(1, gs::Property::from_int64(26)));
-      }
-      vertex_iter.Next();
-    }
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                             vertex_id));
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vertex_id, 1,
+                                         gs::Property::from_int64(26)));
+
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -182,19 +327,16 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 1) {
-        auto edge_iter =
-            txn.GetOutEdgeIterator(person_label, vertex_iter.GetIndex(),
-                                   software_label, created_label, 0);
-        while (edge_iter.IsValid()) {
-          edge_iter.SetData(gs::Property::from_double(0.99));
-          edge_iter.Next();
-        }
-      }
-      vertex_iter.Next();
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                             vertex_id));
+    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
+                                            software_label, created_label, 0);
+    while (edge_iter.IsValid()) {
+      edge_iter.SetData(gs::Property::from_double(0.99));
+      edge_iter.Next();
     }
+
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -239,8 +381,6 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     EXPECT_EQ(txn.GetVertexNum(person_label), 2);
   }
   {
-    // TODO(zhanglei): Enable this test after implement timestamp check for
-    // index scan.
     auto conn = db.Connect();
     auto result = conn->Query(
         "MATCH (n:person {id: 4}) RETURN n.name AS name, n.age AS age;");
@@ -303,13 +443,11 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 2) {
-        EXPECT_TRUE(vertex_iter.SetField(1, gs::Property::from_int64(27)));
-      }
-      vertex_iter.Next();
-    }
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                             vertex_id));
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vertex_id, 1,
+                                         gs::Property::from_int64(27)));
     txn.Abort();
   }
   {
@@ -350,25 +488,21 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 1) {
-        auto edge_iter =
-            txn.GetOutEdgeIterator(person_label, vertex_iter.GetIndex(),
-                                   software_label, created_label, 0);
-        while (edge_iter.IsValid()) {
-          edge_iter.SetData(gs::Property::from_double(0.88));
-          txn.SetEdgeData(true, person_label, vertex_iter.GetIndex(),
-                          software_label, edge_iter.GetNeighbor(),
-                          created_label, gs::Property::from_int64(2023), 1);
-          txn.SetEdgeData(false, software_label, edge_iter.GetNeighbor(),
-                          person_label, vertex_iter.GetIndex(), created_label,
-                          gs::Property::from_int64(2023), 1);
-          edge_iter.Next();
-        }
-      }
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                             vertex_id));
 
-      vertex_iter.Next();
+    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
+                                            software_label, created_label, 0);
+    while (edge_iter.IsValid()) {
+      edge_iter.SetData(gs::Property::from_double(0.88));
+      txn.SetEdgeData(true, person_label, vertex_id, software_label,
+                      edge_iter.GetNeighbor(), created_label,
+                      gs::Property::from_int64(2023), 1);
+      txn.SetEdgeData(false, software_label, edge_iter.GetNeighbor(),
+                      person_label, vertex_id, created_label,
+                      gs::Property::from_int64(2023), 1);
+      edge_iter.Next();
     }
 
     txn.Abort();
@@ -424,18 +558,17 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 1) {
-        auto edge_iter = txn.GetOutEdgeIterator(
-            person_label, vertex_iter.GetIndex(), person_label, knows_label, 0);
-        while (edge_iter.IsValid()) {
-          edge_iter.SetData(gs::Property::from_double(0.95));
-          edge_iter.Next();
-        }
-      }
-      vertex_iter.Next();
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                             vertex_id));
+
+    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
+                                            person_label, knows_label, 0);
+    while (edge_iter.IsValid()) {
+      edge_iter.SetData(gs::Property::from_double(0.95));
+      edge_iter.Next();
     }
+
     txn.Abort();
   }
   {
@@ -486,19 +619,16 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
         person_label, gs::Property::from_int64(1), software_label,
         gs::Property::from_int64(2), created_label,
         {gs::Property::from_double(0.85), gs::Property::from_int64(2023)}));
-    auto vertex_iter = txn.GetVertexIterator(person_label);
-    while (vertex_iter.IsValid()) {
-      if (vertex_iter.GetId().as_int64() == 1) {
-        auto edge_iter =
-            txn.GetOutEdgeIterator(person_label, vertex_iter.GetIndex(),
-                                   software_label, created_label, 0);
-        while (edge_iter.IsValid()) {
-          edge_iter.SetData(gs::Property::from_double(0.9));
-          edge_iter.Next();
-        }
-      }
-      vertex_iter.Next();
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                             vertex_id));
+    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
+                                            software_label, created_label, 0);
+    while (edge_iter.IsValid()) {
+      edge_iter.SetData(gs::Property::from_double(0.9));
+      edge_iter.Next();
     }
+
     txn.Abort();
   }
   {

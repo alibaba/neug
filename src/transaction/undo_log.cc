@@ -16,80 +16,80 @@
 #include "neug/transaction/undo_log.h"
 
 namespace gs {
-void CreateVertexTypeUndo::Undo(PropertyGraph& graph) const {
+void CreateVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   graph.DeleteVertexType(vertex_type);
 };
 
-void CreateEdgeTypeUndo::Undo(PropertyGraph& graph) const {
+void CreateEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   graph.DeleteEdgeType(src_type, dst_type, edge_type);
 };
 
-void InsertVertexUndo::Undo(PropertyGraph& graph) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for InsertVertex is not implemented yet.");
+void InsertVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
+  assert(graph.schema().vertex_label_valid(v_label));
+  graph.DeleteVertex(v_label, vid, ts);
 };
 
-void InsertEdgeUndo::Undo(PropertyGraph& graph) const {
+void InsertEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for InsertEdge is not implemented yet.");
 };
 
-void UpdateVertexPropUndo::Undo(PropertyGraph& graph) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for UpdateVertexProp is not implemented yet.");
+void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
+  assert(graph.schema().vertex_label_valid(v_label));
+  graph.UpdateVertexProperty(v_label, vid, col_id, value, ts);
 };
 
-void UpdateEdgePropUndo::Undo(PropertyGraph& graph) const {
+void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for UpdateEdgeProp is not implemented yet.");
 };
 
-void RemoveVertexUndo::Undo(PropertyGraph& graph) const {
+void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for RemoveVertex is not implemented yet.");
 };
 
-void RemoveEdgeUndo::Undo(PropertyGraph& graph) const {
+void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for RemoveEdge is not implemented yet.");
 };
 
-void AddVertexPropUndo::Undo(PropertyGraph& graph) const {
+void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for AddVertexProp is not implemented yet.");
 };
 
-void AddEdgePropUndo::Undo(PropertyGraph& graph) const {
+void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for AddEdgeProp is not implemented yet.");
 };
 
-void RenameVertexPropUndo::Undo(PropertyGraph& graph) const {
+void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for RenameVertexProp is not implemented yet.");
 };
 
-void RenameEdgePropUndo::Undo(PropertyGraph& graph) const {
+void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for RenameEdgeProp is not implemented yet.");
 };
 
-void DeleteVertexPropUndo::Undo(PropertyGraph& graph) const {
+void DeleteVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for DeleteVertexProp is not implemented yet.");
 };
 
-void DeleteEdgePropUndo::Undo(PropertyGraph& graph) const {
+void DeleteEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for DeleteEdgeProp is not implemented yet.");
 };
 
-void DeleteVertexTypeUndo::Undo(PropertyGraph& graph) const {
+void DeleteVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for DeleteVertexType is not implemented yet.");
 };
 
-void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph) const {
+void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   THROW_NOT_IMPLEMENTED_EXCEPTION(
       "Undo for DeleteEdgeType is not implemented yet.");
 };

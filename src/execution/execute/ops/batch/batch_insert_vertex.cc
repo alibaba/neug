@@ -226,7 +226,8 @@ gs::result<Context> InsertVertexOpr::eval_impl(
                                properties_name, properties_type);
     VLOG(10) << "Inserting vertex with label " << (int32_t) vertex_label_id
              << " and primary key " << pk_value.to_string();
-    if (graph.HasVertex(vertex_label_id, pk_value)) {
+    vid_t existing_vid;
+    if (graph.GetVertexIndex(vertex_label_id, pk_value, existing_vid)) {
       LOG(ERROR) << "Vertex with label " << (int32_t) vertex_label_id
                  << " and primary key " << pk_value.to_string()
                  << " already exists.";
