@@ -354,6 +354,9 @@ void Schema::AddEdgeLabel(const std::string& src_label,
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
+  if (elabel_tomb_.get(edge_label_id)) {  // Add back a deleted label
+    elabel_tomb_.reset(edge_label_id);
+  }
 
   uint32_t label_id =
       generate_edge_label(src_label_id, dst_label_id, edge_label_id);
@@ -1502,7 +1505,7 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
 
     for (auto src_v : v_labels) {
       for (auto dst_v : v_labels) {
-        if (schema.has_edge_label(src_v, dst_v, e_label)) {
+        if (schema.exist(src_v, dst_v, e_label)) {
           if (!properties_set) {
             auto properties = schema.get_edge_properties(src_v, dst_v, e_label);
             auto property_names =
@@ -1702,16 +1705,16 @@ bool Schema::IsVertexLabelSoftDeleted(label_t v_label) const {
 bool Schema::IsEdgeLabelSoftDeleted(const std::string& src_label,
                                     const std::string& dst_label,
                                     const std::string& edge_label) const {
-  label_t src = get_vertex_label_id(src_label);
-  label_t dst = get_vertex_label_id(dst_label);
+  label_t src = get_vertex_label_id_internal(src_label);
+  label_t dst = get_vertex_label_id_internal(dst_label);
   label_t edge = get_edge_label_id_internal(edge_label);
   return IsEdgeLabelSoftDeleted(src, dst, edge);
 }
 
 bool Schema::IsEdgeLabelSoftDeleted(label_t src_label, label_t dst_label,
                                     label_t edge_label) const {
-  assert(vertex_label_valid(src_label));
-  assert(vertex_label_valid(dst_label));
+  assert(vertex_label_valid(src_label) || IsVertexLabelSoftDeleted(src_label));
+  assert(vertex_label_valid(dst_label) || IsVertexLabelSoftDeleted(dst_label));
   assert(edge_label_valid(edge_label));
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
   return elabel_triplet_tomb_.get(index) && e_schemas_.count(index) > 0;
@@ -1774,6 +1777,11 @@ void Schema::RevertDeleteVertexProperties(
 
 void Schema::DeleteVertexLabel(const std::string& label, bool is_soft) {
   auto v_label_id = get_vertex_label_id_internal(label);
+  return DeleteVertexLabel(v_label_id, is_soft);
+}
+
+void Schema::DeleteVertexLabel(label_t v_label_id, bool is_soft) {
+  assert(v_label_id < v_schemas_.size());
   if (!is_soft) {
     v_schemas_[v_label_id]->clear();
   }
@@ -1818,11 +1826,26 @@ void Schema::DeleteEdgeLabel(const std::string& src_label,
 void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
                              const label_t& edge, bool is_soft) {
   uint32_t index = generate_edge_label(src, dst, edge);
-  assert(e_schemas_.count(index) > 0);
-  if (!is_soft) {
-    e_schemas_.erase(index);
+  // After delete one edge_triplet, scan all edge_triplets to see if
+  // this edge_label is still used. If not, mark it as deleted.
+  if (e_schemas_.count(index)) {
+    if (!is_soft) {
+      e_schemas_.erase(index);
+    }
+    elabel_triplet_tomb_.set(index);
+    bool edge_label_still_used = false;
+    for (const auto& pair : e_schemas_) {
+      auto e_label_id =
+          get_edge_label_id_internal(pair.second->edge_label_name);
+      if (e_label_id == edge) {
+        edge_label_still_used = true;
+        break;
+      }
+    }
+    if (!edge_label_still_used) {
+      elabel_tomb_.set(edge);
+    }
   }
-  elabel_triplet_tomb_.set(index);
 }
 
 void Schema::AddEdgeProperties(
@@ -1915,7 +1938,8 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
   }
 }
 
-void Schema::RevertDeleteVertexLabel(label_t v_label_id) {
+void Schema::RevertDeleteVertexLabel(const std::string& v_label) {
+  label_t v_label_id = get_vertex_label_id_internal(v_label);
   if (vlabel_tomb_.get(v_label_id)) {
     vlabel_tomb_.reset(v_label_id);
   }
@@ -1927,11 +1951,18 @@ void Schema::RevertDeleteEdgeLabel(label_t e_label_id) {
   }
 }
 
-void Schema::RevertDeleteEdgeLabel(const label_t& src, const label_t& dst,
-                                   const label_t& edge) {
+void Schema::RevertDeleteEdgeLabel(const std::string& src_label,
+                                   const std::string& dst_label,
+                                   const std::string& edge_label) {
+  label_t src = get_vertex_label_id_internal(src_label);
+  label_t dst = get_vertex_label_id_internal(dst_label);
+  label_t edge = get_edge_label_id_internal(edge_label);
   uint32_t index = generate_edge_label(src, dst, edge);
   if (index < elabel_triplet_tomb_.size() && elabel_triplet_tomb_.get(index)) {
     elabel_triplet_tomb_.reset(index);
+  }
+  if (elabel_tomb_.get(edge)) {
+    elabel_tomb_.reset(edge);
   }
 }
 

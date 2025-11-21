@@ -249,7 +249,9 @@ class Schema {
 
   void DeleteVertexLabel(const std::string& label, bool is_soft = false);
 
-  void RevertDeleteVertexLabel(label_t label);
+  void DeleteVertexLabel(label_t label, bool is_soft = false);
+
+  void RevertDeleteVertexLabel(const std::string& label);
 
   void DeleteEdgeLabel(const std::string& label, bool is_soft = false);
 
@@ -261,8 +263,8 @@ class Schema {
   void DeleteEdgeLabel(const std::string& src, const std::string& dst,
                        const std::string& edge, bool is_soft = false);
 
-  void RevertDeleteEdgeLabel(const label_t& src, const label_t& dst,
-                             const label_t& edge);
+  void RevertDeleteEdgeLabel(const std::string& src, const std::string& dst,
+                             const std::string& edge);
 
   void AddVertexProperties(const std::string& label,
                            std::vector<std::string>& properties_names,

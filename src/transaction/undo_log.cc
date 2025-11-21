@@ -45,8 +45,8 @@ void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for RemoveVertex is not implemented yet.");
+  assert(graph.schema().vertex_label_valid(v_label));
+  graph.get_vertex_table(v_label).RevertDeleteVertex(lid, ts);
 };
 
 void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
@@ -85,13 +85,33 @@ void DeleteEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void DeleteVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for DeleteVertexType is not implemented yet.");
+  if (graph.schema().contains_vertex_label(v_label)) {
+    THROW_RUNTIME_ERROR("Cannot undo DeleteVertexType for vertex label " +
+                        v_label + " since it does  exist.");
+  }
+  if (!graph.schema().IsVertexLabelSoftDeleted(v_label)) {
+    THROW_RUNTIME_ERROR("Cannot undo DeleteVertexType for vertex label " +
+                        v_label + " since it is not soft deleted.");
+  }
+  graph.mutable_schema().RevertDeleteVertexLabel(v_label);
+  // No need to do with the vertex tables and edge tables, they are only marked
+  // as deleted in txn.
 };
 
 void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for DeleteEdgeType is not implemented yet.");
+  if (graph.schema().exist(src_label, dst_label, edge_label)) {
+    THROW_RUNTIME_ERROR("Cannot undo DeleteEdgeType for edge label " +
+                        edge_label + " since it exists.");
+  }
+  if (!graph.schema().IsEdgeLabelSoftDeleted(src_label, dst_label,
+                                             edge_label)) {
+    THROW_RUNTIME_ERROR("Cannot undo DeleteEdgeType for edge label " +
+                        edge_label + " since it is not soft deleted.");
+  }
+  graph.mutable_schema().RevertDeleteEdgeLabel(src_label, dst_label,
+                                               edge_label);
+  // No need to do with the vertex tables and edge tables, they are only marked
+  // as deleted in txn.
 };
 
 }  // namespace gs

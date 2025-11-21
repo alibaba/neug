@@ -99,8 +99,9 @@ bool UpdateTransaction::Commit() {
   }
 
   applyEdgesUpdates();
-  applyVertexTypeDeletions();
+  // Should delete edge types before vertex types
   applyEdgeTypeDeletions();
+  applyVertexTypeDeletions();
   release();
   return true;
 }
@@ -178,7 +179,6 @@ bool UpdateTransaction::CreateEdgeType(
 }
 
 bool UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
-                                         bool is_detach,
                                          bool error_on_conflict) {
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name << " does not exist.";
@@ -200,17 +200,11 @@ bool UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
   deleted_vertex_labels_.emplace(v_label);
   for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
     for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
-      if (graph_.schema().exist(
-              vertex_type_name,
-              graph_.schema().get_vertex_label_name(dst_label),
-              graph_.schema().get_edge_label_name(edge_label))) {
+      if (graph_.schema().exist(v_label, dst_label, edge_label)) {
         deleted_edge_labels_.emplace(
             std::make_tuple(v_label, dst_label, edge_label));
       }
-      if (graph_.schema().exist(
-              graph_.schema().get_vertex_label_name(dst_label),
-              vertex_type_name,
-              graph_.schema().get_edge_label_name(edge_label))) {
+      if (graph_.schema().exist(dst_label, v_label, edge_label)) {
         deleted_edge_labels_.emplace(
             std::make_tuple(dst_label, v_label, edge_label));
       }
@@ -295,6 +289,26 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
     return false;
   }
   undo_logs_.push(std::make_unique<InsertVertexUndo>(label, vid));
+  return true;
+}
+
+bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
+  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
+  if (!graph_.IsValidLid(label, lid, timestamp_)) {
+    THROW_RUNTIME_ERROR("Vertex id is out of range or already deleted");
+  }
+  auto oid = graph_.GetOid(label, lid, timestamp_);
+  RemoveVertexRedo::Serialize(arc_, label, oid);
+  op_num_ += 1;
+  undo_logs_.push(std::make_unique<RemoveVertexUndo>(label, lid));
+  auto status = graph_.DeleteVertex(label, lid, timestamp_);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to delete vertex of label "
+               << graph_.schema().get_vertex_label_name(label) << ": "
+               << status.ToString();
+    undo_logs_.pop();
+    return false;
+  }
   return true;
 }
 
@@ -718,7 +732,18 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   while (!arc.Empty()) {
     OpType op_type;
     arc >> op_type;
-    if (op_type == OpType::kInsertVertex) {
+    if (op_type == OpType::kCreateVertexType) {
+      CreateVertexTypeRedo redo;
+      arc >> redo;
+      graph.CreateVertexType(redo.vertex_type, redo.properties,
+                             redo.primary_key_names, true);
+    } else if (op_type == OpType::kCreateEdgeType) {
+      CreateEdgeTypeRedo redo;
+      arc >> redo;
+      graph.CreateEdgeType(redo.src_type, redo.dst_type, redo.edge_type,
+                           redo.properties, true, redo.oe_edge_strategy,
+                           redo.ie_edge_strategy);
+    } else if (op_type == OpType::kInsertVertex) {
       InsertVertexRedo redo;
       arc >> redo;
       vid_t vid;
@@ -789,6 +814,20 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
         }
         ++it;
       }
+    } else if (op_type == OpType::kRemoveVertex) {
+      RemoveVertexRedo redo;
+      arc >> redo;
+      vid_t vid;
+      CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
+      graph.DeleteVertex(redo.label, vid, timestamp);
+    } else if (op_type == OpType::kDeleteVertexType) {
+      DeleteVertexTypeRedo redo;
+      arc >> redo;
+      graph.DeleteVertexType(redo.vertex_type);
+    } else if (op_type == OpType::kDeleteEdgeType) {
+      DeleteEdgeTypeRedo redo;
+      arc >> redo;
+      graph.DeleteEdgeType(redo.src_type, redo.dst_type, redo.edge_type);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unexpected op_type: " +
                                     std::to_string(static_cast<int>(op_type)));
@@ -851,10 +890,9 @@ void UpdateTransaction::release() {
 
 void UpdateTransaction::applyVertexTypeDeletions() {
   for (auto label : deleted_vertex_labels_) {
-    auto label_name = graph_.schema().get_vertex_label_name(label);
-    auto status = graph_.DeleteVertexType(label_name, true);
+    auto status = graph_.DeleteVertexType(label, true);
     if (!status.ok()) {
-      LOG(ERROR) << "Failed to delete vertex type " << label_name << ": "
+      LOG(ERROR) << "Failed to delete vertex type " << (int32_t) label << ": "
                  << status.ToString();
     }
   }
@@ -863,14 +901,8 @@ void UpdateTransaction::applyVertexTypeDeletions() {
 
 void UpdateTransaction::applyEdgeTypeDeletions() {
   for (auto& triple : deleted_edge_labels_) {
-    auto src_label_name =
-        graph_.schema().get_vertex_label_name(std::get<0>(triple));
-    auto dst_label_name =
-        graph_.schema().get_vertex_label_name(std::get<1>(triple));
-    auto edge_label_name =
-        graph_.schema().get_edge_label_name(std::get<2>(triple));
-    auto status = graph_.DeleteEdgeType(src_label_name, dst_label_name,
-                                        edge_label_name, true);
+    auto status = graph_.DeleteEdgeType(
+        std::get<0>(triple), std::get<1>(triple), std::get<2>(triple));
     if (!status.ok()) {
       LOG(ERROR) << "Failed to delete edge type (" << std::get<0>(triple)
                  << ", " << std::get<1>(triple) << ", " << std::get<2>(triple)

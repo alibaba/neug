@@ -341,13 +341,12 @@ TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
-  auto city_label = schema.get_vertex_label_id("City");
 
   schema.DeleteVertexLabel("City", true);
   EXPECT_FALSE(schema.contains_vertex_label("City"));
 
   // When implemented, this should restore visibility
-  schema.RevertDeleteVertexLabel(city_label);
+  schema.RevertDeleteVertexLabel("City");
   EXPECT_TRUE(schema.contains_vertex_label("City"));
 }
 
@@ -397,7 +396,7 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
   schema.DeleteEdgeLabel(src, dst, el, true);
   EXPECT_FALSE(schema.edge_triplet_valid(src, dst, el));
 
-  schema.RevertDeleteEdgeLabel(src, dst, el);
+  schema.RevertDeleteEdgeLabel("A", "B", "Link");
   EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
 }
 
@@ -568,7 +567,7 @@ TEST_F(SchemaDeleteTest, VertexLabelLogicalDelete) {
   EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("company"));
 
   // Revert the deletion
-  schema_->RevertDeleteVertexLabel(person_label);
+  schema_->RevertDeleteVertexLabel("person");
 
   // Check that "person" is no longer logically deleted
   EXPECT_FALSE(schema_->IsVertexLabelSoftDeleted("person"));
@@ -595,7 +594,7 @@ TEST_F(SchemaDeleteTest, EdgeLabelLogicalDelete) {
   EXPECT_FALSE(schema_->IsEdgeLabelSoftDeleted("person", "company", "worksAt"));
 
   // Revert the deletion
-  schema_->RevertDeleteEdgeLabel(person_label, person_label, knows_label);
+  schema_->RevertDeleteEdgeLabel("person", "person", "knows");
 
   // Check that "knows" is no longer logically deleted
   EXPECT_FALSE(schema_->IsEdgeLabelSoftDeleted("person", "person", "knows"));

@@ -177,12 +177,6 @@ void NeugDB::Close() {
   // -----------Clear graph_db----------------
   if (config_.checkpoint_on_close) {
     createCheckpoint();
-  } else {
-    // If not checkpoint_on_close is off, then we need to recover from the WAL
-    // files next time. It is ok for insert and update vertices and edges, but
-    // currently DDL operations are not writen into WAL. So currently we just
-    // dump the schema to disk
-    graph_.DumpSchema();
   }
   graph_.Clear();
   if (version_manager_) {

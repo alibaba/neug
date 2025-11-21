@@ -653,17 +653,13 @@ Status PropertyGraph::RevertDeleteEdgeProperties(
 
 Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
                                        bool error_on_conflict) {
-  auto status = vertex_label_check(vertex_type_name);
-  if (!status.ok()) {
-    if (error_on_conflict) {
-      return status;
-    } else {
-      return gs::Status::OK();
-    }
-  }
   label_t v_label_id = schema_.get_vertex_label_id_internal(vertex_type_name);
+  return DeleteVertexType(v_label_id, error_on_conflict);
+}
 
-  schema_.DeleteVertexLabel(vertex_type_name);
+Status PropertyGraph::DeleteVertexType(label_t v_label_id,
+                                       bool error_on_conflict) {
+  schema_.DeleteVertexLabel(v_label_id, false);
   vertex_tables_[v_label_id].Drop();
 
   for (label_t i = 0; i < vertex_label_num_; i++) {
@@ -698,15 +694,18 @@ Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
                                      const std::string& dst_vertex_type,
                                      const std::string& edge_type,
                                      bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(
-      edge_triplet_exist(src_vertex_type, dst_vertex_type, edge_type),
-      error_on_conflict);
   label_t src_v_label = schema_.get_vertex_label_id_internal(src_vertex_type);
   label_t dst_v_label = schema_.get_vertex_label_id_internal(dst_vertex_type);
-  label_t edge_label = schema_.get_edge_label_id(edge_type);
+  label_t edge_label = schema_.get_edge_label_id_internal(edge_type);
+  return DeleteEdgeType(src_v_label, dst_v_label, edge_label,
+                        error_on_conflict);
+}
+Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
+                                     label_t edge_label,
+                                     bool error_on_conflict) {
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
-  schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label);
+  schema_.DeleteEdgeLabel(src_v_label, dst_v_label, edge_label, false);
   if (edge_tables_.count(index) > 0) {
     edge_tables_.erase(index);
   }
@@ -743,6 +742,8 @@ Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
 
 Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
   vertex_tables_.at(label).DeleteVertex(lid, ts);
+  // TODO(zhanglei): Delete the edges starting from or end to lid in the
+  // related edge tables. issue 1132
   return Status::OK();
 }
 
@@ -777,6 +778,7 @@ void PropertyGraph::DumpSchema() {
     return;
   }
   write_yaml_file(schema_res.value(), filename);
+  LOG(INFO) << "Dump schema to yaml file: " << filename;
 }
 
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
@@ -858,6 +860,9 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
       std::string dst_label =
           schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_num_; ++e_label_i) {
+        if (!schema_.edge_label_valid(e_label_i)) {
+          continue;
+        }
         std::string edge_label =
             schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
         if (!schema_.exist(src_label, dst_label, edge_label)) {
@@ -1100,6 +1105,9 @@ std::string PropertyGraph::get_statistics_json() const {
     edge_count_map.emplace(iter.first, iter.second.EdgeNum());
   }
   for (label_t edge_label = 0; edge_label < edge_label_num_; ++edge_label) {
+    if (!schema_.edge_label_valid(edge_label)) {
+      continue;
+    }
     auto edge_label_name = schema_.get_edge_label_name(edge_label);
     rapidjson::Value edge_type_stat(rapidjson::kObjectType);
     edge_type_stat.AddMember(

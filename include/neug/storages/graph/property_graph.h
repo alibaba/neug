@@ -178,10 +178,15 @@ class PropertyGraph {
   Status DeleteVertexType(const std::string& vertex_type_name,
                           bool error_on_conflict = true);
 
+  Status DeleteVertexType(label_t label, bool error_on_conflict = true);
+
   Status DeleteEdgeType(const std::string& src_vertex_type,
                         const std::string& dst_vertex_type,
                         const std::string& edge_type_name,
                         bool error_on_conflict = true);
+
+  Status DeleteEdgeType(label_t src_label, label_t dst_label,
+                        label_t edge_label, bool error_on_conflict = true);
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
@@ -294,6 +299,10 @@ class PropertyGraph {
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
         schema_.generate_edge_label(v_label, neighbor_label, edge_label);
+    if (edge_tables_.count(index) == 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
     return edge_tables_.at(index).get_outgoing_view(ts);
   }
 
@@ -302,6 +311,10 @@ class PropertyGraph {
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
     size_t index =
         schema_.generate_edge_label(neighbor_label, v_label, edge_label);
+    if (edge_tables_.count(index) == 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
     return edge_tables_.at(index).get_incoming_view(ts);
   }
 

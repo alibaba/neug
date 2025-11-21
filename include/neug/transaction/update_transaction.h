@@ -158,8 +158,8 @@ class UpdateTransaction {
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy);
 
-  bool DeleteVertexType(const std::string& vertex_type_name, bool is_detach,
-                        bool error_on_conflict);
+  bool DeleteVertexType(const std::string& vertex_type_name,
+                        bool error_on_conflict = true);
 
   bool DeleteEdgeType(const std::string& src_type, const std::string& dst_type,
                       const std::string& edge_type, bool error_on_conflict);
@@ -169,6 +169,8 @@ class UpdateTransaction {
 
   bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props, vid_t& vid);
+
+  bool DeleteVertex(label_t label, vid_t lid);
 
   bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
                const Property& dst, label_t edge_label,

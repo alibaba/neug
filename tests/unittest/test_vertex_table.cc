@@ -66,6 +66,31 @@ class VertexTableTest : public ::testing::Test {
     }
   }
 
+  std::vector<std::shared_ptr<arrow::RecordBatch>> generate_record_batches(
+      size_t num_vertices) {
+    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+
+    std::vector<int64_t> oid_values;
+    std::vector<std::string> name_values;
+    std::vector<int32_t> age_values;
+    std::vector<double> score_values;
+    for (int64_t i = 0; i < num_vertices; ++i) {
+      oid_values.push_back(i);
+      name_values.push_back("name_" + std::to_string(i));
+      age_values.push_back(static_cast<int32_t>(20 + (i % 30)));
+      score_values.push_back(50.0 + (i % 50));
+    }
+    auto oid_array = convert_to_arrow_arrays(oid_values, 10);
+    auto name_array = convert_to_arrow_arrays(name_values, 10);
+    auto age_array = convert_to_arrow_arrays(age_values, 10);
+    auto score_array = convert_to_arrow_arrays(score_values, 10);
+
+    auto record_batches = convert_to_record_batches(
+        {"id", "name", "age", "score"},
+        {oid_array, name_array, age_array, score_array});
+    return record_batches;
+  }
+
   std::string dir_;
   int32_t memory_level_;
   std::string v_label_name_;
@@ -710,28 +735,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   gs::VertexTable table(v_label_name_, pk_type_,
                         schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
-
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
-
-  std::vector<int64_t> oid_values;
-  std::vector<std::string> name_values;
-  std::vector<int32_t> age_values;
-  std::vector<double> score_values;
-  for (int64_t i = 0; i < 10000; ++i) {
-    oid_values.push_back(i);
-    name_values.push_back("name_" + std::to_string(i));
-    age_values.push_back(static_cast<int32_t>(20 + (i % 30)));
-    score_values.push_back(50.0 + (i % 50));
-  }
-  auto oid_array = convert_to_arrow_arrays(oid_values, 10);
-  auto name_array = convert_to_arrow_arrays(name_values, 10);
-  auto age_array = convert_to_arrow_arrays(age_values, 10);
-  auto score_array = convert_to_arrow_arrays(score_values, 10);
-
-  auto record_batches = convert_to_record_batches(
-      {"id", "name", "age", "score"},
-      {oid_array, name_array, age_array, score_array});
-
+  auto record_batches = generate_record_batches(10000);
   std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier =
       std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
   table.insert_vertices(batch_supplier);
@@ -796,7 +800,6 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
   EXPECT_EQ(vts.ValidVertexNum(1, 50), 48);
 }
 
-// TODO: Add test to test GetVertexSet, and foreach_vertex method for VertexSet
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
   gs::VertexTable table(v_label_name_, pk_type_,
                         schema_.get_vertex_schema(v_label_id_));

@@ -93,6 +93,66 @@ class UpdateTransactionTest : public ::testing::Test {
     }
     return edge_count;
   }
+
+  size_t count_edges(const gs::ReadTransaction& txn, gs::label_t src_label,
+                     gs::label_t neighbor_label, gs::label_t edge_label,
+                     bool oe) {
+    size_t edge_count = 0;
+    auto view = oe ? txn.GetGenericOutgoingGraphView(src_label, neighbor_label,
+                                                     edge_label)
+                   : txn.GetGenericIncomingGraphView(src_label, neighbor_label,
+                                                     edge_label);
+    auto v_set = txn.GetVertexSet(src_label);
+    v_set.foreach_vertex([&](gs::vid_t vid) {
+      auto edge_iter = view.get_edges(vid);
+      for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+        edge_count++;
+      }
+    });
+    return edge_count;
+  }
+
+  void create_new_edge_type(gs::UpdateTransaction& txn, gs::label_t& cmp_label,
+                            gs::label_t& dev_label, gs::label_t& employ_label) {
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        edge_props = {std::make_tuple(gs::PropertyType::Double(), "rating",
+                                      gs::Property::from_double(0.0)),
+                      std::make_tuple(gs::PropertyType::Int64(), "year",
+                                      gs::Property::from_int64(2000))};
+    EXPECT_TRUE(txn.CreateEdgeType(
+        "person", "software", "developed", edge_props, true,
+        gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple));
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        v_props = {std::make_tuple(gs::PropertyType::Int64(), "id",
+                                   gs::Property::from_int64(0)),
+                   std::make_tuple(gs::PropertyType::StringView(), "name",
+                                   gs::Property::from_string(""))};
+    EXPECT_TRUE(txn.CreateVertexType("company", v_props, {"id"}, true));
+    EXPECT_TRUE(txn.CreateEdgeType("person", "company", "employed_by", {}, true,
+                                   gs::EdgeStrategy::kMultiple,
+                                   gs::EdgeStrategy::kMultiple));
+    employ_label = txn.schema().get_edge_label_id("employed_by");
+    cmp_label = txn.schema().get_vertex_label_id("company");
+    dev_label = txn.schema().get_edge_label_id("developed");
+    EXPECT_TRUE(txn.AddVertex(cmp_label, gs::Property::from_int64(1),
+                              {gs::Property::from_string("TechCorp")}));
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    gs::vid_t software_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(software_label, gs::Property::from_int64(1),
+                                   software_vid));
+    gs::vid_t cmp_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(cmp_label, gs::Property::from_int64(1), cmp_vid));
+    EXPECT_TRUE(txn.AddEdge(
+        person_label, p1_vid, software_label, software_vid, dev_label,
+        {gs::Property::from_double(4.5), gs::Property::from_int64(2023)}));
+    EXPECT_TRUE(txn.AddEdge(person_label, p1_vid, cmp_label, cmp_vid,
+                            employ_label, {}));
+  }
 };
 
 TEST_F(UpdateTransactionTest, AddVertex) {
@@ -395,23 +455,17 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  LOG(INFO) << "Open DB done";
   db.SwitchToTPMode();
-  LOG(INFO) << "Switch to TP mode done";
   {
-    LOG(INFO) << "Test AddEdgeAbort";
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
-    LOG(INFO) << "Get labels done";
     EXPECT_TRUE(txn.AddEdge(
         person_label, gs::Property::from_int64(2), software_label,
         gs::Property::from_int64(1), created_label,
         {gs::Property::from_double(0.8), gs::Property::from_int64(2021)}));
-    LOG(INFO) << "AddEdge done";
     txn.Abort();
-    LOG(INFO) << "Abort done";
   }
   {
     auto txn = db.GetReadTransaction();
@@ -660,4 +714,262 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     EXPECT_EQ(edge_count, 1);
   }
   db.Close();
+}
+
+TEST_F(UpdateTransactionTest, DeleteVertex) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                             vertex_id));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, vertex_id));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 1);
+    gs::vid_t vertex_id;
+    EXPECT_FALSE(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                                    vertex_id));
+    EXPECT_EQ(
+        count_edges(txn, person_label, software_label, created_label, true), 1);
+    // TODO(zhanglei): comment out this line when issue #1132 is solved.
+    // EXPECT_EQ(
+    //     count_edges(txn, software_label, person_label, created_label, false),
+    //     1);
+  }
+  {
+    // Delete person label and then delete vertex should throw
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.DeleteVertexType("person"));
+    gs::vid_t vertex_id;
+    EXPECT_THROW(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                                    vertex_id),
+                 gs::exception::Exception);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                             vertex_id));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, vertex_id));
+    EXPECT_TRUE(txn.AddVertex(
+        person_label, gs::Property::from_int64(3),
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 2);
+    gs::vid_t vertex_id;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                                   vertex_id));
+    EXPECT_FALSE(txn.GetVertexIndex(person_label, gs::Property::from_int64(3),
+                                    vertex_id));
+  }
+  {
+    // Add again
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.AddVertex(
+        person_label, gs::Property::from_int64(3),
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    gs::vid_t vertex_id;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(3),
+                                   vertex_id));
+    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  gs::label_t dev_label, employ_label, cmp_label;
+  {
+    auto txn = db.GetUpdateTransaction();
+    create_new_edge_type(txn, cmp_label, dev_label, employ_label);
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_THROW(txn.schema().get_edge_label_id("developed"),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.schema().get_edge_label_id("employed_by"),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.schema().get_vertex_label_id("company"),
+                 gs::exception::Exception);
+    EXPECT_FALSE(
+        txn.schema().has_edge_label("person", "company", "employed_by"));
+    EXPECT_THROW(
+        txn.GetGenericOutgoingGraphView(person_label, cmp_label, employ_label),
+        gs::exception::Exception);
+    EXPECT_THROW(txn.GetGenericOutgoingGraphView(person_label, software_label,
+                                                 dev_label),
+                 gs::exception::Exception);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
+  GTEST_SKIP() << "Enable this test after in-place AddEdge is supported";
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  gs::label_t dev_label, employ_label, cmp_label;
+  {
+    auto txn = db.GetUpdateTransaction();
+    create_new_edge_type(txn, cmp_label, dev_label, employ_label);
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.schema().get_edge_label_id("developed"), dev_label);
+    EXPECT_EQ(txn.schema().get_edge_label_id("employed_by"), employ_label);
+    EXPECT_EQ(txn.schema().get_vertex_label_id("company"), cmp_label);
+    EXPECT_EQ(count_edges(txn, person_label, software_label, dev_label, true),
+              1);
+    EXPECT_EQ(count_edges(txn, person_label, cmp_label, employ_label, true), 1);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_TRUE(txn.DeleteEdgeType("person", "software", "created", true));
+    EXPECT_FALSE(txn.schema().edge_triplet_valid(person_label, software_label,
+                                                 created_label));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_TRUE(txn.schema().exist("person", "software", "created"));
+    EXPECT_TRUE(txn.schema().edge_triplet_valid(person_label, software_label,
+                                                created_label));
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, TestReplayWal) {
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  config.checkpoint_on_close = false;
+  config.compact_on_close = false;
+  {
+    gs::NeugDB db;
+    db.Open(config);
+    db.SwitchToTPMode();
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.AddVertex(
+        person_label, gs::Property::from_int64(3),
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+    EXPECT_TRUE(txn.CreateVertexType(
+        "company",
+        {std::make_tuple(gs::PropertyType::Int64(), "id",
+                         gs::Property::from_int64(0)),
+         std::make_tuple(gs::PropertyType::StringView(), "name",
+                         gs::Property::from_string(""))},
+        {"id"}, true));
+    EXPECT_TRUE(txn.CreateEdgeType("person", "company", "employed_by", {}, true,
+                                   gs::EdgeStrategy::kMultiple,
+                                   gs::EdgeStrategy::kMultiple));
+    EXPECT_TRUE(txn.DeleteEdgeType("person", "software", "created", true));
+    EXPECT_TRUE(txn.DeleteVertexType("software"));
+    gs::vid_t src_p, dst_p;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), src_p));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_p));
+
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, src_p, 1,
+                                         gs::Property::from_int64(29)));
+    txn.SetEdgeData(true, person_label, src_p, person_label, dst_p,
+                    txn.schema().get_edge_label_id("knows"),
+                    gs::Property::from_double(0.5), 0);
+    EXPECT_TRUE(txn.Commit());
+    db.Close();
+  }
+  {
+    gs::NeugDB db;
+    db.Open(config);
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    gs::vid_t src_p, dst_p;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), src_p));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_p));
+    auto vprop_accessor = txn.get_vertex_property_column(person_label, "age");
+    EXPECT_EQ(vprop_accessor->get(src_p).as_int64(), 29);
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    auto ed_accessor =
+        txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
+    auto view = txn.GetGenericOutgoingGraphView(person_label, person_label,
+                                                knows_label);
+    auto edge_iter = view.get_edges(src_p);
+    bool found = false;
+    for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+      if (it.get_vertex() == dst_p) {
+        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.5);
+        found = true;
+      }
+    }
+    EXPECT_TRUE(found);
+    EXPECT_FALSE(txn.schema().contains_vertex_label("software"));
+    EXPECT_TRUE(txn.schema().contains_vertex_label("company"));
+    EXPECT_FALSE(txn.schema().contains_edge_label("created"));
+    EXPECT_TRUE(txn.schema().contains_edge_label("employed_by"));
+    txn.Commit();
+    db.Close();
+  }
 }
