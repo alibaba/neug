@@ -25,11 +25,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/property/types.h"
-#ifdef USE_SYSTEM_PROTOBUF
-#include "neug/generated/proto/plan/physical.pb.h"
-#else
-#include "neug/utils/proto/plan/physical.pb.h"
-#endif
 
 namespace gs {
 namespace extension {
@@ -83,25 +78,24 @@ struct JsonScanFunction {
     std::vector<std::string> detectedColumnNames;
   };
 
-  static AutoDetectResult autoDetect(
-      const std::string& filePath,
-      common::VirtualFileSystem* vfs,
-      size_t maxRowsToDetect = 2048);
-  
-  static JsonFormat detectFormatFromBuffer(uint8_t* bufferPtr, uint64_t bufferSize);
-  static void skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset, const uint64_t& bufferSize);
+  static AutoDetectResult autoDetect(const std::string& filePath,
+                                     common::VirtualFileSystem* vfs,
+                                     size_t maxRowsToDetect = 2048);
+
+  static JsonFormat detectFormatFromBuffer(uint8_t* bufferPtr,
+                                           uint64_t bufferSize);
+  static void skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset,
+                             const uint64_t& bufferSize);
   static const uint8_t* nextNewLine(const uint8_t* ptr, uint64_t size);
-  static const uint8_t* findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size, uint64_t& lineCountInJson);
+  static const uint8_t* findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size,
+                                              uint64_t& lineCountInJson);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFileStreaming(
-      const std::string& filePath,
-      const std::vector<PropertyType>& columnTypes,
-      common::VirtualFileSystem* vfs,
-      JsonFormat format);
+      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
+      common::VirtualFileSystem* vfs, JsonFormat format);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
-      const std::string& filePath, 
-      const std::vector<PropertyType>& columnTypes,
+      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
       common::VirtualFileSystem* vfs);
 };
 
