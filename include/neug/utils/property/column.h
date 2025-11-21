@@ -469,8 +469,14 @@ std::shared_ptr<ColumnBase> CreateColumn(
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {
  public:
+  enum class ColType {
+    kInternal,
+    kExternal,
+  };
   virtual ~RefColumnBase() {}
   virtual Property get(size_t index) const = 0;
+  virtual PropertyType type() const = 0;
+  virtual ColType col_type() const = 0;
 };
 
 // Different from TypedColumn, RefColumn is a wrapper of mmap_array
@@ -479,12 +485,8 @@ class TypedRefColumn : public RefColumnBase {
  public:
   using value_type = T;
 
-  TypedRefColumn(const mmap_array<T>& buffer, StorageStrategy strategy)
-      : basic_buffer(buffer), basic_size(0), strategy_(strategy) {}
   explicit TypedRefColumn(const TypedColumn<T>& column)
-      : basic_buffer(column.buffer()),
-        basic_size(column.buffer_size()),
-        strategy_(column.storage_strategy()) {}
+      : basic_buffer(column.buffer()), basic_size(column.buffer_size()) {}
   ~TypedRefColumn() {}
 
   inline T get_view(size_t index) const {
@@ -492,24 +494,23 @@ class TypedRefColumn : public RefColumnBase {
     return basic_buffer.get(index);
   }
 
-  size_t size() const { return basic_size; }
-
   Property get(size_t index) const override {
     return PropUtils<T>::to_prop(get_view(index));
   }
 
+  PropertyType type() const override { return PropUtils<T>::prop_type(); }
+
+  ColType col_type() const override { return ColType::kInternal; }
+
  private:
   const mmap_array<T>& basic_buffer;
   size_t basic_size;
-
-  StorageStrategy strategy_;
 };
 
 // Create a reference column from a ColumnBase that contains a const reference
 // to the actual column storage, offering a column-based store interface for
 // vertex properties.
-std::shared_ptr<RefColumnBase> CreateRefColumn(
-    std::shared_ptr<ColumnBase> column);
+std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column);
 
 }  // namespace gs
 

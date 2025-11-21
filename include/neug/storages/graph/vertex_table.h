@@ -156,35 +156,17 @@ class VertexTable {
   IndexerType& get_indexer() { return indexer_; }
   const IndexerType& get_indexer() const { return indexer_; }
 
-  inline std::shared_ptr<RefColumnBase> GetVertexIdColumn() const {
-    if (indexer_.get_type() == PropertyType::kInt64) {
-      return std::make_shared<TypedRefColumn<int64_t>>(
-          dynamic_cast<const TypedColumn<int64_t>&>(indexer_.get_keys()));
-    } else if (indexer_.get_type() == PropertyType::kInt32) {
-      return std::make_shared<TypedRefColumn<int32_t>>(
-          dynamic_cast<const TypedColumn<int32_t>&>(indexer_.get_keys()));
-    } else if (indexer_.get_type() == PropertyType::kUInt64) {
-      return std::make_shared<TypedRefColumn<uint64_t>>(
-          dynamic_cast<const TypedColumn<uint64_t>&>(indexer_.get_keys()));
-    } else if (indexer_.get_type() == PropertyType::kUInt32) {
-      return std::make_shared<TypedRefColumn<uint32_t>>(
-          dynamic_cast<const TypedColumn<uint32_t>&>(indexer_.get_keys()));
-    } else if (indexer_.get_type() == PropertyType::kStringView) {
-      return std::make_shared<TypedRefColumn<std::string_view>>(
-          dynamic_cast<const TypedColumn<std::string_view>&>(
-              indexer_.get_keys()));
-    } else {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "Only (u)int64/32 and string_view types for pk are supported, but "
-          "got: " +
-          indexer_.get_type().ToString());
+  inline std::shared_ptr<RefColumnBase> GetPropertyColumn(
+      const std::string& prop) const {
+    auto pk = vertex_schema_->primary_keys[0];
+    if (prop == std::get<1>(pk)) {
+      return CreateRefColumn(indexer_.get_keys());
+    }
+    auto ptr = table_->get_column(prop);
+    if (ptr == nullptr) {
       return nullptr;
     }
-  }
-
-  inline std::shared_ptr<ColumnBase> get_property_column(
-      const std::string& prop) const {
-    return table_->get_column(prop);
+    return CreateRefColumn(*ptr);
   }
 
   inline std::shared_ptr<ColumnBase> get_property_column(int32_t col_id) const {

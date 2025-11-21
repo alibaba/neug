@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "neug/execution/common/graph_interface.h"
 #include "neug/neug.h"
 #include "neug/transaction/update_transaction.h"
 
@@ -304,9 +305,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   }
   {
     auto txn = db.GetReadTransaction();
+    gs::runtime::GraphReadInterface gi(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
-    auto vprop_accessor =
-        txn.get_vertex_ref_property_column<int64_t>(person_label, "age");
+    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
       auto oid = txn.GetVertexId(person_label, vid);
       if (oid.as_int64() == 2) {
@@ -452,9 +453,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
+    gs::runtime::GraphReadInterface gi(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
-    auto vprop_accessor =
-        txn.get_vertex_ref_property_column<int64_t>(person_label, "age");
+    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
       auto oid = txn.GetVertexId(person_label, vid);
       if (oid.as_int64() == 2) {

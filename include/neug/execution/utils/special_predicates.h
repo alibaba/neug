@@ -303,14 +303,14 @@ class SLVertexPropertyGetter {
  public:
   SLVertexPropertyGetter(const GraphReadInterface& graph, label_t label,
                          const std::string& property_name) {
-    column_ = graph.GetVertexColumn<T>(label, property_name);
+    column_ = graph.GetVertexPropColumn<T>(label, property_name);
   }
   ~SLVertexPropertyGetter() = default;
 
-  inline T get(label_t label, vid_t v) const { return column_.get_view(v); }
+  inline T get(label_t label, vid_t v) const { return column_->get_view(v); }
 
  private:
-  GraphReadInterface::vertex_column_t<T> column_;
+  std::shared_ptr<GraphReadInterface::vertex_column_t<T>> column_;
 };
 
 template <typename T>
@@ -319,17 +319,17 @@ class MLVertexPropertyGetter {
   MLVertexPropertyGetter(const GraphReadInterface& graph,
                          const std::string& property_name) {
     for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
-      columns_.emplace_back(graph.GetVertexColumn<T>(i, property_name));
+      columns_.emplace_back(graph.GetVertexPropColumn<T>(i, property_name));
     }
   }
   ~MLVertexPropertyGetter() = default;
 
   inline T get(label_t label, vid_t v) const {
-    return columns_[label].get_view(v);
+    return columns_[label]->get_view(v);
   }
 
  private:
-  std::vector<GraphReadInterface::vertex_column_t<T>> columns_;
+  std::vector<std::shared_ptr<GraphReadInterface::vertex_column_t<T>>> columns_;
 };
 
 template <typename T>

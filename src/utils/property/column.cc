@@ -245,42 +245,41 @@ void TypedColumn<std::string_view>::set_value_safe(
   }
 }
 
-std::shared_ptr<RefColumnBase> CreateRefColumn(
-    std::shared_ptr<ColumnBase> column) {
-  auto type = column->type();
+std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
+  auto type = column.type();
   if (type == PropertyType::kBool) {
     return std::make_shared<TypedRefColumn<bool>>(
-        *std::dynamic_pointer_cast<TypedColumn<bool>>(column));
+        dynamic_cast<const TypedColumn<bool>&>(column));
   } else if (type == PropertyType::kInt32) {
     return std::make_shared<TypedRefColumn<int32_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<int32_t>>(column));
+        dynamic_cast<const TypedColumn<int32_t>&>(column));
   } else if (type == PropertyType::kInt64) {
     return std::make_shared<TypedRefColumn<int64_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<int64_t>>(column));
+        dynamic_cast<const TypedColumn<int64_t>&>(column));
   } else if (type == PropertyType::kUInt32) {
     return std::make_shared<TypedRefColumn<uint32_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<uint32_t>>(column));
+        dynamic_cast<const TypedColumn<uint32_t>&>(column));
   } else if (type == PropertyType::kUInt64) {
     return std::make_shared<TypedRefColumn<uint64_t>>(
-        *std::dynamic_pointer_cast<TypedColumn<uint64_t>>(column));
+        dynamic_cast<const TypedColumn<uint64_t>&>(column));
   } else if (type == PropertyType::kStringView || type.IsVarchar()) {
     return std::make_shared<TypedRefColumn<std::string_view>>(
-        *std::dynamic_pointer_cast<TypedColumn<std::string_view>>(column));
+        dynamic_cast<const TypedColumn<std::string_view>&>(column));
   } else if (type == PropertyType::kFloat) {
     return std::make_shared<TypedRefColumn<float>>(
-        *std::dynamic_pointer_cast<TypedColumn<float>>(column));
+        dynamic_cast<const TypedColumn<float>&>(column));
   } else if (type == PropertyType::kDouble) {
     return std::make_shared<TypedRefColumn<double>>(
-        *std::dynamic_pointer_cast<TypedColumn<double>>(column));
+        dynamic_cast<const TypedColumn<double>&>(column));
   } else if (type == PropertyType::kDate) {
     return std::make_shared<TypedRefColumn<Date>>(
-        *std::dynamic_pointer_cast<TypedColumn<Date>>(column));
+        dynamic_cast<const TypedColumn<Date>&>(column));
   } else if (type == PropertyType::kDateTime) {
     return std::make_shared<TypedRefColumn<DateTime>>(
-        *std::dynamic_pointer_cast<TypedColumn<DateTime>>(column));
+        dynamic_cast<const TypedColumn<DateTime>&>(column));
   } else if (type == PropertyType::kInterval) {
     return std::make_shared<TypedRefColumn<Interval>>(
-        *std::dynamic_pointer_cast<TypedColumn<Interval>>(column));
+        dynamic_cast<const TypedColumn<Interval>&>(column));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
                                   type.ToString());

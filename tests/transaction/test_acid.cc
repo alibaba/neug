@@ -24,6 +24,7 @@
 #include <tuple>
 #include <vector>
 #include "neug/config.h"
+#include "neug/execution/common/graph_interface.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/transaction/insert_transaction.h"
@@ -127,21 +128,33 @@ void neug_parallel_client(NeugDB& db, const FUNC_T& func) {
 }
 
 // Helper: get random vertex iterator
-bool neug_get_random_vertex(const ReadTransaction& txn, label_t label_id,
-                            vid_t& vid) {
-  vid_t vnum = txn.GetVertexNum(label_id);
-  if (vnum == 0) {
-    return false;
+bool neug_get_random_vertex(const gs::runtime::GraphReadInterface& txn,
+                            label_t label_id, vid_t& vid) {
+  auto vertex_set = txn.GetVertexSet(label_id);
+  int vnum = 0;
+  for ([[maybe_unused]] auto v : vertex_set) {
+    ++vnum;
   }
+  if (vnum == 0)
+    return false;
   std::random_device rand_dev;
   std::mt19937 gen(rand_dev());
   std::uniform_int_distribution<vid_t> dist(0, vnum - 1);
-  vid = dist(gen);
-  return true;
+  int picked = dist(gen);
+  auto v1 = txn.GetVertexSet(label_id);
+  for (auto v : vertex_set) {
+    if (picked == 0) {
+      vid = v;
+      return true;
+    }
+    --picked;
+  }
+  return false;
 }
 
-auto neug_get_random_vertex(UpdateTransaction& txn, label_t label_id) {
-  auto vertex_set = txn.GetVertexSet(label_id);
+auto neug_get_random_vertex(gs::runtime::GraphUpdateInterface& gi,
+                            label_t label_id) {
+  auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
   gs::vid_t vid = 0;
   for (auto v : vertex_set) {
@@ -155,7 +168,7 @@ auto neug_get_random_vertex(UpdateTransaction& txn, label_t label_id) {
   std::mt19937 gen(rand_dev());
   std::uniform_int_distribution<int> dist(0, num - 1);
   int picked = dist(gen);
-  auto v1 = txn.GetVertexSet(label_id);
+  auto v1 = gi.GetVertexSet(label_id);
   for (auto v : vertex_set) {
     if (picked == 0) {
       return v;
@@ -166,18 +179,18 @@ auto neug_get_random_vertex(UpdateTransaction& txn, label_t label_id) {
 }
 
 // Helper: append string to field
-void neug_append_string_to_field(UpdateTransaction& txn, label_t label,
-                                 gs::vid_t vit, int col_id,
+void neug_append_string_to_field(gs::runtime::GraphUpdateInterface& gui,
+                                 label_t label, gs::vid_t vit, int col_id,
                                  const std::string& str) {
   std::string cur_str =
-      std::string(txn.GetVertexProperty(label, vit, col_id).as_string_view());
+      std::string(gui.GetVertexProperty(label, vit, col_id).as_string_view());
   if (cur_str.empty())
     cur_str = str;
   else {
     cur_str += ";";
     cur_str += str;
   }
-  txn.UpdateVertexProperty(label, vit, col_id, Property::From(cur_str));
+  gui.UpdateVertexProperty(label, vit, col_id, Property::From(cur_str));
 }
 
 // Atomicity helpers and tests
@@ -198,6 +211,7 @@ void neug_AtomicityInit(NeugDB& db, const std::string& work_dir,
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   int64_t id1 = 1;
   std::string name1 = "Alice";
   std::string email1 = "alice@aol.com";
@@ -205,12 +219,12 @@ void neug_AtomicityInit(NeugDB& db, const std::string& work_dir,
   std::string name2 = "Bob";
   std::string email2 = "bob@hotmail.com;bobby@yahoo.com";
   vid_t vid;
-  EXPECT_TRUE(txn.AddVertex(
+  EXPECT_TRUE(gii.AddVertex(
       person_label_id, neug_generate_id(),
       {Property::from_int64(id1), Property::from_string_view(name1),
        Property::from_string_view(email1)},
       vid));
-  EXPECT_TRUE(txn.AddVertex(
+  EXPECT_TRUE(gii.AddVertex(
       person_label_id, neug_generate_id(),
       {Property::from_int64(id2), Property::from_string_view(name2),
        Property::from_string_view(email2)},
@@ -221,16 +235,17 @@ void neug_AtomicityInit(NeugDB& db, const std::string& work_dir,
 bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
-  auto vit = neug_get_random_vertex(txn, person_label_id);
-  int64_t p1_id = txn.GetVertexId(person_label_id, vit).as_int64();
-  neug_append_string_to_field(txn, person_label_id, vit, 2, new_email);
+  auto vit = neug_get_random_vertex(gui, person_label_id);
+  int64_t p1_id = gui.GetVertexId(person_label_id, vit).as_int64();
+  neug_append_string_to_field(gui, person_label_id, vit, 2, new_email);
   auto p2_id = neug_generate_id();
   std::string name = "", email = "";
   vid_t vid;
 
-  if (!txn.AddVertex(
+  if (!gui.AddVertex(
           person_label_id, p2_id,
           {Property::from_int64(person2_id), Property::from_string_view(name),
            Property::from_string_view(email)},
@@ -238,7 +253,7 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
     txn.Abort();
     return false;
   }
-  if (!txn.AddEdge(person_label_id, gs::Property::From(p1_id), person_label_id,
+  if (!gui.AddEdge(person_label_id, gs::Property::From(p1_id), person_label_id,
                    p2_id, knows_label_id, {Property::from_int64(since)})) {
     txn.Abort();
     return false;
@@ -250,11 +265,12 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
 bool neug_AtomicityRB(NeugDBSession& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
   UpdateTransaction txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  auto vit1 = neug_get_random_vertex(txn, person_label_id);
-  neug_append_string_to_field(txn, person_label_id, vit1, 2, new_email);
+  auto vit1 = neug_get_random_vertex(gui, person_label_id);
+  neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
   gs::vid_t vit2;
-  if (txn.GetVertexIndex(person_label_id, gs::Property::from_int64(person2_id),
+  if (gui.GetVertexIndex(person_label_id, gs::Property::from_int64(person2_id),
                          vit2)) {
     txn.Abort();
     return false;
@@ -262,7 +278,7 @@ bool neug_AtomicityRB(NeugDBSession& db, int64_t person2_id,
   auto p2_id = neug_generate_id();
   std::string name = "", email = "";
   vid_t vid;
-  EXPECT_TRUE(txn.AddVertex(
+  EXPECT_TRUE(gui.AddVertex(
       person_label_id, p2_id,
       {Property::from_int64(person2_id), Property::from_string_view(name),
        Property::from_string_view(email)},
@@ -284,12 +300,13 @@ int64_t neug_count_email_num(const std::string_view& sv) {
 
 std::pair<int64_t, int64_t> neug_AtomicityCheck(NeugDB& db) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   int64_t num_persons = 0, num_emails = 0;
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vprop_accessor =
-      txn.template get_vertex_ref_property_column<std::string_view>(
-          person_label_id, "emails");
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+      gi.GetVertexPropColumn<std::string_view>(person_label_id, "emails");
+  auto vset = gi.GetVertexSet(person_label_id);
+  for (vid_t lid : vset) {
     ++num_persons;
     num_emails += neug_count_email_num(vprop_accessor->get_view(lid));
   }
@@ -317,23 +334,24 @@ void G0Init(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
 
   std::string value = "0";
   for (int i = 0; i < 100; ++i) {
     auto p1_id = neug_generate_id();
     int64_t p1_id_property = 2 * i + 1;
     vid_t vid0, vid1;
-    CHECK(txn.AddVertex(person_label_id, p1_id,
+    CHECK(gii.AddVertex(person_label_id, p1_id,
                         {Property::from_int64(p1_id_property),
                          Property::from_string_view(value)},
                         vid0));
     auto p2_id = neug_generate_id();
     int64_t p2_id_property = 2 * i + 2;
-    CHECK(txn.AddVertex(person_label_id, p2_id,
+    CHECK(gii.AddVertex(person_label_id, p2_id,
                         {Property::from_int64(p2_id_property),
                          Property::from_string_view(value)},
                         vid1));
-    CHECK(txn.AddEdge(person_label_id, vid0, person_label_id, vid1,
+    CHECK(gii.AddEdge(person_label_id, vid0, person_label_id, vid1,
                       knows_label_id, {Property::from_string_view(value)}));
   }
   txn.Commit();
@@ -342,14 +360,15 @@ void G0Init(NeugDB& db, const std::string& work_dir, int thread_num) {
 void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
 
   gs::vid_t vit1;
-  const auto& vertex_set = txn.GetVertexSet(person_label_id);
+  const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person1_id) {
       vit1 = v;
       flag = true;
@@ -357,13 +376,13 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   CHECK(flag);
-  neug_append_string_to_field(txn, person_label_id, vit1, 1,
+  neug_append_string_to_field(gui, person_label_id, vit1, 1,
                               std::to_string(txn_id));
 
   gs::vid_t vit2;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person2_id) {
       vit2 = v;
       flag = true;
@@ -371,10 +390,10 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   CHECK(flag);
-  neug_append_string_to_field(txn, person_label_id, vit2, 1,
+  neug_append_string_to_field(gui, person_label_id, vit2, 1,
                               std::to_string(txn_id));
 
-  auto oeit = txn.GetOutEdgeIterator(person_label_id, vit1, person_label_id,
+  auto oeit = gui.GetOutEdgeIterator(person_label_id, vit1, person_label_id,
                                      knows_label_id, 0);
   while (oeit.IsValid()) {
     if (oeit.GetNeighbor() == vit2) {
@@ -406,14 +425,16 @@ std::tuple<std::string, std::string, std::string> G0Check(NeugDB& db,
   auto txn = db.GetReadTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
-  auto prop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "id2");
-  auto name_col = txn.template get_vertex_ref_property_column<std::string_view>(
-      person_label_id, "versionHistory");
+  gs::runtime::GraphReadInterface gi(txn);
+  auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id2");
+
+  auto name_col = gi.GetVertexPropColumn<std::string_view>(person_label_id,
+                                                           "versionHistory");
 
   std::string p1_version_history;
   vid_t vit1_index = 0;
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  auto vertex_set = gi.GetVertexSet(person_label_id);
+  for (vid_t lid : vertex_set) {
     if (prop_col->get(lid).as_int64() == person1_id) {
       vit1_index = lid;
       p1_version_history = std::string(name_col->get(lid).as_string_view());
@@ -424,7 +445,7 @@ std::tuple<std::string, std::string, std::string> G0Check(NeugDB& db,
   vid_t vit2_index = 0;
   std::string p2_version_history;
 
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  for (vid_t lid : vertex_set) {
     if (prop_col->get(lid).as_int64() == person2_id) {
       vit2_index = lid;
       p2_version_history = std::string(name_col->get(lid).as_string_view());
@@ -432,8 +453,8 @@ std::tuple<std::string, std::string, std::string> G0Check(NeugDB& db,
     }
   }
 
-  auto view = txn.GetGenericOutgoingGraphView(person_label_id, person_label_id,
-                                              knows_label_id);
+  auto view = gi.GetGenericOutgoingGraphView(person_label_id, person_label_id,
+                                             knows_label_id);
   auto oeit = view.get_edges(vit1_index);
   NbrIterator iter = oeit.begin();
   auto end = oeit.end();
@@ -442,8 +463,8 @@ std::tuple<std::string, std::string, std::string> G0Check(NeugDB& db,
       break;
     }
   }
-  auto ed_accessor = txn.GetEdgeDataAccessor(person_label_id, knows_label_id,
-                                             person_label_id, 0);
+  auto ed_accessor = gi.GetEdgeDataAccessor(person_label_id, knows_label_id,
+                                            person_label_id, 0);
 
   CHECK(iter != end);
   Property k_version_history_field = ed_accessor.get_data(iter);
@@ -469,11 +490,12 @@ void G1BInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
     vid_t vid;
-    CHECK(txn.AddVertex(
+    CHECK(gii.AddVertex(
         person_label_id, neug_generate_id(),
         {Property::from_int64(vertex_id_property), Property::from_int64(value)},
         vid));
@@ -483,21 +505,23 @@ void G1BInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
 void G1B1(NeugDBSession& db, int64_t even, int64_t odd) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  auto vit = neug_get_random_vertex(txn, person_label_id);
-  txn.UpdateVertexProperty(person_label_id, vit, 1, Property::From(even));
+  auto vit = neug_get_random_vertex(gui, person_label_id);
+  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From(even));
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
-  txn.UpdateVertexProperty(person_label_id, vit, 1, Property::From(odd));
+  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From(odd));
   txn.Commit();
 }
 
 int64_t G1B2(NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
+
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
-  CHECK(neug_get_random_vertex(txn, person_label_id, vid));
-  auto vprop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "version");
+  CHECK(neug_get_random_vertex(gi, person_label_id, vid));
+  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
   CHECK(vprop_col != nullptr);
   return vprop_col->get(vid).as_int64();
 }
@@ -518,11 +542,13 @@ void G1CInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
 
+  gs::runtime::GraphInsertInterface gii(txn);
+
   int64_t version_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
     vid_t vid;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
+    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
                         {Property::from_int64(id_property),
                          Property::from_int64(version_property)},
                         vid));
@@ -533,26 +559,27 @@ void G1CInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 int64_t G1C(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   gs::vid_t person1_vid;
   bool flag = false;
-  const auto& vertex_set = txn.GetVertexSet(person_label_id);
+  const auto& vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person2_id) {
       person1_vid = v;
       flag = true;
       break;
     }
   }
-  txn.UpdateVertexProperty(person_label_id, person1_vid, 1,
+  gui.UpdateVertexProperty(person_label_id, person1_vid, 1,
                            Property::From(txn_id));
 
   CHECK(flag);
   gs::vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person1_id) {
       person2_vid = v;
       flag = true;
@@ -560,7 +587,7 @@ int64_t G1C(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     }
   }
   int64_t ret =
-      txn.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
 
   txn.Commit();
 
@@ -582,11 +609,12 @@ void G1AInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   int64_t vertex_data = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
     vid_t vid;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
+    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
                         {Property::from_int64(vertex_id_property),
                          Property::from_int64(vertex_data)},
                         vid));
@@ -596,13 +624,14 @@ void G1AInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
 void G1A1(NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   // select a random person
-  auto vit = neug_get_random_vertex(txn, person_label_id);
+  auto vit = neug_get_random_vertex(gui, person_label_id);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
   // attempt to set version = 2
-  txn.UpdateVertexProperty(person_label_id, vit, 1, Property::From<int64_t>(2));
+  gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From<int64_t>(2));
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
   txn.Abort();
@@ -610,11 +639,12 @@ void G1A1(NeugDBSession& db) {
 
 int64_t G1A2(NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
+
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
-  CHECK(neug_get_random_vertex(txn, person_label_id, vid));
-  auto vprop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "version");
+  CHECK(neug_get_random_vertex(gi, person_label_id, vid));
+  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
   CHECK(vprop_col != nullptr);
   return vprop_col->get(vid).as_int64();
 }
@@ -649,24 +679,27 @@ void IMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 void IMP1(NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  auto vit = neug_get_random_vertex(txn, person_label_id);
+  gs::runtime::GraphUpdateInterface gui(txn);
+  auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
-      txn.GetVertexProperty(person_label_id, vit, 1).as_int64();
-  txn.UpdateVertexProperty(person_label_id, vit, 1,
+      gui.GetVertexProperty(person_label_id, vit, 1).as_int64();
+  gui.UpdateVertexProperty(person_label_id, vit, 1,
                            Property::From(old_version + 1));
   txn.Commit();
 }
 
 std::tuple<int64_t, int64_t> IMP2(NeugDBSession& db, int64_t person1_id) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vit0_index = 0;
-  auto v_prop_col0 = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "id_prop");
-  auto v_prop_col1 = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "version");
+  auto v_prop_col0 =
+      gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+  auto v_prop_col1 =
+      gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
   CHECK(v_prop_col0 != nullptr);
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  auto vertex_set = gi.GetVertexSet(person_label_id);
+  for (vid_t lid : vertex_set) {
     if (v_prop_col0->get(lid).as_int64() == person1_id) {
       vit0_index = lid;
       break;
@@ -678,13 +711,13 @@ std::tuple<int64_t, int64_t> IMP2(NeugDBSession& db, int64_t person1_id) {
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
   vid_t vit1_index = 0;
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  for (vid_t lid : vertex_set) {
     if (v_prop_col0->get(lid).as_int64() == person1_id) {
       vit1_index = lid;
       break;
     }
   }
-  CHECK(vit1_index < txn.GetVertexNum(person_label_id));
+
   int64_t v2 = v_prop_col1->get(vit1_index).as_int64();
 
   return std::make_tuple(v1, v2);
@@ -710,12 +743,13 @@ void PMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto post_label_id = schema.get_vertex_label_id("POST");
 
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
     int64_t value = i + 1;
     vid_t vid;
-    CHECK(txn.AddVertex(person_label_id, neug_generate_id(),
+    CHECK(gii.AddVertex(person_label_id, neug_generate_id(),
                         {Property::from_int64(value)}, vid));
-    CHECK(txn.AddVertex(post_label_id, neug_generate_id(),
+    CHECK(gii.AddVertex(post_label_id, neug_generate_id(),
                         {Property::from_int64(value)}, vid));
   }
   txn.Commit();
@@ -723,14 +757,15 @@ void PMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
 bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto post_label_id = db.schema().get_vertex_label_id("POST");
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
   gs::vid_t person_vid;
   bool found = false;
-  auto vertex_set = txn.GetVertexSet(person_label_id);
+  auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person_id) {
       person_vid = v;
       found = true;
@@ -740,9 +775,9 @@ bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
   CHECK(found);
   gs::vid_t post_vid;
   found = false;
-  auto post_vertex_set = txn.GetVertexSet(post_label_id);
+  auto post_vertex_set = gui.GetVertexSet(post_label_id);
   for (auto v : post_vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(post_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(post_label_id, v, 0).as_int64();
     if (v_id == post_id) {
       post_vid = v;
       found = true;
@@ -761,41 +796,42 @@ bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
 
 std::tuple<int64_t, int64_t> PMP2(NeugDBSession& db, int64_t post_id) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto post_label_id = db.schema().get_vertex_label_id("POST");
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
 
   vid_t vit0_index = 0;
-  auto v_prop_col0 = txn.template get_vertex_ref_property_column<int64_t>(
-      post_label_id, "id_prop");
+  auto v_prop_col0 = gi.GetVertexPropColumn<int64_t>(post_label_id, "id_prop");
   CHECK(v_prop_col0 != nullptr);
-  for (vid_t lid = 0; lid < txn.GetVertexNum(post_label_id); ++lid) {
+  auto vertex_set = gi.GetVertexSet(post_label_id);
+  for (vid_t lid : vertex_set) {
     if (v_prop_col0->get(lid).as_int64() == post_id) {
       vit0_index = lid;
       break;
     }
   }
   int64_t c1 = 0;
-  auto view = txn.GetGenericIncomingGraphView(post_label_id, likes_label_id,
-                                              person_label_id);
+  auto view = gi.GetGenericIncomingGraphView(post_label_id, likes_label_id,
+                                             person_label_id);
   auto ieit = view.get_edges(vit0_index);
   for (auto iter = ieit.begin(); iter != ieit.end(); ++iter) {
     c1++;
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
-  auto v_prop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      post_label_id, "id_prop");
+  auto v_prop_col = gi.GetVertexPropColumn<int64_t>(post_label_id, "id_prop");
   CHECK(v_prop_col != nullptr);
   vid_t vit1_index = 0;
-  for (vid_t lid = 0; lid < txn.GetVertexNum(post_label_id); ++lid) {
+  auto vertex_set1 = gi.GetVertexSet(post_label_id);
+  for (vid_t lid : vertex_set1) {
     if (v_prop_col->get(lid).as_int64() == post_id) {
       vit1_index = lid;
       break;
     }
   }
   int64_t c2 = 0;
-  auto view2 = txn.GetGenericIncomingGraphView(post_label_id, likes_label_id,
-                                               person_label_id);
+  auto view2 = gi.GetGenericIncomingGraphView(post_label_id, likes_label_id,
+                                              person_label_id);
   auto ieit2 = view2.get_edges(vit1_index);
   for (auto iter = ieit2.begin(); iter != ieit2.end(); ++iter) {
     c2++;
@@ -821,6 +857,7 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   int64_t value = 0;
 
   for (int j = 1; j <= 100; j++) {
@@ -829,7 +866,7 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
       auto id = neug_generate_id();
       int64_t id_property = j * 4 + i;
       vid_t vid;
-      CHECK(txn.AddVertex(person_label_id, id,
+      CHECK(gii.AddVertex(person_label_id, id,
                           {Property::from_int64(id_property),
                            Property::from_string(std::to_string(j)),
                            Property::from_int64(value)},
@@ -837,7 +874,7 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
       vids.push_back(vid);
     }
     for (int i = 0; i < 4; i++) {
-      CHECK(txn.AddEdge(person_label_id, vids[i], person_label_id,
+      CHECK(gii.AddEdge(person_label_id, vids[i], person_label_id,
                         vids[(i + 1) % 4], knows_label_id, {}));
     }
   }
@@ -846,14 +883,15 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
 void OTV1(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   vid_t vid1;
 
   bool found = false;
-  auto vertex_set = txn.GetVertexSet(person_label_id);
+  auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person_id) {
       vid1 = v;
       found = true;
@@ -861,22 +899,22 @@ void OTV1(NeugDBSession& db, int64_t person_id) {
     }
   }
   CHECK(found);
-  for (auto eit1 = txn.GetOutEdgeIterator(person_label_id, vid1,
+  for (auto eit1 = gui.GetOutEdgeIterator(person_label_id, vid1,
                                           person_label_id, knows_label_id, 0);
        eit1.IsValid(); eit1.Next()) {
     CHECK(eit1.IsValid());
     vid_t vid2 = eit1.GetNeighbor();
-    for (auto eit2 = txn.GetOutEdgeIterator(person_label_id, vid2,
+    for (auto eit2 = gui.GetOutEdgeIterator(person_label_id, vid2,
                                             person_label_id, knows_label_id, 0);
          eit2.IsValid(); eit2.Next()) {
       CHECK(eit2.IsValid());
       vid_t vid3 = eit2.GetNeighbor();
-      for (auto eit3 = txn.GetOutEdgeIterator(
+      for (auto eit3 = gui.GetOutEdgeIterator(
                person_label_id, vid3, person_label_id, knows_label_id, 0);
            eit3.IsValid(); eit3.Next()) {
         CHECK(eit3.IsValid());
         vid_t vid4 = eit3.GetNeighbor();
-        for (auto eit4 = txn.GetOutEdgeIterator(
+        for (auto eit4 = gui.GetOutEdgeIterator(
                  person_label_id, vid4, person_label_id, knows_label_id, 0);
              eit4.IsValid(); eit4.Next()) {
           CHECK(eit4.IsValid());
@@ -887,22 +925,22 @@ void OTV1(NeugDBSession& db, int64_t person_id) {
                     txn.GetVertexProperty(person_label_id, vid1, 2).as_int64() +
                     1));
 
-            txn.UpdateVertexProperty(
+            gui.UpdateVertexProperty(
                 person_label_id, vid2, 2,
                 Property::From(
-                    txn.GetVertexProperty(person_label_id, vid2, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid2, 2).as_int64() +
                     1));
 
-            txn.UpdateVertexProperty(
+            gui.UpdateVertexProperty(
                 person_label_id, vid3, 2,
                 Property::From(
-                    txn.GetVertexProperty(person_label_id, vid3, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid3, 2).as_int64() +
                     1));
 
-            txn.UpdateVertexProperty(
+            gui.UpdateVertexProperty(
                 person_label_id, vid4, 2,
                 Property::From(
-                    txn.GetVertexProperty(person_label_id, vid4, 2).as_int64() +
+                    gui.GetVertexProperty(person_label_id, vid4, 2).as_int64() +
                     1));
 
             txn.Commit();
@@ -918,15 +956,14 @@ std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
 OTV2(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   vid_t lid = 0;
-  auto view = txn.GetGenericOutgoingGraphView(person_label_id, person_label_id,
-                                              knows_label_id);
-  auto prop0_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "id_prop");
-  auto vprop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "version");
+  auto view = gi.GetGenericOutgoingGraphView(person_label_id, person_label_id,
+                                             knows_label_id);
+  auto prop0_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
 
   auto get_versions = [&]() -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
     for (; lid < txn.GetVertexNum(person_label_id); ++lid) {
@@ -1011,11 +1048,12 @@ void LUInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gii(txn);
   int64_t num_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
     vid_t vid;
-    CHECK(txn.AddVertex(
+    CHECK(gii.AddVertex(
         person_label_id, neug_generate_id(),
         {Property::from_int64(id_property), Property::from_int64(num_property)},
         vid));
@@ -1026,13 +1064,14 @@ void LUInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
 bool LU1(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
   gs::vid_t person_vid;
-  const auto& vertex_set = txn.GetVertexSet(person_label_id);
+  const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person_id) {
       person_vid = v;
       flag = true;
@@ -1042,8 +1081,8 @@ bool LU1(NeugDBSession& db, int64_t person_id) {
   CHECK(flag);
 
   int64_t num_friends =
-      txn.GetVertexProperty(person_label_id, person_vid, 1).as_int64();
-  txn.UpdateVertexProperty(person_label_id, person_vid, 1,
+      gui.GetVertexProperty(person_label_id, person_vid, 1).as_int64();
+  gui.UpdateVertexProperty(person_label_id, person_vid, 1,
                            Property::From(num_friends + 1));
 
   txn.Commit();
@@ -1053,13 +1092,14 @@ bool LU1(NeugDBSession& db, int64_t person_id) {
 std::map<int64_t, int64_t> LU2(NeugDBSession& db) {
   std::map<int64_t, int64_t> numFriends;
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
-  auto prop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "id_prop");
-  auto num_friends_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "num_friends");
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+  auto num_friends_col =
+      gi.GetVertexPropColumn<int64_t>(person_label_id, "num_friends");
+  auto vertex_set = gi.GetVertexSet(person_label_id);
+  for (vid_t lid : vertex_set) {
     int64_t person_id = prop_col->get(lid).as_int64();
     int64_t num_friends = num_friends_col->get(lid).as_int64();
     numFriends.emplace(person_id, num_friends);
@@ -1083,17 +1123,18 @@ void WSInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = db.GetInsertTransaction();
+  gs::runtime::GraphInsertInterface gi(txn);
 
   for (int i = 1; i <= 100; i++) {
     int64_t id1 = 2 * i - 1;
     int64_t version1 = 70;
     vid_t vid;
-    CHECK(txn.AddVertex(
+    CHECK(gi.AddVertex(
         person_label_id, neug_generate_id(),
         {Property::from_int64(id1), Property::from_int64(version1)}, vid));
     int64_t id2 = 2 * i;
     int64_t version2 = 80;
-    CHECK(txn.AddVertex(
+    CHECK(gi.AddVertex(
         person_label_id, neug_generate_id(),
         {Property::from_int64(id2), Property::from_int64(version2)}, vid));
   }
@@ -1103,13 +1144,14 @@ void WSInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
   auto txn = db.GetUpdateTransaction();
+  gs::runtime::GraphUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
   vid_t person1_vid;
-  const auto& vertex_set = txn.GetVertexSet(person_label_id);
+  const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person1_id) {
       person1_vid = v;
       flag = true;
@@ -1118,11 +1160,11 @@ void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   }
   CHECK(flag);
   int64_t p1_value =
-      txn.GetVertexProperty(person_label_id, person1_vid, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, person1_vid, 1).as_int64();
   vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
-    int64_t v_id = txn.GetVertexProperty(person_label_id, v, 0).as_int64();
+    int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
     if (v_id == person2_id) {
       person2_vid = v;
       flag = true;
@@ -1131,7 +1173,7 @@ void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   }
   CHECK(flag);
   int64_t p2_value =
-      txn.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
+      gui.GetVertexProperty(person_label_id, person2_vid, 1).as_int64();
 
   if (p1_value + p2_value - 100 < 0) {
     txn.Abort();
@@ -1143,10 +1185,10 @@ void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   // pick randomly between person1 and person2 and decrement the value
   // property
   if (dist(gen)) {
-    txn.UpdateVertexProperty(person_label_id, person1_vid, 1,
+    gui.UpdateVertexProperty(person_label_id, person1_vid, 1,
                              gs::Property::From(p1_value - 100));
   } else {
-    txn.UpdateVertexProperty(person_label_id, person2_vid, 1,
+    gui.UpdateVertexProperty(person_label_id, person2_vid, 1,
                              gs::Property::From(p2_value - 100));
   }
   txn.Commit();
@@ -1156,20 +1198,23 @@ std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
     NeugDBSession& db) {
   std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> results;
   auto txn = db.GetReadTransaction();
+  gs::runtime::GraphReadInterface gi(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  auto person_prop_col = txn.template get_vertex_ref_property_column<int64_t>(
-      person_label_id, "id_prop");
+  auto person_prop_col =
+      gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+  auto vertex_set = gi.GetVertexSet(person_label_id);
 
-  for (vid_t lid = 0; lid < txn.GetVertexNum(person_label_id); ++lid) {
+  for (vid_t lid : vertex_set) {
     auto person1_id = person_prop_col->get(lid).as_int64();
     if (person1_id % 2 != 1) {
       continue;
     }
     int64_t p1_value = person_prop_col->get(lid).as_int64();
     auto person2_id = person1_id + 1;
-    vid_t lid2 = 0;
-    for (; lid2 < txn.GetVertexNum(person_label_id); ++lid2) {
-      if (person_prop_col->get(lid2).as_int64() == person2_id) {
+    vid_t lid2;
+    for (vid_t lid : vertex_set) {
+      if (person_prop_col->get(lid).as_int64() == person2_id) {
+        lid2 = lid;
         break;
       }
     }

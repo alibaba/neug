@@ -179,6 +179,11 @@ class UpdateTransaction {
 
   VertexSet GetVertexSet(label_t label) const;
 
+  std::shared_ptr<RefColumnBase> get_vertex_property_column(
+      uint8_t label, const std::string& col_name) const {
+    return graph_.GetVertexPropertyColumn(label, col_name);
+  }
+
   class edge_iterator {
    public:
     edge_iterator(bool dir, label_t label, vid_t v, label_t neighbor_label,

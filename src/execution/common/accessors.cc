@@ -275,8 +275,8 @@ VertexPropertyPathAccessor<GraphInterface, T>::VertexPropertyPathAccessor(
   }
   for (auto label : labels) {
     property_columns_[label] =
-        graph.template GetVertexColumn<T>(label, prop_name);
-    if (property_columns_[label].is_null()) {
+        graph.template GetVertexPropColumn<T>(label, prop_name);
+    if (property_columns_[label] == nullptr) {
       is_optional_ = true;
     }
   }

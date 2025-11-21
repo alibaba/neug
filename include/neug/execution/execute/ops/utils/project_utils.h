@@ -56,25 +56,25 @@ struct PropertyValueCollector {
   ValueColumnBuilder<typename EXPR::V> builder;
 };
 
-template <typename VertexColoumn, typename T>
+template <typename VertexColumn, typename T>
 struct SLPropertyExpr {
   using V = T;
-  SLPropertyExpr(const GraphReadInterface& graph, const VertexColoumn& column,
+  SLPropertyExpr(const GraphReadInterface& graph, const VertexColumn& column,
                  const std::string& property_name)
       : column(column) {
     auto labels = column.get_labels_set();
     auto& label = *labels.begin();
-    property = graph.GetVertexColumn<T>(label, property_name);
-    is_optional_ = property.is_null();
+    property = graph.GetVertexPropColumn<T>(label, property_name);
+    is_optional_ = (property == nullptr);
   }
   inline T operator()(size_t idx) const {
     auto v = column.get_vertex(idx);
-    return property.get_view(v.vid_);
+    return property->get_view(v.vid_);
   }
   bool is_optional() const { return is_optional_; }
   bool is_optional_;
-  const VertexColoumn& column;
-  GraphReadInterface::vertex_column_t<T> property;
+  const VertexColumn& column;
+  std::shared_ptr<GraphReadInterface::vertex_column_t<T>> property;
 };
 
 template <typename VertexColoumn, typename T>
@@ -88,8 +88,8 @@ struct MLPropertyExpr {
     property.resize(label_num);
     is_optional_ = false;
     for (auto label : labels) {
-      property[label] = graph.GetVertexColumn<T>(label, property_name);
-      if (property[label].is_null()) {
+      property[label] = graph.GetVertexPropColumn<T>(label, property_name);
+      if (property[label] == nullptr) {
         is_optional_ = true;
       }
     }
@@ -97,10 +97,10 @@ struct MLPropertyExpr {
   bool is_optional() const { return is_optional_; }
   inline T operator()(size_t idx) const {
     auto v = vertex.get_vertex(idx);
-    return property[v.label_].get_view(v.vid_);
+    return property[v.label_]->get_view(v.vid_);
   }
   const VertexColoumn& vertex;
-  std::vector<GraphReadInterface::vertex_column_t<T>> property;
+  std::vector<std::shared_ptr<GraphReadInterface::vertex_column_t<T>>> property;
 
   bool is_optional_;
 };

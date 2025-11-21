@@ -124,17 +124,18 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
                                const GraphReadInterface& graph,
                                const std::string& prop_name,
                                std::vector<size_t>& offsets) {
-  std::vector<GraphReadInterface::vertex_column_t<T>> property_columns;
+  std::vector<std::shared_ptr<GraphReadInterface::vertex_column_t<T>>>
+      property_columns;
   label_t label_num = graph.schema().vertex_label_num();
   for (label_t i = 0; i < label_num; ++i) {
-    property_columns.emplace_back(graph.GetVertexColumn<T>(i, prop_name));
+    property_columns.emplace_back(graph.GetVertexPropColumn<T>(i, prop_name));
   }
   bool success = true;
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      if (!property_columns[label].is_null()) {
-        gen.push(property_columns[label].get_view(v), idx);
+      if (!(property_columns[label] == nullptr)) {
+        gen.push(property_columns[label]->get_view(v), idx);
       } else {
         success = false;
       }
@@ -145,8 +146,8 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
   } else {
     TopNGenerator<T, TopNDescCmp<T>> gen(limit);
     foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      if (!property_columns[label].is_null()) {
-        gen.push(property_columns[label].get_view(v), idx);
+      if (!(property_columns[label] == nullptr)) {
+        gen.push(property_columns[label]->get_view(v), idx);
       } else {
         success = false;
       }

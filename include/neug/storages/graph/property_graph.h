@@ -313,19 +313,14 @@ class PropertyGraph {
   }
 
   void loadSchema(const std::string& filename);
-
-  inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
-      uint8_t label, const std::string& prop) const {
-    return vertex_tables_[label].get_property_column(prop);
-  }
-
   inline std::shared_ptr<ColumnBase> GetVertexPropertyColumn(
       uint8_t label, int32_t col_id) const {
     return vertex_tables_[label].get_property_column(col_id);
   }
 
-  inline std::shared_ptr<RefColumnBase> GetVertexIdColumn(uint8_t label) const {
-    return vertex_tables_[label].GetVertexIdColumn();
+  inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
+      uint8_t label, const std::string& prop) const {
+    return vertex_tables_[label].GetPropertyColumn(prop);
   }
 
   inline VertexSet GetVertexSet(label_t label,

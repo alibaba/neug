@@ -123,13 +123,20 @@ class VertexPropertyPathAccessor : public IAccessor {
   VertexPropertyPathAccessor(const GraphInterface& graph, const Context& ctx,
                              int tag, const std::string& prop_name);
 
-  bool is_optional() const override { return is_optional_; }
+  bool is_optional() const override {
+    for (auto col : property_columns_) {
+      if (col == nullptr) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   elem_t typed_eval_path(size_t idx) const {
     const auto& v = vertex_col_.get_vertex(idx);
     auto& col = property_columns_[v.label_];
-    if (!col.is_null()) {
-      return col.get_view(v.vid_);
+    if (!(col == nullptr)) {
+      return col->get_view(v.vid_);
     } else {
       return elem_t();
     }
@@ -140,9 +147,9 @@ class VertexPropertyPathAccessor : public IAccessor {
       return RTAny(RTAnyType::kNull);
     }
     const auto& v = vertex_col_.get_vertex(idx);
-    auto& col = property_columns_[v.label_];
-    if (!col.is_null()) {
-      return TypedConverter<T>::from_typed(col.get_view(v.vid_));
+    auto col = property_columns_[v.label_];
+    if (!(col == nullptr)) {
+      return TypedConverter<T>::from_typed(col->get_view(v.vid_));
     } else {
       return RTAny(RTAnyType::kNull);
     }
@@ -153,7 +160,7 @@ class VertexPropertyPathAccessor : public IAccessor {
   const IVertexColumn& vertex_col_;
   using vertex_column_t =
       typename GraphInterface::template vertex_column_t<elem_t>;
-  std::vector<vertex_column_t> property_columns_;
+  std::vector<std::shared_ptr<vertex_column_t>> property_columns_;
 };
 
 class VertexLabelPathAccessor : public IAccessor {
@@ -285,16 +292,16 @@ class VertexPropertyVertexAccessor : public IAccessor {
                                const std::string& prop_name) {
     int label_num = graph.schema().vertex_label_num();
     for (int i = 0; i < label_num; ++i) {
-      property_columns_.emplace_back(graph.template GetVertexColumn<T>(
+      property_columns_.emplace_back(graph.template GetVertexPropColumn<T>(
           static_cast<label_t>(i), prop_name));
     }
   }
 
   elem_t typed_eval_vertex(label_t label, vid_t v, size_t idx) const {
-    if (property_columns_[label].is_null()) {
+    if (property_columns_[label] == nullptr) {
       return elem_t();
     }
-    return property_columns_[label].get_view(v);
+    return property_columns_[label]->get_view(v);
   }
 
   RTAny eval_path(size_t idx) const override {
@@ -304,15 +311,15 @@ class VertexPropertyVertexAccessor : public IAccessor {
   }
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx) const override {
-    if (property_columns_[label].is_null()) {
+    if (property_columns_[label] == nullptr) {
       return RTAny(RTAnyType::kNull);
     }
-    return TypedConverter<T>::from_typed(property_columns_[label].get_view(v));
+    return TypedConverter<T>::from_typed(property_columns_[label]->get_view(v));
   }
 
   bool is_optional() const override {
     for (auto col : property_columns_) {
-      if (col.is_null()) {
+      if (col == nullptr) {
         return true;
       }
     }
@@ -322,7 +329,7 @@ class VertexPropertyVertexAccessor : public IAccessor {
  private:
   using vertex_column_t =
       typename GraphInterface::template vertex_column_t<elem_t>;
-  std::vector<vertex_column_t> property_columns_;
+  std::vector<std::shared_ptr<vertex_column_t>> property_columns_;
 };
 
 class EdgeIdPathAccessor : public IAccessor {

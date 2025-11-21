@@ -100,7 +100,7 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                        Property::from_double(92.0)},
                       vid2, 0)
           .ok());
-  auto id_column = graph_->GetVertexIdColumn(person_label);
+  auto id_column = graph_->GetVertexPropertyColumn(person_label, "id");
   EXPECT_TRUE(id_column);
   EXPECT_EQ(id_column->get(vid1).as_int64(), 1);
   EXPECT_EQ(id_column->get(vid2).as_int64(), 2);

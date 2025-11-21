@@ -38,26 +38,6 @@ using gs::label_t;
 using gs::timestamp_t;
 using gs::vid_t;
 
-template <typename PROP_T>
-class VertexColumn {
- public:
-  explicit VertexColumn(std::shared_ptr<TypedRefColumn<PROP_T>> column) {
-    if (column == nullptr) {
-      column_ = nullptr;
-    } else {
-      column_ = column;
-    }
-  }
-  VertexColumn() : column_(nullptr) {}
-
-  inline PROP_T get_view(vid_t v) const { return column_->get_view(v); }
-
-  inline bool is_null() const { return column_ == nullptr; }
-
- private:
-  std::shared_ptr<TypedRefColumn<PROP_T>> column_;
-};
-
 template <typename T>
 class VertexArray {
  public:
@@ -82,45 +62,10 @@ class VertexArray {
 
 }  // namespace graph_interface_impl
 
-namespace graph_update_interface_impl {
-template <typename PROP_T>
-class VertexColumn {
- public:
-  enum class ColState { kInvalidColId = -2, kPrimaryKeyColId = -1 };
-  VertexColumn()
-      : txn_(nullptr),
-        label_(0),
-        col_id(static_cast<int>(ColState::kInvalidColId)) {}
-  VertexColumn(UpdateTransaction* txn, label_t label, int col_id)
-      : txn_(txn), label_(label), col_id(col_id) {}
-  inline PROP_T get_view(vid_t v) const {
-    // col_id == -1 means the primary key column
-    if (col_id == static_cast<int>(ColState::kPrimaryKeyColId)) {
-      return PropUtils<PROP_T>::to_typed(txn_->GetVertexId(label_, v));
-    } else if (col_id == static_cast<int>(ColState::kInvalidColId)) {
-      return PROP_T();
-    } else {
-      return PropUtils<PROP_T>::to_typed(
-          txn_->GetVertexProperty(label_, v, col_id));
-    }
-  }
-
-  // when the column is not found, the col_id is -2
-  inline bool is_null() const {
-    return col_id == static_cast<int>(ColState::kInvalidColId);
-  }
-
- private:
-  UpdateTransaction* txn_;
-  label_t label_;
-  int col_id;
-};
-}  // namespace graph_update_interface_impl
-
 class GraphReadInterface {
  public:
   template <typename PROP_T>
-  using vertex_column_t = graph_interface_impl::VertexColumn<PROP_T>;
+  using vertex_column_t = TypedRefColumn<PROP_T>;
 
   using vertex_set_t = gs::VertexSet;
 
@@ -133,10 +78,10 @@ class GraphReadInterface {
   ~GraphReadInterface() {}
 
   template <typename PROP_T>
-  inline vertex_column_t<PROP_T> GetVertexColumn(
+  inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
       label_t label, const std::string& prop_name) const {
-    return vertex_column_t<PROP_T>(
-        txn_.get_vertex_ref_property_column<PROP_T>(label, prop_name));
+    return std::dynamic_pointer_cast<vertex_column_t<PROP_T>>(
+        txn_.get_vertex_property_column(label, prop_name));
   }
 
   inline vertex_set_t GetVertexSet(label_t label) const {
@@ -217,30 +162,13 @@ class GraphInsertInterface {
 class GraphUpdateInterface {
  public:
   template <typename PROP_T>
-  using vertex_column_t = graph_update_interface_impl::VertexColumn<PROP_T>;
+  using vertex_column_t = TypedRefColumn<PROP_T>;
 
   template <typename PROP_T>
-  inline vertex_column_t<PROP_T> GetVertexColumn(
+  inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
       label_t label, const std::string& prop_name) const {
-    auto prop_names = txn_.schema().get_vertex_property_names(label);
-    for (size_t i = 0; i < prop_names.size(); i++) {
-      if (prop_names[i] == prop_name) {
-        return vertex_column_t<PROP_T>(&txn_, label, i);
-      }
-    }
-    const auto& pk = txn_.schema().get_vertex_primary_key(label);
-    CHECK_EQ(pk.size(), 1);
-
-    if (std::get<1>(pk[0]) == prop_name) {
-      return vertex_column_t<PROP_T>(
-          &txn_, label,
-          static_cast<int>(
-              vertex_column_t<PROP_T>::ColState::kPrimaryKeyColId));
-    }
-    // null column
-    return vertex_column_t<PROP_T>(
-        &txn_, label,
-        static_cast<int>(vertex_column_t<PROP_T>::ColState::kInvalidColId));
+    return std::dynamic_pointer_cast<vertex_column_t<PROP_T>>(
+        txn_.get_vertex_property_column(label, prop_name));
   }
 
   explicit GraphUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
