@@ -41,7 +41,7 @@ class OprTimer;
 
 namespace ops {
 
-class JoinUpdateOpr : public IUpdateOperator {
+class JoinUpdateOpr : public IOperator {
  public:
   JoinUpdateOpr(gs::runtime::UpdatePipeline&& left_pipeline,
                 gs::runtime::UpdatePipeline&& right_pipeline,
@@ -52,7 +52,7 @@ class JoinUpdateOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  gs::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
+  gs::result<Context> Eval(gs::runtime::IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
@@ -85,8 +85,9 @@ class JoinUpdateOpr : public IUpdateOperator {
   JoinParams params_;
 };
 
-std::unique_ptr<IUpdateOperator> UJoinOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UJoinOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<int> right_columns;
   auto& opr = plan.query_plan().plan(op_idx).opr().join();
   JoinParams p;
@@ -150,8 +151,10 @@ std::unique_ptr<IUpdateOperator> UJoinOprBuilder::Build(
   if (!pair2_res) {
     THROW_INVALID_ARGUMENT_EXCEPTION("failed to parse right plan for join: ");
   }
-  return std::make_unique<JoinUpdateOpr>(std::move(pair1_res.value()),
-                                         std::move(pair2_res.value()), p);
+  return std::make_pair(
+      std::make_unique<JoinUpdateOpr>(std::move(pair1_res.value()),
+                                      std::move(pair2_res.value()), p),
+      ContextMeta());
 }
 
 }  // namespace ops

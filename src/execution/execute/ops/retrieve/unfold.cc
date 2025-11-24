@@ -32,7 +32,7 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class UnfoldOpr : public IReadOperator {
+class UnfoldOpr : public IOperator {
  public:
   explicit UnfoldOpr(const physical::Unfold& opr)
       : opr_(opr), tag_(opr.tag().value()), alias_(opr.alias().value()) {}
@@ -40,7 +40,7 @@ class UnfoldOpr : public IReadOperator {
   std::string get_operator_name() const override { return "UnfoldOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Unfold::unfold(std::move(ctx), tag_, alias_);
@@ -52,7 +52,7 @@ class UnfoldOpr : public IReadOperator {
   int alias_;
 };
 
-gs::result<ReadOpBuildResultT> UnfoldOprBuilder::Build(
+gs::result<OpBuildResultT> UnfoldOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;

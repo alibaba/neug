@@ -34,15 +34,15 @@ struct EdgeExpandParams;
 class UEdgeExpand {
  public:
   static gs::result<Context> edge_expand_v_without_pred(
-      const GraphUpdateInterface& graph, Context&& ctx,
+      const StorageUpdateInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
   static gs::result<Context> edge_expand_e_without_pred(
-      const GraphUpdateInterface& graph, Context&& ctx,
+      const StorageUpdateInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
   template <typename PRED_T>
-  static gs::result<Context> edge_expand_e(const GraphUpdateInterface& graph,
+  static gs::result<Context> edge_expand_e(const StorageUpdateInterface& graph,
                                            Context&& ctx,
                                            const EdgeExpandParams& params,
                                            const PRED_T& pred) {

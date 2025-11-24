@@ -34,7 +34,7 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class UnionOpr : public IReadOperator {
+class UnionOpr : public IOperator {
  public:
   explicit UnionOpr(std::vector<ReadPipeline>&& sub_plans)
       : sub_plans_(std::move(sub_plans)) {}
@@ -42,7 +42,7 @@ class UnionOpr : public IReadOperator {
   std::string get_operator_name() const override { return "UnionOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<gs::runtime::Context> ctxs;
@@ -66,11 +66,12 @@ class UnionOpr : public IReadOperator {
  private:
   std::vector<ReadPipeline> sub_plans_;
 };
-gs::result<ReadOpBuildResultT> UnionOprBuilder::Build(
+gs::result<OpBuildResultT> UnionOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<ReadPipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
+  ContextMeta ret_meta;
   for (int i = 0;
        i < plan.query_plan().plan(op_idx).opr().union_().sub_plans_size();
        ++i) {
@@ -86,7 +87,7 @@ gs::result<ReadOpBuildResultT> UnionOprBuilder::Build(
   }
   // TODO(liulexiao): check sub metas consisitency
   return std::make_pair(std::make_unique<UnionOpr>(std::move(sub_plans)),
-                        *sub_metas.rbegin());
+                        ret_meta);
 }
 }  // namespace ops
 }  // namespace runtime

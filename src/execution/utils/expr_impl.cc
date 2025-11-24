@@ -1130,7 +1130,7 @@ static std::unique_ptr<ExprBase> build_expr(
       }
       auto type = parse_from_data_type(
           opr.node_type().data_type().array().component_type());
-      if constexpr (std::is_same<GraphInterface, GraphReadInterface>::value) {
+      if constexpr (std::is_same<GraphInterface, StorageReadInterface>::value) {
         if (opt ==
             ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
           return std::make_unique<PathVertexPropsExpr>(graph, ctx, tag, name,
@@ -1237,12 +1237,12 @@ std::unique_ptr<ExprBase> parse_expression(
   return parse_expression_impl(graph, ctx, params, expr, var_type);
 }
 
-template std::unique_ptr<ExprBase> parse_expression<GraphReadInterface>(
-    const GraphReadInterface&, const Context&,
+template std::unique_ptr<ExprBase> parse_expression<StorageReadInterface>(
+    const StorageReadInterface&, const Context&,
     const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
-template std::unique_ptr<ExprBase> parse_expression<GraphUpdateInterface>(
-    const GraphUpdateInterface&, const Context&,
+template std::unique_ptr<ExprBase> parse_expression<StorageUpdateInterface>(
+    const StorageUpdateInterface&, const Context&,
     const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
 

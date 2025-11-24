@@ -41,7 +41,7 @@ class OprTimer;
 
 namespace ops {
 
-class JoinOpr : public IReadOperator {
+class JoinOpr : public IOperator {
  public:
   JoinOpr(gs::runtime::ReadPipeline&& left_pipeline,
           gs::runtime::ReadPipeline&& right_pipeline,
@@ -53,7 +53,7 @@ class JoinOpr : public IReadOperator {
   std::string get_operator_name() const override { return "JoinOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
@@ -89,7 +89,7 @@ class JoinOpr : public IReadOperator {
   JoinParams params_;
 };
 
-gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
+gs::result<OpBuildResultT> JoinOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
@@ -143,6 +143,7 @@ gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
   auto pair1_res = PlanParser::get().parse_read_pipeline_with_meta(
       schema, ctx_meta,
       plan.query_plan().plan(op_idx).opr().join().left_plan());
+
   if (!pair1_res) {
     return std::make_pair(nullptr, ContextMeta());
   }
@@ -150,12 +151,14 @@ gs::result<ReadOpBuildResultT> JoinOprBuilder::Build(
       schema, ctx_meta,
       plan.query_plan().plan(op_idx).opr().join().right_plan());
   if (!pair2_res) {
+    LOG(ERROR) << "failed to build right pipeline for join operator"
+               << pair2_res.error().ToString();
     return std::make_pair(nullptr, ContextMeta());
   }
   auto pair1 = std::move(pair1_res.value());
   auto pair2 = std::move(pair2_res.value());
-  auto& ctx_meta1 = pair1.second;
-  auto& ctx_meta2 = pair2.second;
+  const auto& ctx_meta1 = pair1.second;
+  const auto& ctx_meta2 = pair2.second;
   if (join_kind == physical::Join_JoinKind::Join_JoinKind_SEMI ||
       join_kind == physical::Join_JoinKind::Join_JoinKind_ANTI) {
     ret_meta = ctx_meta1;

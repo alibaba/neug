@@ -35,12 +35,12 @@ namespace gs {
 class Schema;
 
 namespace runtime {
-class GraphUpdateInterface;
+class StorageUpdateInterface;
 class OprTimer;
 
 namespace ops {
 
-class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
+class UEdgeExpandVWithoutPredOpr : public IOperator {
  public:
   explicit UEdgeExpandVWithoutPredOpr(EdgeExpandParams params)
       : params_(params) {}
@@ -48,18 +48,18 @@ class UEdgeExpandVWithoutPredOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UEdgeExpandVOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    return UEdgeExpand::edge_expand_v_without_pred(graph, std::move(ctx),
-                                                   params_);
+    return UEdgeExpand::edge_expand_v_without_pred(
+        dynamic_cast<StorageUpdateInterface&>(graph), std::move(ctx), params_);
   }
 
  private:
   EdgeExpandParams params_;
 };
 
-class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
+class UEdgeExpandEWithoutPredOpr : public IOperator {
  public:
   explicit UEdgeExpandEWithoutPredOpr(EdgeExpandParams params)
       : params_(params) {}
@@ -67,18 +67,18 @@ class UEdgeExpandEWithoutPredOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UEdgeExpandEOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    return UEdgeExpand::edge_expand_e_without_pred(graph, std::move(ctx),
-                                                   params_);
+    return UEdgeExpand::edge_expand_e_without_pred(
+        dynamic_cast<StorageUpdateInterface&>(graph), std::move(ctx), params_);
   }
 
  private:
   EdgeExpandParams params_;
 };
 
-class UEdgeExpandEOpr : public IUpdateOperator {
+class UEdgeExpandEOpr : public IOperator {
  public:
   UEdgeExpandEOpr(const EdgeExpandParams& params,
                   const common::Expression& expr)
@@ -87,9 +87,10 @@ class UEdgeExpandEOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UEdgeExpandEOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph_interface,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
     return UEdgeExpand::edge_expand_e(graph, std::move(ctx), params_, pred);
   }
@@ -99,8 +100,9 @@ class UEdgeExpandEOpr : public IUpdateOperator {
   common::Expression pred_;
 };
 
-std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UEdgeExpandOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   auto& edge = plan.query_plan().plan(op_idx).opr().edge();
   auto& meta = plan.query_plan().plan(op_idx).meta_data(0);
   int alias = edge.has_alias() ? edge.alias().value() : -1;
@@ -109,7 +111,7 @@ std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
   bool is_optional = edge.is_optional();
   if (is_optional) {
     LOG(ERROR) << "Optional edge expand is not supported yet";
-    return nullptr;
+    return std::make_pair(nullptr, ContextMeta());
   }
   const auto& query_params = edge.params();
   EdgeExpandParams eep;
@@ -121,18 +123,22 @@ std::unique_ptr<IUpdateOperator> UEdgeExpandOprBuilder::Build(
   if (edge.expand_opt() == physical::EdgeExpand_ExpandOpt_VERTEX) {
     if (query_params.has_predicate()) {
       LOG(ERROR) << "Edge expand with predicate is not supported yet";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     } else {
-      return std::make_unique<UEdgeExpandVWithoutPredOpr>(eep);
+      return std::make_pair(std::make_unique<UEdgeExpandVWithoutPredOpr>(eep),
+                            ContextMeta());
     }
   } else {
     if (query_params.has_predicate()) {
-      return std::make_unique<UEdgeExpandEOpr>(eep, query_params.predicate());
+      return std::make_pair(
+          std::make_unique<UEdgeExpandEOpr>(eep, query_params.predicate()),
+          ContextMeta());
     } else {
-      return std::make_unique<UEdgeExpandEWithoutPredOpr>(eep);
+      return std::make_pair(std::make_unique<UEdgeExpandEWithoutPredOpr>(eep),
+                            ContextMeta());
     }
   }
-  return nullptr;
+  return std::make_pair(nullptr, ContextMeta());
 }
 }  // namespace ops
 }  // namespace runtime

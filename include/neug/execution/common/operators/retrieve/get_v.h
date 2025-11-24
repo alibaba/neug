@@ -359,8 +359,8 @@ class GetV {
 
   template <typename PRED_T>
   static gs::result<Context> get_vertex_from_vertices(
-      const GraphReadInterface& graph, Context&& ctx, const GetVParams& params,
-      const PRED_T& pred) {
+      const StorageReadInterface& graph, Context&& ctx,
+      const GetVParams& params, const PRED_T& pred) {
     std::shared_ptr<IVertexColumn> input_vertex_list_ptr =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.tag));
     const IVertexColumn& input_vertex_list = *input_vertex_list_ptr;

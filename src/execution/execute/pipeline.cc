@@ -28,7 +28,7 @@ namespace runtime {
 class OprTimer;
 
 gs::result<Context> AdminPipeline::Execute(
-    GraphUpdateInterface& graph, Context&& ctx,
+    StorageUpdateInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   gs::Status status = Status::OK();
   TimerUnit tu;
@@ -73,7 +73,7 @@ gs::result<Context> AdminPipeline::Execute(
 }
 
 gs::result<Context> ReadPipeline::Execute(
-    const GraphReadInterface& graph, Context&& ctx,
+    IStorageInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   gs::Status status = Status::OK();
   TimerUnit tu;
@@ -118,7 +118,7 @@ gs::result<Context> ReadPipeline::Execute(
 }
 
 gs::result<Context> InsertPipeline::Execute(
-    GraphInsertInterface& graph, Context&& ctx,
+    IStorageInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
@@ -163,7 +163,7 @@ gs::result<Context> InsertPipeline::Execute(
 }
 
 gs::result<Context> UpdatePipeline::Execute(
-    GraphUpdateInterface& graph, Context&& ctx,
+    IStorageInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   gs::Status status = Status::OK();
   TimerUnit tu;

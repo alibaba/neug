@@ -133,7 +133,7 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 }
 
 void benchmark_iteration(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     gs::runtime::ReadPipeline& pipeline,
     const std::vector<std::map<std::string, std::string>>& parameters,
     int query_num, std::vector<std::vector<char>>& outputs,
@@ -143,7 +143,9 @@ void benchmark_iteration(
     gs::runtime::Context ctx;
     auto& m = parameters[i % parameters.size()];
     if (i == 0) {
-      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &timer);
+      auto ctx = pipeline.Execute(
+          const_cast<gs::runtime::StorageReadInterface&>(graph),
+          gs::runtime::Context(), m, &timer);
       if (!ctx) {
         LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
         return;
@@ -153,7 +155,9 @@ void benchmark_iteration(
       gs::runtime::Sink::sink(ctx.value(), graph, output);
     } else {
       gs::runtime::OprTimer cur_timer;
-      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer);
+      auto ctx = pipeline.Execute(
+          const_cast<gs::runtime::StorageReadInterface&>(graph),
+          gs::runtime::Context(), m, &cur_timer);
 
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
@@ -203,7 +207,7 @@ int main(int argc, char** argv) {
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
   auto txn = db.GetReadTransaction();
-  gs::runtime::GraphReadInterface graph(txn);
+  gs::runtime::StorageReadInterface graph(txn.graph(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {
     int query_num = unit.repeat;

@@ -34,7 +34,7 @@ class IExportWriter {
   virtual ~IExportWriter() = default;
   virtual Status Write(
       const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-      const gs::runtime::GraphReadInterface& graph) = 0;
+      const gs::runtime::StorageReadInterface& graph) = 0;
 };
 
 class ExportWriterFactory {

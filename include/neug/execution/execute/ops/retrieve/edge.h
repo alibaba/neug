@@ -29,15 +29,15 @@ class ContextMeta;
 
 namespace ops {
 
-class EdgeExpandOprBuilder : public IReadOperatorBuilder {
+class EdgeExpandOprBuilder : public IOperatorBuilder {
  public:
   EdgeExpandOprBuilder() = default;
   ~EdgeExpandOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -45,15 +45,15 @@ class EdgeExpandOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class EdgeExpandGetVOprBuilder : public IReadOperatorBuilder {
+class EdgeExpandGetVOprBuilder : public IOperatorBuilder {
  public:
   EdgeExpandGetVOprBuilder() = default;
   ~EdgeExpandGetVOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -64,15 +64,15 @@ class EdgeExpandGetVOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class TCOprBuilder : public IReadOperatorBuilder {
+class TCOprBuilder : public IOperatorBuilder {
  public:
   TCOprBuilder() = default;
   ~TCOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

@@ -21,7 +21,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class UGroupByOpr : public IUpdateOperator {
+class UGroupByOpr : public IOperator {
  public:
   UGroupByOpr(std::vector<common::Variable>&& vars,
               std::vector<std::pair<int, int>>&& mappings,
@@ -36,11 +36,12 @@ class UGroupByOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "UGroupByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
-                           aggrs_, dependencies_);
+    return GroupByEvalImpl(dynamic_cast<StorageUpdateInterface&>(graph), params,
+                           std::move(ctx), vars_, mappings_, aggrs_,
+                           dependencies_);
   }
 
  private:
@@ -50,7 +51,7 @@ class UGroupByOpr : public IUpdateOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-class UGroupByOprBeta : public IUpdateOperator {
+class UGroupByOprBeta : public IOperator {
  public:
   UGroupByOprBeta(
       std::vector<std::pair<common::Variable, int>>&& project_var_alias,
@@ -67,12 +68,12 @@ class UGroupByOprBeta : public IUpdateOperator {
   std::string get_operator_name() const override { return "UGroupByOprBeta"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    return GroupByBetaEvalImpl(graph, params, std::move(ctx),
-                               project_var_alias_, vars_, mappings_, aggrs_,
-                               dependencies_);
+    return GroupByBetaEvalImpl(dynamic_cast<StorageUpdateInterface&>(graph),
+                               params, std::move(ctx), project_var_alias_,
+                               vars_, mappings_, aggrs_, dependencies_);
   }
 
  private:
@@ -83,8 +84,9 @@ class UGroupByOprBeta : public IUpdateOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-std::unique_ptr<IUpdateOperator> UGroupByOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UGroupByOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.query_plan().plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
   std::vector<common::Variable> vars;
@@ -93,16 +95,19 @@ std::unique_ptr<IUpdateOperator> UGroupByOprBuilder::Build(
   std::vector<std::pair<int, int>> dependencies;
   if (!BuildGroupByUtils(opr, project_var_alias, vars, mappings, reduce_funcs,
                          dependencies)) {
-    return nullptr;
+    return std::make_pair(nullptr, ContextMeta());
   }
   if (project_var_alias.empty()) {
-    return std::make_unique<UGroupByOpr>(std::move(vars), std::move(mappings),
-                                         std::move(reduce_funcs),
-                                         std::move(dependencies));
+    return std::make_pair(std::make_unique<UGroupByOpr>(
+                              std::move(vars), std::move(mappings),
+                              std::move(reduce_funcs), std::move(dependencies)),
+                          ctx_meta);
   } else {
-    return std::make_unique<UGroupByOprBeta>(
-        std::move(project_var_alias), std::move(vars), std::move(mappings),
-        std::move(reduce_funcs), std::move(dependencies));
+    return std::make_pair(
+        std::make_unique<UGroupByOprBeta>(
+            std::move(project_var_alias), std::move(vars), std::move(mappings),
+            std::move(reduce_funcs), std::move(dependencies)),
+        ctx_meta);
   }
 }
 }  // namespace ops

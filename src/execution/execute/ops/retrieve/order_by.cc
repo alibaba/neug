@@ -44,22 +44,24 @@ class OprTimer;
 
 namespace ops {
 
-class OrderByOprBeta : public IReadOperator {
+class OrderByOprBeta : public IOperator {
  public:
   OrderByOprBeta(
       std::vector<std::pair<common::Variable, bool>> keys, int lower, int upper,
       const std::function<
           std::optional<std::function<std::optional<std::vector<size_t>>(
-              const GraphReadInterface&, const Context&)>>(const Context&)>&
+              const StorageReadInterface&, const Context&)>>(const Context&)>&
           func)
       : keys_(std::move(keys)), lower_(lower), upper_(upper), func_(func) {}
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     int keys_num = keys_.size();
     GeneralComparer cmp;
     for (int i = 0; i < keys_num; ++i) {
@@ -82,13 +84,14 @@ class OrderByOprBeta : public IReadOperator {
   int lower_;
   int upper_;
   std::function<std::optional<std::function<std::optional<std::vector<size_t>>(
-      const GraphReadInterface&, const Context&)>>(const Context&)>
+      const StorageReadInterface&, const Context&)>>(const Context&)>
       func_;
 };
 
-gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
+gs::result<OpBuildResultT> OrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto opr = plan.query_plan().plan(op_idx).opr().order_by();
   int lower = 0;
   int upper = std::numeric_limits<int>::max();
@@ -99,7 +102,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
   int keys_num = opr.pairs_size();
   if (keys_num == 0) {
     LOG(ERROR) << "keys_num should be greater than 0";
-    return std::make_pair(nullptr, ctx_meta);
+    return std::make_pair(nullptr, ret_meta);
   }
   std::vector<std::pair<common::Variable, bool>> keys;
 
@@ -110,7 +113,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
         pair.order() != algebra::OrderBy_OrderingPair_Order::
                             OrderBy_OrderingPair_Order_DESC) {
       LOG(ERROR) << "order should be asc or desc";
-      return std::make_pair(nullptr, ctx_meta);
+      return std::make_pair(nullptr, ret_meta);
     }
     bool asc =
         pair.order() ==
@@ -123,7 +126,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
 
   auto func = [key, order, upper, &schema](const Context& ctx)
       -> std::optional<std::function<std::optional<std::vector<size_t>>(
-          const GraphReadInterface& graph, const Context& ctx)>> {
+          const StorageReadInterface& graph, const Context& ctx)>> {
     if (key.has_tag() &&
         key.tag().item_case() == common::NameOrId::ItemCase::kId) {
       int tag = key.tag().id();
@@ -131,7 +134,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
       CHECK(col != nullptr);
       if (!key.has_property()) {
         if (col->column_type() == ContextColumnType::kValue) {
-          return [=](const GraphReadInterface& graph,
+          return [=](const StorageReadInterface& graph,
                      const Context& ctx) -> std::optional<std::vector<size_t>> {
             std::vector<size_t> indices;
             if (col->order_by_limit(order, upper, indices)) {
@@ -148,7 +151,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
         if (label_num == 1 &&
             prop_name == schema.get_vertex_primary_key_name(
                              *vertex_col->get_labels_set().begin())) {
-          return [=](const GraphReadInterface& graph,
+          return [=](const StorageReadInterface& graph,
                      const Context& ctx) -> std::optional<std::vector<size_t>> {
             std::vector<size_t> indices;
             if (vertex_id_topN(order, upper, vertex_col, graph, indices)) {
@@ -158,7 +161,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
             }
           };
         } else {
-          return [=](const GraphReadInterface& graph,
+          return [=](const StorageReadInterface& graph,
                      const Context& ctx) -> std::optional<std::vector<size_t>> {
             std::vector<size_t> indices;
             if (vertex_property_topN(order, upper, vertex_col, graph, prop_name,
@@ -175,7 +178,7 @@ gs::result<ReadOpBuildResultT> OrderByOprBuilder::Build(
   };
   return std::make_pair(std::make_unique<OrderByOprBeta>(
                             std::move(keys), lower, upper, std::move(func)),
-                        ctx_meta);
+                        ret_meta);
 }
 
 }  // namespace ops

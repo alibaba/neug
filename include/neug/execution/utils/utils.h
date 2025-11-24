@@ -53,13 +53,13 @@ std::vector<LabelTriplet> parse_label_triplets(
 
 bool vertex_property_topN(bool asc, size_t limit,
                           const std::shared_ptr<IVertexColumn>& col,
-                          const GraphReadInterface& graph,
+                          const StorageReadInterface& graph,
                           const std::string& prop_name,
                           std::vector<size_t>& offsets);
 
 bool vertex_id_topN(bool asc, size_t limit,
                     const std::shared_ptr<IVertexColumn>& col,
-                    const GraphReadInterface& graph,
+                    const StorageReadInterface& graph,
                     std::vector<size_t>& offsets);
 
 }  // namespace runtime

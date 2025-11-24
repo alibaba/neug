@@ -21,16 +21,18 @@ namespace runtime {
 namespace ops {
 
 gs::result<Context> CheckpointOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   graph.CreateCheckpoint();
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IAdminOperator> CheckpointOprBuilder::Build(
-    const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
-  return std::make_unique<CheckpointOpr>();
+gs::result<OpBuildResultT> CheckpointOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::AdminPlan& plan, int op_id) {
+  return std::make_pair(std::make_unique<CheckpointOpr>(), ctx_meta);
 }
 
 }  // namespace ops

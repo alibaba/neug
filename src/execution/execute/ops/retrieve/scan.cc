@@ -48,7 +48,7 @@ class OprTimer;
 namespace ops {
 
 typedef const std::map<std::string, std::string>& ParamsType;
-class FilterOidsWithoutPredOpr : public IReadOperator {
+class FilterOidsWithoutPredOpr : public IOperator {
  public:
   FilterOidsWithoutPredOpr(
       ScanParams params,
@@ -56,9 +56,11 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
       : params_(params), oids_(std::move(oids)) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<Property> oids = oids_(params);
     if (params_.tables.size() == 1 && oids.size() == 1) {
       return Scan::find_vertex_with_oid(
@@ -76,7 +78,7 @@ class FilterOidsWithoutPredOpr : public IReadOperator {
   std::function<std::vector<Property>(ParamsType)> oids_;
 };
 
-class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
+class FilterMultiTypeOidsWithoutPredOpr : public IOperator {
  public:
   FilterMultiTypeOidsWithoutPredOpr(
       ScanParams params,
@@ -84,8 +86,10 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
       : params_(params), oids_(oids) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     std::vector<Property> oids;
     for (auto& _oid : oids_) {
@@ -106,7 +110,7 @@ class FilterMultiTypeOidsWithoutPredOpr : public IReadOperator {
   std::vector<std::function<std::vector<Property>(ParamsType)>> oids_;
 };
 
-class FilterGidsWithoutPredOpr : public IReadOperator {
+class FilterGidsWithoutPredOpr : public IOperator {
  public:
   FilterGidsWithoutPredOpr(
       ScanParams params,
@@ -114,8 +118,10 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
       : params_(params), oids_(std::move(oids)) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -138,7 +144,7 @@ class FilterGidsWithoutPredOpr : public IReadOperator {
   std::function<std::vector<Property>(ParamsType)> oids_;
 };
 
-class FilterOidsSPredOpr : public IReadOperator {
+class FilterOidsSPredOpr : public IOperator {
  public:
   FilterOidsSPredOpr(
       ScanParams params,
@@ -147,8 +153,10 @@ class FilterOidsSPredOpr : public IReadOperator {
       : params_(params), oids_(std::move(oids)), config_(config) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     auto ids = oids_(params);
     return Scan::filter_oids_with_special_vertex_predicate(
@@ -165,7 +173,7 @@ class FilterOidsSPredOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class FilterOidsGPredOpr : public IReadOperator {
+class FilterOidsGPredOpr : public IOperator {
  public:
   FilterOidsGPredOpr(
       ScanParams params,
@@ -174,8 +182,10 @@ class FilterOidsGPredOpr : public IReadOperator {
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     auto ids = oids_(params);
     Arena arena;
@@ -199,7 +209,7 @@ class FilterOidsGPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
-class FilterOidsMultiTypeSPredOpr : public IReadOperator {
+class FilterOidsMultiTypeSPredOpr : public IOperator {
  public:
   FilterOidsMultiTypeSPredOpr(
       ScanParams params,
@@ -208,8 +218,10 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
       : params_(params), oids_(oids), config_(config) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     std::vector<Property> all_ids;
     for (auto& _oid : oids_) {
@@ -232,7 +244,7 @@ class FilterOidsMultiTypeSPredOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class FilterOidsMultiTypeGPredOpr : public IReadOperator {
+class FilterOidsMultiTypeGPredOpr : public IOperator {
  public:
   FilterOidsMultiTypeGPredOpr(
       ScanParams params,
@@ -245,8 +257,10 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     std::vector<Property> all_ids;
     for (auto& _oid : oids_) {
@@ -273,7 +287,7 @@ class FilterOidsMultiTypeGPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
-class FilterGidsSPredOpr : public IReadOperator {
+class FilterGidsSPredOpr : public IOperator {
  public:
   FilterGidsSPredOpr(
       ScanParams params,
@@ -286,8 +300,11 @@ class FilterGidsSPredOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
+
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -304,7 +321,7 @@ class FilterGidsSPredOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class FilterGidsGPredOpr : public IReadOperator {
+class FilterGidsGPredOpr : public IOperator {
  public:
   FilterGidsGPredOpr(
       ScanParams params,
@@ -317,8 +334,10 @@ class FilterGidsGPredOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph, ParamsType params,
+      gs::runtime::IStorageInterface& graph_interface, ParamsType params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     ctx = Context();
     auto ids = oids_(params);
     std::vector<int64_t> gids;
@@ -344,7 +363,7 @@ class FilterGidsGPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
-class ScanWithSPredOpr : public IReadOperator {
+class ScanWithSPredOpr : public IOperator {
  public:
   ScanWithSPredOpr(const ScanParams& scan_params,
                    const SpecialVertexPredicateConfig& config)
@@ -353,10 +372,12 @@ class ScanWithSPredOpr : public IReadOperator {
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return Scan::scan_vertex_with_special_vertex_predicate(
         std::move(ctx), graph, scan_params_, config_, params);
   }
@@ -366,17 +387,19 @@ class ScanWithSPredOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class ScanWithGPredOpr : public IReadOperator {
+class ScanWithGPredOpr : public IOperator {
  public:
   ScanWithGPredOpr(const ScanParams& scan_params,
                    const common::Expression& pred)
       : scan_params_(scan_params), pred_(pred) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     Arena arena;
     auto expr =
         parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
@@ -403,16 +426,18 @@ class ScanWithGPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
-class ScanWithoutPredOpr : public IReadOperator {
+class ScanWithoutPredOpr : public IOperator {
  public:
   explicit ScanWithoutPredOpr(const ScanParams& scan_params)
       : scan_params_(scan_params) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
       return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
                                [](label_t, vid_t, size_t) { return true; });
@@ -431,7 +456,7 @@ class ScanWithoutPredOpr : public IReadOperator {
   ScanParams scan_params_;
 };
 
-gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
+gs::result<OpBuildResultT> ScanOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
@@ -598,12 +623,12 @@ gs::result<ReadOpBuildResultT> ScanOprBuilder::Build(
   }
 }
 
-class DummySourceOpr : public IReadOperator {
+class DummySourceOpr : public IOperator {
  public:
   DummySourceOpr() {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -616,7 +641,7 @@ class DummySourceOpr : public IReadOperator {
   std::string get_operator_name() const override { return "DummySourceOpr"; }
 };
 
-gs::result<ReadOpBuildResultT> DummySourceOprBuilder::Build(
+gs::result<OpBuildResultT> DummySourceOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(std::make_unique<DummySourceOpr>(), ctx_meta);

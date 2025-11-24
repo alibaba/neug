@@ -53,13 +53,13 @@ class PlanParser {
   static PlanParser& get();
 
   void register_read_operator_builder(
-      std::unique_ptr<IReadOperatorBuilder>&& builder);
+      std::unique_ptr<IOperatorBuilder>&& builder);
 
   void register_write_operator_builder(
-      std::unique_ptr<IInsertOperatorBuilder>&& builder);
+      std::unique_ptr<IOperatorBuilder>&& builder);
 
   void register_update_operator_builder(
-      std::unique_ptr<IUpdateOperatorBuilder>&& builder);
+      std::unique_ptr<IOperatorBuilder>&& builder);
 
   void register_admin_operator_builder(
       std::unique_ptr<IAdminOperatorBuilder>&& builder);
@@ -85,16 +85,16 @@ class PlanParser {
  private:
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
-                std::unique_ptr<IReadOperatorBuilder>>>>
+                std::unique_ptr<IOperatorBuilder>>>>
       read_op_builders_;
 
   std::map<physical::PhysicalOpr_Operator::OpKindCase,
-           std::unique_ptr<IInsertOperatorBuilder>>
+           std::unique_ptr<IOperatorBuilder>>
       write_op_builders_;
 
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
-                std::unique_ptr<IUpdateOperatorBuilder>>>>
+                std::unique_ptr<IOperatorBuilder>>>>
       update_op_builders_;
 
   std::map<physical::AdminPlan_Operator::KindCase,
@@ -103,15 +103,15 @@ class PlanParser {
 };
 
 gs::result<runtime::Context> ParseAndExecuteReadPipeline(
-    const GraphReadInterface& graph, const physical::PhysicalPlan& plan,
+    const StorageReadInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 
 gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
-    GraphUpdateInterface& graph, const physical::PhysicalPlan& plan,
+    StorageUpdateInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 
 gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
-    GraphUpdateInterface& graph, const physical::AdminPlan& admin_plan,
+    StorageUpdateInterface& graph, const physical::AdminPlan& admin_plan,
     OprTimer* timer);
 
 }  // namespace runtime

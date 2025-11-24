@@ -26,7 +26,7 @@ namespace ops {
 /**
  * @brief UpdateEdgeOpr is used to update edge properties in batch.
  */
-class UpdateEdgeOpr : public IUpdateOperator {
+class UpdateEdgeOpr : public IOperator {
  public:
   using edge_data_t =
       std::tuple<int32_t, std::string,
@@ -38,7 +38,7 @@ class UpdateEdgeOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -47,9 +47,10 @@ class UpdateEdgeOpr : public IUpdateOperator {
 };
 
 gs::result<Context> UpdateEdgeOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
   Arena arena;
@@ -134,8 +135,10 @@ gs::result<Context> UpdateEdgeOpr::Eval(
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().set_edge();
   typename UpdateEdgeOpr::edge_data_vec_t edge_data_vec;
   for (const auto& entry : opr.entries()) {
@@ -155,7 +158,8 @@ std::unique_ptr<IUpdateOperator> UpdateEdgeOprBuilder::Build(
     edge_data_vec.emplace_back(tag_id, prop_mapping.property().key().name(),
                                prop_mapping.data());
   }
-  return std::make_unique<UpdateEdgeOpr>(std::move(edge_data_vec));
+  return std::make_pair(
+      std::make_unique<UpdateEdgeOpr>(std::move(edge_data_vec)), meta);
 }
 
 }  // namespace ops

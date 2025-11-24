@@ -29,15 +29,15 @@ class ContextMeta;
 
 namespace ops {
 
-class SPOrderByLimitOprBuilder : public IReadOperatorBuilder {
+class SPOrderByLimitOprBuilder : public IOperatorBuilder {
  public:
   SPOrderByLimitOprBuilder() = default;
   ~SPOrderByLimitOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   int stepping(int i) override { return i + 5; }
 
@@ -54,15 +54,15 @@ class SPOrderByLimitOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class SPOprBuilder : public IReadOperatorBuilder {
+class SPOprBuilder : public IOperatorBuilder {
  public:
   SPOprBuilder() = default;
   ~SPOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -74,15 +74,15 @@ class SPOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class PathExpandVOprBuilder : public IReadOperatorBuilder {
+class PathExpandVOprBuilder : public IOperatorBuilder {
  public:
   PathExpandVOprBuilder() = default;
   ~PathExpandVOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -93,15 +93,15 @@ class PathExpandVOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class PathExpandOprBuilder : public IReadOperatorBuilder {
+class PathExpandOprBuilder : public IOperatorBuilder {
  public:
   PathExpandOprBuilder() = default;
   ~PathExpandOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kPath};

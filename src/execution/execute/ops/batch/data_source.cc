@@ -35,7 +35,6 @@ namespace gs {
 class Schema;
 
 namespace runtime {
-class GraphUpdateInterface;
 class OprTimer;
 
 namespace ops {
@@ -46,7 +45,7 @@ namespace ops {
 /**
  * @brief DataSourceOpr is used to load data from a CSV file.
  */
-class CSVDataSourceOpr : public IUpdateOperator {
+class CSVDataSourceOpr : public IOperator {
  public:
   static constexpr bool batch_reader_default = true;
   CSVDataSourceOpr(
@@ -58,7 +57,7 @@ class CSVDataSourceOpr : public IUpdateOperator {
 
   std::string get_operator_name() const override { return "CSVDataSourceOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -71,9 +70,8 @@ class CSVDataSourceOpr : public IUpdateOperator {
 };
 
 gs::result<Context> CSVDataSourceOpr::Eval(
-    GraphUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+    IStorageInterface& graph, const std::map<std::string, std::string>& params,
+    Context&& ctx, OprTimer* timer) {
   if (ctx.row_num() != 0) {
     LOG(ERROR) << "Expect a empty context, but got " << ctx.row_num();
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
@@ -167,8 +165,10 @@ gs::result<Context> CSVDataSourceOpr::eval_table_reader(Context&& ctx) {
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> DataSourceOprBuilder::Build(
+    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   if (!plan.query_plan().plan(op_idx).opr().has_source()) {
     LOG(ERROR) << "Data source operator is not found in the plan.";
   }
@@ -196,12 +196,15 @@ std::unique_ptr<IUpdateOperator> DataSourceOprBuilder::Build(
   if (extension_name == "csv") {
     auto csv_record_suppliers =
         create_csv_record_suppliers(file_path, column_types, options);
-    return std::make_unique<CSVDataSourceOpr>(csv_record_suppliers, true);
+    return std::make_pair(
+        std::make_unique<CSVDataSourceOpr>(csv_record_suppliers, true),
+        ret_meta);
   } else {
     LOG(FATAL) << "Unsupported csv data source, got: "
                << source_opr.ShortDebugString();
   }
-  return nullptr;  // to suppress compiler warning
+  return std::make_pair(nullptr,
+                        ContextMeta());  // to suppress compiler warning
 }
 }  // namespace ops
 }  // namespace runtime

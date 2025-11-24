@@ -91,7 +91,7 @@ result<results::CollectiveResults> QueryProcessor::execute_admin(
     const physical::AdminPlan& admin_plan, int32_t num_threads) {
   // For admin plan, we always use update transaction.
   auto txn = db_.GetUpdateTransaction();
-  runtime::GraphUpdateInterface gui(txn);
+  runtime::StorageUpdateInterface gui(txn);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx =
@@ -113,7 +113,7 @@ result<results::CollectiveResults> QueryProcessor::execute_admin(
 result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   auto txn = db_.GetReadTransaction();
-  runtime::GraphReadInterface gri(txn);
+  runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx = runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());

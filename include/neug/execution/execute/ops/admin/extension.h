@@ -27,7 +27,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class ExtensionInstallOpr : public IAdminOperator {
+class ExtensionInstallOpr : public IOperator {
  public:
   explicit ExtensionInstallOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
@@ -35,7 +35,7 @@ class ExtensionInstallOpr : public IAdminOperator {
   std::string get_operator_name() const override {
     return "ExtensionInstallOpr";
   }
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -43,13 +43,13 @@ class ExtensionInstallOpr : public IAdminOperator {
   std::string extension_name_;
 };
 
-class ExtensionLoadOpr : public IAdminOperator {
+class ExtensionLoadOpr : public IOperator {
  public:
   explicit ExtensionLoadOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionLoadOpr() override = default;
   std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -57,7 +57,7 @@ class ExtensionLoadOpr : public IAdminOperator {
   std::string extension_name_;
 };
 
-class ExtensionUninstallOpr : public IAdminOperator {
+class ExtensionUninstallOpr : public IOperator {
  public:
   explicit ExtensionUninstallOpr(std::string extension_name)
       : extension_name_(std::move(extension_name)) {}
@@ -65,7 +65,7 @@ class ExtensionUninstallOpr : public IAdminOperator {
   std::string get_operator_name() const override {
     return "ExtensionUninstallOpr";
   }
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -79,9 +79,10 @@ class ExtensionInstallOprBuilder : public IAdminOperatorBuilder {
   ExtensionInstallOprBuilder() = default;
   ~ExtensionInstallOprBuilder() override = default;
 
-  std::unique_ptr<IAdminOperator> Build(const Schema& schema,
-                                        const physical::AdminPlan& plan,
-                                        int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::AdminPlan& plan,
+                                   int op_idx) override;
 
   physical::AdminPlan_Operator::KindCase GetOpKind() const override {
     return physical::AdminPlan_Operator::KindCase::kExtInstall;
@@ -93,9 +94,10 @@ class ExtensionLoadOprBuilder : public IAdminOperatorBuilder {
   ExtensionLoadOprBuilder() = default;
   ~ExtensionLoadOprBuilder() override = default;
 
-  std::unique_ptr<IAdminOperator> Build(const Schema& schema,
-                                        const physical::AdminPlan& plan,
-                                        int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::AdminPlan& plan,
+                                   int op_idx) override;
 
   physical::AdminPlan_Operator::KindCase GetOpKind() const override {
     return physical::AdminPlan_Operator::KindCase::kExtLoad;
@@ -107,9 +109,10 @@ class ExtensionUninstallOprBuilder : public IAdminOperatorBuilder {
   ExtensionUninstallOprBuilder() = default;
   ~ExtensionUninstallOprBuilder() override = default;
 
-  std::unique_ptr<IAdminOperator> Build(const Schema& schema,
-                                        const physical::AdminPlan& plan,
-                                        int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::AdminPlan& plan,
+                                   int op_idx) override;
 
   physical::AdminPlan_Operator::KindCase GetOpKind() const override {
     return physical::AdminPlan_Operator::KindCase::kExtUninstall;

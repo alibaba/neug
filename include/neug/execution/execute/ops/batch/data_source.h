@@ -32,19 +32,19 @@ class Schema;
 
 namespace runtime {
 class Context;
-class GraphUpdateInterface;
 class OprTimer;
 
 namespace ops {
 
-class DataSourceOprBuilder : public IUpdateOperatorBuilder {
+class DataSourceOprBuilder : public IOperatorBuilder {
  public:
   DataSourceOprBuilder() = default;
   ~DataSourceOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

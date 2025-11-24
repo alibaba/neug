@@ -33,14 +33,15 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class USelectOpr : public IUpdateOperator {
+class USelectOpr : public IOperator {
  public:
   explicit USelectOpr(const common::Expression& predicate)
       : predicate_(predicate) {}
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    Expr expr(graph, ctx, params, predicate_, VarType::kPathVar);
+    Expr expr(dynamic_cast<StorageUpdateInterface&>(graph), ctx, params,
+              predicate_, VarType::kPathVar);
     Arena arena;
     return Select::select(std::move(ctx), [&](size_t idx) {
       return expr.eval_path(idx, arena).as_bool();
@@ -53,10 +54,12 @@ class USelectOpr : public IUpdateOperator {
   common::Expression predicate_;
 };
 
-std::unique_ptr<IUpdateOperator> USelectOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> USelectOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.query_plan().plan(op_idx).opr().select();
-  return std::make_unique<USelectOpr>(opr.predicate());
+  return std::make_pair(std::make_unique<USelectOpr>(opr.predicate()),
+                        ContextMeta());
 }
 }  // namespace ops
 }  // namespace runtime

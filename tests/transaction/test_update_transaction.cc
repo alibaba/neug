@@ -365,7 +365,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   }
   {
     auto txn = db.GetReadTransaction();
-    gs::runtime::GraphReadInterface gi(txn);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
@@ -507,7 +507,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
-    gs::runtime::GraphReadInterface gi(txn);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {

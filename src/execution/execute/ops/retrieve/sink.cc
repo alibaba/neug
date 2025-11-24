@@ -32,11 +32,11 @@ class OprTimer;
 
 namespace ops {
 
-class SinkOpr : public IReadOperator {
+class SinkOpr : public IOperator {
  public:
   explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
-  gs::result<Context> Eval(const GraphReadInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids_;
@@ -49,7 +49,7 @@ class SinkOpr : public IReadOperator {
   std::vector<int> tag_ids_;
 };
 
-gs::result<ReadOpBuildResultT> SinkOprBuilder::Build(
+gs::result<OpBuildResultT> SinkOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx).opr().sink();

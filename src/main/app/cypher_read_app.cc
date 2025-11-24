@@ -55,7 +55,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
     VLOG(1) << "plan: " << plan.DebugString();
     auto txn = graph.GetReadTransaction();
 
-    gs::runtime::GraphReadInterface gri(txn);
+    gs::runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
 
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
     gs::result<gs::runtime::Context> ctx =
@@ -108,7 +108,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
     }
     auto txn = graph.GetReadTransaction();
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
-    gs::runtime::GraphReadInterface gri(txn);
+    gs::runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
     auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(),
                                                  params, timer.get());
     if (type == Schema::CYPHER_READ_PLUGIN_ID) {

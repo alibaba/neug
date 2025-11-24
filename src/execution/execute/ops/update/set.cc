@@ -43,7 +43,7 @@ class OprTimer;
 
 namespace ops {
 
-class SetOpr : public IUpdateOperator {
+class SetOpr : public IOperator {
  public:
   SetOpr(std::vector<std::pair<int, std::string>> keys,
          std::vector<common::Expression> values)
@@ -52,7 +52,7 @@ class SetOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "SetOpr"; }
 
   // compiler bug here
-  bool _set_vertex_property(GraphUpdateInterface& graph, label_t label,
+  bool _set_vertex_property(StorageUpdateInterface& graph, label_t label,
                             vid_t vid, const std::string& key,
                             const std::string& value) {
     const auto& properties = graph.schema().get_vertex_property_names(label);
@@ -87,7 +87,7 @@ class SetOpr : public IUpdateOperator {
     }
     return true;
   }
-  bool set_vertex_property(GraphUpdateInterface& graph, label_t label,
+  bool set_vertex_property(StorageUpdateInterface& graph, label_t label,
                            vid_t vid, const std::string& key,
                            const RTAny& value) {
     auto properties = graph.schema().get_vertex_property_names(label);
@@ -107,9 +107,10 @@ class SetOpr : public IUpdateOperator {
     return true;
   }
 
-  bool set_edge_property(GraphUpdateInterface& graph, const LabelTriplet& label,
-                         Direction dir, vid_t src, vid_t dst,
-                         const std::string& key, const RTAny& value) {
+  bool set_edge_property(StorageUpdateInterface& graph,
+                         const LabelTriplet& label, Direction dir, vid_t src,
+                         vid_t dst, const std::string& key,
+                         const RTAny& value) {
     auto val_type = value.type();
     Property prop = Property::empty();
     if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
@@ -132,7 +133,7 @@ class SetOpr : public IUpdateOperator {
     return true;
   }
 
-  bool _set_edge_property(GraphUpdateInterface& graph,
+  bool _set_edge_property(StorageUpdateInterface& graph,
                           const LabelTriplet& label, Direction dir, vid_t src,
                           vid_t dst, const std::string& key,
                           const std::string& value) {
@@ -159,9 +160,10 @@ class SetOpr : public IUpdateOperator {
     return true;
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph_interface,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
     Arena arena;
     for (size_t i = 0; i < keys_.size(); ++i) {
       auto& key = keys_[i];
@@ -238,8 +240,10 @@ class SetOpr : public IUpdateOperator {
   std::vector<std::pair<int, std::string>> keys_;
   std::vector<common::Expression> values_;
 };
-std::unique_ptr<IUpdateOperator> USetOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+
+gs::result<OpBuildResultT> USetOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.query_plan().plan(op_idx).opr().set();
   std::vector<std::pair<int, std::string>> keys;
   std::vector<common::Expression> values;
@@ -253,7 +257,9 @@ std::unique_ptr<IUpdateOperator> USetOprBuilder::Build(
     keys.emplace_back(tag, property_name);
     values.emplace_back(item.value());
   }
-  return std::make_unique<SetOpr>(std::move(keys), std::move(values));
+  return std::make_pair(
+      std::make_unique<SetOpr>(std::move(keys), std::move(values)),
+      ContextMeta());
 }
 }  // namespace ops
 }  // namespace runtime

@@ -32,14 +32,15 @@ class ContextMeta;
 
 namespace ops {
 
-class ProcedureCallOprBuilder : public IUpdateOperatorBuilder {
+class ProcedureCallOprBuilder : public IOperatorBuilder {
  public:
   ProcedureCallOprBuilder() = default;
   ~ProcedureCallOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const gs::Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

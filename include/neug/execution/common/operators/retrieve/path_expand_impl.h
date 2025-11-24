@@ -185,23 +185,23 @@ iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 path_expand_vertex_without_predicate_impl(
-    const GraphReadInterface& graph, const SLVertexColumn& input,
+    const StorageReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper);
 
 template <typename PRED_T>
 void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
-              label_t e_label, const GraphReadInterface::vertex_set_t& vertices,
-              size_t idx, int lower, int upper,
-              MSVertexColumnBuilder& dest_col_builder,
+              label_t e_label,
+              const StorageReadInterface::vertex_set_t& vertices, size_t idx,
+              int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
               GeneralPathColumnBuilder& path_col_builder, Arena& path_impls,
               std::vector<size_t>& offsets, const PRED_T& pred) {
   std::vector<vid_t> cur;
   std::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
-  GraphReadInterface::vertex_array_t<vid_t> parent(
-      vertices, GraphReadInterface::kInvalidVid);
+  StorageReadInterface::vertex_array_t<vid_t> parent(
+      vertices, StorageReadInterface::kInvalidVid);
 
   while (depth < upper && !cur.empty()) {
     if (depth >= lower) {
@@ -264,7 +264,7 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
           auto es = view.get_edges(u);
           for (auto it = es.begin(); it != es.end(); ++it) {
             auto nbr = it.get_vertex();
-            if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+            if (parent[nbr] == StorageReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
             }
@@ -276,7 +276,7 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
         auto es = view.get_edges(u);
         for (auto it = es.begin(); it != es.end(); ++it) {
           auto nbr = it.get_vertex();
-          if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+          if (parent[nbr] == StorageReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
           }
@@ -292,8 +292,8 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
 template <typename PRED_T>
 void sssp_both_dir(const GenericView& view0, const GenericView& view1,
                    label_t v_label, vid_t v, label_t e_label,
-                   const GraphReadInterface::vertex_set_t& vertices, size_t idx,
-                   int lower, int upper,
+                   const StorageReadInterface::vertex_set_t& vertices,
+                   size_t idx, int lower, int upper,
                    MSVertexColumnBuilder& dest_col_builder,
                    GeneralPathColumnBuilder& path_col_builder,
                    Arena& path_impls, std::vector<size_t>& offsets,
@@ -302,8 +302,8 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
   std::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
-  GraphReadInterface::vertex_array_t<vid_t> parent(
-      vertices, GraphReadInterface::kInvalidVid);
+  StorageReadInterface::vertex_array_t<vid_t> parent(
+      vertices, StorageReadInterface::kInvalidVid);
 
   while (depth < upper && !cur.empty()) {
     if (depth >= lower) {
@@ -386,7 +386,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
           auto es0 = view0.get_edges(u);
           for (auto it = es0.begin(); it != es0.end(); ++it) {
             auto nbr = it.get_vertex();
-            if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+            if (parent[nbr] == StorageReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
             }
@@ -394,7 +394,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
           auto es1 = view1.get_edges(u);
           for (auto it = es1.begin(); it != es1.end(); ++it) {
             auto nbr = it.get_vertex();
-            if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+            if (parent[nbr] == StorageReadInterface::kInvalidVid) {
               parent[nbr] = u;
               next.push_back(nbr);
             }
@@ -406,7 +406,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
         auto es0 = view0.get_edges(u);
         for (auto it = es0.begin(); it != es0.end(); ++it) {
           auto nbr = it.get_vertex();
-          if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+          if (parent[nbr] == StorageReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
           }
@@ -414,7 +414,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
         auto es1 = view1.get_edges(u);
         for (auto it = es1.begin(); it != es1.end(); ++it) {
           auto nbr = it.get_vertex();
-          if (parent[nbr] == GraphReadInterface::kInvalidVid) {
+          if (parent[nbr] == StorageReadInterface::kInvalidVid) {
             parent[nbr] = u;
             next.push_back(nbr);
           }
@@ -430,7 +430,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
 template <typename PRED_T>
 void sssp_both_dir_with_order_by_length_limit(
     const GenericView& view0, const GenericView& view1, label_t v_label,
-    vid_t v, const GraphReadInterface::vertex_set_t& vertices, size_t idx,
+    vid_t v, const StorageReadInterface::vertex_set_t& vertices, size_t idx,
     int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
     ValueColumnBuilder<int>& path_len_builder, std::vector<size_t>& offsets,
     const PRED_T& pred, int limit_upper) {
@@ -438,7 +438,7 @@ void sssp_both_dir_with_order_by_length_limit(
   std::vector<vid_t> next;
   cur.push_back(v);
   int depth = 0;
-  GraphReadInterface::vertex_array_t<bool> vis(vertices, false);
+  StorageReadInterface::vertex_array_t<bool> vis(vertices, false);
   vis[v] = true;
 
   while (depth < upper && !cur.empty()) {
@@ -510,7 +510,7 @@ template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            std::vector<size_t>>
 single_source_shortest_path_with_order_by_length_limit_impl(
-    const GraphReadInterface& graph, const IVertexColumn& input,
+    const StorageReadInterface& graph, const IVertexColumn& input,
     label_t e_label, Direction dir, int lower, int upper, const PRED_T& pred,
     int limit_upper) {
   label_t v_label = *input.get_labels_set().begin();
@@ -537,7 +537,7 @@ single_source_shortest_path_with_order_by_length_limit_impl(
 template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            std::vector<size_t>>
-single_source_shortest_path_impl(const GraphReadInterface& graph,
+single_source_shortest_path_impl(const StorageReadInterface& graph,
                                  const IVertexColumn& input, label_t e_label,
                                  Direction dir, int lower, int upper,
                                  const PRED_T& pred) {
@@ -575,7 +575,7 @@ template <typename PRED_T>
 std::tuple<std::shared_ptr<IContextColumn>, std::shared_ptr<IContextColumn>,
            std::vector<size_t>>
 default_single_source_shortest_path_impl(
-    const GraphReadInterface& graph, const IVertexColumn& input,
+    const StorageReadInterface& graph, const IVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper, const PRED_T& pred) {
   label_t label_num = graph.schema().vertex_label_num();

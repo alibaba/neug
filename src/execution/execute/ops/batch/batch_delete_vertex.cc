@@ -22,7 +22,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class BatchDeleteVertexOpr : public IUpdateOperator {
+class BatchDeleteVertexOpr : public IOperator {
  public:
   BatchDeleteVertexOpr(const std::vector<std::vector<label_t>>& vertex_labels,
                        const std::vector<int32_t> vertex_bindings)
@@ -32,7 +32,7 @@ class BatchDeleteVertexOpr : public IUpdateOperator {
     return "BatchDeleteVertexOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -42,9 +42,10 @@ class BatchDeleteVertexOpr : public IUpdateOperator {
 };
 
 gs::result<Context> BatchDeleteVertexOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   size_t binding_size = vertex_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {
     int32_t alias = vertex_bindings_[i];
@@ -82,8 +83,10 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> BatchDeleteVertexOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().delete_vertex();
   std::vector<std::vector<label_t>> vertex_types;
   std::vector<int32_t> vertex_bindings;
@@ -99,7 +102,9 @@ std::unique_ptr<IUpdateOperator> BatchDeleteVertexOprBuilder::Build(
   }
 
   CHECK(vertex_types.size() == vertex_bindings.size());
-  return std::make_unique<BatchDeleteVertexOpr>(vertex_types, vertex_bindings);
+  return std::make_pair(
+      std::make_unique<BatchDeleteVertexOpr>(vertex_types, vertex_bindings),
+      ret_meta);
 }
 
 }  // namespace ops

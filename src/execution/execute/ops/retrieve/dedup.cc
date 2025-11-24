@@ -36,13 +36,13 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class DedupOpr : public IReadOperator {
+class DedupOpr : public IOperator {
  public:
   explicit DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Dedup::dedup(std::move(ctx), tag_ids_);
@@ -51,7 +51,7 @@ class DedupOpr : public IReadOperator {
   std::vector<size_t> tag_ids_;
 };
 
-class DedupWithPropertyOpr : public IReadOperator {
+class DedupWithPropertyOpr : public IOperator {
  public:
   explicit DedupWithPropertyOpr(const algebra::Dedup& dedup_opr)
       : opr_(dedup_opr) {}
@@ -59,9 +59,11 @@ class DedupWithPropertyOpr : public IReadOperator {
   std::string get_operator_name() const override { return "DedupWithProperty"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     int keys_num = opr_.keys_size();
     std::vector<std::function<RTAny(size_t)>> keys;
     for (int k_i = 0; k_i < keys_num; ++k_i) {
@@ -80,7 +82,7 @@ class DedupWithPropertyOpr : public IReadOperator {
 
   algebra::Dedup opr_;
 };
-gs::result<ReadOpBuildResultT> DedupOprBuilder::Build(
+gs::result<OpBuildResultT> DedupOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& dedup_opr = plan.query_plan().plan(op_idx).opr().dedup();
@@ -99,9 +101,10 @@ gs::result<ReadOpBuildResultT> DedupOprBuilder::Build(
   if (flag) {
     return std::make_pair(std::make_unique<DedupOpr>(keys), ctx_meta);
   } else {
+    ContextMeta ret_meta = ctx_meta;
     return std::make_pair(std::make_unique<DedupWithPropertyOpr>(
                               plan.query_plan().plan(op_idx).opr().dedup()),
-                          ctx_meta);
+                          ret_meta);
   }
 }
 }  // namespace ops

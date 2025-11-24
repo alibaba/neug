@@ -46,7 +46,7 @@ class OprTimer;
 namespace ops {
 
 template <typename T1>
-class TCOpr : public IReadOperator {
+class TCOpr : public IOperator {
  public:
   TCOpr(const physical::EdgeExpand& ee_opr0,
         const physical::EdgeExpand& ee_opr1, const physical::GetV& v_opr1,
@@ -98,10 +98,11 @@ class TCOpr : public IReadOperator {
   std::string get_operator_name() const override { return "TCOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const std::string& param_value = params.at(param_name_);
+    auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
                               alias1_, alias2_, is_lt_, param_value);
   }
@@ -250,7 +251,7 @@ inline bool parse_edge_type(const Schema& schema, const LabelTriplet& label,
   return false;
 }
 
-std::unique_ptr<IReadOperator> make_tc_opr(
+std::unique_ptr<IOperator> make_tc_opr(
     const physical::EdgeExpand& ee_opr0, const physical::EdgeExpand& ee_opr1,
     const physical::GetV& v_opr1, const physical::EdgeExpand& ee_opr2,
     const LabelTriplet& label0, const LabelTriplet& label1,
@@ -268,7 +269,7 @@ std::unique_ptr<IReadOperator> make_tc_opr(
   return nullptr;
 }
 
-gs::result<ReadOpBuildResultT> TCOprBuilder::Build(
+gs::result<OpBuildResultT> TCOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (tc_fusable(plan.query_plan().plan(op_idx).opr().edge(),

@@ -25,7 +25,7 @@ namespace ops {
 /**
  * @brief UpdateVertexOpr is used to update vertex properties in batch.
  */
-class UpdateVertexOpr : public IUpdateOperator {
+class UpdateVertexOpr : public IOperator {
  public:
   using vertex_prop_vec_t =
       std::vector<std::tuple<int32_t, std::string, common::Expression>>;
@@ -35,11 +35,11 @@ class UpdateVertexOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "UpdateVertexOpr"; }
 
   gs::result<Context> eval_impl(
-      GraphUpdateInterface& graph,
+      StorageUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer);
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -49,7 +49,7 @@ class UpdateVertexOpr : public IUpdateOperator {
 };
 
 gs::result<Context> UpdateVertexOpr::eval_impl(
-    GraphUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
   Arena arena;
@@ -116,14 +116,17 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
 }
 
 gs::result<Context> UpdateVertexOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   return eval_impl(graph, params, std::move(ctx), timer);
 }
 
-std::unique_ptr<IUpdateOperator> UpdateVertexOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().set_vertex();
   typename UpdateVertexOpr::vertex_prop_vec_t vertex_data;
   for (auto& entry : opr.entries()) {
@@ -143,7 +146,8 @@ std::unique_ptr<IUpdateOperator> UpdateVertexOprBuilder::Build(
     vertex_data.emplace_back(tag_id, prop_mapping.property().key().name(),
                              prop_mapping.data());
   }
-  return std::make_unique<UpdateVertexOpr>(std::move(vertex_data));
+  return std::make_pair(
+      std::make_unique<UpdateVertexOpr>(std::move(vertex_data)), ret_meta);
 }
 }  // namespace ops
 }  // namespace runtime

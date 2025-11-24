@@ -107,7 +107,7 @@ std::shared_ptr<IExportWriter> CsvExportWriter::Make(
 
 Status CsvExportWriter::Write(
     const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-    const gs::runtime::GraphReadInterface& graph) {
+    const gs::runtime::StorageReadInterface& graph) {
   std::string dir_path;
   if (file_path_.find_last_of("/\\") != std::string::npos) {
     dir_path = file_path_.substr(0, file_path_.find_last_of("/\\"));

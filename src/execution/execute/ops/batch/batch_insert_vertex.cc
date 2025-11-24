@@ -34,7 +34,7 @@ class OprTimer;
 
 namespace ops {
 
-class BatchInsertVertexOpr : public IUpdateOperator {
+class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
       const label_t& vertex_label_id, const PropertyType& pk_type,
@@ -47,7 +47,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
     return "BatchInsertVertexOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -57,7 +57,7 @@ class BatchInsertVertexOpr : public IUpdateOperator {
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-class InsertVertexOpr : public IUpdateOperator {
+class InsertVertexOpr : public IOperator {
  public:
   using vertex_prop_vec_t = std::vector<std::pair<std::string, Property>>;
   InsertVertexOpr(std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>>&&
@@ -67,11 +67,11 @@ class InsertVertexOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "InsertVertexOpr"; }
 
   gs::result<Context> eval_impl(
-      GraphUpdateInterface& graph,
+      StorageUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer);
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -80,10 +80,11 @@ class InsertVertexOpr : public IUpdateOperator {
 };
 
 gs::result<Context> BatchInsertVertexOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   for (auto supplier : suppliers) {
     if (!graph.BatchAddVertices(vertex_label_id_, supplier).ok()) {
       THROW_INTERNAL_EXCEPTION("Failed to add vertices");
@@ -92,8 +93,10 @@ gs::result<Context> BatchInsertVertexOpr::Eval(
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().load_vertex();
   // before BatchInsertVertexOpr, we assume the raw data has already been loaded
   // into memory, with each tag points to a column.
@@ -119,9 +122,11 @@ std::unique_ptr<IUpdateOperator> BatchInsertVertexOprBuilder::Build(
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);
 
-  return std::make_unique<BatchInsertVertexOpr>(
-      vertex_label_id, get_the_pk_type_from_schema(schema, vertex_label_id),
-      prop_mappings);
+  return std::make_pair(
+      std::make_unique<BatchInsertVertexOpr>(
+          vertex_label_id, get_the_pk_type_from_schema(schema, vertex_label_id),
+          prop_mappings),
+      ret_meta);
 }
 
 std::pair<Property, std::vector<Property>> get_pk_and_prop_values(
@@ -188,7 +193,7 @@ std::pair<Property, std::vector<Property>> get_pk_and_prop_values(
 }
 
 gs::result<Context> InsertVertexOpr::eval_impl(
-    GraphUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
   for (auto& entry : vertex_data_) {
@@ -257,14 +262,16 @@ gs::result<Context> InsertVertexOpr::eval_impl(
 }
 
 gs::result<Context> InsertVertexOpr::Eval(
-    GraphUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
-  return eval_impl(graph, params, std::move(ctx), timer);
+    IStorageInterface& graph, const std::map<std::string, std::string>& params,
+    Context&& ctx, OprTimer* timer) {
+  return eval_impl(dynamic_cast<StorageUpdateInterface&>(graph), params,
+                   std::move(ctx), timer);
 }
 
-std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> InsertVertexOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().create_vertex();
   using vertex_prop_vec_t = typename InsertVertexOpr::vertex_prop_vec_t;
   std::vector<std::tuple<label_t, vertex_prop_vec_t, int32_t>> vertex_data;
@@ -297,7 +304,8 @@ std::unique_ptr<IUpdateOperator> InsertVertexOprBuilder::Build(
     }
     vertex_data.emplace_back(vertex_label_id, properties, entry.alias().id());
   }
-  return std::make_unique<InsertVertexOpr>(std::move(vertex_data));
+  return std::make_pair(
+      std::make_unique<InsertVertexOpr>(std::move(vertex_data)), ret_meta);
 }
 
 }  // namespace ops

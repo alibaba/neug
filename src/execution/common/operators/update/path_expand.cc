@@ -17,7 +17,7 @@
 namespace gs {
 namespace runtime {
 gs::result<Context> UPathExpand::path_expand_v(
-    const GraphUpdateInterface& graph, Context&& ctx,
+    const StorageUpdateInterface& graph, Context&& ctx,
     const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   if (params.dir == Direction::kOut) {

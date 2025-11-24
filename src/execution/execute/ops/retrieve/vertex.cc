@@ -47,7 +47,7 @@ class OprTimer;
 
 namespace ops {
 
-class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
+class GetVFromVerticesWithLabelWithInOpr : public IOperator {
  public:
   GetVFromVerticesWithLabelWithInOpr(const physical::GetV& opr,
                                      const GetVParams& p,
@@ -59,9 +59,11 @@ class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto input_vertex_list_ptr =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(v_params_.tag));
     CHECK(input_vertex_list_ptr) << ctx.get(v_params_.tag)->column_info();
@@ -89,7 +91,7 @@ class GetVFromVerticesWithLabelWithInOpr : public IReadOperator {
   std::set<label_t> labels_set_;
 };
 
-class GetVFromVerticesWithPKExactOpr : public IReadOperator {
+class GetVFromVerticesWithPKExactOpr : public IOperator {
  public:
   GetVFromVerticesWithPKExactOpr(const physical::GetV& opr, const GetVParams& p,
                                  label_t exact_pk_label,
@@ -104,9 +106,11 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     int64_t pk = std::stoll(params.at(exact_pk_));
     vid_t index = std::numeric_limits<vid_t>::max();
     graph.GetVertexIndex(exact_pk_label_, Property::from_int64(pk), index);
@@ -122,7 +126,7 @@ class GetVFromVerticesWithPKExactOpr : public IReadOperator {
   std::string exact_pk_;
 };
 
-class GetVFromVerticesWithPredicateOpr : public IReadOperator {
+class GetVFromVerticesWithPredicateOpr : public IOperator {
  public:
   GetVFromVerticesWithPredicateOpr(const physical::GetV& opr,
                                    const GetVParams& p)
@@ -133,9 +137,11 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     GeneralVertexPredicate pred(graph, ctx, params, opr_.params().predicate());
     return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
                                           pred);
@@ -146,7 +152,7 @@ class GetVFromVerticesWithPredicateOpr : public IReadOperator {
   GetVParams v_params_;
 };
 
-class GetVFromEdgesWithPredicateOpr : public IReadOperator {
+class GetVFromEdgesWithPredicateOpr : public IOperator {
  public:
   GetVFromEdgesWithPredicateOpr(const physical::GetV& opr, const GetVParams& p)
       : opr_(opr), v_params_(p) {}
@@ -156,9 +162,11 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());
@@ -175,7 +183,7 @@ class GetVFromEdgesWithPredicateOpr : public IReadOperator {
   GetVParams v_params_;
 };
 
-gs::result<ReadOpBuildResultT> VertexOprBuilder::Build(
+gs::result<OpBuildResultT> VertexOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();
@@ -214,7 +222,7 @@ gs::result<ReadOpBuildResultT> VertexOprBuilder::Build(
           return std::make_pair(
               std::make_unique<GetVFromVerticesWithLabelWithInOpr>(
                   plan.query_plan().plan(op_idx).opr().vertex(), p, labels_set),
-              ctx_meta);
+              ret_meta);
         }
       }
 
@@ -228,20 +236,20 @@ gs::result<ReadOpBuildResultT> VertexOprBuilder::Build(
               std::make_unique<GetVFromVerticesWithPKExactOpr>(
                   plan.query_plan().plan(op_idx).opr().vertex(), p,
                   exact_pk_label, exact_pk),
-              ctx_meta);
+              ret_meta);
         }
       }
       // general predicate
       return std::make_pair(
           std::make_unique<GetVFromVerticesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ctx_meta);
+          ret_meta);
     } else if (opt == VOpt::kEnd || opt == VOpt::kStart ||
                opt == VOpt::kOther) {
       return std::make_pair(
           std::make_unique<GetVFromEdgesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ctx_meta);
+          ret_meta);
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
                                       std::to_string(static_cast<int>(opt)) +
@@ -252,7 +260,7 @@ gs::result<ReadOpBuildResultT> VertexOprBuilder::Build(
       return std::make_pair(
           std::make_unique<GetVFromEdgesWithPredicateOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ctx_meta);
+          ret_meta);
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
                                       std::to_string(static_cast<int>(opt)) +

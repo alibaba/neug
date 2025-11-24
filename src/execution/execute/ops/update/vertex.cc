@@ -48,7 +48,7 @@ class OprTimer;
 
 namespace ops {
 
-class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
+class UGetVFromEdgeWithPredOpr : public IOperator {
  public:
   UGetVFromEdgeWithPredOpr(const GetVParams& params, const physical::GetV& opr)
       : v_params_(params), opr_(opr) {}
@@ -58,10 +58,10 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
     return "UGetVFromEdgeWithPredOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph_interface,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    LOG(INFO) << opr_.DebugString();
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
     if (opr_.params().has_predicate()) {
       GeneralVertexPredicate pred(graph, ctx, params,
                                   opr_.params().predicate());
@@ -78,7 +78,7 @@ class UGetVFromEdgeWithPredOpr : public IUpdateOperator {
   physical::GetV opr_;
 };
 
-class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
+class UGetVFromVerticesWithPredOpr : public IOperator {
  public:
   UGetVFromVerticesWithPredOpr(const GetVParams& params,
                                const common::Expression& expr)
@@ -89,10 +89,11 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
     return "UGetVFromVerticesWithPredOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph_interface,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    auto expr = parse_expression<GraphUpdateInterface>(
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+    auto expr = parse_expression<StorageUpdateInterface>(
         graph, ctx, params, expr_, VarType::kPathVar);
     if (expr->is_optional()) {
       LOG(ERROR) << "GetV does not support optional expression now";
@@ -111,8 +112,10 @@ class UGetVFromVerticesWithPredOpr : public IUpdateOperator {
   GetVParams params_;
   common::Expression expr_;
 };
-std::unique_ptr<IUpdateOperator> UVertexOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+
+gs::result<OpBuildResultT> UVertexOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();
   int alias = vertex.has_alias() ? vertex.alias().value() : -1;
   int tag = vertex.has_tag() ? vertex.tag().value() : -1;
@@ -124,18 +127,25 @@ std::unique_ptr<IUpdateOperator> UVertexOprBuilder::Build(
   params.tables = parse_tables(vertex.params());
   if (vertex.params().has_predicate()) {
     if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
-      return std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex);
+      return std::make_pair(
+          std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex),
+          ContextMeta());
     } else if (opt == VOpt::kItself) {
-      return std::make_unique<UGetVFromVerticesWithPredOpr>(
-          params, vertex.params().predicate());
+      return std::make_pair(std::make_unique<UGetVFromVerticesWithPredOpr>(
+                                params, vertex.params().predicate()),
+                            ContextMeta());
     }
-    return std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex);
+    return std::make_pair(
+        std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex),
+        ContextMeta());
   }
   if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
-    return std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex);
+    return std::make_pair(
+        std::make_unique<UGetVFromEdgeWithPredOpr>(params, vertex),
+        ContextMeta());
   }
   LOG(ERROR) << "GetV does not support opt " << static_cast<int>(opt);
-  return nullptr;
+  return std::make_pair(nullptr, ContextMeta());
 }
 }  // namespace ops
 }  // namespace runtime

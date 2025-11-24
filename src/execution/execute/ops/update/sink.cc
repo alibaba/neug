@@ -27,19 +27,17 @@ namespace gs {
 class Schema;
 
 namespace runtime {
-class GraphInsertInterface;
-class GraphUpdateInterface;
 class OprTimer;
 
 namespace ops {
 
-class USinkOpr : public IUpdateOperator {
+class USinkOpr : public IOperator {
  public:
   explicit USinkOpr(const std::vector<int>& tag_ids) : tag_ids(tag_ids) {}
 
   std::string get_operator_name() const override { return "USinkOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids;
@@ -48,8 +46,9 @@ class USinkOpr : public IUpdateOperator {
   std::vector<int> tag_ids;
 };
 
-std::unique_ptr<IUpdateOperator> USinkOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> USinkOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.query_plan().plan(op_idx).opr().sink();
   std::vector<int> tag_ids;
   for (auto& tag : opr.tags()) {
@@ -78,7 +77,7 @@ std::unique_ptr<IUpdateOperator> USinkOprBuilder::Build(
       }
     }
   }
-  return std::make_unique<USinkOpr>(tag_ids);
+  return std::make_pair(std::make_unique<USinkOpr>(tag_ids), ContextMeta());
 }
 
 }  // namespace ops

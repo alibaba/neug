@@ -54,25 +54,25 @@ class PathExpand {
  public:
   // PathExpand(expandOpt == Vertex && alias == -1 && resultOpt == END_V) +
   // GetV(opt == END)
-  static gs::result<Context> edge_expand_v(const GraphReadInterface& graph,
+  static gs::result<Context> edge_expand_v(const StorageReadInterface& graph,
                                            Context&& ctx,
                                            const PathExpandParams& params);
-  static gs::result<Context> edge_expand_p(const GraphReadInterface& graph,
+  static gs::result<Context> edge_expand_p(const StorageReadInterface& graph,
                                            Context&& ctx,
                                            const PathExpandParams& params);
 
   static gs::result<Context> all_shortest_paths_with_given_source_and_dest(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const std::pair<label_t, vid_t>& dst);
   // single dst
   static gs::result<Context> single_source_single_dest_shortest_path(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, std::pair<label_t, vid_t>& dest);
 
   template <typename PRED_T>
   static gs::result<Context>
   single_source_shortest_path_with_order_by_length_limit(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred, int limit_upper) {
     std::vector<size_t> shuffle_offset;
     auto input_vertex_col =
@@ -97,7 +97,7 @@ class PathExpand {
 
   template <typename PRED_T>
   static gs::result<Context> single_source_shortest_path(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params, const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
     auto input_vertex_col =
@@ -124,14 +124,14 @@ class PathExpand {
 
   static gs::result<Context>
   single_source_shortest_path_with_special_vertex_predicate(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params,
       const SpecialVertexPredicateConfig& config,
       const std::map<std::string, std::string>& query_params);
 
   template <typename PRED_T>
   static gs::result<Context> edge_expand_p_with_pred(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const PathExpandParams& params, const PRED_T& pred) {
     if (params.opt != PathOpt::kArbitrary) {
       LOG(ERROR) << "only support arbitrary path expand with predicate";

@@ -290,14 +290,17 @@ static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
 struct OrderByLimitSPOp {
   template <typename PRED_T>
   static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
-      const ShortestPathParams& spp, int limit) {
+      const PRED_T& pred, const IStorageInterface& graph_interface,
+      Context&& ctx, const ShortestPathParams& spp, int limit) {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
+
     return PathExpand::single_source_shortest_path_with_order_by_length_limit(
         graph, std::move(ctx), spp, pred, limit);
   }
 };
 
-class SPOrderByLimitOpr : public IReadOperator {
+class SPOrderByLimitOpr : public IOperator {
  public:
   SPOrderByLimitOpr(const ShortestPathParams& spp, int limit,
                     const SpecialVertexPredicateConfig& config)
@@ -306,9 +309,11 @@ class SPOrderByLimitOpr : public IReadOperator {
   std::string get_operator_name() const override { return "SPOrderByLimitOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::set<label_t> expected_labels;
     for (auto label : spp_.labels) {
       expected_labels.insert(label.src_label);
@@ -325,7 +330,7 @@ class SPOrderByLimitOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class SPOrderByLimitWithOutPredOpr : public IReadOperator {
+class SPOrderByLimitWithOutPredOpr : public IOperator {
  public:
   SPOrderByLimitWithOutPredOpr(const ShortestPathParams& spp, int limit)
       : spp_(spp), limit_(limit) {}
@@ -335,9 +340,11 @@ class SPOrderByLimitWithOutPredOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::single_source_shortest_path_with_order_by_length_limit(
         graph, std::move(ctx), spp_,
         [](label_t, vid_t, size_t) { return true; }, limit_);
@@ -348,7 +355,7 @@ class SPOrderByLimitWithOutPredOpr : public IReadOperator {
   int limit_;
 };
 
-class SPOrderByLimitWithGPredOpr : public IReadOperator {
+class SPOrderByLimitWithGPredOpr : public IOperator {
  public:
   SPOrderByLimitWithGPredOpr(const ShortestPathParams& spp, int limit,
                              const common::Expression& pred)
@@ -359,9 +366,11 @@ class SPOrderByLimitWithGPredOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto v_pred = parse_expression(graph, std::move(ctx), params, pred_,
                                    VarType::kVertexVar);
     Arena arena;
@@ -379,7 +388,7 @@ class SPOrderByLimitWithGPredOpr : public IReadOperator {
   common::Expression pred_;
 };
 
-gs::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
+gs::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.query_plan().plan(op_idx).opr().path();
@@ -438,7 +447,7 @@ gs::result<ReadOpBuildResultT> SPOrderByLimitOprBuilder::Build(
   }
 }
 
-class SPSPredOpr : public IReadOperator {
+class SPSPredOpr : public IOperator {
  public:
   SPSPredOpr(const ShortestPathParams& spp,
              const SpecialVertexPredicateConfig& config)
@@ -447,9 +456,11 @@ class SPSPredOpr : public IReadOperator {
   std::string get_operator_name() const override { return "SPSPredOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::
         single_source_shortest_path_with_special_vertex_predicate(
             graph, std::move(ctx), spp_, config_, params);
@@ -460,7 +471,7 @@ class SPSPredOpr : public IReadOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class SPGPredOpr : public IReadOperator {
+class SPGPredOpr : public IOperator {
  public:
   SPGPredOpr(const ShortestPathParams& spp, const common::Expression& pred)
       : spp_(spp), pred_(pred) {}
@@ -468,9 +479,11 @@ class SPGPredOpr : public IReadOperator {
   std::string get_operator_name() const override { return "SPGPredOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto predicate = parse_expression(graph, std::move(ctx), params, pred_,
                                       VarType::kVertexVar);
     Arena arena;
@@ -486,16 +499,18 @@ class SPGPredOpr : public IReadOperator {
   ShortestPathParams spp_;
   common::Expression pred_;
 };
-class SPWithoutPredOpr : public IReadOperator {
+class SPWithoutPredOpr : public IOperator {
  public:
   explicit SPWithoutPredOpr(const ShortestPathParams& spp) : spp_(spp) {}
 
   std::string get_operator_name() const override { return "SPWithoutPredOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::single_source_shortest_path(
         graph, std::move(ctx), spp_,
         [](label_t, vid_t, size_t) { return true; });
@@ -505,7 +520,7 @@ class SPWithoutPredOpr : public IReadOperator {
   ShortestPathParams spp_;
 };
 
-class ASPOpr : public IReadOperator {
+class ASPOpr : public IOperator {
  public:
   ASPOpr(const gs::Schema& schema, const physical::PathExpand& opr,
          const physical::PhysicalOpr_MetaData& meta,
@@ -529,9 +544,11 @@ class ASPOpr : public IReadOperator {
   std::string get_operator_name() const override { return "ASPOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     Property oid = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
@@ -555,7 +572,7 @@ class ASPOpr : public IReadOperator {
       oid_getter_;
 };
 
-class SSSDSPOpr : public IReadOperator {
+class SSSDSPOpr : public IOperator {
  public:
   SSSDSPOpr(
       const ShortestPathParams& spp,
@@ -566,9 +583,11 @@ class SSSDSPOpr : public IReadOperator {
   std::string get_operator_name() const override { return "SSSDSPOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     Property vertex = oid_getter_(params);
     vid_t vid;
     if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
@@ -591,7 +610,7 @@ class SSSDSPOpr : public IReadOperator {
   std::function<Property(const std::map<std::string, std::string>&)>
       oid_getter_;
 };
-gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
+gs::result<OpBuildResultT> SPOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
@@ -713,14 +732,16 @@ gs::result<ReadOpBuildResultT> SPOprBuilder::Build(
   }
 }
 
-class PathExpandVOpr : public IReadOperator {
+class PathExpandVOpr : public IOperator {
  public:
   explicit PathExpandVOpr(const PathExpandParams& pep) : pep_(pep) {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::edge_expand_v(graph, std::move(ctx), pep_);
   }
   std::string get_operator_name() const override { return "PathExpandVOpr"; }
@@ -729,7 +750,7 @@ class PathExpandVOpr : public IReadOperator {
   PathExpandParams pep_;
 };
 
-gs::result<ReadOpBuildResultT> PathExpandVOprBuilder::Build(
+gs::result<OpBuildResultT> PathExpandVOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.query_plan().plan(op_idx).opr().path();
@@ -808,16 +829,18 @@ gs::result<ReadOpBuildResultT> PathExpandVOprBuilder::Build(
   }
 }
 
-class PathExpandOpr : public IReadOperator {
+class PathExpandOpr : public IOperator {
  public:
   explicit PathExpandOpr(PathExpandParams pep) : pep_(pep) {}
 
   std::string get_operator_name() const override { return "PathExpandOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::edge_expand_p(graph, std::move(ctx), pep_);
   }
 
@@ -825,7 +848,7 @@ class PathExpandOpr : public IReadOperator {
   PathExpandParams pep_;
 };
 
-class PathExpandOprWithPred : public IReadOperator {
+class PathExpandOprWithPred : public IOperator {
  public:
   PathExpandOprWithPred(PathExpandParams pep, const common::Expression& pred)
       : pep_(pep), pred_(pred) {}
@@ -835,9 +858,11 @@ class PathExpandOprWithPred : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     GeneralEdgePredicate pred(graph, ctx, params, pred_);
     return PathExpand::edge_expand_p_with_pred(graph, std::move(ctx), pep_,
                                                pred);
@@ -848,7 +873,7 @@ class PathExpandOprWithPred : public IReadOperator {
   common::Expression pred_;
 };
 
-gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
+gs::result<OpBuildResultT> PathExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.query_plan().plan(op_idx).opr().path();
@@ -858,7 +883,6 @@ gs::result<ReadOpBuildResultT> PathExpandOprBuilder::Build(
   }
   ContextMeta ret_meta = ctx_meta;
   ret_meta.set(alias);
-
   int start_tag = opr.has_start_tag() ? opr.start_tag().value() : -1;
 
   if (opr.is_optional()) {

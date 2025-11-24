@@ -36,7 +36,7 @@ class OprTimer;
 
 namespace ops {
 
-class BatchInsertEdgeOpr : public IUpdateOperator {
+class BatchInsertEdgeOpr : public IOperator {
  public:
   BatchInsertEdgeOpr(
       const label_t& edge_label_id, const label_t& src_label_id,
@@ -59,7 +59,7 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -71,7 +71,7 @@ class BatchInsertEdgeOpr : public IUpdateOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-class InsertEdgeOpr : public IUpdateOperator {
+class InsertEdgeOpr : public IOperator {
  public:
   using edge_prop_vec_t = std::vector<std::pair<std::string, std::string>>;
   using edge_triplet_t =
@@ -85,15 +85,16 @@ class InsertEdgeOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "InsertEdgeOpr"; }
 
   gs::result<Context> eval_impl(
-      GraphUpdateInterface& graph,
+      StorageUpdateInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       gs::runtime::OprTimer* timer);
 
-  gs::result<Context> Eval(gs::runtime::GraphUpdateInterface& graph,
+  gs::result<Context> Eval(gs::runtime::IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx,
                            gs::runtime::OprTimer* timer) override {
-    return eval_impl(graph, params, std::move(ctx), timer);
+    return eval_impl(dynamic_cast<StorageUpdateInterface&>(graph), params,
+                     std::move(ctx), timer);
   }
 
  private:
@@ -101,9 +102,10 @@ class InsertEdgeOpr : public IUpdateOperator {
 };
 
 gs::result<Context> BatchInsertEdgeOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   std::vector<std::pair<int32_t, std::string>>
       total_mappings;  // include prop_mappings and src/dst vertex bindings
   for (const auto& mapping : src_vertex_bindings_) {
@@ -174,8 +176,10 @@ bool get_edge_triplet_label_ids(const Schema& schema,
   return true;
 }
 
-std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().load_edge();
   // before BatchInsertEdgeOpr, we assume the raw data has already been loaded
   // into memory, with each tag points to a column.
@@ -210,13 +214,15 @@ std::unique_ptr<IUpdateOperator> BatchInsertEdgeOprBuilder::Build(
   std::vector<std::tuple<PropertyType, std::string, size_t>> src_primary_key,
       dst_primary_key;
 
-  return std::make_unique<BatchInsertEdgeOpr>(
-      edge_type, src_type, dst_type, edge_prop_types, src_pk_type, dst_pk_type,
-      prop_mappings, src_vertex_bindings, dst_vertex_binds);
+  return std::make_pair(
+      std::make_unique<BatchInsertEdgeOpr>(
+          edge_type, src_type, dst_type, edge_prop_types, src_pk_type,
+          dst_pk_type, prop_mappings, src_vertex_bindings, dst_vertex_binds),
+      ret_meta);
 }
 
 gs::result<Context> InsertEdgeOpr::eval_impl(
-    GraphUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     gs::runtime::OprTimer* timer) {
   for (auto& entry : edge_data_) {
@@ -358,8 +364,10 @@ gs::result<Context> InsertEdgeOpr::eval_impl(
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> InsertEdgeOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   auto& opr = plan.query_plan().plan(op_idx).opr().create_edge();
   VLOG(10) << "InsertEdgeOprBuilder::Build: opr = " << opr.DebugString();
   std::vector<InsertEdgeOpr::edge_data_t> edge_data;
@@ -383,7 +391,8 @@ std::unique_ptr<IUpdateOperator> InsertEdgeOprBuilder::Build(
     edge_data.emplace_back(edge_triplet, src_vertex_mapping, dst_vertex_mapping,
                            edge_properties);
   }
-  return std::make_unique<InsertEdgeOpr>(std::move(edge_data));
+  return std::make_pair(std::make_unique<InsertEdgeOpr>(std::move(edge_data)),
+                        ret_meta);
 }
 
 }  // namespace ops

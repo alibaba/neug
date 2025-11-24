@@ -25,14 +25,15 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class UPathExpandVOprBuilder : public IUpdateOperatorBuilder {
+class UPathExpandVOprBuilder : public IOperatorBuilder {
  public:
   UPathExpandVOprBuilder() = default;
   ~UPathExpandVOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -43,14 +44,15 @@ class UPathExpandVOprBuilder : public IUpdateOperatorBuilder {
   }
 };
 
-class UPathExpandOprBuilder : public IUpdateOperatorBuilder {
+class UPathExpandOprBuilder : public IOperatorBuilder {
  public:
   UPathExpandOprBuilder() = default;
   ~UPathExpandOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

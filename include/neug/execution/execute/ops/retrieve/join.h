@@ -29,15 +29,15 @@ class ContextMeta;
 
 namespace ops {
 
-class JoinOprBuilder : public IReadOperatorBuilder {
+class JoinOprBuilder : public IOperatorBuilder {
  public:
   JoinOprBuilder() = default;
   ~JoinOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

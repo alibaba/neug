@@ -38,7 +38,7 @@ namespace gs {
 namespace runtime {
 
 void get_labels(
-    const EdgeExpandParams& eep, const GraphReadInterface& graph,
+    const EdgeExpandParams& eep, const StorageReadInterface& graph,
     std::vector<
         std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>&
         labels) {
@@ -58,7 +58,7 @@ void get_labels(
 }
 
 gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,
     const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
@@ -214,7 +214,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
 }
 
 gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,
     const std::function<bool(label_t, vid_t, size_t)>& left_pred,

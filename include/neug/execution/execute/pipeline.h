@@ -35,33 +35,32 @@ class AdminPipeline {
  public:
   AdminPipeline() {}
   AdminPipeline(AdminPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit AdminPipeline(
-      std::vector<std::unique_ptr<IAdminOperator>>&& operators)
+  explicit AdminPipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~AdminPipeline() = default;
 
-  gs::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(StorageUpdateInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
 
  private:
-  std::vector<std::unique_ptr<IAdminOperator>> operators_;
+  std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
 class ReadPipeline {
  public:
   ReadPipeline() {}
   ReadPipeline(ReadPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit ReadPipeline(std::vector<std::unique_ptr<IReadOperator>>&& operators)
+  explicit ReadPipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~ReadPipeline() = default;
 
-  gs::result<Context> Execute(const GraphReadInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
 
  private:
-  std::vector<std::unique_ptr<IReadOperator>> operators_;
+  std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
 class InsertPipeline {
@@ -69,34 +68,32 @@ class InsertPipeline {
   InsertPipeline() = default;
   InsertPipeline(InsertPipeline&& rhs)
       : operators_(std::move(rhs.operators_)) {}
-  explicit InsertPipeline(
-      std::vector<std::unique_ptr<IInsertOperator>>&& operators)
+  explicit InsertPipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~InsertPipeline() = default;
 
-  gs::result<Context> Execute(GraphInsertInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
 
  private:
-  std::vector<std::unique_ptr<IInsertOperator>> operators_;
+  std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
 class UpdatePipeline {
  public:
   UpdatePipeline(UpdatePipeline&& rhs)
       : operators_(std::move(rhs.operators_)) {}
-  explicit UpdatePipeline(
-      std::vector<std::unique_ptr<IUpdateOperator>>&& operators)
+  explicit UpdatePipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
       : operators_(std::move(operators)) {}
   ~UpdatePipeline() = default;
 
-  gs::result<Context> Execute(GraphUpdateInterface& graph, Context&& ctx,
+  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
                               const std::map<std::string, std::string>& params,
                               OprTimer* timer);
 
  private:
-  std::vector<std::unique_ptr<IUpdateOperator>> operators_;
+  std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
 }  // namespace runtime

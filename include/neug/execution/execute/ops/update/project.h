@@ -28,14 +28,15 @@ class Schema;
 namespace runtime {
 namespace ops {
 
-class UProjectOprBuilder : public IUpdateOperatorBuilder {
+class UProjectOprBuilder : public IOperatorBuilder {
  public:
   UProjectOprBuilder() = default;
   ~UProjectOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

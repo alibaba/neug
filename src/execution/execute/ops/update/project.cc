@@ -42,7 +42,7 @@ class IContextColumn;
 class OprTimer;
 
 namespace ops {
-class ProjectUpdateOpr : public IUpdateOperator {
+class ProjectUpdateOpr : public IOperator {
  public:
   ProjectUpdateOpr(
       const std::vector<std::tuple<common::Expression, int,
@@ -56,11 +56,12 @@ class ProjectUpdateOpr : public IUpdateOperator {
   std::string get_operator_name() const override { return "ProjectUpdateOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    return ProjectEvalImpl(graph, params, std::move(ctx), exprs_infos_,
-                           dependencies_, is_append_);
+    return ProjectEvalImpl(dynamic_cast<StorageUpdateInterface&>(graph), params,
+                           std::move(ctx), exprs_infos_, dependencies_,
+                           is_append_);
   }
 
  private:
@@ -71,8 +72,9 @@ class ProjectUpdateOpr : public IUpdateOperator {
   bool is_append_;
 };
 
-std::unique_ptr<IUpdateOperator> UProjectOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UProjectOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
   int mappings_size =
       plan.query_plan().plan(op_idx).opr().project().mappings_size();
@@ -91,7 +93,7 @@ std::unique_ptr<IUpdateOperator> UProjectOprBuilder::Build(
       int alias = m.has_alias() ? m.alias().value() : -1;
       if (!m.has_expr()) {
         LOG(ERROR) << "expr is not set" << m.DebugString();
-        return nullptr;
+        return std::make_pair(nullptr, ContextMeta());
       }
       auto expr = m.expr();
       std::set<int> dependencies_set;
@@ -109,7 +111,7 @@ std::unique_ptr<IUpdateOperator> UProjectOprBuilder::Build(
 
       if (!m.has_expr()) {
         LOG(ERROR) << "expr is not set" << m.DebugString();
-        return nullptr;
+        return std::make_pair(nullptr, ContextMeta());
       }
       auto expr = m.expr();
       std::set<int> dependencies_set;
@@ -121,8 +123,9 @@ std::unique_ptr<IUpdateOperator> UProjectOprBuilder::Build(
     }
   }
 
-  return std::make_unique<ProjectUpdateOpr>(std::move(expr_infos), dependencies,
-                                            is_append);
+  return std::make_pair(std::make_unique<ProjectUpdateOpr>(
+                            std::move(expr_infos), dependencies, is_append),
+                        ContextMeta());
 }
 
 }  // namespace ops

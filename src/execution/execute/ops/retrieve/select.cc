@@ -62,16 +62,18 @@ struct OptionalExprWrapper {
   Expr expr_;
 };
 
-class SelectIdNeOpr : public IReadOperator {
+class SelectIdNeOpr : public IOperator {
  public:
   explicit SelectIdNeOpr(const common::Expression& expr) : expr_(expr) {}
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto tag = expr_.operators(0).var().tag().id();
     auto col = ctx.get(tag);
     const auto& name = expr_.operators(0).var().property().key().name();
@@ -119,16 +121,18 @@ class SelectIdNeOpr : public IReadOperator {
   common::Expression expr_;
 };
 
-class SelectOpr : public IReadOperator {
+class SelectOpr : public IOperator {
  public:
   explicit SelectOpr(const common::Expression& expr) : expr_(expr) {}
 
   std::string get_operator_name() const override { return "SelectOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
     if (!expr.is_optional()) {
@@ -148,7 +152,7 @@ class SelectOpr : public IReadOperator {
   common::Expression expr_;
 };
 
-gs::result<ReadOpBuildResultT> SelectOprBuilder::Build(
+gs::result<OpBuildResultT> SelectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.query_plan().plan(op_idx).opr().select();
@@ -161,12 +165,14 @@ gs::result<ReadOpBuildResultT> SelectOprBuilder::Build(
       auto type = parse_from_ir_data_type(
           opr.predicate().operators(2).param().data_type());
       if (name == "id" && type == RTAnyType::kI64Value) {
+        ContextMeta ret_meta = ctx_meta;
         return std::make_pair(std::make_unique<SelectIdNeOpr>(opr.predicate()),
-                              ctx_meta);
+                              ret_meta);
       }
     }
   }
-  return std::make_pair(std::make_unique<SelectOpr>(opr.predicate()), ctx_meta);
+  ContextMeta ret_meta = ctx_meta;
+  return std::make_pair(std::make_unique<SelectOpr>(opr.predicate()), ret_meta);
 }
 
 }  // namespace ops

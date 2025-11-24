@@ -51,7 +51,7 @@ Context remove_null_from_ctx(Context&& ctx, int tag_id) {
   return ctx;
 }
 
-gs::result<Context> EdgeExpand::expand_degree(const GraphReadInterface& graph,
+gs::result<Context> EdgeExpand::expand_degree(const StorageReadInterface& graph,
                                               Context&& ctx,
                                               const EdgeExpandParams& params) {
   auto vertex_col =
@@ -101,7 +101,7 @@ gs::result<Context> EdgeExpand::expand_degree(const GraphReadInterface& graph,
 }
 
 gs::result<Context> EdgeExpand::expand_edge_without_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   std::shared_ptr<IVertexColumn> input_vertex_list =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
@@ -163,7 +163,7 @@ gs::result<Context> EdgeExpand::expand_edge_without_predicate(
 }
 
 gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   std::shared_ptr<IVertexColumn> input_vertex_list =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
@@ -218,7 +218,7 @@ gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
 
 template <typename CMP_T>
 static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const CMP_T& cmp_value) {
   auto input_col =
@@ -266,7 +266,7 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
 
 template <typename T>
 static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
   T target = TypedConverter<T>::typed_from_string(target_val_str);
@@ -299,7 +299,7 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
 }
 
 gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
   if (config.param_type == RTAnyType::kI32Value) {
@@ -322,7 +322,7 @@ gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
 
 template <typename T>
 void expand_vertex_ep_cmp_impl(
-    const GraphReadInterface& graph, const SLVertexColumn& input_column,
+    const StorageReadInterface& graph, const SLVertexColumn& input_column,
     MSVertexColumnBuilder& builder, std::vector<size_t>& offsets,
     label_t input_label, label_t nbr_label, label_t edge_label, Direction dir,
     const std::string& cmp_value, SPPredicateType tp) {
@@ -392,7 +392,7 @@ void expand_vertex_ep_cmp_impl(
 }
 
 gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const std::string& ep_val,
     SPPredicateType tp) {
   if (params.is_optional) {
@@ -493,7 +493,7 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
 struct ExpandVertexSPOp {
   template <typename PRED_T>
   static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params) {
     return EdgeExpand::expand_vertex<EdgeNbrPredicate<PRED_T>>(
         graph, std::move(ctx), params, EdgeNbrPredicate(pred));
@@ -501,7 +501,7 @@ struct ExpandVertexSPOp {
 };
 
 gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& query_params) {
   auto input_col =

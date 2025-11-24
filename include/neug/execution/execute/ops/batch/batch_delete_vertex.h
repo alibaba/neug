@@ -25,14 +25,15 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class BatchDeleteVertexOprBuilder : public IUpdateOperatorBuilder {
+class BatchDeleteVertexOprBuilder : public IOperatorBuilder {
  public:
   BatchDeleteVertexOprBuilder() = default;
   ~BatchDeleteVertexOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

@@ -148,7 +148,8 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
 
 template <typename GPRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
+expand_vertex_impl(const StorageReadInterface& graph,
+                   const SLVertexColumn& input,
                    const std::vector<LabelTriplet>& labels, Direction dir,
                    const GPRED_T& gpred) {
   label_t input_label = input.label();
@@ -219,7 +220,8 @@ expand_vertex_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
 
 template <typename GPRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
+expand_vertex_impl(const StorageReadInterface& graph,
+                   const MLVertexColumn& input,
                    const std::vector<LabelTriplet>& labels, Direction dir,
                    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
@@ -550,7 +552,8 @@ expand_vertex_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
 
 template <typename GPRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
+expand_vertex_impl(const StorageReadInterface& graph,
+                   const MSVertexColumn& input,
                    const std::vector<LabelTriplet>& labels, Direction dir,
                    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
@@ -657,7 +660,7 @@ expand_vertex_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
 
 template <typename PRED_T>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_vertex_optional_impl(const GraphReadInterface& graph,
+expand_vertex_optional_impl(const StorageReadInterface& graph,
                             const IVertexColumn& input,
                             const std::vector<LabelTriplet>& labels,
                             Direction dir, const PRED_T& pred) {
@@ -676,7 +679,7 @@ expand_vertex_optional_impl(const GraphReadInterface& graph,
 
 template <typename PRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
+expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
                  const std::vector<LabelTriplet>& labels, Direction dir,
                  const PRED_T& pred) {
   label_t input_label = input.label();
@@ -782,7 +785,7 @@ expand_edge_impl(const GraphReadInterface& graph, const SLVertexColumn& input,
 
 template <typename PRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
+expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
                  const std::vector<LabelTriplet>& labels, Direction dir,
                  const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
@@ -892,7 +895,7 @@ expand_edge_impl(const GraphReadInterface& graph, const MSVertexColumn& input,
 
 template <typename PRED_T, bool is_optional = false>
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
-expand_edge_impl(const GraphReadInterface& graph, const MLVertexColumn& input,
+expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
                  const std::vector<LabelTriplet>& labels, Direction dir,
                  const PRED_T& pred) {
   auto input_labels = input.get_labels_set();

@@ -29,15 +29,15 @@ class ContextMeta;
 
 namespace ops {
 
-class ScanOprBuilder : public IReadOperatorBuilder {
+class ScanOprBuilder : public IOperatorBuilder {
  public:
   ScanOprBuilder() = default;
   ~ScanOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -45,15 +45,15 @@ class ScanOprBuilder : public IReadOperatorBuilder {
   }
 };
 
-class DummySourceOprBuilder : public IReadOperatorBuilder {
+class DummySourceOprBuilder : public IOperatorBuilder {
  public:
   DummySourceOprBuilder() = default;
   ~DummySourceOprBuilder() = default;
 
-  gs::result<ReadOpBuildResultT> Build(const gs::Schema& schema,
-                                       const ContextMeta& ctx_meta,
-                                       const physical::PhysicalPlan& plan,
-                                       int op_idx) override;
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {

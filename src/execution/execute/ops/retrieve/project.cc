@@ -56,7 +56,7 @@ class OprTimer;
 
 namespace ops {
 
-class ProjectOpr : public IReadOperator {
+class ProjectOpr : public IOperator {
  public:
   ProjectOpr(const std::vector<std::tuple<common::Expression, int,
                                           std::optional<common::IrDataType>>>&
@@ -122,9 +122,11 @@ class ProjectOpr : public IReadOperator {
   ~ProjectOpr() {}
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (is_select_columns_) {
       Context ret;
       for (auto& p : select_columns_mapping_) {
@@ -192,7 +194,7 @@ class ProjectOpr : public IReadOperator {
   std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
 };
 
-gs::result<ReadOpBuildResultT> ProjectOprBuilder::Build(
+gs::result<OpBuildResultT> ProjectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
@@ -253,7 +255,7 @@ gs::result<ReadOpBuildResultT> ProjectOprBuilder::Build(
                         ret_meta);
 }
 
-class ProjectOrderByOprBeta : public IReadOperator {
+class ProjectOrderByOprBeta : public IOperator {
  public:
   ProjectOrderByOprBeta(
       const std::vector<std::tuple<common::Expression, int,
@@ -277,9 +279,11 @@ class ProjectOrderByOprBeta : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<std::shared_ptr<Arena>> arenas;
     if (!dependencies_.empty()) {
       arenas.resize(ctx.col_num(), nullptr);
@@ -298,7 +302,7 @@ class ProjectOrderByOprBeta : public IReadOperator {
       return cmp;
     };
     std::vector<std::function<std::unique_ptr<ProjectExprBase>(
-        const GraphReadInterface&, const std::map<std::string, std::string>&,
+        const StorageReadInterface&, const std::map<std::string, std::string>&,
         const Context&)>>
         exprs;
     for (size_t i = 0; i < exprs_infos_.size(); ++i) {
@@ -306,7 +310,7 @@ class ProjectOrderByOprBeta : public IReadOperator {
       const auto& alias = std::get<1>(exprs_infos_[i]);
       const auto& data_type = std::get<2>(exprs_infos_[i]);
       exprs.push_back([expr, alias, data_type](
-                          const GraphReadInterface& graph,
+                          const StorageReadInterface& graph,
                           const std::map<std::string, std::string>& params,
                           const Context& ctx) {
         return create_project_expr(expr, alias, data_type, graph, ctx, params);
@@ -403,7 +407,7 @@ static bool project_order_by_fusable_beta(
   return true;
 }
 
-gs::result<ReadOpBuildResultT> ProjectOrderByOprBuilder::Build(
+gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;

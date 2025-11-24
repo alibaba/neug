@@ -39,7 +39,7 @@ class OprTimer;
 
 namespace ops {
 
-class IntersectOprMultip : public IReadOperator {
+class IntersectOprMultip : public IOperator {
  public:
   IntersectOprMultip(
       const std::vector<EdgeExpandParams>& eeps,
@@ -54,7 +54,7 @@ class IntersectOprMultip : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval_Impl(
-      const gs::runtime::GraphReadInterface& graph,
+      const gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& v_preds,
@@ -62,13 +62,17 @@ class IntersectOprMultip : public IReadOperator {
           std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
                              const void*, size_t)>>& e_preds,
       gs::runtime::OprTimer* timer) {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return Intersect::Multiple_Intersect(graph, params, std::move(ctx), v_preds,
                                          e_preds, eeps_, alias_);
   }
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<std::function<bool(label_t, vid_t, size_t)>> v_preds;
     std::vector<std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
                                    Direction, const void*, size_t)>>
@@ -115,7 +119,7 @@ class IntersectOprMultip : public IReadOperator {
   std::vector<std::optional<common::Expression>> edge_preds_;
   int alias_;
 };
-class IntersectOprBeta : public IReadOperator {
+class IntersectOprBeta : public IOperator {
  public:
   IntersectOprBeta(const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
                    int v_alias,
@@ -134,9 +138,11 @@ class IntersectOprBeta : public IReadOperator {
   std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v, size_t idx) {
       return true;  // Dummy predicate that always returns true
     };
@@ -212,7 +218,7 @@ class IntersectOprBeta : public IReadOperator {
   std::optional<common::Expression> right_e_pred_;
 };
 
-class IntersectWithEdgeOpr : public IReadOperator {
+class IntersectWithEdgeOpr : public IOperator {
  public:
   IntersectWithEdgeOpr(const EdgeExpandParams& eep0,
                        const EdgeExpandParams& eep1, int v_alias,
@@ -235,9 +241,11 @@ class IntersectWithEdgeOpr : public IReadOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v, size_t idx) {
       return true;  // Dummy predicate that always returns true
     };
@@ -370,7 +378,7 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
     }
   }
 }
-gs::result<ReadOpBuildResultT> IntersectOprBuilder::Build(
+gs::result<OpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& intersect_opr = plan.query_plan().plan(op_idx).opr().intersect();

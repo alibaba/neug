@@ -22,9 +22,8 @@ namespace runtime {
 namespace ops {
 
 gs::result<Context> ExtensionInstallOpr::Eval(
-    GraphUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+    IStorageInterface& graph, const std::map<std::string, std::string>& params,
+    Context&& ctx, OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
             << extension_name_;
 
@@ -37,9 +36,8 @@ gs::result<Context> ExtensionInstallOpr::Eval(
 }
 
 gs::result<Context> ExtensionLoadOpr::Eval(
-    GraphUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+    IStorageInterface& graph, const std::map<std::string, std::string>& params,
+    Context&& ctx, OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
             << extension_name_;
 
@@ -51,9 +49,8 @@ gs::result<Context> ExtensionLoadOpr::Eval(
 }
 
 gs::result<Context> ExtensionUninstallOpr::Eval(
-    GraphUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+    IStorageInterface& graph, const std::map<std::string, std::string>& params,
+    Context&& ctx, OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
             << extension_name_;
 
@@ -66,24 +63,31 @@ gs::result<Context> ExtensionUninstallOpr::Eval(
 }
 
 // Builders
-std::unique_ptr<IAdminOperator> ExtensionInstallOprBuilder::Build(
-    const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::AdminPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx);
-  return std::make_unique<ExtensionInstallOpr>(
-      op.ext_install().extension_name());
+  return std::make_pair(
+      std::make_unique<ExtensionInstallOpr>(op.ext_install().extension_name()),
+      ctx_meta);
 }
 
-std::unique_ptr<IAdminOperator> ExtensionLoadOprBuilder::Build(
-    const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::AdminPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx);
-  return std::make_unique<ExtensionLoadOpr>(op.ext_load().extension_name());
+  return std::make_pair(
+      std::make_unique<ExtensionLoadOpr>(op.ext_load().extension_name()),
+      ctx_meta);
 }
 
-std::unique_ptr<IAdminOperator> ExtensionUninstallOprBuilder::Build(
-    const Schema& schema, const physical::AdminPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> ExtensionUninstallOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::AdminPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx);
-  return std::make_unique<ExtensionUninstallOpr>(
-      op.ext_uninstall().extension_name());
+  return std::make_pair(std::make_unique<ExtensionUninstallOpr>(
+                            op.ext_uninstall().extension_name()),
+                        ctx_meta);
 }
 
 }  // namespace ops

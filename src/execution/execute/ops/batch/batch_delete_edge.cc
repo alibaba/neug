@@ -21,7 +21,7 @@
 namespace gs {
 namespace runtime {
 namespace ops {
-class BatchDeleteEdgeOpr : public IUpdateOperator {
+class BatchDeleteEdgeOpr : public IOperator {
  public:
   BatchDeleteEdgeOpr(
       const std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>&
@@ -33,7 +33,7 @@ class BatchDeleteEdgeOpr : public IUpdateOperator {
     return "BatchDeleteEdgeOpr";
   }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 
@@ -44,9 +44,10 @@ class BatchDeleteEdgeOpr : public IUpdateOperator {
 };
 
 gs::result<Context> BatchDeleteEdgeOpr::Eval(
-    GraphUpdateInterface& graph,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
+  auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   size_t binding_size = edge_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {
     int32_t alias = edge_bindings_[i];
@@ -173,8 +174,10 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
   return gs::result<Context>(std::move(ctx));
 }
 
-std::unique_ptr<IUpdateOperator> BatchDeleteEdgeOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta meta = ctx_meta;
   const auto& opr = plan.query_plan().plan(op_idx).opr().delete_edge();
   std::vector<std::vector<std::tuple<label_t, label_t, label_t>>> edge_types;
   std::vector<int32_t> edge_bindings;
@@ -192,7 +195,8 @@ std::unique_ptr<IUpdateOperator> BatchDeleteEdgeOprBuilder::Build(
   }
 
   CHECK(edge_types.size() == edge_bindings.size());
-  return std::make_unique<BatchDeleteEdgeOpr>(edge_types, edge_bindings);
+  return std::make_pair(
+      std::make_unique<BatchDeleteEdgeOpr>(edge_types, edge_bindings), meta);
 }
 
 }  // namespace ops

@@ -26,7 +26,7 @@ namespace runtime {
 class UScan {
  public:
   template <typename PRED_T>
-  static gs::result<Context> scan(const GraphUpdateInterface& graph,
+  static gs::result<Context> scan(const StorageUpdateInterface& graph,
                                   Context&& ctx, const ScanParams& params,
                                   const PRED_T& pred) {
     MSVertexColumnBuilder builder(params.tables[0]);

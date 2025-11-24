@@ -26,12 +26,12 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class CheckpointOpr : public IAdminOperator {
+class CheckpointOpr : public IOperator {
  public:
   CheckpointOpr() = default;
   ~CheckpointOpr() override = default;
   std::string get_operator_name() const override { return "CheckpointOpr"; }
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override;
 };
@@ -41,9 +41,10 @@ class CheckpointOprBuilder : public IAdminOperatorBuilder {
   CheckpointOprBuilder() = default;
   ~CheckpointOprBuilder() override = default;
 
-  std::unique_ptr<IAdminOperator> Build(const Schema& schema,
-                                        const physical::AdminPlan& plan,
-                                        int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::AdminPlan& plan,
+                                   int op_id) override;
 
   physical::AdminPlan_Operator::KindCase GetOpKind() const override {
     return physical::AdminPlan_Operator::KindCase::kCheckpoint;

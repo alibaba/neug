@@ -30,23 +30,21 @@ namespace runtime {
 
 namespace ops {
 
-class USinkOprBuilder : public IUpdateOperatorBuilder {
+class USinkOprBuilder : public IOperatorBuilder {
  public:
   USinkOprBuilder() = default;
   ~USinkOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kSink};
   }
 };
 }  // namespace ops
-
-std::pair<std::unique_ptr<IInsertOperator>, int> create_sink_insert_operator(
-    const physical::PhysicalPlan& plan, int op_id);
 
 }  // namespace runtime
 

@@ -34,19 +34,19 @@ class Schema;
 
 namespace runtime {
 class Context;
-class GraphUpdateInterface;
 class OprTimer;
 
 namespace ops {
 
-class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
+class BatchInsertVertexOprBuilder : public IOperatorBuilder {
  public:
   BatchInsertVertexOprBuilder() = default;
   ~BatchInsertVertexOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -54,14 +54,15 @@ class BatchInsertVertexOprBuilder : public IUpdateOperatorBuilder {
   }
 };
 
-class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
+class InsertVertexOprBuilder : public IOperatorBuilder {
  public:
   InsertVertexOprBuilder() = default;
   ~InsertVertexOprBuilder() = default;
 
-  std::unique_ptr<IUpdateOperator> Build(const Schema& schema,
-                                         const physical::PhysicalPlan& plan,
-                                         int op_idx) override;
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex};
@@ -69,9 +70,7 @@ class InsertVertexOprBuilder : public IUpdateOperatorBuilder {
 };
 
 }  // namespace ops
-
 }  // namespace runtime
-
 }  // namespace gs
 
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_VERTEX_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_

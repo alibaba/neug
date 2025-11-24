@@ -34,7 +34,7 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class LimitOpr : public IReadOperator {
+class LimitOpr : public IOperator {
  public:
   explicit LimitOpr(const algebra::Limit& opr) {
     lower_ = 0;
@@ -48,7 +48,7 @@ class LimitOpr : public IReadOperator {
   std::string get_operator_name() const override { return "LimitOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Limit::limit(std::move(ctx), lower_, upper_);
@@ -59,7 +59,7 @@ class LimitOpr : public IReadOperator {
   size_t upper_;
 };
 
-gs::result<ReadOpBuildResultT> LimitOprBuilder::Build(
+gs::result<OpBuildResultT> LimitOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(

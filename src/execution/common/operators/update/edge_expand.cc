@@ -36,7 +36,7 @@
 namespace gs {
 namespace runtime {
 gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
-    const GraphUpdateInterface& graph, Context&& ctx,
+    const StorageUpdateInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   const auto& input_vertex_list =
       dynamic_cast<const IVertexColumn&>(*ctx.get(params.v_tag).get());
@@ -94,7 +94,7 @@ gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
 }
 
 gs::result<Context> UEdgeExpand::edge_expand_e_without_pred(
-    const GraphUpdateInterface& graph, Context&& ctx,
+    const StorageUpdateInterface& graph, Context&& ctx,
     const EdgeExpandParams& params) {
   const auto& input_vertex_list =
       dynamic_cast<const IVertexColumn&>(*ctx.get(params.v_tag).get());

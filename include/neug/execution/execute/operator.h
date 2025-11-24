@@ -31,85 +31,30 @@
 namespace gs {
 
 namespace runtime {
-class IUpdateOperator {
+
+class IOperator {
  public:
-  virtual ~IUpdateOperator() = default;
+  virtual ~IOperator() = default;
 
   virtual std::string get_operator_name() const = 0;
 
   virtual gs::result<Context> Eval(
-      GraphUpdateInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer) = 0;
-};
-class IReadOperator {
- public:
-  virtual ~IReadOperator() = default;
-
-  virtual std::string get_operator_name() const = 0;
-
-  virtual gs::result<Context> Eval(
-      const GraphReadInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       OprTimer* timer) = 0;
 };
 
-class IAdminOperator {
+using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;
+
+class IOperatorBuilder {
  public:
-  virtual ~IAdminOperator() = default;
-
-  virtual std::string get_operator_name() const = 0;
-
-  virtual gs::result<Context> Eval(
-      GraphUpdateInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer) = 0;
-};
-
-using ReadOpBuildResultT =
-    std::pair<std::unique_ptr<IReadOperator>, ContextMeta>;
-
-class IReadOperatorBuilder {
- public:
-  virtual ~IReadOperatorBuilder() = default;
-  virtual gs::result<ReadOpBuildResultT> Build(
-      const gs::Schema& schema, const ContextMeta& ctx_meta,
-      const physical::PhysicalPlan& plan, int op_idx) = 0;
+  virtual ~IOperatorBuilder() = default;
+  virtual gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                           const ContextMeta& ctx_meta,
+                                           const physical::PhysicalPlan& plan,
+                                           int op_idx) = 0;
   virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
-  virtual std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
-      const = 0;
-};
-
-class IInsertOperator {
- public:
-  virtual ~IInsertOperator() = default;
-
-  virtual std::string get_operator_name() const = 0;
-
-  virtual gs::result<Context> Eval(
-      GraphInsertInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer) = 0;
-};
-
-class IInsertOperatorBuilder {
- public:
-  virtual ~IInsertOperatorBuilder() = default;
-  virtual int stepping(int i) { return i + 1; }
-
-  virtual std::unique_ptr<IInsertOperator> Build(
-      const Schema& schema, const physical::PhysicalPlan& plan, int op_id) = 0;
-  virtual physical::PhysicalOpr_Operator::OpKindCase GetOpKind() const = 0;
-};
-
-class IUpdateOperatorBuilder {
- public:
-  virtual ~IUpdateOperatorBuilder() = default;
-  virtual int stepping(int i) { return i + GetOpKinds().size(); }
-
-  virtual std::unique_ptr<IUpdateOperator> Build(
-      const Schema& schema, const physical::PhysicalPlan& plan, int op_id) = 0;
   virtual std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const = 0;
 };
@@ -119,9 +64,10 @@ class IAdminOperatorBuilder {
   virtual ~IAdminOperatorBuilder() = default;
   virtual int stepping(int i) { return i + 1; }
 
-  virtual std::unique_ptr<IAdminOperator> Build(const Schema& schema,
-                                                const physical::AdminPlan& plan,
-                                                int op_id) = 0;
+  virtual gs::result<OpBuildResultT> Build(const Schema& schema,
+                                           const ContextMeta& ctx_meta,
+                                           const physical::AdminPlan& plan,
+                                           int op_id) = 0;
   virtual physical::AdminPlan_Operator::KindCase GetOpKind() const = 0;
 };
 

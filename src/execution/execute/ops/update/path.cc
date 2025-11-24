@@ -22,25 +22,27 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class UPathExpandVOpr : public IUpdateOperator {
+class UPathExpandVOpr : public IOperator {
  public:
   explicit UPathExpandVOpr(const PathExpandParams& params) : params_(params) {}
   ~UPathExpandVOpr() override = default;
 
   std::string get_operator_name() const override { return "UPathExpandVOpr"; }
 
-  gs::result<Context> Eval(GraphUpdateInterface& graph,
+  gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    return UPathExpand::path_expand_v(graph, std::move(ctx), params_);
+    return UPathExpand::path_expand_v(
+        dynamic_cast<StorageUpdateInterface&>(graph), std::move(ctx), params_);
   }
 
  private:
   PathExpandParams params_;
 };
 
-std::unique_ptr<IUpdateOperator> UPathExpandVOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
+gs::result<OpBuildResultT> UPathExpandVOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   LOG(INFO) << "Building UPathExpandVOpr";
   const auto& opr = plan.query_plan().plan(op_idx).opr().path();
   const auto& next_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
@@ -56,18 +58,18 @@ std::unique_ptr<IUpdateOperator> UPathExpandVOprBuilder::Build(
     if (opr.path_opt() !=
         physical::PathExpand_PathOpt::PathExpand_PathOpt_ARBITRARY) {
       LOG(ERROR) << "Currently only support arbitrary path expand";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
     if (opr.is_optional()) {
       LOG(ERROR) << "Currently only support non-optional path expand without "
                     "predicate";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
     Direction dir = parse_direction(opr.base().edge_expand().direction());
     if (opr.base().edge_expand().is_optional()) {
       LOG(ERROR) << "Currently only support non-optional path expand without "
                     "predicate";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
     const algebra::QueryParams& query_params =
         opr.base().edge_expand().params();
@@ -82,16 +84,17 @@ std::unique_ptr<IUpdateOperator> UPathExpandVOprBuilder::Build(
     if (opr.base().edge_expand().expand_opt() !=
         physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX) {
       LOG(ERROR) << "Currently only support vertex expand";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
     if (query_params.has_predicate()) {
       LOG(ERROR) << "Currently only support non-optional path expand without "
                     "predicate";
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
-    return std::make_unique<UPathExpandVOpr>(pep);
+    return std::make_pair(std::make_unique<UPathExpandVOpr>(pep),
+                          ContextMeta());
   } else {
-    return nullptr;
+    return std::make_pair(nullptr, ContextMeta());
   }
 }
 

@@ -31,7 +31,7 @@ namespace gs {
 
 namespace runtime {
 
-gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
+gs::result<Context> PathExpand::edge_expand_v(const StorageReadInterface& graph,
                                               Context&& ctx,
                                               const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -239,7 +239,7 @@ gs::result<Context> PathExpand::edge_expand_v(const GraphReadInterface& graph,
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
 
-gs::result<Context> path_expand_p_arbitrary(const GraphReadInterface& graph,
+gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
                                             Context&& ctx,
                                             const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -411,7 +411,7 @@ gs::result<Context> path_expand_p_arbitrary(const GraphReadInterface& graph,
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
 
-gs::result<Context> path_expand_p_simple(const GraphReadInterface& graph,
+gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
                                          Context&& ctx,
                                          const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -495,7 +495,7 @@ gs::result<Context> path_expand_p_simple(const GraphReadInterface& graph,
   return ctx;
 }
 
-gs::result<Context> path_expand_p_trail(const GraphReadInterface& graph,
+gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
                                         Context&& ctx,
                                         const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -599,9 +599,9 @@ gs::result<Context> path_expand_p_trail(const GraphReadInterface& graph,
   return ctx;
 }
 
-gs::result<Context> path_expand_p_any_shortest(const GraphReadInterface& graph,
-                                               Context&& ctx,
-                                               const PathExpandParams& params) {
+gs::result<Context> path_expand_p_any_shortest(
+    const StorageReadInterface& graph, Context&& ctx,
+    const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
@@ -705,7 +705,7 @@ gs::result<Context> path_expand_p_any_shortest(const GraphReadInterface& graph,
   return ctx;
 }
 
-gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
+gs::result<Context> PathExpand::edge_expand_p(const StorageReadInterface& graph,
                                               Context&& ctx,
                                               const PathExpandParams& params) {
   if (params.opt == PathOpt::kArbitrary) {
@@ -725,7 +725,7 @@ gs::result<Context> PathExpand::edge_expand_p(const GraphReadInterface& graph,
 }
 
 static bool single_source_single_dest_shortest_path_impl(
-    const GraphReadInterface& graph, const ShortestPathParams& params,
+    const StorageReadInterface& graph, const ShortestPathParams& params,
     vid_t src, vid_t dst, std::vector<vid_t>& path,
     std::vector<std::pair<Direction, const void*>>& edge_datas) {
   std::queue<vid_t> q1;
@@ -735,8 +735,8 @@ static bool single_source_single_dest_shortest_path_impl(
   label_t v_label = params.labels[0].src_label;
   label_t e_label = params.labels[0].edge_label;
   auto vertices = graph.GetVertexSet(v_label);
-  GraphReadInterface::vertex_array_t<int> pre(vertices, -1);
-  GraphReadInterface::vertex_array_t<int> dis(vertices, 0);
+  StorageReadInterface::vertex_array_t<int> pre(vertices, -1);
+  StorageReadInterface::vertex_array_t<int> dis(vertices, 0);
   q1.push(src);
   dis[src] = 1;
   q2.push(dst);
@@ -891,7 +891,7 @@ static bool single_source_single_dest_shortest_path_impl(
 }
 
 gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, std::pair<label_t, vid_t>& dest) {
   std::vector<size_t> shuffle_offset;
   auto& input_vertex_list =
@@ -935,8 +935,8 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
 
 static void dfs(
     const GenericView& oview, const GenericView& iview, vid_t src, vid_t dst,
-    const GraphReadInterface::vertex_array_t<bool>& visited,
-    const GraphReadInterface::vertex_array_t<int8_t>& dist,
+    const StorageReadInterface::vertex_array_t<bool>& visited,
+    const StorageReadInterface::vertex_array_t<int8_t>& dist,
     const ShortestPathParams& params, std::vector<std::vector<vid_t>>& paths,
     std::vector<vid_t>& cur_path,
     std::vector<std::vector<std::pair<Direction, const void*>>>& edge_datas,
@@ -972,12 +972,12 @@ static void dfs(
 }
 
 static void all_shortest_path_with_given_source_and_dest_impl(
-    const GraphReadInterface& graph, const ShortestPathParams& params,
+    const StorageReadInterface& graph, const ShortestPathParams& params,
     vid_t src, vid_t dst, std::vector<std::vector<vid_t>>& paths,
     std::vector<std::vector<std::pair<Direction, const void*>>>& edge_datas) {
-  GraphReadInterface::vertex_array_t<int8_t> dist_from_src(
+  StorageReadInterface::vertex_array_t<int8_t> dist_from_src(
       graph.GetVertexSet(params.labels[0].src_label), -1);
-  GraphReadInterface::vertex_array_t<int8_t> dist_from_dst(
+  StorageReadInterface::vertex_array_t<int8_t> dist_from_dst(
       graph.GetVertexSet(params.labels[0].dst_label), -1);
   dist_from_src[src] = 0;
   dist_from_dst[dst] = 0;
@@ -1081,7 +1081,7 @@ static void all_shortest_path_with_given_source_and_dest_impl(
   if (src_dep + dst_dep >= params.hop_upper) {
     return;
   }
-  GraphReadInterface::vertex_array_t<bool> visited(
+  StorageReadInterface::vertex_array_t<bool> visited(
       graph.GetVertexSet(params.labels[0].src_label), false);
   for (auto v : vec) {
     q1.push(v);
@@ -1135,7 +1135,7 @@ static void all_shortest_path_with_given_source_and_dest_impl(
 }
 
 gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const std::pair<label_t, vid_t>& dest) {
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
@@ -1189,7 +1189,7 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
 struct SSSPSPOp {
   template <typename PRED_T>
   static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const GraphReadInterface& graph, Context&& ctx,
+      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params) {
     return PathExpand::single_source_shortest_path<PRED_T>(
         graph, std::move(ctx), params, pred);
@@ -1198,7 +1198,7 @@ struct SSSPSPOp {
 
 gs::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
-    const GraphReadInterface& graph, Context&& ctx,
+    const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& query_params) {

@@ -25,7 +25,7 @@ class IContextColumn;
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 path_expand_vertex_without_predicate_impl(
-    const GraphReadInterface& graph, const SLVertexColumn& input,
+    const StorageReadInterface& graph, const SLVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper) {
   if (labels.size() == 1) {

@@ -62,7 +62,16 @@ class VertexArray {
 
 }  // namespace graph_interface_impl
 
-class GraphReadInterface {
+class IStorageInterface {
+ public:
+  virtual ~IStorageInterface() {}
+  virtual bool readable() const = 0;
+  virtual bool writable() const = 0;
+  virtual const Schema& schema() const = 0;
+  virtual bool GetVertexIndex(label_t label, const Property& id,
+                              vid_t& index) const = 0;
+};
+class StorageReadInterface : public IStorageInterface {
  public:
   template <typename PROP_T>
   using vertex_column_t = TypedRefColumn<PROP_T>;
@@ -74,37 +83,39 @@ class GraphReadInterface {
 
   static constexpr vid_t kInvalidVid = std::numeric_limits<vid_t>::max();
 
-  explicit GraphReadInterface(const gs::ReadTransaction& txn) : txn_(txn) {}
-  ~GraphReadInterface() {}
+  explicit StorageReadInterface(const PropertyGraph& graph, timestamp_t read_ts)
+      : graph_(graph), read_ts_(read_ts) {}
+  ~StorageReadInterface() {}
+  bool readable() const override { return true; }
+  bool writable() const override { return false; }
 
   template <typename PROP_T>
   inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
       label_t label, const std::string& prop_name) const {
     return std::dynamic_pointer_cast<vertex_column_t<PROP_T>>(
-        txn_.get_vertex_property_column(label, prop_name));
+        graph_.GetVertexPropertyColumn(label, prop_name));
   }
 
-  inline vertex_set_t GetVertexSet(label_t label) const {
-    return txn_.GetVertexSet(label);
+  VertexSet GetVertexSet(label_t label) const {
+    return graph_.GetVertexSet(label, read_ts_);
   }
 
-  inline bool GetVertexIndex(label_t label, const Property& id,
-                             vid_t& index) const {
-    return txn_.GetVertexIndex(label, id, index);
+  bool GetVertexIndex(label_t label, const Property& id,
+                      vid_t& index) const override {
+    return graph_.get_lid(label, id, index, read_ts_);
   }
 
   inline bool IsValidVertex(label_t label, vid_t index) const {
-    return txn_.IsValidVertex(label, index);
+    return graph_.IsValidLid(label, index, read_ts_);
   }
 
   inline Property GetVertexId(label_t label, vid_t index) const {
-    return txn_.GetVertexId(label, index);
+    return graph_.GetOid(label, index, read_ts_);
   }
 
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return txn_.graph()
-        .get_vertex_table(label)
+    return graph_.get_vertex_table(label)
         .get_property_column(prop_id)
         ->get_prop(index);
   }
@@ -112,33 +123,37 @@ class GraphReadInterface {
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.graph().GetGenericOutgoingGraphView(
-        v_label, neighbor_label, edge_label, txn_.timestamp());
+    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                              edge_label, read_ts_);
   }
 
   GenericView GetGenericIncomingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.graph().GetGenericIncomingGraphView(
-        v_label, neighbor_label, edge_label, txn_.timestamp());
+    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
+                                              edge_label, read_ts_);
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return txn_.graph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                            prop_id);
+    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                      prop_id);
   }
 
-  inline const Schema& schema() const { return txn_.schema(); }
+  const Schema& schema() const override { return graph_.schema(); }
 
  private:
-  const gs::ReadTransaction& txn_;
+  const PropertyGraph& graph_;
+  timestamp_t read_ts_;
 };
 
-class GraphInsertInterface {
+class StorageInsertInterface : public IStorageInterface {
  public:
-  explicit GraphInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
-  ~GraphInsertInterface() {}
+  bool readable() const override { return false; }
+  bool writable() const override { return true; }
+
+  explicit StorageInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
+  ~StorageInsertInterface() {}
 
   inline bool AddVertex(label_t label, const Property& id,
                         const std::vector<Property>& props, vid_t& vid) {
@@ -151,20 +166,24 @@ class GraphInsertInterface {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
-  inline bool Commit() { return txn_.Commit(); }
-
-  inline void Abort() { txn_.Abort(); }
-
   inline const Schema& schema() const { return txn_.schema(); }
+
+  bool GetVertexIndex(label_t label, const Property& id,
+                      vid_t& index) const override {
+    return txn_.GetVertexIndex(label, id, index);
+  }
 
  private:
   gs::InsertTransaction& txn_;
 };
 
-class GraphUpdateInterface {
+class StorageUpdateInterface : public IStorageInterface {
  public:
   template <typename PROP_T>
   using vertex_column_t = TypedRefColumn<PROP_T>;
+
+  bool readable() const override { return true; }
+  bool writable() const override { return true; }
 
   template <typename PROP_T>
   inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
@@ -173,8 +192,8 @@ class GraphUpdateInterface {
         txn_.get_vertex_property_column(label, prop_name));
   }
 
-  explicit GraphUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
-  ~GraphUpdateInterface() {}
+  explicit StorageUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
+  ~StorageUpdateInterface() {}
 
   inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
                                    const Property& value) {
@@ -229,10 +248,6 @@ class GraphUpdateInterface {
                       const std::vector<Property>& properties) {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
-
-  inline bool Commit() { return txn_.Commit(); }
-
-  inline void Abort() { txn_.Abort(); }
 
   inline const Schema& schema() const { return txn_.schema(); }
 

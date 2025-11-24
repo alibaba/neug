@@ -54,12 +54,11 @@ class OprTimer;
 
 namespace ops {
 
-class GroupByOpr : public IReadOperator {
+class GroupByOpr : public IOperator {
  public:
   GroupByOpr(std::vector<common::Variable>&& vars,
              std::vector<std::pair<int, int>>&& mappings,
              std::vector<physical::GroupBy_AggFunc>&& aggrs,
-
              const std::vector<std::pair<int, int>>& dependencies)
       : vars_(std::move(vars)),
         mappings_(std::move(mappings)),
@@ -69,9 +68,11 @@ class GroupByOpr : public IReadOperator {
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
                            aggrs_, dependencies_);
   }
@@ -83,7 +84,7 @@ class GroupByOpr : public IReadOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-class GroupByOprBeta : public IReadOperator {
+class GroupByOprBeta : public IOperator {
  public:
   GroupByOprBeta(
       std::vector<std::pair<common::Variable, int>>&& project_var_alias,
@@ -100,9 +101,11 @@ class GroupByOprBeta : public IReadOperator {
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
     return GroupByBetaEvalImpl(graph, params, std::move(ctx),
                                project_var_alias_, vars_, mappings_, aggrs_,
                                dependencies_);
@@ -116,7 +119,7 @@ class GroupByOprBeta : public IReadOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-gs::result<ReadOpBuildResultT> GroupByOprBuilder::Build(
+gs::result<OpBuildResultT> GroupByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int mappings_num =

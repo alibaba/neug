@@ -125,10 +125,10 @@ class Project {
 
   template <typename Comparer>
   static gs::result<Context> project_order_by_fuse(
-      const GraphReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params, Context&& ctx,
       const std::vector<std::function<std::unique_ptr<ProjectExprBase>(
-          const GraphReadInterface& graph,
+          const StorageReadInterface& graph,
           const std::map<std::string, std::string>& params,
           const Context& ctx)>>& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,

@@ -211,9 +211,9 @@ void Context::show(const GraphInterface& graph) const {
   }
 }
 
-template void Context::show(const GraphReadInterface& graph) const;
+template void Context::show(const StorageReadInterface& graph) const;
 
-template void Context::show(const GraphUpdateInterface& graph) const;
+template void Context::show(const StorageUpdateInterface& graph) const;
 
 Context Context::union_ctx(const Context& other) const {
   Context ctx;

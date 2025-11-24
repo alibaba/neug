@@ -52,11 +52,11 @@ class IContextColumn;
 
 class EdgeExpand {
  public:
-  static gs::result<Context> expand_degree(const GraphReadInterface& graph,
+  static gs::result<Context> expand_degree(const StorageReadInterface& graph,
                                            Context&& ctx,
                                            const EdgeExpandParams& params);
   template <typename PRED_T>
-  static gs::result<Context> expand_edge(const GraphReadInterface& graph,
+  static gs::result<Context> expand_edge(const StorageReadInterface& graph,
                                          Context&& ctx,
                                          const EdgeExpandParams& params,
                                          const PRED_T& pred) {
@@ -92,16 +92,16 @@ class EdgeExpand {
   }
 
   static gs::result<Context> expand_edge_with_special_edge_predicate(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
       const std::string& target_val_str);
 
   static gs::result<Context> expand_edge_without_predicate(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
   template <typename PRED_T>
-  static gs::result<Context> expand_vertex(const GraphReadInterface& graph,
+  static gs::result<Context> expand_vertex(const StorageReadInterface& graph,
                                            Context&& ctx,
                                            const EdgeExpandParams& params,
                                            const PRED_T& pred) {
@@ -177,23 +177,23 @@ class EdgeExpand {
   }
 
   static gs::result<Context> expand_vertex_ep_cmp(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const std::string& ep_val,
       SPPredicateType tp);
 
   static gs::result<Context> expand_vertex_with_special_vertex_predicate(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params,
       const SpecialVertexPredicateConfig& config,
       const std::map<std::string, std::string>& query_params);
 
   static gs::result<Context> expand_vertex_without_predicate(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params);
 
   template <typename T1>
   static gs::result<Context> tc(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       const std::array<std::tuple<label_t, label_t, label_t, Direction>, 3>&
           labels,
       int input_tag, int alias1, int alias2, bool LT, const std::string& val) {
@@ -241,7 +241,7 @@ class EdgeExpand {
     MSVertexColumnBuilder builder2(d2_nbr_label);
     std::vector<size_t> offsets;
 
-    static thread_local GraphReadInterface::vertex_array_t<bool> d0_set;
+    static thread_local StorageReadInterface::vertex_array_t<bool> d0_set;
     static thread_local std::vector<vid_t> d0_vec;
 
     d0_set.Init(graph.GetVertexSet(d0_nbr_label), false);

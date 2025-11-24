@@ -323,42 +323,43 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 }
 
 template std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
-    const GraphReadInterface& graph, const Context& ctx, int tag,
+    const StorageReadInterface& graph, const Context& ctx, int tag,
     RTAnyType type, const std::string& prop_name);
 template std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
-    const GraphUpdateInterface& graph, const Context& ctx, int tag,
+    const StorageUpdateInterface& graph, const Context& ctx, int tag,
     RTAnyType type, const std::string& prop_name);
 
 template std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const GraphReadInterface& graph, RTAnyType type,
+    const StorageReadInterface& graph, RTAnyType type,
     const std::string& prop_name);
 template std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const GraphUpdateInterface& graph, RTAnyType type,
+    const StorageUpdateInterface& graph, RTAnyType type,
     const std::string& prop_name);
 
 template std::shared_ptr<IAccessor> create_edge_property_path_accessor(
-    const GraphReadInterface& graph, const std::string& name,
+    const StorageReadInterface& graph, const std::string& name,
     const Context& ctx, int tag, RTAnyType type);
 template std::shared_ptr<IAccessor> create_edge_property_path_accessor(
-    const GraphUpdateInterface& graph, const std::string& name,
+    const StorageUpdateInterface& graph, const std::string& name,
     const Context& ctx, int tag, RTAnyType type);
 
 template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
-    const GraphReadInterface& graph, const std::string& prop_name,
+    const StorageReadInterface& graph, const std::string& prop_name,
     RTAnyType type);
 template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
-    const GraphUpdateInterface& graph, const std::string& prop_name,
+    const StorageUpdateInterface& graph, const std::string& prop_name,
     RTAnyType type);
 
-template class VertexPropertyPathAccessor<GraphReadInterface, int64_t>;
-template class VertexPropertyPathAccessor<GraphReadInterface, int32_t>;
-template class VertexPropertyPathAccessor<GraphReadInterface, uint32_t>;
-template class VertexPropertyPathAccessor<GraphReadInterface, uint64_t>;
-template class VertexPropertyPathAccessor<GraphReadInterface, std::string_view>;
-template class VertexPropertyPathAccessor<GraphReadInterface, Date>;
-template class VertexPropertyPathAccessor<GraphReadInterface, DateTime>;
-template class VertexPropertyPathAccessor<GraphReadInterface, double>;
-template class VertexPropertyPathAccessor<GraphReadInterface, Interval>;
+template class VertexPropertyPathAccessor<StorageReadInterface, int64_t>;
+template class VertexPropertyPathAccessor<StorageReadInterface, int32_t>;
+template class VertexPropertyPathAccessor<StorageReadInterface, uint32_t>;
+template class VertexPropertyPathAccessor<StorageReadInterface, uint64_t>;
+template class VertexPropertyPathAccessor<StorageReadInterface,
+                                          std::string_view>;
+template class VertexPropertyPathAccessor<StorageReadInterface, Date>;
+template class VertexPropertyPathAccessor<StorageReadInterface, DateTime>;
+template class VertexPropertyPathAccessor<StorageReadInterface, double>;
+template class VertexPropertyPathAccessor<StorageReadInterface, Interval>;
 
 template class ContextValueAccessor<int64_t>;
 template class ContextValueAccessor<int32_t>;
@@ -373,24 +374,24 @@ template class ContextValueAccessor<List>;
 template class ContextValueAccessor<Set>;
 template class ContextValueAccessor<Interval>;
 
-template class VertexPropertyVertexAccessor<GraphReadInterface, int64_t>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, int32_t>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, uint32_t>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, uint64_t>;
-template class VertexPropertyVertexAccessor<GraphReadInterface,
+template class VertexPropertyVertexAccessor<StorageReadInterface, int64_t>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, int32_t>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, uint32_t>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, uint64_t>;
+template class VertexPropertyVertexAccessor<StorageReadInterface,
                                             std::string_view>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, Date>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, DateTime>;
-template class VertexPropertyVertexAccessor<GraphReadInterface, double>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, Date>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, DateTime>;
+template class VertexPropertyVertexAccessor<StorageReadInterface, double>;
 
-template class EdgePropertyEdgeAccessor<GraphReadInterface, int64_t>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, int32_t>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, uint32_t>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, uint64_t>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, std::string_view>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, Date>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, DateTime>;
-template class EdgePropertyEdgeAccessor<GraphReadInterface, double>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, int64_t>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, int32_t>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, uint32_t>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, uint64_t>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, std::string_view>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, Date>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, DateTime>;
+template class EdgePropertyEdgeAccessor<StorageReadInterface, double>;
 
 }  // namespace runtime
 

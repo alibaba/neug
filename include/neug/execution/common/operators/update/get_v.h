@@ -29,7 +29,7 @@ class UGetV {
  public:
   template <typename PRED_T>
   static gs::result<Context> get_vertex_from_vertices(
-      const GraphUpdateInterface& graph, Context&& ctx,
+      const StorageUpdateInterface& graph, Context&& ctx,
       const GetVParams& params, const PRED_T& pred) {
     auto col = ctx.get(params.tag);
     std::vector<size_t> shuffle_offsets;

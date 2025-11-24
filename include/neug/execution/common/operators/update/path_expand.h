@@ -26,7 +26,7 @@ namespace runtime {
 
 class UPathExpand {
  public:
-  static gs::result<Context> path_expand_v(const GraphUpdateInterface& graph,
+  static gs::result<Context> path_expand_v(const StorageUpdateInterface& graph,
                                            Context&& ctx,
                                            const PathExpandParams& params);
 };

@@ -19,7 +19,7 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class DataExportOpr : public IReadOperator {
+class DataExportOpr : public IOperator {
  public:
   DataExportOpr(const std::string& extension_name, const std::string& file_path,
                 const std::unordered_map<std::string, std::string>& options,
@@ -32,7 +32,7 @@ class DataExportOpr : public IReadOperator {
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      const gs::runtime::GraphReadInterface& graph,
+      gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override;
 
@@ -44,9 +44,11 @@ class DataExportOpr : public IReadOperator {
 };
 
 gs::result<gs::runtime::Context> DataExportOpr::Eval(
-    const gs::runtime::GraphReadInterface& graph,
+    gs::runtime::IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) {
+  const auto& graph =
+      dynamic_cast<const StorageReadInterface&>(graph_interface);
   writer_ = gs::runtime::ExportWriterFactory::CreateExportWriter(
       extension_name_, file_path_, headers_, options_);
   std::vector<std::shared_ptr<IContextColumn>> columns;
@@ -63,9 +65,10 @@ gs::result<gs::runtime::Context> DataExportOpr::Eval(
   return gs::result<Context>(std::move(ctx));
 }
 
-gs::result<ReadOpBuildResultT> DataExportOprBuilder::Build(
+gs::result<OpBuildResultT> DataExportOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& data_export_opr =
       plan.query_plan().plan(op_idx).opr().data_export();
   std::string extension_name = data_export_opr.extension_name();
@@ -85,7 +88,7 @@ gs::result<ReadOpBuildResultT> DataExportOprBuilder::Build(
   }
   return std::make_pair(std::make_unique<DataExportOpr>(
                             extension_name, file_path, options, headers),
-                        ctx_meta);
+                        ret_meta);
 }
 
 }  // namespace ops

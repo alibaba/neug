@@ -121,10 +121,10 @@ PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb) {
 template <typename T>
 bool vertex_property_topN_impl(bool asc, size_t limit,
                                const std::shared_ptr<IVertexColumn>& col,
-                               const GraphReadInterface& graph,
+                               const StorageReadInterface& graph,
                                const std::string& prop_name,
                                std::vector<size_t>& offsets) {
-  std::vector<std::shared_ptr<GraphReadInterface::vertex_column_t<T>>>
+  std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
   label_t label_num = graph.schema().vertex_label_num();
   for (label_t i = 0; i < label_num; ++i) {
@@ -163,7 +163,7 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
 template <typename T>
 bool vertex_id_topN_impl(bool asc, size_t limit,
                          const std::shared_ptr<IVertexColumn>& col,
-                         const GraphReadInterface& graph,
+                         const StorageReadInterface& graph,
                          std::vector<size_t>& offsets) {
   if (asc) {
     TopNGenerator<T, TopNAscCmp<T>> gen(limit);
@@ -185,7 +185,7 @@ bool vertex_id_topN_impl(bool asc, size_t limit,
 
 bool vertex_id_topN(bool asc, size_t limit,
                     const std::shared_ptr<IVertexColumn>& col,
-                    const GraphReadInterface& graph,
+                    const StorageReadInterface& graph,
                     std::vector<size_t>& offsets) {
   if (col->get_labels_set().size() != 1) {
     return false;
@@ -210,7 +210,7 @@ bool vertex_id_topN(bool asc, size_t limit,
 
 bool vertex_property_topN(bool asc, size_t limit,
                           const std::shared_ptr<IVertexColumn>& col,
-                          const GraphReadInterface& graph,
+                          const StorageReadInterface& graph,
                           const std::string& prop_name,
                           std::vector<size_t>& offsets) {
   std::vector<PropertyType> prop_types;

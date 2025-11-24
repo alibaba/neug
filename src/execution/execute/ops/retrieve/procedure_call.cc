@@ -20,7 +20,7 @@
 namespace gs {
 namespace runtime {
 namespace ops {
-class ProcedureCallOpr : public IUpdateOperator {
+class ProcedureCallOpr : public IOperator {
  private:
   std::unique_ptr<gs::function::CallFuncInputBase> callInput;
   function::NeugCallFunction* callFunction;
@@ -32,32 +32,34 @@ class ProcedureCallOpr : public IUpdateOperator {
 
   ~ProcedureCallOpr() override = default;
 
-  std::string get_operator_name() const override {
-    return "ProcedureCallOpr";
-  }
+  std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-        gs::runtime::GraphUpdateInterface& graph,
-        const std::map<std::string, std::string>& params,
-        gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+      IStorageInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     if (callFunction == nullptr) {
-        THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
+      THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
     return callFunction->execFunc(*callInput);
   }
 };
 
-std::unique_ptr<IUpdateOperator> ProcedureCallOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_idx) {
-      
+gs::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
+    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
   auto gCatalog = catalog::GCatalogHolder::getGCatalog();
   auto procedurePB = plan.query_plan().plan(op_idx).opr().procedure_call();
   auto signatureName = procedurePB.query().query_name().name();
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto callFunc = func->ptrCast<function::NeugCallFunction>();
-  
-  return std::make_unique<ProcedureCallOpr>(
-      callFunc->bindFunc(schema, runtime::ContextMeta(), plan, op_idx), callFunc);
+  ContextMeta ret_meta = ctx_meta;
+
+  return std::make_pair(
+      std::make_unique<ProcedureCallOpr>(
+          callFunc->bindFunc(schema, runtime::ContextMeta(), plan, op_idx),
+          callFunc),
+      ret_meta);
 }
 
 }  // namespace ops

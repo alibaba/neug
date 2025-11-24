@@ -32,7 +32,7 @@ class OrderBy {
  public:
   template <typename Comparer>
   static gs::result<Context> order_by_with_limit(
-      const GraphReadInterface& graph, Context&& ctx, const Comparer& cmp,
+      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high) {
     if (low == 0 && high >= ctx.row_num()) {
       std::vector<size_t> offsets(ctx.row_num());
@@ -68,7 +68,7 @@ class OrderBy {
 
   template <typename Comparer>
   static gs::result<Context> staged_order_by_with_limit(
-      const GraphReadInterface& graph, Context&& ctx, const Comparer& cmp,
+      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high, const std::vector<size_t>& indices) {
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
     for (auto i : indices) {
@@ -95,9 +95,9 @@ class OrderBy {
 
   template <typename Comparer>
   static gs::result<Context> order_by_with_limit_with_indices(
-      const GraphReadInterface& graph, Context&& ctx,
+      const StorageReadInterface& graph, Context&& ctx,
       std::function<std::optional<std::vector<size_t>>(
-          const GraphReadInterface&, const Context& ctx)>
+          const StorageReadInterface&, const Context& ctx)>
           indices,
       const Comparer& cmp, size_t low, size_t high) {
     size_t row_num = ctx.row_num();

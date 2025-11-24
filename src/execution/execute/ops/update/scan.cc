@@ -43,7 +43,7 @@ namespace runtime {
 class OprTimer;
 
 namespace ops {
-class UScanOpr : public IUpdateOperator {
+class UScanOpr : public IOperator {
  public:
   UScanOpr(const ScanParams& params,
            const std::vector<std::function<std::vector<Property>(
@@ -52,9 +52,10 @@ class UScanOpr : public IUpdateOperator {
       : scan_params(params), oids(oids), pred(pred) {}
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::GraphUpdateInterface& graph,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
     std::vector<Property> oids_vec;
     for (auto& oid : oids) {
       auto oids = oid(params);
@@ -62,7 +63,7 @@ class UScanOpr : public IUpdateOperator {
     }
     Arena arena;
     if (pred.has_value()) {
-      auto expr = parse_expression<GraphUpdateInterface>(
+      auto expr = parse_expression<StorageUpdateInterface>(
           graph, ctx, params, pred.value(), VarType::kVertexVar);
       if (oids.empty()) {
         return UScan::scan(
@@ -109,13 +110,14 @@ class UScanOpr : public IUpdateOperator {
   std::optional<common::Expression> pred;
 };
 
-std::unique_ptr<IUpdateOperator> UScanOprBuilder::Build(
-    const Schema& schema, const physical::PhysicalPlan& plan, int op_id) {
+gs::result<OpBuildResultT> UScanOprBuilder::Build(
+    const Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_id) {
   const auto& scan = plan.query_plan().plan(op_id).opr().scan();
   int alias = scan.has_alias() ? scan.alias().value() : -1;
   if (!scan.has_params()) {
     LOG(ERROR) << "Scan operator should have params";
-    return nullptr;
+    return std::make_pair(nullptr, ContextMeta());
   }
   std::vector<label_t> tables;
   for (auto& label : scan.params().tables()) {
@@ -136,7 +138,7 @@ std::unique_ptr<IUpdateOperator> UScanOprBuilder::Build(
     bool scan_oid = false;
     if (!ScanUtils::check_idx_predicate(scan, scan_oid)) {
       LOG(ERROR) << "Index predicate is not supported" << scan.DebugString();
-      return nullptr;
+      return std::make_pair(nullptr, ContextMeta());
     }
     if (!scan_oid) {
       LOG(ERROR) << "Scan gid is not supported" << scan.DebugString();
@@ -159,7 +161,8 @@ std::unique_ptr<IUpdateOperator> UScanOprBuilder::Build(
     pred = scan.params().predicate();
   }
 
-  return std::make_unique<UScanOpr>(params, oids, pred);
+  return std::make_pair(std::make_unique<UScanOpr>(params, oids, pred),
+                        ContextMeta());
 }
 }  // namespace ops
 }  // namespace runtime

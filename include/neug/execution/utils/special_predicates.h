@@ -235,7 +235,7 @@ inline SPPredicateType parse_sp_pred(const common::Expression& expr) {
 template <typename T>
 class SLEdgePropertyGetter {
  public:
-  SLEdgePropertyGetter(const GraphReadInterface& graph,
+  SLEdgePropertyGetter(const StorageReadInterface& graph,
                        const std::vector<LabelTriplet>& labels,
                        const std::string& property_name) {
     CHECK_EQ(labels.size(), 1);
@@ -265,7 +265,7 @@ class SLEdgePropertyGetter {
 template <typename T>
 class MLEdgePropertyGetter {
  public:
-  MLEdgePropertyGetter(const GraphReadInterface& graph,
+  MLEdgePropertyGetter(const StorageReadInterface& graph,
                        const std::vector<LabelTriplet>& labels,
                        const std::string& property_name) {
     // property_name -> prop_id
@@ -301,7 +301,7 @@ class MLEdgePropertyGetter {
 template <typename T>
 class SLVertexPropertyGetter {
  public:
-  SLVertexPropertyGetter(const GraphReadInterface& graph, label_t label,
+  SLVertexPropertyGetter(const StorageReadInterface& graph, label_t label,
                          const std::string& property_name) {
     column_ = graph.GetVertexPropColumn<T>(label, property_name);
   }
@@ -310,13 +310,13 @@ class SLVertexPropertyGetter {
   inline T get(label_t label, vid_t v) const { return column_->get_view(v); }
 
  private:
-  std::shared_ptr<GraphReadInterface::vertex_column_t<T>> column_;
+  std::shared_ptr<StorageReadInterface::vertex_column_t<T>> column_;
 };
 
 template <typename T>
 class MLVertexPropertyGetter {
  public:
-  MLVertexPropertyGetter(const GraphReadInterface& graph,
+  MLVertexPropertyGetter(const StorageReadInterface& graph,
                          const std::string& property_name) {
     for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
       columns_.emplace_back(graph.GetVertexPropColumn<T>(i, property_name));
@@ -329,7 +329,8 @@ class MLVertexPropertyGetter {
   }
 
  private:
-  std::vector<std::shared_ptr<GraphReadInterface::vertex_column_t<T>>> columns_;
+  std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
+      columns_;
 };
 
 template <typename T>
@@ -711,7 +712,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
 
 template <typename OP_T, typename CMP_T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, const CMP_T& cmp_val,
@@ -740,7 +741,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 
 template <typename OP_T, typename T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_typed(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
@@ -803,7 +804,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
 
 template <typename OP_T, typename... Args>
 gs::result<Context> dispatch_vertex_predicate(
-    const gs::runtime::GraphReadInterface& graph,
+    const gs::runtime::StorageReadInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {

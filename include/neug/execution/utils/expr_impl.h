@@ -741,7 +741,7 @@ class ListExprBase : public ExprBase {
 
 class PathVertexPropsExpr : public ListExprBase {
  public:
-  explicit PathVertexPropsExpr(const GraphReadInterface& graph,
+  explicit PathVertexPropsExpr(const StorageReadInterface& graph,
                                const Context& ctx, int tag,
                                const std::string& prop, RTAnyType prop_type)
       : graph_(graph),
@@ -749,7 +749,7 @@ class PathVertexPropsExpr : public ListExprBase {
         prop_(prop),
         prop_type_(prop_type) {}
 
-  explicit PathVertexPropsExpr(const GraphUpdateInterface& graph,
+  explicit PathVertexPropsExpr(const StorageUpdateInterface& graph,
                                const Context& ctx, int tag,
                                const std::string& prop,
                                RTAnyType prop_type) = delete;
@@ -768,7 +768,7 @@ class PathVertexPropsExpr : public ListExprBase {
     return RTAny();
   }
 
-  const GraphReadInterface& graph_;
+  const StorageReadInterface& graph_;
   const GeneralPathColumn& col_;
   std::string prop_;
   RTAnyType prop_type_;
@@ -776,7 +776,7 @@ class PathVertexPropsExpr : public ListExprBase {
 
 class PathEdgePropsExpr : public ListExprBase {
  public:
-  explicit PathEdgePropsExpr(const GraphReadInterface& graph,
+  explicit PathEdgePropsExpr(const StorageReadInterface& graph,
                              const Context& ctx, int tag,
                              const std::string& prop, RTAnyType prop_type)
       : graph_(graph),
@@ -798,7 +798,7 @@ class PathEdgePropsExpr : public ListExprBase {
     return RTAny();
   }
 
-  const GraphReadInterface& graph_;
+  const StorageReadInterface& graph_;
   const GeneralPathColumn& col_;
   std::string prop_;
   RTAnyType prop_type_;
