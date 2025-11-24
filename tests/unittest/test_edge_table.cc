@@ -822,7 +822,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   std::vector<PropertyType> new_property_type = {PropertyType::kInt32};
   edge_schema->add_properties(new_property_name, new_property_type);
   e_table.AddProperties(new_property_name, new_property_type);
-  EXPECT_EQ(e_table.get_properties_table().col_num(), 2);
+  EXPECT_EQ(e_table.PropertyNum(), 2);
 }
 
 TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {

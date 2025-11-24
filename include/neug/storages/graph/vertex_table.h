@@ -149,10 +149,6 @@ class VertexTable {
 
   bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
-  inline Table& get_properties_table() { return *table_; }
-
-  inline const Table& get_properties_table() const { return *table_; }
-
   IndexerType& get_indexer() { return indexer_; }
   const IndexerType& get_indexer() const { return indexer_; }
 

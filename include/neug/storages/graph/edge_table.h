@@ -73,6 +73,8 @@ class EdgeTable {
 
   size_t EdgeNum() const;
 
+  size_t PropertyNum() const;
+
   GenericView get_outgoing_view(timestamp_t ts) const;
   GenericView get_incoming_view(timestamp_t ts) const;
 
@@ -102,9 +104,6 @@ class EdgeTable {
   void DeleteProperties(const std::vector<std::string>& col_names);
 
   void RemoveEdge(vid_t src_lid, vid_t dst_lid, timestamp_t ts);
-
-  inline Table& get_properties_table() { return *table_; }
-  inline const Table& get_properties_table() const { return *table_; }
 
   void Compact(bool reset_timestamp, bool compact_csr, bool sort_on_compaction,
                float reserve_ratio, timestamp_t ts);

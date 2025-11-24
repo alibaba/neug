@@ -634,6 +634,8 @@ size_t EdgeTable::EdgeNum() const {
   }
 }
 
+size_t EdgeTable::PropertyNum() const { return table_->col_num(); }
+
 GenericView EdgeTable::get_outgoing_view(timestamp_t ts) const {
   return out_csr_->get_generic_view(ts);
 }

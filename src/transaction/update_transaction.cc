@@ -774,9 +774,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       vid_t vid;
       CHECK(graph.get_lid(redo.label, redo.oid, vid, timestamp));
       graph.get_vertex_table(redo.label)
-          .get_properties_table()
-          .get_column_by_id(redo.prop_id)
-          ->set_any(vid, redo.value);
+          .UpdateProperty(vid, redo.prop_id, redo.value, timestamp);
     } else if (op_type == OpType::kUpdateEdgeProp) {
       UpdateEdgePropRedo redo;
       arc >> redo;

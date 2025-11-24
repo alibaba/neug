@@ -103,8 +103,10 @@ class GraphReadInterface {
 
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return txn_.graph().get_vertex_table(label).get_properties_table().at(
-        index, prop_id);
+    return txn_.graph()
+        .get_vertex_table(label)
+        .get_property_column(prop_id)
+        ->get_prop(index);
   }
 
   GenericView GetGenericOutgoingGraphView(label_t v_label,
@@ -185,8 +187,10 @@ class GraphUpdateInterface {
 
   inline Property GetVertexProperty(label_t label, vid_t index,
                                     int prop_id) const {
-    return txn_.GetGraph().get_vertex_table(label).get_properties_table().at(
-        index, prop_id);
+    return txn_.GetGraph()
+        .get_vertex_table(label)
+        .get_property_column(prop_id)
+        ->get_prop(index);
   }
 
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
