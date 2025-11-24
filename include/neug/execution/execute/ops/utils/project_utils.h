@@ -546,7 +546,7 @@ template <typename GraphInterface>
 static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
     const common::Expression& expr, int alias, const GraphInterface& graph,
     const Context& ctx, const std::map<std::string, std::string>& params) {
-  Expr e(graph, ctx, params, expr, VarType::kPathVar);
+  Expr e(&graph, ctx, params, expr, VarType::kPathVar);
 
   switch (e.type()) {
   case RTAnyType::kI64Value: {
@@ -625,7 +625,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
   switch (data_type.type_case()) {
   case common::IrDataType::kDataType: {
     auto type = parse_from_ir_data_type(data_type);
-    Expr e(graph, ctx, params, expr, VarType::kPathVar);
+    Expr e(&graph, ctx, params, expr, VarType::kPathVar);
     switch (type) {
     case RTAnyType::kI64Value: {
       return _make_project_expr<int64_t>(std::move(e), alias, ctx);
@@ -687,7 +687,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
         label_t v_label = static_cast<label_t>(
             graph_data_type.graph_data_type(0).label().label());
 
-        Expr e(graph, ctx, params, expr, VarType::kPathVar);
+        Expr e(&graph, ctx, params, expr, VarType::kPathVar);
         SLVertexCollector collector(v_label);
         collector.builder.reserve(ctx.row_num());
         return std::make_unique<
@@ -695,7 +695,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
             SLVertexCollector::EXPR(std::move(e)), collector, alias);
 
       } else if (label_num > 1) {
-        Expr e(graph, ctx, params, expr, VarType::kPathVar);
+        Expr e(&graph, ctx, params, expr, VarType::kPathVar);
         MLVertexCollector collector;
         collector.builder.reserve(ctx.row_num());
         return std::make_unique<
@@ -707,7 +707,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
       }
     } else if (elem_opt == common::GraphDataType_GraphElementOpt::
                                GraphDataType_GraphElementOpt_EDGE) {
-      Expr e(graph, ctx, params, expr, VarType::kPathVar);
+      Expr e(&graph, ctx, params, expr, VarType::kPathVar);
       EdgeCollector collector;
       return std::make_unique<
           ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(

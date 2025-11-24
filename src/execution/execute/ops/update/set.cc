@@ -206,7 +206,7 @@ class SetOpr : public IOperator {
       }
       if (prop->column_type() == ContextColumnType::kVertex) {
         auto vertex_col = dynamic_cast<const IVertexColumn*>(prop.get());
-        Expr expr(graph, ctx, params, value, VarType::kPathVar);
+        Expr expr(&graph, ctx, params, value, VarType::kPathVar);
 
         for (size_t j = 0; j < ctx.row_num(); j++) {
           auto val = expr.eval_path(j, arena);
@@ -220,7 +220,7 @@ class SetOpr : public IOperator {
         }
       } else {
         auto edge_col = dynamic_cast<const IEdgeColumn*>(prop.get());
-        Expr expr(graph, ctx, params, value, VarType::kPathVar);
+        Expr expr(&graph, ctx, params, value, VarType::kPathVar);
         for (size_t j = 0; j < ctx.row_num(); j++) {
           auto val = expr.eval_path(j, arena);
           auto edge = edge_col->get_edge(j);

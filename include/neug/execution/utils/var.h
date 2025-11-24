@@ -58,7 +58,7 @@ class VarGetterBase {
 class Var {
  public:
   template <typename GraphInterface>
-  Var(const GraphInterface& graph, const Context& ctx,
+  Var(const GraphInterface* graph, const Context& ctx,
       const common::Variable& pb, VarType var_type);
   ~Var();
 

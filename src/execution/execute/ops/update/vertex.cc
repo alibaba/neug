@@ -94,7 +94,7 @@ class UGetVFromVerticesWithPredOpr : public IOperator {
                            Context&& ctx, OprTimer* timer) override {
     auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
     auto expr = parse_expression<StorageUpdateInterface>(
-        graph, ctx, params, expr_, VarType::kPathVar);
+        &graph, ctx, params, expr_, VarType::kPathVar);
     if (expr->is_optional()) {
       LOG(ERROR) << "GetV does not support optional expression now";
       RETURN_INVALID_ARGUMENT_ERROR(

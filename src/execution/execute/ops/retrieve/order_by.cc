@@ -65,7 +65,7 @@ class OrderByOprBeta : public IOperator {
     int keys_num = keys_.size();
     GeneralComparer cmp;
     for (int i = 0; i < keys_num; ++i) {
-      Var v(graph, ctx, keys_[i].first, VarType::kPathVar);
+      Var v(&graph, ctx, keys_[i].first, VarType::kPathVar);
       cmp.add_keys(std::move(v), keys_[i].second);
     }
     auto func = func_(ctx);

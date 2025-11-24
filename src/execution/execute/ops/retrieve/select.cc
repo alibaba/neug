@@ -103,7 +103,7 @@ class SelectIdNeOpr : public IOperator {
         }
       }
     }
-    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
+    Expr expr(&graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
 
     if (!expr.is_optional()) {
@@ -133,7 +133,7 @@ class SelectOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
+    Expr expr(&graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
     if (!expr.is_optional()) {
       ExprWrapper wrapper(std::move(expr));

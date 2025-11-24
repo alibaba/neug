@@ -68,7 +68,7 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
                           " is not a vertex column");
     }
 
-    Expr expr(graph, ctx, params, expression, VarType::kPathVar);
+    Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
       auto value = expr.eval_path(ind, arena).to_any();
       auto vr = vertex_col->get_vertex(ind);

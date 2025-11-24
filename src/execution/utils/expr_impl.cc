@@ -816,13 +816,13 @@ static inline int get_proiority(const ::common::ExprOpr& opr) {
 
 template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
-    const GraphInterface& graph, const Context& ctx,
+    const GraphInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type);
 
 template <typename GraphInterface>
 static std::unique_ptr<ExprBase> build_expr(
-    const GraphInterface& graph, const Context& ctx,
+    const GraphInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     std::stack<::common::ExprOpr>& opr_stack, VarType var_type) {
   while (!opr_stack.empty()) {
@@ -1133,11 +1133,11 @@ static std::unique_ptr<ExprBase> build_expr(
       if constexpr (std::is_same<GraphInterface, StorageReadInterface>::value) {
         if (opt ==
             ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
-          return std::make_unique<PathVertexPropsExpr>(graph, ctx, tag, name,
+          return std::make_unique<PathVertexPropsExpr>(*graph, ctx, tag, name,
                                                        type);
         } else if (opt ==
                    ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
-          return std::make_unique<PathEdgePropsExpr>(graph, ctx, tag, name,
+          return std::make_unique<PathEdgePropsExpr>(*graph, ctx, tag, name,
                                                      type);
         } else {
           LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
@@ -1155,7 +1155,7 @@ static std::unique_ptr<ExprBase> build_expr(
 
 template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
-    const GraphInterface& graph, const Context& ctx,
+    const GraphInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type) {
   std::stack<::common::ExprOpr> opr_stack;
@@ -1231,18 +1231,18 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
 
 template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
-    const GraphInterface& graph, const Context& ctx,
+    const GraphInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type) {
   return parse_expression_impl(graph, ctx, params, expr, var_type);
 }
 
 template std::unique_ptr<ExprBase> parse_expression<StorageReadInterface>(
-    const StorageReadInterface&, const Context&,
+    const StorageReadInterface*, const Context&,
     const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
 template std::unique_ptr<ExprBase> parse_expression<StorageUpdateInterface>(
-    const StorageUpdateInterface&, const Context&,
+    const StorageUpdateInterface*, const Context&,
     const std::map<std::string, std::string>&, const ::common::Expression&,
     VarType);
 

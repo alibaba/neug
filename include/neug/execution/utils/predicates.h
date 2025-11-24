@@ -34,7 +34,7 @@ struct GeneralVertexPredicate {
   GeneralVertexPredicate(const GraphInterface& graph, const Context& ctx,
                          const std::map<std::string, std::string>& params,
                          const common::Expression& expr)
-      : expr_(graph, ctx, params, expr, VarType::kVertexVar) {}
+      : expr_(&graph, ctx, params, expr, VarType::kVertexVar) {}
 
   inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
     auto val = expr_.eval_vertex(label, v, path_idx, arena_);
@@ -64,7 +64,7 @@ struct GeneralEdgePredicate {
   GeneralEdgePredicate(const GraphInterface& graph, const Context& ctx,
                        const std::map<std::string, std::string>& params,
                        const common::Expression& expr)
-      : expr_(graph, ctx, params, expr, VarType::kEdgeVar) {}
+      : expr_(&graph, ctx, params, expr, VarType::kEdgeVar) {}
 
   inline bool operator()(label_t label, vid_t src, label_t nbr_label, vid_t nbr,
                          label_t e_label, Direction dir, const void* edata_ptr,

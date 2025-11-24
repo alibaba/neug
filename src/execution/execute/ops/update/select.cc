@@ -40,7 +40,7 @@ class USelectOpr : public IOperator {
   gs::result<Context> Eval(IStorageInterface& graph,
                            const std::map<std::string, std::string>& params,
                            Context&& ctx, OprTimer* timer) override {
-    Expr expr(dynamic_cast<StorageUpdateInterface&>(graph), ctx, params,
+    Expr expr(dynamic_cast<StorageUpdateInterface*>(&graph), ctx, params,
               predicate_, VarType::kPathVar);
     Arena arena;
     return Select::select(std::move(ctx), [&](size_t idx) {

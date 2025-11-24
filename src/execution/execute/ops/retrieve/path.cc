@@ -371,7 +371,7 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto v_pred = parse_expression(graph, std::move(ctx), params, pred_,
+    auto v_pred = parse_expression(&graph, std::move(ctx), params, pred_,
                                    VarType::kVertexVar);
     Arena arena;
     auto pred = [&v_pred, &arena](label_t label, vid_t vid, size_t idx) {
@@ -484,7 +484,7 @@ class SPGPredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto predicate = parse_expression(graph, std::move(ctx), params, pred_,
+    auto predicate = parse_expression(&graph, std::move(ctx), params, pred_,
                                       VarType::kVertexVar);
     Arena arena;
     auto pred = [&arena, &predicate](label_t label, vid_t v, size_t idx) {

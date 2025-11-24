@@ -190,7 +190,7 @@ class FilterOidsGPredOpr : public IOperator {
     auto ids = oids_(params);
     Arena arena;
     auto expr =
-        parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
+        parse_expression(&graph, ctx, params, pred_, VarType::kVertexVar);
     return Scan::filter_oids(
         std::move(ctx), graph, params_,
         [&expr, &arena](label_t label, vid_t vid, size_t idx) {
@@ -270,7 +270,7 @@ class FilterOidsMultiTypeGPredOpr : public IOperator {
       }
     }
     auto expr =
-        parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
+        parse_expression(&graph, ctx, params, pred_, VarType::kVertexVar);
     Arena arena;
 
     return Scan::filter_oids(
@@ -348,7 +348,7 @@ class FilterGidsGPredOpr : public IOperator {
     Arena arena;
 
     auto expr =
-        parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
+        parse_expression(&graph, ctx, params, pred_, VarType::kVertexVar);
     return Scan::filter_gids(
         std::move(ctx), graph, params_,
         [&expr, &arena](label_t label, vid_t vid, size_t idx) {
@@ -402,7 +402,7 @@ class ScanWithGPredOpr : public IOperator {
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     Arena arena;
     auto expr =
-        parse_expression(graph, ctx, params, pred_, VarType::kVertexVar);
+        parse_expression(&graph, ctx, params, pred_, VarType::kVertexVar);
     if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
       auto ret = Scan::scan_vertex(
           std::move(ctx), graph, scan_params_,

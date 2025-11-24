@@ -846,7 +846,7 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
       }
     }
   }
-  Var var_(graph, ctx, var, VarType::kPathVar);
+  Var var_(&graph, ctx, var, VarType::kPathVar);
   if (var_.type() == RTAnyType::kI32Value) {
     return make_reducer<int32_t>(ctx, std::move(var_), kind, alias);
   } else if (var_.type() == RTAnyType::kU32Value) {
@@ -887,7 +887,7 @@ std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
       continue;
     }
 
-    Var var_(graph, ctx, var, VarType::kPathVar);
+    Var var_(&graph, ctx, var, VarType::kPathVar);
     if (var_.type() == RTAnyType::kStringValue) {
       TypedKeyCollector<std::string_view>::TypedKeyWrapper wrapper(
           std::move(var_));
@@ -977,7 +977,7 @@ std::unique_ptr<KeyBase> create_key_func(
   }
   std::vector<VarWrapper> key_vars;
   for (const auto& var : vars) {
-    Var var_(graph, ctx, var, VarType::kPathVar);
+    Var var_(&graph, ctx, var, VarType::kPathVar);
     key_vars.emplace_back(VarWrapper(std::move(var_)));
   }
 
@@ -1005,8 +1005,8 @@ std::unique_ptr<ReducerBase> create_reducer(
     auto& fst = func.vars(0);
     auto& snd = func.vars(1);
 
-    Var fst_var(graph, ctx, fst, VarType::kPathVar);
-    Var snd_var(graph, ctx, snd, VarType::kPathVar);
+    Var fst_var(&graph, ctx, fst, VarType::kPathVar);
+    Var snd_var(&graph, ctx, snd, VarType::kPathVar);
     return make_pair_reducer(ctx, std::move(fst_var), std::move(snd_var),
                              aggr_kind, alias);
   } else if (func.vars_size() == 1) {

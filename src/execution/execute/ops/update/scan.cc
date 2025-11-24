@@ -64,7 +64,7 @@ class UScanOpr : public IOperator {
     Arena arena;
     if (pred.has_value()) {
       auto expr = parse_expression<StorageUpdateInterface>(
-          graph, ctx, params, pred.value(), VarType::kVertexVar);
+          &graph, ctx, params, pred.value(), VarType::kVertexVar);
       if (oids.empty()) {
         return UScan::scan(
             graph, std::move(ctx), scan_params, [&](label_t label, vid_t vid) {

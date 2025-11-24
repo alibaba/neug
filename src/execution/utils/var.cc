@@ -29,7 +29,7 @@ namespace runtime {
 struct LabelTriplet;
 
 template <typename GraphInterface>
-Var::Var(const GraphInterface& graph, const Context& ctx,
+Var::Var(const GraphInterface* graph, const Context& ctx,
          const common::Variable& pb, VarType var_type)
     : getter_(nullptr) {
   int tag = -1;
@@ -67,10 +67,11 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
         if (pt.has_id()) {
           getter_ = std::make_shared<VertexGIdPathAccessor>(ctx, tag);
         } else if (pt.has_key()) {
-          getter_ = create_vertex_property_path_accessor(graph, ctx, tag, type_,
-                                                         pt.key().name());
+          getter_ = create_vertex_property_path_accessor(
+              *graph, ctx, tag, type_, pt.key().name());
         } else if (pt.has_label()) {
-          getter_ = create_vertex_label_path_accessor(graph.schema(), ctx, tag);
+          getter_ =
+              create_vertex_label_path_accessor(graph->schema(), ctx, tag);
         } else {
           LOG(FATAL) << "not support for " << pt.DebugString();
         }
@@ -87,9 +88,9 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
         if (pt.has_key()) {
           auto name = pt.key().name();
           getter_ =
-              create_edge_property_path_accessor(graph, name, ctx, tag, type_);
+              create_edge_property_path_accessor(*graph, name, ctx, tag, type_);
         } else if (pt.has_label()) {
-          getter_ = create_edge_label_path_accessor(graph.schema(), ctx, tag);
+          getter_ = create_edge_label_path_accessor(graph->schema(), ctx, tag);
         } else if (pt.has_id()) {
           getter_ = std::make_shared<EdgeGIdPathAccessor>(ctx, tag);
         } else {
@@ -119,11 +120,12 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
         if (pt.has_id()) {
           getter_ = std::make_shared<VertexGIdVertexAccessor>();
         } else if (pt.has_key()) {
-          getter_ = create_vertex_property_vertex_accessor(graph, type_,
+          getter_ = create_vertex_property_vertex_accessor(*graph, type_,
                                                            pt.key().name());
 
         } else if (pt.has_label()) {
-          getter_ = std::make_shared<VertexLabelVertexAccessor>(graph.schema());
+          getter_ =
+              std::make_shared<VertexLabelVertexAccessor>(graph->schema());
         } else {
           LOG(FATAL) << "not support for " << pt.DebugString();
         }
@@ -135,7 +137,7 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
         auto& pt = pb.property();
         if (pt.has_key()) {
           auto name = pt.key().name();
-          getter_ = create_edge_property_edge_accessor(graph, name, type_);
+          getter_ = create_edge_property_edge_accessor(*graph, name, type_);
         } else {
           LOG(FATAL) << "parse failed for " << pt.DebugString();
         }
@@ -148,9 +150,9 @@ Var::Var(const GraphInterface& graph, const Context& ctx,
   }
 }
 
-template Var::Var(const StorageReadInterface& graph, const Context& ctx,
+template Var::Var(const StorageReadInterface* graph, const Context& ctx,
                   const common::Variable& pb, VarType var_type);
-template Var::Var(const StorageUpdateInterface& graph, const Context& ctx,
+template Var::Var(const StorageUpdateInterface* graph, const Context& ctx,
                   const common::Variable& pb, VarType var_type);
 
 Var::~Var() {}

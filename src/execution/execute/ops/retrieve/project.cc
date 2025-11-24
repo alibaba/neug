@@ -296,7 +296,7 @@ class ProjectOrderByOprBeta : public IOperator {
     auto cmp_func = [&](const Context& ctx) -> GeneralComparer {
       GeneralComparer cmp;
       for (const auto& pair : order_by_pairs_) {
-        Var v(graph, ctx, pair.first, VarType::kPathVar);
+        Var v(&graph, ctx, pair.first, VarType::kPathVar);
         cmp.add_keys(std::move(v), pair.second);
       }
       return cmp;

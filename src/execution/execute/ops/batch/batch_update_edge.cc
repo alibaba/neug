@@ -72,7 +72,7 @@ gs::result<Context> UpdateEdgeOpr::Eval(
                           " is not an edge column.");
     }
 
-    Expr expr(graph, ctx, params, expression, VarType::kPathVar);
+    Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < edge_col->size(); ++ind) {
       auto value = expr.eval_path(ind, arena);
       auto er = edge_col->get_edge(ind);

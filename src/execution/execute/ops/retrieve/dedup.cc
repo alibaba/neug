@@ -70,7 +70,7 @@ class DedupWithPropertyOpr : public IOperator {
       const auto& key = opr_.keys(k_i);
       int tag = key.has_tag() ? key.tag().id() : -1;
       if (key.has_property()) {
-        Var var(graph, ctx, key, VarType::kPathVar);
+        Var var(&graph, ctx, key, VarType::kPathVar);
         keys.emplace_back([var](size_t i) { return var.get(i); });
       } else {
         keys.emplace_back(

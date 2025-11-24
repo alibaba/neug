@@ -243,7 +243,7 @@ class WithInExpr : public ExprBase {
 class VariableExpr : public ExprBase {
  public:
   template <typename GraphInterface>
-  VariableExpr(const GraphInterface& graph, const Context& ctx,
+  VariableExpr(const GraphInterface* graph, const Context& ctx,
                const ::common::Variable& pb, VarType var_type)
       : var_(graph, ctx, pb, var_type) {}
 
@@ -1119,7 +1119,7 @@ class AbsExpr : public ExprBase {
 
 template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
-    const GraphInterface& graph, const Context& ctx,
+    const GraphInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type);
 
