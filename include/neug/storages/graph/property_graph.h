@@ -215,30 +215,13 @@ class PropertyGraph {
   Status DeleteVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::string>& delete_properties,
-      bool error_on_conflict = true, bool is_soft = false);
-
-  Status RevertDeleteVertexProperties(
-      const std::string& vertex_type_name,
-      const std::vector<std::string>& delete_properties,
       bool error_on_conflict = true);
 
   Status DeleteEdgeProperties(const std::string& src_type_name,
                               const std::string& dst_type_name,
                               const std::string& edge_type_name,
                               const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict = true,
-                              bool is_soft = false);
-
-  Status RevertDeleteEdgeProperties(
-      const std::string& src_type_name, const std::string& dst_type_name,
-      const std::string& edge_type_name,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict = true);
-
-  Status RevertDeleteEdgeProperties(
-      label_t src_label, label_t dst_label, label_t edge_label,
-      const std::vector<std::string>& delete_properties,
-      bool error_on_conflict = true);
+                              bool error_on_conflict = true);
 
   Status Reserve(label_t v_label, vid_t vertex_reserve_size);
 
@@ -322,7 +305,24 @@ class PropertyGraph {
                                        label_t edge_label, int prop_id) const {
     size_t index =
         schema_.generate_edge_label(src_label, dst_label, edge_label);
+    if (edge_tables_.count(index) == 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
     return edge_tables_.at(index).get_edge_data_accessor(prop_id);
+  }
+
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label,
+                                       const std::string& prop) const {
+    size_t index =
+        schema_.generate_edge_label(src_label, dst_label, edge_label);
+    auto edge_table_it = edge_tables_.find(index);
+    if (edge_table_it == edge_tables_.end()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
+    return edge_table_it->second.get_edge_data_accessor(prop);
   }
 
   void loadSchema(const std::string& filename);

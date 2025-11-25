@@ -54,6 +54,23 @@
     }                                                                   \
   } while (0)
 
+#define ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name)                 \
+  do {                                                                       \
+    if (label < deleted_vertex_properties_.size() &&                         \
+        deleted_vertex_properties_[label].count(prop_name)) {                \
+      THROW_RUNTIME_ERROR("Vertex property is deleted in this transaction"); \
+    }                                                                        \
+  } while (0)
+
+#define ENSURE_EDGE_PROPERTY_NOT_DELETED(index, prop_name)                 \
+  do {                                                                     \
+    if (deleted_edge_properties_.find(index) !=                            \
+            deleted_edge_properties_.end() &&                              \
+        deleted_edge_properties_.at(index).count(prop_name)) {             \
+      THROW_RUNTIME_ERROR("Edge property is deleted in this transaction"); \
+    }                                                                      \
+  } while (0)
+
 namespace gs {
 
 class PropertyGraph;
@@ -158,6 +175,40 @@ class UpdateTransaction {
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy);
 
+  bool AddVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+          add_properties,
+      bool error_on_conflict);
+
+  bool AddEdgeProperties(
+      const std::string& src_type, const std::string& dst_type,
+      const std::string& edge_type,
+      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+          add_properties,
+      bool error_on_conflict);
+
+  bool RenameVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::pair<std::string, std::string>>& rename_properties,
+      bool error_on_conflict);
+
+  bool RenameEdgeProperties(
+      const std::string& src_type, const std::string& dst_type,
+      const std::string& edge_type,
+      const std::vector<std::pair<std::string, std::string>>& rename_properties,
+      bool error_on_conflict);
+
+  bool DeleteVertexProperties(const std::string& vertex_type_name,
+                              const std::vector<std::string>& delete_properties,
+                              bool error_on_conflict);
+
+  bool DeleteEdgeProperties(const std::string& src_type,
+                            const std::string& dst_type,
+                            const std::string& edge_type,
+                            const std::vector<std::string>& delete_properties,
+                            bool error_on_conflict);
+
   bool DeleteVertexType(const std::string& vertex_type_name,
                         bool error_on_conflict = true);
 
@@ -183,6 +234,8 @@ class UpdateTransaction {
 
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& col_name) const {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(label);
+    ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, col_name);
     return graph_.GetVertexPropertyColumn(label, col_name);
   }
 
@@ -265,6 +318,17 @@ class UpdateTransaction {
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
     ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
+    auto edge_schema =
+        graph_.schema().get_edge_schema(src_label, dst_label, edge_label);
+    if (edge_schema->property_names.size() <= static_cast<size_t>(prop_id)) {
+      if (edge_schema->property_names.size() != 0) {
+        THROW_RUNTIME_ERROR("Invalid edge property id");
+      }
+    }
+    auto index =
+        graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
+    ENSURE_EDGE_PROPERTY_NOT_DELETED(index,
+                                     edge_schema->property_names[prop_id]);
     return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
                                       prop_id);
   }
@@ -338,6 +402,10 @@ class UpdateTransaction {
 
   void applyEdgeTypeDeletions();
 
+  void applyVertexPropDeletion();
+
+  void applyEdgePropDeletion();
+
   Property own_property_memory(const Property& prop);
 
   // Revert all changes made in this transaction.
@@ -368,6 +436,9 @@ class UpdateTransaction {
   std::unordered_set<std::tuple<label_t, label_t, label_t>,
                      hash_tuple::hash<label_t, label_t, label_t>>
       deleted_edge_labels_;
+  std::vector<std::unordered_set<std::string>> deleted_vertex_properties_;
+  std::unordered_map<uint32_t, std::unordered_set<std::string>>
+      deleted_edge_properties_;
   std::stack<std::unique_ptr<IUndoLog>> undo_logs_;
 };
 

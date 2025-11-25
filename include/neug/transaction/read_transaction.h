@@ -143,6 +143,13 @@ class ReadTransaction {
                                       prop_id);
   }
 
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label,
+                                       const std::string& prop_name) const {
+    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                      prop_name);
+  }
+
   size_t GetOutDegree(label_t label, vid_t u, label_t neighbor_label,
                       label_t edge_label) const;
 

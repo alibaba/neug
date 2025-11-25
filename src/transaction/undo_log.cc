@@ -55,33 +55,93 @@ void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for AddVertexProp is not implemented yet.");
+  if (!graph.schema().vertex_label_valid(label)) {
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+  }
+  auto label_name = graph.schema().get_vertex_label_name(label);
+  auto status = graph.DeleteVertexProperties(label_name, prop_names);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to undo AddVertexProp for label " + label_name +
+                        ": " + status.error_message());
+  }
 };
 
 void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for AddEdgeProp is not implemented yet.");
+  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+    THROW_INTERNAL_EXCEPTION(
+        "Edge label not found in schema: " + std::to_string(src_label) + "->" +
+        std::to_string(dst_label) + ":" + std::to_string(edge_label));
+  }
+  auto src_label_name = graph.schema().get_vertex_label_name(src_label);
+  auto dst_label_name = graph.schema().get_vertex_label_name(dst_label);
+  auto edge_label_name = graph.schema().get_edge_label_name(edge_label);
+  auto status = graph.DeleteEdgeProperties(src_label_name, dst_label_name,
+                                           edge_label_name, prop_names);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to undo AddEdgeProp for edge " +
+                        src_label_name + "->" + dst_label_name + ":" +
+                        edge_label_name + ": " + status.error_message());
+  }
 };
 
 void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for RenameVertexProp is not implemented yet.");
+  if (!graph.schema().vertex_label_valid(label)) {
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+  }
+  auto label_name = graph.schema().get_vertex_label_name(label);
+  std::vector<std::pair<std::string, std::string>> new_names_to_old_names;
+  for (const auto& pair : old_names_to_new_names) {
+    new_names_to_old_names.emplace_back(pair.second, pair.first);
+  }
+  auto status =
+      graph.RenameVertexProperties(label_name, new_names_to_old_names);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to undo RenameVertexProp for label " +
+                        label_name + ": " + status.error_message());
+  }
 };
 
 void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for RenameEdgeProp is not implemented yet.");
+  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+    THROW_INTERNAL_EXCEPTION(
+        "Edge label not found in schema: " + std::to_string(src_label) + "->" +
+        std::to_string(dst_label) + ":" + std::to_string(edge_label));
+  }
+  auto src_label_name = graph.schema().get_vertex_label_name(src_label);
+  auto dst_label_name = graph.schema().get_vertex_label_name(dst_label);
+  auto edge_label_name = graph.schema().get_edge_label_name(edge_label);
+  std::vector<std::pair<std::string, std::string>> new_names_to_old_names;
+  for (const auto& pair : old_names_to_new_names) {
+    new_names_to_old_names.emplace_back(pair.second, pair.first);
+  }
+  auto status = graph.RenameEdgeProperties(
+      src_label_name, dst_label_name, edge_label_name, new_names_to_old_names);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to undo RenameEdgeProp for edge " +
+                        src_label_name + "->" + dst_label_name + ":" +
+                        edge_label_name + ": " + status.error_message());
+  }
 };
 
 void DeleteVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for DeleteVertexProp is not implemented yet.");
+  if (!graph.schema().vertex_label_valid(label)) {
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+  }
+  auto label_name = graph.schema().get_vertex_label_name(label);
+  graph.mutable_schema().RevertDeleteVertexProperties(label_name, prop_names);
 };
 
 void DeleteEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for DeleteEdgeProp is not implemented yet.");
+  if (!graph.schema().exist(src_label, dst_label, edge_label)) {
+    THROW_INTERNAL_EXCEPTION(
+        "Edge label not found in schema: " + std::to_string(src_label) + "->" +
+        std::to_string(dst_label) + ":" + std::to_string(edge_label));
+  }
+  auto src_label_name = graph.schema().get_vertex_label_name(src_label);
+  auto dst_label_name = graph.schema().get_vertex_label_name(dst_label);
+  auto edge_label_name = graph.schema().get_edge_label_name(edge_label);
+  graph.mutable_schema().RevertDeleteEdgeProperties(
+      src_label_name, dst_label_name, edge_label_name, prop_names);
 };
 
 void DeleteVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {

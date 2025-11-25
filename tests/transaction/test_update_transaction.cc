@@ -898,6 +898,297 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   db.Close();
 }
 
+TEST_F(UpdateTransactionTest, AddVertexProperties) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::StringView(), "email",
+                                     gs::Property::from_string("")),
+                     std::make_tuple(gs::PropertyType::Double(), "height",
+                                     gs::Property::from_double(0.0))};
+    EXPECT_TRUE(txn.AddVertexProperties("person", new_props, true));
+    auto email_accessor = txn.get_vertex_property_column(person_label, "email");
+    gs::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
+    EXPECT_TRUE(txn.UpdateVertexProperty(
+        person_label, vid, 2, gs::Property::from_string("eve@example.com")));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto height_accessor =
+        txn.get_vertex_property_column(person_label, "height");
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::StringView(), "address",
+                                     gs::Property::from_string(""))};
+    EXPECT_TRUE(txn.AddVertexProperties("person", new_props, true));
+    gs::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid));
+    EXPECT_TRUE(txn.UpdateVertexProperty(person_label, vid, 3,
+                                         gs::Property::from_double(175.5)));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_EQ(txn.get_vertex_property_column(person_label, "address"), nullptr);
+
+    auto email_accessor = txn.get_vertex_property_column(person_label, "email");
+    auto height_accessor =
+        txn.get_vertex_property_column(person_label, "height");
+    gs::vid_t vid;
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
+    EXPECT_EQ(email_accessor->get(vid).as_string_view(), "eve@example.com");
+    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid));
+    EXPECT_EQ(height_accessor->get(vid).as_double(), 0.0);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, AddEdgeProperties) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::Int64(), "version",
+                                     gs::Property::from_int64(0)),
+                     std::make_tuple(gs::PropertyType::StringView(), "license",
+                                     gs::Property::from_string(""))};
+    EXPECT_TRUE(txn.AddEdgeProperties("person", "software", "created",
+                                      new_props, true));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::Double(),
+                                     "contributions",
+                                     gs::Property::from_double(0.0))};
+    EXPECT_TRUE(txn.AddEdgeProperties("person", "software", "created",
+                                      new_props, true));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("weight"),
+              0);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("since"),
+              1);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("version"),
+              2);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("license"),
+              3);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("contributions"),
+              -1);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, RenameVertexProperty) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    EXPECT_TRUE(txn.RenameVertexProperties(
+        "person", {std::make_pair("age", "years")}, true));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    std::vector<std::pair<std::string, std::string>> rename_props = {
+        std::make_pair("lang", "language")};
+    EXPECT_TRUE(txn.RenameVertexProperties("software", rename_props, true));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.get_vertex_property_column(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "years"));
+    EXPECT_EQ(txn.get_vertex_property_column(software_label, "language"),
+              nullptr);
+    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "lang"));
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    EXPECT_TRUE(txn.RenameEdgeProperties(
+        "person", "software", "created",
+        {std::make_pair("since", "start_year")}, true));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    std::vector<std::pair<std::string, std::string>> rename_props = {
+        std::make_pair("weight", "importance")};
+    EXPECT_TRUE(txn.RenameEdgeProperties("person", "software", "created",
+                                         rename_props, true));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("since"),
+              -1);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("start_year"),
+              1);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("weight"),
+              0);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("importance"),
+              -1);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    LOG(INFO) << "Starting delete edge properties transaction.";
+    auto txn = db.GetUpdateTransaction();
+    EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
+                                         {"since"}, true));
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::Double(),
+                                     "contributions",
+                                     gs::Property::from_double(0.0))};
+    LOG(INFO) << "Adding new edge property 'contributions'.";
+    EXPECT_TRUE(txn.AddEdgeProperties("person", "software", "created",
+                                      new_props, true));
+    LOG(INFO) << "Committing delete edge properties transaction.";
+    EXPECT_TRUE(txn.Commit());
+    LOG(INFO) << "Committed delete edge properties transaction.";
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
+                                         {"weight"}, true));
+    txn.Abort();
+    LOG(INFO) << "Aborted delete edge properties transaction.";
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("since"),
+              -1);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("weight"),
+              0);
+    EXPECT_EQ(txn.schema()
+                  .get_edge_schema(person_label, software_label, created_label)
+                  ->get_property_index("contributions"),
+              1);
+    auto ed_accessor = txn.GetEdgeDataAccessor(person_label, software_label,
+                                               created_label, "contributions");
+    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
+                                                created_label);
+    LOG(INFO) << "Checking edge properties after delete.";
+    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
+      auto edges = view.get_edges(vid);
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.0);
+      }
+    }
+    EXPECT_THROW(txn.GetEdgeDataAccessor(person_label, software_label,
+                                         created_label, "since"),
+                 gs::exception::Exception);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    // auto person_label = txn.schema().get_vertex_label_id("person");
+    // auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_TRUE(txn.DeleteVertexProperties("person", {"age"}, true));
+    EXPECT_TRUE(txn.DeleteVertexProperties("software", {"lang"}, true));
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::StringView(), "authors",
+                                     gs::Property::from_string(""))};
+    EXPECT_TRUE(txn.AddVertexProperties("software", new_props, true));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    // auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.DeleteVertexProperties("person", {"name"}, true));
+    EXPECT_TRUE(
+        txn.DeleteVertexProperties("software", {"name", "authors"}, true));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    EXPECT_EQ(txn.get_vertex_property_column(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "name"));
+    EXPECT_EQ(txn.get_vertex_property_column(software_label, "lang"), nullptr);
+    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "name"));
+    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "authors"));
+  }
+  db.Close();
+}
+
 TEST_F(UpdateTransactionTest, TestReplayWal) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;

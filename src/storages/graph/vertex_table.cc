@@ -216,11 +216,8 @@ void VertexTable::RevertDeleteVertex(vid_t lid, timestamp_t ts) {
 }
 
 void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
-  for (size_t i = vertex_schema_->property_names.size(); i-- > 0;) {
-    if (std::find(properties.begin(), properties.end(),
-                  vertex_schema_->property_names[i]) != properties.end()) {
-      table_->delete_column(vertex_schema_->property_names[i]);
-    }
+  for (const auto& prop : properties) {
+    table_->delete_column(prop);
   }
 }
 

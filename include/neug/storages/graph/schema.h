@@ -88,6 +88,8 @@ struct VertexSchema {
 
   int32_t get_property_index(const std::string& prop) const;
 
+  std::string get_property_name(size_t index) const;
+
   bool has_property(const std::string& prop) const;
 
   std::vector<PropertyType> property_types;
@@ -156,6 +158,10 @@ struct EdgeSchema {
 
   void revert_delete_properties(const std::vector<std::string>& names);
 
+  std::string get_property_name(size_t index) const;
+
+  int32_t get_property_index(const std::string& prop) const;
+
   std::string src_label_name, dst_label_name, edge_label_name;
   bool sort_on_compaction;
   std::string description;
@@ -215,8 +221,20 @@ class Schema {
     return vlabel_indexer_.empty() && elabel_indexer_.empty();
   }
 
+  std::shared_ptr<const VertexSchema> get_vertex_schema(label_t label) const {
+    return v_schemas_.at(label);
+  }
+
   std::shared_ptr<VertexSchema> get_vertex_schema(label_t label) {
     return v_schemas_.at(label);
+  }
+
+  std::shared_ptr<const EdgeSchema> get_edge_schema(label_t src_label,
+                                                    label_t dst_label,
+                                                    label_t edge_label) const {
+    auto key = generate_edge_label(src_label, dst_label, edge_label);
+    assert(e_schemas_.count(key) > 0);
+    return e_schemas_.at(key);
   }
 
   std::shared_ptr<EdgeSchema> get_edge_schema(label_t src_label,
@@ -316,16 +334,17 @@ class Schema {
                                  const std::string& property) const;
 
   void DeleteVertexProperties(const std::string& label,
-                              std::vector<std::string>& properties_names,
+                              const std::vector<std::string>& properties_names,
                               bool is_soft = false);
 
-  void RevertDeleteVertexProperties(const std::string& label,
-                                    std::vector<std::string>& properties_names);
+  void RevertDeleteVertexProperties(
+      const std::string& label,
+      const std::vector<std::string>& properties_names);
 
   void DeleteEdgeProperties(const std::string& src_label,
                             const std::string& dst_label,
                             const std::string& edge_label,
-                            std::vector<std::string>& properties_names,
+                            const std::vector<std::string>& properties_names,
                             bool is_soft = false);
 
   void RevertDeleteEdgeProperties(

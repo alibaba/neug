@@ -657,6 +657,16 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(int col_id) const {
   }
 }
 
+EdgeDataAccessor EdgeTable::get_edge_data_accessor(
+    const std::string& col_name) const {
+  auto prop_ind = meta_->get_property_index(col_name);
+  if (prop_ind == -1) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("property " + col_name +
+                                     " not found in edge table, or deleted");
+  }
+  return get_edge_data_accessor(static_cast<int>(prop_ind));
+}
+
 void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
                               const std::vector<PropertyType>& prop_types) {
   if (prop_names.empty()) {
@@ -687,6 +697,9 @@ void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
 
 void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
   if (meta_->is_bundled()) {
+    if (meta_->property_names.size() <= 0) {
+      return;
+    }
     bool found = false;
     for (auto col : col_names) {
       if (col == meta_->property_names[0]) {

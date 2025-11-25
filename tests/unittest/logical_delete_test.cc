@@ -193,7 +193,7 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
   // Delete property logically
   std::vector<std::string> delete_props = {"age"};
-  status = graph_.DeleteVertexProperties("Person", delete_props, true, true);
+  status = graph_.DeleteVertexProperties("Person", delete_props, true);
   ASSERT_TRUE(status.ok());
 
   // Property should be logically hidden
@@ -217,14 +217,11 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
   // Delete logically then revert
   std::vector<std::string> delete_props = {"age"};
-  status = graph_.DeleteVertexProperties("Person", delete_props, true, true);
-  ASSERT_TRUE(status.ok());
+  graph_.mutable_schema().DeleteVertexProperties("Person", delete_props, true);
 
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
 
-  status = graph_.RevertDeleteVertexProperties("Person", delete_props);
-  ASSERT_TRUE(status.ok());
-
+  graph_.mutable_schema().RevertDeleteVertexProperties("Person", delete_props);
   // Property should be visible again
   EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
 }
@@ -287,9 +284,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
   // Delete property logically
   std::vector<std::string> delete_props = {"position"};
-  auto status = graph_.DeleteEdgeProperties("Person", "Company", "WorksAt",
-                                            delete_props, true, true);
-  ASSERT_TRUE(status.ok());
+  graph_.mutable_schema().DeleteEdgeProperties("Person", "Company", "WorksAt",
+                                               delete_props);
 
   EXPECT_TRUE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
                                                 "years"));
@@ -318,17 +314,12 @@ TEST_F(PropertyGraphLogicalDeleteTest,
 
   // Delete logically then revert
   std::vector<std::string> delete_props = {"position"};
-  auto status = graph_.DeleteEdgeProperties("Person", "Company", "WorksAt",
-                                            delete_props, true, true);
-  ASSERT_TRUE(status.ok());
-
+  graph_.mutable_schema().DeleteEdgeProperties("Person", "Company", "WorksAt",
+                                               delete_props, true);
   EXPECT_FALSE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
                                                  "position"));
-
-  status = graph_.RevertDeleteEdgeProperties("Person", "Company", "WorksAt",
-                                             delete_props);
-  ASSERT_TRUE(status.ok());
-
+  graph_.mutable_schema().RevertDeleteEdgeProperties("Person", "Company",
+                                                     "WorksAt", delete_props);
   EXPECT_TRUE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
                                                 "position"));
 }
@@ -347,22 +338,22 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   label_t v_label = graph_.schema().get_vertex_label_id("Person");
 
   // Delete age logically
-  graph_.DeleteVertexProperties("Person", {"age"}, true, true);
+  graph_.mutable_schema().DeleteVertexProperties("Person", {"age"}, true);
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
   EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "email"));
 
   // Delete email logically
-  graph_.DeleteVertexProperties("Person", {"email"}, true, true);
+  graph_.mutable_schema().DeleteVertexProperties("Person", {"email"}, true);
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "email"));
 
   // Revert age
-  graph_.RevertDeleteVertexProperties("Person", {"age"});
+  graph_.mutable_schema().RevertDeleteVertexProperties("Person", {"age"});
   EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "email"));
 
   // Revert email
-  graph_.RevertDeleteVertexProperties("Person", {"email"});
+  graph_.mutable_schema().RevertDeleteVertexProperties("Person", {"email"});
   EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "age"));
   EXPECT_TRUE(graph_.schema().vertex_has_property(v_label, "email"));
 }
@@ -378,7 +369,7 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeletePrimaryKeyProperty_ShouldFail) {
 
   EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
                gs::exception::Exception);
-  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}, true, true); },
+  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
                gs::exception::RuntimeError);
 }
 
@@ -393,11 +384,11 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.CreateVertexType("Person", properties, pk_names);
   label_t v_label = graph_.schema().get_vertex_label_id("Person");
   // Logical delete property 'age'
-  auto status = graph_.DeleteVertexProperties("Person", {"age"}, true, true);
-  ASSERT_TRUE(status.ok());
+
+  graph_.mutable_schema().DeleteVertexProperties("Person", {"age"}, true);
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
   // Physical delete should succeed
-  status = graph_.DeleteVertexProperties("Person", {"age"});
+  auto status = graph_.DeleteVertexProperties("Person", {"age"});
   EXPECT_TRUE(status.ok()) << status.ToString();
   // Property 'age' should not exist
   EXPECT_FALSE(graph_.schema().vertex_has_property(v_label, "age"));
@@ -419,16 +410,14 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   label_t dst_label = graph_.schema().get_vertex_label_id("Company");
   label_t e_label = graph_.schema().get_edge_label_id("WorksAt");
   // Logical delete edge property 'position'
-  auto status = graph_.DeleteEdgeProperties("Person", "Company", "WorksAt",
-                                            {"position"}, true, true);
-  ASSERT_TRUE(status.ok());
+  graph_.mutable_schema().DeleteEdgeProperties("Person", "Company", "WorksAt",
+                                               {"position"}, true);
   EXPECT_FALSE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
                                                  "position"));
 
   // Physical delete should succeed
-  status =
-      graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"position"});
-  EXPECT_TRUE(status.ok());
+  graph_.mutable_schema().DeleteEdgeProperties("Person", "Company", "WorksAt",
+                                               {"position"});
   // Property 'position' should not exist
   EXPECT_FALSE(graph_.schema().edge_has_property(src_label, dst_label, e_label,
                                                  "position"));
@@ -460,10 +449,9 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   // Logical delete edge label
   graph_.DeleteEdgeType("Person", "Company", "WorksAt", true);
   // Logical delete vertex property
-  graph_.DeleteVertexProperties("Company", {"Name"}, true, true);
+  graph_.DeleteVertexProperties("Company", {"Name"});
   // Logical delete edge property
-  graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"years"}, true,
-                              true);
+  graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"years"});
   // Get statistics json string
   auto schema_json_ =
       gs::get_json_string_from_yaml(graph_.schema().to_yaml().value());
@@ -492,7 +480,7 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   auto status = graph_.CreateVertexType("Person", properties, pk_names);
   ASSERT_TRUE(status.ok());
 
-  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}, true, true); },
+  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
                gs::exception::Exception);
 }
 
@@ -518,9 +506,8 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
   EXPECT_TRUE(stats.find("\"edge_type_statistics\"") != std::string::npos);
 
   graph_.DeleteVertexType("Person", true);
-  graph_.DeleteVertexProperties("Company", {"Name"}, true, true);
-  graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"years"}, true,
-                              true);
+  graph_.DeleteVertexProperties("Company", {"Name"});
+  graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"years"});
   // Get statistics json string
   auto after_delete_stats = graph_.get_statistics_json();
   EXPECT_EQ(after_delete_stats,

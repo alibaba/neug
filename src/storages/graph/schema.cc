@@ -119,6 +119,9 @@ void VertexSchema::delete_properties(const std::vector<std::string>& names,
       } else {
         vprop_soft_deleted[j] = true;
       }
+    } else {
+      LOG(WARNING) << "Property name " << names[i]
+                   << " does not exist in vertex schema.";
     }
   }
 }
@@ -178,6 +181,29 @@ int32_t VertexSchema::get_property_index(const std::string& prop) const {
     return static_cast<int32_t>(idx) + (idx >= pk_idx ? 1 : 0);
   }
   return -1;
+}
+
+std::string VertexSchema::get_property_name(size_t index) const {
+  assert(primary_keys.size() == 1);
+  size_t pk_idx = std::get<2>(primary_keys[0]);
+  if (index == pk_idx) {
+    return std::get<1>(primary_keys[0]);
+  } else if (index < pk_idx) {
+    if (index < property_names.size()) {
+      return property_names[index];
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property index: " +
+                                       std::to_string(index));
+    }
+  } else {
+    size_t adj_index = index - 1;
+    if (adj_index < property_names.size()) {
+      return property_names[adj_index];
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property index: " +
+                                       std::to_string(index));
+    }
+  }
 }
 
 bool VertexSchema::has_property_internal(const std::string& prop) const {
@@ -272,6 +298,10 @@ void EdgeSchema::delete_properties(const std::vector<std::string>& names,
       } else {
         eprop_soft_deleted[j] = true;
       }
+    } else {
+      LOG(WARNING) << "Property name " << names[i]
+                   << " does not exist for edge " << edge_label_name << " from "
+                   << src_label_name << " to " << dst_label_name;
     }
   }
 }
@@ -299,6 +329,28 @@ void EdgeSchema::revert_delete_properties(
                           " does not exist for edge " + edge_label_name +
                           " from " + src_label_name + " to " + dst_label_name);
     }
+  }
+}
+
+int32_t EdgeSchema::get_property_index(const std::string& prop) const {
+  auto it = std::find(property_names.begin(), property_names.end(), prop);
+  if (it != property_names.end()) {
+    size_t idx = static_cast<size_t>(std::distance(property_names.begin(), it));
+    assert(idx < eprop_soft_deleted.size());
+    if (eprop_soft_deleted[idx]) {
+      return -1;
+    }
+    return static_cast<int32_t>(idx);
+  }
+  return -1;
+}
+
+std::string EdgeSchema::get_property_name(size_t index) const {
+  if (index < property_names.size()) {
+    return property_names[index];
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property index: " +
+                                     std::to_string(index));
   }
 }
 
@@ -1760,16 +1812,17 @@ void Schema::RenameVertexProperties(
                                             properties_renames);
 }
 
-void Schema::DeleteVertexProperties(const std::string& label,
-                                    std::vector<std::string>& properties_names,
-                                    bool is_soft) {
+void Schema::DeleteVertexProperties(
+    const std::string& label, const std::vector<std::string>& properties_names,
+    bool is_soft) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   v_schemas_[v_label_id]->delete_properties(properties_names, is_soft);
 }
 
 void Schema::RevertDeleteVertexProperties(
-    const std::string& label, std::vector<std::string>& properties_names) {
+    const std::string& label,
+    const std::vector<std::string>& properties_names) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   v_schemas_[v_label_id]->revert_delete_properties(properties_names);
@@ -1874,11 +1927,10 @@ void Schema::RenameEdgeProperties(
   e_schemas_.at(index)->rename_properties(properties_names, properties_renames);
 }
 
-void Schema::DeleteEdgeProperties(const std::string& src_label,
-                                  const std::string& dst_label,
-                                  const std::string& edge_label,
-                                  std::vector<std::string>& properties_names,
-                                  bool is_soft) {
+void Schema::DeleteEdgeProperties(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label,
+    const std::vector<std::string>& properties_names, bool is_soft) {
   label_t src = get_vertex_label_id_internal(src_label);
   label_t dst = get_vertex_label_id_internal(dst_label);
   label_t edge = get_edge_label_id_internal(edge_label);

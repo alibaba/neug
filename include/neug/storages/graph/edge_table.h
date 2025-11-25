@@ -80,6 +80,8 @@ class EdgeTable {
 
   EdgeDataAccessor get_edge_data_accessor(int col_id) const;
 
+  EdgeDataAccessor get_edge_data_accessor(const std::string& col_name) const;
+
   void BatchAddEdges(const IndexerType& src_indexer,
                      const IndexerType& dst_indexer,
                      std::shared_ptr<IRecordBatchSupplier> supplier);

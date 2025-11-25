@@ -525,8 +525,7 @@ Status PropertyGraph::delete_vertex_properties_check(
 
 Status PropertyGraph::DeleteVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict,
-    bool is_soft) {
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
   std::vector<std::string> delete_property_names;
   auto status =
       delete_vertex_properties_check(vertex_type_name, delete_properties,
@@ -535,27 +534,9 @@ Status PropertyGraph::DeleteVertexProperties(
     return status;
   }
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  if (!is_soft) {
-    schema_.DeleteVertexProperties(vertex_type_name, delete_property_names);
-    vertex_tables_[v_label].DeleteProperties(delete_property_names);
-  } else {
-    schema_.DeleteVertexProperties(vertex_type_name, delete_property_names,
-                                   true);
-  }
-  return gs::Status::OK();
-}
 
-Status PropertyGraph::RevertDeleteVertexProperties(
-    const std::string& vertex_type_name,
-    const std::vector<std::string>& revert_properties, bool error_on_conflict) {
-  RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
-                            error_on_conflict);
-  std::vector<std::string> revert_property_names;
-  for (size_t i = 0; i < revert_properties.size(); i++) {
-    auto property_name = revert_properties[i];
-    revert_property_names.emplace_back(property_name);
-  }
-  schema_.RevertDeleteVertexProperties(vertex_type_name, revert_property_names);
+  schema_.DeleteVertexProperties(vertex_type_name, delete_property_names);
+  vertex_tables_[v_label].DeleteProperties(delete_property_names);
   return gs::Status::OK();
 }
 
@@ -591,8 +572,7 @@ Status PropertyGraph::delete_edge_properties_check(
 Status PropertyGraph::DeleteEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
-    const std::vector<std::string>& delete_properties, bool error_on_conflict,
-    bool is_soft) {
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
   std::vector<std::string> delete_property_names;
   RETURN_IF_NOT_OK_CONFLICT(
       delete_edge_properties_check(src_type_name, dst_type_name, edge_type_name,
@@ -603,9 +583,8 @@ Status PropertyGraph::DeleteEdgeProperties(
   label_t dst_label = schema_.get_vertex_label_id_internal(dst_type_name);
   label_t e_label = schema_.get_edge_label_id_internal(edge_type_name);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
-  schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
-                               delete_property_names, is_soft);
-
+  // NOTE: We need to delete properties in edge table before updating schema,
+  // since edge_tables_ use schema_ to determine delete logic.
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
@@ -615,39 +594,9 @@ Status PropertyGraph::DeleteEdgeProperties(
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
   }
-  if (!is_soft) {
-    edge_tables_.at(index).DeleteProperties(delete_property_names);
-  }
-  return gs::Status::OK();
-}
-
-Status PropertyGraph::RevertDeleteEdgeProperties(
-    const std::string& src_type_name, const std::string& dst_type_name,
-    const std::string& edge_type_name,
-    const std::vector<std::string>& revert_properties, bool error_on_conflict) {
-  label_t src_label = schema_.get_vertex_label_id(src_type_name);
-  label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
-  label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  return RevertDeleteEdgeProperties(src_label, dst_label, e_label,
-                                    revert_properties, error_on_conflict);
-}
-
-Status PropertyGraph::RevertDeleteEdgeProperties(
-    label_t src_label, label_t dst_label, label_t edge_label,
-    const std::vector<std::string>& revert_properties, bool error_on_conflict) {
-  if (!schema_.has_edge_label(src_label, dst_label, edge_label)) {
-    std::string msg = "Edge [" + std::to_string(edge_label) + "] from [" +
-                      std::to_string(src_label) + "] to [" +
-                      std::to_string(dst_label) + "] does not exist";
-    LOG(ERROR) << msg;
-    if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
-    } else {
-      return Status(StatusCode::OK, msg);
-    }
-  }
-  schema_.RevertDeleteEdgeProperties(src_label, dst_label, edge_label,
-                                     revert_properties);
+  edge_tables_.at(index).DeleteProperties(delete_property_names);
+  schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
+                               delete_property_names);
   return gs::Status::OK();
 }
 
