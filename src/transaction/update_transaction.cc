@@ -448,13 +448,6 @@ bool UpdateTransaction::DeleteEdgeType(const std::string& src_type,
 }
 
 bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
-                                  const std::vector<Property>& props) {
-  ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  vid_t vid;
-  return AddVertex(label, oid, props, vid);
-}
-
-bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
@@ -613,20 +606,6 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   }
 
   return true;
-}
-
-bool UpdateTransaction::AddEdge(label_t src_label, const Property& src,
-                                label_t dst_label, const Property& dst,
-                                label_t edge_label,
-                                const std::vector<Property>& properties) {
-  ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
-  vid_t src_lid, dst_lid;
-  if (!(graph_.get_lid(src_label, src, src_lid, timestamp_) &&
-        graph_.get_lid(dst_label, dst, dst_lid, timestamp_))) {
-    return false;
-  }
-  return this->AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                       properties);
 }
 
 UpdateTransaction::edge_iterator::edge_iterator(

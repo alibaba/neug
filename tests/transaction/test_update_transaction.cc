@@ -77,16 +77,16 @@ class UpdateTransactionTest : public ::testing::Test {
     }
   }
 
-  size_t count_edges_filter_src(const gs::ReadTransaction& txn,
+  size_t count_edges_filter_src(const gs::runtime::StorageReadInterface& gi,
                                 gs::label_t src_label,
                                 gs::label_t neighbor_label,
                                 gs::label_t edge_label, gs::vid_t src_vid,
                                 bool oe) {
     size_t edge_count = 0;
-    auto view = oe ? txn.GetGenericOutgoingGraphView(src_label, neighbor_label,
-                                                     edge_label)
-                   : txn.GetGenericIncomingGraphView(src_label, neighbor_label,
-                                                     edge_label);
+    auto view = oe ? gi.GetGenericOutgoingGraphView(src_label, neighbor_label,
+                                                    edge_label)
+                   : gi.GetGenericIncomingGraphView(src_label, neighbor_label,
+                                                    edge_label);
     auto edge_iter = view.get_edges(src_vid);
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
       edge_count++;
@@ -94,15 +94,23 @@ class UpdateTransactionTest : public ::testing::Test {
     return edge_count;
   }
 
-  size_t count_edges(const gs::ReadTransaction& txn, gs::label_t src_label,
-                     gs::label_t neighbor_label, gs::label_t edge_label,
-                     bool oe) {
+  size_t count_vertices(const gs::runtime::StorageReadInterface& gi,
+                        gs::label_t label) {
+    size_t vertex_count = 0;
+    auto v_set = gi.GetVertexSet(label);
+    v_set.foreach_vertex([&](gs::vid_t vid) { vertex_count++; });
+    return vertex_count;
+  }
+
+  size_t count_edges(const gs::runtime::StorageReadInterface& gi,
+                     gs::label_t src_label, gs::label_t neighbor_label,
+                     gs::label_t edge_label, bool oe) {
     size_t edge_count = 0;
-    auto view = oe ? txn.GetGenericOutgoingGraphView(src_label, neighbor_label,
-                                                     edge_label)
-                   : txn.GetGenericIncomingGraphView(src_label, neighbor_label,
-                                                     edge_label);
-    auto v_set = txn.GetVertexSet(src_label);
+    auto view = oe ? gi.GetGenericOutgoingGraphView(src_label, neighbor_label,
+                                                    edge_label)
+                   : gi.GetGenericIncomingGraphView(src_label, neighbor_label,
+                                                    edge_label);
+    auto v_set = gi.GetVertexSet(src_label);
     v_set.foreach_vertex([&](gs::vid_t vid) {
       auto edge_iter = view.get_edges(vid);
       for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -136,8 +144,9 @@ class UpdateTransactionTest : public ::testing::Test {
     employ_label = txn.schema().get_edge_label_id("employed_by");
     cmp_label = txn.schema().get_vertex_label_id("company");
     dev_label = txn.schema().get_edge_label_id("developed");
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(cmp_label, gs::Property::from_int64(1),
-                              {gs::Property::from_string("TechCorp")}));
+                              {gs::Property::from_string("TechCorp")}, vid));
     gs::vid_t p1_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
@@ -164,15 +173,17 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
   db.Close();
 }
@@ -189,16 +200,19 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     for (int i = 4; i <= 10000; i++) {
+      gs::vid_t vid;
       EXPECT_TRUE(txn.AddVertex(person_label, gs::Property::from_int64(i),
                                 {gs::Property::from_string("User"),
-                                 gs::Property::from_int64(20 + i % 10)}));
+                                 gs::Property::from_int64(20 + i % 10)},
+                                vid));
     }
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 9999);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 9999);
   }
   db.Close();
 }
@@ -214,23 +228,30 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
+    gs::vid_t vid2;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, gs::Property::from_int64(2), vid2));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(1), software_label,
-        gs::Property::from_int64(2), created_label,
+        person_label, vid, software_label, vid2, created_label,
         {gs::Property::from_double(0.9), gs::Property::from_int64(2022)}));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
 
     size_t edge_count = 0;
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -254,47 +275,53 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid2, vid4, vid3;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(4),
-        {gs::Property::from_string("David"), gs::Property::from_int64(32)}));
-    EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(3),
-                              {gs::Property::from_string("NeugDB"),
-                               gs::Property::from_string("C++")}));
+        {gs::Property::from_string("David"), gs::Property::from_int64(32)},
+        vid4));
+    EXPECT_TRUE(txn.AddVertex(
+        software_label, gs::Property::from_int64(3),
+        {gs::Property::from_string("NeugDB"), gs::Property::from_string("C++")},
+        vid3));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(4), software_label,
-        gs::Property::from_int64(3), created_label,
+        person_label, vid4, software_label, vid3, created_label,
         {gs::Property::from_double(0.85), gs::Property::from_int64(2023)}));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid2));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(2), software_label,
-        gs::Property::from_int64(3), created_label,
+        person_label, vid2, software_label, vid3, created_label,
         {gs::Property::from_double(0.75), gs::Property::from_int64(2021)}));
-    EXPECT_TRUE(txn.AddEdge(person_label, gs::Property::from_int64(4),
-                            person_label, gs::Property::from_int64(1),
+    gs::vid_t vid1;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid1));
+    EXPECT_TRUE(txn.AddEdge(person_label, vid4, person_label, vid1,
                             txn.schema().get_edge_label_id("knows"),
                             {gs::Property::from_double(0.95)}));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.GetVertexNum(software_label), 3);
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto knows_label = txn.schema().get_edge_label_id("knows");
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(count_vertices(gi, software_label), 3);
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
     gs::vid_t david_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(4),
-                                   david_vid));
-    EXPECT_EQ(count_edges_filter_src(txn, person_label, software_label,
+    EXPECT_TRUE(gi.GetVertexIndex(person_label, gs::Property::from_int64(4),
+                                  david_vid));
+    EXPECT_EQ(count_edges_filter_src(gi, person_label, software_label,
                                      created_label, david_vid, true),
               1);
     gs::vid_t neugdb_vid;
-    EXPECT_TRUE(txn.GetVertexIndex(software_label, gs::Property::from_int64(3),
-                                   neugdb_vid));
-    EXPECT_EQ(count_edges_filter_src(txn, software_label, person_label,
+    EXPECT_TRUE(gi.GetVertexIndex(software_label, gs::Property::from_int64(3),
+                                  neugdb_vid));
+    EXPECT_EQ(count_edges_filter_src(gi, software_label, person_label,
                                      created_label, neugdb_vid, false),
               2);
-    EXPECT_EQ(count_edges_filter_src(txn, person_label, person_label,
+    EXPECT_EQ(count_edges_filter_src(gi, person_label, person_label,
                                      knows_label, david_vid, true),
               1);
   }
@@ -313,29 +340,33 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid5, vid4;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(5),
-        {gs::Property::from_string("Frank"), gs::Property::from_int64(27)}));
+        {gs::Property::from_string("Frank"), gs::Property::from_int64(27)},
+        vid5));
     EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(4),
                               {gs::Property::from_string("UltraGraph"),
-                               gs::Property::from_string("Go")}));
+                               gs::Property::from_string("Go")},
+                              vid4));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(5), software_label,
-        gs::Property::from_int64(4), created_label,
+        person_label, vid5, software_label, vid4, created_label,
         {gs::Property::from_double(0.65), gs::Property::from_int64(2022)}));
     txn.Abort();
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 2);
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.GetVertexNum(software_label), 2);
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto oe_view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                   created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(count_vertices(gi, software_label), 2);
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto oe_view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                                  created_label);
     size_t edge_count = 0;
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
       auto edges = oe_view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
         edge_count++;
@@ -366,10 +397,11 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   {
     auto txn = db.GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
-    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 26);
       }
@@ -402,15 +434,17 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
     auto ed_accessor =
-        txn.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -431,15 +465,18 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   {
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(4),
-        {gs::Property::from_string("Charlie"), gs::Property::from_int64(29)}));
+        {gs::Property::from_string("Charlie"), gs::Property::from_int64(29)},
+        vid));
     txn.Abort();
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 2);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
   {
     auto conn = db.Connect();
@@ -461,22 +498,28 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid2, vid1;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid2));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, gs::Property::from_int64(1), vid1));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(2), software_label,
-        gs::Property::from_int64(1), created_label,
+        person_label, vid2, software_label, vid1, created_label,
         {gs::Property::from_double(0.8), gs::Property::from_int64(2021)}));
     txn.Abort();
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
     size_t edge_count = 0;
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 2) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -508,10 +551,11 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   {
     auto txn = db.GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
-    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 2) {
         EXPECT_EQ(vprop_accessor->get_view(vid), 25);
       }
@@ -564,17 +608,19 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
     auto ed_accessor =
-        txn.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
     auto since_accessor =
-        txn.GetEdgeDataAccessor(person_label, software_label, created_label, 1);
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 1);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -628,14 +674,16 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto knows_label = txn.schema().get_edge_label_id("knows");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, person_label,
-                                                knows_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    auto view =
+        gi.GetGenericOutgoingGraphView(person_label, person_label, knows_label);
     auto ed_accessor =
-        txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+        gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -670,9 +718,13 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid1, vid2;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid1));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, gs::Property::from_int64(2), vid2));
     EXPECT_TRUE(txn.AddEdge(
-        person_label, gs::Property::from_int64(1), software_label,
-        gs::Property::from_int64(2), created_label,
+        person_label, vid1, software_label, vid2, created_label,
         {gs::Property::from_double(0.85), gs::Property::from_int64(2023)}));
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
@@ -688,16 +740,18 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
     auto ed_accessor =
-        txn.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
     size_t edge_count = 0;
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
-      auto oid = txn.GetVertexId(person_label, vid);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
         for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -733,15 +787,16 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 1);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(count_vertices(gi, person_label), 1);
     gs::vid_t vertex_id;
-    EXPECT_FALSE(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
-                                    vertex_id));
+    EXPECT_FALSE(gi.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                                   vertex_id));
     EXPECT_EQ(
-        count_edges(txn, person_label, software_label, created_label, true), 1);
+        count_edges(gi, person_label, software_label, created_label, true), 1);
     // TODO(zhanglei): comment out this line when issue #1132 is solved.
     // EXPECT_EQ(
     //     count_edges(txn, software_label, person_label, created_label, false),
@@ -773,38 +828,42 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
                              vertex_id));
     EXPECT_TRUE(txn.DeleteVertex(person_label, vertex_id));
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
     txn.Abort();
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 2);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
     gs::vid_t vertex_id;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
+    EXPECT_TRUE(gi.GetVertexIndex(person_label, gs::Property::from_int64(2),
+                                  vertex_id));
+    EXPECT_FALSE(gi.GetVertexIndex(person_label, gs::Property::from_int64(3),
                                    vertex_id));
-    EXPECT_FALSE(txn.GetVertexIndex(person_label, gs::Property::from_int64(3),
-                                    vertex_id));
   }
   {
     // Add again
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
     gs::vid_t vertex_id;
-    EXPECT_TRUE(txn.GetVertexIndex(person_label, gs::Property::from_int64(3),
-                                   vertex_id));
-    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    EXPECT_TRUE(gi.GetVertexIndex(person_label, gs::Property::from_int64(3),
+                                  vertex_id));
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
   db.Close();
 }
@@ -823,22 +882,23 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_THROW(txn.schema().get_edge_label_id("developed"),
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_THROW(gi.schema().get_edge_label_id("developed"),
                  gs::exception::Exception);
-    EXPECT_THROW(txn.schema().get_edge_label_id("employed_by"),
+    EXPECT_THROW(gi.schema().get_edge_label_id("employed_by"),
                  gs::exception::Exception);
-    EXPECT_THROW(txn.schema().get_vertex_label_id("company"),
+    EXPECT_THROW(gi.schema().get_vertex_label_id("company"),
                  gs::exception::Exception);
     EXPECT_FALSE(
-        txn.schema().has_edge_label("person", "company", "employed_by"));
+        gi.schema().has_edge_label("person", "company", "employed_by"));
     EXPECT_THROW(
-        txn.GetGenericOutgoingGraphView(person_label, cmp_label, employ_label),
+        gi.GetGenericOutgoingGraphView(person_label, cmp_label, employ_label),
         gs::exception::Exception);
-    EXPECT_THROW(txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                 dev_label),
-                 gs::exception::Exception);
+    EXPECT_THROW(
+        gi.GetGenericOutgoingGraphView(person_label, software_label, dev_label),
+        gs::exception::Exception);
   }
   db.Close();
 }
@@ -858,14 +918,15 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.schema().get_edge_label_id("developed"), dev_label);
-    EXPECT_EQ(txn.schema().get_edge_label_id("employed_by"), employ_label);
-    EXPECT_EQ(txn.schema().get_vertex_label_id("company"), cmp_label);
-    EXPECT_EQ(count_edges(txn, person_label, software_label, dev_label, true),
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.schema().get_edge_label_id("developed"), dev_label);
+    EXPECT_EQ(gi.schema().get_edge_label_id("employed_by"), employ_label);
+    EXPECT_EQ(gi.schema().get_vertex_label_id("company"), cmp_label);
+    EXPECT_EQ(count_edges(gi, person_label, software_label, dev_label, true),
               1);
-    EXPECT_EQ(count_edges(txn, person_label, cmp_label, employ_label, true), 1);
+    EXPECT_EQ(count_edges(gi, person_label, cmp_label, employ_label, true), 1);
   }
   db.Close();
 }
@@ -888,12 +949,13 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_TRUE(txn.schema().exist("person", "software", "created"));
-    EXPECT_TRUE(txn.schema().edge_triplet_valid(person_label, software_label,
-                                                created_label));
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_TRUE(gi.schema().exist("person", "software", "created"));
+    EXPECT_TRUE(gi.schema().edge_triplet_valid(person_label, software_label,
+                                               created_label));
   }
   db.Close();
 }
@@ -937,16 +999,19 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.get_vertex_property_column(person_label, "address"), nullptr);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(person_label, "address"),
+              nullptr);
 
-    auto email_accessor = txn.get_vertex_property_column(person_label, "email");
+    auto email_accessor =
+        gi.GetVertexPropColumn<std::string_view>(person_label, "email");
     auto height_accessor =
-        txn.get_vertex_property_column(person_label, "height");
+        gi.GetVertexPropColumn<double>(person_label, "height");
     gs::vid_t vid;
-    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
+    CHECK(gi.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
     EXPECT_EQ(email_accessor->get(vid).as_string_view(), "eve@example.com");
-    CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid));
+    CHECK(gi.GetVertexIndex(person_label, gs::Property::from_int64(2), vid));
     EXPECT_EQ(height_accessor->get(vid).as_double(), 0.0);
   }
   db.Close();
@@ -981,26 +1046,27 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.schema()
+    auto gi = gs::runtime::StorageReadInterface(txn.graph(), txn.timestamp());
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("weight"),
               0);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("since"),
               1);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("version"),
               2);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("license"),
               3);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("contributions"),
               -1);
@@ -1029,13 +1095,16 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.get_vertex_property_column(person_label, "age"), nullptr);
-    EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "years"));
-    EXPECT_EQ(txn.get_vertex_property_column(software_label, "language"),
-              nullptr);
-    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "lang"));
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(gi.GetVertexPropColumn<int64_t>(person_label, "years"));
+    EXPECT_EQ(
+        gi.GetVertexPropColumn<std::string_view>(software_label, "language"),
+        nullptr);
+    EXPECT_NO_THROW(
+        gi.GetVertexPropColumn<std::string_view>(software_label, "lang"));
   }
   db.Close();
 }
@@ -1063,22 +1132,23 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.schema()
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("since"),
               -1);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("start_year"),
               1);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("weight"),
               0);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("importance"),
               -1);
@@ -1117,34 +1187,36 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto created_label = txn.schema().get_edge_label_id("created");
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.schema()
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("since"),
               -1);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("weight"),
               0);
-    EXPECT_EQ(txn.schema()
+    EXPECT_EQ(gi.schema()
                   .get_edge_schema(person_label, software_label, created_label)
                   ->get_property_index("contributions"),
               1);
-    auto ed_accessor = txn.GetEdgeDataAccessor(person_label, software_label,
-                                               created_label, "contributions");
-    auto view = txn.GetGenericOutgoingGraphView(person_label, software_label,
-                                                created_label);
+    auto ed_accessor = gi.GetEdgeDataAccessor(person_label, software_label,
+                                              created_label, "contributions");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
     LOG(INFO) << "Checking edge properties after delete.";
-    for (gs::vid_t vid = 0; vid < txn.GetVertexNum(person_label); vid++) {
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
       auto edges = view.get_edges(vid);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
         EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.0);
       }
     }
-    EXPECT_THROW(txn.GetEdgeDataAccessor(person_label, software_label,
-                                         created_label, "since"),
+    EXPECT_THROW(gi.GetEdgeDataAccessor(person_label, software_label,
+                                        created_label, "since"),
                  gs::exception::Exception);
   }
   db.Close();
@@ -1178,13 +1250,18 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   }
   {
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    auto software_label = txn.schema().get_vertex_label_id("software");
-    EXPECT_EQ(txn.get_vertex_property_column(person_label, "age"), nullptr);
-    EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "name"));
-    EXPECT_EQ(txn.get_vertex_property_column(software_label, "lang"), nullptr);
-    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "name"));
-    EXPECT_NO_THROW(txn.get_vertex_property_column(software_label, "authors"));
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(
+        gi.GetVertexPropColumn<std::string_view>(person_label, "name"));
+    EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(software_label, "lang"),
+              nullptr);
+    EXPECT_NO_THROW(
+        gi.GetVertexPropColumn<std::string_view>(software_label, "name"));
+    EXPECT_NO_THROW(
+        gi.GetVertexPropColumn<std::string_view>(software_label, "authors"));
   }
   db.Close();
 }
@@ -1200,9 +1277,10 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     db.SwitchToTPMode();
     auto txn = db.GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}));
+        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
     EXPECT_TRUE(txn.CreateVertexType(
         "company",
         {std::make_tuple(gs::PropertyType::Int64(), "id",
@@ -1233,20 +1311,21 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     gs::NeugDB db;
     db.Open(config);
     auto txn = db.GetReadTransaction();
-    auto person_label = txn.schema().get_vertex_label_id("person");
-    EXPECT_EQ(txn.GetVertexNum(person_label), 3);
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 3);
     gs::vid_t src_p, dst_p;
     EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), src_p));
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(1), src_p));
     EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_p));
-    auto vprop_accessor = txn.get_vertex_property_column(person_label, "age");
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_p));
+    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     EXPECT_EQ(vprop_accessor->get(src_p).as_int64(), 29);
-    auto knows_label = txn.schema().get_edge_label_id("knows");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
     auto ed_accessor =
-        txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
-    auto view = txn.GetGenericOutgoingGraphView(person_label, person_label,
-                                                knows_label);
+        gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
+    auto view =
+        gi.GetGenericOutgoingGraphView(person_label, person_label, knows_label);
     auto edge_iter = view.get_edges(src_p);
     bool found = false;
     for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
@@ -1256,10 +1335,10 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
       }
     }
     EXPECT_TRUE(found);
-    EXPECT_FALSE(txn.schema().contains_vertex_label("software"));
-    EXPECT_TRUE(txn.schema().contains_vertex_label("company"));
-    EXPECT_FALSE(txn.schema().contains_edge_label("created"));
-    EXPECT_TRUE(txn.schema().contains_edge_label("employed_by"));
+    EXPECT_FALSE(gi.schema().contains_vertex_label("software"));
+    EXPECT_TRUE(gi.schema().contains_vertex_label("company"));
+    EXPECT_FALSE(gi.schema().contains_edge_label("created"));
+    EXPECT_TRUE(gi.schema().contains_edge_label("employed_by"));
     txn.Commit();
     db.Close();
   }

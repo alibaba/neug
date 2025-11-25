@@ -216,16 +216,9 @@ class UpdateTransaction {
                       const std::string& edge_type, bool error_on_conflict);
 
   bool AddVertex(label_t label, const Property& oid,
-                 const std::vector<Property>& props);
-
-  bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props, vid_t& vid);
 
   bool DeleteVertex(label_t label, vid_t lid);
-
-  bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
-               const Property& dst, label_t edge_label,
-               const std::vector<Property>& properties);
 
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                label_t edge_label, const std::vector<Property>& properties);

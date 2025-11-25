@@ -140,6 +140,13 @@ class StorageReadInterface : public IStorageInterface {
                                       prop_id);
   }
 
+  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
+                                       label_t edge_label,
+                                       const std::string& prop_name) const {
+    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                      prop_name);
+  }
+
   const Schema& schema() const override { return graph_.schema(); }
 
  private:
@@ -235,12 +242,6 @@ class StorageUpdateInterface : public IStorageInterface {
   inline bool AddVertex(label_t label, const Property& id,
                         const std::vector<Property>& props, vid_t& vid) {
     return txn_.AddVertex(label, id, props, vid);
-  }
-
-  inline bool AddEdge(label_t src_label, const Property& src, label_t dst_label,
-                      const Property& dst, label_t edge_label,
-                      const std::vector<Property>& properties) {
-    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
   inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,

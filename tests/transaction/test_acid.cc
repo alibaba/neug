@@ -157,9 +157,8 @@ auto neug_get_random_vertex(gs::runtime::StorageUpdateInterface& gi,
   auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
   gs::vid_t vid = 0;
-  for (auto v : vertex_set) {
+  for ([[maybe_unused]] auto v : vertex_set) {
     ++num;
-    vid = v;
   }
 
   if (num == 0)
@@ -239,7 +238,6 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   auto vit = neug_get_random_vertex(gui, person_label_id);
-  int64_t p1_id = gui.GetVertexId(person_label_id, vit).as_int64();
   neug_append_string_to_field(gui, person_label_id, vit, 2, new_email);
   auto p2_id = neug_generate_id();
   std::string name = "", email = "";
@@ -253,8 +251,8 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
     txn.Abort();
     return false;
   }
-  if (!gui.AddEdge(person_label_id, gs::Property::From(p1_id), person_label_id,
-                   p2_id, knows_label_id, {Property::from_int64(since)})) {
+  if (!gui.AddEdge(person_label_id, vit, person_label_id, vid, knows_label_id,
+                   {Property::from_int64(since)})) {
     txn.Abort();
     return false;
   }
@@ -699,13 +697,16 @@ std::tuple<int64_t, int64_t> IMP2(NeugDBSession& db, int64_t person1_id) {
       gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
   CHECK(v_prop_col0 != nullptr);
   auto vertex_set = gi.GetVertexSet(person_label_id);
+  bool found = false;
   for (vid_t lid : vertex_set) {
     if (v_prop_col0->get(lid).as_int64() == person1_id) {
       vit0_index = lid;
+      found = true;
       break;
     }
   }
-  CHECK(vit0_index < txn.GetVertexNum(person_label_id));
+  CHECK(found);
+
   int64_t v1 = v_prop_col1->get(vit0_index).as_int64();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
@@ -959,14 +960,15 @@ OTV2(NeugDBSession& db, int64_t person_id) {
   gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
-  vid_t lid = 0;
+
   auto view = gi.GetGenericOutgoingGraphView(person_label_id, person_label_id,
                                              knows_label_id);
   auto prop0_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
   auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
 
   auto get_versions = [&]() -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
-    for (; lid < txn.GetVertexNum(person_label_id); ++lid) {
+    auto vertex_set = gi.GetVertexSet(person_label_id);
+    for (vid_t lid : vertex_set) {
       auto edges1 = view.get_edges(lid);
       for (auto it = edges1.begin(); it != edges1.end(); ++it) {
         vid_t vid2 = it.get_vertex();
@@ -993,26 +995,34 @@ OTV2(NeugDBSession& db, int64_t person_id) {
     }
     return std::make_tuple(0, 0, 0, 0);
   };
+  {
+    auto vertex_set = gi.GetVertexSet(person_label_id);
+    bool found = false;
 
-  while (lid < txn.GetVertexNum(person_label_id)) {
-    if (prop0_col->get(lid).as_int64() == person_id) {
-      break;
+    for (vid_t lid : vertex_set) {
+      if (prop0_col->get(lid).as_int64() == person_id) {
+        found = true;
+        break;
+      }
     }
-    ++lid;
-  }
 
-  CHECK(lid < txn.GetVertexNum(person_label_id));
+    CHECK(found);
+  }
   auto tup1 = get_versions();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
 
-  lid = 0;
-  for (; lid < txn.GetVertexNum(person_label_id); ++lid) {
-    if (prop0_col->get(lid).as_int64() == person_id) {
-      break;
+  {
+    auto vertex_set = gi.GetVertexSet(person_label_id);
+    bool found = false;
+    for (vid_t lid : vertex_set) {
+      if (prop0_col->get(lid).as_int64() == person_id) {
+        found = true;
+        break;
+      }
     }
+    CHECK(found);
   }
-  CHECK(lid < txn.GetVertexNum(person_label_id));
   auto tup2 = get_versions();
 
   return std::make_tuple(tup1, tup2);

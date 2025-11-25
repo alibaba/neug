@@ -40,52 +40,6 @@ void ReadTransaction::Abort() { release(); }
 
 const PropertyGraph& ReadTransaction::graph() const { return graph_; }
 
-bool ReadTransaction::GetVertexIndex(label_t label, const Property& id,
-                                     vid_t& index) const {
-  return graph_.get_lid(label, id, index, timestamp_);
-}
-
-vid_t ReadTransaction::GetVertexNum(label_t label) const {
-  return graph_.VertexNum(label, timestamp_);
-}
-
-VertexSet ReadTransaction::GetVertexSet(label_t label) const {
-  return graph_.GetVertexSet(label, timestamp_);
-}
-
-bool ReadTransaction::IsValidVertex(label_t label, vid_t index) const {
-  return index < graph_.LidNum(label) &&
-         graph_.IsValidLid(label, index, timestamp_);
-}
-
-Property ReadTransaction::GetVertexId(label_t label, vid_t index) const {
-  return graph_.GetOid(label, index, timestamp_);
-}
-
-size_t ReadTransaction::GetOutDegree(label_t label, vid_t u,
-                                     label_t neighbor_label,
-                                     label_t edge_label) const {
-  auto es = this->GetGenericOutgoingGraphView(label, neighbor_label, edge_label)
-                .get_edges(u);
-  int count = 0;
-  for (auto it = es.begin(); it != es.end(); ++it) {
-    count++;
-  }
-  return count;
-}
-
-size_t ReadTransaction::GetInDegree(label_t label, vid_t u,
-                                    label_t neighbor_label,
-                                    label_t edge_label) const {
-  auto es = this->GetGenericIncomingGraphView(label, neighbor_label, edge_label)
-                .get_edges(u);
-  int count = 0;
-  for (auto it = es.begin(); it != es.end(); ++it) {
-    count++;
-  }
-  return count;
-}
-
 void ReadTransaction::release() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     vm_.release_read_timestamp();

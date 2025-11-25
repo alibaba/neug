@@ -100,64 +100,6 @@ class ReadTransaction {
 
   const PropertyGraph& graph() const;
 
-  /**
-   * @brief Get the handle of the vertex property column, including the primary
-   * key.
-   * @tparam T The type of the column.
-   * @param label The label of the vertex.
-   * @param col_name The name of the column.
-   */
-
-  std::shared_ptr<RefColumnBase> get_vertex_property_column(
-      uint8_t label, const std::string& col_name) const {
-    return graph_.GetVertexPropertyColumn(label, col_name);
-  }
-
-  bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
-
-  vid_t GetVertexNum(label_t label) const;
-
-  VertexSet GetVertexSet(label_t label) const;
-
-  bool IsValidVertex(label_t label, vid_t index) const;
-
-  Property GetVertexId(label_t label, vid_t index) const;
-
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
-    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
-  }
-
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
-    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
-  }
-
-  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
-                                       label_t edge_label, int prop_id) const {
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_id);
-  }
-
-  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
-                                       label_t edge_label,
-                                       const std::string& prop_name) const {
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_name);
-  }
-
-  size_t GetOutDegree(label_t label, vid_t u, label_t neighbor_label,
-                      label_t edge_label) const;
-
-  size_t GetInDegree(label_t label, vid_t u, label_t neighbor_label,
-                     label_t edge_label) const;
-
-  inline const Schema& schema() const { return graph_.schema(); }
-
  private:
   void release();
   const PropertyGraph& graph_;
