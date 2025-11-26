@@ -125,65 +125,6 @@ void Reverse::operation(neug_string_t& input, neug_string_t& result,
   }
 }
 
-function_set ArrayExtractFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryExecFunction<neug_string_t, int64_t, neug_string_t,
-                                         ArrayExtract>));
-  return functionSet;
-}
-
-void ConcatFunction::execFunc(
-    const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
-    const std::vector<common::SelectionVector*>& parameterSelVectors,
-    common::ValueVector& result, common::SelectionVector* resultSelVector,
-    void* /*dataPtr*/) {
-  result.resetAuxiliaryBuffer();
-  for (auto selectedPos = 0u; selectedPos < resultSelVector->getSelSize();
-       ++selectedPos) {
-    auto pos = (*resultSelVector)[selectedPos];
-    auto strLen = 0u;
-    for (auto i = 0u; i < parameters.size(); i++) {
-      const auto& parameter = *parameters[i];
-      const auto& parameterSelVector = parameterSelVectors[i];
-      auto paramPos =
-          (*parameterSelVector)[parameter.state->isFlat() ? 0 : selectedPos];
-      strLen += parameter.getValue<neug_string_t>(paramPos).len;
-    }
-    auto& resultStr = result.getValue<neug_string_t>(pos);
-    StringVector::reserveString(&result, resultStr, strLen);
-    auto dstData = strLen <= neug_string_t::SHORT_STR_LENGTH
-                       ? resultStr.prefix
-                       : reinterpret_cast<uint8_t*>(resultStr.overflowPtr);
-    for (auto i = 0u; i < parameters.size(); i++) {
-      const auto& parameter = *parameters[i];
-      const auto& parameterSelVector = parameterSelVectors[i];
-      auto paramPos =
-          (*parameterSelVector)[parameter.state->isFlat() ? 0 : selectedPos];
-      auto srcStr = parameter.getValue<neug_string_t>(paramPos);
-      memcpy(dstData, srcStr.getData(), srcStr.len);
-      dstData += srcStr.len;
-    }
-    if (strLen > neug_string_t::SHORT_STR_LENGTH) {
-      memcpy(resultStr.prefix, resultStr.getData(),
-             neug_string_t::PREFIX_LENGTH);
-    }
-  }
-}
-
-function_set ConcatFunction::getFunctionSet() {
-  function_set functionSet;
-  auto function = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
-      LogicalTypeID::STRING, execFunc);
-  function->isVarLength = true;
-  functionSet.emplace_back(std::move(function));
-  return functionSet;
-}
-
 function_set ContainsFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(make_unique<ScalarFunction>(
@@ -210,63 +151,6 @@ function_set EndsWithFunction::getFunctionSet() {
   return functionSet;
 }
 
-function_set LeftFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
-                                               neug_string_t, Left>));
-  return functionSet;
-}
-
-function_set LpadFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64,
-                                 LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<
-          neug_string_t, int64_t, neug_string_t, neug_string_t, Lpad>));
-  return functionSet;
-}
-
-function_set RepeatFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
-                                               neug_string_t, Repeat>));
-  return functionSet;
-}
-
-function_set RightFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<neug_string_t, int64_t,
-                                               neug_string_t, Right>));
-  return functionSet;
-}
-
-function_set RpadFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64,
-                                 LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<
-          neug_string_t, int64_t, neug_string_t, neug_string_t, Rpad>));
-  return functionSet;
-}
-
 function_set StartsWithFunction::getFunctionSet() {
   function_set functionSet;
   functionSet.emplace_back(make_unique<ScalarFunction>(
@@ -277,94 +161,6 @@ function_set StartsWithFunction::getFunctionSet() {
                                          StartsWith>,
       ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
                                            StartsWith>));
-  return functionSet;
-}
-
-function_set SubStrFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64,
-                                 LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<neug_string_t, int64_t, int64_t,
-                                                neug_string_t, SubStr>));
-  return functionSet;
-}
-
-function_set RegexpMatchesFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::BOOL,
-      ScalarFunction::BinaryExecFunction<neug_string_t, neug_string_t, uint8_t,
-                                         RegexpMatches>,
-      ScalarFunction::BinarySelectFunction<neug_string_t, neug_string_t,
-                                           RegexpMatches>));
-  return functionSet;
-}
-
-function_set RegexpExtractFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::STRING,
-      ScalarFunction::BinaryStringExecFunction<neug_string_t, neug_string_t,
-                                               neug_string_t, RegexpExtract>));
-  functionSet.emplace_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING,
-                                 LogicalTypeID::INT64},
-      LogicalTypeID::STRING,
-      ScalarFunction::TernaryStringExecFunction<neug_string_t, neug_string_t,
-                                                int64_t, neug_string_t,
-                                                RegexpExtract>));
-  return functionSet;
-}
-
-static std::unique_ptr<FunctionBindData> bindFunc(
-    const ScalarBindFuncInput /* input */
-        &) {
-  return std::make_unique<FunctionBindData>(
-      LogicalType::LIST(LogicalType::STRING()));
-}
-
-function_set RegexpExtractAllFunction::getFunctionSet() {
-  function_set functionSet;
-  std::unique_ptr<ScalarFunction> func;
-  func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::LIST,
-      ScalarFunction::BinaryStringExecFunction<neug_string_t, neug_string_t,
-                                               list_entry_t, RegexpExtractAll>);
-  func->bindFunc = bindFunc;
-  functionSet.emplace_back(std::move(func));
-  func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING,
-                                 LogicalTypeID::INT64},
-      LogicalTypeID::LIST,
-      ScalarFunction::TernaryStringExecFunction<neug_string_t, neug_string_t,
-                                                int64_t, list_entry_t,
-                                                RegexpExtractAll>);
-  func->bindFunc = bindFunc;
-  functionSet.emplace_back(std::move(func));
-  return functionSet;
-}
-
-function_set RegexpSplitToArrayFunction::getFunctionSet() {
-  function_set functionSet;
-  auto func = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::LIST,
-      ScalarFunction::BinaryStringExecFunction<
-          neug_string_t, neug_string_t, list_entry_t, RegexpSplitToArray>);
-  func->bindFunc = bindFunc;
-  functionSet.emplace_back(std::move(func));
   return functionSet;
 }
 
@@ -444,6 +240,18 @@ runtime::RTAny ReverseFunction::Exec(size_t idx, runtime::Arena& arena,
   auto str_view = ptr->str_view();
   arena.emplace_back(std::move(ptr));
   return runtime::RTAny::from_string(str_view);
+}
+
+function_set SubStrFunction::getFunctionSet() {
+  function_set functionSet;
+  functionSet.emplace_back(make_unique<ScalarFunction>(
+      name,
+      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::INT64,
+                                 LogicalTypeID::INT64},
+      LogicalTypeID::STRING,
+      ScalarFunction::TernaryStringExecFunction<neug_string_t, int64_t, int64_t,
+                                                neug_string_t, SubStr>));
+  return functionSet;
 }
 
 }  // namespace function

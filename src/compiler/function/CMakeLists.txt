@@ -5,17 +5,10 @@ add_subdirectory(cast)
 add_subdirectory(date)
 add_subdirectory(gds)
 add_subdirectory(list)
-add_subdirectory(map)
 add_subdirectory(path)
 add_subdirectory(pattern)
-add_subdirectory(sequence)
 add_subdirectory(struct)
 add_subdirectory(table)
-add_subdirectory(union)
-add_subdirectory(utility)
-add_subdirectory(string)
-add_subdirectory(internal_id)
-add_subdirectory(timestamp)
 
 add_library(neug_function
         OBJECT
@@ -36,11 +29,7 @@ add_library(neug_function
         vector_date_functions.cpp
         vector_hash_functions.cpp
         vector_null_functions.cpp
-        vector_node_rel_functions.cpp
         vector_string_functions.cpp
-        vector_timestamp_functions.cpp
-        vector_blob_functions.cpp
-        vector_uuid_functions.cpp
         export_csv_function.cpp)
 add_dependencies(neug_function neug_plan_proto)
 

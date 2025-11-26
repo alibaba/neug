@@ -47,24 +47,6 @@ struct VectorStringFunction {
   }
 };
 
-struct ArrayExtractFunction {
-  static constexpr const char* name = "ARRAY_EXTRACT";
-
-  static function_set getFunctionSet();
-};
-
-struct ConcatFunction : public VectorStringFunction {
-  static constexpr const char* name = "CONCAT";
-
-  static void execFunc(
-      const std::vector<std::shared_ptr<common::ValueVector>>& parameters,
-      const std::vector<common::SelectionVector*>& parameterSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* /*dataPtr*/);
-
-  static function_set getFunctionSet();
-};
-
 struct ContainsFunction : public VectorStringFunction {
   static constexpr const char* name = "CONTAINS";
 
@@ -81,12 +63,6 @@ struct SuffixFunction {
   using alias = EndsWithFunction;
 
   static constexpr const char* name = "SUFFIX";
-};
-
-struct LeftFunction : public VectorStringFunction {
-  static constexpr const char* name = "LEFT";
-
-  static function_set getFunctionSet();
 };
 
 struct LowerFunction : public VectorStringFunction {
@@ -110,26 +86,6 @@ struct LcaseFunction {
   static constexpr const char* name = "LCASE";
 };
 
-struct LpadFunction : public VectorStringFunction {
-  static constexpr const char* name = "LPAD";
-
-  static function_set getFunctionSet();
-};
-
-struct LtrimFunction : public VectorStringFunction {
-  static constexpr const char* name = "LTRIM";
-
-  static inline function_set getFunctionSet() {
-    return getUnaryStrFunction<Ltrim>(name);
-  }
-};
-
-struct RepeatFunction : public VectorStringFunction {
-  static constexpr const char* name = "REPEAT";
-
-  static function_set getFunctionSet();
-};
-
 struct ReverseFunction : public VectorStringFunction {
   static constexpr const char* name = "REVERSE";
 
@@ -139,56 +95,10 @@ struct ReverseFunction : public VectorStringFunction {
                                  const std::vector<gs::runtime::RTAny>& args);
 };
 
-struct RightFunction : public VectorStringFunction {
-  static constexpr const char* name = "RIGHT";
-
-  static function_set getFunctionSet();
-};
-
-struct RpadFunction : public VectorStringFunction {
-  static constexpr const char* name = "RPAD";
-
-  static function_set getFunctionSet();
-};
-
-struct RtrimFunction : public VectorStringFunction {
-  static constexpr const char* name = "RTRIM";
-
-  static inline function_set getFunctionSet() {
-    return getUnaryStrFunction<Rtrim>(name);
-  }
-};
-
 struct StartsWithFunction : public VectorStringFunction {
   static constexpr const char* name = "STARTS_WITH";
 
   static function_set getFunctionSet();
-};
-
-struct PrefixFunction {
-  using alias = StartsWithFunction;
-
-  static constexpr const char* name = "PREFIX";
-};
-
-struct SubStrFunction : public VectorStringFunction {
-  static constexpr const char* name = "SUBSTR";
-
-  static function_set getFunctionSet();
-};
-
-struct SubstringFunction {
-  using alias = SubStrFunction;
-
-  static constexpr const char* name = "SUBSTRING";
-};
-
-struct TrimFunction : public VectorStringFunction {
-  static constexpr const char* name = "TRIM";
-
-  static function_set getFunctionSet() {
-    return getUnaryStrFunction<Trim>(name);
-  }
 };
 
 struct UpperFunction : public VectorStringFunction {
@@ -212,77 +122,16 @@ struct UCaseFunction {
   static constexpr const char* name = "UCASE";
 };
 
-struct RegexpFullMatchFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_FULL_MATCH";
+struct SubStrFunction : public VectorStringFunction {
+  static constexpr const char* name = "SUBSTR";
 
   static function_set getFunctionSet();
 };
 
-struct RegexpMatchesFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_MATCHES";
+struct SubstringFunction {
+  using alias = SubStrFunction;
 
-  static function_set getFunctionSet();
-};
-
-struct RegexpReplaceFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_REPLACE";
-  static constexpr const char* GLOBAL_REPLACE_OPTION = "g";
-
-  static function_set getFunctionSet();
-};
-
-struct RegexpExtractFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_EXTRACT";
-
-  static function_set getFunctionSet();
-};
-
-struct RegexpExtractAllFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_EXTRACT_ALL";
-
-  static function_set getFunctionSet();
-};
-
-struct RegexpSplitToArrayFunction : public VectorStringFunction {
-  static constexpr const char* name = "REGEXP_SPLIT_TO_ARRAY";
-
-  static function_set getFunctionSet();
-};
-
-struct LevenshteinFunction : public VectorStringFunction {
-  static constexpr const char* name = "LEVENSHTEIN";
-
-  static function_set getFunctionSet();
-};
-
-struct InitCapFunction : public VectorStringFunction {
-  static constexpr const char* name = "INITCAP";
-
-  static function_set getFunctionSet();
-};
-
-struct StringSplitFunction {
-  static constexpr const char* name = "STRING_SPLIT";
-
-  static function_set getFunctionSet();
-};
-
-struct StrSplitFunction {
-  using alias = StringSplitFunction;
-
-  static constexpr const char* name = "STR_SPLIT";
-};
-
-struct StringToArrayFunction {
-  using alias = StringSplitFunction;
-
-  static constexpr const char* name = "STRING_TO_ARRAY";
-};
-
-struct SplitPartFunction {
-  static constexpr const char* name = "SPLIT_PART";
-
-  static function_set getFunctionSet();
+  static constexpr const char* name = "SUBSTRING";
 };
 
 }  // namespace function

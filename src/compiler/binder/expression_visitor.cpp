@@ -338,12 +338,6 @@ bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
 
 bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
   auto& funcExpr = expr.constCast<ScalarFunctionExpression>();
-  if (funcExpr.getFunction().name == function::NextValFunction::name) {
-    return false;
-  }
-  if (funcExpr.getFunction().name == function::GenRandomUUIDFunction::name) {
-    return false;
-  }
   if (funcExpr.getFunction().name == function::ListCreationFunction::name) {
     return false;
   }

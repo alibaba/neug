@@ -305,13 +305,5 @@ static void HashExecFunc(
                                   result.state->getSelVectorUnsafe());
 }
 
-function_set HashFunction::getFunctionSet() {
-  function_set functionSet;
-  functionSet.push_back(std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::ANY},
-      LogicalTypeID::UINT64, HashExecFunc));
-  return functionSet;
-}
-
 }  // namespace function
 }  // namespace gs

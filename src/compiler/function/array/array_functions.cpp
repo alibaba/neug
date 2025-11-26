@@ -47,70 +47,6 @@ static LogicalType interpretLogicalType(const binder::Expression* expr) {
   return expr->dataType.copy();
 }
 
-std::unique_ptr<FunctionBindData> ArrayCrossProductBindFunc(
-    const ScalarBindFuncInput& input) {
-  auto leftType = interpretLogicalType(input.arguments[0].get());
-  auto rightType = interpretLogicalType(input.arguments[1].get());
-  if (leftType != rightType) {
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "{} requires both arrays to have the same element type and size of 3",
-        ArrayCrossProductFunction::name));
-  }
-  scalar_func_exec_t execFunc;
-  switch (ArrayType::getChildType(leftType).getLogicalTypeID()) {
-  case LogicalTypeID::INT128:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<int128_t>>;
-    break;
-  case LogicalTypeID::INT64:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<int64_t>>;
-    break;
-  case LogicalTypeID::INT32:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<int32_t>>;
-    break;
-  case LogicalTypeID::INT16:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<int16_t>>;
-    break;
-  case LogicalTypeID::INT8:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<int8_t>>;
-    break;
-  case LogicalTypeID::FLOAT:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<float>>;
-    break;
-  case LogicalTypeID::DOUBLE:
-    execFunc = ScalarFunction::BinaryExecListStructFunction<
-        list_entry_t, list_entry_t, list_entry_t, ArrayCrossProduct<double>>;
-    break;
-  default:
-    THROW_BINDER_EXCEPTION(stringFormat(
-        "{} can only be applied on array of floating points or integers",
-        ArrayCrossProductFunction::name));
-  }
-  input.definition->ptrCast<ScalarFunction>()->execFunc = execFunc;
-  const auto resultType =
-      LogicalType::ARRAY(ArrayType::getChildType(leftType).copy(),
-                         ArrayType::getNumElements(leftType));
-  return FunctionBindData::getSimpleBindData(input.arguments, resultType);
-}
-
-function_set ArrayCrossProductFunction::getFunctionSet() {
-  function_set result;
-  auto func = std::make_unique<ScalarFunction>(name,
-                                               std::vector<LogicalTypeID>{
-                                                   LogicalTypeID::ARRAY,
-                                                   LogicalTypeID::ARRAY,
-                                               },
-                                               LogicalTypeID::ARRAY);
-  func->bindFunc = ArrayCrossProductBindFunc;
-  result.push_back(std::move(func));
-  return result;
-}
-
 static LogicalType getChildType(const LogicalType& type) {
   switch (type.getLogicalTypeID()) {
   case LogicalTypeID::ARRAY:
@@ -212,26 +148,6 @@ function_set templateGetFunctionSet(const std::string& functionName) {
                                  std::placeholders::_1);
   result.push_back(std::move(function));
   return result;
-}
-
-function_set ArrayCosineSimilarityFunction::getFunctionSet() {
-  return templateGetFunctionSet<ArrayCosineSimilarity>(name);
-}
-
-function_set ArrayDistanceFunction::getFunctionSet() {
-  return templateGetFunctionSet<ArrayDistance>(name);
-}
-
-function_set ArraySquaredDistanceFunction::getFunctionSet() {
-  return templateGetFunctionSet<ArraySquaredDistance>(name);
-}
-
-function_set ArrayInnerProductFunction::getFunctionSet() {
-  return templateGetFunctionSet<ArrayInnerProduct>(name);
-}
-
-function_set ArrayDotProductFunction::getFunctionSet() {
-  return templateGetFunctionSet<ArrayInnerProduct>(name);
 }
 
 }  // namespace function

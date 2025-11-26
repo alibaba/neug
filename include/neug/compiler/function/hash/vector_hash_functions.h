@@ -61,20 +61,8 @@ struct VectorHashFunction {
                           const common::SelectionVector& resultSelVec);
 };
 
-struct MD5Function {
-  static constexpr const char* name = "MD5";
-
-  static function_set getFunctionSet();
-};
-
 struct SHA256Function {
   static constexpr const char* name = "SHA256";
-
-  static function_set getFunctionSet();
-};
-
-struct HashFunction {
-  static constexpr const char* name = "HASH";
 
   static function_set getFunctionSet();
 };

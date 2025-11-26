@@ -1,7 +1,6 @@
 add_library(neug_function_array
         OBJECT
-        array_functions.cpp
-        array_value.cpp)
+        array_functions.cpp)
 add_dependencies(neug_function_array neug_plan_proto)
 
 set(ALL_OBJECT_FILES

@@ -29,12 +29,6 @@ namespace function {
 
 struct RewriteFunctionBindInput;
 
-struct OffsetFunction {
-  static constexpr const char* name = "OFFSET";
-
-  static function_set getFunctionSet();
-};
-
 struct IDFunction {
   static constexpr const char* name = "ID";
 

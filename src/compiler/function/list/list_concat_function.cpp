@@ -55,31 +55,5 @@ void ListConcat::operation(common::list_entry_t& left,
   }
 }
 
-std::unique_ptr<FunctionBindData> ListConcatFunction::bindFunc(
-    const ScalarBindFuncInput& input) {
-  if (input.arguments[0]->getDataType() != input.arguments[1]->getDataType()) {
-    THROW_BINDER_EXCEPTION(
-        ExceptionMessage::listFunctionIncompatibleChildrenType(
-            name, input.arguments[0]->getDataType().toString(),
-            input.arguments[1]->getDataType().toString()));
-  }
-  return FunctionBindData::getSimpleBindData(input.arguments,
-                                             input.arguments[0]->getDataType());
-}
-
-function_set ListConcatFunction::getFunctionSet() {
-  function_set result;
-  auto execFunc =
-      ScalarFunction::BinaryExecListStructFunction<list_entry_t, list_entry_t,
-                                                   list_entry_t, ListConcat>;
-  auto function = std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::LIST, LogicalTypeID::LIST},
-      LogicalTypeID::LIST, execFunc);
-  function->bindFunc = bindFunc;
-  result.push_back(std::move(function));
-  return result;
-}
-
 }  // namespace function
 }  // namespace gs

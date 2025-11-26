@@ -99,37 +99,6 @@ struct StringFunction {
 
   static constexpr const char* name = "STRING";
 };
-
-struct CastToBlobFunction {
-  static constexpr const char* name = "TO_BLOB";
-
-  static function_set getFunctionSet();
-};
-
-struct BlobFunction {
-  using alias = CastToBlobFunction;
-
-  static constexpr const char* name = "BLOB";
-};
-
-struct CastToUUIDFunction {
-  static constexpr const char* name = "TO_UUID";
-
-  static function_set getFunctionSet();
-};
-
-struct UUIDFunction {
-  using alias = CastToUUIDFunction;
-
-  static constexpr const char* name = "UUID";
-};
-
-struct CastToBoolFunction {
-  static constexpr const char* name = "TO_BOOL";
-
-  static function_set getFunctionSet();
-};
-
 struct CastToDoubleFunction {
   static constexpr const char* name = "TO_DOUBLE";
 
@@ -138,66 +107,6 @@ struct CastToDoubleFunction {
 
 struct CastToFloatFunction {
   static constexpr const char* name = "TO_FLOAT";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToSerialFunction {
-  static constexpr const char* name = "TO_SERIAL";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToInt128Function {
-  static constexpr const char* name = "TO_INT128";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToInt64Function {
-  static constexpr const char* name = "TO_INT64";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToInt32Function {
-  static constexpr const char* name = "TO_INT32";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToInt16Function {
-  static constexpr const char* name = "TO_INT16";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToInt8Function {
-  static constexpr const char* name = "TO_INT8";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToUInt64Function {
-  static constexpr const char* name = "TO_UINT64";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToUInt32Function {
-  static constexpr const char* name = "TO_UINT32";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToUInt16Function {
-  static constexpr const char* name = "TO_UINT16";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToUInt8Function {
-  static constexpr const char* name = "TO_UINT8";
 
   static function_set getFunctionSet();
 };

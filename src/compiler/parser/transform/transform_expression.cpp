@@ -35,6 +35,7 @@
 #include "neug/compiler/parser/expression/parsed_subquery_expression.h"
 #include "neug/compiler/parser/expression/parsed_variable_expression.h"
 #include "neug/compiler/parser/transformer.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace gs::common;
 using namespace gs::function;
@@ -339,10 +340,8 @@ Transformer::transformStringOperatorExpression(
         ContainsFunction::name, std::move(propertyExpression), std::move(right),
         rawExpression);
   } else {
-    NEUG_ASSERT(ctx.oC_RegularExpression());
-    return std::make_unique<ParsedFunctionExpression>(
-        RegexpFullMatchFunction::name, std::move(propertyExpression),
-        std::move(right), rawExpression);
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported string operator: " +
+                                   ctx.getText());
   }
 }
 
@@ -360,29 +359,8 @@ std::unique_ptr<ParsedExpression> Transformer::transformListOperatorExpression(
     return listContains;
   }
   if (ctx.COLON()) {  // x[:]
-    auto listSlice = std::make_unique<ParsedFunctionExpression>(
-        ListSliceFunction::name, std::move(raw));
-    listSlice->addChild(std::move(child));
-    std::unique_ptr<ParsedExpression> left;
-    std::unique_ptr<ParsedExpression> right;
-    if (ctx.oC_Expression().size() == 2) {  // [left:right]
-      left = transformExpression(*ctx.oC_Expression(0));
-      right = transformExpression(*ctx.oC_Expression(1));
-    } else if (ctx.oC_Expression().size() == 0) {  // [:]
-      left = std::make_unique<ParsedLiteralExpression>(Value(0), "0");
-      right = std::make_unique<ParsedLiteralExpression>(Value(0), "0");
-    } else {
-      if (ctx.children[1]->getText() == ":") {  // [:right]
-        left = std::make_unique<ParsedLiteralExpression>(Value(0), "0");
-        right = transformExpression(*ctx.oC_Expression(0));
-      } else {  // [left:]
-        left = transformExpression(*ctx.oC_Expression(0));
-        right = std::make_unique<ParsedLiteralExpression>(Value(0), "0");
-      }
-    }
-    listSlice->addChild(std::move(left));
-    listSlice->addChild(std::move(right));
-    return listSlice;
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported list operator: " +
+                                   ctx.getText());
   }
   // x[a]
   auto listExtract = std::make_unique<ParsedFunctionExpression>(
@@ -504,19 +482,8 @@ std::unique_ptr<ParsedExpression> Transformer::transformListLiteral(
 
 std::unique_ptr<ParsedExpression> Transformer::transformStructLiteral(
     CypherParser::NEUG_StructLiteralContext& ctx) {
-  auto structPack = std::make_unique<ParsedFunctionExpression>(
-      StructPackFunctions::name, ctx.getText());
-  for (auto& structField : ctx.nEUG_StructField()) {
-    auto structExpr = transformExpression(*structField->oC_Expression());
-    std::string paramName;
-    if (structField->oC_SymbolicName()) {
-      paramName = transformSymbolicName(*structField->oC_SymbolicName());
-    } else {
-      paramName = transformStringLiteral(*structField->StringLiteral());
-    }
-    structPack->addOptionalParams(std::move(paramName), std::move(structExpr));
-  }
-  return structPack;
+  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported struct literal: " +
+                                 ctx.getText());
 }
 
 std::unique_ptr<ParsedExpression> Transformer::transformParameterExpression(

@@ -152,13 +152,6 @@ function_set AddFunction::getFunctionSet() {
       LogicalTypeID::LIST,
       ScalarFunction::BinaryExecListStructFunction<list_entry_t, list_entry_t,
                                                    list_entry_t, ListConcat>);
-  func->bindFunc = ListConcatFunction::bindFunc;
-  result.push_back(std::move(func));
-  // string + string -> string
-  result.push_back(std::make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::STRING, LogicalTypeID::STRING},
-      LogicalTypeID::STRING, ConcatFunction::execFunc));
   // interval + interval → interval
   result.push_back(getBinaryFunction<Add, interval_t, interval_t>(
       name, LogicalTypeID::INTERVAL, LogicalTypeID::INTERVAL));
@@ -313,20 +306,6 @@ function_set PowerFunction::getFunctionSet() {
   return result;
 }
 
-function_set NegateFunction::getFunctionSet() {
-  function_set result;
-  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
-    result.push_back(getUnaryFunction<Negate>(name, typeID));
-  }
-  // floor(decimal) -> decimal
-  auto func = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::DECIMAL},
-      LogicalTypeID::DECIMAL);
-  func->bindFunc = DecimalFunction::bindNegateFunc;
-  result.push_back(std::move(func));
-  return result;
-}
-
 function_set AbsFunction::getFunctionSet() {
   function_set result;
   for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
@@ -337,231 +316,6 @@ function_set AbsFunction::getFunctionSet() {
       LogicalTypeID::DECIMAL);
   func->bindFunc = DecimalFunction::bindAbsFunc;
   result.push_back(std::move(func));
-  return result;
-}
-
-function_set FloorFunction::getFunctionSet() {
-  function_set result;
-  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
-    result.push_back(getUnaryFunction<Floor>(name, typeID));
-  }
-  auto func = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::DECIMAL},
-      LogicalTypeID::DECIMAL);
-  func->bindFunc = DecimalFunction::bindFloorFunc;
-  result.push_back(std::move(func));
-  return result;
-}
-
-function_set CeilFunction::getFunctionSet() {
-  function_set result;
-  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
-    result.push_back(getUnaryFunction<Ceil>(name, typeID));
-  }
-  auto func = std::make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::DECIMAL},
-      LogicalTypeID::DECIMAL);
-  func->bindFunc = DecimalFunction::bindCeilFunc;
-  result.push_back(std::move(func));
-  return result;
-}
-
-function_set SinFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Sin, double>(name, LogicalTypeID::DOUBLE,
-                                                 LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set CosFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Cos, double>(name, LogicalTypeID::DOUBLE,
-                                                 LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set TanFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Tan, double>(name, LogicalTypeID::DOUBLE,
-                                                 LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set CotFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Cot, double>(name, LogicalTypeID::DOUBLE,
-                                                 LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set AsinFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Asin, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set AcosFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Acos, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set AtanFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Atan, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set FactorialFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{LogicalTypeID::INT64},
-      LogicalTypeID::INT64,
-      ScalarFunction::UnaryExecFunction<int64_t, int64_t, Factorial>));
-  return result;
-}
-
-function_set SqrtFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Sqrt, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set CbrtFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Cbrt, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set GammaFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Gamma, double>(name, LogicalTypeID::DOUBLE,
-                                                   LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set LgammaFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Lgamma, double>(name, LogicalTypeID::DOUBLE,
-                                                    LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set LnFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Ln, double>(name, LogicalTypeID::DOUBLE,
-                                                LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set LogFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Log, double>(name, LogicalTypeID::DOUBLE,
-                                                 LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set Log2Function::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Log2, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set DegreesFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Degrees, double>(
-      name, LogicalTypeID::DOUBLE, LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set RadiansFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Radians, double>(
-      name, LogicalTypeID::DOUBLE, LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set EvenFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Even, double>(name, LogicalTypeID::DOUBLE,
-                                                  LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set SignFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getUnaryFunction<Sign, int64_t>(name, LogicalTypeID::INT64,
-                                                   LogicalTypeID::INT64));
-  result.push_back(getUnaryFunction<Sign, int64_t>(name, LogicalTypeID::DOUBLE,
-                                                   LogicalTypeID::INT64));
-  result.push_back(getUnaryFunction<Sign, int64_t>(name, LogicalTypeID::FLOAT,
-                                                   LogicalTypeID::INT64));
-  return result;
-}
-
-function_set Atan2Function::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<Atan2, double>(name, LogicalTypeID::DOUBLE,
-                                                    LogicalTypeID::DOUBLE));
-  return result;
-}
-
-function_set RoundFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(make_unique<ScalarFunction>(
-      name,
-      std::vector<LogicalTypeID>{LogicalTypeID::DOUBLE, LogicalTypeID::INT64},
-      LogicalTypeID::DOUBLE,
-      ScalarFunction::BinaryExecFunction<double, int64_t, double, Round>));
-  return result;
-}
-
-function_set BitwiseXorFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<BitwiseXor, int64_t>(
-      name, LogicalTypeID::INT64, LogicalTypeID::INT64));
-  return result;
-}
-
-function_set BitwiseAndFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<BitwiseAnd, int64_t>(
-      name, LogicalTypeID::INT64, LogicalTypeID::INT64));
-  return result;
-}
-
-function_set BitwiseOrFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<BitwiseOr, int64_t>(
-      name, LogicalTypeID::INT64, LogicalTypeID::INT64));
-  return result;
-}
-
-function_set BitShiftLeftFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<BitShiftLeft, int64_t>(
-      name, LogicalTypeID::INT64, LogicalTypeID::INT64));
-  return result;
-}
-
-function_set BitShiftRightFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(getBinaryFunction<BitShiftRight, int64_t>(
-      name, LogicalTypeID::INT64, LogicalTypeID::INT64));
-  return result;
-}
-
-function_set PiFunction::getFunctionSet() {
-  function_set result;
-  result.push_back(make_unique<ScalarFunction>(
-      name, std::vector<LogicalTypeID>{}, LogicalTypeID::DOUBLE,
-      ScalarFunction::NullaryExecFunction<double, Pi>));
   return result;
 }
 
@@ -733,10 +487,10 @@ struct DecimalFloor {
       // round to larger absolute value
       result = (R) input - (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] + (R) (input % pow10s[scale]));
+                                : pow10s[scale] + (R)(input % pow10s[scale]));
     } else {
       // round to smaller absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     }
     result = result / pow10s[scale];
   }
@@ -754,12 +508,12 @@ struct DecimalCeil {
     auto scale = DecimalType::getScale(inputVector.dataType);
     if (input < 0) {
       // round to larger absolute value
-      result = (R) input - (R) (input % pow10s[scale]);
+      result = (R) input - (R)(input % pow10s[scale]);
     } else {
       // round to smaller absolute value
       result = (R) input + (input % pow10s[scale] == 0
                                 ? 0
-                                : pow10s[scale] - (R) (input % pow10s[scale]));
+                                : pow10s[scale] - (R)(input % pow10s[scale]));
     }
     result = result / pow10s[scale];
   }
@@ -993,6 +747,20 @@ std::unique_ptr<FunctionBindData> DecimalFunction::bindCeilFunc(
     ScalarBindFuncInput input) {
   return genericUnaryArithmeticFunc<DecimalCeil>(input.arguments,
                                                  input.definition);
+}
+
+function_set NegateFunction::getFunctionSet() {
+  function_set result;
+  for (auto& typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
+    result.push_back(getUnaryFunction<Negate>(name, typeID));
+  }
+  // floor(decimal) -> decimal
+  auto func = std::make_unique<ScalarFunction>(
+      name, std::vector<LogicalTypeID>{LogicalTypeID::DECIMAL},
+      LogicalTypeID::DECIMAL);
+  func->bindFunc = DecimalFunction::bindNegateFunc;
+  result.push_back(std::move(func));
+  return result;
 }
 
 }  // namespace function
