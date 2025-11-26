@@ -1001,10 +1001,7 @@ RTAny RTAny::operator+(const RTAny& other) const {
           "not support for " + std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kInterval) {
-    if (other.type() == RTAnyType::kInterval) {
-      return RTAny::from_interval(value_.interval_val +
-                                  other.value_.interval_val);
-    } else if (other.type() == RTAnyType::kDate) {
+    if (other.type() == RTAnyType::kDate) {
       return RTAny::from_date(other.value_.date_val + value_.interval_val);
     } else if (other.type() == RTAnyType::kDateTime) {
       return RTAny::from_datetime(other.value_.dt_val + value_.interval_val);
@@ -1106,14 +1103,9 @@ RTAny RTAny::operator-(const RTAny& other) const {
                           std::to_string(static_cast<int>(other.type_)));
     }
   } else if (type_ == RTAnyType::kInterval) {
-    if (other.type_ == RTAnyType::kInterval) {
-      return RTAny::from_interval(value_.interval_val -
-                                  other.value_.interval_val);
-    } else {
-      THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
-                          std::to_string(static_cast<int>(type_)) + " and " +
-                          std::to_string(static_cast<int>(other.type_)));
-    }
+    THROW_RUNTIME_ERROR("RTAny::operator- not support for " +
+                        std::to_string(static_cast<int>(type_)) + " and " +
+                        std::to_string(static_cast<int>(other.type_)));
   }
   double right_f64 = 0;
   int right_i64 = 0;

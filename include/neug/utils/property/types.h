@@ -242,40 +242,41 @@ inline bool operator>(const GlobalId& lhs, const GlobalId& rhs) {
 }
 
 struct DayValue {
-  uint32_t year : 18;
-  uint32_t month : 4;
-  uint32_t day : 5;
   uint32_t hour : 5;
-};
-
-struct IntervalValue {
-  uint64_t year : 18;         // 0~8192
-  uint64_t month : 4;         // 0~12
-  uint64_t day : 5;           // 0~31
-  uint64_t hour : 5;          // 0~23
-  uint64_t minute : 6;        // 0~59
-  uint64_t second : 6;        // 0~59
-  uint64_t millisecond : 10;  // 0~999
-  uint64_t microsecond : 10;  // 0~999, microseconds current stored but not
-                              // used. 14+4+5+5+6+6+10+10 = 60
-
-  bool operator==(const IntervalValue& rhs) const;
-
-  bool operator<(const IntervalValue& rhs) const;
-
-  inline bool operator>(const IntervalValue& rhs) const {
-    return !(*this < rhs) && !(*this == rhs);
-  }
-
-  IntervalValue& operator=(const IntervalValue& rhs) = default;
+  uint32_t day : 5;
+  uint32_t month : 4;
+  uint32_t year : 18;
 };
 
 struct Interval {
-  static constexpr int64_t SECOND_PER_YEAR = 365 * 24 * 3600;
-  static constexpr int64_t SECOND_PER_MONTH = 30 * 24 * 3600;
-  static constexpr int64_t SECOND_PER_DAY = 24 * 3600;
-  static constexpr int64_t SECOND_PER_HOUR = 3600;
-  static constexpr int64_t SECOND_PER_MINUTE = 60;
+  static constexpr const int32_t MONTHS_PER_YEAR = 12;
+  static constexpr const int64_t DAYS_PER_MONTH = 30;
+  static constexpr const int64_t DAYS_PER_YEAR = 365;
+  static constexpr const int64_t MSECS_PER_SEC = 1000;
+  static constexpr const int32_t SECS_PER_MINUTE = 60;
+  static constexpr const int32_t MINS_PER_HOUR = 60;
+  static constexpr const int32_t HOURS_PER_DAY = 24;
+  static constexpr const int32_t SECS_PER_HOUR =
+      SECS_PER_MINUTE * MINS_PER_HOUR;
+  static constexpr const int32_t SECS_PER_DAY = SECS_PER_HOUR * HOURS_PER_DAY;
+
+  static constexpr const int64_t MSEC_PER_DAY = SECS_PER_DAY * 1000;
+
+  static constexpr const int64_t MICROS_PER_MSEC = 1000;
+  static constexpr const int64_t MICROS_PER_SEC =
+      MICROS_PER_MSEC * MSECS_PER_SEC;
+  static constexpr const int64_t MICROS_PER_MINUTE =
+      MICROS_PER_SEC * SECS_PER_MINUTE;
+  static constexpr const int64_t MICROS_PER_HOUR =
+      MICROS_PER_MINUTE * MINS_PER_HOUR;
+  static constexpr const int64_t MICROS_PER_DAY =
+      MICROS_PER_HOUR * HOURS_PER_DAY;
+  static constexpr const int64_t MICROS_PER_MONTH =
+      MICROS_PER_DAY * DAYS_PER_MONTH;
+
+  int32_t months;
+  int32_t days;
+  int64_t micros;
 
   Interval() = default;
   ~Interval() = default;
@@ -283,81 +284,85 @@ struct Interval {
   explicit Interval(std::string_view str_view)
       : Interval(std::string(str_view)) {}
 
-  Interval& operator=(const Interval& rhs) = default;
+  void normalize(int64_t& months, int64_t& days, int64_t& micros) const;
+
+  // Normalize to interval bounds.
+  inline static void borrow(const int64_t msf, int64_t& lsf, int32_t& f,
+                            const int64_t scale);
+  inline Interval normalize() const;
+
+  inline Interval& operator=(const Interval& rhs) = default;
 
   void from_mill_seconds(int64_t mill_seconds);
+
+  void invert();
 
   int64_t to_mill_seconds() const;
 
   std::string to_string() const;
 
-  inline int32_t year() const { return static_cast<int32_t>(internal.year); }
-  int32_t month() const { return static_cast<int32_t>(internal.month); }
-  int32_t day() const { return static_cast<int32_t>(internal.day); }
-  int32_t hour() const { return static_cast<int32_t>(internal.hour); }
-  int32_t minute() const { return static_cast<int32_t>(internal.minute); }
-  int32_t second() const { return static_cast<int32_t>(internal.second); }
-  int32_t millisecond() const {
-    return static_cast<int32_t>(internal.millisecond);
-  }
-
-  inline Interval& operator=(uint64_t ts) {
-    LOG(INFO) << "Set interval from mill seconds: " << ts;
-    from_mill_seconds(ts);
-    return *this;
-  }
+  inline int32_t year() const { return months / 12; }
+  inline int32_t month() const { return months % 12; }
+  inline int32_t day() const { return days; }
+  inline int32_t hour() const { return micros / MICROS_PER_HOUR; };
+  inline int32_t minute() const { return micros / MICROS_PER_MINUTE % 60; };
+  inline int32_t second() const { return micros / MICROS_PER_SEC % 60; };
+  inline int32_t millisecond() const {
+    return micros / MICROS_PER_MSEC % 1000;
+  };
 
   inline bool operator==(const Interval& rhs) const {
-    return internal == rhs.internal;
-  }
+    const auto& lhs = *this;
+    if (lhs.months == rhs.months && lhs.days == rhs.days &&
+        lhs.micros == rhs.micros) {
+      return true;
+    }
 
-  inline bool operator<(const Interval& rhs) const {
-    return internal < internal;
+    int64_t lmonths, ldays, lmicros;
+    int64_t rmonths, rdays, rmicros;
+    lhs.normalize(lmonths, ldays, lmicros);
+    rhs.normalize(rmonths, rdays, rmicros);
+
+    return lmonths == rmonths && ldays == rdays && lmicros == rmicros;
   }
 
   inline bool operator>(const Interval& rhs) const {
-    return internal > rhs.internal;
+    const auto& lhs = *this;
+    int64_t lmonths, ldays, lmicros;
+    int64_t rmonths, rdays, rmicros;
+    lhs.normalize(lmonths, ldays, lmicros);
+    rhs.normalize(rmonths, rdays, rmicros);
+
+    if (lmonths > rmonths) {
+      return true;
+    } else if (lmonths < rmonths) {
+      return false;
+    }
+    if (ldays > rdays) {
+      return true;
+    } else if (ldays < rdays) {
+      return false;
+    }
+    return lmicros > rmicros;
   }
 
-  inline bool operator<=(const Interval& rhs) const {
-    return !(internal > rhs.internal);
-  }
+  inline bool operator<(const Interval& rhs) const { return rhs > *this; }
 
-  inline bool operator>=(const Interval& rhs) const {
-    return !(internal < rhs.internal);
-  }
+  inline bool operator<=(const Interval& rhs) const { return !(*this > rhs); }
 
-  Interval& operator+(const Interval& rhs);
-
-  Interval& operator+=(const Interval& rhs);
-
-  Interval& operator-(const Interval& rhs);
-
-  Interval& operator-=(const Interval& rhs);
-
-  bool negative;
-  IntervalValue internal;
-
- private:
-  static void normalize(Interval& interval);
-
-  static void adjustNegative(Interval& interval);
-
-  // TODO(zhanglei): This is a simplified logic for month/year overflow and
-  // underflow.
-  //  It does not consider the actual number of days in each month.
-  //  A more robust implementation would require a mapping of month to days and
-  //  handling leap years for February.
-  static void adjustMonthYearOverflow(Interval& interval);
-
-  // TODO(zhanglei): This is a simplified logic for month/year underflow.
-  //   It does not consider the actual number of days in each month.
-  //   A more robust implementation would require a mapping of month to days and
-  //   handling leap years for February.
-  static void adjustMonthYearUnderflow(Interval& interval);
+  inline bool operator>=(const Interval& rhs) const { return !(*this < rhs); }
 };
 
 struct Date {
+  inline static const int32_t NORMAL_DAYS[13] = {0,  31, 28, 31, 30, 31, 30,
+                                                 31, 31, 30, 31, 30, 31};
+  inline static const int32_t CUMULATIVE_DAYS[13] = {
+      0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365};
+  inline static const int32_t LEAP_DAYS[13] = {0,  31, 29, 31, 30, 31, 30,
+                                               31, 31, 30, 31, 30, 31};
+  inline static const int32_t CUMULATIVE_LEAP_DAYS[13] = {
+      0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366};
+
   Date() = default;
   ~Date() = default;
 
@@ -367,11 +372,15 @@ struct Date {
 
   Date(const std::string& date_str);
 
+  static bool is_leap_year(int32_t year);
+
+  static int32_t month_day(int32_t year, int32_t month);
+
   std::string to_string() const;
 
   uint32_t to_u32() const;
 
-  uint32_t to_num_days() const;
+  int32_t to_num_days() const;
 
   void from_num_days(int32_t num_days);
 
@@ -441,19 +450,18 @@ struct Date {
   }
 
   bool operator<(const Date& rhs) const;
+  bool operator>(const Date& rhs) const;
   bool operator==(const Date& rhs) const;
 
-  Date& operator+(const Interval& interval);
+  Date operator+(const Interval& interval) const;
 
   Date& operator+=(const Interval& interval);
 
-  Date& operator-(const Interval& interval);
+  Date operator-(const Interval& interval) const;
 
   Date& operator-=(const Interval& interval);
 
   Interval operator-(const Date& rhs) const;
-
-  Interval operator-=(const Date& rhs) const;
 
   int year() const;
   int month() const;
@@ -474,6 +482,10 @@ struct DateTime {
 
   std::string to_string() const;
 
+  inline bool operator>(const DateTime& rhs) const {
+    return milli_second > rhs.milli_second;
+  }
+
   inline bool operator<(const DateTime& rhs) const {
     return milli_second < rhs.milli_second;
   }
@@ -482,25 +494,13 @@ struct DateTime {
     return milli_second == rhs.milli_second;
   }
 
-  inline DateTime& operator+=(const Interval& interval) {
-    milli_second += interval.to_mill_seconds();
-    return *this;
-  }
+  DateTime& operator+=(const Interval& interval);
 
-  inline DateTime& operator+(const Interval& interval) {
-    milli_second += interval.to_mill_seconds();
-    return *this;
-  }
+  DateTime operator+(const Interval& interval) const;
 
-  inline DateTime& operator-=(const Interval& interval) {
-    milli_second -= interval.to_mill_seconds();
-    return *this;
-  }
+  DateTime& operator-=(const Interval& interval);
 
-  inline DateTime& operator-(const Interval& interval) {
-    milli_second -= interval.to_mill_seconds();
-    return *this;
-  }
+  DateTime operator-(const Interval& interval) const;
 
   inline Interval operator-(const DateTime& rhs) const {
     Interval interval;
@@ -508,24 +508,9 @@ struct DateTime {
     return interval;
   }
 
-  inline Interval operator-=(const DateTime& rhs) {
-    return this->operator-(rhs);
-  }
-
   int64_t milli_second;
 };
 
-Date operator+(const Date& date, const Interval& interval);
-
-Date operator-(const Date& date, const Interval& interval);
-
-DateTime operator+(const DateTime& dt, const Interval& interval);
-
-DateTime operator-(const DateTime& dt, const Interval& interval);
-
-Interval operator+(const Interval& lhs, const Interval& rhs);
-
-Interval operator-(const Interval& lhs, const Interval& rhs);
 struct LabelKey {
   using label_data_type = uint8_t;
   int32_t label_id;

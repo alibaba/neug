@@ -339,14 +339,12 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, LabelKey& value) {
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
                              const Interval& value) {
-  in_archive << value.to_mill_seconds();
+  in_archive << value.months << value.days << value.micros;
   return in_archive;
 }
 
 grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value) {
-  uint64_t interval_val;
-  out_archive >> interval_val;
-  value.from_mill_seconds(interval_val);
+  out_archive >> value.months >> value.days >> value.micros;
   return out_archive;
 }
 
@@ -376,30 +374,6 @@ GlobalId::vid_t GlobalId::vid() const {
 
 std::string GlobalId::to_string() const { return std::to_string(global_id); }
 
-bool IntervalValue::operator==(const IntervalValue& rhs) const {
-  return year == rhs.year && month == rhs.month && day == rhs.day &&
-         hour == rhs.hour && minute == rhs.minute && second == rhs.second &&
-         millisecond == rhs.millisecond && microsecond == rhs.microsecond;
-}
-
-bool IntervalValue::operator<(const IntervalValue& rhs) const {
-  if (year != rhs.year)
-    return year < rhs.year;
-  if (month != rhs.month)
-    return month < rhs.month;
-  if (day != rhs.day)
-    return day < rhs.day;
-  if (hour != rhs.hour)
-    return hour < rhs.hour;
-  if (minute != rhs.minute)
-    return minute < rhs.minute;
-  if (second != rhs.second)
-    return second < rhs.second;
-  if (millisecond != rhs.millisecond)
-    return millisecond < rhs.millisecond;
-  return microsecond < rhs.microsecond;
-}
-
 Date::Date(int64_t x) { from_timestamp(x); }
 
 Date::Date(const std::string& date_str) {
@@ -417,6 +391,14 @@ Date::Date(const std::string& date_str) {
   value.internal.month = month;
   value.internal.day = day;
   value.internal.hour = 0;
+}
+
+bool Date::is_leap_year(int32_t year) {
+  return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+int32_t Date::month_day(int32_t year, int32_t month) {
+  return is_leap_year(year) ? LEAP_DAYS[month] : NORMAL_DAYS[month];
 }
 
 int64_t Date::to_timestamp() const {
@@ -438,32 +420,70 @@ int64_t Date::to_timestamp() const {
 bool Date::operator<(const Date& rhs) const {
   return this->to_u32() < rhs.to_u32();
 }
+bool Date::operator>(const Date& rhs) const {
+  return this->to_u32() > rhs.to_u32();
+}
 bool Date::operator==(const Date& rhs) const {
   return this->to_u32() == rhs.to_u32();
 }
 
-Date& Date::operator+(const Interval& interval) {
-  auto ts = this->to_timestamp();
-  ts += interval.to_mill_seconds();
-  this->from_timestamp(ts);
-  return *this;
+Date Date::operator+(const Interval& interval) const {
+  Date new_date;
+  int32_t year, month, day;
+  year = this->year();
+  month = this->month();
+  day = this->day();
+  if (interval.months != 0) {
+    int32_t year_diff = interval.months / Interval::MONTHS_PER_YEAR;
+    year += year_diff;
+    month += interval.months - year_diff * Interval::MONTHS_PER_YEAR;
+    if (month > Interval::MONTHS_PER_YEAR) {
+      year++;
+      month -= Interval::MONTHS_PER_YEAR;
+    } else if (month <= 0) {
+      year--;
+      month += Interval::MONTHS_PER_YEAR;
+    }
+    if (day > Date::month_day(year, month)) {
+      day = Date::month_day(year, month);
+    }
+  }
+  new_date.value.internal.year = year;
+  new_date.value.internal.month = month;
+  new_date.value.internal.day = day;
+  new_date.value.internal.hour = 0;
+  int64_t days = new_date.to_num_days();
+  if (interval.days != 0) {
+    days += interval.days;
+  }
+  if (interval.micros != 0) {
+    days += int32_t(interval.micros / Interval::MICROS_PER_DAY);
+  }
+  if (interval.micros < 0 && interval.micros % Interval::MICROS_PER_DAY != 0) {
+    days--;
+  }
+  if (days > std::numeric_limits<int32_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Date arithmetic resulted in an out-of-range date.");
+  }
+  new_date.from_num_days(days);
+  return new_date;
 }
 
 Date& Date::operator+=(const Interval& interval) {
-  return this->operator+(interval);
-}
-
-Date& Date::operator-(const Interval& interval) {
-  auto ts = this->to_timestamp();
-  LOG(INFO) << "old timestamp: " << ts
-            << ", interval: " << interval.to_mill_seconds();
-  ts -= interval.to_mill_seconds();
-  this->from_timestamp(ts);
+  *this = *this + interval;
   return *this;
 }
 
+Date Date::operator-(const Interval& interval) const {
+  Interval invert_interval = interval;
+  invert_interval.invert();
+  return *this + invert_interval;
+}
+
 Date& Date::operator-=(const Interval& interval) {
-  return this->operator-(interval);
+  *this = *this - interval;
+  return *this;
 }
 
 std::string Date::to_string() const {
@@ -476,11 +496,11 @@ std::string Date::to_string() const {
 
 uint32_t Date::to_u32() const { return value.integer; }
 
-uint32_t Date::to_num_days() const {
+int32_t Date::to_num_days() const {
   // Convert to a number of days since epoch (1970-01-01)
   int64_t epoch_millis = to_timestamp();
   int64_t days_since_epoch = epoch_millis / (24 * 60 * 60 * 1000);
-  return static_cast<uint32_t>(days_since_epoch);
+  return static_cast<int32_t>(days_since_epoch);
 }
 
 void Date::from_num_days(int32_t num_days) {
@@ -505,10 +525,6 @@ Interval Date::operator-(const Date& rhs) const {
   Interval interval;
   interval.from_mill_seconds(lhs_ts - rhs_ts);
   return interval;
-}
-
-Interval Date::operator-=(const Date& interval) const {
-  return *this - interval;
 }
 
 DateTime::DateTime(const std::string& date_time_str) {
@@ -595,38 +611,127 @@ std::string DateTime::to_string() const {
   return oss.str();
 }
 
+DateTime& DateTime::operator+=(const Interval& interval) {
+  *this = *this + interval;
+  return *this;
+}
+
+DateTime DateTime::operator+(const Interval& interval) const {
+  int64_t delta_milli = 0;
+  if (interval.months != 0) {
+    int32_t days = this->milli_second / Interval::MSEC_PER_DAY;
+    Interval month_interval;
+    month_interval.months = interval.months;
+    month_interval.days = 0;
+    month_interval.micros = 0;
+    Date date;
+    date.from_num_days(days);
+    date = date + month_interval;
+    delta_milli += (static_cast<int32_t>(date.to_num_days()) - days) *
+                   Interval::MSEC_PER_DAY;
+  }
+
+  if (interval.days != 0) {
+    delta_milli += interval.days * Interval::MSEC_PER_DAY;
+  }
+
+  if (interval.micros != 0) {
+    delta_milli += interval.micros / Interval::MICROS_PER_MSEC;
+  }
+  return DateTime(this->milli_second + delta_milli);
+}
+
+DateTime& DateTime::operator-=(const Interval& interval) {
+  *this = *this - interval;
+  return *this;
+}
+
+DateTime DateTime::operator-(const Interval& interval) const {
+  Interval invert_interval = interval;
+  invert_interval.invert();
+  return *this + invert_interval;
+}
+
 // Interval
+void Interval::invert() {
+  micros = -micros;
+  days = -days;
+  months = -months;
+}
+
+void Interval::normalize(int64_t& months, int64_t& days,
+                         int64_t& micros) const {
+  auto& input = *this;
+
+  //  Carry left
+  micros = input.micros;
+  int64_t carry_days = micros / Interval::MICROS_PER_DAY;
+  micros -= carry_days * Interval::MICROS_PER_DAY;
+
+  days = input.days;
+  days += carry_days;
+  int64_t carry_months = days / Interval::DAYS_PER_MONTH;
+  days -= carry_months * Interval::DAYS_PER_MONTH;
+
+  months = input.months;
+  months += carry_months;
+}
+
+void Interval::borrow(const int64_t msf, int64_t& lsf, int32_t& f,
+                      const int64_t scale) {
+  if (msf > std::numeric_limits<int32_t>::max()) {
+    f = std::numeric_limits<int32_t>::max();
+    lsf += (msf - f) * scale;
+  } else if (msf < std::numeric_limits<int32_t>::lowest()) {
+    f = std::numeric_limits<int32_t>::lowest();
+    lsf += (msf - f) * scale;
+  } else {
+    f = static_cast<int32_t>(msf);
+  }
+}
+
+Interval Interval::normalize() const {
+  Interval result;
+
+  int64_t mm;
+  int64_t dd;
+  normalize(mm, dd, result.micros);
+
+  //  Borrow right on overflow
+  borrow(mm, dd, result.months, Interval::DAYS_PER_MONTH);
+  borrow(dd, result.micros, result.days, Interval::MICROS_PER_DAY);
+
+  return result;
+}
+
 Interval::Interval(std::string str) {
   for (size_t i = 0; i < str.length(); ++i) {
     str[i] = std::tolower(str[i]);
   }
   static const std::regex interval_regex(
-      R"((\d+)\s*(years?|year?|days?|day?|hours?|hour?|minutes?|minute?|seconds?|second?|milliseconds?|millisecond?|us?|microsecond?|microseconds?))");
+      R"((\d+)\s*(years?|year?|months?|month?|days?|day?|hours?|hour?|minutes?|minute?|seconds?|second?|milliseconds?|millisecond?|us?|microsecond?|microseconds?))");
   std::smatch match;
-  negative = false;
-  internal.year = internal.month = internal.day = internal.hour =
-      internal.minute = internal.second = internal.millisecond =
-          internal.microsecond = 0;
+  months = days = micros = 0;
   while (std::regex_search(str, match, interval_regex)) {
     int64_t num = std::stoll(match[1].str());
     std::string unit = match[2].str();
     if (unit == "year" || unit == "years") {
-      internal.year = num;
+      months += num * Interval::MONTHS_PER_YEAR;
     } else if (unit == "month" || unit == "months") {
-      internal.month = num;
+      months += num;
     } else if (unit == "day" || unit == "days") {
-      internal.day = num;
+      days = num;
     } else if (unit == "hour" || unit == "hours") {
-      internal.hour = num;
+      micros += num * Interval::MICROS_PER_HOUR;
     } else if (unit == "minute" || unit == "minutes") {
-      internal.minute = num;
+      micros += num * Interval::MICROS_PER_MINUTE;
     } else if (unit == "second" || unit == "seconds") {
-      internal.second = num;
+      micros += num * Interval::MICROS_PER_SEC;
     } else if (unit == "millisecond" || unit == "milliseconds") {
-      internal.millisecond = num;
+      micros += num * Interval::MICROS_PER_MSEC;
     } else if (unit == "us" || unit == "microsecond" ||
                unit == "microseconds") {
-      internal.microsecond = num;
+      micros += num;
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Invalid interval unit: " + unit);
     }
@@ -654,224 +759,46 @@ std::string Interval::to_string() const {
       oss << value << " " << (value == 1 ? unit : plural_unit);
     }
   };
-  lambda_func(year(), "year", "years");
-  lambda_func(month(), "month", "months");
-  lambda_func(day(), "day", "days");
-  lambda_func(hour(), "hour", "hours");
-  lambda_func(minute(), "minute", "minutes");
-  lambda_func(second(), "second", "seconds");
-  lambda_func(millisecond(), "millisecond", "milliseconds");
-  if (negative) {
-    // prepend
-    auto neg_str = oss.str();
-    neg_str.insert(0, "-");
-    return neg_str;
+  if (months != 0) {
+    // format the years and months
+    int32_t format_years = months / 12;
+    int32_t format_months = months - format_years * 12;
+    lambda_func(format_years, "year", "years");
+    lambda_func(format_months, "month", "months");
+  }
+  if (days != 0) {
+    // format the days
+    lambda_func(days, "day", "days");
+  }
+  if (micros != 0) {
+    int64_t format_micros = -micros;
+    int64_t hour = -(format_micros / Interval::MICROS_PER_HOUR);
+    format_micros += hour * Interval::MICROS_PER_HOUR;
+    lambda_func(hour, "hour", "hours");
+    int64_t min = -(format_micros / Interval::MICROS_PER_MINUTE);
+    format_micros += min * Interval::MICROS_PER_MINUTE;
+    lambda_func(min, "minute", "minutes");
+    int64_t sec = -(format_micros / Interval::MICROS_PER_SEC);
+    format_micros += sec * Interval::MICROS_PER_SEC;
+    lambda_func(sec, "second", "seconds");
+    int64_t mill_sec = -(format_micros / Interval::MICROS_PER_MSEC);
+    format_micros += mill_sec * Interval::MICROS_PER_MSEC;
+    lambda_func(mill_sec, "millisecond", "milliseconds");
+    lambda_func(-format_micros, "microsecond", "microseconds");
   }
   return oss.str();
 }
 
 void Interval::from_mill_seconds(int64_t mill_seconds) {
-  if (mill_seconds < 0) {
-    negative = true;
-    mill_seconds = -mill_seconds;
-  } else {
-    negative = false;
-  }
-  int64_t total_seconds = mill_seconds / 1000;
-  // internal.year = std::floor(total_seconds / SECOND_PER_YEAR);
-  // Get the floor division for years, months, days, hours, minutes, and
-  // seconds
-  internal.year =
-      std::floor(static_cast<double>(total_seconds) / SECOND_PER_YEAR);
-  total_seconds -= internal.year * SECOND_PER_YEAR;
-  internal.month =
-      std::floor(static_cast<double>(total_seconds) / SECOND_PER_MONTH);
-  total_seconds -= internal.month * SECOND_PER_MONTH;
-  internal.day =
-      std::floor(static_cast<double>(total_seconds) / SECOND_PER_DAY);
-  total_seconds -= internal.day * SECOND_PER_DAY;
-  internal.hour =
-      std::floor(static_cast<double>(total_seconds) / SECOND_PER_HOUR);
-  total_seconds -= internal.hour * SECOND_PER_HOUR;
-  internal.minute =
-      std::floor(static_cast<double>(total_seconds) / SECOND_PER_MINUTE);
-  total_seconds -= internal.minute * SECOND_PER_MINUTE;
-  internal.second = total_seconds;
-  internal.millisecond = mill_seconds % 1000;
-  internal.microsecond = 0;  // Not used in this implementation
-
-  assert(negative ? (-mill_seconds == to_mill_seconds())
-                  : (mill_seconds == to_mill_seconds()));
+  months = 0;
+  days = 0;
+  micros = mill_seconds * MICROS_PER_MSEC;
 }
 
 int64_t Interval::to_mill_seconds() const {
-  int64_t total_seconds = internal.second;
-  total_seconds += internal.minute * SECOND_PER_MINUTE;
-  total_seconds += internal.hour * SECOND_PER_HOUR;
-  total_seconds += internal.day * SECOND_PER_DAY;
-  total_seconds += internal.month * SECOND_PER_MONTH;
-  total_seconds += internal.year * SECOND_PER_YEAR;
-  int64_t total_milliseconds =
-      total_seconds * 1000 + static_cast<int64_t>(internal.millisecond);
-  return (negative ? -1 : 1) * total_milliseconds;
-}
-
-Interval& Interval::operator+(const Interval& rhs) {
-  Interval result;
-  if (!negative && !rhs.negative) {
-    result.negative = false;
-  } else if (negative && rhs.negative) {
-    result.negative = true;
-  } else if (negative && !rhs.negative) {
-    result.negative = internal > rhs.internal;
-  } else {
-    result.negative = rhs.internal > internal;
-  }
-  result.internal.year = this->internal.year + rhs.internal.year;
-  result.internal.month = this->internal.month + rhs.internal.month;
-  result.internal.day = this->internal.day + rhs.internal.day;
-  result.internal.hour = this->internal.hour + rhs.internal.hour;
-  result.internal.minute = this->internal.minute + rhs.internal.minute;
-  result.internal.second = this->internal.second + rhs.internal.second;
-  result.internal.millisecond =
-      this->internal.millisecond + rhs.internal.millisecond;
-  result.internal.microsecond =
-      this->internal.microsecond + rhs.internal.microsecond;
-
-  normalize(result);
-  adjustMonthYearOverflow(result);
-  return *this = result;
-}
-
-Interval& Interval::operator+=(const Interval& rhs) { return *this + rhs; }
-
-Interval& Interval::operator-(const Interval& rhs) {
-  Interval result;
-  if (!negative && !rhs.negative) {
-    result.negative = internal < rhs.internal;
-  } else if (negative && rhs.negative) {
-    result.negative = internal > rhs.internal;
-  } else if (negative && !rhs.negative) {
-    result.negative = true;
-  } else {
-    result.negative = false;
-  }
-
-  result.internal.year = internal.year - rhs.internal.year;
-  result.internal.month = internal.month - rhs.internal.month;
-  result.internal.day = internal.day - rhs.internal.day;
-  result.internal.hour = internal.hour - rhs.internal.hour;
-  result.internal.minute = internal.minute - rhs.internal.minute;
-  result.internal.second = internal.second - rhs.internal.second;
-  result.internal.millisecond = internal.millisecond - rhs.internal.millisecond;
-
-  normalize(result);
-  adjustNegative(result);
-  return *this = result;
-}
-
-Interval& Interval::operator-=(const Interval& rhs) { return *this - rhs; }
-
-void Interval::normalize(Interval& interval) {
-  if (interval.internal.millisecond >= 1000) {
-    interval.internal.second += interval.internal.millisecond / 1000;
-    interval.internal.millisecond %= 1000;
-  }
-  if (interval.internal.second >= 60) {
-    interval.internal.minute += interval.internal.second / 60;
-    interval.internal.second %= 60;
-  }
-  if (interval.internal.minute >= 60) {
-    interval.internal.hour += interval.internal.minute / 60;
-    interval.internal.minute %= 60;
-  }
-  if (interval.internal.hour >= 24) {
-    interval.internal.day += interval.internal.hour / 24;
-    interval.internal.hour %= 24;
-  }
-  // Handle month overflow considering days in the month
-  adjustMonthYearOverflow(interval);
-}
-
-void Interval::adjustNegative(Interval& interval) {
-  if (interval.internal.millisecond < 0) {
-    interval.internal.second -= (interval.internal.millisecond / 1000) - 1;
-    interval.internal.millisecond =
-        1000 + (interval.internal.millisecond % 1000);
-  }
-  if (interval.internal.second < 0) {
-    interval.internal.minute -= (interval.internal.second / 60) - 1;
-    interval.internal.second = 60 + (interval.internal.second % 60);
-  }
-  if (interval.internal.minute < 0) {
-    interval.internal.hour -= (interval.internal.minute / 60) - 1;
-    interval.internal.minute = 60 + (interval.internal.minute % 60);
-  }
-  if (interval.internal.hour < 0) {
-    interval.internal.day -= (interval.internal.hour / 24) - 1;
-    interval.internal.hour = 24 + (interval.internal.hour % 24);
-  }
-  // Handle month underflow considering days in the month
-  adjustMonthYearUnderflow(interval);
-}
-
-void Interval::adjustMonthYearOverflow(Interval& interval) {
-  while (interval.internal.month >= 12) {
-    interval.internal.year += interval.internal.month / 12;
-    interval.internal.month = interval.internal.month % 12;
-  }
-  while (interval.internal.day >= 31) {
-    interval.internal.month += interval.internal.day / 31;
-    interval.internal.day = interval.internal.day % 31;
-  }
-}
-
-void Interval::adjustMonthYearUnderflow(Interval& interval) {
-  while (interval.internal.month < 0) {
-    interval.internal.year += (interval.internal.month - 11) / 12;
-    interval.internal.month = 12 + (interval.internal.month % 12);
-  }
-  // Consider day underflow (simplified logic, needs month-length handling)
-  while (interval.internal.day < 0) {
-    interval.internal.month += (interval.internal.day - 1) / 31;
-    interval.internal.day = 31 + (interval.internal.day % 31);
-  }
-}
-
-Date operator+(const Date& date, const Interval& interval) {
-  Date new_date = date;
-  new_date += interval;
-  return new_date;
-}
-
-Date operator-(const Date& date, const Interval& interval) {
-  Date new_date = date;
-  new_date -= interval;
-  return new_date;
-}
-
-DateTime operator+(const DateTime& dt, const Interval& interval) {
-  DateTime new_dt = dt;
-  new_dt += interval;
-  return new_dt;
-}
-
-DateTime operator-(const DateTime& dt, const Interval& interval) {
-  DateTime new_dt = dt;
-  new_dt -= interval;
-  return new_dt;
-}
-
-Interval operator+(const Interval& lhs, const Interval& rhs) {
-  Interval result = lhs;
-  result += rhs;
-  return result;
-}
-
-Interval operator-(const Interval& lhs, const Interval& rhs) {
-  Interval result = lhs;
-  result -= rhs;
-  return result;
+  int64_t total_mill_seconds = micros / MICROS_PER_MSEC;
+  total_mill_seconds += days * (MICROS_PER_DAY / MICROS_PER_MSEC);
+  return total_mill_seconds;
 }
 
 }  // namespace gs

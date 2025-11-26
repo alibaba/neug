@@ -284,7 +284,7 @@ void sink_rt_any(const RTAny& val, const GraphInterface& graph,
   } else if (type_ == RTAnyType::kDateTime) {
     encoder.put_long(val.value().dt_val.milli_second);
   } else if (type_ == RTAnyType::kInterval) {
-    encoder.put_long(val.value().interval_val.millisecond());
+    encoder.put_string(val.value().interval_val.to_string());
   } else if (type_ == RTAnyType::kI64Value) {
     encoder.put_long(val.value().i64_val);
   } else if (type_ == RTAnyType::kI32Value) {

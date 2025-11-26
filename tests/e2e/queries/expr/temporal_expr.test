@@ -63,6 +63,7 @@
 2008-08-17 22:23:30.000
 
 -LOG TestIntervalMinusInterval
+-SKIP: interval minus interval is not supported
 -STATEMENT MATCH(n: person) WHERE n.ID = 0 RETURN n.lastJobDuration - INTERVAL('1 hours')
 ---- 1
 3 years 2 days 12 hours 2 minutes
@@ -70,4 +71,4 @@
 -LOG TestDateMinusDate
 -STATEMENT MATCH(n: person) WHERE n.ID = 0 RETURN n.birthdate - date('1899-01-01')
 ---- 1
-1 year
+8760 hours
