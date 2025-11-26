@@ -328,12 +328,15 @@ class PathImpl : public CObject {
     std::reverse(labels.begin(), labels.end());
     return labels;
   }
+  double get_weight() const { return weight_; }
+  void set_weight(double weight) { weight_ = weight; }
   label_t v_label_;
   label_t e_label_;
   Direction direction_;
   vid_t vid_;
   const void* payload_;
   const PathImpl* prev_;
+  double weight_ = 0.0;
 };
 class Path {
  public:
@@ -355,6 +358,8 @@ class Path {
   VertexRecord get_start() const { return impl_->get_start(); }
   bool operator<(const Path& p) const { return *impl_ < *(p.impl_); }
   bool operator==(const Path& p) const { return *(impl_) == *(p.impl_); }
+
+  double get_weight() const { return impl_->get_weight(); }
 
   PathImpl* impl_;
 };

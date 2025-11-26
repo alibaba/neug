@@ -584,6 +584,23 @@ class ParamAccessor : public IAccessor {
   T val_;
 };
 
+class PathWeightPathAccessor : public IAccessor {
+ public:
+  using elem_t = double;
+  PathWeightPathAccessor(const Context& ctx, int tag)
+      : path_col_(*std::dynamic_pointer_cast<IPathColumn>(ctx.get(tag))) {}
+
+  elem_t typed_eval_path(size_t idx) const {
+    return path_col_.get_path(idx).get_weight();
+  }
+
+  RTAny eval_path(size_t idx) const override {
+    return RTAny::from_double(typed_eval_path(idx));
+  }
+
+ private:
+  const IPathColumn& path_col_;
+};
 class PathIdPathAccessor : public IAccessor {
  public:
   using elem_t = Path;

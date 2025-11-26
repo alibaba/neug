@@ -64,6 +64,7 @@ enum class PathOpt {
   kAllShortest,
   kTrail,
   kSimple,
+  kAnyWeightedShortest,
 };
 
 struct LabelTriplet {

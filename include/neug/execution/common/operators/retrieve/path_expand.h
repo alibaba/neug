@@ -329,6 +329,107 @@ class PathExpand {
     LOG(ERROR) << "not support path expand options";
     RETURN_UNSUPPORTED_ERROR("not support path expand options");
   }
+
+  template <typename FUNC_T>
+  static gs::result<Context> any_weighted_shortest_path(
+      const StorageReadInterface& graph, Context&& ctx,
+      const PathExpandParams& params, const FUNC_T& weight_func) {
+    auto col = ctx.get(params.start_tag);
+    auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
+    GeneralPathColumnBuilder path_builder;
+    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+    std::vector<size_t> shuffle_offset;
+    foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
+                                          vid_t v) {
+      std::unordered_map<VertexRecord, double, VertexRecordHash> dist;
+      std::unordered_set<VertexRecord, VertexRecordHash> visited;
+      VertexRecord start_vr(label, v);
+      dist[start_vr] = 0;
+      auto cmp = [](PathImpl* a, PathImpl* b) {
+        double wa = a->get_weight();
+        double wb = b->get_weight();
+        return wa > wb;
+      };
+      std::priority_queue<PathImpl*, std::vector<PathImpl*>, decltype(cmp)> pq(
+          cmp);
+      PathImpl* root = PathImpl::make_path_impl(label, v, *arena);
+      root->set_weight(0.0);
+      pq.push(root);
+      while (!pq.empty()) {
+        PathImpl* path_impl = pq.top();
+
+        label_t label = path_impl->get_end().label_;
+        vid_t cur = path_impl->get_end().vid_;
+        VertexRecord cur_vr(label, cur);
+        if (visited.count(cur_vr) > 0) {
+          pq.pop();
+          continue;
+        }
+        visited.insert(cur_vr);
+        path_builder.push_back_opt(Path(path_impl));
+        shuffle_offset.push_back(index);
+        pq.pop();
+        for (LabelTriplet label_triplet : params.labels) {
+          if (label_triplet.src_label != label &&
+              label_triplet.dst_label != label) {
+            continue;
+          }
+
+          if (label_triplet.src_label == label &&
+              (params.dir == Direction::kOut ||
+               params.dir == Direction::kBoth)) {
+            auto oe_view = graph.GetGenericOutgoingGraphView(
+                label_triplet.src_label, label_triplet.dst_label,
+                label_triplet.edge_label);
+            auto oes = oe_view.get_edges(cur);
+            for (auto it = oes.begin(); it != oes.end(); ++it) {
+              vid_t nbr = it.get_vertex();
+              VertexRecord nbr_vr(label_triplet.dst_label, nbr);
+              double weight =
+                  weight_func(label_triplet, cur, nbr, it.get_data_ptr());
+              if (dist.count(nbr_vr) == 0 ||
+                  dist[nbr_vr] > path_impl->get_weight() + weight) {
+                auto new_path_impl = path_impl->expand(
+                    label_triplet.edge_label, label_triplet.dst_label, nbr,
+                    Direction::kOut, it.get_data_ptr(), *arena);
+                new_path_impl->set_weight(path_impl->get_weight() + weight);
+                dist[nbr_vr] = new_path_impl->get_weight() + weight;
+
+                pq.push(new_path_impl);
+              }
+            }
+          }
+          if (label_triplet.dst_label == label &&
+              (params.dir == Direction::kIn ||
+               params.dir == Direction::kBoth)) {
+            auto ie_view = graph.GetGenericIncomingGraphView(
+                label_triplet.dst_label, label_triplet.src_label,
+                label_triplet.edge_label);
+            auto ies = ie_view.get_edges(cur);
+            for (auto it = ies.begin(); it != ies.end(); ++it) {
+              vid_t nbr = it.get_vertex();
+              VertexRecord nbr_vr(label_triplet.src_label, nbr);
+              double weight =
+                  weight_func(label_triplet, cur, nbr, it.get_data_ptr());
+              if (dist.count(nbr_vr) == 0 ||
+                  dist[nbr_vr] > path_impl->get_weight() + weight) {
+                auto new_path_impl = path_impl->expand(
+                    label_triplet.edge_label, label_triplet.src_label, nbr,
+                    Direction::kOut, it.get_data_ptr(), *arena);
+                new_path_impl->set_weight(path_impl->get_weight() + weight);
+                dist[nbr_vr] = new_path_impl->get_weight() + weight;
+
+                pq.push(new_path_impl);
+              }
+            }
+          }
+        }
+      }
+    });
+    path_builder.set_arena(arena);
+    ctx.set_with_reshuffle(params.alias, path_builder.finish(), shuffle_offset);
+    return ctx;
+  }
 };
 
 }  // namespace runtime

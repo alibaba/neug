@@ -112,6 +112,9 @@ PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb) {
   } else if (path_opt_pb ==
              physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST) {
     return PathOpt::kAllShortest;
+  } else if (path_opt_pb == physical::PathExpand_PathOpt::
+                                PathExpand_PathOpt_ANY_WEIGHTED_SHORTEST) {
+    return PathOpt::kAnyWeightedShortest;
   } else {
     LOG(FATAL) << "unexpected PathOpt";
     return PathOpt::kArbitrary;

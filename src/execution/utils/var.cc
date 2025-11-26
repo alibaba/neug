@@ -104,6 +104,9 @@ Var::Var(const GraphInterface* graph, const Context& ctx,
         auto& pt = pb.property();
         if (pt.has_len()) {
           getter_ = std::make_shared<PathLenPathAccessor>(ctx, tag);
+        } else if (pt.has_key() && pt.key().name() == "cost") {
+          getter_ = std::make_shared<PathWeightPathAccessor>(ctx, tag);
+
         } else {
           LOG(FATAL) << "not support for path column - " << pt.DebugString();
         }

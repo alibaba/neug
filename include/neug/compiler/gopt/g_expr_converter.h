@@ -61,6 +61,8 @@ class GExprConverter {
       const binder::AggregateFunctionExpression& expr,
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
+  std::unique_ptr<::common::Property> convertPropertyExpr(
+      const std::string& propName);
 
  private:
   // Core expression type converters
@@ -123,8 +125,6 @@ class GExprConverter {
   ::common::Logical convertCompare(common::ExpressionType type);
   std::unique_ptr<::common::Expression> convertPattern(
       const binder::NodeOrRelExpression& expr);
-  std::unique_ptr<::common::Property> convertPropertyExpr(
-      const std::string& propName);
   std::unique_ptr<::common::Expression> convertScalarFunc(
       const binder::Expression& expr,
       const std::vector<std::string>& schemaAlias);

@@ -50,6 +50,14 @@ class PropertyExpression final : public Expression {
 
  public:
   PropertyExpression(common::LogicalType dataType, std::string propertyName,
+                     std::string uniqueVarName, std::string rawVariableName)
+      : Expression{expressionType_, std::move(dataType),
+                   uniqueVarName + "." + propertyName},
+        propertyName{std::move(propertyName)},
+        uniqueVarName{std::move(uniqueVarName)},
+        rawVariableName{std::move(rawVariableName)} {}
+
+  PropertyExpression(common::LogicalType dataType, std::string propertyName,
                      std::string uniqueVarName, std::string rawVariableName,
                      common::table_id_map_t<SingleLabelPropertyInfo> infos)
       : Expression{expressionType_, std::move(dataType),

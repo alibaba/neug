@@ -20,6 +20,7 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <memory>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/path_expression.h"
@@ -30,6 +31,7 @@
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/string_format.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/gds/rec_joins.h"
@@ -530,8 +532,9 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
         *rel, recursivePatternInfo->weightPropertyName);
     checkWeightedShortestPathSupportedType(propertyExpr->getDataType());
     bindData->weightPropertyExpr = propertyExpr;
-    bindData->weightOutputExpr =
-        createInvisibleVariable(parsedName + "_cost", LogicalType::DOUBLE());
+    bindData->weightOutputExpr = std::make_shared<binder::PropertyExpression>(
+        LogicalType::DOUBLE().copy(), "cost", queryRel->getUniqueName(),
+        parsedName);
   }
 
   auto recursiveInfo = std::make_unique<RecursiveInfo>();

@@ -423,6 +423,12 @@ GQueryConvertor::convertPathBase(
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST;
   case common::QueryRelType::ALL_SHORTEST:
     return ::physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST;
+  case common::QueryRelType::WEIGHTED_SHORTEST:
+    return ::physical::PathExpand_PathOpt::
+        PathExpand_PathOpt_ANY_WEIGHTED_SHORTEST;
+  case common::QueryRelType::ALL_WEIGHTED_SHORTEST:
+    return ::physical::PathExpand_PathOpt::
+        PathExpand_PathOpt_ALL_WEIGHTED_SHORTEST;
   default:
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported path option: " +
                                    std::to_string(static_cast<int>(pathOpt)));
@@ -487,6 +493,42 @@ std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
   return rangePB;
 }
 
+void GQueryConvertor::convertExtraInfo(
+    const planner::LogicalRecursiveExtend& extend,
+    ::physical::PathExpand* pathPB) {
+  auto relExpr = extend.getRel();
+  // check if exist any extra info
+  bool hasExtraInfo = false;
+  CHECK(relExpr) << "Rel expression in recursive extend should not be null";
+  if (relExpr->getRelType() == common::QueryRelType::WEIGHTED_SHORTEST ||
+      relExpr->getRelType() == common::QueryRelType::ALL_WEIGHTED_SHORTEST) {
+    hasExtraInfo = true;
+  }
+  // set extra info if exist any, otherwise do nothing
+  if (hasExtraInfo) {
+    auto extraInfoPB = std::make_unique<::physical::PathExpand_ExtraInfo>();
+    CHECK(relExpr) << "Rel expression in recursive extend should not be null";
+    if (relExpr->getRelType() == common::QueryRelType::WEIGHTED_SHORTEST ||
+        relExpr->getRelType() == common::QueryRelType::ALL_WEIGHTED_SHORTEST) {
+      auto recursiveInfo = relExpr->getRecursiveInfo();
+      CHECK(recursiveInfo && recursiveInfo->bindData)
+          << "Bind data should not be null if rel type is WEIGHTED_SHORTEST";
+      auto weightExpr = recursiveInfo->bindData->weightPropertyExpr;
+      CHECK(weightExpr) << "Weight property should not be null if rel type is "
+                           "WEIGHTED_SHORTEST";
+      if (weightExpr->expressionType != common::ExpressionType::PROPERTY) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Weight property should be a property expression");
+      }
+      auto weightProperty =
+          weightExpr->ptrCast<binder::PropertyExpression>()->getPropertyName();
+      extraInfoPB->set_allocated_weight_expr(
+          exprConvertor->convert(*weightExpr, {}).release());
+    }
+    pathPB->set_allocated_extra_info(extraInfoPB.release());
+  }
+}
+
 void GQueryConvertor::convertRecursiveExtend(
     const planner::LogicalRecursiveExtend& extend,
     ::physical::QueryPlan* plan) {
@@ -522,6 +564,8 @@ void GQueryConvertor::convertRecursiveExtend(
   pathPB->set_path_opt(convertPathOpt(extend));
   // set result opt
   pathPB->set_result_opt(convertResultOpt(extend.getResultOpt()));
+  // set extra info for weighted shortest path
+  convertExtraInfo(extend, pathPB.get());
 
   // set edge type as the metadata
   auto metaData = std::make_unique<::physical::PhysicalOpr_MetaData>();

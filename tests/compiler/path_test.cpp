@@ -19,6 +19,7 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
+#include "protobuf/src/google/protobuf/parse_context.h"
 
 namespace gs {
 namespace gopt {
@@ -158,6 +159,26 @@ TEST_F(PathTest, Properties) {
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getPathResource("Properties_physical"));
+}
+
+TEST_F(PathTest, WSHORTEST_PATH) {
+  std::string query =
+      "Match (p1:person {id: 123})-[knows:KNOWS* WSHORTEST(weight) "
+      "1..30]-(p2:person {id: 456}) Return knows;";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("WSHORTEST_PATH_physical"));
+}
+
+TEST_F(PathTest, WSHORTEST_COST) {
+  std::string query =
+      "Match (p1:person {id: 123})-[knows:KNOWS* WSHORTEST( weight ) "
+      "1..30]-(p2:person {id: 456}) Return knows, cost(knows);";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getPathResource("WSHORTEST_COST_physical"));
 }
 
 }  // namespace gopt

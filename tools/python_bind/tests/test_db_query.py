@@ -2177,4 +2177,18 @@ def test_list_extract_function():
     )
     records = list(res)
     assert records == [["person", "josh"], ["software", "lop"]]
+
+
+def test_weight_shortest_path():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        Match (a:person {name : 'marko'})-[k * WSHORTEST(weight)]-(b:person {name: 'josh'})
+        Return a.name, b.name, cost(k);
+        """
+    )
+    records = list(res)
+    assert records == [["marko", "josh", 0.8]]
     db.close()

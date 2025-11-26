@@ -873,6 +873,37 @@ class PathExpandOprWithPred : public IOperator {
   common::Expression pred_;
 };
 
+class AnyWeightedShortestPathOpr : public IOperator {
+ public:
+  AnyWeightedShortestPathOpr(PathExpandParams pep,
+                             const common::Expression& weight)
+      : pep_(pep), weight_(weight) {}
+
+  std::string get_operator_name() const override {
+    return "WeightedShortestPathOpr";
+  }
+
+  gs::result<gs::runtime::Context> Eval(
+      gs::runtime::IStorageInterface& graph_interface,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
+    Expr expr(&graph, ctx, params, weight_, VarType::kEdgeVar);
+    Arena arena;
+    auto weight_func = [&expr, &arena](const LabelTriplet& label, vid_t src,
+                                       vid_t dst, const void* data_ptr) {
+      return expr.eval_edge(label, src, dst, data_ptr, 0, arena).as_double();
+    };
+    return PathExpand::any_weighted_shortest_path(graph, std::move(ctx), pep_,
+                                                  weight_func);
+  }
+
+ private:
+  PathExpandParams pep_;
+  common::Expression weight_;
+};
+
 gs::result<OpBuildResultT> PathExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
@@ -907,6 +938,17 @@ gs::result<OpBuildResultT> PathExpandOprBuilder::Build(
   pep.labels =
       parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
   pep.opt = parse_path_opt(opr.path_opt());
+  if (pep.opt == PathOpt::kAnyWeightedShortest) {
+    auto prop = opr.extra_info().weight_expr();
+    if (query_params.has_predicate()) {
+      LOG(ERROR) << "Currently only support weighted shortest path without "
+                    "predicate";
+      return std::make_pair(nullptr, ContextMeta());
+    } else {
+      return std::make_pair(
+          std::make_unique<AnyWeightedShortestPathOpr>(pep, prop), ret_meta);
+    }
+  }
 
   if (query_params.has_predicate()) {
     return std::make_pair(

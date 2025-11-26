@@ -212,6 +212,8 @@ class GQueryConvertor {
                             ::physical::QueryPlan* plan);
   std::unique_ptr<::common::Value> convertCopyToHeader(
       const planner::LogicalCopyTo& copyTo);
+  void convertExtraInfo(const planner::LogicalRecursiveExtend& extend,
+                        ::physical::PathExpand* pathPB);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

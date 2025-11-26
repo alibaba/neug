@@ -234,7 +234,17 @@ message PathExpand {
     ANY_SHORTEST = 3;
     // Selects all paths that have the minimal length. Deterministic.
     ALL_SHORTEST = 4;
+    // select any weighted shortest path (weight property is defined in ExtraInfo).
+    ANY_WEIGHTED_SHORTEST = 5;
+    // select all weighted shortest paths.
+    ALL_WEIGHTED_SHORTEST = 6;
   }
+
+  message ExtraInfo {
+    // Define the edge weight for computing the weighted shortest path.
+    common.Expression weight_expr = 1;
+  }
+
   // Define what result is required for this path. We currently support `EndV` and `AllV`, while an option to
   // include all edges and vertices may be needed in the future.
   enum ResultOpt {
@@ -245,6 +255,7 @@ message PathExpand {
     // all vertices and edges of this path are required for this expansion.
     ALL_V_E = 2;
   }
+
   // A path expansion has a base of edge expansion
   ExpandBase base = 1;
   // The tag that refers to the starting vertex
@@ -262,6 +273,7 @@ message PathExpand {
   common.Expression condition = 7;
   // Whether the path expand is optional, if true, the path expand will return a `None` if the path does not exist
   bool is_optional = 8;
+  ExtraInfo extra_info = 9;
 }
 
 message Sink {
