@@ -20,7 +20,7 @@ class LDBCTest : public GOptTest {
 
 TEST_F(LDBCTest, IC_9) {
   std::string query =
-      gs::gopt::Utils::readString(getLDBCResourcePath("ic_9.txt"));
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_9.cypher"));
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
@@ -29,11 +29,26 @@ TEST_F(LDBCTest, IC_9) {
 
 TEST_F(LDBCTest, IC_5) {
   std::string query =
-      gs::gopt::Utils::readString(getLDBCResourcePath("ic_5.txt"));
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_5.cypher"));
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
   VerifyFactory::verifyPhysicalByJson(*physical,
                                       getLDBCResource("IC_5_physical"));
 }
+
+TEST_F(LDBCTest, IC_14) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_14.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_14_logical"));
+}
+
+TEST_F(LDBCTest, IC_7) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_7.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_7_logical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

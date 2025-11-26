@@ -23,6 +23,7 @@
 #pragma once
 
 #include "neug/compiler/binder/binder_scope.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/binder/query/bound_regular_query.h"
 #include "neug/compiler/binder/query/query_graph.h"
@@ -424,8 +425,14 @@ class Binder {
 
   ExpressionBinder* getExpressionBinder() { return &expressionBinder; }
 
-  std::shared_ptr<Expression> createAlias(const std::string& name,
-                                          const common::LogicalType& dataType);
+  std::shared_ptr<Expression> createAlias(
+      const std::string& name, const common::LogicalType& dataType,
+      std::shared_ptr<binder::Expression> boundExpr);
+
+  std::shared_ptr<binder::NodeExpression> createChildNodeExpr(
+      std::shared_ptr<binder::Expression> inputExpr,
+      const common::LogicalType& outDataType, const std::string& uniqueName,
+      const std::string& aliasName);
 
  private:
   common::idx_t lastExpressionId;

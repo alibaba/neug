@@ -76,7 +76,14 @@ BoundWithClause Binder::bindWithClause(const WithClause& withClause) {
   // Update scope
   scope.clear();
   for (auto i = 0u; i < projectionExprs.size(); ++i) {
-    addToScope(aliases[i], projectionExprs[i]);
+    auto expr = projectionExprs[i];
+    addToScope(aliases[i], expr);
+    if (expr->getDataType().getLogicalTypeID() == LogicalTypeID::NODE &&
+        expr->expressionType != ExpressionType::PATTERN) {
+      auto childNodeExpr = createChildNodeExpr(
+          expr, expr->getDataType(), expr->getUniqueName(), aliases[i]);
+      replaceExpressionInScope(aliases[i], aliases[i], childNodeExpr);
+    }
   }
   auto boundWithClause = BoundWithClause(std::move(boundProjectionBody));
   if (withClause.hasWhereExpression()) {

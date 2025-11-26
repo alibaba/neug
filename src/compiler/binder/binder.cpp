@@ -25,11 +25,13 @@
 #include <memory>
 #include "neug/compiler/binder/bound_statement_rewriter.h"
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/neug_call_function.h"
+#include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
@@ -295,6 +297,61 @@ function::TableFunction Binder::getScanFunction(
   auto func = BuiltInFunctionsUtils::matchFunction(
       name, inputTypes, entry->ptrCast<FunctionCatalogEntry>());
   return *func->ptrCast<function::NeugCallFunction>();
+}
+
+std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(
+    std::shared_ptr<binder::Expression> inputExpr,
+    const common::LogicalType& outDataType, const std::string& uniqueName,
+    const std::string& aliasName) {
+  if (outDataType.getLogicalTypeID() != common::LogicalTypeID::NODE) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Cannot create child node expression for non-node type: " +
+        outDataType.toString());
+  }
+  bool startNode = true;
+  while (inputExpr) {
+    if (inputExpr->expressionType == common::ExpressionType::FUNCTION) {
+      auto funcExpr = inputExpr->ptrCast<binder::ScalarFunctionExpression>();
+      auto func = funcExpr->getFunction();
+      if (func.name == function::EndNodeFunction::name) {
+        startNode = false;
+      }
+    } else if (inputExpr->expressionType == common::ExpressionType::PATTERN) {
+      auto typeID = inputExpr->getDataType().getLogicalTypeID();
+      if (typeID == common::LogicalTypeID::REL) {
+        auto relExpr = inputExpr->ptrCast<RelExpression>();
+        if (startNode) {
+          inputExpr = relExpr->getSrcNode();
+        } else {
+          inputExpr = relExpr->getDstNode();
+        }
+      } else if (typeID == common::LogicalTypeID::RECURSIVE_REL) {
+        inputExpr =
+            inputExpr->ptrCast<RelExpression>()->getRecursiveInfo()->node;
+      }
+      break;
+    }
+    if (!inputExpr->getNumChildren()) {
+      break;
+    }
+    inputExpr = inputExpr->getChild(0);
+  }
+  std::vector<catalog::TableCatalogEntry*> entries;
+  if (inputExpr &&
+      inputExpr->expressionType == common::ExpressionType::PATTERN &&
+      inputExpr->getDataType().getLogicalTypeID() ==
+          common::LogicalTypeID::NODE) {
+    auto nodeExpr = inputExpr->ptrCast<binder::NodeExpression>();
+    entries = nodeExpr->getEntries();
+  }
+  auto nodeExpr = std::make_shared<binder::NodeExpression>(
+      outDataType.copy(), uniqueName, aliasName, std::move(entries));
+  bindQueryNodeProperties(*nodeExpr);
+  nodeExpr->setAlias(aliasName);
+  auto internalID = PropertyExpression::construct(
+      LogicalType::INTERNAL_ID(), InternalKeyword::ID, *nodeExpr);
+  nodeExpr->setInternalID(std::move(internalID));
+  return nodeExpr;
 }
 
 }  // namespace binder

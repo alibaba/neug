@@ -98,7 +98,10 @@ FusionType ExpandGetVFusion::analyze(
   auto nbrExpr = expandOp->getNbrNode();
   auto getVAlias = getVOp->getGAliasName();
   // the start alias of getV is not aligned with the expand, cannot be fused;
-  if (getVAlias.uniqueName != nbrExpr->getUniqueName()) {
+  if (getVOp->getNodeID()->getUniqueName() !=
+      nbrExpr->getInternalID()->getUniqueName()) {
+    LOG(WARNING) << "Alias name of GetV is not consistent with Expand, skip "
+                    "'ExpandGetVFusion' optimization";
     return FusionType::EXPANDE_GETV;
   }
   // todo: support EXTANDV_GETV

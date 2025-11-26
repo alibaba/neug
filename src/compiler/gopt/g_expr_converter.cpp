@@ -197,10 +197,17 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVar(
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     const std::string& key, const binder::Expression& expr) {
   auto keyPB = convertPropertyExpr(key);
-  auto constPB = convert(expr, {})->operators(0).const_();
+  auto valuePB = convert(expr, {})->operators(0);
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
-  *tripletPB->mutable_const_() = constPB;
+  if (valuePB.has_const_()) {
+    tripletPB->set_allocated_const_(valuePB.release_const_());
+  } else if (valuePB.has_param()) {
+    tripletPB->set_allocated_param(valuePB.release_param());
+  } else {
+    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
+                                   expr.getDataType().toString());
+  }
   tripletPB->set_cmp(::common::Logical::EQ);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
   andPB->mutable_predicates()->AddAllocated(tripletPB.release());
