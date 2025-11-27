@@ -63,8 +63,7 @@ InsertTransaction NeugDBSession::GetInsertTransaction() {
 
 UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(graph_, alloc_, work_dir_, logger_,
-                           *version_manager_, ts);
+  return UpdateTransaction(graph_, alloc_, logger_, *version_manager_, ts);
 }
 
 const PropertyGraph& NeugDBSession::graph() const { return graph_; }

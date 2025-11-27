@@ -120,8 +120,7 @@ class UpdateTransaction {
    *
    * @since v0.1.0
    */
-  UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
-                    const std::string& work_dir, IWalWriter& logger,
+  UpdateTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
                     IVersionManager& vm, timestamp_t timestamp);
 
   /**

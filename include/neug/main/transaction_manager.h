@@ -54,7 +54,7 @@ struct SessionLocalContext {
                        : thread_local_allocator_prefix(work_dir, thread_id))),
         logger(std::move(in_logger)),
         session(graph_, app_manager, version_manager, allocator, *logger,
-                config_, work_dir, thread_id) {
+                config_, thread_id) {
     logger->open();
   }
   ~SessionLocalContext() {

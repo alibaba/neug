@@ -45,7 +45,6 @@
 namespace gs {
 
 UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
-                                     const std::string& work_dir,
                                      IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
     : graph_(graph),
@@ -58,12 +57,6 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
 
   vertex_label_num_ = graph_.schema().vertex_label_num();
   edge_label_num_ = graph_.schema().edge_label_num();
-
-  std::string txn_work_dir = update_txn_dir(work_dir, 0);
-  if (std::filesystem::exists(txn_work_dir)) {
-    remove_directory(txn_work_dir);
-  }
-  std::filesystem::create_directories(txn_work_dir);
 
   added_vertices_base_.resize(vertex_label_num_);
   for (size_t i = 0; i < vertex_label_num_; ++i) {

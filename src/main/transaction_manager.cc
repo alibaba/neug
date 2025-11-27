@@ -119,7 +119,7 @@ InsertTransaction TransactionManager::GetInsertTransaction(int thread_id) {
 
 UpdateTransaction TransactionManager::GetUpdateTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(graph_, contexts_[thread_id].allocator, work_dir_,
+  return UpdateTransaction(graph_, contexts_[thread_id].allocator,
                            *(contexts_[thread_id].logger), *version_manager_,
                            ts);
 }
