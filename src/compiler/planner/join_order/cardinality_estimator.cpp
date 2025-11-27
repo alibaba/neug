@@ -292,10 +292,10 @@ double CardinalityEstimator::getExtensionRate(
   case QueryRelType::ALL_SHORTEST:
   case QueryRelType::WEIGHTED_SHORTEST:
   case QueryRelType::ALL_WEIGHTED_SHORTEST: {
-    auto rate = std::pow(
+    double rate = std::pow(
         std::max<double>(1, oneHopExtensionRate),
         std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1));
-    return rate;
+    return std::min<double>(rate, MAX_EXTENSION_RATE);
   }
   default:
     NEUG_UNREACHABLE;

@@ -1,4 +1,4 @@
-MATCH (person1:PERSON { id: $id1 })-[path : KNOWS* ALL SHORTEST 1..19]-(person2:PERSON {id: $id2})
+MATCH (person1:PERSON { id: $id1 })-[path : KNOWS* ALL SHORTEST 1..]-(person2:PERSON {id: $id2})
 WITH path, rels(path) as rels_in_path
 UNWIND rels_in_path as rel
 WITH path,  START_NODE(rel) as rel0, END_NODE(rel) as rel1
