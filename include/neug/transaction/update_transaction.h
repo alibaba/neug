@@ -337,13 +337,16 @@ class UpdateTransaction {
    * @param table The property table of the vertices to be added.
    * @return Status
    */
+  // TODO(zhanglei): Remove batch method from UpdateTransaction after
+  // refactoring GraphInterface.
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
     return graph_.BatchAddVertices(v_label_id, supplier);
   }
 
-  // Also executed in batch mode
+  // TODO(zhanglei): Remove batch method from UpdateTransaction after
+  // refactoring GraphInterface.
   inline Status BatchAddEdges(label_t src_label, label_t dst_label,
                               label_t edge_label,
                               std::shared_ptr<IRecordBatchSupplier> supplier) {
@@ -352,21 +355,33 @@ class UpdateTransaction {
                                 std::move(supplier));
   }
 
-  // Also executed in batch mode
+  // TODO(zhanglei): Remove batch method from UpdateTransaction after
+  // refactoring GraphInterface.
   inline Status BatchDeleteVertices(label_t v_label_id,
                                     const std::vector<vid_t>& vids) {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label_id);
     return graph_.BatchDeleteVertices(v_label_id, vids);
   }
 
-  // Also executed in batch mode
+  // TODO(zhanglei): Remove batch method from UpdateTransaction after
+  // refactoring GraphInterface.
   inline Status BatchDeleteEdges(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+      const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
     ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
                                   edge_label_id);
     return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, edges);
+                                   edge_label_id, edges_vec);
+  }
+
+  inline Status BatchDeleteEdges(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+      const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+    ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
+                                  edge_label_id);
+    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
+                                   edge_label_id, oe_edges, ie_edges);
   }
 
   inline std::string work_dir() const { return graph_.work_dir(); }

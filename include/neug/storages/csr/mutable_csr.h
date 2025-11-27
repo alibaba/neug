@@ -81,7 +81,13 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   size_t edge_num() const override {
     size_t res = 0;
     for (size_t i = 0; i < adj_list_size_.size(); ++i) {
-      res += adj_list_size_[i];
+      auto begin = adj_list_buffer_[i];
+      for (size_t j = 0; j < adj_list_size_[i].load(); ++j) {
+        if (begin[j].timestamp.load() !=
+            std::numeric_limits<timestamp_t>::max()) {
+          res++;
+        }
+      }
     }
     return res;
   }
@@ -100,6 +106,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void reset_timestamp() override;
 
+  void compact() override;
+
   void resize(vid_t vnum) override;
 
   void close() override;
@@ -112,15 +120,21 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void batch_delete_edges(const std::vector<vid_t>& src_list,
                           const std::vector<vid_t>& dst_list) override;
 
-  void delete_edge(vid_t src, vid_t dst, timestamp_t ts) override;
+  void batch_delete_edges(
+      const std::vector<std::pair<vid_t, int32_t>>& edges) override;
+
+  void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
+
+  void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
+                          timestamp_t ts) override;
 
   void batch_put_edges(const std::vector<vid_t>& src_list,
                        const std::vector<vid_t>& dst_list,
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                Allocator& alloc) override {
+  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+                   Allocator& alloc) override {
     if (src >= adj_list_size_.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -140,11 +154,13 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       adj_list_buffer_[src] = new_buffer;
       adj_list_capacity_[src] = cap;
     }
-    auto& nbr = adj_list_buffer_[src][adj_list_size_[src].fetch_add(1)];
+    int32_t prev_size = adj_list_size_[src].fetch_add(1);
+    auto& nbr = adj_list_buffer_[src][prev_size];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
     locks_[src].unlock();
+    return prev_size;
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -240,6 +256,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   void reset_timestamp() override;
 
+  void compact() override;
+
   void resize(vid_t vnum) override;
 
   void close() override;
@@ -252,15 +270,21 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void batch_delete_edges(const std::vector<vid_t>& src_list,
                           const std::vector<vid_t>& dst_list) override;
 
-  void delete_edge(vid_t src, vid_t dst, timestamp_t ts) override;
+  void batch_delete_edges(
+      const std::vector<std::pair<vid_t, int32_t>>& edges) override;
+
+  void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override;
+
+  void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
+                          timestamp_t ts) override;
 
   void batch_put_edges(const std::vector<vid_t>& src_list,
                        const std::vector<vid_t>& dst_list,
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override;
 
-  void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                Allocator& alloc) override {
+  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+                   Allocator& alloc) override {
     if (src >= nbr_list_.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
@@ -270,6 +294,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     nbr_list_[src].data = data;
     CHECK_EQ(nbr_list_[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbr_list_[src].timestamp.store(ts);
+    return 0;
   }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
@@ -317,6 +342,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   void reset_timestamp() override {}
 
+  void compact() override {}
+
   void resize(vid_t vnum) override {}
 
   void close() override {}
@@ -329,15 +356,23 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void batch_delete_edges(const std::vector<vid_t>& src_list,
                           const std::vector<vid_t>& dst_list) override {}
 
-  void delete_edge(vid_t src, vid_t dst, timestamp_t ts) override {}
+  void batch_delete_edges(
+      const std::vector<std::pair<vid_t, int32_t>>& edges) override {}
+
+  void delete_edge(vid_t src, int32_t offset, timestamp_t ts) override {}
+
+  void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
+                          timestamp_t ts) override {}
 
   void batch_put_edges(const std::vector<vid_t>& src_list,
                        const std::vector<vid_t>& dst_list,
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
-  void put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
-                Allocator&) override {}
+  int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
+                   Allocator&) override {
+    return 0;
+  }
 
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const override {

@@ -517,8 +517,7 @@ static size_t get_offset(NbrIterator base, NbrIterator end, vid_t target) {
   return std::numeric_limits<size_t>::max();
 }
 
-// Currently multiple edges between two vertices are not supported, could not be
-// added
+// TODO(zhanglei): Return NbrIterator when refactoring the GraphInterface.
 bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                                 label_t dst_label, vid_t dst_lid,
                                 label_t edge_label,

@@ -116,7 +116,7 @@ class NeugDB {
             const DBMode mode = DBMode::READ_WRITE,
             const std::string& planner_kind = "gopt", bool warmup = false,
             bool enable_auto_compaction = false, bool compact_csr = true,
-            bool compact_on_close = false, bool checkpoint_on_close = true);
+            bool compact_on_close = true, bool checkpoint_on_close = true);
 
   /**
    * @brief Load the graph from data directory.

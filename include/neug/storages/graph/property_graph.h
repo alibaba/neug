@@ -44,6 +44,10 @@ class OutArchive;
 
 namespace gs {
 
+namespace runtime {
+class EdgeRecord;
+}
+
 /**
  * @brief Core property graph storage engine managing vertices, edges, and
  * schema.
@@ -231,7 +235,7 @@ class PropertyGraph {
   Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
                        std::shared_ptr<IRecordBatchSupplier> supplier);
 
-  Status BatchDeleteVertices(const label_t& v_label_id,
+  Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids);
 
   Status DeleteVertex(label_t v_label, const Property& oid, timestamp_t ts);
@@ -239,9 +243,13 @@ class PropertyGraph {
   Status DeleteVertex(label_t v_label, vid_t lid, timestamp_t ts);
 
   Status BatchDeleteEdges(
-      const label_t& src_v_label, const label_t& dst_v_label,
-      const label_t& edge_label,
+      label_t src_v_label, label_t dst_v_label, label_t edge_label,
       const std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
+
+  Status BatchDeleteEdges(
+      label_t src_v_label, label_t dst_v_label, label_t edge_label,
+      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+      const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
 
   inline VertexTable& get_vertex_table(label_t vertex_label) {
     return vertex_tables_[vertex_label];
@@ -269,10 +277,10 @@ class PropertyGraph {
                    const std::vector<Property>& props, vid_t& vid,
                    timestamp_t ts);
 
-  Status AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
-                 vid_t dst_lid, label_t edge_label,
-                 const std::vector<Property>& properties, timestamp_t ts,
-                 Allocator& alloc);
+  int32_t AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
+                  vid_t dst_lid, label_t edge_label,
+                  const std::vector<Property>& properties, timestamp_t ts,
+                  Allocator& alloc);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);

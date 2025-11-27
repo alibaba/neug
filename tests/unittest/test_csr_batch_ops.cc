@@ -391,13 +391,23 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
     dst_list.push_back(std::get<1>(edges[i]));
     edata_list.push_back(std::get<2>(edges[i]));
   }
-  std::vector<gs::vid_t> src_del, dst_del;
-  for (auto& e : delete_edge_set) {
-    src_del.push_back(e.first);
-    dst_del.push_back(e.second);
-  }
   this->csr->batch_put_edges(src_list, dst_list, edata_list, 0);
-  this->csr->batch_delete_edges(src_del, dst_del);
+  std::vector<std::pair<gs::vid_t, int32_t>> edges_to_delete;
+  auto view = this->csr->get_generic_view(0);
+  for (const auto& edge : delete_edge_set) {
+    gs::vid_t src = edge.first;
+    gs::vid_t dst = edge.second;
+    auto es = view.get_edges(src);
+    for (auto it = es.begin(); it != es.end(); ++it) {
+      if (it.get_vertex() == dst) {
+        edges_to_delete.push_back(
+            {src, (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                   reinterpret_cast<const char*>(es.start_ptr)) /
+                      it.cfg.stride});
+      }
+    }
+  }
+  this->csr->batch_delete_edges(edges_to_delete);
 
   std::sort(edges_after_delete.begin(), edges_after_delete.end());
   this->CheckEqual(edges_after_delete);

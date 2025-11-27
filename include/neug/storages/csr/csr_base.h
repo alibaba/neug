@@ -66,6 +66,8 @@ class CsrBase {
 
   virtual void reset_timestamp() = 0;
 
+  virtual void compact() = 0;
+
   virtual void resize(vid_t vnum) = 0;
 
   virtual void close() = 0;
@@ -77,13 +79,24 @@ class CsrBase {
   virtual void batch_delete_vertices(const std::set<vid_t>& src_set,
                                      const std::set<vid_t>& dst_set) = 0;
 
+  /**
+   * @brief Batch delete edges.
+   * @param edges The edges to be deleted, represented as pairs of
+   * (source vertex id, offset in the neighbor list).
+   */
+  virtual void batch_delete_edges(
+      const std::vector<std::pair<vid_t, int32_t>>& edges) = 0;
+
   virtual void batch_delete_edges(const std::vector<vid_t>& src_list,
                                   const std::vector<vid_t>& dst_list) = 0;
 
-  virtual void delete_edge(vid_t src, vid_t dst, timestamp_t ts) = 0;
+  virtual void delete_edge(vid_t src, int32_t offset, timestamp_t ts) = 0;
 
-  virtual void put_generic_edge(vid_t src, vid_t dst, const Property& data,
-                                timestamp_t ts, Allocator& alloc) = 0;
+  virtual void revert_delete_edge(vid_t src, vid_t nbr, int32_t offset,
+                                  timestamp_t ts) = 0;
+
+  virtual int32_t put_generic_edge(vid_t src, vid_t dst, const Property& data,
+                                   timestamp_t ts, Allocator& alloc) = 0;
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const = 0;
@@ -97,14 +110,16 @@ class TypedCsrBase : public CsrBase {
                                const std::vector<EDATA_T>& data_list,
                                timestamp_t ts = 0) = 0;
 
-  virtual void put_edge(vid_t src, vid_t dst, const EDATA_T& data,
-                        timestamp_t ts, Allocator& alloc) {
+  virtual int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data,
+                           timestamp_t ts, Allocator& alloc) {
     LOG(FATAL) << "not supported...";
+    return 0;
   }
 
-  void put_generic_edge(vid_t src, vid_t dst, const Property& data,
-                        timestamp_t ts, Allocator& alloc) override {
-    this->put_edge(src, dst, PropUtils<EDATA_T>::to_typed(data), ts, alloc);
+  int32_t put_generic_edge(vid_t src, vid_t dst, const Property& data,
+                           timestamp_t ts, Allocator& alloc) override {
+    return this->put_edge(src, dst, PropUtils<EDATA_T>::to_typed(data), ts,
+                          alloc);
   }
 };
 

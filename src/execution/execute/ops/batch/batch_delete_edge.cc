@@ -15,6 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/batch_delete_edge.h"
 #include "neug/execution/common/columns/edge_columns.h"
+#include "neug/storages/csr/generic_view_utils.h"
 
 #include <string_view>
 
@@ -54,116 +55,63 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
     auto& edge_triplets = edge_triplets_[i];
     auto edge_column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(alias));
     if (edge_triplets.size() == 1) {
-      std::vector<std::tuple<vid_t, vid_t>> edges;
       label_t src_v_label = std::get<0>(edge_triplets[0]);
       label_t dst_v_label = std::get<1>(edge_triplets[0]);
       label_t edge_label = std::get<2>(edge_triplets[0]);
-      if (edge_column->edge_column_type() == EdgeColumnType::kSDSL) {
-        size_t edge_size = edge_column->size();
-        if (edge_column->dir() == Direction::kOut) {
-          for (size_t j = 0; j < edge_size; j++) {
-            auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
-          }
-        } else {
-          for (size_t j = 0; j < edge_size; j++) {
-            auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
-          }
+      LabelTriplet request_triplet =
+          LabelTriplet(src_v_label, dst_v_label, edge_label);
+      size_t edge_size = edge_column->size();
+      auto oe_view = graph.GetGenericOutgoingGraphView(src_v_label, dst_v_label,
+                                                       edge_label);
+      auto ie_view = graph.GetGenericIncomingGraphView(dst_v_label, src_v_label,
+                                                       edge_label);
+      auto edge_prop_types = graph.schema().get_edge_properties(
+          src_v_label, dst_v_label, edge_label);
+      std::vector<std::pair<vid_t, int32_t>> oe_to_delete, ie_to_delete;
+      oe_to_delete.reserve(edge_size);
+      ie_to_delete.reserve(edge_size);
+      for (size_t j = 0; j < edge_size; j++) {
+        auto record = edge_column->get_edge(j);
+        if (record.label == request_triplet) {
+          auto offset_pair = record_to_csr_offset_pair(
+              oe_view, ie_view, record, edge_prop_types, MAX_TIMESTAMP);
+          oe_to_delete.emplace_back(record.src, offset_pair.first);
+          ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }
-      } else if (edge_column->edge_column_type() == EdgeColumnType::kBDSL) {
-        size_t edge_size = edge_column->size();
-        for (size_t j = 0; j < edge_size; j++) {
-          auto edge = edge_column->get_edge(j);
-          if (edge.dir == Direction::kOut) {
-            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
-          } else {
-            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
-          }
-        }
-      } else if (edge_column->edge_column_type() == EdgeColumnType::kSDML) {
-        size_t edge_size = edge_column->size();
-        if (edge_column->dir() == Direction::kOut) {
-          for (size_t j = 0; j < edge_size; j++) {
-            auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
-          }
-        } else {
-          for (size_t j = 0; j < edge_size; j++) {
-            auto edge = edge_column->get_edge(j);
-            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
-          }
-        }
-      } else if (edge_column->edge_column_type() == EdgeColumnType::kBDML) {
-        size_t edge_size = edge_column->size();
-        for (size_t j = 0; j < edge_size; j++) {
-          auto edge = edge_column->get_edge(j);
-          if (edge.dir == Direction::kOut) {
-            edges.emplace_back(std::make_tuple(edge.src, edge.dst));
-          } else {
-            edges.emplace_back(std::make_tuple(edge.dst, edge.src));
-          }
-        }
-      } else {
-        LOG(FATAL) << "Unknown edge column type.";
       }
-      graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label, edges);
+      graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label, oe_to_delete,
+                             ie_to_delete);
     } else {
-      std::unordered_map<uint32_t, std::vector<std::tuple<vid_t, vid_t>>>
-          edges_map;
-      for (auto edge_triplet : edge_triplets) {
-        label_t src_v_label = std::get<0>(edge_triplet);
-        label_t dst_v_label = std::get<1>(edge_triplet);
-        label_t edge_label = std::get<2>(edge_triplet);
-        std::vector<std::tuple<vid_t, vid_t>> edges;
+      std::unordered_map<uint32_t, std::vector<EdgeRecord>> edges_map;
+      for (size_t j = 0; j < edge_column->size(); j++) {
+        auto edge = edge_column->get_edge(j);
         uint32_t index = graph.schema().generate_edge_label(
-            src_v_label, dst_v_label, edge_label);
-        edges_map.insert({index, edges});
+            edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
+        if (edges_map.find(index) != edges_map.end()) {
+          edges_map[index].emplace_back(edge);
+        }
       }
-      if (edge_column->edge_column_type() == EdgeColumnType::kSDML) {
-        if (edge_column->dir() == Direction::kOut) {
-          for (size_t j = 0; j < edge_column->size(); j++) {
-            auto edge = edge_column->get_edge(j);
-            label_t src_v_label = edge.label.src_label;
-            label_t dst_v_label = edge.label.dst_label;
-            label_t edge_label = edge.label.edge_label;
-            uint32_t index = graph.schema().generate_edge_label(
-                src_v_label, dst_v_label, edge_label);
-            edges_map.at(index).emplace_back(
-                std::make_tuple(edge.src, edge.dst));
-          }
-        } else {
-          for (size_t j = 0; j < edge_column->size(); j++) {
-            auto edge = edge_column->get_edge(j);
-            label_t src_v_label = edge.label.src_label;
-            label_t dst_v_label = edge.label.dst_label;
-            label_t edge_label = edge.label.edge_label;
-            uint32_t index = graph.schema().generate_edge_label(
-                src_v_label, dst_v_label, edge_label);
-            edges_map.at(index).emplace_back(
-                std::make_tuple(edge.dst, edge.src));
-          }
+
+      for (auto& [index, edges] : edges_map) {
+        auto [src_v_label, dst_v_label, edge_label] =
+            graph.schema().parse_edge_label(index);
+        auto oe_view = graph.GetGenericOutgoingGraphView(
+            src_v_label, dst_v_label, edge_label);
+        auto ie_view = graph.GetGenericIncomingGraphView(
+            dst_v_label, src_v_label, edge_label);
+        std::vector<std::pair<vid_t, int32_t>> oe_to_delete, ie_to_delete;
+        oe_to_delete.reserve(edges.size());
+        ie_to_delete.reserve(edges.size());
+        auto edge_prop_types = graph.schema().get_edge_properties(
+            src_v_label, dst_v_label, edge_label);
+        for (auto& record : edges) {
+          auto offset_pair = record_to_csr_offset_pair(
+              oe_view, ie_view, record, edge_prop_types, MAX_TIMESTAMP);
+          oe_to_delete.emplace_back(record.src, offset_pair.first);
+          ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }
-      } else if (edge_column->edge_column_type() == EdgeColumnType::kBDML) {
-        size_t edge_size = edge_column->size();
-        for (size_t j = 0; j < edge_size; j++) {
-          auto edge = edge_column->get_edge(j);
-          label_t src_v_label = edge.label.src_label;
-          label_t dst_v_label = edge.label.dst_label;
-          label_t edge_label = edge.label.edge_label;
-          uint32_t index = graph.schema().generate_edge_label(
-              src_v_label, dst_v_label, edge_label);
-          if (edge.dir == Direction::kOut) {
-            edges_map.at(index).emplace_back(
-                std::make_tuple(edge.src, edge.dst));
-          } else {
-            edges_map.at(index).emplace_back(
-                std::make_tuple(edge.dst, edge.src));
-          }
-        }
-      } else {
-        LOG(FATAL)
-            << "Size of edge triplet is not consistent with edge column type.";
+        graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label,
+                               oe_to_delete, ie_to_delete);
       }
     }
     std::vector<size_t> offsets;

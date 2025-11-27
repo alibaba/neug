@@ -69,6 +69,9 @@ class EdgeTable {
   void BatchDeleteEdges(const std::vector<vid_t>& src_list,
                         const std::vector<vid_t>& dst_list);
 
+  void BatchDeleteEdges(const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+                        const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
+
   void Resize(vid_t src_vertex_num, vid_t dst_vertex_num);
 
   size_t EdgeNum() const;
@@ -93,9 +96,9 @@ class EdgeTable {
 
   // Add a single edge to the edge table. Note this method requires an Allocator
   // to allocate memory for the edge data. Should be called in tp mode.
-  void AddEdge(vid_t src_lid, vid_t dst_lid,
-               const std::vector<Property>& properties, timestamp_t ts,
-               Allocator& alloc);
+  int32_t AddEdge(vid_t src_lid, vid_t dst_lid,
+                  const std::vector<Property>& properties, timestamp_t ts,
+                  Allocator& alloc);
 
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
@@ -105,10 +108,18 @@ class EdgeTable {
 
   void DeleteProperties(const std::vector<std::string>& col_names);
 
-  void RemoveEdge(vid_t src_lid, vid_t dst_lid, timestamp_t ts);
+  void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                  int32_t ie_offset, timestamp_t ts);
+
+  void RevertDeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                        int32_t ie_offset, timestamp_t ts);
+
+  void UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const Property& new_prop, timestamp_t ts);
 
   void Compact(bool reset_timestamp, bool compact_csr, bool sort_on_compaction,
-               float reserve_ratio, timestamp_t ts);
+               timestamp_t ts);
 
  private:
   void dropAndCreateNewBundledCSR();

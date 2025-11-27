@@ -17,6 +17,7 @@
 #include <string_view>
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/allocators.h"
@@ -547,14 +548,28 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
+  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
 
   size_t delete_count = 0;
   for (size_t i = 0; i < edge_num; ++i) {
     if (i % 10 == 0) {
       gs::vid_t src_lid = GetSrcLid(gs::Property::from_int64(src_list[i]));
       gs::vid_t dst_lid = GetDstLid(gs::Property::from_int64(dst_list[i]));
-      this->edge_table->RemoveEdge(src_lid, dst_lid, gs::MAX_TIMESTAMP);
-      delete_count++;
+      auto es = oe_view.get_edges(src_lid);
+      auto is = ie_view.get_edges(dst_lid);
+      for (auto it = es.begin(); it != es.end(); ++it) {
+        if (it.get_vertex() == dst_lid) {
+          auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+              is, src_lid, it.get_data_ptr(), PropertyType::Int32());
+          auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                            reinterpret_cast<const char*>(es.start_ptr)) /
+                           es.cfg.stride;
+          this->edge_table->DeleteEdge(src_lid, dst_lid, oe_offset,
+                                       another_offset, gs::MAX_TIMESTAMP);
+          delete_count++;
+        }
+      }
     }
   }
 
@@ -562,6 +577,50 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
   this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num - delete_count);
   ASSERT_EQ(dsts.size(), edge_num - delete_count);
+
+  // Test delete edge with soft delete, and revert.
+  size_t soft_delete_todo = std::max(100, (int32_t) srcs.size() / 10);
+  std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> soft_deleted_edges;
+  for (gs::vid_t src_lid = 0; src_lid < this->src_indexer.size() &&
+                              soft_deleted_edges.size() < soft_delete_todo;
+       ++src_lid) {
+    auto es = oe_view.get_edges(src_lid);
+    for (auto it = es.begin(); it != es.end(); ++it) {
+      auto dst_lid = it.get_vertex();
+      auto is = ie_view.get_edges(dst_lid);
+      auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+          is, src_lid, it.get_data_ptr(), PropertyType::Int32());
+      auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                        reinterpret_cast<const char*>(es.start_ptr)) /
+                       es.cfg.stride;
+      this->edge_table->DeleteEdge(src_lid, dst_lid, oe_offset, another_offset,
+                                   gs::MAX_TIMESTAMP);
+      soft_deleted_edges.emplace_back(src_lid, dst_lid, oe_offset,
+                                      another_offset);
+      break;
+    }
+  }
+
+  {
+    std::vector<int64_t> tmp_srcs, tmp_dsts;
+    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, gs::MAX_TIMESTAMP);
+    ASSERT_EQ(tmp_srcs.size(),
+              edge_num - delete_count - soft_deleted_edges.size());
+    ASSERT_EQ(tmp_dsts.size(),
+              edge_num - delete_count - soft_deleted_edges.size());
+  }
+  // Revert soft deleted edges
+  for (const auto& edge_record : soft_deleted_edges) {
+    this->edge_table->RevertDeleteEdge(
+        std::get<0>(edge_record), std::get<1>(edge_record),
+        std::get<2>(edge_record), std::get<3>(edge_record), 0);
+  }
+  {
+    std::vector<int64_t> tmp_srcs, tmp_dsts;
+    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, gs::MAX_TIMESTAMP);
+    ASSERT_EQ(tmp_srcs.size(), edge_num - delete_count);
+    ASSERT_EQ(tmp_dsts.size(), edge_num - delete_count);
+  }
 }
 
 TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
@@ -653,7 +712,7 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
   ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
 }
 
-TEST_F(EdgeTableTest, TestAddEdge) {
+TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   // Test add with AddEdge()
   auto work_dir = this->WorkDirectory();
   auto snapshot_dir = this->SnapshotDirectory();
@@ -688,8 +747,8 @@ TEST_F(EdgeTableTest, TestAddEdge) {
 
   size_t edge_count = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i],
-                              gs::MAX_TIMESTAMP, allocator);
+    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
+                              allocator);
     edge_count++;
   }
   EXPECT_EQ(edge_count, src_lids.size());
@@ -697,7 +756,332 @@ TEST_F(EdgeTableTest, TestAddEdge) {
   this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
+
+  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> edges_to_delete;
+  for (gs::vid_t vid = 0; vid < this->src_indexer.size(); ++vid) {
+    auto es = oe_view.get_edges(vid);
+    for (auto it = es.begin(); it != es.end(); ++it) {
+      if (it.get_vertex() % 2 == 0) {
+        auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                          reinterpret_cast<const char*>(es.start_ptr)) /
+                         es.cfg.stride;
+        auto is = ie_view.get_edges(it.get_vertex());
+        auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+            is, vid, it.get_data_ptr(), PropertyType::Int32());
+        edges_to_delete.emplace_back(
+            std::make_tuple(vid, it.get_vertex(), oe_offset, another_offset));
+        EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
+        EXPECT_NE(another_offset, std::numeric_limits<int32_t>::max());
+        this->edge_table->DeleteEdge(vid, it.get_vertex(), oe_offset,
+                                     another_offset, gs::MAX_TIMESTAMP);
+      }
+    }
+  }
+
+  srcs.clear();
+  dsts.clear();
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num - edges_to_delete.size());
+  ASSERT_EQ(dsts.size(), edge_num - edges_to_delete.size());
+  srcs.clear();
+  dsts.clear();
+  this->OutputIncomingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num - edges_to_delete.size());
+  ASSERT_EQ(dsts.size(), edge_num - edges_to_delete.size());
+
+  // Revert deleted edges
+  for (const auto& edge_record : edges_to_delete) {
+    this->edge_table->RevertDeleteEdge(
+        std::get<0>(edge_record), std::get<1>(edge_record),
+        std::get<2>(edge_record), std::get<3>(edge_record), 0);
+  }
+  srcs.clear();
+  dsts.clear();
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num);
+  ASSERT_EQ(dsts.size(), edge_num);
+  srcs.clear();
+  dsts.clear();
+  this->OutputIncomingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num);
+  ASSERT_EQ(dsts.size(), edge_num);
+
+  // Test Delete multiple same edges with different timestamp.
+  for (timestamp_t ts = 1; ts < 10; ++ts) {
+    this->edge_table->AddEdge(0, 1, edge_data[0], ts, allocator);
+  }
+  std::vector<
+      std::pair<std::tuple<vid_t, vid_t, int32_t, int32_t>, timestamp_t>>
+      multi_edges_to_delete;
+  oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto oes = oe_view.get_edges(0);
+  auto ies = ie_view.get_edges(1);
+  for (auto it = ies.begin(); it != ies.end(); ++it) {
+    if (it.get_vertex() == 0 && it.get_timestamp() % 2 == 1) {
+      auto ie_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                        reinterpret_cast<const char*>(ies.start_ptr)) /
+                       ies.cfg.stride;
+      auto oe_offset = gs::fuzzy_search_offset_from_nbr_list(
+          oes, 1, it.get_data_ptr(), PropertyType::Int32());
+      EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
+      EXPECT_NE(ie_offset, std::numeric_limits<int32_t>::max());
+      multi_edges_to_delete.emplace_back(
+          std::make_tuple(0, 1, oe_offset, ie_offset), it.get_timestamp());
+      this->edge_table->DeleteEdge(0, 1, oe_offset, ie_offset,
+                                   it.get_timestamp());
+    }
+  }
+  auto view_after_delete =
+      this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto es_after_delete = view_after_delete.get_edges(1);
+  for (auto it = es_after_delete.begin(); it != es_after_delete.end(); ++it) {
+    EXPECT_FALSE(it.get_vertex() == 0 && it.get_timestamp() % 2 == 1);
+  }
+  for (const auto& pair : multi_edges_to_delete) {
+    const auto& edge_record = pair.first;
+    this->edge_table->RevertDeleteEdge(
+        std::get<0>(edge_record), std::get<1>(edge_record),
+        std::get<2>(edge_record), std::get<3>(edge_record), pair.second);
+  }
+  auto view_after_revert =
+      this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto es_after_revert = view_after_revert.get_edges(1);
+  size_t revert_count = 0;
+  for (auto it = es_after_revert.begin(); it != es_after_revert.end(); ++it) {
+    if (it.get_vertex() == 0 && it.get_timestamp() % 2 == 1) {
+      revert_count++;
+    }
+  }
+  EXPECT_EQ(revert_count, multi_edges_to_delete.size());
 }
+
+TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
+  // Test add with AddEdge()
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 10;
+  int64_t dst_num = 10;
+  int64_t edge_num = 100;
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<int64_t> src_oids =
+      generate_random_vertices<int64_t>(src_num, edge_num);
+  std::vector<int64_t> dst_oids =
+      generate_random_vertices<int64_t>(dst_num, edge_num);
+  for (auto src_oid : src_oids) {
+    gs::vid_t src_lid =
+        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    src_lids.push_back(src_lid);
+  }
+  for (auto dst_oid : dst_oids) {
+    gs::vid_t dst_lid =
+        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    dst_lids.push_back(dst_lid);
+  }
+  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    edge_data.push_back({gs::Property::from_string_view("edge_data"),
+                         gs::Property::from_int32(static_cast<int>(i))});
+  }
+
+  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+
+  size_t edge_count = 0;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
+                              allocator);
+    edge_count++;
+  }
+  EXPECT_EQ(edge_count, src_lids.size());
+  std::vector<int64_t> srcs, dsts;
+  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs.size(), edge_num);
+  ASSERT_EQ(dsts.size(), edge_num);
+
+  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  std::vector<size_t> deleted_edge_indices;
+  size_t cur_index = 0;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    auto es = oe_view.get_edges(src_lids[i]);
+    for (auto it = es.begin(); it != es.end(); ++it) {
+      if (it.get_vertex() == dst_lids[i] && (cur_index % 10 == 0)) {
+        auto is = ie_view.get_edges(dst_lids[i]);
+        auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                          reinterpret_cast<const char*>(es.start_ptr)) /
+                         es.cfg.stride;
+        auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+            is, src_lids[i], it.get_data_ptr(), PropertyType::UInt64());
+        this->edge_table->DeleteEdge(src_lids[i], dst_lids[i], oe_offset,
+                                     another_offset, gs::MAX_TIMESTAMP);
+        deleted_edge_indices.push_back(cur_index);
+      }
+      cur_index++;
+    }
+  }
+  std::vector<int64_t> srcs_after_delete, dsts_after_delete;
+  this->OutputOutgoingEndpoints(srcs_after_delete, dsts_after_delete,
+                                gs::MAX_TIMESTAMP);
+  ASSERT_EQ(srcs_after_delete.size(), edge_num - deleted_edge_indices.size());
+  ASSERT_EQ(dsts_after_delete.size(), edge_num - deleted_edge_indices.size());
+  for (size_t i = 0, j = 0; i < edge_num; ++i) {
+    if (j < deleted_edge_indices.size() && i == deleted_edge_indices[j]) {
+      j++;
+      continue;
+    }
+    EXPECT_EQ(srcs[i], srcs_after_delete[i - j]);
+    EXPECT_EQ(dsts[i], dsts_after_delete[i - j]);
+  }
+}
+
+TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 100;
+  int64_t dst_num = 100;
+  int64_t edge_num = 1000;
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<int64_t> src_oids =
+      generate_random_vertices<int64_t>(src_num, edge_num);
+  std::vector<int64_t> dst_oids =
+      generate_random_vertices<int64_t>(dst_num, edge_num);
+  for (auto src_oid : src_oids) {
+    gs::vid_t src_lid =
+        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    src_lids.push_back(src_lid);
+  }
+  for (auto dst_oid : dst_oids) {
+    gs::vid_t dst_lid =
+        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    dst_lids.push_back(dst_lid);
+  }
+  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    edge_data.push_back({gs::Property::from_int32(static_cast<int>(i))});
+  }
+
+  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
+                              allocator);
+  }
+  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  size_t delete_count = 0;
+  std::vector<std::tuple<gs::vid_t, gs::vid_t, int32_t, int32_t>>
+      edges_to_delete;
+  for (size_t i = 0; i < src_lids.size(); i += 3) {
+    auto oe_edges = oe_view.get_edges(src_lids[i]);
+    auto ie_edges = ie_view.get_edges(dst_lids[i]);
+    for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+      auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                        reinterpret_cast<const char*>(oe_edges.start_ptr)) /
+                       oe_edges.cfg.stride;
+      auto ie_offset = gs::fuzzy_search_offset_from_nbr_list(
+          ie_edges, src_lids[i], it.get_data_ptr(), PropertyType::Int32());
+      if (ie_offset == std::numeric_limits<int32_t>::max()) {
+        FAIL() << "Cannot find reverse edge!";
+      }
+      edges_to_delete.emplace_back(
+          std::make_tuple(src_lids[i], dst_lids[i], oe_offset, ie_offset));
+      this->edge_table->DeleteEdge(src_lids[i], dst_lids[i], oe_offset,
+                                   ie_offset, 0);
+      delete_count++;
+    }
+  }
+  this->edge_table->Compact(true, true, false, gs::MAX_TIMESTAMP);
+  size_t edge_count = 0;
+  for (size_t i = 0; i < dst_lids.size(); ++i) {
+    auto edges = ie_view.get_edges(dst_lids[i]);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      edge_count++;
+    }
+  }
+  EXPECT_EQ(edge_count, edge_num - delete_count);
+}
+
+TEST_F(EdgeTableTest, TestUpdateEdgeData) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  int64_t src_num = 10;
+  int64_t dst_num = 10;
+  int64_t edge_num = 100;
+  this->InitIndexers(src_num, dst_num);
+  this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
+  this->OpenEdgeTableInMemory(src_num, dst_num);
+  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<int64_t> src_oids =
+      generate_random_vertices<int64_t>(src_num, edge_num);
+  std::vector<int64_t> dst_oids =
+      generate_random_vertices<int64_t>(dst_num, edge_num);
+  for (auto src_oid : src_oids) {
+    gs::vid_t src_lid =
+        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    src_lids.push_back(src_lid);
+  }
+  for (auto dst_oid : dst_oids) {
+    gs::vid_t dst_lid =
+        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    dst_lids.push_back(dst_lid);
+  }
+  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  std::vector<std::vector<gs::Property>> edge_data;
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    edge_data.push_back({gs::Property::from_string("old_data"),
+                         gs::Property::from_int32(static_cast<int>(0))});
+  }
+
+  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
+                              allocator);
+  }
+  std::vector<gs::Property> new_data = {
+      gs::Property::from_string_view("new_data"),
+      gs::Property::from_int32(static_cast<int>(1))};
+  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto ed_accessor_0 = this->edge_table->get_edge_data_accessor(0);
+  auto ed_accessor_1 = this->edge_table->get_edge_data_accessor(1);
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    auto oe_edges = oe_view.get_edges(src_lids[i]);
+    auto ie_edges = ie_view.get_edges(dst_lids[i]);
+    for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+      auto uint64_ptr = reinterpret_cast<const uint64_t*>(it.get_data_ptr());
+      assert(uint64_ptr != nullptr);
+      auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+          ie_edges, src_lids[i], it.get_data_ptr(), PropertyType::UInt64());
+      auto another_iter = ie_edges.begin();
+      another_iter += another_offset;
+      if (another_iter.get_nbr_ptr() == nullptr) {
+        FAIL() << "Cannot find reverse edge!";
+      }
+      ed_accessor_0.set_data(it, new_data[0], 0);
+      ed_accessor_1.set_data(it, new_data[1], 0);
+    }
+  }
+  for (size_t i = 0; i < src_lids.size(); ++i) {
+    auto oe_edges = oe_view.get_edges(src_lids[i]);
+    auto ie_edges = ie_view.get_edges(dst_lids[i]);
+    for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+      auto str_data = ed_accessor_0.get_data(it);
+      auto int_data = ed_accessor_1.get_data(it);
+      CHECK_EQ(int_data.as_int32(), 1);
+      CHECK_EQ(str_data.as_string_view(), new_data[0].as_string_view());
+    }
+  }
+}
+
 template <typename EDATA_T, typename ARROW_COL_T>
 struct TypePair {
   using EdType = EDATA_T;

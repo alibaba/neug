@@ -326,6 +326,14 @@ class StorageUpdateInterface : public StorageReadInterface,
                                  edges);
   }
 
+  inline Status BatchDeleteEdges(
+      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+      const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+    return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
+                                 oe_edges, ie_edges);
+  }
+
  private:
   gs::UpdateTransaction& txn_;
 };

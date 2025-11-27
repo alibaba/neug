@@ -40,7 +40,7 @@ struct NeugDBConfig {
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
-        compact_on_close(false),
+        compact_on_close(true),
         checkpoint_on_close(false) {}
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
       : csr_reserve_ratio(1.2),
@@ -55,7 +55,7 @@ struct NeugDBConfig {
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
-        compact_on_close(false),
+        compact_on_close(true),
         checkpoint_on_close(false) {}
 
   float csr_reserve_ratio;

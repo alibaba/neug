@@ -319,8 +319,36 @@ void MutableCsr<EDATA_T>::reset_timestamp() {
     nbr_t* nbrs = adj_list_buffer_[i];
     size_t deg = adj_list_size_[i].load(std::memory_order_relaxed);
     for (size_t j = 0; j != deg; ++j) {
-      nbrs[j].timestamp.store(0, std::memory_order_relaxed);
+      if (nbrs[j].timestamp != INVALID_TIMESTAMP) {
+        nbrs[j].timestamp.store(0, std::memory_order_relaxed);
+      }
     }
+  }
+}
+
+template <typename EDATA_T>
+void MutableCsr<EDATA_T>::compact() {
+  // We don't shrink the capacity of each adjacency list, but just remove the
+  // deleted edges.
+  size_t vnum = adj_list_buffer_.size();
+  for (size_t i = 0; i != vnum; ++i) {
+    int sz = adj_list_size_[i];
+    nbr_t* read_ptr = adj_list_buffer_[i];
+    nbr_t* read_end = read_ptr + sz;
+    nbr_t* write_ptr = adj_list_buffer_[i];
+    int removed = 0;
+    while (read_ptr != read_end) {
+      if (read_ptr->timestamp != INVALID_TIMESTAMP) {
+        if (removed) {
+          *write_ptr = *read_ptr;
+        }
+        ++write_ptr;
+      } else {
+        ++removed;
+      }
+      ++read_ptr;
+    }
+    adj_list_size_[i] -= removed;
   }
 }
 
@@ -416,50 +444,76 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
   }
   for (const auto& pair : src_dst_map) {
     vid_t src = pair.first;
-    const nbr_t* read_ptr = adj_list_buffer_[src];
-    const nbr_t* read_end = read_ptr + adj_list_size_[src].load();
     nbr_t* write_ptr = adj_list_buffer_[src];
-    int removed = 0;
-    while (read_ptr != read_end) {
-      vid_t nbr = read_ptr->neighbor;
-      if (pair.second.find(nbr) == pair.second.end()) {
-        if (removed) {
-          *write_ptr = *read_ptr;
-        }
-        ++write_ptr;
-      } else {
-        ++removed;
+    const nbr_t* read_end = write_ptr + adj_list_size_[src].load();
+    while (write_ptr != read_end) {
+      if (pair.second.find(write_ptr->neighbor) != pair.second.end()) {
+        write_ptr->timestamp.store(std::numeric_limits<timestamp_t>::max());
       }
-      ++read_ptr;
+      ++write_ptr;
     }
-    adj_list_size_[src] -= removed;
   }
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst, timestamp_t ts) {
-  if (src >= adj_list_size_.size()) {
-    return;
-  }
-  const nbr_t* read_ptr = adj_list_buffer_[src];
-  const nbr_t* read_end = read_ptr + adj_list_size_[src].load();
-  nbr_t* write_ptr = adj_list_buffer_[src];
-  int removed = 0;
-  while (read_ptr != read_end) {
-    vid_t nbr = read_ptr->neighbor;
-    if (nbr != dst) {
-      if (removed) {
-        *write_ptr = *read_ptr;
-      }
-      ++write_ptr;
-    } else {
-      if (read_ptr->timestamp.load() <= ts) {
-        ++removed;
-      }
+void MutableCsr<EDATA_T>::batch_delete_edges(
+    const std::vector<std::pair<vid_t, int32_t>>& edges) {
+  std::map<vid_t, std::set<int32_t>> src_offset_map;
+  vid_t vnum = adj_list_size_.size();
+  for (const auto& edge : edges) {
+    if (edge.first >= vnum || edge.second >= adj_list_size_[edge.first]) {
+      continue;
     }
-    ++read_ptr;
+    src_offset_map[edge.first].insert(edge.second);
   }
-  adj_list_size_[src] -= removed;
+  for (const auto& pair : src_offset_map) {
+    vid_t src = pair.first;
+    nbr_t* write_ptr = adj_list_buffer_[src];
+    for (auto offset : pair.second) {
+      write_ptr[offset].timestamp.store(
+          std::numeric_limits<timestamp_t>::max());
+    }
+  }
+}
+
+template <typename EDATA_T>
+void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
+                                      timestamp_t ts) {
+  vid_t vnum = adj_list_size_.size();
+  if (src >= vnum || offset >= adj_list_size_[src]) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  nbr_t* nbrs = adj_list_buffer_[src];
+  auto old_ts = nbrs[offset].timestamp.load();
+  if (old_ts <= ts) {
+    nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
+  } else if (old_ts == std::numeric_limits<timestamp_t>::max()) {
+    LOG(ERROR) << "Attempting to delete already deleted edge.";
+  } else {
+    LOG(ERROR) << "Attempting to delete edge with timestamp " << old_ts
+               << " using older timestamp " << ts;
+  }
+}
+
+template <typename EDATA_T>
+void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
+                                             int32_t offset, timestamp_t ts) {
+  vid_t vnum = adj_list_size_.size();
+  if (src >= vnum || offset >= adj_list_size_[src]) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  nbr_t* nbrs = adj_list_buffer_[src];
+  if (nbrs[offset].neighbor != nbr) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("neighbor id not match");
+  }
+  auto old_ts = nbrs[offset].timestamp.load();
+  if (old_ts == std::numeric_limits<timestamp_t>::max()) {
+    assert(nbrs[offset].neighbor == nbr);
+    nbrs[offset].timestamp.store(ts);
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Attempting to revert delete on edge that is not deleted.");
+  }
 }
 
 template <typename EDATA_T>
@@ -624,9 +678,14 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::reset_timestamp() {
   size_t vnum = nbr_list_.size();
   for (size_t i = 0; i != vnum; ++i) {
-    nbr_list_[i].timestamp.store(0, std::memory_order_relaxed);
+    if (nbr_list_[i].timestamp != INVALID_TIMESTAMP) {
+      nbr_list_[i].timestamp.store(0, std::memory_order_relaxed);
+    }
   }
 }
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::compact() {}
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
@@ -684,17 +743,57 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst,
+void SingleMutableCsr<EDATA_T>::batch_delete_edges(
+    const std::vector<std::pair<vid_t, int32_t>>& edge_list) {
+  vid_t vnum = nbr_list_.size();
+  for (const auto& edge : edge_list) {
+    vid_t src = edge.first;
+    if (src >= vnum) {
+      continue;
+    }
+    auto& nbr = nbr_list_[src];
+    assert(edge.second == 0);
+    nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                             timestamp_t ts) {
   vid_t vnum = nbr_list_.size();
   if (src >= vnum) {
-    return;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "src out of bound: " + std::to_string(src) +
+        " >= " + std::to_string(vnum));
   }
   auto& nbr = nbr_list_[src];
-  if (nbr.neighbor == dst) {
-    if (nbr.timestamp.load() <= ts) {
-      nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
-    }
+  assert(offset == 0);
+  if (nbr.timestamp.load() <= ts) {
+    nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
+  } else if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
+    LOG(ERROR) << "Fail to delete edge, already deleted.";
+  } else {
+    LOG(ERROR) << "Fail to delete edge, timestamp not satisfied.";
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr_vid,
+                                                   int32_t offset,
+                                                   timestamp_t ts) {
+  vid_t vnum = nbr_list_.size();
+  if (src >= vnum || offset != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  auto& nbr = nbr_list_[src];
+  if (nbr.neighbor != nbr_vid) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("neighbor id not match");
+  }
+  if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
+    nbr.timestamp.store(ts);
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Attempting to revert delete on edge that is not deleted.");
   }
 }
 

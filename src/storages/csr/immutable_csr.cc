@@ -140,6 +140,40 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::compact() {
+  // For current adj_list where the dst vertex is invalid, swap it to the end.
+  vid_t vnum = adj_lists_.size();
+  size_t removed = 0;
+  for (vid_t i = 0; i < vnum; ++i) {
+    int deg = degree_list_[i];
+    if (deg == 0) {
+      continue;
+    }
+    const nbr_t* read_ptr = adj_lists_[i];
+    const nbr_t* read_end = read_ptr + deg;
+    nbr_t* write_ptr = adj_lists_[i];
+    while (read_ptr != read_end) {
+      if (read_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
+        if (removed) {
+          *write_ptr = *read_ptr;
+        }
+        ++write_ptr;
+      } else {
+        --degree_list_[i];
+        ++removed;
+      }
+      ++read_ptr;
+    }
+  }
+  nbr_list_.resize(nbr_list_.size() - removed);
+  nbr_t* ptr = nbr_list_.data();
+  for (vid_t i = 0; i < vnum; ++i) {
+    adj_lists_[i] = ptr;
+    ptr += degree_list_[i];
+  }
+}
+
+template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   if (vnum > adj_lists_.size()) {
     size_t old_size = adj_lists_.size();
@@ -214,11 +248,13 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
   std::map<vid_t, std::set<vid_t>> src_dst_map;
+  vid_t vnum = adj_lists_.size();
   for (size_t i = 0; i < src_list.size(); ++i) {
+    if (src_list[i] >= vnum) {
+      continue;
+    }
     src_dst_map[src_list[i]].insert(dst_list[i]);
   }
-  vid_t vnum = adj_lists_.size();
-  size_t removed = 0;
   for (vid_t i = 0; i < vnum; ++i) {
     int deg = degree_list_[i];
     if (deg == 0) {
@@ -227,62 +263,73 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
     auto iter = src_dst_map.find(i);
     if (iter != src_dst_map.end()) {
       const std::set<vid_t>& dst_set = iter->second;
-      const nbr_t* old_ptr = adj_lists_[i];
-      const nbr_t* old_end = old_ptr + deg;
-      nbr_t* new_ptr = adj_lists_[i] - removed;
-      while (old_ptr != old_end) {
-        if (dst_set.find(old_ptr->neighbor) == dst_set.end()) {
-          *new_ptr = *old_ptr;
-          ++new_ptr;
-        } else {
-          --degree_list_[i];
-          ++removed;
+      nbr_t* write_ptr = adj_lists_[i];
+      const nbr_t* read_end = write_ptr + degree_list_[i];
+      while (write_ptr != read_end) {
+        if (write_ptr->neighbor != std::numeric_limits<vid_t>::max() &&
+            dst_set.find(write_ptr->neighbor) != dst_set.end()) {
+          write_ptr->neighbor = std::numeric_limits<vid_t>::max();
         }
-        ++old_ptr;
-      }
-    } else {
-      if (removed != 0) {
-        memmove(adj_lists_[i] - removed, adj_lists_[i], sizeof(nbr_t) * deg);
+        ++write_ptr;
       }
     }
-  }
-  nbr_list_.resize(nbr_list_.size() - removed);
-  nbr_t* ptr = nbr_list_.data();
-  for (vid_t i = 0; i < vnum; ++i) {
-    adj_lists_[i] = ptr;
-    ptr += degree_list_[i];
   }
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst, timestamp_t ts) {
-  if (src >= adj_lists_.size()) {
+void ImmutableCsr<EDATA_T>::batch_delete_edges(
+    const std::vector<std::pair<vid_t, int32_t>>& edges) {
+  std::map<vid_t, std::set<int32_t>> src_offset_map;
+  vid_t vnum = adj_lists_.size();
+  for (const auto& edge : edges) {
+    if (edge.first >= vnum || edge.second >= degree_list_[edge.first]) {
+      continue;
+    }
+    src_offset_map[edge.first].insert(edge.second);
+  }
+  for (vid_t i = 0; i < vnum; ++i) {
+    int deg = degree_list_[i];
+    if (deg == 0) {
+      continue;
+    }
+    auto iter = src_offset_map.find(i);
+    if (iter != src_offset_map.end()) {
+      nbr_t* write_ptr = adj_lists_[i];
+      for (const auto& offset : iter->second) {
+        write_ptr[offset].neighbor = std::numeric_limits<vid_t>::max();
+      }
+    }
+  }
+}
+
+template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
+                                        timestamp_t ts) {
+  vid_t vnum = adj_lists_.size();
+  if (src >= vnum || offset >= degree_list_[src]) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  nbr_t* nbrs = adj_lists_[src];
+  if (nbrs[offset].neighbor == std::numeric_limits<vid_t>::max()) {
+    LOG(ERROR) << "Fail to delete edge, already deleted.";
     return;
   }
-  const nbr_t* read_ptr = adj_lists_[src];
-  const nbr_t* read_end = read_ptr + degree_list_[src];
-  nbr_t* write_ptr = adj_lists_[src];
-  int removed = 0;
-  while (read_ptr != read_end) {
-    vid_t nbr = read_ptr->neighbor;
-    if (nbr != dst) {
-      if (removed) {
-        *write_ptr = *read_ptr;
-      }
-      ++write_ptr;
-    } else {
-      ++removed;
-    }
-    ++read_ptr;
-  }
-  degree_list_[src] -= removed;
-  nbr_list_.resize(nbr_list_.size() - removed);
+  nbrs[offset].neighbor = std::numeric_limits<vid_t>::max();
+}
+
+template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
+                                               int32_t offset, timestamp_t ts) {
   vid_t vnum = adj_lists_.size();
-  nbr_t* ptr = nbr_list_.data();
-  for (vid_t i = 0; i < vnum; ++i) {
-    adj_lists_[i] = ptr;
-    ptr += degree_list_[i];
+  if (src >= vnum || offset >= degree_list_[src]) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
+  nbr_t* nbrs = adj_lists_[src];
+  if (nbrs[offset].neighbor != std::numeric_limits<vid_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Attempting to revert delete on edge that is not deleted.");
+  }
+  nbrs[offset].neighbor = nbr;
 }
 
 template <typename EDATA_T>
@@ -426,6 +473,9 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::compact() {}
+
+template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   if (vnum > nbr_list_.size()) {
     size_t old_size = nbr_list_.size();
@@ -482,15 +532,47 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
 }
 
 template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::delete_edge(vid_t src, vid_t dst,
-                                              timestamp_t ts) {
+void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
+    const std::vector<std::pair<vid_t, int32_t>>& edges) {
   vid_t vnum = nbr_list_.size();
-  if (src >= vnum) {
-    return;
-  }
-  if (nbr_list_[src].neighbor == dst) {
+  for (const auto& edge : edges) {
+    vid_t src = edge.first;
+    if (src >= vnum) {
+      continue;
+    }
+    assert(edge.second == 0);
     nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
   }
+}
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
+                                              timestamp_t ts) {
+  vid_t vnum = nbr_list_.size();
+  if (src >= vnum || offset != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+    return;
+  }
+  if (nbr_list_[src].neighbor == std::numeric_limits<vid_t>::max()) {
+    LOG(ERROR) << "Fail to delete edge, already deleted.";
+    return;
+  }
+  nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
+}
+
+template <typename EDATA_T>
+void SingleImmutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
+                                                     int32_t offset,
+                                                     timestamp_t ts) {
+  vid_t vnum = nbr_list_.size();
+  if (src >= vnum || offset != 0) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
+  }
+  if (nbr_list_[src].neighbor != std::numeric_limits<vid_t>::max()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Attempting to revert delete on edge that is not deleted.");
+  }
+  nbr_list_[src].neighbor = nbr;
 }
 
 template <typename EDATA_T>

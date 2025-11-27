@@ -661,7 +661,7 @@ Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
   return gs::Status::OK();
 }
 
-Status PropertyGraph::BatchDeleteVertices(const label_t& v_label_id,
+Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
                                           const std::vector<vid_t>& vids) {
   vertex_tables_[v_label_id].BatchDeleteVertices(vids);
 
@@ -697,8 +697,7 @@ Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
 }
 
 Status PropertyGraph::BatchDeleteEdges(
-    const label_t& src_v_label, const label_t& dst_v_label,
-    const label_t& edge_label,
+    label_t src_v_label, label_t dst_v_label, label_t edge_label,
     const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
   size_t index =
       schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
@@ -708,6 +707,16 @@ Status PropertyGraph::BatchDeleteEdges(
     dst_vids.push_back(std::get<1>(edge));
   }
   edge_tables_.at(index).BatchDeleteEdges(src_vids, dst_vids);
+  return Status::OK();
+}
+
+Status PropertyGraph::BatchDeleteEdges(
+    label_t src_v_label, label_t dst_v_label, label_t edge_label,
+    const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+    const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  size_t index =
+      schema_.generate_edge_label(src_v_label, dst_v_label, edge_label);
+  edge_tables_.at(index).BatchDeleteEdges(oe_edges, ie_edges);
   return Status::OK();
 }
 
@@ -869,7 +878,7 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
           if (edge_tables_.count(index) > 0) {
             auto& edge_table = edge_tables_.at(index);
             edge_table.Compact(reset_timestamp, compact_csr, sort_on_compaction,
-                               reserve_ratio, ts);
+                               ts);
           }
         }
       }
@@ -994,20 +1003,21 @@ Status PropertyGraph::AddVertex(label_t label, const Property& id,
   return Status::OK();
 }
 
-Status PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
-                              label_t dst_label, vid_t dst_lid,
-                              label_t edge_label,
-                              const std::vector<Property>& properties,
-                              timestamp_t ts, Allocator& alloc) {
+int32_t PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
+                               label_t dst_label, vid_t dst_lid,
+                               label_t edge_label,
+                               const std::vector<Property>& properties,
+                               timestamp_t ts, Allocator& alloc) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
-                  "Edge table does not exist for edge label: " +
-                      std::to_string(edge_label));
+    THROW_INVALID_ARGUMENT_EXCEPTION("Edge table does not exist for label <" +
+                                     std::to_string(src_label) + ", " +
+                                     std::to_string(dst_label) + ", " +
+                                     std::to_string(edge_label) + ">");
   }
-  edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts, alloc);
-  return gs::Status::OK();
+  return edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts,
+                                        alloc);
 }
 
 Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,

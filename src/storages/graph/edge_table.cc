@@ -30,6 +30,7 @@
 #include "libgrape-lite/grape/serialization/in_archive.h"
 #include "libgrape-lite/grape/types.h"
 
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
@@ -614,9 +615,47 @@ void EdgeTable::BatchDeleteEdges(const std::vector<vid_t>& src_list,
   in_csr_->batch_delete_edges(dst_list, src_list);
 }
 
-void EdgeTable::RemoveEdge(vid_t src_lid, vid_t dst_lid, timestamp_t ts) {
-  out_csr_->delete_edge(src_lid, dst_lid, ts);
-  in_csr_->delete_edge(dst_lid, src_lid, ts);
+void EdgeTable::BatchDeleteEdges(
+    const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+    const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  out_csr_->batch_delete_edges(oe_edges);
+  in_csr_->batch_delete_edges(ie_edges);
+}
+
+void EdgeTable::DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                           int32_t ie_offset, timestamp_t ts) {
+  out_csr_->delete_edge(src_lid, oe_offset, ts);
+  in_csr_->delete_edge(dst_lid, ie_offset, ts);
+}
+
+void EdgeTable::RevertDeleteEdge(vid_t src_lid, vid_t dst_lid,
+                                 int32_t oe_offset, int32_t ie_offset,
+                                 timestamp_t ts) {
+  out_csr_->revert_delete_edge(src_lid, dst_lid, oe_offset, ts);
+  in_csr_->revert_delete_edge(dst_lid, src_lid, ie_offset, ts);
+}
+
+void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
+                                   int32_t oe_offset, int32_t ie_offset,
+                                   int32_t col_id, const Property& prop,
+                                   timestamp_t ts) {
+  auto accessor = get_edge_data_accessor(col_id);
+  auto oe_edges = out_csr_->get_generic_view(ts).get_edges(src_lid);
+  auto oe_iter = oe_edges.begin();
+  oe_iter += oe_offset;
+  if (oe_iter == oe_edges.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("invalid oe offset ");
+  }
+  accessor.set_data(oe_iter, prop, ts);
+  if (meta_->is_bundled()) {
+    auto ie_edges = in_csr_->get_generic_view(ts).get_edges(dst_lid);
+    auto ie_iter = ie_edges.begin();
+    ie_iter += ie_offset;
+    if (ie_iter == ie_edges.end()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("invalid ie offset ");
+    }
+    accessor.set_data(ie_iter, prop, ts);
+  }
 }
 
 void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
@@ -674,8 +713,8 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
   }
 
   if (table_->col_num() == 0) {
-    // NOTE: Rather than check meta_->is_bundled(),we check whether the table is
-    // empty.
+    // NOTE: Rather than check meta_->is_bundled(),we check whether the table
+    // is empty.
     if (meta_->properties.size() == 1) {
       dropAndCreateNewBundledCSR();
     } else {
@@ -718,16 +757,18 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
   }
 }
 
-void EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
-                        const std::vector<Property>& edge_data, timestamp_t ts,
-                        Allocator& alloc) {
+int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
+                           const std::vector<Property>& edge_data,
+                           timestamp_t ts, Allocator& alloc) {
+  int32_t oe_offset;
   if (meta_->is_bundled()) {
     assert(edge_data.size() == 1 ||
            (edge_data.size() == 0 &&
             (meta_->properties.empty() ||
              meta_->properties[0] == PropertyType::kEmpty)));
     in_csr_->put_generic_edge(dst_lid, src_lid, edge_data[0], ts, alloc);
-    out_csr_->put_generic_edge(src_lid, dst_lid, edge_data[0], ts, alloc);
+    oe_offset =
+        out_csr_->put_generic_edge(src_lid, dst_lid, edge_data[0], ts, alloc);
   } else {
     if (meta_->properties.size() != edge_data.size()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -737,9 +778,10 @@ void EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
     Property prop;
     prop.set_uint64(row_id);
     in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    oe_offset = out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
     table_->insert(row_id, edge_data);
   }
+  return oe_offset;
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
@@ -814,8 +856,11 @@ void EdgeTable::BatchAddEdges(
 }
 
 void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
-                        bool sort_on_compaction, float reserve_ratio,
-                        timestamp_t ts) {
+                        bool sort_on_compaction, timestamp_t ts) {
+  if (compact_csr) {
+    out_csr_->compact();
+    in_csr_->compact();
+  }
   if (sort_on_compaction) {
     out_csr_->batch_sort_by_edge_data(ts);
     in_csr_->batch_sort_by_edge_data(ts);
@@ -824,7 +869,6 @@ void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
     out_csr_->reset_timestamp();
     in_csr_->reset_timestamp();
   }
-  // TODO(zhanglei): Resize the CSR with reserve_ratio
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR() {

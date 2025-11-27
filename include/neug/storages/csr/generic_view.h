@@ -55,6 +55,13 @@ struct NbrIterator {
     return *this;
   }
 
+  __attribute__((always_inline)) NbrIterator& operator+=(size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+      ++(*this);
+    }
+    return *this;
+  }
+
   __attribute__((always_inline)) bool operator==(const NbrIterator& rhs) const {
     return (cur == rhs.cur);
   }

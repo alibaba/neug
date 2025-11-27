@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/csr/mutable_csr.h"
 
 static const size_t src_v_num = 5;
@@ -79,6 +80,18 @@ class MutableCsrTest : public ::testing::Test {
 
   void SetUp() override {
     allocators.resize(1, Allocator(gs::MemoryStrategy::kMemoryOnly, ""));
+  }
+
+  size_t count_edge_num(MutableCsr<EDATA_T>& csr) {
+    size_t edge_num = 0;
+    auto oe_view = csr.get_generic_view(0);
+    for (gs::vid_t src = 0; src < src_v_num; ++src) {
+      auto edges = oe_view.get_edges(src);
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        edge_num += 1;
+      }
+    }
+    return edge_num;
   }
 
   void load_csr_data(MutableCsr<EDATA_T>& csr, int memory_level) {
@@ -276,6 +289,44 @@ class MutableCsrTest : public ::testing::Test {
     return true;
   }
 
+  template <template <typename> class CSR_T>
+  void put_single_edge(CSR_T<EDATA_T>& csr, gs::vid_t src, gs::vid_t dst,
+                       timestamp_t ts, Allocator& allocator) {
+    if constexpr (std::is_same_v<EDATA_T, int32_t>) {
+      int32_t data = 100;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, int64_t>) {
+      int64_t data = 100;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, uint32_t>) {
+      uint32_t data = 100;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, uint64_t>) {
+      uint64_t data = 100;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, float>) {
+      float data = 100.0;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, double>) {
+      double data = 100.0;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, Date>) {
+      Date data(100);
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, DateTime>) {
+      DateTime data(100);
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
+      Interval data(std::string("100seconds"));
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
+      grape::EmptyType data;
+      csr.put_edge(src, dst, data, ts, allocator);
+    } else {
+      FAIL();
+    }
+  }
+
   std::vector<gs::Allocator> allocators;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
@@ -422,16 +473,44 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteVertices) {
 TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, 1);
-  mutable_csr.batch_delete_edges(delete_src_edges, delete_dst_edges);
+  std::vector<std::pair<vid_t, int32_t>> edges_to_delete;
+  auto view = mutable_csr.get_generic_view(1);
+  for (size_t i = 0; i < delete_src_edges.size(); ++i) {
+    auto edges = view.get_edges(delete_src_edges[i]);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_vertex() == delete_dst_edges[i]) {
+        auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                       reinterpret_cast<const char*>(edges.start_ptr)) /
+                      it.cfg.stride;
+        edges_to_delete.emplace_back(delete_src_edges[i],
+                                     static_cast<int32_t>(offset));
+        break;
+      }
+    }
+  }
+  mutable_csr.batch_delete_edges(edges_to_delete);
   EXPECT_EQ(mutable_csr.edge_num(), enum_after_delete_edge);
 
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, 1);
-  single_mutable_csr.batch_delete_edges(delete_src_edges, delete_dst_edges);
-  EXPECT_EQ(single_mutable_csr.edge_num(), enum_after_delete_edge_single);
+  edges_to_delete.clear();
+  view = single_mutable_csr.get_generic_view(1);
+  for (size_t i = 0; i < delete_src_edges.size(); ++i) {
+    auto edges = view.get_edges(delete_src_edges[i]);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_vertex() == delete_dst_edges[i]) {
+        auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                       reinterpret_cast<const char*>(edges.start_ptr)) /
+                      it.cfg.stride;
+        edges_to_delete.emplace_back(delete_src_edges[i], offset);
+        assert(offset == 0);
+        break;
+      }
+    }
+  }
 
-  EmptyCsr<TypeParam> empty_csr;
-  empty_csr.batch_delete_edges(delete_src_edges, delete_dst_edges);
+  single_mutable_csr.batch_delete_edges(edges_to_delete);
+  EXPECT_EQ(single_mutable_csr.edge_num(), enum_after_delete_edge_single);
 }
 
 TYPED_TEST(MutableCsrTest, TestPutEdge) {
@@ -446,89 +525,15 @@ TYPED_TEST(MutableCsrTest, TestPutEdge) {
 
   EmptyCsr<TypeParam> empty_csr;
   timestamp_t insert_ts = 6;
-  if constexpr (std::is_same_v<TypeParam, int32_t>) {
-    int32_t data = 10;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, int64_t>) {
-    int64_t data = 10;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, uint32_t>) {
-    uint32_t data = 10;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, uint64_t>) {
-    uint64_t data = 10;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, float>) {
-    float data = 10.4;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, double>) {
-    double data = 10.4;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, Date>) {
-    Date data = Date(435);
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, DateTime>) {
-    DateTime data = DateTime(20);
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, Interval>) {
-    Interval data = Interval(std::string("4minutes"));
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else if constexpr (std::is_same_v<TypeParam, grape::EmptyType>) {
-    grape::EmptyType data;
-    mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                         this->allocators[0]);
-    single_mutable_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                                this->allocators[0]);
-    empty_csr.put_edge(insert_src_vid, insert_dst_vid, data, insert_ts,
-                       this->allocators[0]);
-  } else {
-    FAIL();
-  }
+  this->template put_single_edge<MutableCsr>(mutable_csr, insert_src_vid,
+                                             insert_dst_vid, insert_ts,
+                                             this->allocators[0]);
+  this->template put_single_edge<SingleMutableCsr>(
+      single_mutable_csr, insert_src_vid, insert_dst_vid, insert_ts,
+      this->allocators[0]);
+  this->template put_single_edge<EmptyCsr>(empty_csr, insert_src_vid,
+                                           insert_dst_vid, insert_ts,
+                                           this->allocators[0]);
   EXPECT_EQ(mutable_csr.edge_num(), edge_num + 1);
   EXPECT_EQ(single_mutable_csr.edge_num(), edge_num);
   EXPECT_EQ(empty_csr.edge_num(), 0);
@@ -543,6 +548,68 @@ TEST(CsrToolTest, OpenNonExistFile) {
   std::string non_exist_filename = "/invalid/non_exist_file";
   EXPECT_THROW(read_file(non_exist_filename, buffer, 0, 0),
                gs::exception::Exception);
+}
+
+TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
+  MutableCsr<TypeParam> mutable_csr;
+  this->load_csr_data(mutable_csr, 1);
+  std::vector<std::tuple<vid_t, vid_t, int32_t>> edges_to_delete;
+  auto oe_view = mutable_csr.get_generic_view(0);
+  std::set<size_t> deleted_indices;
+  while (edges_to_delete.size() < 4) {
+    size_t idx;
+    while (true) {
+      idx = std::rand() % edge_num;
+      if (deleted_indices.find(idx) == deleted_indices.end()) {
+        deleted_indices.insert(idx);
+        break;
+      }
+    }
+    auto edges = oe_view.get_edges(src_vid[idx]);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (it.get_vertex() == dst_vid[idx]) {
+        auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                       reinterpret_cast<const char*>(edges.start_ptr)) /
+                      it.cfg.stride;
+        edges_to_delete.emplace_back(src_vid[idx], dst_vid[idx],
+                                     static_cast<int32_t>(offset));
+        break;
+      }
+    }
+  }
+
+  for (const auto& edge : edges_to_delete) {
+    mutable_csr.delete_edge(std::get<0>(edge), std::get<2>(edge), 0);
+  }
+
+  EXPECT_EQ(this->count_edge_num(mutable_csr),
+            edge_num - edges_to_delete.size());
+
+  for (const auto& edge : edges_to_delete) {
+    mutable_csr.revert_delete_edge(std::get<0>(edge), std::get<1>(edge),
+                                   std::get<2>(edge), 0);
+  }
+
+  EXPECT_EQ(this->count_edge_num(mutable_csr), edge_num);
+
+  // Try to revert deletion again, which should fail.
+  for (const auto& edge : edges_to_delete) {
+    EXPECT_THROW(
+        mutable_csr.revert_delete_edge(std::get<0>(edge), std::get<1>(edge),
+                                       std::get<2>(edge), 0),
+        gs::exception::Exception);
+  }
+
+  for (size_t i = 0; i < 50; ++i) {
+    for (size_t src_ind = 0; src_ind < src_vid.size(); ++src_ind) {
+      this->template put_single_edge<MutableCsr>(mutable_csr, src_vid[src_ind],
+                                                 dst_vid[src_ind], 0,
+                                                 this->allocators[0]);
+    }
+  }
+  EXPECT_EQ(this->count_edge_num(mutable_csr), edge_num + 50 * src_vid.size());
+
+  mutable_csr.close();
 }
 }  // namespace test
 }  // namespace gs
