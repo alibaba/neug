@@ -75,7 +75,7 @@ bool CypherInsertApp::Query(NeugDBSession& graph, Decoder& input,
                                        .value());
   }
 
-  gs::runtime::StorageInsertInterface gri(txn);
+  gs::runtime::StorageTPInsertInterface gri(txn);
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(), params,
                                                timer.get());

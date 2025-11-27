@@ -71,7 +71,7 @@ class IStorageInterface {
   virtual bool GetVertexIndex(label_t label, const Property& id,
                               vid_t& index) const = 0;
 };
-class StorageReadInterface : public IStorageInterface {
+class StorageReadInterface : virtual public IStorageInterface {
  public:
   template <typename PROP_T>
   using vertex_column_t = TypedRefColumn<PROP_T>;
@@ -154,13 +154,30 @@ class StorageReadInterface : public IStorageInterface {
   timestamp_t read_ts_;
 };
 
-class StorageInsertInterface : public IStorageInterface {
+class StorageInsertInterface : virtual public IStorageInterface {
  public:
-  bool readable() const override { return false; }
-  bool writable() const override { return true; }
-
-  explicit StorageInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
+  bool readable() const { return false; }
+  bool writable() const { return true; }
+  explicit StorageInsertInterface() {}
   ~StorageInsertInterface() {}
+
+  virtual bool AddVertex(label_t label, const Property& id,
+                         const std::vector<Property>& props, vid_t& vid) = 0;
+
+  virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                       vid_t dst, label_t edge_label,
+                       const std::vector<Property>& properties) = 0;
+  virtual Status BatchAddVertices(
+      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) = 0;
+
+  virtual Status BatchAddEdges(
+      label_t src_label, label_t dst_label, label_t edge_label,
+      std::shared_ptr<IRecordBatchSupplier> supplier) = 0;
+};
+class StorageTPInsertInterface : public StorageInsertInterface {
+ public:
+  explicit StorageTPInsertInterface(gs::InsertTransaction& txn) : txn_(txn) {}
+  ~StorageTPInsertInterface() {}
 
   inline bool AddVertex(label_t label, const Property& id,
                         const std::vector<Property>& props, vid_t& vid) {
@@ -180,43 +197,38 @@ class StorageInsertInterface : public IStorageInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
+  inline Status BatchAddVertices(
+      label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+    LOG(FATAL) << "BatchAddVertices is not supported in TP mode currently.";
+    return Status::OK();
+  }
+
+  inline Status BatchAddEdges(label_t src_label, label_t dst_label,
+                              label_t edge_label,
+                              std::shared_ptr<IRecordBatchSupplier> supplier) {
+    LOG(FATAL) << "BatchAddEdges is not supported in TP mode currently.";
+    return Status::OK();
+  }
+
  private:
   gs::InsertTransaction& txn_;
 };
 
-class StorageUpdateInterface : public IStorageInterface {
+class StorageUpdateInterface : public StorageReadInterface,
+                               public StorageInsertInterface {
  public:
-  template <typename PROP_T>
-  using vertex_column_t = TypedRefColumn<PROP_T>;
-
   bool readable() const override { return true; }
   bool writable() const override { return true; }
 
-  template <typename PROP_T>
-  inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
-      label_t label, const std::string& prop_name) const {
-    return std::dynamic_pointer_cast<vertex_column_t<PROP_T>>(
-        txn_.get_vertex_property_column(label, prop_name));
-  }
-
-  explicit StorageUpdateInterface(gs::UpdateTransaction& txn) : txn_(txn) {}
+  explicit StorageUpdateInterface(gs::UpdateTransaction& txn)
+      : StorageReadInterface(txn.graph(), txn.timestamp()),
+        StorageInsertInterface(),
+        txn_(txn) {}
   ~StorageUpdateInterface() {}
 
   inline void UpdateVertexProperty(label_t label, vid_t lid, int col_id,
                                    const Property& value) {
     txn_.UpdateVertexProperty(label, lid, col_id, value);
-  }
-
-  inline VertexSet GetVertexSet(label_t label) const {
-    return txn_.GetVertexSet(label);
-  }
-
-  inline Property GetVertexProperty(label_t label, vid_t index,
-                                    int prop_id) const {
-    return txn_.GetGraph()
-        .get_vertex_table(label)
-        .get_property_column(prop_id)
-        ->get_prop(index);
   }
 
   inline void SetEdgeData(bool dir, label_t label, vid_t v,
@@ -250,13 +262,7 @@ class StorageUpdateInterface : public IStorageInterface {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
-  inline const Schema& schema() const { return txn_.schema(); }
-
-  inline Property GetVertexId(label_t label, vid_t index) const {
-    return txn_.GetVertexId(label, index);
-  }
-
-  inline auto GetOutEdgeIterator(label_t label, vid_t src,
+    inline auto GetOutEdgeIterator(label_t label, vid_t src,
                                  label_t neighbor_label, label_t edge_label,
                                  int prop_id) const {
     return txn_.GetOutEdgeIterator(label, src, neighbor_label, edge_label,
@@ -277,24 +283,24 @@ class StorageUpdateInterface : public IStorageInterface {
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.GetGraph().GetGenericOutgoingGraphView(
+    return txn_.graph().GetGenericOutgoingGraphView(
         v_label, neighbor_label, edge_label, txn_.timestamp());
   }
 
   GenericView GetGenericIncomingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.GetGraph().GetGenericIncomingGraphView(
+    return txn_.graph().GetGenericIncomingGraphView(
         v_label, neighbor_label, edge_label, txn_.timestamp());
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return txn_.GetGraph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                               prop_id);
+    return txn_.graph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                            prop_id);
   }
 
-  inline std::string work_dir() const { return txn_.GetGraph().work_dir(); }
+  inline std::string work_dir() const { return txn_.graph().work_dir(); }
 
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {

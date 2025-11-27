@@ -401,6 +401,8 @@ Property RTAny::to_any() const {
     return Property::from_bool(value_.b_val);
   case RTAnyType::kI64Value:
     return Property::from_int64(value_.i64_val);
+  case RTAnyType::kU64Value:
+    return Property::from_uint64(value_.u64_val);
   case RTAnyType::kI32Value:
     return Property::from_int32(value_.i32_val);
   case RTAnyType::kU32Value:

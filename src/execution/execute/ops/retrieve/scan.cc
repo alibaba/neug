@@ -634,7 +634,7 @@ class DummySourceOpr : public IOperator {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);
-    ctx.set(0, builder.finish());
+    ctx.set(-1, builder.finish());
     return ctx;
   }
 

@@ -306,7 +306,7 @@ class UpdateTransaction {
 
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;
 
-  PropertyGraph& GetGraph() const { return graph_; }
+  PropertyGraph& graph() const { return graph_; }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {

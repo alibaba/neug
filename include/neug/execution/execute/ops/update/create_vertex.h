@@ -13,37 +13,18 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
-#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
-
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
+#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_INSERT_CREATE_VERTEX_H_
+#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_INSERT_CREATE_VERTEX_H_
 #include "neug/execution/execute/operator.h"
-#include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/utils/property/types.h"
 
 namespace gs {
-class Schema;
-
 namespace runtime {
-class Context;
-class StorageUpdateInterface;
-class OprTimer;
-
 namespace ops {
-
-class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
+class CreateVertexOprBuilder : public IOperatorBuilder {
  public:
-  BatchInsertEdgeOprBuilder() = default;
-  ~BatchInsertEdgeOprBuilder() = default;
+  CreateVertexOprBuilder() = default;
+  ~CreateVertexOprBuilder() = default;
 
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
@@ -52,12 +33,10 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
-    return {physical::PhysicalOpr_Operator::OpKindCase::kLoadEdge};
+    return {physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex};
   }
 };
-
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_BATCH_BATCH_INSERT_EDGE_H_
+#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_INSERT_CREATE_VERTEX_H_

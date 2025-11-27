@@ -48,6 +48,8 @@
 #include "neug/execution/execute/ops/retrieve/unfold.h"
 #include "neug/execution/execute/ops/retrieve/union.h"
 #include "neug/execution/execute/ops/retrieve/vertex.h"
+#include "neug/execution/execute/ops/update/create_edge.h"
+#include "neug/execution/execute/ops/update/create_vertex.h"
 #include "neug/execution/execute/ops/update/edge.h"
 #include "neug/execution/execute/ops/update/group_by.h"
 #include "neug/execution/execute/ops/update/join.h"
@@ -135,13 +137,15 @@ void PlanParser::init() {
   register_update_operator_builder(
       std::make_unique<ops::BatchDeleteEdgeOprBuilder>());
   register_update_operator_builder(
-      std::make_unique<ops::InsertVertexOprBuilder>());
+      std::make_unique<ops::CreateVertexOprBuilder>());
   register_update_operator_builder(
-      std::make_unique<ops::InsertEdgeOprBuilder>());
+      std::make_unique<ops::CreateEdgeOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::UpdateVertexOprBuilder>());
   register_update_operator_builder(
       std::make_unique<ops::UpdateEdgeOprBuilder>());
+  register_update_operator_builder(
+      std::make_unique<ops::UDummySourceOprBuilder>());
   // TODO: Review which pipeline should procedureCall be put.
   register_update_operator_builder(
       std::make_unique<ops::ProcedureCallOprBuilder>());
@@ -423,8 +427,13 @@ gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
     auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
     if (op_kind == physical::PhysicalOpr_Operator::OpKindCase::kRoot) {
       // skip root only
-      i++;
-      continue;
+      if (i + 1 < opr_num &&
+          plan.query_plan().plan(i + 1).opr().op_kind_case() ==
+              physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex) {
+      } else {
+        i++;
+        continue;
+      }
     }
 
     auto& builders = update_op_builders_[op_kind];

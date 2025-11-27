@@ -42,6 +42,24 @@ class UScanOprBuilder : public IOperatorBuilder {
   }
 };
 
+class UDummySourceOprBuilder : public IOperatorBuilder {
+ public:
+  UDummySourceOprBuilder() = default;
+  ~UDummySourceOprBuilder() = default;
+
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kRoot,
+            physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex};
+  }
+  int stepping(int i) override { return i + 1; }
+};
+
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

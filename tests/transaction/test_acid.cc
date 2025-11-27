@@ -210,7 +210,7 @@ void neug_AtomicityInit(NeugDB& db, const std::string& work_dir,
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   int64_t id1 = 1;
   std::string name1 = "Alice";
   std::string email1 = "alice@aol.com";
@@ -332,7 +332,7 @@ void G0Init(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
 
   std::string value = "0";
   for (int i = 0; i < 100; ++i) {
@@ -488,7 +488,7 @@ void G1BInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
@@ -540,7 +540,7 @@ void G1CInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
 
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
 
   int64_t version_property = 0;
   for (int i = 0; i < 100; ++i) {
@@ -607,7 +607,7 @@ void G1AInit(NeugDB& db, const std::string& work_dir, int thread_num) {
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   int64_t vertex_data = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
@@ -744,7 +744,7 @@ void PMPInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto post_label_id = schema.get_vertex_label_id("POST");
 
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
     int64_t value = i + 1;
     vid_t vid;
@@ -858,7 +858,7 @@ void OTVInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   int64_t value = 0;
 
   for (int j = 1; j <= 100; j++) {
@@ -1058,7 +1058,7 @@ void LUInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gii(txn);
+  gs::runtime::StorageTPInsertInterface gii(txn);
   int64_t num_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
@@ -1133,7 +1133,7 @@ void WSInit(NeugDB& db, const std::string& work_dir, int thread_num) {
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = db.GetInsertTransaction();
-  gs::runtime::StorageInsertInterface gi(txn);
+  gs::runtime::StorageTPInsertInterface gi(txn);
 
   for (int i = 1; i <= 100; i++) {
     int64_t id1 = 2 * i - 1;

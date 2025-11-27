@@ -54,21 +54,6 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
   }
 };
 
-class InsertVertexOprBuilder : public IOperatorBuilder {
- public:
-  InsertVertexOprBuilder() = default;
-  ~InsertVertexOprBuilder() = default;
-
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
-  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
-      const override {
-    return {physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex};
-  }
-};
-
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

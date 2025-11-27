@@ -164,6 +164,30 @@ gs::result<OpBuildResultT> UScanOprBuilder::Build(
   return std::make_pair(std::make_unique<UScanOpr>(params, oids, pred),
                         ContextMeta());
 }
+
+class UDummySourceOpr : public IOperator {
+ public:
+  UDummySourceOpr() {}
+
+  gs::result<gs::runtime::Context> Eval(
+      gs::runtime::IStorageInterface& graph_interface,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    ctx = Context();
+    ValueColumnBuilder<int32_t> builder;
+    builder.push_back_opt(0);
+    ctx.set(-1, builder.finish());
+    return ctx;
+  }
+
+  std::string get_operator_name() const override { return "DummySourceOpr"; }
+};
+
+gs::result<OpBuildResultT> UDummySourceOprBuilder::Build(
+    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  return std::make_pair(std::make_unique<UDummySourceOpr>(), ctx_meta);
+}
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
