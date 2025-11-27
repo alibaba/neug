@@ -5,6 +5,12 @@
   "plan": [
    {
     "opr": {
+     "root": {}
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
      "create_vertex": {
       "entries": [
        {
@@ -126,14 +132,6 @@
         "conflict_action": "ON_CONFLICT_THROW"
        }
       ]
-     }
-    },
-    "meta_data": []
-   },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
      }
     },
     "meta_data": []

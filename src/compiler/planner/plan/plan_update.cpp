@@ -47,7 +47,7 @@ void Planner::planInsertClause(const BoundUpdatingClause* updatingClause,
                                LogicalPlan& plan) {
   auto& insertClause = updatingClause->constCast<BoundInsertClause>();
   if (plan.isEmpty()) {  // E.g. CREATE (a:Person {age:20})
-    appendDummyScan(plan, true);
+    appendDummyScan(plan);
   } else {
     // appendAccumulate(plan);
   }

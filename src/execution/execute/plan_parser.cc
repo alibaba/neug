@@ -421,6 +421,11 @@ gs::result<UpdatePipeline> PlanParser::parse_update_pipeline(
   int opr_num = plan.query_plan().plan_size();
   for (int i = 0; i < opr_num;) {
     auto op_kind = plan.query_plan().plan(i).opr().op_kind_case();
+    if (op_kind == physical::PhysicalOpr_Operator::OpKindCase::kRoot) {
+      // skip root only
+      i++;
+      continue;
+    }
 
     auto& builders = update_op_builders_[op_kind];
     int old_i = i;

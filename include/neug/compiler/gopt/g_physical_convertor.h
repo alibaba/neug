@@ -52,6 +52,8 @@ class GPhysicalConvertor {
       return physicalPlan;
     }
     case PhysicalMode::READ_WRITE: {
+      // remove tailing sink operator is last operator is update clause
+      skipSink |= updateClause(plan.getLastOperator());
       auto queryPlan = convertQuery(plan, skipSink);
       queryPlan->set_mode(::physical::QueryPlan::READ_WRITE);
       auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
@@ -68,6 +70,14 @@ class GPhysicalConvertor {
       THROW_EXCEPTION_WITH_FILE_LINE("Unknown physical mode " +
                                      std::to_string(static_cast<int>(mode)));
     }
+  }
+
+  bool updateClause(std::shared_ptr<planner::LogicalOperator> op) {
+    return op->getOperatorType() == planner::LogicalOperatorType::INSERT ||
+           op->getOperatorType() == planner::LogicalOperatorType::MERGE ||
+           op->getOperatorType() ==
+               planner::LogicalOperatorType::SET_PROPERTY ||
+           op->getOperatorType() == planner::LogicalOperatorType::DELETE;
   }
 
  private:
