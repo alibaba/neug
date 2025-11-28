@@ -1,0 +1,25 @@
+INSERT[]
+HASH_JOIN[t.id=tagId, SIP: PROHIBIT, Join Type: INNER, Join Conditions: t.id=tagId]
+CHILD:
+    SCAN_NODE_TABLE[t._ID t.idType: INTERNAL_ID Cardinality: 16080]
+CHILD:
+    UNWIND[$tagIds]
+    PROJECTION[c]
+    UNION_ALL[]
+    CHILD:
+        PROJECTION[c]
+        INSERT[,]
+        INSERT[c]
+        CROSS_PRODUCT[0]
+        CHILD:
+            SCAN_NODE_TABLE[author._ID  PK_SCAN($authorPersonId)Type: INTERNAL_ID Cardinality: 1]
+        CHILD:
+            SCAN_NODE_TABLE[country._ID  PK_SCAN($countryId)Type: INTERNAL_ID Cardinality: 1]
+    CHILD:
+        PROJECTION[c]
+        INSERT[]
+        SCAN_NODE_TABLE[comment._ID comment.id PK_SCAN($replyToCommentId)Type: INTERNAL_ID Cardinality: 1]
+    CHILD:
+        PROJECTION[c]
+        INSERT[]
+        SCAN_NODE_TABLE[post._ID post.id PK_SCAN($replyToPostId)Type: INTERNAL_ID Cardinality: 1]

@@ -136,6 +136,11 @@ class NEUG_API Planner {
       const binder::BoundStatement& boundStatement);
   std::vector<std::unique_ptr<LogicalPlan>> planSingleQuery(
       const binder::NormalizedSingleQuery* singleQuery);
+
+  std::vector<std::unique_ptr<LogicalPlan>> planSingleQuery(
+      const binder::NormalizedSingleQuery* singleQuery,
+      std::vector<std::unique_ptr<LogicalPlan>> prevPlans);
+
   std::vector<std::unique_ptr<LogicalPlan>> planQueryPart(
       const binder::NormalizedQueryPart* queryPart,
       std::vector<std::unique_ptr<LogicalPlan>> prevPlans);

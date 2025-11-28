@@ -107,10 +107,7 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQuery(
     }
     if (regularQuery.getPostSingleQuery()) {
       auto postQuery = regularQuery.getPostSingleQuery();
-      for (auto pos = 0u; pos < postQuery->getNumQueryParts(); pos++) {
-        resultPlans =
-            planQueryPart(postQuery->getQueryPart(pos), std::move(resultPlans));
-      }
+      resultPlans = planSingleQuery(postQuery, std::move(resultPlans));
     }
   }
   return resultPlans;

@@ -12,6 +12,12 @@ namespace planner {
 // delay ResultCollector appending to enumerate regular query level.
 std::vector<std::unique_ptr<LogicalPlan>> Planner::planSingleQuery(
     const NormalizedSingleQuery* singleQuery) {
+  return planSingleQuery(singleQuery, std::move(getInitialEmptyPlans()));
+}
+
+std::vector<std::unique_ptr<LogicalPlan>> Planner::planSingleQuery(
+    const NormalizedSingleQuery* singleQuery,
+    std::vector<std::unique_ptr<LogicalPlan>> prevPlans) {
   auto propertyCollector = binder::PropertyCollector();
   propertyCollector.visitSingleQuery(*singleQuery);
   auto properties = propertyCollector.getProperties();
@@ -20,7 +26,7 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planSingleQuery(
     propertyExprCollection.addProperties(property.getVariableName(), expr);
   }
   context.resetState();
-  auto plans = getInitialEmptyPlans();
+  std::vector<std::unique_ptr<LogicalPlan>> plans = std::move(prevPlans);
   for (auto i = 0u; i < singleQuery->getNumQueryParts(); ++i) {
     plans = planQueryPart(singleQuery->getQueryPart(i), std::move(plans));
   }
