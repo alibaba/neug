@@ -37,21 +37,6 @@ gs::result<Context> Scan::find_vertex_with_oid(
   return ctx;
 }
 
-gs::result<Context> Scan::find_vertex_with_gid(
-    Context&& ctx, const StorageReadInterface& graph, label_t label,
-    int64_t gid, int32_t alias) {
-  MSVertexColumnBuilder builder(label);
-  if (GlobalId::get_label_id(gid) == label &&
-      graph.IsValidVertex(label, GlobalId::get_vid(gid))) {
-    builder.push_back_opt(GlobalId::get_vid(gid));
-  } else {
-    LOG(ERROR) << "Invalid label id: "
-               << static_cast<int>(GlobalId::get_label_id(gid));
-  }
-  ctx.set(alias, builder.finish());
-  return ctx;
-}
-
 struct ScanVertexSPOp {
   template <typename PRED_T>
   static gs::result<Context> eval_with_predicate(
@@ -72,27 +57,6 @@ gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
   return dispatch_vertex_predicate<ScanVertexSPOp>(graph, expected_labels,
                                                    config, query_params, graph,
                                                    std::move(ctx), params);
-}
-
-struct FilterGidSPOp {
-  template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
-      const ScanParams& params, const std::vector<int64_t>& gids) {
-    return Scan::filter_gids<PRED_T>(std::move(ctx), graph, params, pred, gids);
-  }
-};
-
-gs::result<Context> Scan::filter_gids_with_special_vertex_predicate(
-    Context&& ctx, const StorageReadInterface& graph, const ScanParams& params,
-    const SpecialVertexPredicateConfig& config,
-    const std::vector<int64_t>& gids) {
-  std::set<label_t> expected_labels;
-  for (auto label : params.tables) {
-    expected_labels.insert(label);
-  }
-  return dispatch_vertex_predicate<FilterGidSPOp>(
-      graph, expected_labels, config, {}, graph, std::move(ctx), params, gids);
 }
 
 struct FilterOidsSPOp {

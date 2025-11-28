@@ -41,8 +41,7 @@ class ScanUtils {
   parse_ids_with_type(PropertyType type,
                       const algebra::IndexPredicate& triplet);
 
-  static bool check_idx_predicate(const physical::Scan& scan_opr,
-                                  bool& scan_oid);
+  static bool check_idx_predicate(const physical::Scan& scan_opr);
 };
 
 }  // namespace ops

@@ -135,13 +135,9 @@ gs::result<OpBuildResultT> UScanOprBuilder::Build(
       oids;
 
   if (scan.has_idx_predicate()) {
-    bool scan_oid = false;
-    if (!ScanUtils::check_idx_predicate(scan, scan_oid)) {
+    if (!ScanUtils::check_idx_predicate(scan)) {
       LOG(ERROR) << "Index predicate is not supported" << scan.DebugString();
       return std::make_pair(nullptr, ContextMeta());
-    }
-    if (!scan_oid) {
-      LOG(ERROR) << "Scan gid is not supported" << scan.DebugString();
     }
 
     std::set<int> types;

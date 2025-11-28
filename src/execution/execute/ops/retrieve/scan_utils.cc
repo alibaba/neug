@@ -139,8 +139,7 @@ ScanUtils::parse_ids_with_type(PropertyType type,
   }
   return ids;
 }
-bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr,
-                                    bool& scan_oid) {
+bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
   if (scan_opr.scan_opt() != physical::Scan::VERTEX) {
     return false;
   }
@@ -162,15 +161,6 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr,
   const algebra::IndexPredicate_Triplet& triplet =
       predicate.or_predicates(0).predicates(0);
   if (!triplet.has_key()) {
-    return false;
-  }
-  auto key = triplet.key();
-  if (key.has_key()) {
-    scan_oid = true;
-  } else if (key.has_id()) {
-    scan_oid = false;
-  } else {
-    LOG(ERROR) << "Invalid key type" << key.DebugString();
     return false;
   }
 

@@ -108,46 +108,6 @@ class Scan {
       const std::map<std::string, std::string>& query_params);
 
   template <typename PRED_T>
-  static gs::result<Context> filter_gids(Context&& ctx,
-                                         const StorageReadInterface& graph,
-                                         const ScanParams& params,
-                                         const PRED_T& predicate,
-                                         const std::vector<int64_t>& gids) {
-    int32_t cur_limit = params.limit;
-    if (params.tables.empty()) {
-      MLVertexColumnBuilder builder;
-      ctx.set(params.alias, builder.finish());
-    } else {
-      MSVertexColumnBuilder builder(params.tables[0]);
-
-      for (auto label : params.tables) {
-        if (cur_limit <= 0) {
-          break;
-        }
-        builder.start_label(label);
-        for (auto gid : gids) {
-          if (cur_limit <= 0) {
-            break;
-          }
-          vid_t vid = GlobalId::get_vid(gid);
-          if (GlobalId::get_label_id(gid) == label &&
-              predicate(label, vid, 0)) {
-            builder.push_back_opt(vid);
-            cur_limit--;
-          }
-        }
-      }
-      ctx.set(params.alias, builder.finish());
-    }
-    return ctx;
-  }
-
-  static gs::result<Context> filter_gids_with_special_vertex_predicate(
-      Context&& ctx, const StorageReadInterface& graph,
-      const ScanParams& params, const SpecialVertexPredicateConfig& config,
-      const std::vector<int64_t>& oids);
-
-  template <typename PRED_T>
   static gs::result<Context> filter_oids(Context&& ctx,
                                          const StorageReadInterface& graph,
                                          const ScanParams& params,
@@ -214,10 +174,6 @@ class Scan {
   static gs::result<Context> find_vertex_with_oid(
       Context&& ctx, const StorageReadInterface& graph, label_t label,
       const Property& pk, int32_t alias);
-
-  static gs::result<Context> find_vertex_with_gid(
-      Context&& ctx, const StorageReadInterface& graph, label_t label,
-      int64_t pk, int32_t alias);
 };
 
 }  // namespace runtime
