@@ -21,6 +21,7 @@
 
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/yaml_utils.h"
 
 using gs::EdgeStrategy;
 using gs::PropertyType;
@@ -398,6 +399,57 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
 
   schema.RevertDeleteEdgeLabel("A", "B", "Link");
   EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
+}
+
+TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
+  gs::Schema schema;
+
+  // Add vertex label "person"
+  auto person_property_types_ =
+      VProps({PropertyType::StringView(), PropertyType::Int32(),
+              PropertyType::Double()});
+  auto person_property_names_ = VNames({"name", "age", "score"});
+  auto person_pk_ = VPk(PropertyType::Int64(), "id", 0);
+  auto person_strategies_ =
+      VStrats(person_property_types_.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("person", person_property_types_,
+                        person_property_names_, person_pk_, person_strategies_,
+                        4096, "person vertex");
+
+  // Add vertex label "company"
+  auto company_property_types_ =
+      VProps({PropertyType::StringView(), PropertyType::Int32()});
+  auto company_property_names_ = VNames({"company_name", "employee_count"});
+  auto company_pk_ = VPk(PropertyType::Int64(), "id", 0);
+  auto company_strategies_ =
+      VStrats(company_property_types_.size(), StorageStrategy::kMem);
+
+  schema.AddVertexLabel("company", company_property_types_,
+                        company_property_names_, company_pk_,
+                        company_strategies_, 2048, "company vertex");
+
+  // Add edge label "knows"
+  auto edge_property_types_ = VProps({PropertyType::Int64()});
+  auto edge_property_names_ = VNames({"since"});
+  auto edge_strategies_ =
+      VStrats(edge_property_types_.size(), StorageStrategy::kMem);
+
+  schema.AddEdgeLabel("person", "person", "knows", edge_property_types_,
+                      edge_property_names_, edge_strategies_,
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "knows edge");
+
+  // Add edge label "worksAt"
+  schema.AddEdgeLabel("person", "company", "knows", edge_property_types_,
+                      edge_property_names_, edge_strategies_,
+                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
+                      true, false, "knows edge");
+
+  auto yaml = gs::Schema::DumpToYaml(schema);
+  EXPECT_TRUE(yaml);
+  // to string
+  auto edge_type_prop = yaml.value()["schema"]["edge_types"][0]["properties"];
+  EXPECT_EQ(edge_type_prop.size(), 1);
 }
 
 class SchemaDeleteTest : public ::testing::Test {

@@ -1563,12 +1563,23 @@ bool dump_edges_schema(const Schema& schema, YAML::Node& node) {
             auto property_names =
                 schema.get_edge_property_names(src_v, dst_v, e_label);
             CHECK_EQ(properties.size(), property_names.size());
-            for (size_t i = 0; i < properties.size(); ++i) {
-              YAML::Node prop_node;
-              prop_node["property_id"] = i;
-              prop_node["property_name"] = property_names[i];
-              prop_node["property_type"] = property_type_to_yaml(properties[i]);
-              cur_node["properties"].push_back(prop_node);
+            if (cur_node["properties"].size() != 0) {
+              if (properties.size() != cur_node["properties"].size()) {
+                LOG(ERROR)
+                    << "Edge properties size mismatch among different edge "
+                       "triplets for edge label: "
+                    << schema.get_edge_label_name(e_label);
+                return false;
+              }
+            } else {
+              for (size_t i = 0; i < properties.size(); ++i) {
+                YAML::Node prop_node;
+                prop_node["property_id"] = i;
+                prop_node["property_name"] = property_names[i];
+                prop_node["property_type"] =
+                    property_type_to_yaml(properties[i]);
+                cur_node["properties"].push_back(prop_node);
+              }
             }
           }
 
