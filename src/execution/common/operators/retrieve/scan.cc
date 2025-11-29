@@ -25,9 +25,11 @@
 namespace gs {
 namespace runtime {
 
-gs::result<Context> Scan::find_vertex_with_oid(
-    Context&& ctx, const StorageReadInterface& graph, label_t label,
-    const Property& oid, int32_t alias) {
+gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
+                                               const IStorageInterface& graph,
+                                               label_t label,
+                                               const Property& oid,
+                                               int32_t alias) {
   MSVertexColumnBuilder builder(label);
   vid_t vid;
   if (graph.GetVertexIndex(label, oid, vid)) {
@@ -39,15 +41,16 @@ gs::result<Context> Scan::find_vertex_with_oid(
 
 struct ScanVertexSPOp {
   template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
-      const ScanParams& params) {
+  static gs::result<Context> eval_with_predicate(const PRED_T& pred,
+                                                 const IStorageInterface& graph,
+                                                 Context&& ctx,
+                                                 const ScanParams& params) {
     return Scan::scan_vertex<PRED_T>(std::move(ctx), graph, params, pred);
   }
 };
 
 gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
-    Context&& ctx, const StorageReadInterface& graph, const ScanParams& params,
+    Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& query_params) {
   std::set<label_t> expected_labels;
@@ -57,27 +60,6 @@ gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
   return dispatch_vertex_predicate<ScanVertexSPOp>(graph, expected_labels,
                                                    config, query_params, graph,
                                                    std::move(ctx), params);
-}
-
-struct FilterOidsSPOp {
-  template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(
-      const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
-      const ScanParams& params, const std::vector<Property>& oids) {
-    return Scan::filter_oids<PRED_T>(std::move(ctx), graph, params, pred, oids);
-  }
-};
-
-gs::result<Context> Scan::filter_oids_with_special_vertex_predicate(
-    Context&& ctx, const StorageReadInterface& graph, const ScanParams& params,
-    const SpecialVertexPredicateConfig& config,
-    const std::vector<Property>& oids) {
-  std::set<label_t> expected_labels;
-  for (auto label : params.tables) {
-    expected_labels.insert(label);
-  }
-  return dispatch_vertex_predicate<FilterOidsSPOp>(
-      graph, expected_labels, config, {}, graph, std::move(ctx), params, oids);
 }
 
 }  // namespace runtime

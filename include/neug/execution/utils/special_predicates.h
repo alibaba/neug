@@ -265,9 +265,10 @@ class SLEdgePropertyGetter {
 template <typename T>
 class MLEdgePropertyGetter {
  public:
-  MLEdgePropertyGetter(const StorageReadInterface& graph,
+  MLEdgePropertyGetter(const IStorageInterface& gi,
                        const std::vector<LabelTriplet>& labels,
                        const std::string& property_name) {
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     // property_name -> prop_id
     for (const auto& lt : labels) {
       int prop_id = 0;
@@ -301,9 +302,11 @@ class MLEdgePropertyGetter {
 template <typename T>
 class SLVertexPropertyGetter {
  public:
-  SLVertexPropertyGetter(const StorageReadInterface& graph, label_t label,
+  SLVertexPropertyGetter(const IStorageInterface& graph, label_t label,
                          const std::string& property_name) {
-    column_ = graph.GetVertexPropColumn<T>(label, property_name);
+    column_ =
+        dynamic_cast<const StorageReadInterface&>(graph).GetVertexPropColumn<T>(
+            label, property_name);
   }
   ~SLVertexPropertyGetter() = default;
 
@@ -316,8 +319,9 @@ class SLVertexPropertyGetter {
 template <typename T>
 class MLVertexPropertyGetter {
  public:
-  MLVertexPropertyGetter(const StorageReadInterface& graph,
+  MLVertexPropertyGetter(const IStorageInterface& gi,
                          const std::string& property_name) {
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
       columns_.emplace_back(graph.GetVertexPropColumn<T>(i, property_name));
     }
@@ -712,7 +716,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
 
 template <typename OP_T, typename CMP_T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
-    const gs::runtime::StorageReadInterface& graph,
+    const gs::runtime::IStorageInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, const CMP_T& cmp_val,
@@ -741,7 +745,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 
 template <typename OP_T, typename T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_typed(
-    const gs::runtime::StorageReadInterface& graph,
+    const gs::runtime::IStorageInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
@@ -804,7 +808,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
 
 template <typename OP_T, typename... Args>
 gs::result<Context> dispatch_vertex_predicate(
-    const gs::runtime::StorageReadInterface& graph,
+    const gs::runtime::IStorageInterface& graph,
     const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {

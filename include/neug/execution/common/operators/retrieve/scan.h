@@ -43,9 +43,10 @@ class Scan {
  public:
   template <typename PRED_T>
   static gs::result<Context> scan_vertex(Context&& ctx,
-                                         const StorageReadInterface& graph,
+                                         const IStorageInterface& gi,
                                          const ScanParams& params,
                                          const PRED_T& predicate) {
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     MSVertexColumnBuilder builder(params.tables[0]);
     for (auto label : params.tables) {
       auto vertices = graph.GetVertexSet(label);
@@ -61,10 +62,12 @@ class Scan {
   }
 
   template <typename PRED_T>
-  static gs::result<Context> scan_vertex_with_limit(
-      Context&& ctx, const StorageReadInterface& graph,
-      const ScanParams& params, const PRED_T& predicate) {
+  static gs::result<Context> scan_vertex_with_limit(Context&& ctx,
+                                                    const IStorageInterface& gi,
+                                                    const ScanParams& params,
+                                                    const PRED_T& predicate) {
     int32_t cur_limit = params.limit;
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
       MSVertexColumnBuilder builder(label);
@@ -103,13 +106,13 @@ class Scan {
   }
 
   static gs::result<Context> scan_vertex_with_special_vertex_predicate(
-      Context&& ctx, const StorageReadInterface& graph,
-      const ScanParams& params, const SpecialVertexPredicateConfig& config,
+      Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
+      const SpecialVertexPredicateConfig& config,
       const std::map<std::string, std::string>& query_params);
 
   template <typename PRED_T>
   static gs::result<Context> filter_oids(Context&& ctx,
-                                         const StorageReadInterface& graph,
+                                         const IStorageInterface& graph,
                                          const ScanParams& params,
                                          const PRED_T& predicate,
                                          const std::vector<Property>& oids) {
@@ -166,13 +169,8 @@ class Scan {
     return ctx;
   }
 
-  static gs::result<Context> filter_oids_with_special_vertex_predicate(
-      Context&& ctx, const StorageReadInterface& graph,
-      const ScanParams& params, const SpecialVertexPredicateConfig& config,
-      const std::vector<Property>& oids);
-
   static gs::result<Context> find_vertex_with_oid(
-      Context&& ctx, const StorageReadInterface& graph, label_t label,
+      Context&& ctx, const IStorageInterface& graph, label_t label,
       const Property& pk, int32_t alias);
 };
 
