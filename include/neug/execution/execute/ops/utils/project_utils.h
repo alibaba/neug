@@ -77,10 +77,10 @@ struct SLPropertyExpr {
   std::shared_ptr<StorageReadInterface::vertex_column_t<T>> property;
 };
 
-template <typename VertexColoumn, typename T>
+template <typename VertexColumn, typename T>
 struct MLPropertyExpr {
   using V = T;
-  MLPropertyExpr(const StorageReadInterface& graph, const VertexColoumn& vertex,
+  MLPropertyExpr(const StorageReadInterface& graph, const VertexColumn& vertex,
                  const std::string& property_name)
       : vertex(vertex) {
     auto labels = vertex.get_labels_set();
@@ -99,7 +99,7 @@ struct MLPropertyExpr {
     auto v = vertex.get_vertex(idx);
     return property[v.label_]->get_view(v.vid_);
   }
-  const VertexColoumn& vertex;
+  const VertexColumn& vertex;
   std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property;
 
@@ -542,10 +542,11 @@ inline void parse_potential_dependencies(const common::Expression& expr,
 // in the case of data_type is not set, we need to infer the
 // type from the expr
 
-template <typename GraphInterface>
-static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
-    const common::Expression& expr, int alias, const GraphInterface& graph,
-    const Context& ctx, const std::map<std::string, std::string>& params) {
+static inline std::unique_ptr<ProjectExprBase>
+make_project_expr_without_data_type(
+    const common::Expression& expr, int alias,
+    const StorageReadInterface& graph, const Context& ctx,
+    const std::map<std::string, std::string>& params) {
   Expr e(&graph, ctx, params, expr, VarType::kPathVar);
 
   switch (e.type()) {
@@ -617,10 +618,9 @@ static std::unique_ptr<ProjectExprBase> make_project_expr_without_data_type(
   return nullptr;
 }
 
-template <typename GraphInterface>
 inline std::unique_ptr<ProjectExprBase> make_project_expr(
     const common::Expression& expr, const common::IrDataType& data_type,
-    int alias, const GraphInterface& graph, const Context& ctx,
+    int alias, const StorageReadInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
   switch (data_type.type_case()) {
   case common::IrDataType::kDataType: {
@@ -752,25 +752,8 @@ inline std::unique_ptr<ProjectExprBase> create_project_expr(
   return make_project_expr_without_data_type(expr, alias, graph, ctx, params);
 }
 
-inline std::unique_ptr<ProjectExprBase> create_project_expr(
-    const common::Expression& expr, int alias,
-    const std::optional<common::IrDataType>& data_type,
-    const StorageUpdateInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
-  if (data_type.has_value() &&
-      data_type.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
-    auto func =
-        make_project_expr(expr, data_type.value(), alias, graph, ctx, params);
-    if (func != nullptr) {
-      return func;
-    }
-  }
-  return make_project_expr_without_data_type(expr, alias, graph, ctx, params);
-}
-
-template <typename GraphInterface>
-gs::result<Context> ProjectEvalImpl(
-    const GraphInterface& graph,
+inline gs::result<Context> ProjectEvalImpl(
+    const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     const std::vector<
         std::tuple<common::Expression, int, std::optional<common::IrDataType>>>&

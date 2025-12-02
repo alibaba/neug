@@ -28,51 +28,6 @@ namespace runtime {
 class OprTimer;
 
 gs::result<Context> AdminPipeline::Execute(
-    StorageUpdateInterface& graph, Context&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer) {
-  gs::Status status = Status::OK();
-  TimerUnit tu;
-  OprTimer* cur_timer = timer;
-  std::unique_ptr<OprTimer> next_timer = nullptr;
-  for (size_t i = 0; i < operators_.size(); ++i) {
-    if (NEUG_UNLIKELY(timer != nullptr)) {
-      tu.start();
-    }
-    TRY_HANDLE_ALL_WITH_EXCEPTION(
-        gs::result<Context>,
-        [&]() -> gs::result<Context> {
-          auto ret =
-              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
-          if (!ret) {
-            return ret;
-          }
-          if (NEUG_UNLIKELY(timer != nullptr)) {
-            cur_timer->set_name(operators_[i]->get_operator_name());
-            cur_timer->add_num_tuples(ret.value().row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
-          }
-          return ret;
-        },
-        [&](const gs::Status& err) {
-          status = gs::Status(err.error_code(),
-                              "Execution failed at operator: [" +
-                                  operators_[i]->get_operator_name() + "], " +
-                                  err.error_message());
-        },
-        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
-    if (!status.ok()) {
-      RETURN_ERROR(status);
-    }
-  }
-  return ctx;
-}
-
-gs::result<Context> ReadPipeline::Execute(
     IStorageInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   gs::Status status = Status::OK();
@@ -117,52 +72,7 @@ gs::result<Context> ReadPipeline::Execute(
   return ctx;
 }
 
-gs::result<Context> InsertPipeline::Execute(
-    IStorageInterface& graph, Context&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer) {
-  OprTimer* cur_timer = timer;
-  std::unique_ptr<OprTimer> next_timer = nullptr;
-  TimerUnit tu;
-  gs::Status status = Status::OK();
-  for (size_t i = 0; i < operators_.size(); ++i) {
-    if (NEUG_UNLIKELY(timer != nullptr)) {
-      tu.start();
-    }
-    TRY_HANDLE_ALL_WITH_EXCEPTION(
-        gs::result<Context>,
-        [&]() -> gs::result<Context> {
-          auto ret =
-              operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
-          if (!ret) {
-            return ret;
-          }
-          if (NEUG_UNLIKELY(timer != nullptr)) {
-            cur_timer->set_name(operators_[i]->get_operator_name());
-            cur_timer->add_num_tuples(ret.value().row_num());
-            cur_timer->record(tu);
-            if (i + 1 < operators_.size()) {
-              next_timer = std::make_unique<OprTimer>();
-              cur_timer->set_next(std::move(next_timer));
-              cur_timer = cur_timer->next();
-            }
-          }
-          return ret;
-        },
-        [&](const gs::Status& err) {
-          status = gs::Status(err.error_code(),
-                              "Execution failed at operator: [" +
-                                  operators_[0]->get_operator_name() + "], " +
-                                  err.error_message());
-        },
-        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
-    if (!status.ok()) {
-      RETURN_ERROR(status);
-    }
-  }
-  return ctx;
-}
-
-gs::result<Context> UpdatePipeline::Execute(
+gs::result<Context> Pipeline::Execute(
     IStorageInterface& graph, Context&& ctx,
     const std::map<std::string, std::string>& params, OprTimer* timer) {
   gs::Status status = Status::OK();
@@ -194,7 +104,6 @@ gs::result<Context> UpdatePipeline::Execute(
           return ret;
         },
         [&](const gs::Status& err) {
-          LOG(INFO) << "Failed at operator index " << i;
           status = gs::Status(err.error_code(),
                               "Execution failed at operator: [" +
                                   operators_[i]->get_operator_name() + "], " +
@@ -205,7 +114,6 @@ gs::result<Context> UpdatePipeline::Execute(
       RETURN_ERROR(status);
     }
   }
-
   return ctx;
 }
 

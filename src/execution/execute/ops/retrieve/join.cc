@@ -43,9 +43,8 @@ namespace ops {
 
 class JoinOpr : public IOperator {
  public:
-  JoinOpr(gs::runtime::ReadPipeline&& left_pipeline,
-          gs::runtime::ReadPipeline&& right_pipeline,
-          const JoinParams& join_params)
+  JoinOpr(gs::runtime::Pipeline&& left_pipeline,
+          gs::runtime::Pipeline&& right_pipeline, const JoinParams& join_params)
       : left_pipeline_(std::move(left_pipeline)),
         right_pipeline_(std::move(right_pipeline)),
         params_(join_params) {}
@@ -83,8 +82,8 @@ class JoinOpr : public IOperator {
   }
 
  private:
-  gs::runtime::ReadPipeline left_pipeline_;
-  gs::runtime::ReadPipeline right_pipeline_;
+  gs::runtime::Pipeline left_pipeline_;
+  gs::runtime::Pipeline right_pipeline_;
 
   JoinParams params_;
 };
@@ -140,14 +139,14 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
   }
   auto join_kind = plan.query_plan().plan(op_idx).opr().join().join_kind();
 
-  auto pair1_res = PlanParser::get().parse_read_pipeline_with_meta(
+  auto pair1_res = PlanParser::get().parse_execute_pipeline_with_meta(
       schema, ctx_meta,
       plan.query_plan().plan(op_idx).opr().join().left_plan());
 
   if (!pair1_res) {
     return std::make_pair(nullptr, ContextMeta());
   }
-  auto pair2_res = PlanParser::get().parse_read_pipeline_with_meta(
+  auto pair2_res = PlanParser::get().parse_execute_pipeline_with_meta(
       schema, ctx_meta,
       plan.query_plan().plan(op_idx).opr().join().right_plan());
   if (!pair2_res) {

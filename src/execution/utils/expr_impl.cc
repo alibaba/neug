@@ -814,15 +814,13 @@ static inline int get_proiority(const ::common::ExprOpr& opr) {
   return 16;
 }
 
-template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
-    const GraphInterface* graph, const Context& ctx,
+    const StorageReadInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type);
 
-template <typename GraphInterface>
 static std::unique_ptr<ExprBase> build_expr(
-    const GraphInterface* graph, const Context& ctx,
+    const StorageReadInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     std::stack<::common::ExprOpr>& opr_stack, VarType var_type) {
   while (!opr_stack.empty()) {
@@ -880,7 +878,7 @@ static std::unique_ptr<ExprBase> build_expr(
               return std::make_unique<VertexWithInSetExpr>(ctx, std::move(key),
                                                            std::move(val));
             } else {
-              LOG(FATAL) << "not support";
+              LOG(FATAL) << "not support" << static_cast<int>(val->type());
             }
           }
 
@@ -1130,19 +1128,18 @@ static std::unique_ptr<ExprBase> build_expr(
       }
       auto type = parse_from_data_type(
           opr.node_type().data_type().array().component_type());
-      if constexpr (std::is_same<GraphInterface, StorageReadInterface>::value) {
-        if (opt ==
-            ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
-          return std::make_unique<PathVertexPropsExpr>(*graph, ctx, tag, name,
-                                                       type);
-        } else if (opt ==
-                   ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
-          return std::make_unique<PathEdgePropsExpr>(*graph, ctx, tag, name,
+
+      if (opt == ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_VERTEX) {
+        return std::make_unique<PathVertexPropsExpr>(*graph, ctx, tag, name,
                                                      type);
-        } else {
-          LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
-        }
+      } else if (opt ==
+                 ::common::PathFunction_FuncOpt::PathFunction_FuncOpt_EDGE) {
+        return std::make_unique<PathEdgePropsExpr>(*graph, ctx, tag, name,
+                                                   type);
+      } else {
+        LOG(FATAL) << "unsupport path function opt" << opr.DebugString();
       }
+
       break;
     }
     default:
@@ -1153,9 +1150,8 @@ static std::unique_ptr<ExprBase> build_expr(
   return nullptr;
 }
 
-template <typename GraphInterface>
 static std::unique_ptr<ExprBase> parse_expression_impl(
-    const GraphInterface* graph, const Context& ctx,
+    const StorageReadInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type) {
   std::stack<::common::ExprOpr> opr_stack;
@@ -1229,22 +1225,27 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
   return build_expr(graph, ctx, params, opr_stack2, var_type);
 }
 
-template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
-    const GraphInterface* graph, const Context& ctx,
+    const StorageReadInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type) {
   return parse_expression_impl(graph, ctx, params, expr, var_type);
 }
 
-template std::unique_ptr<ExprBase> parse_expression<StorageReadInterface>(
-    const StorageReadInterface*, const Context&,
-    const std::map<std::string, std::string>&, const ::common::Expression&,
-    VarType);
-template std::unique_ptr<ExprBase> parse_expression<StorageUpdateInterface>(
-    const StorageUpdateInterface*, const Context&,
-    const std::map<std::string, std::string>&, const ::common::Expression&,
-    VarType);
+bool graph_related_expr(const ::common::Expression& expr) {
+  const auto& oprs = expr.operators();
+  for (size_t i = 0; i < oprs.size(); ++i) {
+    if (oprs[i].item_case() == ::common::ExprOpr::kVar) {
+      if (Var::graph_related_var(oprs[i].var())) {
+        return true;
+      }
+    }
+    if (oprs[i].item_case() == ::common::ExprOpr::kPathFunc) {
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // namespace runtime
 

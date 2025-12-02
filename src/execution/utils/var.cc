@@ -28,8 +28,7 @@ namespace gs {
 namespace runtime {
 struct LabelTriplet;
 
-template <typename GraphInterface>
-Var::Var(const GraphInterface* graph, const Context& ctx,
+Var::Var(const StorageReadInterface* graph, const Context& ctx,
          const common::Variable& pb, VarType var_type)
     : getter_(nullptr) {
   int tag = -1;
@@ -153,11 +152,6 @@ Var::Var(const GraphInterface* graph, const Context& ctx,
   }
 }
 
-template Var::Var(const StorageReadInterface* graph, const Context& ctx,
-                  const common::Variable& pb, VarType var_type);
-template Var::Var(const StorageUpdateInterface* graph, const Context& ctx,
-                  const common::Variable& pb, VarType var_type);
-
 Var::~Var() {}
 
 RTAny Var::get(size_t path_idx) const { return getter_->eval_path(path_idx); }
@@ -172,6 +166,10 @@ RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
 }
 
 RTAnyType Var::type() const { return type_; }
+
+bool Var::graph_related_var(const common::Variable& pb) {
+  return pb.has_property();
+}
 
 std::shared_ptr<IContextColumnBuilder> Var::builder() const {
   return getter_->builder();

@@ -30,8 +30,7 @@ namespace runtime {
 
 struct GeneralVertexPredicate {
   static constexpr bool is_dummy = false;
-  template <typename GraphInterface>
-  GeneralVertexPredicate(const GraphInterface& graph, const Context& ctx,
+  GeneralVertexPredicate(const StorageReadInterface& graph, const Context& ctx,
                          const std::map<std::string, std::string>& params,
                          const common::Expression& expr)
       : expr_(&graph, ctx, params, expr, VarType::kVertexVar) {}
@@ -60,8 +59,7 @@ struct ExactVertexPredicate {
 struct GeneralEdgePredicate {
   static constexpr bool is_dummy = false;
 
-  template <typename GraphInterface>
-  GeneralEdgePredicate(const GraphInterface& graph, const Context& ctx,
+  GeneralEdgePredicate(const StorageReadInterface& graph, const Context& ctx,
                        const std::map<std::string, std::string>& params,
                        const common::Expression& expr)
       : expr_(&graph, ctx, params, expr, VarType::kEdgeVar) {}

@@ -228,8 +228,6 @@ class UpdateTransaction {
   bool DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                   label_t edge_label, int32_t oe_offset, int32_t ie_offset);
 
-  VertexSet GetVertexSet(label_t label) const;
-
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
       uint8_t label, const std::string& col_name) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(label);
@@ -349,8 +347,6 @@ class UpdateTransaction {
     return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
                                    edge_label_id, oe_edges, ie_edges);
   }
-
-  inline std::string work_dir() const { return graph_.work_dir(); }
 
  private:
   bool IsValidLid(label_t label, vid_t lid) const;

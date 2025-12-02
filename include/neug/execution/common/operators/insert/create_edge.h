@@ -99,4 +99,4 @@ class CreateEdge {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-#endif
+#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_EDGE_H_

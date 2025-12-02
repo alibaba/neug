@@ -240,11 +240,6 @@ class StorageUpdateInterface : public StorageReadInterface,
                             oe_offset, ie_offset, col_id, value);
   }
 
-  inline bool GetVertexIndex(label_t label, const Property& id,
-                             vid_t& index) const {
-    return txn_.GetVertexIndex(label, id, index);
-  }
-
   inline bool AddVertex(label_t label, const Property& id,
                         const std::vector<Property>& props, vid_t& vid) {
     return txn_.AddVertex(label, id, props, vid);
@@ -259,28 +254,6 @@ class StorageUpdateInterface : public StorageReadInterface,
   inline void CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
   gs::UpdateTransaction& GetTransaction() { return txn_; }
-
-  GenericView GetGenericOutgoingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
-    return txn_.GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                            edge_label);
-  }
-
-  GenericView GetGenericIncomingGraphView(label_t v_label,
-                                          label_t neighbor_label,
-                                          label_t edge_label) const {
-    return txn_.GetGenericIncomingGraphView(v_label, neighbor_label,
-                                            edge_label);
-  }
-
-  EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
-                                       label_t edge_label, int prop_id) const {
-    return txn_.graph().GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                            prop_id);
-  }
-
-  inline std::string work_dir() const { return txn_.graph().work_dir(); }
 
   inline Status BatchAddVertices(
       label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {

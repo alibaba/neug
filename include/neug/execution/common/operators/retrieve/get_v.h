@@ -297,11 +297,10 @@ class GetV {
     }
   }
 
-  template <typename GraphInterface, typename PRED_T>
-  static gs::result<Context> _get_vertex_from_path(const GraphInterface& graph,
-                                                   Context&& ctx,
-                                                   const GetVParams& params,
-                                                   const PRED_T& pred) {
+  template <typename PRED_T>
+  static gs::result<Context> _get_vertex_from_path(
+      const StorageReadInterface& graph, Context&& ctx,
+      const GetVParams& params, const PRED_T& pred) {
     std::vector<bool> required_label(graph.schema().vertex_label_num(), false);
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
@@ -325,11 +324,10 @@ class GetV {
     return ctx;
   }
 
-  template <typename GraphInterface, typename PRED_T>
-  static gs::result<Context> get_vertex_from_edges(const GraphInterface& graph,
-                                                   Context&& ctx,
-                                                   const GetVParams& params,
-                                                   const PRED_T& pred) {
+  template <typename PRED_T>
+  static gs::result<Context> get_vertex_from_edges(
+      const StorageReadInterface& graph, Context&& ctx,
+      const GetVParams& params, const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {

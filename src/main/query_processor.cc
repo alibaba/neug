@@ -116,7 +116,7 @@ result<results::CollectiveResults> QueryProcessor::execute_read_only(
   runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  auto ctx = runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
+  auto ctx = runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();

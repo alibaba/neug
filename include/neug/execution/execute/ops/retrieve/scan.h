@@ -57,8 +57,7 @@ class DummySourceOprBuilder : public IOperatorBuilder {
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
-    return {physical::PhysicalOpr_Operator::OpKindCase::kRoot,
-            physical::PhysicalOpr_Operator::OpKindCase::kProject};
+    return {physical::PhysicalOpr_Operator::OpKindCase::kRoot};
   }
   int stepping(int i) override { return i + 1; }
 };

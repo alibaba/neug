@@ -70,9 +70,11 @@ bool CypherInsertApp::Query(NeugDBSession& graph, Decoder& input,
       }
     }
     const auto& plan = plan_cache_[query];
-    pipeline_cache_.emplace(query, runtime::PlanParser::get()
-                                       .parse_write_pipeline(db_.schema(), plan)
-                                       .value());
+    pipeline_cache_.emplace(
+        query, runtime::PlanParser::get()
+                   .parse_execute_pipeline(db_.schema(),
+                                           gs::runtime::ContextMeta(), plan)
+                   .value());
   }
 
   gs::runtime::StorageTPInsertInterface gri(txn);

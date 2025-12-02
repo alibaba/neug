@@ -59,7 +59,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
 
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
     gs::result<gs::runtime::Context> ctx =
-        runtime::ParseAndExecuteReadPipeline(gri, plan, timer.get());
+        runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
 
     if (!ctx) {
       LOG(ERROR) << "Error: " << ctx.error().ToString();
@@ -102,8 +102,8 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
       const auto& plan = plan_cache_[query];
       pipeline_cache_.emplace(
           query, runtime::PlanParser::get()
-                     .parse_read_pipeline(db_.schema(),
-                                          gs::runtime::ContextMeta(), plan)
+                     .parse_execute_pipeline(db_.schema(),
+                                             gs::runtime::ContextMeta(), plan)
                      .value());
     }
     auto txn = graph.GetReadTransaction();

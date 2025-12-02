@@ -415,7 +415,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     runtime::OprTimer* timer, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
   runtime::StorageUpdateInterface gii(txn);
-  auto ctx = runtime::ParseAndExecuteUpdatePipeline(gii, plan, timer);
+  auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer);
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();

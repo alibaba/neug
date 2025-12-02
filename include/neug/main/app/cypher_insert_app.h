@@ -42,7 +42,7 @@ class CypherInsertApp : public WriteAppBase {
  private:
   const NeugDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
-  std::unordered_map<std::string, runtime::InsertPipeline> pipeline_cache_;
+  std::unordered_map<std::string, runtime::Pipeline> pipeline_cache_;
 };
 
 class CypherInsertAppFactory : public AppFactoryBase {

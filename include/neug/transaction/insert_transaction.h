@@ -161,6 +161,8 @@ class InsertTransaction {
 
   Property GetVertexId(label_t label, vid_t lid) const;
 
+  PropertyGraph& graph() { return graph_; }
+
  private:
   void create_id_indexer_if_not_exists(label_t label);
 

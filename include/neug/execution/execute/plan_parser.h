@@ -30,16 +30,11 @@ class Schema;
 
 namespace runtime {
 class ContextMeta;
-class InsertPipeline;
-class ReadPipeline;
-class UpdatePipeline;
+class Pipeline;
 
 class PlanParser {
  private:
-  PlanParser() {
-    read_op_builders_.resize(64);
-    update_op_builders_.resize(64);
-  }
+  PlanParser() { read_op_builders_.resize(64); }
 
  public:
   PlanParser(const PlanParser&) = delete;
@@ -52,32 +47,18 @@ class PlanParser {
 
   static PlanParser& get();
 
-  void register_read_operator_builder(
-      std::unique_ptr<IOperatorBuilder>&& builder);
-
-  void register_write_operator_builder(
-      std::unique_ptr<IOperatorBuilder>&& builder);
-
-  void register_update_operator_builder(
-      std::unique_ptr<IOperatorBuilder>&& builder);
+  void register_operator_builder(std::unique_ptr<IOperatorBuilder>&& builder);
 
   void register_admin_operator_builder(
       std::unique_ptr<IAdminOperatorBuilder>&& builder);
 
-  gs::result<std::pair<ReadPipeline, ContextMeta>>
-  parse_read_pipeline_with_meta(const gs::Schema& schema,
-                                const ContextMeta& ctx_meta,
-                                const physical::PhysicalPlan& plan);
-
-  gs::result<ReadPipeline> parse_read_pipeline(
+  gs::result<std::pair<Pipeline, ContextMeta>> parse_execute_pipeline_with_meta(
       const gs::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
-  gs::result<InsertPipeline> parse_write_pipeline(
-      const gs::Schema& schema, const physical::PhysicalPlan& plan);
-
-  gs::result<UpdatePipeline> parse_update_pipeline(
-      const gs::Schema& schema, const physical::PhysicalPlan& plan);
+  gs::result<Pipeline> parse_execute_pipeline(
+      const gs::Schema& schema, const ContextMeta& ctx_meta,
+      const physical::PhysicalPlan& plan);
 
   gs::result<AdminPipeline> parse_admin_pipeline(
       const gs::Schema& schema, const physical::AdminPlan& admin_plan);
@@ -88,26 +69,13 @@ class PlanParser {
                 std::unique_ptr<IOperatorBuilder>>>>
       read_op_builders_;
 
-  std::map<physical::PhysicalOpr_Operator::OpKindCase,
-           std::unique_ptr<IOperatorBuilder>>
-      write_op_builders_;
-
-  std::vector<std::vector<
-      std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
-                std::unique_ptr<IOperatorBuilder>>>>
-      update_op_builders_;
-
   std::map<physical::AdminPlan_Operator::KindCase,
            std::unique_ptr<IAdminOperatorBuilder>>
       admin_op_builders_;
 };
 
-gs::result<runtime::Context> ParseAndExecuteReadPipeline(
-    const StorageReadInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer* timer);
-
-gs::result<runtime::Context> ParseAndExecuteUpdatePipeline(
-    StorageUpdateInterface& graph, const physical::PhysicalPlan& plan,
+gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
+    IStorageInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 
 gs::result<runtime::Context> ParseAndExecuteAdminPipeline(

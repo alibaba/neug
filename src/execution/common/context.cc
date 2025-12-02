@@ -185,8 +185,7 @@ void Context::desc(const std::string& info) const {
   LOG(INFO) << "\thead: " << ((head == nullptr) ? "NULL" : head->column_info());
 }
 
-template <typename GraphInterface>
-void Context::show(const GraphInterface& graph) const {
+void Context::show(const StorageReadInterface& graph) const {
   size_t rn = row_num();
   size_t cn = col_num();
   for (size_t ri = 0; ri < rn; ++ri) {
@@ -210,10 +209,6 @@ void Context::show(const GraphInterface& graph) const {
     LOG(INFO) << line;
   }
 }
-
-template void Context::show(const StorageReadInterface& graph) const;
-
-template void Context::show(const StorageUpdateInterface& graph) const;
 
 Context Context::union_ctx(const Context& other) const {
   Context ctx;

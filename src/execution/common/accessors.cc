@@ -73,52 +73,45 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
   return nullptr;
 }
 
-template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
-    const GraphInterface& graph, const Context& ctx, int tag, RTAnyType type,
-    const std::string& prop_name) {
+    const StorageReadInterface& graph, const Context& ctx, int tag,
+    RTAnyType type, const std::string& prop_name) {
   switch (type) {
   case RTAnyType::kBoolValue:
-    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, bool>>(
-        graph, ctx, tag, prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<bool>>(graph, ctx, tag,
+                                                              prop_name);
   case RTAnyType::kI64Value:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, int64_t>>(graph, ctx, tag,
-                                                             prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<int64_t>>(
+        graph, ctx, tag, prop_name);
   case RTAnyType::kI32Value:
-    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, int>>(
+    return std::make_shared<VertexPropertyPathAccessor<int32_t>>(
         graph, ctx, tag, prop_name);
   case RTAnyType::kU32Value:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, uint32_t>>(graph, ctx, tag,
-                                                              prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<uint32_t>>(
+        graph, ctx, tag, prop_name);
   case RTAnyType::kU64Value:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, uint64_t>>(graph, ctx, tag,
-                                                              prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<uint64_t>>(
+        graph, ctx, tag, prop_name);
   case RTAnyType::kStringValue:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, std::string_view>>(
+    return std::make_shared<VertexPropertyPathAccessor<std::string_view>>(
         graph, ctx, tag, prop_name);
   case RTAnyType::kDate:
-    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, Date>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kDateTime:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, DateTime>>(graph, ctx, tag,
+    return std::make_shared<VertexPropertyPathAccessor<Date>>(graph, ctx, tag,
                                                               prop_name);
+  case RTAnyType::kDateTime:
+    return std::make_shared<VertexPropertyPathAccessor<DateTime>>(
+        graph, ctx, tag, prop_name);
 
   case RTAnyType::kInterval:
-    return std::make_shared<
-        VertexPropertyPathAccessor<GraphInterface, Interval>>(graph, ctx, tag,
-                                                              prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<Interval>>(
+        graph, ctx, tag, prop_name);
 
   case RTAnyType::kF32Value:
-    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, float>>(
-        graph, ctx, tag, prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<float>>(graph, ctx, tag,
+                                                               prop_name);
   case RTAnyType::kF64Value:
-    return std::make_shared<VertexPropertyPathAccessor<GraphInterface, double>>(
-        graph, ctx, tag, prop_name);
+    return std::make_shared<VertexPropertyPathAccessor<double>>(graph, ctx, tag,
+                                                                prop_name);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
                                   std::to_string(static_cast<int>(type)));
@@ -131,50 +124,43 @@ std::shared_ptr<IAccessor> create_vertex_label_path_accessor(
   return std::make_shared<VertexLabelPathAccessor>(schema, ctx, tag);
 }
 
-template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const GraphInterface& graph, RTAnyType type, const std::string& prop_name) {
+    const StorageReadInterface& graph, RTAnyType type,
+    const std::string& prop_name) {
   switch (type) {
   case RTAnyType::kBoolValue:
-    return std::make_shared<VertexPropertyVertexAccessor<GraphInterface, bool>>(
-        graph, prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<bool>>(graph,
+                                                                prop_name);
   case RTAnyType::kI64Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, int64_t>>(graph,
-                                                               prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<int64_t>>(graph,
+                                                                   prop_name);
   case RTAnyType::kI32Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, int32_t>>(graph,
-                                                               prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<int32_t>>(graph,
+                                                                   prop_name);
   case RTAnyType::kU32Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, uint32_t>>(graph,
-                                                                prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<uint32_t>>(graph,
+                                                                    prop_name);
   case RTAnyType::kU64Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, uint64_t>>(graph,
-                                                                prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<uint64_t>>(graph,
+                                                                    prop_name);
   case RTAnyType::kStringValue:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, std::string_view>>(
+    return std::make_shared<VertexPropertyVertexAccessor<std::string_view>>(
         graph, prop_name);
   case RTAnyType::kDate:
-    return std::make_shared<VertexPropertyVertexAccessor<GraphInterface, Date>>(
-        graph, prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<Date>>(graph,
+                                                                prop_name);
   case RTAnyType::kDateTime:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, DateTime>>(graph,
-                                                                prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<DateTime>>(graph,
+                                                                    prop_name);
   case RTAnyType::kInterval:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, Interval>>(graph,
-                                                                prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<Interval>>(graph,
+                                                                    prop_name);
   case RTAnyType::kF32Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, float>>(graph, prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<float>>(graph,
+                                                                 prop_name);
   case RTAnyType::kF64Value:
-    return std::make_shared<
-        VertexPropertyVertexAccessor<GraphInterface, double>>(graph, prop_name);
+    return std::make_shared<VertexPropertyVertexAccessor<double>>(graph,
+                                                                  prop_name);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
                                   std::to_string(static_cast<int>(type)));
@@ -182,78 +168,66 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
   return nullptr;
 }
 
-template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_edge_property_path_accessor(
-    const GraphInterface& graph, const std::string& name, const Context& ctx,
-    int tag, RTAnyType type) {
+    const StorageReadInterface& graph, const std::string& name,
+    const Context& ctx, int tag, RTAnyType type) {
   auto col = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag));
   auto labels = col->get_labels();
   if (labels.size() == 1) {
     switch (type) {
     case RTAnyType::kI32Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<GraphInterface, int>>(
-          graph, name, ctx, tag);
+      return std::make_shared<SLEdgePropertyPathAccessor<int32_t>>(graph, name,
+                                                                   ctx, tag);
     case RTAnyType::kU32Value:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, uint32_t>>(graph, name,
-                                                                ctx, tag);
+      return std::make_shared<SLEdgePropertyPathAccessor<uint32_t>>(graph, name,
+                                                                    ctx, tag);
     case RTAnyType::kI64Value:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, int64_t>>(graph, name, ctx,
-                                                               tag);
+      return std::make_shared<SLEdgePropertyPathAccessor<int64_t>>(graph, name,
+                                                                   ctx, tag);
     case RTAnyType::kU64Value:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, uint64_t>>(graph, name,
-                                                                ctx, tag);
+      return std::make_shared<SLEdgePropertyPathAccessor<uint64_t>>(graph, name,
+                                                                    ctx, tag);
     case RTAnyType::kStringValue:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, std::string_view>>(
+      return std::make_shared<SLEdgePropertyPathAccessor<std::string_view>>(
           graph, name, ctx, tag);
     case RTAnyType::kDate:
-      return std::make_shared<SLEdgePropertyPathAccessor<GraphInterface, Date>>(
-          graph, name, ctx, tag);
-    case RTAnyType::kDateTime:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, DateTime>>(graph, name,
+      return std::make_shared<SLEdgePropertyPathAccessor<Date>>(graph, name,
                                                                 ctx, tag);
+    case RTAnyType::kDateTime:
+      return std::make_shared<SLEdgePropertyPathAccessor<DateTime>>(graph, name,
+                                                                    ctx, tag);
     case RTAnyType::kF64Value:
-      return std::make_shared<
-          SLEdgePropertyPathAccessor<GraphInterface, double>>(graph, name, ctx,
-                                                              tag);
+      return std::make_shared<SLEdgePropertyPathAccessor<double>>(graph, name,
+                                                                  ctx, tag);
     default:
       LOG(FATAL) << "not implemented - " << static_cast<int>(type);
     }
   } else {
     switch (type) {
     case RTAnyType::kI32Value:
-      return std::make_shared<EdgePropertyPathAccessor<GraphInterface, int>>(
-          graph, name, ctx, tag);
+      return std::make_shared<EdgePropertyPathAccessor<int32_t>>(graph, name,
+                                                                 ctx, tag);
     case RTAnyType::kU32Value:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, uint32_t>>(graph, name, ctx,
-                                                              tag);
+      return std::make_shared<EdgePropertyPathAccessor<uint32_t>>(graph, name,
+                                                                  ctx, tag);
     case RTAnyType::kI64Value:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, int64_t>>(graph, name, ctx,
-                                                             tag);
+      return std::make_shared<EdgePropertyPathAccessor<int64_t>>(graph, name,
+                                                                 ctx, tag);
     case RTAnyType::kU64Value:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, uint64_t>>(graph, name, ctx,
-                                                              tag);
+      return std::make_shared<EdgePropertyPathAccessor<uint64_t>>(graph, name,
+                                                                  ctx, tag);
     case RTAnyType::kStringValue:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, std::string_view>>(
+      return std::make_shared<EdgePropertyPathAccessor<std::string_view>>(
           graph, name, ctx, tag);
     case RTAnyType::kDate:
-      return std::make_shared<EdgePropertyPathAccessor<GraphInterface, Date>>(
-          graph, name, ctx, tag);
-    case RTAnyType::kDateTime:
-      return std::make_shared<
-          EdgePropertyPathAccessor<GraphInterface, DateTime>>(graph, name, ctx,
+      return std::make_shared<EdgePropertyPathAccessor<Date>>(graph, name, ctx,
                                                               tag);
+    case RTAnyType::kDateTime:
+      return std::make_shared<EdgePropertyPathAccessor<DateTime>>(graph, name,
+                                                                  ctx, tag);
     case RTAnyType::kF64Value:
-      return std::make_shared<EdgePropertyPathAccessor<GraphInterface, double>>(
-          graph, name, ctx, tag);
+      return std::make_shared<EdgePropertyPathAccessor<double>>(graph, name,
+                                                                ctx, tag);
     default:
       LOG(FATAL) << "not implemented - " << static_cast<int>(type);
     }
@@ -261,9 +235,9 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
   return nullptr;
 }
 
-template <typename GraphInterface, typename T>
-VertexPropertyPathAccessor<GraphInterface, T>::VertexPropertyPathAccessor(
-    const GraphInterface& graph, const Context& ctx, int tag,
+template <typename T>
+VertexPropertyPathAccessor<T>::VertexPropertyPathAccessor(
+    const StorageReadInterface& graph, const Context& ctx, int tag,
     const std::string& prop_name)
     : is_optional_(false),
       vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {
@@ -288,78 +262,46 @@ std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Schema& schema,
   return std::make_shared<EdgeLabelPathAccessor>(schema, ctx, tag);
 }
 
-template <typename GraphInterface>
 std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
-    const GraphInterface& graph, const std::string& prop_name, RTAnyType type) {
+    const StorageReadInterface& graph, const std::string& prop_name,
+    RTAnyType type) {
   switch (type) {
   case RTAnyType::kI64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, int64_t>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<int64_t>>(graph,
+                                                               prop_name);
   case RTAnyType::kI32Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, int>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<int32_t>>(graph,
+                                                               prop_name);
   case RTAnyType::kU32Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, uint32_t>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<uint32_t>>(graph,
+                                                                prop_name);
   case RTAnyType::kU64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, uint64_t>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<uint64_t>>(graph,
+                                                                prop_name);
   case RTAnyType::kStringValue:
-    return std::make_shared<
-        EdgePropertyEdgeAccessor<GraphInterface, std::string_view>>(graph,
-                                                                    prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<std::string_view>>(
+        graph, prop_name);
   case RTAnyType::kDate:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, Date>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<Date>>(graph, prop_name);
   case RTAnyType::kDateTime:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, DateTime>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<DateTime>>(graph,
+                                                                prop_name);
   case RTAnyType::kF64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<GraphInterface, double>>(
-        graph, prop_name);
+    return std::make_shared<EdgePropertyEdgeAccessor<double>>(graph, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type);
   }
 }
 
-template std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
-    const StorageReadInterface& graph, const Context& ctx, int tag,
-    RTAnyType type, const std::string& prop_name);
-template std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
-    const StorageUpdateInterface& graph, const Context& ctx, int tag,
-    RTAnyType type, const std::string& prop_name);
-
-template std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const StorageReadInterface& graph, RTAnyType type,
-    const std::string& prop_name);
-template std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const StorageUpdateInterface& graph, RTAnyType type,
-    const std::string& prop_name);
-
-template std::shared_ptr<IAccessor> create_edge_property_path_accessor(
-    const StorageReadInterface& graph, const std::string& name,
-    const Context& ctx, int tag, RTAnyType type);
-template std::shared_ptr<IAccessor> create_edge_property_path_accessor(
-    const StorageUpdateInterface& graph, const std::string& name,
-    const Context& ctx, int tag, RTAnyType type);
-
-template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
-    const StorageReadInterface& graph, const std::string& prop_name,
-    RTAnyType type);
-template std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
-    const StorageUpdateInterface& graph, const std::string& prop_name,
-    RTAnyType type);
-
-template class VertexPropertyPathAccessor<StorageReadInterface, int64_t>;
-template class VertexPropertyPathAccessor<StorageReadInterface, int32_t>;
-template class VertexPropertyPathAccessor<StorageReadInterface, uint32_t>;
-template class VertexPropertyPathAccessor<StorageReadInterface, uint64_t>;
-template class VertexPropertyPathAccessor<StorageReadInterface,
-                                          std::string_view>;
-template class VertexPropertyPathAccessor<StorageReadInterface, Date>;
-template class VertexPropertyPathAccessor<StorageReadInterface, DateTime>;
-template class VertexPropertyPathAccessor<StorageReadInterface, double>;
-template class VertexPropertyPathAccessor<StorageReadInterface, Interval>;
+template class VertexPropertyPathAccessor<int64_t>;
+template class VertexPropertyPathAccessor<int32_t>;
+template class VertexPropertyPathAccessor<uint32_t>;
+template class VertexPropertyPathAccessor<uint64_t>;
+template class VertexPropertyPathAccessor<std::string_view>;
+template class VertexPropertyPathAccessor<Date>;
+template class VertexPropertyPathAccessor<DateTime>;
+template class VertexPropertyPathAccessor<double>;
+template class VertexPropertyPathAccessor<Interval>;
 
 template class ContextValueAccessor<int64_t>;
 template class ContextValueAccessor<int32_t>;
@@ -374,24 +316,23 @@ template class ContextValueAccessor<List>;
 template class ContextValueAccessor<Set>;
 template class ContextValueAccessor<Interval>;
 
-template class VertexPropertyVertexAccessor<StorageReadInterface, int64_t>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, int32_t>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, uint32_t>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, uint64_t>;
-template class VertexPropertyVertexAccessor<StorageReadInterface,
-                                            std::string_view>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, Date>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, DateTime>;
-template class VertexPropertyVertexAccessor<StorageReadInterface, double>;
+template class VertexPropertyVertexAccessor<int64_t>;
+template class VertexPropertyVertexAccessor<int32_t>;
+template class VertexPropertyVertexAccessor<uint32_t>;
+template class VertexPropertyVertexAccessor<uint64_t>;
+template class VertexPropertyVertexAccessor<std::string_view>;
+template class VertexPropertyVertexAccessor<Date>;
+template class VertexPropertyVertexAccessor<DateTime>;
+template class VertexPropertyVertexAccessor<double>;
 
-template class EdgePropertyEdgeAccessor<StorageReadInterface, int64_t>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, int32_t>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, uint32_t>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, uint64_t>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, std::string_view>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, Date>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, DateTime>;
-template class EdgePropertyEdgeAccessor<StorageReadInterface, double>;
+template class EdgePropertyEdgeAccessor<int64_t>;
+template class EdgePropertyEdgeAccessor<int32_t>;
+template class EdgePropertyEdgeAccessor<uint32_t>;
+template class EdgePropertyEdgeAccessor<uint64_t>;
+template class EdgePropertyEdgeAccessor<std::string_view>;
+template class EdgePropertyEdgeAccessor<Date>;
+template class EdgePropertyEdgeAccessor<DateTime>;
+template class EdgePropertyEdgeAccessor<double>;
 
 }  // namespace runtime
 

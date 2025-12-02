@@ -43,7 +43,7 @@ class CypherReadApp : public ReadAppBase {
  private:
   const NeugDB& db_;
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;
-  std::unordered_map<std::string, runtime::ReadPipeline> pipeline_cache_;
+  std::unordered_map<std::string, runtime::Pipeline> pipeline_cache_;
 };
 
 class CypherReadAppFactory : public AppFactoryBase {

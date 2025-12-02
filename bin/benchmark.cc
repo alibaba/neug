@@ -133,8 +133,7 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 }
 
 void benchmark_iteration(
-    const gs::runtime::StorageReadInterface& graph,
-    gs::runtime::ReadPipeline& pipeline,
+    gs::runtime::IStorageInterface& graph, gs::runtime::Pipeline& pipeline,
     const std::vector<std::map<std::string, std::string>>& parameters,
     int query_num, std::vector<std::vector<char>>& outputs,
     gs::runtime::OprTimer& timer) {
@@ -143,25 +142,25 @@ void benchmark_iteration(
     gs::runtime::Context ctx;
     auto& m = parameters[i % parameters.size()];
     if (i == 0) {
-      auto ctx = pipeline.Execute(
-          const_cast<gs::runtime::StorageReadInterface&>(graph),
-          gs::runtime::Context(), m, &timer);
+      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &timer);
       if (!ctx) {
         LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
         return;
       }
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(ctx.value(), graph, output);
+      gs::runtime::Sink::sink(
+          ctx.value(), dynamic_cast<gs::runtime::StorageReadInterface&>(graph),
+          output);
     } else {
       gs::runtime::OprTimer cur_timer;
-      auto ctx = pipeline.Execute(
-          const_cast<gs::runtime::StorageReadInterface&>(graph),
-          gs::runtime::Context(), m, &cur_timer);
+      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer);
 
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(ctx.value(), graph, output);
+      gs::runtime::Sink::sink(
+          ctx.value(), dynamic_cast<gs::runtime::StorageReadInterface&>(graph),
+          output);
       timer += cur_timer;
     }
   }
@@ -225,8 +224,8 @@ int main(int argc, char** argv) {
       fout << plan.DebugString();
       fout.close();
     }
-    auto pipeline = gs::runtime::PlanParser::get().parse_read_pipeline(
-        graph.schema(), gs::runtime::ContextMeta(), plan);
+    auto pipeline = gs::runtime::PlanParser::get().parse_execute_pipeline(
+        txn.graph().schema(), gs::runtime::ContextMeta(), plan);
 
     std::unique_ptr<gs::runtime::OprTimer> best_timer =
         std::make_unique<gs::runtime::OprTimer>();

@@ -1057,8 +1057,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
     auto oe_edges = oe_view.get_edges(src_lids[i]);
     auto ie_edges = ie_view.get_edges(dst_lids[i]);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
-      auto uint64_ptr = reinterpret_cast<const uint64_t*>(it.get_data_ptr());
-      assert(uint64_ptr != nullptr);
+      assert(reinterpret_cast<const uint64_t*>(it.get_data_ptr()) != nullptr);
       auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
           ie_edges, src_lids[i], it.get_data_ptr(), PropertyType::UInt64());
       auto another_iter = ie_edges.begin();

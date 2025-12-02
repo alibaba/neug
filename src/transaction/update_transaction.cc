@@ -889,10 +889,6 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
   }
 }
 
-VertexSet UpdateTransaction::GetVertexSet(label_t label) const {
-  return graph_.GetVertexSet(label, timestamp_);
-}
-
 void UpdateTransaction::CreateCheckpoint() {
   // Create a checkpoint for the current graph. Expect no changes are made to
   // this transaction

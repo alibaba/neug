@@ -789,11 +789,9 @@ inline std::unique_ptr<ReducerBase> make_pair_reducer(const Context& ctx,
   return nullptr;
 }
 
-template <typename GraphInterface>
-std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
-                                          const Context& ctx,
-                                          const common::Variable& var,
-                                          AggrKind kind, int alias) {
+inline std::unique_ptr<ReducerBase> make_reducer(
+    const StorageReadInterface& graph, const Context& ctx,
+    const common::Variable& var, AggrKind kind, int alias) {
   if (!var.has_property() && var.has_tag()) {
     int tag = var.has_tag() ? var.tag().id() : -1;
     auto col = ctx.get(tag);
@@ -877,10 +875,10 @@ std::unique_ptr<ReducerBase> make_reducer(const GraphInterface& graph,
     return make_general_reducer(ctx, std::move(var_), kind, alias);
   }
 }
-template <typename GraphInterface>
-std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
+
+inline std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
     const std::vector<std::pair<common::Variable, int>>& vars,
-    const GraphInterface& graph, const Context& ctx) {
+    const StorageReadInterface& graph, const Context& ctx) {
   std::vector<std::unique_ptr<ProjectExprBase>> exprs;
   for (const auto& [var, alias] : vars) {
     if (!var.has_property()) {
@@ -964,11 +962,10 @@ std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
   return exprs;
 }
 
-template <typename GraphInterface>
-std::unique_ptr<KeyBase> create_key_func(
+inline std::unique_ptr<KeyBase> create_key_func(
     const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
-    const GraphInterface& graph, const Context& ctx) {
+    const StorageReadInterface& graph, const Context& ctx) {
   if (mappings.size() == 1) {
     auto key = KeyBuilder<1>::make_sp_key(ctx, mappings);
     if (key) {
@@ -984,9 +981,8 @@ std::unique_ptr<KeyBase> create_key_func(
   return std::make_unique<GKey<VarWrapper>>(std::move(key_vars), mappings);
 }
 
-template <typename GraphInterface>
-std::unique_ptr<ReducerBase> create_reducer(
-    const physical::GroupBy_AggFunc& func, const GraphInterface& graph,
+inline std::unique_ptr<ReducerBase> create_reducer(
+    const physical::GroupBy_AggFunc& func, const StorageReadInterface& graph,
     const Context& ctx) {
   auto aggr_kind = parse_aggregate(func.aggregate());
   int alias = func.has_alias() ? func.alias().value() : -1;
@@ -1026,9 +1022,8 @@ bool BuildGroupByUtils(
     std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
     std::vector<std::pair<int, int>>& dependencies);
 
-template <typename GraphInterface>
 inline gs::result<gs::runtime::Context> GroupByEvalImpl(
-    const GraphInterface& graph,
+    const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
@@ -1067,9 +1062,8 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
   return ret;
 }
 
-template <typename GraphInterface>
 inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
-    const GraphInterface& graph,
+    const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     const std::vector<std::pair<common::Variable, int>>& project_var_alias,
     const std::vector<common::Variable>& vars,

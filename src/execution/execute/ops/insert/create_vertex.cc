@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/operators/update/create_vertex.h"
+#include "neug/execution/common/operators/insert/create_vertex.h"
 #include "neug/execution/common/graph_interface.h"
-#include "neug/execution/execute/ops/update/create_vertex.h"
+#include "neug/execution/execute/ops/insert/create_vertex.h"
 #include "neug/execution/utils/expr.h"
 
 namespace gs {

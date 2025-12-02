@@ -65,8 +65,6 @@ class OprTimer {
 
   ~OprTimer() = default;
 
-  void output(const std::string& path) const {}
-
   OprTimer* next() { return next_.get(); }
 
   void output(const std::string& prefix, std::ostream& os) const {

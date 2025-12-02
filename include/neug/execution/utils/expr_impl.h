@@ -242,8 +242,7 @@ class WithInExpr : public ExprBase {
 
 class VariableExpr : public ExprBase {
  public:
-  template <typename GraphInterface>
-  VariableExpr(const GraphInterface* graph, const Context& ctx,
+  VariableExpr(const StorageReadInterface* graph, const Context& ctx,
                const ::common::Variable& pb, VarType var_type)
       : var_(graph, ctx, pb, var_type) {}
 
@@ -749,10 +748,6 @@ class PathVertexPropsExpr : public ListExprBase {
         prop_(prop),
         prop_type_(prop_type) {}
 
-  explicit PathVertexPropsExpr(const StorageUpdateInterface& graph,
-                               const Context& ctx, int tag,
-                               const std::string& prop,
-                               RTAnyType prop_type) = delete;
   RTAny eval_path(size_t idx, Arena& arena) const override;
 
   RTAny eval_vertex(label_t label, vid_t v, size_t idx,
@@ -1117,11 +1112,12 @@ class AbsExpr : public ExprBase {
   std::unique_ptr<ExprBase> args;
 };
 
-template <typename GraphInterface>
 std::unique_ptr<ExprBase> parse_expression(
-    const GraphInterface* graph, const Context& ctx,
+    const StorageReadInterface* graph, const Context& ctx,
     const std::map<std::string, std::string>& params,
     const ::common::Expression& expr, VarType var_type);
+
+bool graph_related_expr(const ::common::Expression& expr);
 
 }  // namespace runtime
 
