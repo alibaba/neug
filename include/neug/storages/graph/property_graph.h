@@ -242,6 +242,10 @@ class PropertyGraph {
 
   Status DeleteVertex(label_t v_label, vid_t lid, timestamp_t ts);
 
+  Status DeleteEdge(label_t src_label, vid_t src_lid, label_t dst_label,
+                    vid_t dst_lid, label_t edge_label, int32_t oe_offset,
+                    int32_t ie_offset, timestamp_t ts);
+
   Status BatchDeleteEdges(
       label_t src_v_label, label_t dst_v_label, label_t edge_label,
       const std::vector<std::tuple<vid_t, vid_t>>& edges_vec);
@@ -257,6 +261,28 @@ class PropertyGraph {
 
   inline const VertexTable& get_vertex_table(label_t vertex_label) const {
     return vertex_tables_[vertex_label];
+  }
+
+  inline EdgeTable& get_edge_table(label_t src_label, label_t dst_label,
+                                   label_t edge_label) {
+    size_t index =
+        schema_.generate_edge_label(src_label, dst_label, edge_label);
+    if (edge_tables_.count(index) == 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
+    return edge_tables_.at(index);
+  }
+
+  inline const EdgeTable& get_edge_table(label_t src_label, label_t dst_label,
+                                         label_t edge_label) const {
+    size_t index =
+        schema_.generate_edge_label(src_label, dst_label, edge_label);
+    if (edge_tables_.count(index) == 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Edge table for edge label triplet not found");
+    }
+    return edge_tables_.at(index);
   }
 
   vid_t LidNum(label_t vertex_label) const;
@@ -284,6 +310,12 @@ class PropertyGraph {
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);
+
+  Status UpdateEdgeProperty(label_t src_label, label_t dst_label,
+                            label_t e_label, vid_t src_lid, vid_t dst_lid,
+                            int32_t oe_offset, int32_t ie_offset,
+                            int32_t col_id, const Property& new_prop,
+                            timestamp_t ts);
 
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,

@@ -14,6 +14,7 @@
  */
 
 #include "neug/transaction/undo_log.h"
+#include "neug/storages/csr/generic_view_utils.h"
 
 namespace gs {
 void CreateVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
@@ -30,8 +31,9 @@ void InsertVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void InsertEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for InsertEdge is not implemented yet.");
+  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  graph.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
+                   oe_offset, ie_offset, ts);
 };
 
 void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
@@ -40,8 +42,9 @@ void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for UpdateEdgeProp is not implemented yet.");
+  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  graph.UpdateEdgeProperty(src_label, dst_label, edge_label, src_lid, dst_lid,
+                           oe_offset, ie_offset, col_id, value, ts);
 };
 
 void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
@@ -50,8 +53,9 @@ void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 };
 
 void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
-  THROW_NOT_IMPLEMENTED_EXCEPTION(
-      "Undo for RemoveEdge is not implemented yet.");
+  assert(graph.schema().exist(src_label, dst_label, edge_label));
+  graph.get_edge_table(src_label, dst_label, edge_label)
+      .RevertDeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, ts);
 };
 
 void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {

@@ -231,19 +231,13 @@ class StorageUpdateInterface : public StorageReadInterface,
     txn_.UpdateVertexProperty(label, lid, col_id, value);
   }
 
-  inline void SetEdgeData(bool dir, label_t label, vid_t v,
-                          label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          const Property& value, int32_t col_id = 0) {
-    txn_.SetEdgeData(dir, label, v, neighbor_label, nbr, edge_label, value,
-                     col_id);
-  }
-
-  inline bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
-                                 label_t neighbor_label, vid_t nbr,
-                                 label_t edge_label, int32_t prop_id,
-                                 Property& ret) const {
-    return txn_.GetUpdatedEdgeData(dir, label, v, neighbor_label, nbr,
-                                   edge_label, prop_id, ret);
+  inline void UpdateEdgeProperty(label_t src_label, vid_t src,
+                                 label_t dst_label, vid_t dst,
+                                 label_t edge_label, int32_t oe_offset,
+                                 int32_t ie_offset, int32_t col_id,
+                                 const Property& value) {
+    txn_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
+                            oe_offset, ie_offset, col_id, value);
   }
 
   inline bool GetVertexIndex(label_t label, const Property& id,
@@ -262,20 +256,6 @@ class StorageUpdateInterface : public StorageReadInterface,
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
-    inline auto GetOutEdgeIterator(label_t label, vid_t src,
-                                 label_t neighbor_label, label_t edge_label,
-                                 int prop_id) const {
-    return txn_.GetOutEdgeIterator(label, src, neighbor_label, edge_label,
-                                   prop_id);
-  }
-
-  inline auto GetInEdgeIterator(label_t label, vid_t src,
-                                label_t neighbor_label, label_t edge_label,
-                                int prop_id) const {
-    return txn_.GetInEdgeIterator(label, src, neighbor_label, edge_label,
-                                  prop_id);
-  }
-
   inline void CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
   gs::UpdateTransaction& GetTransaction() { return txn_; }
@@ -283,15 +263,15 @@ class StorageUpdateInterface : public StorageReadInterface,
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.graph().GetGenericOutgoingGraphView(
-        v_label, neighbor_label, edge_label, txn_.timestamp());
+    return txn_.GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                            edge_label);
   }
 
   GenericView GetGenericIncomingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
-    return txn_.graph().GetGenericIncomingGraphView(
-        v_label, neighbor_label, edge_label, txn_.timestamp());
+    return txn_.GetGenericIncomingGraphView(v_label, neighbor_label,
+                                            edge_label);
   }
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,

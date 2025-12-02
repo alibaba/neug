@@ -63,10 +63,10 @@ struct InsertVertexUndo : public IUndoLog {
 struct InsertEdgeUndo : public IUndoLog {
   label_t src_label, dst_label, edge_label;
   vid_t src_lid, dst_lid;
-  size_t oe_offset, ie_offset;
+  int32_t oe_offset, ie_offset;
   InsertEdgeUndo(label_t src_label, label_t dst_label, label_t edge_label,
-                 vid_t src_lid, vid_t dst_lid, size_t oe_offset,
-                 size_t ie_offset)
+                 vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                 int32_t ie_offset)
       : src_label(src_label),
         dst_label(dst_label),
         edge_label(edge_label),
@@ -93,12 +93,12 @@ struct UpdateVertexPropUndo : public IUndoLog {
 struct UpdateEdgePropUndo : public IUndoLog {
   label_t src_label, dst_label, edge_label;
   vid_t src_lid, dst_lid;
-  size_t oe_offset, ie_offset;
+  int32_t oe_offset, ie_offset;
   int32_t col_id;
   Property value;
   UpdateEdgePropUndo(label_t src_label, label_t dst_label, label_t edge_label,
-                     vid_t src_lid, vid_t dst_lid, size_t oe_offset,
-                     size_t ie_offset, int32_t col_id, const Property& value)
+                     vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                     int32_t ie_offset, int32_t col_id, const Property& value)
       : src_label(src_label),
         dst_label(dst_label),
         edge_label(edge_label),
@@ -123,10 +123,10 @@ struct RemoveVertexUndo : public IUndoLog {
 struct RemoveEdgeUndo : public IUndoLog {
   label_t src_label, dst_label, edge_label;
   vid_t src_lid, dst_lid;
-  size_t oe_offset, ie_offset;
+  int32_t oe_offset, ie_offset;
   RemoveEdgeUndo(label_t src_label, label_t dst_label, label_t edge_label,
-                 vid_t src_lid, vid_t dst_lid, size_t oe_offset,
-                 size_t ie_offset)
+                 vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
+                 int32_t ie_offset)
       : src_label(src_label),
         dst_label(dst_label),
         edge_label(edge_label),

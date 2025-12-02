@@ -16,6 +16,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/utils/expr.h"
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/utils/pb_utils.h"
 
 namespace gs {
@@ -104,7 +105,6 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       LOG(INFO) << "value type: " << static_cast<int>(val_type);
       if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
       } else if (val_type == RTAnyType::kI32Value) {
-        // prop = Property::from_int32(value.as_int32());
         prop.set_int32(value.as_int32());
       } else if (val_type == RTAnyType::kI64Value) {
         prop.set_int64(value.as_int64());
@@ -116,20 +116,17 @@ gs::result<Context> UpdateEdgeOpr::Eval(
         THROW_RUNTIME_ERROR("Unsupported property type: " +
                             std::to_string(static_cast<int>(val_type)));
       }
-      LOG(INFO) << "Before insert " << prop.to_string();
-      if (er.dir == Direction::kOut) {
-        graph.SetEdgeData(true, src_label, er.src, dst_label, er.dst, label_id,
-                          prop, col_id);
-        graph.SetEdgeData(false, dst_label, er.dst, src_label, er.src, label_id,
-                          prop, col_id);
-      } else {
-        graph.SetEdgeData(false, dst_label, er.dst, src_label, er.src, label_id,
-                          prop, col_id);
-        graph.SetEdgeData(true, src_label, er.src, dst_label, er.dst, label_id,
-                          prop, col_id);
-      }
-
-      LOG(INFO) << "After insert " << prop.to_string();
+      auto oe_view =
+          graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);
+      auto ie_view =
+          graph.GetGenericIncomingGraphView(dst_label, src_label, label_id);
+      auto prop_types =
+          graph.schema().get_edge_properties(src_label, dst_label, label_id);
+      auto offset_pair =
+          record_to_csr_offset_pair(oe_view, ie_view, er, prop_types);
+      graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, label_id,
+                               offset_pair.first, offset_pair.second, col_id,
+                               prop);
     }
   }
   return gs::result<Context>(std::move(ctx));

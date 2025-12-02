@@ -300,18 +300,19 @@ struct UpdateVertexPropRedo {
 };
 
 struct UpdateEdgePropRedo {
-  bool dir;
   label_t src_label;
   Property src;
   label_t dst_label;
   Property dst;
   label_t edge_label;
+  int32_t oe_offset, ie_offset;
   int prop_id;
   Property value;
 
-  static void Serialize(grape::InArchive& arc, bool dir, label_t src_label,
+  static void Serialize(grape::InArchive& arc, label_t src_label,
                         const Property& src, label_t dst_label,
-                        const Property& dst, label_t edge_label, int prop_id,
+                        const Property& dst, label_t edge_label,
+                        int32_t oe_offset, int32_t ie_offset, int prop_id,
                         const Property& value);
   static void Deserialize(grape::OutArchive& arc, UpdateEdgePropRedo& redo);
 };
@@ -331,10 +332,12 @@ struct RemoveEdgeRedo {
   label_t dst_label;
   Property dst;
   label_t edge_label;
+  int32_t oe_offset, ie_offset;
 
   static void Serialize(grape::InArchive& arc, label_t src_label,
                         const Property& src, label_t dst_label,
-                        const Property& dst, label_t edge_label);
+                        const Property& dst, label_t edge_label,
+                        int32_t oe_offset, int32_t ie_offset);
   static void Deserialize(grape::OutArchive& arc, RemoveEdgeRedo& redo);
 };
 

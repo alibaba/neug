@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/graph_interface.h"
 #include "neug/neug.h"
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/transaction/update_transaction.h"
 
 #include "glog/logging.h"
@@ -161,6 +162,32 @@ class UpdateTransactionTest : public ::testing::Test {
         {gs::Property::from_double(4.5), gs::Property::from_int64(2023)}));
     EXPECT_TRUE(txn.AddEdge(person_label, p1_vid, cmp_label, cmp_vid,
                             employ_label, {}));
+  }
+
+  template <typename FUNC_T>
+  void update_edge_property(gs::UpdateTransaction& txn, gs::label_t src_label,
+                            gs::label_t dst_label, gs::label_t edge_label,
+                            gs::vid_t src_vid,
+                            std::function<bool(gs::vid_t)> condition,
+                            FUNC_T func) {
+    auto oe_view =
+        txn.GetGenericOutgoingGraphView(src_label, dst_label, edge_label);
+    auto ie_view =
+        txn.GetGenericIncomingGraphView(dst_label, src_label, edge_label);
+    auto e_prop_types = txn.schema()
+                            .get_edge_schema(src_label, dst_label, edge_label)
+                            ->properties;
+    auto edge_iter = oe_view.get_edges(src_vid);
+    int32_t oe_offset = 0;
+    for (auto it = edge_iter.begin(); it != edge_iter.end();
+         ++it, ++oe_offset) {
+      if (condition(it.get_vertex())) {
+        auto ie_offset = gs::search_ie_offset_with_oe_offset(
+            oe_view, ie_view, src_vid, it.get_vertex(), oe_offset,
+            e_prop_types);
+        func(it.get_vertex(), oe_offset, ie_offset);
+      }
+    }
   }
 };
 
@@ -423,12 +450,14 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
                              vertex_id));
-    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
-                                            software_label, created_label, 0);
-    while (edge_iter.IsValid()) {
-      edge_iter.SetData(gs::Property::from_double(0.99));
-      edge_iter.Next();
-    }
+    update_edge_property(
+        txn, person_label, software_label, created_label, vertex_id,
+        [](gs::vid_t dst_vid) { return true; },
+        [&](gs::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 0, gs::Property::from_double(0.99));
+        });
 
     EXPECT_TRUE(txn.Commit());
   }
@@ -575,8 +604,6 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
 }
 
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
-  GTEST_SKIP()
-      << "Currently not support update bundled edge property and abort";
   gs::NeugDB db;
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
@@ -591,18 +618,17 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
                              vertex_id));
 
-    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
-                                            software_label, created_label, 0);
-    while (edge_iter.IsValid()) {
-      edge_iter.SetData(gs::Property::from_double(0.88));
-      txn.SetEdgeData(true, person_label, vertex_id, software_label,
-                      edge_iter.GetNeighbor(), created_label,
-                      gs::Property::from_int64(2023), 1);
-      txn.SetEdgeData(false, software_label, edge_iter.GetNeighbor(),
-                      person_label, vertex_id, created_label,
-                      gs::Property::from_int64(2023), 1);
-      edge_iter.Next();
-    }
+    update_edge_property(
+        txn, person_label, software_label, created_label, vertex_id,
+        [](gs::vid_t dst_vid) { return true; },
+        [&](gs::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 0, gs::Property::from_double(0.9));
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 1, gs::Property::from_int64(2023));
+        });
 
     txn.Abort();
   }
@@ -647,8 +673,6 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
 }
 
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
-  GTEST_SKIP()
-      << "Currently not support update bundled edge property and abort";
   // Update a bundled edge property and abort the transaction
   gs::NeugDB db;
   gs::NeugDBConfig config(db_dir);
@@ -663,12 +687,14 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
                              vertex_id));
 
-    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
-                                            person_label, knows_label, 0);
-    while (edge_iter.IsValid()) {
-      edge_iter.SetData(gs::Property::from_double(0.95));
-      edge_iter.Next();
-    }
+    update_edge_property(
+        txn, person_label, person_label, knows_label, vertex_id,
+        [](gs::vid_t dst_vid) { return true; },
+        [&](gs::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          txn.UpdateEdgeProperty(person_label, vertex_id, person_label, dst_vid,
+                                 knows_label, oe_offset, ie_offset, 0,
+                                 gs::Property::from_double(0.95));
+        });
 
     txn.Abort();
   }
@@ -729,12 +755,15 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1),
                              vertex_id));
-    auto edge_iter = txn.GetOutEdgeIterator(person_label, vertex_id,
-                                            software_label, created_label, 0);
-    while (edge_iter.IsValid()) {
-      edge_iter.SetData(gs::Property::from_double(0.9));
-      edge_iter.Next();
-    }
+
+    update_edge_property(
+        txn, person_label, software_label, created_label, vertex_id,
+        [](gs::vid_t dst_vid) { return true; },
+        [&](gs::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 0, gs::Property::from_double(0.9));
+        });
 
     txn.Abort();
   }
@@ -813,6 +842,62 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
                  gs::exception::Exception);
   }
   db.Close();
+}
+
+TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t vid2, vid1;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid2));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(software_label, gs::Property::from_int64(1), vid1));
+    EXPECT_TRUE(txn.DeleteEdges(person_label, vid2, software_label, vid1,
+                                created_label));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    gs::vid_t vid1, vid2;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid1));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid2));
+    EXPECT_TRUE(
+        txn.DeleteEdges(person_label, vid1, person_label, vid2, knows_label));
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetReadTransaction();
+    // Check edge count
+    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto p_label_id = gi.schema().get_vertex_label_id("person");
+    auto s_label_id = gi.schema().get_vertex_label_id("software");
+    auto e_label_id = gi.schema().get_edge_label_id("created");
+    auto knows_label_id = gi.schema().get_edge_label_id("knows");
+    auto oe_created_count =
+        count_edges(gi, p_label_id, s_label_id, e_label_id, true);
+    auto ie_created_count =
+        count_edges(gi, s_label_id, p_label_id, e_label_id, false);
+    EXPECT_EQ(oe_created_count, 1);
+    EXPECT_EQ(ie_created_count, 1);
+    auto oe_knows_count =
+        count_edges(gi, p_label_id, p_label_id, knows_label_id, true);
+    auto ie_knows_count =
+        count_edges(gi, p_label_id, p_label_id, knows_label_id, false);
+    EXPECT_EQ(oe_knows_count, 1);
+    EXPECT_EQ(ie_knows_count, 1);
+  }
 }
 
 TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
@@ -1301,9 +1386,9 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
 
     EXPECT_TRUE(txn.UpdateVertexProperty(person_label, src_p, 1,
                                          gs::Property::from_int64(29)));
-    txn.SetEdgeData(true, person_label, src_p, person_label, dst_p,
-                    txn.schema().get_edge_label_id("knows"),
-                    gs::Property::from_double(0.5), 0);
+    txn.UpdateEdgeProperty(person_label, src_p, person_label, dst_p,
+                           txn.schema().get_edge_label_id("knows"), 0,
+                           gs::Property::from_double(0.5));
     EXPECT_TRUE(txn.Commit());
     db.Close();
   }

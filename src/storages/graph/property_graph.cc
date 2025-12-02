@@ -696,6 +696,19 @@ Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
   return Status::OK();
 }
 
+Status PropertyGraph::DeleteEdge(label_t src_label, vid_t src_lid,
+                                 label_t dst_label, vid_t dst_lid,
+                                 label_t edge_label, int32_t oe_offset,
+                                 int32_t ie_offset, timestamp_t ts) {
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge label does not exist.");
+  }
+  edge_tables_.at(index).DeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, ts);
+  return Status::OK();
+}
+
 Status PropertyGraph::BatchDeleteEdges(
     label_t src_v_label, label_t dst_v_label, label_t edge_label,
     const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
@@ -1030,6 +1043,28 @@ Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Fail to update vertex property.");
   }
+  return gs::Status::OK();
+}
+
+Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label,
+                                         label_t dst_v_label, label_t e_label,
+                                         vid_t src_vid, vid_t dst_vid,
+                                         int32_t oe_offset, int32_t ie_offset,
+                                         int32_t prop_id, const Property& value,
+                                         timestamp_t ts) {
+  assert(prop_id >= 0);
+  assert(schema_.edge_label_valid(e_label));
+  size_t index = schema_.generate_edge_label(src_v_label, dst_v_label, e_label);
+  if (edge_tables_.count(index) == 0) {
+    LOG(ERROR) << "Edge table does not exist for edge label: " << e_label;
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table does not exist for label <" +
+                      std::to_string(src_v_label) + ", " +
+                      std::to_string(dst_v_label) + ", " +
+                      std::to_string(e_label) + ">");
+  }
+  edge_tables_.at(index).UpdateEdgeProperty(src_vid, dst_vid, oe_offset,
+                                            ie_offset, prop_id, value, ts);
   return gs::Status::OK();
 }
 

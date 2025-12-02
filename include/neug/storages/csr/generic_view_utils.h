@@ -32,8 +32,14 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
                                           const PropertyType& type);
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
-    GenericView& oe, GenericView& ie, const gs::runtime::EdgeRecord& record,
-    const std::vector<PropertyType>& props, timestamp_t ts);
+    const GenericView& oe, const GenericView& ie,
+    const gs::runtime::EdgeRecord& record,
+    const std::vector<PropertyType>& props);
+
+int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
+                                        const GenericView& ie, vid_t src_lid,
+                                        vid_t dst_lid, int32_t oe_offset,
+                                        const std::vector<PropertyType>& props);
 
 }  // namespace gs
 

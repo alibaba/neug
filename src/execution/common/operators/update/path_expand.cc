@@ -58,14 +58,12 @@ gs::result<Context> UPathExpand::path_expand_v(
         auto v = std::get<1>(tuple);
         auto index = std::get<2>(tuple);
         for (const auto& label_triplet : out_labels_map[label]) {
-          auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
-                                                  label_triplet.dst_label,
-                                                  label_triplet.edge_label, 0);
-
-          while (oe_iter.IsValid()) {
-            auto nbr = oe_iter.GetNeighbor();
-            output.emplace_back(label_triplet.dst_label, nbr, index);
-            oe_iter.Next();
+          auto oe_view = graph.GetGenericOutgoingGraphView(
+              label, label_triplet.dst_label, label_triplet.edge_label);
+          auto edges = oe_view.get_edges(v);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                index);
           }
         }
       }
@@ -111,14 +109,13 @@ gs::result<Context> UPathExpand::path_expand_v(
         auto v = std::get<1>(tuple);
         auto index = std::get<2>(tuple);
         for (const auto& label_triplet : in_labels_map[label]) {
-          auto oe_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
-                                                 label_triplet.src_label,
-                                                 label_triplet.edge_label, 0);
-
-          while (oe_iter.IsValid()) {
-            auto nbr = oe_iter.GetNeighbor();
-            output.emplace_back(label_triplet.src_label, nbr, index);
-            oe_iter.Next();
+          auto ie_view = graph.GetGenericIncomingGraphView(
+              label_triplet.dst_label, label_triplet.src_label,
+              label_triplet.edge_label);
+          auto edges = ie_view.get_edges(v);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                index);
           }
         }
       }
@@ -178,24 +175,23 @@ gs::result<Context> UPathExpand::path_expand_v(
         auto v = std::get<1>(tuple);
         auto index = std::get<2>(tuple);
         for (const auto& label_triplet : out_labels_map[label]) {
-          auto oe_iter = graph.GetOutEdgeIterator(label_triplet.src_label, v,
-                                                  label_triplet.dst_label,
-                                                  label_triplet.edge_label, 0);
-
-          while (oe_iter.IsValid()) {
-            auto nbr = oe_iter.GetNeighbor();
-            output.emplace_back(label_triplet.dst_label, nbr, index);
-            oe_iter.Next();
+          auto oe_view = graph.GetGenericOutgoingGraphView(
+              label_triplet.src_label, label_triplet.dst_label,
+              label_triplet.edge_label);
+          auto edges = oe_view.get_edges(v);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                index);
           }
         }
         for (const auto& label_triplet : in_labels_map[label]) {
-          auto ie_iter = graph.GetInEdgeIterator(label_triplet.dst_label, v,
-                                                 label_triplet.src_label,
-                                                 label_triplet.edge_label, 0);
-          while (ie_iter.IsValid()) {
-            auto nbr = ie_iter.GetNeighbor();
-            output.emplace_back(label_triplet.src_label, nbr, index);
-            ie_iter.Next();
+          auto ie_view = graph.GetGenericIncomingGraphView(
+              label_triplet.dst_label, label_triplet.src_label,
+              label_triplet.edge_label);
+          auto edges = ie_view.get_edges(v);
+          for (auto it = edges.begin(); it != edges.end(); ++it) {
+            output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                index);
           }
         }
       }

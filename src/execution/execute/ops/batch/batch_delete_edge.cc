@@ -73,8 +73,8 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
       for (size_t j = 0; j < edge_size; j++) {
         auto record = edge_column->get_edge(j);
         if (record.label == request_triplet) {
-          auto offset_pair = record_to_csr_offset_pair(
-              oe_view, ie_view, record, edge_prop_types, MAX_TIMESTAMP);
+          auto offset_pair = record_to_csr_offset_pair(oe_view, ie_view, record,
+                                                       edge_prop_types);
           oe_to_delete.emplace_back(record.src, offset_pair.first);
           ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }
@@ -105,8 +105,8 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
         auto edge_prop_types = graph.schema().get_edge_properties(
             src_v_label, dst_v_label, edge_label);
         for (auto& record : edges) {
-          auto offset_pair = record_to_csr_offset_pair(
-              oe_view, ie_view, record, edge_prop_types, MAX_TIMESTAMP);
+          auto offset_pair = record_to_csr_offset_pair(oe_view, ie_view, record,
+                                                       edge_prop_types);
           oe_to_delete.emplace_back(record.src, offset_pair.first);
           ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }

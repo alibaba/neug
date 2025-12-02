@@ -222,6 +222,12 @@ class UpdateTransaction {
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
                label_t edge_label, const std::vector<Property>& properties);
 
+  bool DeleteEdges(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                   label_t edge_label);
+
+  bool DeleteEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,
+                  label_t edge_label, int32_t oe_offset, int32_t ie_offset);
+
   VertexSet GetVertexSet(label_t label) const;
 
   std::shared_ptr<RefColumnBase> get_vertex_property_column(
@@ -231,72 +237,33 @@ class UpdateTransaction {
     return graph_.GetVertexPropertyColumn(label, col_name);
   }
 
-  class edge_iterator {
-   public:
-    edge_iterator(bool dir, label_t label, vid_t v, label_t neighbor_label,
-                  label_t edge_label, const vid_t* aeb, const vid_t* aee,
-                  const NbrList& edges, const EdgeDataAccessor& ed_accessor,
-                  int32_t prop_id, UpdateTransaction* txn);
-    ~edge_iterator();
-
-    Property GetData() const;
-
-    void SetData(const Property& value);
-
-    bool IsValid() const;
-
-    void Next();
-
-    void Forward(size_t offset);
-
-    vid_t GetNeighbor() const;
-
-    label_t GetNeighborLabel() const;
-
-    label_t GetEdgeLabel() const;
-
-   private:
-    bool dir_;
-
-    label_t label_;
-    vid_t v_;
-
-    label_t neighbor_label_;
-    label_t edge_label_;
-
-    const vid_t* added_edges_cur_;
-    const vid_t* added_edges_end_;
-
-    NbrIterator init_iter_;
-    NbrIterator init_iter_end_;
-    EdgeDataAccessor ed_accessor_;
-    int32_t prop_id_;
-
-    UpdateTransaction* txn_;
-    size_t offset_;
-  };
-
-  edge_iterator GetOutEdgeIterator(label_t label, vid_t u,
-                                   label_t neighbor_label, label_t edge_label,
-                                   int prop_id);
-
-  edge_iterator GetInEdgeIterator(label_t label, vid_t u,
-                                  label_t neighbor_label, label_t edge_label,
-                                  int prop_id);
-
   Property GetVertexProperty(label_t label, vid_t lid, int col_id) const;
 
   bool UpdateVertexProperty(label_t label, vid_t lid, int col_id,
                             const Property& value);
 
-  // set col_id = -1 to set the whole edge data
-  void SetEdgeData(bool dir, label_t label, vid_t v, label_t neighbor_label,
-                   vid_t nbr, label_t edge_label, const Property& value,
-                   int32_t col_id = 0);
+  bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t col_id,
+                          const Property& value);
 
-  bool GetUpdatedEdgeData(bool dir, label_t label, vid_t v,
-                          label_t neighbor_label, vid_t nbr, label_t edge_label,
-                          int32_t prop_id, Property& ret) const;
+  bool UpdateEdgeProperty(label_t src_label, vid_t src, label_t dst_label,
+                          vid_t dst, label_t edge_label, int32_t oe_offset,
+                          int32_t ie_offset, int32_t col_id,
+                          const Property& value);
+
+  GenericView GetGenericOutgoingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                              edge_label, timestamp_);
+  }
+
+  GenericView GetGenericIncomingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
+                                              edge_label, timestamp_);
+  }
 
   static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
                         uint32_t timestamp, char* data, size_t length,
@@ -386,24 +353,9 @@ class UpdateTransaction {
   inline std::string work_dir() const { return graph_.work_dir(); }
 
  private:
-  void set_edge_data_with_offset(bool dir, label_t label, vid_t v,
-                                 label_t neighbor_label, vid_t nbr,
-                                 label_t edge_label, const Property& value,
-                                 size_t offset, int32_t col_id = 0);
-
-  size_t get_in_csr_index(label_t src_label, label_t dst_label,
-                          label_t edge_label) const;
-
-  size_t get_out_csr_index(label_t src_label, label_t dst_label,
-                           label_t edge_label) const;
-
   bool IsValidLid(label_t label, vid_t lid) const;
 
   void release();
-
-  void applyVerticesUpdates();
-
-  void applyEdgesUpdates();
 
   void applyVertexTypeDeletions();
 
@@ -412,8 +364,6 @@ class UpdateTransaction {
   void applyVertexPropDeletion();
 
   void applyEdgePropDeletion();
-
-  Property own_property_memory(const Property& prop);
 
   // Revert all changes made in this transaction.
   void revert_changes();
@@ -427,18 +377,6 @@ class UpdateTransaction {
   grape::InArchive arc_;
   int op_num_;
 
-  size_t vertex_label_num_;
-  size_t edge_label_num_;
-
-  std::vector<vid_t> added_vertices_base_;
-
-  std::vector<ska::flat_hash_map<vid_t, std::vector<vid_t>>> added_edges_;
-  std::vector<ska::flat_hash_map<
-      vid_t, ska::flat_hash_map<
-                 vid_t, std::vector<std::tuple<Property, int32_t, size_t>>>>>
-      updated_edge_data_;
-
-  std::vector<std::string> sv_vec_;
   std::unordered_set<label_t> deleted_vertex_labels_;
   std::unordered_set<std::tuple<label_t, label_t, label_t>,
                      hash_tuple::hash<label_t, label_t, label_t>>

@@ -429,20 +429,23 @@ void UpdateVertexPropRedo::Deserialize(grape::OutArchive& arc,
   arc >> redo.label >> redo.oid >> redo.prop_id >> redo.value;
 }
 
-void UpdateEdgePropRedo::Serialize(grape::InArchive& arc, bool dir,
-                                   label_t src_label, const Property& src,
-                                   label_t dst_label, const Property& dst,
-                                   label_t edge_label, int prop_id,
-                                   const Property& value) {
+void UpdateEdgePropRedo::Serialize(grape::InArchive& arc, label_t src_label,
+                                   const Property& src, label_t dst_label,
+                                   const Property& dst, label_t edge_label,
+                                   int32_t oe_offset, int32_t ie_offset,
+                                   int prop_id, const Property& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateEdgeProp);
-  arc << dir << src_label << src << dst_label << dst << edge_label << prop_id
-      << value;
+  arc << src_label << src << dst_label << dst << edge_label;
+  arc << oe_offset << ie_offset;
+  arc << prop_id << value;
 }
 
 void UpdateEdgePropRedo::Deserialize(grape::OutArchive& arc,
                                      UpdateEdgePropRedo& redo) {
-  arc >> redo.dir >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
-      redo.edge_label >> redo.prop_id >> redo.value;
+  arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
+      redo.edge_label;
+  arc >> redo.oe_offset >> redo.ie_offset;
+  arc >> redo.prop_id >> redo.value;
 }
 
 void RemoveVertexRedo::Serialize(grape::InArchive& arc, label_t label,
@@ -458,14 +461,17 @@ void RemoveVertexRedo::Deserialize(grape::OutArchive& arc,
 
 void RemoveEdgeRedo::Serialize(grape::InArchive& arc, label_t src_label,
                                const Property& src, label_t dst_label,
-                               const Property& dst, label_t edge_label) {
+                               const Property& dst, label_t edge_label,
+                               int32_t oe_offset, int32_t ie_offset) {
   arc << static_cast<uint8_t>(OpType::kRemoveEdge);
   arc << src_label << src << dst_label << dst << edge_label;
+  arc << oe_offset << ie_offset;
 }
 
 void RemoveEdgeRedo::Deserialize(grape::OutArchive& arc, RemoveEdgeRedo& redo) {
   arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
       redo.edge_label;
+  arc >> redo.oe_offset >> redo.ie_offset;
 }
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
@@ -563,9 +569,10 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
 
 grape::InArchive& operator<<(grape::InArchive& in_archive,
                              const UpdateEdgePropRedo& value) {
-  UpdateEdgePropRedo::Serialize(in_archive, value.dir, value.src_label,
-                                value.src, value.dst_label, value.dst,
-                                value.edge_label, value.prop_id, value.value);
+  UpdateEdgePropRedo::Serialize(in_archive, value.src_label, value.src,
+                                value.dst_label, value.dst, value.edge_label,
+                                value.oe_offset, value.ie_offset, value.prop_id,
+                                value.value);
   return in_archive;
 }
 
@@ -578,7 +585,8 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
 grape::InArchive& operator<<(grape::InArchive& in_archive,
                              const RemoveEdgeRedo& value) {
   RemoveEdgeRedo::Serialize(in_archive, value.src_label, value.src,
-                            value.dst_label, value.dst, value.edge_label);
+                            value.dst_label, value.dst, value.edge_label,
+                            value.oe_offset, value.ie_offset);
   return in_archive;
 }
 

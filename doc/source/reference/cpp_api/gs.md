@@ -1142,22 +1142,6 @@ The type of the column.
   - `label`
   - `index`
 
-#### `GetOutEdgeIterator(label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const`
-
-- **Parameters:**
-  - `label`
-  - `u`
-  - `neighbor_label`
-  - `edge_label`
-
-#### `GetInEdgeIterator(label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const`
-
-- **Parameters:**
-  - `label`
-  - `u`
-  - `neighbor_label`
-  - `edge_label`
-
 #### `GetOutDegree(label_t label, vid_t u, label_t neighbor_label, label_t edge_label) const`
 
 - **Parameters:**
@@ -1409,22 +1393,6 @@ AddEdge(
   - `edge_label`
   - `value`
 
-#### `GetOutEdgeIterator(label_t label, vid_t u, label_t neighbor_label, label_t edge_label)`
-
-- **Parameters:**
-  - `label`
-  - `u`
-  - `neighbor_label`
-  - `edge_label`
-
-#### `GetInEdgeIterator(label_t label, vid_t u, label_t neighbor_label, label_t edge_label)`
-
-- **Parameters:**
-  - `label`
-  - `u`
-  - `neighbor_label`
-  - `edge_label`
-
 #### `GetVertexField(label_t label, vid_t lid, int col_id) const`
 
 - **Parameters:**
@@ -1440,15 +1408,14 @@ AddEdge(
   - `col_id`
   - `value`
 
-#### `SetEdgeData(...)`
+#### `UpdateEdgeProperty(...)`
 
 ```cpp
-SetEdgeData(
-    bool dir,
-    label_t label,
-    vid_t v,
-    label_t neighbor_label,
-    vid_t nbr,
+UpdateEdgeProperty(
+    label_t src_label,
+    vid_t src,
+    label_t dst_label,
+    vid_t dst,
     label_t edge_label,
     const Any &value,
     int32_t col_id=0
@@ -1456,37 +1423,13 @@ SetEdgeData(
 ```
 
 - **Parameters:**
-  - `dir`
-  - `label`
-  - `v`
-  - `neighbor_label`
-  - `nbr`
+  - `src_label`
+  - `src`
+  - `dst_label`
+  - `dst`
   - `edge_label`
   - `value`
   - `col_id`
-
-#### `GetUpdatedEdgeData(...)`
-
-```cpp
-GetUpdatedEdgeData(
-    bool dir,
-    label_t label,
-    vid_t v,
-    label_t neighbor_label,
-    vid_t nbr,
-    label_t edge_label,
-    Any &ret) const
-)
-```
-
-- **Parameters:**
-  - `dir`
-  - `label`
-  - `v`
-  - `neighbor_label`
-  - `nbr`
-  - `edge_label`
-  - `ret`
 
 #### `GetVertexId(label_t label, vid_t lid) const`
 
@@ -3490,23 +3433,6 @@ Database session for executing queries and managing transactions.
 - `Query(const NeugDBSession &db, Decoder &input, Encoder &output)=0`
 
 
----
-
-## edge_iterator
-
-**Full name:** `gs::ReadTransaction::edge_iterator`
-
-**Public Methods:**
-
-- `edge_iterator(label_t neighbor_label, label_t edge_label, std::...`
-- `~edge_iterator()`
-- `GetData() const`
-- `IsValid() const`
-- `Next()`
-- `GetNeighbor() const`
-- `GetNeighborLabel() const`
-- `GetEdgeLabel() const`
-
 
 ---
 
@@ -4377,26 +4303,6 @@ It provides methods to obtain different types of transactions (read, insert, upd
 - `GetUpdateVertices() const`
 - `GetUpdateEdges() const`
 - `GetArc()`
-
-
----
-
-## edge_iterator
-
-**Full name:** `gs::UpdateTransaction::edge_iterator`
-
-**Public Methods:**
-
-- `edge_iterator(bool dir, label_t label, vid_t v, label_t neighbo...`
-- `~edge_iterator()`
-- `GetData() const`
-- `SetData(const Any &value)`
-- `IsValid() const`
-- `Next()`
-- `Forward(size_t offset)`
-- `GetNeighbor() const`
-- `GetNeighborLabel() const`
-- `GetEdgeLabel() const`
 
 
 ---
@@ -21853,8 +21759,6 @@ Each column take data from the streamReader's one column.
 - `IsValidVertex(label_t label, vid_t index) const`
 - `GetVertexId(label_t label, vid_t index) const`
 - `GetVertexProperty(label_t label, vid_t index, int prop_id) const`
-- `GetOutEdgeIterator(label_t label, vid_t v, label_t neighbor_label, l...`
-- `GetInEdgeIterator(label_t label, vid_t v, label_t neighbor_label, l...`
 - ... and 4 more methods
 
 
@@ -21871,8 +21775,7 @@ Each column take data from the streamReader's one column.
 - `~GraphUpdateInterface()`
 - `SetVertexField(label_t label, vid_t lid, int col_id, const Any &value)`
 - `GetVertexProperty(label_t label, vid_t index, int prop_id) const`
-- `SetEdgeData(bool dir, label_t label, vid_t v, label_t neighbo...`
-- `GetUpdatedEdgeData(bool dir, label_t label, vid_t v, label_t neighbo...`
+- `UpdateEdgeProperty(bool dir, label_t label, vid_t v, label_t neighbo...`
 - `AddVertex(label_t label, const Any &id, const std::vector< ...`
 - `AddVertex(label_t label, const Any &id, const std::vector< ...`
 - `AddEdge(label_t src_label, const Any &src, label_t dst_la...`
@@ -24495,24 +24398,6 @@ Each column take data from the streamReader's one column.
 - `operator++()`
 - `operator==(const nbr_iterator &rhs) const`
 - `operator!=(const nbr_iterator &rhs) const`
-
-
----
-
-## EdgeIterator
-
-**Full name:** `gs::runtime::graph_interface_impl::EdgeIterator`
-
-**Public Methods:**
-
-- `EdgeIterator(gs::ReadTransaction::edge_iterator &&iter)`
-- `~EdgeIterator()`
-- `GetData() const`
-- `IsValid() const`
-- `Next()`
-- `GetNeighbor() const`
-- `GetNeighborLabel() const`
-- `GetEdgeLabel() const`
 
 
 ---

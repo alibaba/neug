@@ -32,6 +32,7 @@
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -107,57 +108,50 @@ class SetOpr : public IOperator {
     return true;
   }
 
-  bool set_edge_property(StorageUpdateInterface& graph,
-                         const LabelTriplet& label, Direction dir, vid_t src,
-                         vid_t dst, const std::string& key,
-                         const RTAny& value) {
-    auto val_type = value.type();
-    Property prop = Property::empty();
-    if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
-    } else if (val_type == RTAnyType::kI32Value) {
-      prop = Property::from_int32(value.as_int32());
-    } else if (val_type == RTAnyType::kI64Value) {
-      prop = Property::from_int64(value.as_int64());
-    } else if (val_type == RTAnyType::kStringValue) {
-      prop = Property::from_string_view(value.as_string());
-    } else if (val_type == RTAnyType::kF64Value) {
-      prop = Property::from_double(value.as_double());
-    } else {
-      LOG(ERROR) << "Edge property type not supported: "
-                 << static_cast<int>(val_type);
+  bool set_edge_property(StorageUpdateInterface& graph, const EdgeRecord& er,
+                         const std::string& key, const Property& prop) {
+    auto src_label = er.label.src_label;
+    auto dst_label = er.label.dst_label;
+    auto edge_label = er.label.edge_label;
+    auto index = graph.schema()
+                     .get_edge_schema(src_label, dst_label, edge_label)
+                     ->get_property_index(key);
+    if (index == -1) {
+      LOG(ERROR) << "Property " << key << " not found in edge label "
+                 << er.label.edge_label;
       return false;
     }
-
-    graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                      label.dst_label, dst, label.edge_label, prop);
+    auto oe_view =
+        graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label);
+    auto ie_view =
+        graph.GetGenericIncomingGraphView(src_label, dst_label, edge_label);
+    auto edge_prop_types =
+        graph.schema().get_edge_properties(src_label, dst_label, edge_label);
+    auto offset_pair =
+        gs::record_to_csr_offset_pair(oe_view, ie_view, er, edge_prop_types);
+    graph.UpdateEdgeProperty(src_label, er.src, dst_label, er.dst, edge_label,
+                             offset_pair.first, offset_pair.second, index,
+                             prop);
     return true;
   }
 
-  bool _set_edge_property(StorageUpdateInterface& graph,
-                          const LabelTriplet& label, Direction dir, vid_t src,
-                          vid_t dst, const std::string& key,
-                          const std::string& value) {
-    auto types = graph.schema().get_edge_properties(
-        label.src_label, label.dst_label, label.edge_label);
-    auto property_names = graph.schema().get_edge_property_names(
-        label.src_label, label.dst_label, label.edge_label);
-    PropertyType type(PropertyType::kEmpty);
-    size_t col_id = 0;
-    for (; col_id < property_names.size(); col_id++) {
-      if (property_names[col_id] == key) {
-        type = types[col_id];
-        break;
-      }
+  Property rt_any_to_property(const RTAny& any) {
+    auto val_type = any.type();
+    Property prop = Property::empty();
+    if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
+    } else if (val_type == RTAnyType::kI32Value) {
+      prop = Property::from_int32(any.as_int32());
+    } else if (val_type == RTAnyType::kI64Value) {
+      prop = Property::from_int64(any.as_int64());
+    } else if (val_type == RTAnyType::kStringValue) {
+      prop = Property::from_string_view(any.as_string());
+    } else if (val_type == RTAnyType::kF64Value) {
+      prop = Property::from_double(any.as_double());
+    } else {
+      LOG(ERROR) << "Edge property type not supported: "
+                 << static_cast<int>(val_type);
     }
-    if (col_id == property_names.size()) {
-      LOG(ERROR) << "Property " << key << " not found in edge label "
-                 << label.edge_label;
-      return false;
-    }
-    Property prop = parse_property_from_string(type, value);
-    graph.SetEdgeData(dir == Direction::kOut, label.src_label, src,
-                      label.dst_label, dst, label.edge_label, prop, col_id);
-    return true;
+    return prop;
   }
 
   gs::result<Context> Eval(IStorageInterface& graph_interface,
@@ -191,9 +185,19 @@ class SetOpr : public IOperator {
           for (size_t j = 0; j < ctx.row_num(); j++) {
             auto edge =
                 dynamic_cast<const IEdgeColumn*>(prop.get())->get_edge(j);
-            if (!_set_edge_property(
-                    graph, edge.label, edge.dir, edge.src, edge.dst, key.second,
-                    params.at(value.operators(0).param().name()))) {
+            const auto& label = edge.label;
+            auto index = graph.schema()
+                             .get_edge_schema(label.src_label, label.dst_label,
+                                              label.edge_label)
+                             ->get_property_index(key.second);
+            if (index == -1) {
+              RETURN_INVALID_ARGUMENT_ERROR("Failed to find edge property");
+            }
+            auto e_prop_type = graph.schema().get_edge_properties(
+                label.src_label, label.dst_label, label.edge_label)[index];
+            auto prop = parse_property_from_string(
+                e_prop_type, params.at(value.operators(0).param().name()));
+            if (!set_edge_property(graph, edge, key.second, prop)) {
               LOG(ERROR) << "Failed to set edge property";
               RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
             }
@@ -224,8 +228,13 @@ class SetOpr : public IOperator {
         for (size_t j = 0; j < ctx.row_num(); j++) {
           auto val = expr.eval_path(j, arena);
           auto edge = edge_col->get_edge(j);
-          if (!set_edge_property(graph, edge.label, edge.dir, edge.src,
-                                 edge.dst, key.second, val)) {
+          auto prop = rt_any_to_property(val);
+          if (prop.type() == PropertyType::Empty()) {
+            LOG(ERROR) << "Failed to convert RTAny to Property";
+            RETURN_INVALID_ARGUMENT_ERROR(
+                "Failed to convert RTAny to Property");
+          }
+          if (!set_edge_property(graph, edge, key.second, prop)) {
             LOG(ERROR) << "Failed to set edge property";
             RETURN_INVALID_ARGUMENT_ERROR("Failed to set edge property");
           }

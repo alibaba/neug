@@ -391,17 +391,21 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug_append_string_to_field(gui, person_label_id, vit2, 1,
                               std::to_string(txn_id));
 
-  auto oeit = gui.GetOutEdgeIterator(person_label_id, vit1, person_label_id,
-                                     knows_label_id, 0);
-  while (oeit.IsValid()) {
-    if (oeit.GetNeighbor() == vit2) {
+  auto oe_view = gui.GetGenericOutgoingGraphView(
+      person_label_id, person_label_id, knows_label_id);
+  auto oe_edge = oe_view.get_edges(vit1);
+  auto oeit = oe_edge.begin();
+  auto oeit_end = oe_edge.end();
+  for (; oeit != oeit_end; ++oeit) {
+    if (oeit.get_vertex() == vit2) {
       break;
     }
-    oeit.Next();
   }
-  CHECK(oeit.IsValid());
+  auto ed_accessor = gui.GetEdgeDataAccessor(person_label_id, knows_label_id,
+                                             person_label_id, 0);
+  CHECK(oeit != oeit_end);
 
-  Property cur = oeit.GetData();
+  Property cur = ed_accessor.get_data(oeit);
   std::string cur_str(cur.as_string_view());
   if (cur_str.empty()) {
     cur_str = std::to_string(txn_id);
@@ -412,7 +416,7 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   Property new_value;
   new_value.set_string(cur_str);
 
-  oeit.SetData(new_value);
+  ed_accessor.set_data(oeit, new_value, txn.timestamp());
 
   txn.Commit();
 }
@@ -900,26 +904,21 @@ void OTV1(NeugDBSession& db, int64_t person_id) {
     }
   }
   CHECK(found);
-  for (auto eit1 = gui.GetOutEdgeIterator(person_label_id, vid1,
-                                          person_label_id, knows_label_id, 0);
-       eit1.IsValid(); eit1.Next()) {
-    CHECK(eit1.IsValid());
-    vid_t vid2 = eit1.GetNeighbor();
-    for (auto eit2 = gui.GetOutEdgeIterator(person_label_id, vid2,
-                                            person_label_id, knows_label_id, 0);
-         eit2.IsValid(); eit2.Next()) {
-      CHECK(eit2.IsValid());
-      vid_t vid3 = eit2.GetNeighbor();
-      for (auto eit3 = gui.GetOutEdgeIterator(
-               person_label_id, vid3, person_label_id, knows_label_id, 0);
-           eit3.IsValid(); eit3.Next()) {
-        CHECK(eit3.IsValid());
-        vid_t vid4 = eit3.GetNeighbor();
-        for (auto eit4 = gui.GetOutEdgeIterator(
-                 person_label_id, vid4, person_label_id, knows_label_id, 0);
-             eit4.IsValid(); eit4.Next()) {
-          CHECK(eit4.IsValid());
-          if (eit4.GetNeighbor() == vid1) {
+  auto oe_view = gui.GetGenericOutgoingGraphView(
+      person_label_id, person_label_id, knows_label_id);
+  auto vid1_edges = oe_view.get_edges(vid1);
+
+  for (auto eit1 = vid1_edges.begin(); eit1 != vid1_edges.end(); ++eit1) {
+    vid_t vid2 = eit1.get_vertex();
+    auto vid2_edges = oe_view.get_edges(vid2);
+    for (auto eit2 = vid2_edges.begin(); eit2 != vid2_edges.end(); ++eit2) {
+      vid_t vid3 = eit2.get_vertex();
+      auto vid3_edges = oe_view.get_edges(vid3);
+      for (auto eit3 = vid3_edges.begin(); eit3 != vid3_edges.end(); ++eit3) {
+        vid_t vid4 = eit3.get_vertex();
+        auto vid4_edges = oe_view.get_edges(vid4);
+        for (auto eit4 = vid4_edges.begin(); eit4 != vid4_edges.end(); ++eit4) {
+          if (eit4.get_vertex() == vid1) {
             txn.UpdateVertexProperty(
                 person_label_id, vid1, 2,
                 Property::From(

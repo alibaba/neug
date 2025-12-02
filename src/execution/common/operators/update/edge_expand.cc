@@ -61,11 +61,12 @@ gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
         input_vertex_list, [&](size_t index, label_t label, vid_t v) {
           for (const auto& triplet : params.labels) {
             if (label == triplet.dst_label) {
-              auto ie_iter = graph.GetInEdgeIterator(
-                  label, v, triplet.src_label, triplet.edge_label, 0);
-              for (; ie_iter.IsValid(); ie_iter.Next()) {
-                builder.push_back_vertex(VertexRecord{
-                    ie_iter.GetNeighborLabel(), ie_iter.GetNeighbor()});
+              auto ie_view = graph.GetGenericIncomingGraphView(
+                  label, triplet.src_label, triplet.edge_label);
+              auto edges = ie_view.get_edges(v);
+              for (auto it = edges.begin(); it != edges.end(); ++it) {
+                builder.push_back_vertex(
+                    VertexRecord{triplet.src_label, it.get_vertex()});
                 shuffle_offset.push_back(index);
               }
             }
@@ -78,11 +79,12 @@ gs::result<Context> UEdgeExpand::edge_expand_v_without_pred(
         input_vertex_list, [&](size_t index, label_t label, vid_t v) {
           for (const auto& triplet : params.labels) {
             if (label == triplet.src_label) {
-              auto oe_iter = graph.GetOutEdgeIterator(
-                  label, v, triplet.dst_label, triplet.edge_label, 0);
-              for (; oe_iter.IsValid(); oe_iter.Next()) {
-                builder.push_back_vertex(VertexRecord{
-                    oe_iter.GetNeighborLabel(), oe_iter.GetNeighbor()});
+              auto oe_view = graph.GetGenericOutgoingGraphView(
+                  label, triplet.dst_label, triplet.edge_label);
+              auto edges = oe_view.get_edges(v);
+              for (auto it = edges.begin(); it != edges.end(); ++it) {
+                builder.push_back_vertex(
+                    VertexRecord{triplet.dst_label, it.get_vertex()});
                 shuffle_offset.push_back(index);
               }
             }

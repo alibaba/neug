@@ -153,8 +153,9 @@ size_t get_offset_for_edge_record(const NbrList& nbr_list, vid_t expected_nbr,
 }
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
-    GenericView& oe, GenericView& ie, const gs::runtime::EdgeRecord& record,
-    const std::vector<PropertyType>& props, timestamp_t ts) {
+    const GenericView& oe, const GenericView& ie,
+    const gs::runtime::EdgeRecord& record,
+    const std::vector<PropertyType>& props) {
   NbrList cur_nbr_list, another_nbr_list;
   vid_t src, nbr;
   if (record.dir == runtime::Direction::kOut) {
@@ -184,6 +185,20 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   } else {
     return std::make_pair(another_offset, cur_offset);
   }
+}
+
+int32_t search_ie_offset_with_oe_offset(
+    const GenericView& oe, const GenericView& ie, vid_t src_lid, vid_t dst_lid,
+    int32_t oe_offset, const std::vector<PropertyType>& props) {
+  NbrList ie_nbr_list = ie.get_edges(dst_lid);
+  auto oe_edges = oe.get_edges(src_lid);
+  auto oe_nbr_it = oe_edges.begin();
+  oe_nbr_it += oe_offset;
+  assert(oe_nbr_it != oe_edges.end());
+  PropertyType e_prop_type =
+      props.size() == 1 ? props[0] : PropertyType::UInt64();
+  return gs::fuzzy_search_offset_from_nbr_list(
+      ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(), e_prop_type);
 }
 
 }  // namespace gs

@@ -31,9 +31,9 @@ enum class OpType : uint8_t {
   kInsertVertex = 2,
   kInsertEdge = 3,
   kUpdateVertexProp = 4,
-  kUpdateEdgeProp = 5,
+  kUpdateEdgeProp = 5,  // Update edge property by oe/ie offset
   kRemoveVertex = 6,
-  kRemoveEdge = 7,
+  kRemoveEdge = 7,  // Remove edge by oe/ie offset
   kAddVertexProp = 8,
   kAddEdgeProp = 9,
   kRenameVertexProp = 10,
