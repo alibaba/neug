@@ -126,6 +126,10 @@ bool UpdateTransaction::CreateVertexType(
     undo_logs_.pop();
     return false;
   }
+  auto label_id = graph_.schema().get_vertex_label_id(name);
+  if (deleted_vertex_labels_.contains(label_id)) {
+    deleted_vertex_labels_.erase(label_id);
+  }
   return true;
 }
 
@@ -159,6 +163,14 @@ bool UpdateTransaction::CreateEdgeType(
     undo_logs_.pop();
     return false;
   }
+  auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
+  auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
+  auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
+  if (deleted_edge_labels_.contains(
+          std::make_tuple(src_label_id, dst_label_id, edge_label_id))) {
+    deleted_edge_labels_.erase(
+        std::make_tuple(src_label_id, dst_label_id, edge_label_id));
+  }
   return true;
 }
 
@@ -191,6 +203,13 @@ bool UpdateTransaction::AddVertexProperties(
                << ": " << status.ToString();
     undo_logs_.pop();
     return false;
+  }
+  if (deleted_vertex_properties_.size() > v_label) {
+    for (const auto& prop : add_properties) {
+      if (deleted_vertex_properties_[v_label].contains(std::get<1>(prop))) {
+        deleted_vertex_properties_[v_label].erase(std::get<1>(prop));
+      }
+    }
   }
   return true;
 }
@@ -231,6 +250,15 @@ bool UpdateTransaction::AddEdgeProperties(
     undo_logs_.pop();
     return false;
   }
+  auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
+                                                   edge_label_id);
+  if (deleted_edge_properties_.find(index) != deleted_edge_properties_.end()) {
+    for (const auto& prop : add_properties) {
+      if (deleted_edge_properties_[index].contains(std::get<1>(prop))) {
+        deleted_edge_properties_[index].erase(std::get<1>(prop));
+      }
+    }
+  }
   return true;
 }
 
@@ -243,6 +271,10 @@ bool UpdateTransaction::RenameVertexProperties(
     return !error_on_conflict;
   }
   label_t v_label = graph_.schema().get_vertex_label_id(vertex_type_name);
+  ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
+  for (const auto& [old_name, _] : rename_properties) {
+    ENSURE_VERTEX_PROPERTY_NOT_DELETED(v_label, old_name);
+  }
   {
     RenameVertexPropertiesRedo::Serialize(arc_, vertex_type_name,
                                           rename_properties);
@@ -276,6 +308,14 @@ bool UpdateTransaction::RenameEdgeProperties(
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
+  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label_id);
+  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label_id);
+  ENSURE_EDGE_LABEL_NOT_DELETED(src_label_id, dst_label_id, edge_label_id);
+  for (const auto& [old_name, _] : rename_properties) {
+    auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
+                                                     edge_label_id);
+    ENSURE_EDGE_PROPERTY_NOT_DELETED(index, old_name);
+  }
   {
     RenameEdgePropertiesRedo::Serialize(arc_, src_type, dst_type, edge_type,
                                         rename_properties);
@@ -493,6 +533,8 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                                 label_t dst_label, vid_t dst_lid,
                                 label_t edge_label,
                                 const std::vector<Property>& properties) {
+  ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
+  ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
 
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),

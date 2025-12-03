@@ -1428,3 +1428,113 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     db.Close();
   }
 }
+
+TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.DeleteVertexType("person"));
+    gs::vid_t vid;
+    EXPECT_THROW(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid),
+        gs::exception::Exception);
+    EXPECT_THROW(txn.AddVertex(person_label, gs::Property::from_int64(3),
+                               {gs::Property::from_string("Eve"),
+                                gs::Property::from_int64(28)},
+                               vid),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.UpdateVertexProperty(person_label, 0, 1,
+                                          gs::Property::from_int64(30)),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.AddVertex(person_label, gs::Property::from_int64(3),
+                               {gs::Property::from_string("Eve"),
+                                gs::Property::from_int64(28)},
+                               vid),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.DeleteVertex(person_label, 0), gs::exception::Exception);
+    txn.Abort();
+  }
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    EXPECT_TRUE(txn.DeleteVertexProperties("person", {"age"}, true));
+    EXPECT_THROW(txn.RenameVertexProperties(
+                     "person", {std::make_pair("age", "full_name")}, true),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.GetVertexProperty(person_label, 0, 2),
+                 gs::exception::Exception);
+    EXPECT_NO_THROW(txn.GetVertexId(person_label, 0));
+    EXPECT_THROW(txn.get_vertex_property_column(person_label, "age"),
+                 gs::exception::Exception);
+
+    // add back age property
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::PropertyType::Int32(), "age",
+                                     gs::Property::from_int32(0))};
+    EXPECT_NO_THROW(txn.AddVertexProperties("person", new_props, true));
+    EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "age"));
+
+    txn.Abort();
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  db.SwitchToTPMode();
+  {
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    EXPECT_TRUE(txn.DeleteEdgeType("person", "person", "knows", true));
+    gs::vid_t src_vid, dst_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), src_vid));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_vid));
+    EXPECT_THROW(
+        txn.UpdateEdgeProperty(person_label, src_vid, person_label, dst_vid,
+                               knows_label, 0, gs::Property::from_double(0.8)),
+        gs::exception::Exception);
+    EXPECT_THROW(txn.AddEdge(person_label, src_vid, person_label, dst_vid,
+                             knows_label, {gs::Property::from_double(0.7)}),
+                 gs::exception::Exception);
+    EXPECT_THROW(txn.GetGenericOutgoingGraphView(person_label, person_label,
+                                                 knows_label),
+                 gs::exception::Exception);
+    EXPECT_THROW(
+        txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0),
+        gs::exception::Exception);
+    txn.Abort();
+  }
+  {
+    // Delete Edge Properties
+    auto txn = db.GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    EXPECT_TRUE(txn.DeleteEdgeProperties("person", "person", "knows",
+                                         {"closeness"}, true));
+    EXPECT_THROW(txn.RenameEdgeProperties(
+                     "person", "person", "knows",
+                     {std::make_pair("closeness", "importance")}, true),
+                 gs::exception::Exception);
+    gs::vid_t src_vid, dst_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), src_vid));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_vid));
+    EXPECT_THROW(
+        txn.GetEdgeDataAccessor(person_label, person_label, knows_label, 0),
+        gs::exception::Exception);
+    txn.Abort();
+  }
+  db.Close();
+}

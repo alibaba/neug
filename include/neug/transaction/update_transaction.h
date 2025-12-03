@@ -252,6 +252,9 @@ class UpdateTransaction {
   GenericView GetGenericOutgoingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
+    ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
     return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
                                               edge_label, timestamp_);
   }
@@ -259,6 +262,9 @@ class UpdateTransaction {
   GenericView GetGenericIncomingGraphView(label_t v_label,
                                           label_t neighbor_label,
                                           label_t edge_label) const {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
+    ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
     return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
                                               edge_label, timestamp_);
   }
@@ -274,6 +280,8 @@ class UpdateTransaction {
 
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
     auto edge_schema =
         graph_.schema().get_edge_schema(src_label, dst_label, edge_label);
@@ -314,6 +322,8 @@ class UpdateTransaction {
   inline Status BatchAddEdges(label_t src_label, label_t dst_label,
                               label_t edge_label,
                               std::shared_ptr<IRecordBatchSupplier> supplier) {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(src_label);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
     return graph_.BatchAddEdges(src_label, dst_label, edge_label,
                                 std::move(supplier));
@@ -332,6 +342,8 @@ class UpdateTransaction {
   inline Status BatchDeleteEdges(
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(src_v_label_id);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_v_label_id);
     ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
                                   edge_label_id);
     return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
@@ -342,6 +354,8 @@ class UpdateTransaction {
       label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+    ENSURE_VERTEX_LABEL_NOT_DELETED(src_v_label_id);
+    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_v_label_id);
     ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
                                   edge_label_id);
     return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
