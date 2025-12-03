@@ -91,7 +91,7 @@ result<results::CollectiveResults> QueryProcessor::execute_admin(
     const physical::AdminPlan& admin_plan, int32_t num_threads) {
   // For admin plan, we always use update transaction.
   auto txn = db_.GetUpdateTransaction();
-  runtime::StorageUpdateInterface gui(txn);
+  runtime::StorageTPUpdateInterface gui(txn);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx =

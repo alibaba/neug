@@ -414,7 +414,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
     NeugDBSession& graph, const physical::PhysicalPlan& plan,
     runtime::OprTimer* timer, bool insert_with_resize) {
   auto txn = graph.GetUpdateTransaction();
-  runtime::StorageUpdateInterface gii(txn);
+  runtime::StorageTPUpdateInterface gii(txn);
   auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer);
 
   if (!ctx) {
