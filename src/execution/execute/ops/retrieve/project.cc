@@ -125,8 +125,6 @@ class ProjectOpr : public IOperator {
       gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (is_select_columns_) {
       Context ret;
       for (auto& p : select_columns_mapping_) {
@@ -134,6 +132,7 @@ class ProjectOpr : public IOperator {
       }
       return ret;
     }
+    auto& graph = dynamic_cast<StorageReadInterface&>(graph_interface);
     std::vector<std::unique_ptr<ProjectExprBase>> exprs;
     std::vector<std::shared_ptr<Arena>> arenas;
     if (!dependencies_.empty()) {

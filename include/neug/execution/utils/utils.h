@@ -44,6 +44,8 @@ VOpt parse_opt(const physical::GetV_VOpt& opt);
 
 Direction parse_direction(const physical::EdgeExpand_Direction& dir);
 
+JoinKind parse_join_kind(const physical::Join_JoinKind& kind);
+
 PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb);
 
 std::vector<label_t> parse_tables(const algebra::QueryParams& query_params);

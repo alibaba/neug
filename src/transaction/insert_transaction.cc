@@ -55,7 +55,8 @@ bool InsertTransaction::GetVertexIndex(label_t label, const Property& id,
   if (graph_.get_lid(label, id, index, timestamp_)) {
     return true;
   }
-  if (added_vertices_[label]->get_index(id, index)) {
+  if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
+      added_vertices_[label]->get_index(id, index)) {
     index += added_vertices_base_[label];
     return true;
   }
@@ -63,6 +64,9 @@ bool InsertTransaction::GetVertexIndex(label_t label, const Property& id,
 }
 
 Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
+  if (added_vertices_.size() <= label || added_vertices_[label] == nullptr) {
+    return graph_.GetOid(label, lid, timestamp_);
+  }
   vid_t base = added_vertices_base_[label];
   if (lid >= base) {
     Property ret;

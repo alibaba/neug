@@ -17,8 +17,8 @@
 #define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_UNFOLD_H_
 
 #include "neug/execution/common/context.h"
+#include "neug/execution/utils/expr.h"
 #include "neug/utils/result.h"
-
 namespace gs {
 
 namespace runtime {
@@ -27,6 +27,8 @@ class Context;
 class Unfold {
  public:
   static gs::result<Context> unfold(Context&& ctxs, int key, int alias);
+
+  static gs::result<Context> unfold(Context&& ctxs, const Expr& key, int alias);
 };
 
 }  // namespace runtime

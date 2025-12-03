@@ -61,6 +61,24 @@ Direction parse_direction(const physical::EdgeExpand_Direction& dir) {
   return Direction::kOut;
 }
 
+JoinKind parse_join_kind(const physical::Join_JoinKind& kind) {
+  switch (kind) {
+  case physical::Join_JoinKind::Join_JoinKind_INNER:
+    return JoinKind::kInnerJoin;
+  case physical::Join_JoinKind::Join_JoinKind_SEMI:
+    return JoinKind::kSemiJoin;
+  case physical::Join_JoinKind::Join_JoinKind_ANTI:
+    return JoinKind::kAntiJoin;
+  case physical::Join_JoinKind::Join_JoinKind_LEFT_OUTER:
+    return JoinKind::kLeftOuterJoin;
+  case physical::Join_JoinKind::Join_JoinKind_TIMES:
+    return JoinKind::kTimesJoin;
+  default:
+    LOG(ERROR) << "unsupported join kind" << kind;
+    return JoinKind::kInnerJoin;
+  }
+}
+
 std::vector<label_t> parse_tables(const algebra::QueryParams& query_params) {
   std::vector<label_t> tables;
   int tn = query_params.tables_size();

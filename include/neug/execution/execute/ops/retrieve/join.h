@@ -45,6 +45,22 @@ class JoinOprBuilder : public IOperatorBuilder {
   }
 };
 
+class PrimaryKeyJoinOprBuilder : public IOperatorBuilder {
+ public:
+  PrimaryKeyJoinOprBuilder() = default;
+  ~PrimaryKeyJoinOprBuilder() = default;
+
+  gs::result<OpBuildResultT> Build(const Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kJoin};
+  }
+};
+
 }  // namespace ops
 
 }  // namespace runtime

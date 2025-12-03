@@ -36,6 +36,10 @@ class Join {
  public:
   static gs::result<Context> join(Context&& ctx, Context&& ctx2,
                                   const JoinParams& params);
+
+  static gs::result<Context> pk_join(IStorageInterface&, Context&& ctx,
+                                     const std::vector<label_t>& labels,
+                                     int tag, int alias);
 };
 }  // namespace runtime
 }  // namespace gs

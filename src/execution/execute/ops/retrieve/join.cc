@@ -31,6 +31,7 @@
 #include "neug/execution/common/types.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/utils/utils.h"
 #include "neug/utils/likely.h"
 
 namespace gs {
@@ -99,7 +100,7 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
     LOG(ERROR) << "join keys size mismatch";
     return std::make_pair(nullptr, ContextMeta());
   }
-  auto left_keys = opr.left_keys();
+  const auto& left_keys = opr.left_keys();
 
   for (int i = 0; i < left_keys.size(); i++) {
     if (!left_keys.Get(i).has_tag()) {
@@ -108,7 +109,7 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
     }
     p.left_columns.push_back(left_keys.Get(i).tag().id());
   }
-  auto right_keys = opr.right_keys();
+  const auto& right_keys = opr.right_keys();
   for (int i = 0; i < right_keys.size(); i++) {
     if (!right_keys.Get(i).has_tag()) {
       LOG(ERROR) << "right_keys should have tag";
@@ -117,26 +118,7 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
     p.right_columns.push_back(right_keys.Get(i).tag().id());
   }
 
-  switch (opr.join_kind()) {
-  case physical::Join_JoinKind::Join_JoinKind_INNER:
-    p.join_type = JoinKind::kInnerJoin;
-    break;
-  case physical::Join_JoinKind::Join_JoinKind_SEMI:
-    p.join_type = JoinKind::kSemiJoin;
-    break;
-  case physical::Join_JoinKind::Join_JoinKind_ANTI:
-    p.join_type = JoinKind::kAntiJoin;
-    break;
-  case physical::Join_JoinKind::Join_JoinKind_LEFT_OUTER:
-    p.join_type = JoinKind::kLeftOuterJoin;
-    break;
-  case physical::Join_JoinKind::Join_JoinKind_TIMES:
-    p.join_type = JoinKind::kTimesJoin;
-    break;
-  default:
-    LOG(ERROR) << "unsupported join kind" << opr.join_kind();
-    return std::make_pair(nullptr, ContextMeta());
-  }
+  p.join_type = parse_join_kind(opr.join_kind());
   auto join_kind = plan.query_plan().plan(op_idx).opr().join().join_kind();
 
   auto pair1_res = PlanParser::get().parse_execute_pipeline_with_meta(
@@ -186,6 +168,116 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
   }
   return std::make_pair(std::make_unique<JoinOpr>(std::move(pair1.first),
                                                   std::move(pair2.first), p),
+                        ret_meta);
+}
+
+class PrimaryKeyJoinOpr : public IOperator {
+ public:
+  PrimaryKeyJoinOpr(gs::runtime::Pipeline&& right_pipeline,
+                    const std::vector<label_t>& labels, int tag, int alias)
+      : right_pipeline_(std::move(right_pipeline)),
+        labels_(labels),
+        tag_(tag),
+        alias_(alias) {}
+
+  std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
+
+  gs::result<gs::runtime::Context> Eval(
+      gs::runtime::IStorageInterface& graph,
+      const std::map<std::string, std::string>& params,
+      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+    gs::runtime::Context ret_dup(ctx);
+    std::unique_ptr<gs::runtime::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+                           : nullptr;
+    auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
+                                             right_timer.get());
+    if (!right_ctx) {
+      return right_ctx;
+    }
+    if (NEUG_UNLIKELY(timer != nullptr)) {
+      timer->add_child(std::move(right_timer));
+    }
+    return Join::pk_join(graph, std::move(right_ctx.value()), labels_, tag_,
+                         alias_);
+  }
+
+ private:
+  gs::runtime::Pipeline right_pipeline_;
+  std::vector<label_t> labels_;
+  int tag_, alias_;
+};
+
+gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
+    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta;
+  auto& opr = plan.query_plan().plan(op_idx).opr().join();
+  const auto& left_keys = opr.left_keys();
+  const auto& right_keys = opr.right_keys();
+  if (right_keys.size() != 1) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  int tag = right_keys.Get(0).tag().id();
+  if (left_keys.size() != 1) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  const auto& left_key = left_keys.Get(0);
+  const auto& right_key = right_keys.Get(0);
+  JoinKind join_kind = parse_join_kind(opr.join_kind());
+  if (join_kind != JoinKind::kInnerJoin) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  if ((!left_key.has_property()) || right_key.has_property() ||
+      (!left_key.property().has_key())) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+
+  auto name = left_key.property().key().name();
+  auto left_plan = plan.query_plan().plan(op_idx).opr().join().left_plan();
+  if (left_plan.query_plan().plan_size() != 1 ||
+      (!left_plan.query_plan().plan(0).opr().has_scan())) {
+    LOG(ERROR) << "SPJoin left plan should be a scan operator";
+    return std::make_pair(nullptr, ContextMeta());
+  }
+
+  const auto& scan_opr = left_plan.query_plan().plan(0).opr().scan();
+  if (scan_opr.has_idx_predicate() ||
+      (scan_opr.has_params() && scan_opr.params().has_predicate())) {
+    LOG(ERROR) << "SPJoin left scan operator should not have predicate";
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  int alias = scan_opr.has_alias() ? scan_opr.alias().value() : -1;
+  const auto& vec = parse_tables(scan_opr.params());
+  if (vec.size() != 1) {
+    LOG(ERROR) << "SPJoin left scan operator should scan only one table";
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  for (label_t label : vec) {
+    auto pk_name = std::get<1>(schema.get_vertex_primary_key(label)[0]);
+    if (pk_name != name) {
+      LOG(ERROR) << "SPJoin left key property should be the primary key of the "
+                    "scanned table";
+      return std::make_pair(nullptr, ContextMeta());
+    }
+  }
+
+  auto right_res = PlanParser::get().parse_execute_pipeline_with_meta(
+      schema, ctx_meta,
+      plan.query_plan().plan(op_idx).opr().join().right_plan());
+  if (!right_res) {
+    LOG(ERROR) << "failed to build right pipeline for join operator"
+               << right_res.error().ToString();
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  auto pair = std::move(right_res.value());
+  const auto& ctx_meta2 = pair.second;
+  ret_meta.set(alias);
+  for (auto k : ctx_meta2.columns()) {
+    ret_meta.set(k);
+  }
+  return std::make_pair(std::make_unique<PrimaryKeyJoinOpr>(
+                            std::move(pair.first), vec, tag, alias),
                         ret_meta);
 }
 

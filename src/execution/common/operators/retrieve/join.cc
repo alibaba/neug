@@ -640,5 +640,27 @@ gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
   return ctx;
 }
 
+gs::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
+                                  const std::vector<label_t>& labels, int tag,
+                                  int alias) {
+  size_t row_num = ctx.row_num();
+  auto column = ctx.get(tag);
+  MSVertexColumnBuilder builder(labels[0]);
+  std::vector<size_t> offsets;
+  for (label_t label : labels) {
+    builder.start_label(label);
+    for (size_t i = 0; i < row_num; ++i) {
+      auto any = column->get_elem(i).to_any();
+      vid_t index;
+      if (graph.GetVertexIndex(label, any, index)) {
+        builder.push_back_opt(index);
+        offsets.push_back(i);
+      }
+    }
+  }
+  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
+  return ctx;
+}
+
 }  // namespace runtime
 }  // namespace gs

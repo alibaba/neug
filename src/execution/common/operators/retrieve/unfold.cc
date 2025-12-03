@@ -43,6 +43,53 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   return ctxs;
 }
 
+template <typename T>
+Context unfold_impl(Context&& ctx, int alias, const Expr& key,
+                    std::shared_ptr<Arena> arena) {
+  ValueColumnBuilder<T> builder;
+  size_t row_num = ctx.row_num();
+  std::vector<size_t> offsets;
+  for (size_t i = 0; i < row_num; ++i) {
+    RTAny val = key.eval_path(i, *arena);
+    auto list = val.as_list();
+    size_t list_size = list.size();
+    for (size_t j = 0; j < list_size; ++j) {
+      builder.push_back_elem(list.get(j));
+      offsets.push_back(i);
+    }
+  }
+  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
+  return ctx;
+}
+
+gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
+  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  auto type = key.eval_path(0, *arena).as_list().elem_type();
+  if (type == RTAnyType::kI64Value) {
+    return unfold_impl<int64_t>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kF64Value) {
+    return unfold_impl<double>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kBoolValue) {
+    return unfold_impl<bool>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kStringValue) {
+    return unfold_impl<std::string_view>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kI32Value) {
+    return unfold_impl<int32_t>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kF32Value) {
+    return unfold_impl<float>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kU32Value) {
+    return unfold_impl<uint32_t>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kU64Value) {
+    return unfold_impl<uint64_t>(std::move(ctxs), alias, key, arena);
+  } else {
+    LOG(ERROR) << "Unfold column type is not supported: "
+               << static_cast<int>(type);
+    RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not supported");
+  }
+
+  return ctxs;
+}
+
 }  // namespace runtime
 
 }  // namespace gs

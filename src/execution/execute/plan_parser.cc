@@ -90,6 +90,7 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::PathExpandVOprBuilder>());
   register_operator_builder(std::make_unique<ops::PathExpandOprBuilder>());
 
+  register_operator_builder(std::make_unique<ops::PrimaryKeyJoinOprBuilder>());
   register_operator_builder(std::make_unique<ops::JoinOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::IntersectOprBuilder>());

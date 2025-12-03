@@ -735,7 +735,8 @@ static RTAny parse_param(const ::common::DynamicParam& param,
       double val = std::stod(input.at(name));
       return RTAny::from_double(val);
     } else if (type == RTAnyType::kList) {
-      if (param.data_type().data_type().array().component_type().has_string()) {
+      auto type = param.data_type().data_type().array().component_type();
+      if (type.has_string()) {
         std::vector<std::string_view> vec;
         const auto& val = input.at(name);
         size_t start = 0;
@@ -747,6 +748,25 @@ static RTAny parse_param(const ::common::DynamicParam& param,
         }
         arena = std::make_shared<Arena>();
         auto ptr = ListImpl<std::string_view>::make_list_impl(std::move(vec));
+        List list(ptr.get());
+        arena->emplace_back(std::move(ptr));
+        return RTAny::from_list(list);
+      } else if (type.item_case() ==
+                     ::common::DataType::ItemCase::kPrimitiveType &&
+                 type.primitive_type() ==
+                     ::common::PrimitiveType::DT_SIGNED_INT64) {
+        std::vector<int64_t> vec;
+        const auto& val = input.at(name);
+        size_t start = 0;
+        for (size_t i = 0; i <= val.size(); ++i) {
+          if (i == val.size() || val[i] == ';') {
+            vec.emplace_back(
+                std::stoll(std::string(val.data() + start, i - start)));
+            start = i + 1;
+          }
+        }
+        arena = std::make_shared<Arena>();
+        auto ptr = ListImpl<int64_t>::make_list_impl(std::move(vec));
         List list(ptr.get());
         arena->emplace_back(std::move(ptr));
         return RTAny::from_list(list);

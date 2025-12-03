@@ -24,6 +24,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/unfold.h"
+#include "neug/execution/utils/expr.h"
 
 namespace gs {
 class Schema;
@@ -34,8 +35,8 @@ class OprTimer;
 namespace ops {
 class UnfoldOpr : public IOperator {
  public:
-  explicit UnfoldOpr(const physical::Unfold& opr)
-      : opr_(opr), tag_(opr.tag().value()), alias_(opr.alias().value()) {}
+  explicit UnfoldOpr(const ::common::Expression& expr, int alias)
+      : expr_(expr), alias_(alias) {}
 
   std::string get_operator_name() const override { return "UnfoldOpr"; }
 
@@ -43,11 +44,22 @@ class UnfoldOpr : public IOperator {
       gs::runtime::IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    return Unfold::unfold(std::move(ctx), tag_, alias_);
+    if (expr_.operators_size() == 1 && expr_.operators(0).has_var() &&
+        (!expr_.operators(0).var().has_property())) {
+      int key = expr_.operators(0).var().tag().id();
+      return Unfold::unfold(std::move(ctx), key, alias_);
+    } else {
+      StorageReadInterface* r_graph = nullptr;
+      if (graph.readable()) {
+        r_graph = dynamic_cast<StorageReadInterface*>(&graph);
+      }
+      Expr expr(r_graph, ctx, params, expr_, VarType::kPathVar);
+      return Unfold::unfold(std::move(ctx), expr, alias_);
+    }
   }
 
  private:
-  physical::Unfold opr_;
+  ::common::Expression expr_;
   int tag_;
   int alias_;
 };
@@ -58,9 +70,10 @@ gs::result<OpBuildResultT> UnfoldOprBuilder::Build(
   ContextMeta ret_meta = ctx_meta;
   int alias = plan.query_plan().plan(op_idx).opr().unfold().alias().value();
   ret_meta.set(alias);
-  return std::make_pair(std::make_unique<UnfoldOpr>(
-                            plan.query_plan().plan(op_idx).opr().unfold()),
-                        ret_meta);
+  return std::make_pair(
+      std::make_unique<UnfoldOpr>(
+          plan.query_plan().plan(op_idx).opr().unfold().input_expr(), alias),
+      ret_meta);
 }
 
 }  // namespace ops
