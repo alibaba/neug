@@ -84,7 +84,6 @@ NeugDB::NeugDB()
       closed_(true),
       is_pure_memory_(false),
       thread_num_(1),
-      monitor_thread_running_(false),
       compact_thread_running_(false) {}
 
 NeugDB::~NeugDB() {
@@ -138,7 +137,6 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   initAppManager();          // must before initTransactionManager
   initTransactionManager();  // must before ingestWals
   ingestWals();
-  startMonitorIfNeeded();
   startCompactThreadIfNeeded();
   initPlannerAndQueryProcessor();
 
@@ -153,10 +151,6 @@ void NeugDB::Close() {
     return;
   }
   closed_.store(true);
-  if (monitor_thread_running_) {
-    monitor_thread_running_ = false;
-    monitor_thread_.join();
-  }
   if (compact_thread_running_) {
     compact_thread_running_ = false;
     compact_thread_.join();
@@ -403,67 +397,6 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
   version_manager_->init_ts(parser.last_ts(), thread_num_);
-}
-void NeugDB::startMonitorIfNeeded() {
-  if (config_.enable_monitoring) {
-    if (monitor_thread_running_) {
-      monitor_thread_running_ = false;
-      monitor_thread_.join();
-    }
-    monitor_thread_running_ = true;
-    monitor_thread_ = std::thread([&]() {
-      std::vector<double> last_eval_durations(thread_num_, 0);
-      std::vector<int64_t> last_query_nums(thread_num_, 0);
-      while (monitor_thread_running_) {
-        sleep(10);
-        size_t curr_allocated_size = 0;
-        double total_eval_durations = 0;
-        double min_eval_duration = std::numeric_limits<double>::max();
-        double max_eval_duration = 0;
-        int64_t total_query_num = 0;
-        int64_t min_query_num = std::numeric_limits<int64_t>::max();
-        int64_t max_query_num = 0;
-
-        for (int i = 0; i < thread_num_; ++i) {
-          curr_allocated_size += txn_manager_->GetAlloctedMemorySize(i);
-          if (last_eval_durations[i] == 0) {
-            last_eval_durations[i] = txn_manager_->GetEvalDuration(i);
-          } else {
-            double curr = txn_manager_->GetEvalDuration(i);
-            double eval_duration = curr;
-            total_eval_durations += eval_duration;
-            min_eval_duration = std::min(min_eval_duration, eval_duration);
-            max_eval_duration = std::max(max_eval_duration, eval_duration);
-
-            last_eval_durations[i] = curr;
-          }
-          if (last_query_nums[i] == 0) {
-            last_query_nums[i] = txn_manager_->GetQueryNum(i);
-          } else {
-            int64_t curr = txn_manager_->GetQueryNum(i);
-            total_query_num += curr;
-            min_query_num = std::min(min_query_num, curr);
-            max_query_num = std::max(max_query_num, curr);
-
-            last_query_nums[i] = curr;
-          }
-        }
-        if (max_query_num != 0) {
-          double avg_eval_durations =
-              total_eval_durations / static_cast<double>(thread_num_);
-          double avg_query_num = static_cast<double>(total_query_num) /
-                                 static_cast<double>(thread_num_);
-          double allocated_size_in_gb =
-              static_cast<double>(curr_allocated_size) / 1024.0 / 1024.0 /
-              1024.0;
-          LOG(INFO) << "allocated: " << allocated_size_in_gb << " GB, eval: ["
-                    << min_eval_duration << ", " << avg_eval_durations << ", "
-                    << max_eval_duration << "] s, query num: [" << min_query_num
-                    << ", " << avg_query_num << ", " << max_query_num << "]";
-        }
-      }
-    });
-  }
 }
 
 void NeugDB::startCompactThreadIfNeeded() {

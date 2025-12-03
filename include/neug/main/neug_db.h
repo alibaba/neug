@@ -78,7 +78,6 @@ class TransactionManager;
  *
  * **Resource Management:**
  * - Handles file locking to prevent concurrent database access
- * - Manages background compaction and monitoring threads
  * - Provides graceful shutdown with optional data dumping
  *
  * @note This is the primary interface for database lifecycle management.
@@ -221,7 +220,6 @@ class NeugDB {
   void openGraphAndSchema();
   void ingestWals();
   void ingestWals(IWalParser& parser, const std::string& work_dir);
-  void startMonitorIfNeeded();
   void startAutoCompactionIfNeeded();
   void startCompactThreadIfNeeded();
   void initVersionManager();
@@ -254,9 +252,7 @@ class NeugDB {
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;
 
-  std::thread monitor_thread_;
   std::thread compact_thread_;
-  bool monitor_thread_running_ = false;
   bool compact_thread_running_ = false;
 
   std::mutex mutex_;
