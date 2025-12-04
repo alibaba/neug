@@ -432,7 +432,7 @@ void sssp_both_dir_with_order_by_length_limit(
     const GenericView& view0, const GenericView& view1, label_t v_label,
     vid_t v, const StorageReadInterface::vertex_set_t& vertices, size_t idx,
     int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
-    ValueColumnBuilder<int>& path_len_builder, std::vector<size_t>& offsets,
+    ValueColumnBuilder<int64_t>& path_len_builder, std::vector<size_t>& offsets,
     const PRED_T& pred, int limit_upper) {
   std::vector<vid_t> cur;
   std::vector<vid_t> next;
@@ -516,7 +516,7 @@ single_source_shortest_path_with_order_by_length_limit_impl(
   label_t v_label = *input.get_labels_set().begin();
   auto vertices = graph.GetVertexSet(v_label);
   MSVertexColumnBuilder dest_col_builder(v_label);
-  ValueColumnBuilder<int32_t> path_len_builder;
+  ValueColumnBuilder<int64_t> path_len_builder;
 
   std::vector<size_t> offsets;
   {

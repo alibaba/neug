@@ -244,19 +244,19 @@ gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
   const auto& scan_opr = left_plan.query_plan().plan(0).opr().scan();
   if (scan_opr.has_idx_predicate() ||
       (scan_opr.has_params() && scan_opr.params().has_predicate())) {
-    LOG(ERROR) << "SPJoin left scan operator should not have predicate";
+    LOG(ERROR) << "PKJoin left scan operator should not have predicate";
     return std::make_pair(nullptr, ContextMeta());
   }
   int alias = scan_opr.has_alias() ? scan_opr.alias().value() : -1;
   const auto& vec = parse_tables(scan_opr.params());
   if (vec.size() != 1) {
-    LOG(ERROR) << "SPJoin left scan operator should scan only one table";
+    LOG(ERROR) << "PKJoin left scan operator should scan only one table";
     return std::make_pair(nullptr, ContextMeta());
   }
   for (label_t label : vec) {
     auto pk_name = std::get<1>(schema.get_vertex_primary_key(label)[0]);
     if (pk_name != name) {
-      LOG(ERROR) << "SPJoin left key property should be the primary key of the "
+      LOG(ERROR) << "PKJoin left key property should be the primary key of the "
                     "scanned table";
       return std::make_pair(nullptr, ContextMeta());
     }

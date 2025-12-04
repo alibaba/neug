@@ -72,8 +72,6 @@ class SelectIdNeOpr : public IOperator {
       gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto tag = expr_.operators(0).var().tag().id();
     auto col = ctx.get(tag);
     const auto& name = expr_.operators(0).var().property().key().name();
@@ -82,11 +80,12 @@ class SelectIdNeOpr : public IOperator {
       auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
       auto labels = vertex_col->get_labels_set();
       if (labels.size() == 1 &&
-          name == graph.schema().get_vertex_primary_key_name(*labels.begin())) {
+          name == graph_interface.schema().get_vertex_primary_key_name(
+                      *labels.begin())) {
         auto label = *labels.begin();
         int64_t oid = std::stoll(params.at(expr_.operators(2).param().name()));
         vid_t vid;
-        if (graph.GetVertexIndex(label, Property(oid), vid)) {
+        if (graph_interface.GetVertexIndex(label, Property(oid), vid)) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             const SLVertexColumn& sl_vertex_col =
                 *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
@@ -103,7 +102,11 @@ class SelectIdNeOpr : public IOperator {
         }
       }
     }
-    Expr expr(&graph, ctx, params, expr_, VarType::kPathVar);
+    StorageReadInterface* graph = nullptr;
+    if (graph_interface.readable()) {
+      graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
+    }
+    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
 
     if (!expr.is_optional()) {
@@ -131,9 +134,11 @@ class SelectOpr : public IOperator {
       gs::runtime::IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    Expr expr(&graph, ctx, params, expr_, VarType::kPathVar);
+    StorageReadInterface* graph = nullptr;
+    if (graph_interface.readable()) {
+      graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
+    }
+    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
     Arena arena;
     if (!expr.is_optional()) {
       ExprWrapper wrapper(std::move(expr));

@@ -77,7 +77,10 @@ class TCOprBuilder : public IOperatorBuilder {
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kEdge,
+            physical::PhysicalOpr_Operator::OpKindCase::kVertex,
+            physical::PhysicalOpr_Operator::OpKindCase::kProject,
             physical::PhysicalOpr_Operator::OpKindCase::kGroupBy,
+            physical::PhysicalOpr_Operator::OpKindCase::kProject,
             physical::PhysicalOpr_Operator::OpKindCase::kEdge,
             physical::PhysicalOpr_Operator::OpKindCase::kVertex,
             physical::PhysicalOpr_Operator::OpKindCase::kEdge,

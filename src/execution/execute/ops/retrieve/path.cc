@@ -60,24 +60,19 @@ static bool is_shortest_path_with_order_by_limit(
   if (opr.path().path_opt() !=
           physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST ||
       opr.path().result_opt() !=
-          physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E) {
+          physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V) {
     return false;
   }
-  if (i + 4 < opr_num) {
+  if (i + 5 < opr_num) {
     const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
-    const auto& select_opr = plan.query_plan().plan(i + 3).opr();
-    const auto& project_opr = plan.query_plan().plan(i + 4).opr();
+    const auto& select_opr = plan.query_plan().plan(i + 2).opr();
+    const auto& project_opr = plan.query_plan().plan(i + 3).opr();
     const auto& order_by_opr = plan.query_plan().plan(i + 5).opr();
-    if (!get_v_opr.has_vertex() || !get_v_filter_opr.has_vertex() ||
-        !project_opr.has_project() || !order_by_opr.has_order_by()) {
+    if (!get_v_opr.has_vertex() || !project_opr.has_project() ||
+        !order_by_opr.has_order_by()) {
       return false;
     }
-    if (get_v_opr.vertex().opt() != physical::GetV::END) {
-      return false;
-    }
-
-    if (get_v_filter_opr.vertex().opt() != physical::GetV::ITSELF) {
+    if (get_v_opr.vertex().opt() != physical::GetV::OTHER) {
       return false;
     }
 
@@ -90,12 +85,7 @@ static bool is_shortest_path_with_order_by_limit(
     if (path_alias != get_v_tag && get_v_tag != -1) {
       return false;
     }
-    int get_v_filter_tag = get_v_filter_opr.vertex().has_tag()
-                               ? get_v_filter_opr.vertex().tag().value()
-                               : -1;
-    if (get_v_filter_tag != get_v_alias && get_v_filter_tag != -1) {
-      return false;
-    }
+
     if (!select_opr.has_select()) {
       return false;
     }
@@ -134,42 +124,22 @@ static bool is_shortest_path_with_order_by_limit(
     }
 
     auto mapping = project_opr.project().mappings();
-    if (!mapping[0].has_expr() || !mapping[1].has_expr()) {
-      return false;
+    bool flag = false;
+    for (const auto& m : mapping) {
+      if (m.expr().operators_size() == 1 && m.expr().operators(0).has_var()) {
+        auto var = m.expr().operators(0).var();
+        if (var.has_property() && var.property().has_len() &&
+            var.tag().has_id() && var.tag().id() == path_alias) {
+          flag = true;
+          path_len_alias = m.alias().value();
+        } else {
+          vertex_alias = m.alias().value();
+        }
+      } else {
+        vertex_alias = m.alias().value();
+      }
     }
-    if (mapping[0].expr().operators_size() != 1 ||
-        mapping[1].expr().operators_size() != 1) {
-      return false;
-    }
-    if (!mapping[0].expr().operators(0).has_var() ||
-        !mapping[1].expr().operators(0).has_var()) {
-      return false;
-    }
-    if (!mapping[0].expr().operators(0).var().has_tag() ||
-        !mapping[1].expr().operators(0).var().has_tag()) {
-      return false;
-    }
-    common::Variable path_len_var0;
-    common::Variable vertex_var;
-    if (mapping[0].expr().operators(0).var().tag().id() == path_alias) {
-      path_len_var0 = mapping[0].expr().operators(0).var();
-      vertex_var = mapping[1].expr().operators(0).var();
-      path_len_alias = mapping[0].alias().value();
-      vertex_alias = mapping[1].alias().value();
-
-    } else if (mapping[1].expr().operators(0).var().tag().id() == path_alias) {
-      path_len_var0 = mapping[1].expr().operators(0).var();
-      vertex_var = mapping[0].expr().operators(0).var();
-      path_len_alias = mapping[1].alias().value();
-      vertex_alias = mapping[0].alias().value();
-    } else {
-      return false;
-    }
-    if (!path_len_var0.has_property() || !path_len_var0.property().has_len()) {
-      return false;
-    }
-
-    if (vertex_var.has_property()) {
+    if (!flag) {
       return false;
     }
 
@@ -203,38 +173,23 @@ static bool is_all_shortest_path(const physical::PhysicalPlan& plan, int i) {
   int opr_num = plan.query_plan().plan_size();
   const auto& opr = plan.query_plan().plan(i).opr();
   if (opr.path().path_opt() !=
-          physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST ||
-      opr.path().result_opt() !=
-          physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E) {
+      physical::PathExpand_PathOpt::PathExpand_PathOpt_ALL_SHORTEST) {
     return false;
   }
 
-  if (i + 2 < opr_num) {
+  if (i + 1 < opr_num) {
     const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
-    if (!get_v_filter_opr.has_vertex() || !get_v_opr.has_vertex()) {
+    if (!get_v_opr.has_vertex()) {
       return false;
     }
-    if (get_v_opr.vertex().opt() != physical::GetV::END) {
-      return false;
-    }
-    if (get_v_filter_opr.vertex().opt() != physical::GetV::ITSELF) {
+    if (get_v_opr.vertex().opt() != physical::GetV::OTHER) {
       return false;
     }
 
     int path_alias = opr.path().has_alias() ? opr.path().alias().value() : -1;
     int get_v_tag =
         get_v_opr.vertex().has_tag() ? get_v_opr.vertex().tag().value() : -1;
-    int get_v_alias = get_v_opr.vertex().has_alias()
-                          ? get_v_opr.vertex().alias().value()
-                          : -1;
     if (path_alias != get_v_tag && get_v_tag != -1) {
-      return false;
-    }
-    int get_v_filter_tag = get_v_filter_opr.vertex().has_tag()
-                               ? get_v_filter_opr.vertex().tag().value()
-                               : -1;
-    if (get_v_filter_tag != get_v_alias && get_v_filter_tag != -1) {
       return false;
     }
 
@@ -248,37 +203,23 @@ static bool is_shortest_path(const physical::PhysicalPlan& plan, int i) {
   const auto& opr = plan.query_plan().plan(i).opr();
   // must be any shortest path
   if (opr.path().path_opt() !=
-          physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST ||
-      opr.path().result_opt() !=
-          physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E) {
+      physical::PathExpand_PathOpt::PathExpand_PathOpt_ANY_SHORTEST) {
     return false;
   }
-  if (i + 2 < opr_num) {
+  if (i + 1 < opr_num) {
     const auto& get_v_opr = plan.query_plan().plan(i + 1).opr();
-    const auto& get_v_filter_opr = plan.query_plan().plan(i + 2).opr();
-    if (!get_v_filter_opr.has_vertex() || !get_v_opr.has_vertex()) {
+    if (!get_v_opr.has_vertex()) {
       return false;
     }
-    if (get_v_opr.vertex().opt() != physical::GetV::END) {
-      return false;
-    }
-    if (get_v_filter_opr.vertex().opt() != physical::GetV::ITSELF) {
+    if (get_v_opr.vertex().opt() != physical::GetV::OTHER) {
       return false;
     }
 
     int path_alias = opr.path().has_alias() ? opr.path().alias().value() : -1;
     int get_v_tag =
         get_v_opr.vertex().has_tag() ? get_v_opr.vertex().tag().value() : -1;
-    int get_v_alias = get_v_opr.vertex().has_alias()
-                          ? get_v_opr.vertex().alias().value()
-                          : -1;
+
     if (path_alias != get_v_tag && get_v_tag != -1) {
-      return false;
-    }
-    int get_v_filter_tag = get_v_filter_opr.vertex().has_tag()
-                               ? get_v_filter_opr.vertex().tag().value()
-                               : -1;
-    if (get_v_filter_tag != get_v_alias && get_v_filter_tag != -1) {
       return false;
     }
 
@@ -330,35 +271,10 @@ class SPOrderByLimitOpr : public IOperator {
   SpecialVertexPredicateConfig config_;
 };
 
-class SPOrderByLimitWithOutPredOpr : public IOperator {
- public:
-  SPOrderByLimitWithOutPredOpr(const ShortestPathParams& spp, int limit)
-      : spp_(spp), limit_(limit) {}
-
-  std::string get_operator_name() const override {
-    return "SPOrderByLimitWithOutPredOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-        graph, std::move(ctx), spp_,
-        [](label_t, vid_t, size_t) { return true; }, limit_);
-  }
-
- private:
-  ShortestPathParams spp_;
-  int limit_;
-};
-
 class SPOrderByLimitWithGPredOpr : public IOperator {
  public:
   SPOrderByLimitWithGPredOpr(const ShortestPathParams& spp, int limit,
-                             const common::Expression& pred)
+                             const std::optional<common::Expression>& pred)
       : spp_(spp), limit_(limit), pred_(pred) {}
 
   std::string get_operator_name() const override {
@@ -371,21 +287,27 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto v_pred = parse_expression(&graph, std::move(ctx), params, pred_,
-                                   VarType::kVertexVar);
-    Arena arena;
-    auto pred = [&v_pred, &arena](label_t label, vid_t vid, size_t idx) {
-      return v_pred->eval_vertex(label, vid, idx, arena).as_bool();
-    };
+    if (pred_) {
+      Arena arena;
+      auto v_pred = parse_expression(&graph, std::move(ctx), params,
+                                     pred_.value(), VarType::kVertexVar);
+      auto pred = [&v_pred, &arena](label_t label, vid_t vid, size_t idx) {
+        return v_pred->eval_vertex(label, vid, idx, arena).as_bool();
+      };
 
-    return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-        graph, std::move(ctx), spp_, pred, limit_);
+      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
+          graph, std::move(ctx), spp_, pred, limit_);
+    } else {
+      return PathExpand::single_source_shortest_path_with_order_by_length_limit(
+          graph, std::move(ctx), spp_,
+          [](label_t, vid_t, size_t) { return true; }, limit_);
+    }
   }
 
  private:
   ShortestPathParams spp_;
   int limit_;
-  common::Expression pred_;
+  std::optional<common::Expression> pred_;
 };
 
 gs::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
@@ -423,7 +345,7 @@ gs::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
       LOG(ERROR) << "only support one label triplet";
       return std::make_pair(nullptr, ContextMeta());
     }
-    const auto& get_v_opr = plan.query_plan().plan(op_idx + 2).opr().vertex();
+    const auto& get_v_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
     if (get_v_opr.has_params() && get_v_opr.params().has_predicate()) {
       SpecialVertexPredicateConfig sp_config;
       if (is_special_vertex_predicate(get_v_opr.params().predicate(),
@@ -431,17 +353,16 @@ gs::result<OpBuildResultT> SPOrderByLimitOprBuilder::Build(
         return std::make_pair(
             std::make_unique<SPOrderByLimitOpr>(spp, limit_upper, sp_config),
             ret_meta);
-      } else {
-        return std::make_pair(
-            std::make_unique<SPOrderByLimitWithGPredOpr>(
-                spp, limit_upper, get_v_opr.params().predicate()),
-            ret_meta);
       }
-    } else {
-      return std::make_pair(
-          std::make_unique<SPOrderByLimitWithOutPredOpr>(spp, limit_upper),
-          ret_meta);
     }
+    std::optional<common::Expression> g_pred = std::nullopt;
+    if (get_v_opr.params().has_predicate()) {
+      g_pred = std::make_optional(get_v_opr.params().predicate());
+    }
+    return std::make_pair(
+        std::make_unique<SPOrderByLimitWithGPredOpr>(spp, limit_upper, g_pred),
+        ret_meta);
+
   } else {
     return std::make_pair(nullptr, ContextMeta());
   }
@@ -615,44 +536,29 @@ gs::result<OpBuildResultT> SPOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   if (is_shortest_path(plan, op_idx)) {
-    auto vertex = plan.query_plan().plan(op_idx + 2).opr().vertex();
-    int v_alias = -1;
-    if (!vertex.has_alias()) {
-      v_alias = plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()
-                    ? plan.query_plan()
-                          .plan(op_idx + 1)
-                          .opr()
-                          .vertex()
-                          .alias()
-                          .value()
-                    : -1;
-    } else {
-      v_alias = vertex.alias().value();
-    }
-    int alias = -1;
-    if (plan.query_plan().plan(op_idx).opr().path().has_alias()) {
-      alias = plan.query_plan().plan(op_idx).opr().path().alias().value();
-    }
+    auto vertex = plan.query_plan().plan(op_idx + 1).opr().vertex();
+    auto path = plan.query_plan().plan(op_idx).opr().path();
+    int v_alias = vertex.has_alias() ? vertex.alias().value() : -1;
+    int alias = path.has_alias() ? path.alias().value() : -1;
     ret_meta.set(v_alias);
     ret_meta.set(alias);
 
-    const auto& opr = plan.query_plan().plan(op_idx).opr().path();
-    if (!opr.has_start_tag()) {
+    if (!path.has_start_tag()) {
       LOG(ERROR) << "Shortest path must have start tag";
       return std::make_pair(nullptr, ContextMeta());
     }
-    int start_tag = opr.start_tag().value();
-    if (opr.is_optional()) {
+    int start_tag = path.start_tag().value();
+    if (path.is_optional()) {
       LOG(ERROR) << "Currently only support non-optional shortest path";
       return std::make_pair(nullptr, ContextMeta());
     }
     ShortestPathParams spp;
     spp.start_tag = start_tag;
-    spp.dir = parse_direction(opr.base().edge_expand().direction());
+    spp.dir = parse_direction(path.base().edge_expand().direction());
     spp.v_alias = v_alias;
     spp.alias = alias;
-    spp.hop_lower = opr.hop_range().lower();
-    spp.hop_upper = opr.hop_range().upper();
+    spp.hop_lower = path.hop_range().lower();
+    spp.hop_upper = path.hop_range().upper();
     spp.labels =
         parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     if (spp.labels.size() != 1) {
@@ -688,27 +594,13 @@ gs::result<OpBuildResultT> SPOprBuilder::Build(
       }
     }
   } else if (is_all_shortest_path(plan, op_idx)) {
-    auto vertex = plan.query_plan().plan(op_idx + 2).opr().vertex();
-    int v_alias = -1;
-    if (!vertex.has_alias()) {
-      v_alias = plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()
-                    ? plan.query_plan()
-                          .plan(op_idx + 1)
-                          .opr()
-                          .vertex()
-                          .alias()
-                          .value()
-                    : -1;
-    } else {
-      v_alias = vertex.alias().value();
-    }
-    int alias = -1;
-    if (plan.query_plan().plan(op_idx).opr().path().has_alias()) {
-      alias = plan.query_plan().plan(op_idx).opr().path().alias().value();
-    }
+    auto vertex = plan.query_plan().plan(op_idx + 1).opr().vertex();
+    int v_alias = vertex.has_alias() ? vertex.alias().value() : -1;
+    const auto& path = plan.query_plan().plan(op_idx).opr().path();
+
+    int alias = path.has_alias() ? path.alias().value() : -1;
     ret_meta.set(v_alias);
     ret_meta.set(alias);
-    const auto& path = plan.query_plan().plan(op_idx).opr().path();
     if (!path.has_start_tag()) {
       LOG(ERROR) << "Shortest path must have start tag";
       return std::make_pair(nullptr, ContextMeta());

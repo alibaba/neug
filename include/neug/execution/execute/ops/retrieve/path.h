@@ -39,15 +39,15 @@ class SPOrderByLimitOprBuilder : public IOperatorBuilder {
                                    const physical::PhysicalPlan& plan,
                                    int op_idx) override;
 
-  int stepping(int i) override { return i + 5; }
+  int stepping(int i) override { return i + 4; }
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {
         physical::PhysicalOpr_Operator::OpKindCase::kPath,
         physical::PhysicalOpr_Operator::OpKindCase::kVertex,
-        physical::PhysicalOpr_Operator::OpKindCase::kVertex,
         physical::PhysicalOpr_Operator::OpKindCase::kSelect,
+        physical::PhysicalOpr_Operator::OpKindCase::kProject,
         physical::PhysicalOpr_Operator::OpKindCase::kProject,
         physical::PhysicalOpr_Operator::OpKindCase::kOrderBy,
     };
@@ -66,11 +66,8 @@ class SPOprBuilder : public IOperatorBuilder {
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
-    return {
-        physical::PhysicalOpr_Operator::OpKindCase::kPath,
-        physical::PhysicalOpr_Operator::OpKindCase::kVertex,
-        physical::PhysicalOpr_Operator::OpKindCase::kVertex,
-    };
+    return {physical::PhysicalOpr_Operator::OpKindCase::kPath,
+            physical::PhysicalOpr_Operator::OpKindCase::kVertex};
   }
 };
 
