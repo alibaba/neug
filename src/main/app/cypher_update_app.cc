@@ -37,16 +37,15 @@
 namespace gs {
 
 result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::AddVertexPropertySchema& add_vertex_property_schema) {
-  auto& graph_ = graph.graph();
   auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
   auto tuple_res =
       property_defs_to_tuple(add_vertex_property_schema.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
-  auto ret = graph_.AddVertexProperties(
+  auto ret = graph.AddVertexProperties(
       vertex_type_name, tuple_res.value(),
       conflict_action_to_bool(add_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -57,9 +56,8 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::AddEdgePropertySchema& add_edge_property_schema) {
-  auto& graph_ = graph.graph();
   auto edge_type_name = add_edge_property_schema.edge_type().type_name().name();
   auto src_type_name =
       add_edge_property_schema.edge_type().src_type_name().name();
@@ -71,7 +69,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
     RETURN_ERROR(tuple_res.error());
   }
 
-  auto ret = graph_.AddEdgeProperties(
+  auto ret = graph.AddEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, tuple_res.value(),
       conflict_action_to_bool(add_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -83,15 +81,14 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_drop_vertex_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
-  auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_property_schema.vertex_type().name();
   std::vector<std::string> property_names;
   for (const auto& prop : drop_vertex_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  auto ret = graph_.DeleteVertexProperties(
+  auto ret = graph.DeleteVertexProperties(
       vertex_type_name, property_names,
       conflict_action_to_bool(drop_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -102,9 +99,8 @@ CypherUpdateApp::execute_drop_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::DropEdgePropertySchema& drop_edge_property_schema) {
-  auto& graph_ = graph.graph();
   auto edge_type_name =
       drop_edge_property_schema.edge_type().type_name().name();
   auto src_type_name =
@@ -115,7 +111,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
   for (const auto& prop : drop_edge_property_schema.properties()) {
     property_names.push_back(prop);
   }
-  auto ret = graph_.DeleteEdgeProperties(
+  auto ret = graph.DeleteEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, property_names,
       conflict_action_to_bool(drop_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -127,15 +123,14 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_vertex_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
-  auto& graph_ = graph.graph();
   auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
   std::vector<std::pair<std::string, std::string>> rename_pairs;
   for (const auto& rename : rename_vertex_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  auto ret = graph_.RenameVertexProperties(
+  auto ret = graph.RenameVertexProperties(
       vertex_type_name, rename_pairs,
       conflict_action_to_bool(rename_vertex_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -146,22 +141,21 @@ CypherUpdateApp::execute_rename_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_rename_vertex_type(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::RenameVertexTypeSchema& rename_vertex_type_schema) {
   THROW_NOT_IMPLEMENTED_EXCEPTION("Rename vertex type is not implemented yet");
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_rename_edge_type(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::RenameEdgeTypeSchema& rename_edge_type_schema) {
   THROW_NOT_IMPLEMENTED_EXCEPTION("Rename edge type is not implemented yet");
 }
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_edge_property(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
-  auto& graph_ = graph.graph();
   auto edge_type_name =
       rename_edge_property_schema.edge_type().type_name().name();
   auto src_type_name =
@@ -172,7 +166,7 @@ CypherUpdateApp::execute_rename_edge_property(
   for (const auto& rename : rename_edge_property_schema.mappings()) {
     rename_pairs.emplace_back(rename.first, rename.second);
   }
-  auto ret = graph_.RenameEdgeProperties(
+  auto ret = graph.RenameEdgeProperties(
       src_type_name, dst_type_name, edge_type_name, rename_pairs,
       conflict_action_to_bool(rename_edge_property_schema.conflict_action()));
   if (ret.ok()) {
@@ -183,12 +177,11 @@ CypherUpdateApp::execute_rename_edge_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
-    NeugDBSession& graph,
+    runtime::StorageUpdateInterface& graph,
     const physical::DropVertexSchema& drop_vertex_schema) {
-  auto& graph_ = graph.graph();
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
   // Todo(NENG): Always drop vertex type with detach mode
-  auto ret = graph_.DeleteVertexType(
+  auto ret = graph.DeleteVertexType(
       vertex_type_name,
       conflict_action_to_bool(drop_vertex_schema.conflict_action()));
   if (ret.ok()) {
@@ -199,12 +192,12 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
-    NeugDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema) {
-  auto& graph_ = graph.graph();
+    runtime::StorageUpdateInterface& graph,
+    const physical::DropEdgeSchema& drop_edge_schema) {
   auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
   auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
   auto dst_type_name = drop_edge_schema.edge_type().dst_type_name().name();
-  auto status = graph_.DeleteEdgeType(
+  auto status = graph.DeleteEdgeType(
       src_type_name, dst_type_name, edge_type_name,
       conflict_action_to_bool(drop_edge_schema.conflict_action()));
   if (!status.ok()) {
@@ -214,8 +207,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
-    NeugDBSession& graph, const physical::DDLPlan& ddl_plan) {
-  auto& graph_ = graph.graph();
+    runtime::StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan) {
   try {
     if (ddl_plan.has_create_vertex_schema()) {
       auto& create_vertex = ddl_plan.create_vertex_schema();
@@ -235,7 +227,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
                             "Only one primary key is supported"));
       }
       std::vector<std::string> pks{create_vertex.primary_key(0)};
-      auto res = graph_.CreateVertexType(
+      auto res = graph.CreateVertexType(
           vertex_type_name, tuple_res.value(), pks,
           conflict_action_to_bool(create_vertex.conflict_action()));
       if (!res.ok()) {
@@ -282,8 +274,8 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
                   physical::CreateEdgeSchema_Multiplicity_Name(multiplicity)));
         }
 
-        if (graph_.schema().exist(src_vertex_type_name, dst_vertex_type_name,
-                                  edge_type_name)) {
+        if (graph.schema().exist(src_vertex_type_name, dst_vertex_type_name,
+                                 edge_type_name)) {
           if (conflict_action) {
             RETURN_ERROR(Status(
                 StatusCode::ERR_INVALID_ARGUMENT,
@@ -300,7 +292,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       int32_t defs_size = create_edge_defs.size();
       while (succeed_index < defs_size) {
         const auto& create_edge_def = create_edge_defs[succeed_index];
-        auto status = graph_.CreateEdgeType(
+        auto status = graph.CreateEdgeType(
             std::get<0>(create_edge_def), std::get<1>(create_edge_def),
             std::get<2>(create_edge_def), std::get<3>(create_edge_def),
             std::get<4>(create_edge_def), std::get<5>(create_edge_def),
@@ -318,7 +310,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
       while (succeed_index >= 0 && succeed_index < defs_size) {
         const auto& create_edge_def = create_edge_defs[succeed_index];
         // Drop the created edge types.
-        if (!graph_
+        if (!graph
                  .DeleteEdgeType(std::get<0>(create_edge_def),
                                  std::get<1>(create_edge_def),
                                  std::get<2>(create_edge_def), false)
@@ -411,25 +403,17 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
-    NeugDBSession& graph, const physical::PhysicalPlan& plan,
+    runtime::StorageUpdateInterface& graph, const physical::PhysicalPlan& plan,
     runtime::OprTimer* timer, bool insert_with_resize) {
-  auto txn = graph.GetUpdateTransaction();
-  runtime::StorageTPUpdateInterface gii(txn);
-  auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer);
+  auto ctx = runtime::ParseAndExecuteQueryPipeline(graph, plan, timer);
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
-    txn.Abort();
     // We encode the error message to the output, so that the client can
     // get the error message.
     RETURN_ERROR(ctx.error());
   }
-  auto res = runtime::Sink::sink(ctx.value(), gii);
-  if (!txn.Commit()) {
-    LOG(ERROR) << "Commit failed";
-    // If commit fails, we return an error.
-    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
-  }
+  auto res = runtime::Sink::sink(ctx.value(), graph);
   return result<results::CollectiveResults>(std::move(res));
 }
 
@@ -444,19 +428,22 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
       LOG(ERROR) << "Parse plan failed...";
       return false;
     }
+    auto txn = graph.GetUpdateTransaction();
+    runtime::StorageTPUpdateInterface gii(txn);
 
     VLOG(1) << "plan: " << plan.DebugString();
     if (plan.has_ddl_plan()) {
-      auto result = execute_ddl(graph, plan.ddl_plan());
+      auto result = execute_ddl(gii, plan.ddl_plan());
       if (!result) {
         output.put_string(result.error().ToString());
+        txn.Abort();
         return false;
       }
-      // TODO(zhanglei): Currently we dump schema to disk after each DDL
-      // operation, to ensure the consistency.
-      // The better way is to write the schema change to WAL, and apply them
-      // after the transaction is committed.
-      graph.graph().DumpSchema();
+      if (!txn.Commit()) {
+        LOG(ERROR) << "UpdateTransaction commit failed ";
+        output.put_string("Commit failed");
+        return false;
+      }
       auto res = result.value().SerializeAsString();
       output.put_bytes(res.data(), res.size());
       return true;
@@ -467,11 +454,17 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
     //  This may infect the performance of the update query.
     std::unique_ptr<runtime::OprTimer> timer =
         std::make_unique<runtime::OprTimer>();
-    auto res = execute_update_query(graph, plan, timer.get(), true);
+    auto res = execute_update_query(gii, plan, timer.get());
 
     if (!res) {
       LOG(ERROR) << "Execute update query failed: " << res.error().ToString();
+      txn.Abort();
       output.put_string(res.error().ToString());
+      return false;
+    }
+    if (!txn.Commit()) {
+      LOG(ERROR) << "UpdateTransaction commit failed ";
+      output.put_string("Commit failed");
       return false;
     }
     auto collective_results = res.value().SerializeAsString();

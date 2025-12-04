@@ -251,14 +251,14 @@ class StorageUpdateInterface : public StorageReadInterface,
       const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) = 0;
 
-  virtual bool CreateVertexType(
+  virtual Status CreateVertexType(
       const std::string& name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict) = 0;
 
-  virtual bool CreateEdgeType(
+  virtual Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -266,48 +266,48 @@ class StorageUpdateInterface : public StorageReadInterface,
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy) = 0;
 
-  virtual bool AddVertexProperties(
+  virtual Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool AddEdgeProperties(
+  virtual Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool RenameVertexProperties(
+  virtual Status RenameVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool RenameEdgeProperties(
+  virtual Status RenameEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool DeleteVertexProperties(
+  virtual Status DeleteVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::string>& delete_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool DeleteEdgeProperties(
+  virtual Status DeleteEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::string>& delete_properties,
       bool error_on_conflict) = 0;
 
-  virtual bool DeleteVertexType(const std::string& vertex_type_name,
-                                bool error_on_conflict = true) = 0;
+  virtual Status DeleteVertexType(const std::string& vertex_type_name,
+                                  bool error_on_conflict = true) = 0;
 
-  virtual bool DeleteEdgeType(const std::string& src_type,
-                              const std::string& dst_type,
-                              const std::string& edge_type,
-                              bool error_on_conflict) = 0;
+  virtual Status DeleteEdgeType(const std::string& src_type,
+                                const std::string& dst_type,
+                                const std::string& edge_type,
+                                bool error_on_conflict) = 0;
 
   virtual void CreateCheckpoint() = 0;
 };
@@ -380,7 +380,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                  oe_edges, ie_edges);
   }
 
-  bool CreateVertexType(
+  Status CreateVertexType(
       const std::string& name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
@@ -390,7 +390,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                  error_on_conflict);
   }
 
-  bool CreateEdgeType(
+  Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -402,7 +402,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                ie_edge_strategy);
   }
 
-  bool AddVertexProperties(
+  Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
@@ -411,7 +411,7 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                     error_on_conflict);
   }
 
-  bool AddEdgeProperties(
+  Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -421,14 +421,14 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                   error_on_conflict);
   }
 
-  bool RenameVertexProperties(
+  Status RenameVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict) override {
     return txn_.RenameVertexProperties(vertex_type_name, rename_properties,
                                        error_on_conflict);
   }
-  bool RenameEdgeProperties(
+  Status RenameEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
@@ -437,30 +437,32 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                                      rename_properties, error_on_conflict);
   }
 
-  bool DeleteVertexProperties(const std::string& vertex_type_name,
-                              const std::vector<std::string>& delete_properties,
-                              bool error_on_conflict) override {
+  Status DeleteVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict) override {
     return txn_.DeleteVertexProperties(vertex_type_name, delete_properties,
                                        error_on_conflict);
   }
 
-  bool DeleteEdgeProperties(const std::string& src_type,
-                            const std::string& dst_type,
-                            const std::string& edge_type,
-                            const std::vector<std::string>& delete_properties,
-                            bool error_on_conflict) override {
+  Status DeleteEdgeProperties(const std::string& src_type,
+                              const std::string& dst_type,
+                              const std::string& edge_type,
+                              const std::vector<std::string>& delete_properties,
+                              bool error_on_conflict) override {
     return txn_.DeleteEdgeProperties(src_type, dst_type, edge_type,
                                      delete_properties, error_on_conflict);
   }
 
-  bool DeleteVertexType(const std::string& vertex_type_name,
-                        bool error_on_conflict = true) override {
+  Status DeleteVertexType(const std::string& vertex_type_name,
+                          bool error_on_conflict = true) override {
     return txn_.DeleteVertexType(vertex_type_name, error_on_conflict);
   }
 
-  bool DeleteEdgeType(const std::string& src_type, const std::string& dst_type,
-                      const std::string& edge_type,
-                      bool error_on_conflict) override {
+  Status DeleteEdgeType(const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
+                        bool error_on_conflict) override {
     return txn_.DeleteEdgeType(src_type, dst_type, edge_type,
                                error_on_conflict);
   }
@@ -545,129 +547,91 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                                    edge_label_id, oe_edges, ie_edges);
   }
 
-  bool CreateVertexType(
+  Status CreateVertexType(
       const std::string& name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict) override {
-    auto status = graph_.CreateVertexType(name, properties, primary_key_names,
-                                          error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "CreateVertexType failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.CreateVertexType(name, properties, primary_key_names,
+                                   error_on_conflict);
   }
 
-  bool CreateEdgeType(
+  Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy) override {
-    auto status = graph_.CreateEdgeType(src_type, dst_type, edge_type,
-                                        properties, error_on_conflict,
-                                        oe_edge_strategy, ie_edge_strategy);
-    if (!status.ok()) {
-      LOG(ERROR) << "CreateEdgeType failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.CreateEdgeType(src_type, dst_type, edge_type, properties,
+                                 error_on_conflict, oe_edge_strategy,
+                                 ie_edge_strategy);
   }
 
-  bool AddVertexProperties(
+  Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) override {
-    auto status = graph_.AddVertexProperties(vertex_type_name, add_properties,
-                                             error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "AddVertexProperties failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.AddVertexProperties(vertex_type_name, add_properties,
+                                      error_on_conflict);
   }
 
-  bool AddEdgeProperties(
+  Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) override {
-    auto status = graph_.AddEdgeProperties(src_type, dst_type, edge_type,
-                                           add_properties, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "AddEdgeProperties failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.AddEdgeProperties(src_type, dst_type, edge_type,
+                                    add_properties, error_on_conflict);
   }
 
-  bool RenameVertexProperties(
+  Status RenameVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict) override {
-    auto status = graph_.RenameVertexProperties(
-        vertex_type_name, rename_properties, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "RenameVertexProperties failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.RenameVertexProperties(vertex_type_name, rename_properties,
+                                         error_on_conflict);
   }
-  bool RenameEdgeProperties(
+  Status RenameEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict) override {
-    auto status = graph_.RenameEdgeProperties(
-        src_type, dst_type, edge_type, rename_properties, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "RenameEdgeProperties failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.RenameEdgeProperties(src_type, dst_type, edge_type,
+                                       rename_properties, error_on_conflict);
   }
 
-  bool DeleteVertexProperties(const std::string& vertex_type_name,
+  Status DeleteVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict) override {
+    return graph_.DeleteVertexProperties(vertex_type_name, delete_properties,
+                                         error_on_conflict);
+  }
+
+  Status DeleteEdgeProperties(const std::string& src_type,
+                              const std::string& dst_type,
+                              const std::string& edge_type,
                               const std::vector<std::string>& delete_properties,
                               bool error_on_conflict) override {
-    auto status = graph_.DeleteVertexProperties(
-        vertex_type_name, delete_properties, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "DeleteVertexProperties failed: " << status.ToString();
-    }
-    return status.ok();
+    return graph_.DeleteEdgeProperties(src_type, dst_type, edge_type,
+                                       delete_properties, error_on_conflict);
   }
 
-  bool DeleteEdgeProperties(const std::string& src_type,
-                            const std::string& dst_type,
-                            const std::string& edge_type,
-                            const std::vector<std::string>& delete_properties,
-                            bool error_on_conflict) override {
-    auto status = graph_.DeleteEdgeProperties(
-        src_type, dst_type, edge_type, delete_properties, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "DeleteEdgeProperties failed: " << status.ToString();
-    }
-    return status.ok();
+  Status DeleteVertexType(const std::string& vertex_type_name,
+                          bool error_on_conflict = true) override {
+    return graph_.DeleteVertexType(vertex_type_name, error_on_conflict);
   }
 
-  bool DeleteVertexType(const std::string& vertex_type_name,
-                        bool error_on_conflict = true) override {
-    auto status = graph_.DeleteVertexType(vertex_type_name, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "DeleteVertexType failed: " << status.ToString();
-    }
-    return status.ok();
-  }
-
-  bool DeleteEdgeType(const std::string& src_type, const std::string& dst_type,
-                      const std::string& edge_type,
-                      bool error_on_conflict) override {
-    auto status =
-        graph_.DeleteEdgeType(src_type, dst_type, edge_type, error_on_conflict);
-    if (!status.ok()) {
-      LOG(ERROR) << "DeleteEdgeType failed: " << status.ToString();
-    }
-    return status.ok();
+  Status DeleteEdgeType(const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type,
+                        bool error_on_conflict) override {
+    return graph_.DeleteEdgeType(src_type, dst_type, edge_type,
+                                 error_on_conflict);
   }
 
  private:

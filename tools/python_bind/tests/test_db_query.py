@@ -474,7 +474,7 @@ def test_session_alter_vertex_table(tmp_path):
     # incorrectly drop a property that does not exist
     with pytest.raises(Exception) as excinfo:
         sess.execute("ALTER TABLE person DROP age1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     sess.close()
     db.close()
 

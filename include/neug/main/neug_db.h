@@ -256,6 +256,7 @@ class NeugDB {
   bool compact_thread_running_ = false;
 
   std::mutex mutex_;
+  std::unique_ptr<Allocator> default_allocator_;
 };
 
 }  // namespace gs

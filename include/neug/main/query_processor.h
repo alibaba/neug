@@ -25,6 +25,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_result.h"
+#include "neug/utils/allocators.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -33,8 +34,10 @@ class NeugDB;
 
 class QueryProcessor {
  public:
-  QueryProcessor(NeugDB& db, int32_t max_num_threads, bool is_read_only = false)
+  QueryProcessor(NeugDB& db, Allocator& alloc, int32_t max_num_threads,
+                 bool is_read_only = false)
       : db_(db),
+        allocator_(alloc),
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
 
@@ -55,6 +58,7 @@ class QueryProcessor {
       const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
   NeugDB& db_;
+  Allocator& allocator_;
   int32_t max_num_threads_;
   bool is_read_only_ = false;
 };

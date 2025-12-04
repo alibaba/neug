@@ -132,6 +132,19 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
   }
   gs::runtime::PlanParser::get().init();
+  {
+    // Initialize the default allocator for ingesting wals
+    MemoryStrategy strategy = MemoryStrategy::kMemoryOnly;
+    if (config_.memory_level == 0) {
+      strategy = MemoryStrategy::kSyncToFile;
+    } else if (config_.memory_level >= 2) {
+      strategy = MemoryStrategy::kHugepagePrefered;
+    }
+    default_allocator_ = std::make_unique<Allocator>(
+        strategy, strategy != MemoryStrategy::kSyncToFile
+                      ? ""
+                      : wal_ingest_allocator_prefix(work_dir_, 0));
+  }
   openGraphAndSchema();
   initVersionManager();      // must before initTransactionManager
   initAppManager();          // must before initTransactionManager
@@ -386,8 +399,7 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
       last_compaction_ts_ = update_wal.timestamp;
     } else {
       UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,
-                                   update_wal.size,
-                                   txn_manager_->GetSession(0).allocator());
+                                   update_wal.size, *default_allocator_);
     }
     from_ts = to_ts + 1;
   }
@@ -439,8 +451,9 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_meta(schema().to_yaml().value());
   planner_->update_statistics(graph().get_statistics_json());
 
-  query_processor_ = std::make_shared<QueryProcessor>(
-      *this, thread_num_, config_.mode == DBMode::READ_ONLY);
+  query_processor_ =
+      std::make_shared<QueryProcessor>(*this, *default_allocator_, thread_num_,
+                                       config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       graph_, planner_, query_processor_, config_);

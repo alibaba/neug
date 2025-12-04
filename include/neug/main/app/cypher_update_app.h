@@ -40,47 +40,51 @@ class CypherUpdateApp : public WriteAppBase {
   bool Query(NeugDBSession& graph, Decoder& input, Encoder& output) override;
 
   static result<results::CollectiveResults> execute_ddl(
-      NeugDBSession& graph, const physical::DDLPlan& ddl_plan);
+      runtime::StorageUpdateInterface& graph,
+      const physical::DDLPlan& ddl_plan);
 
   static result<results::CollectiveResults> execute_update_query(
-      NeugDBSession& graph, const physical::PhysicalPlan& plan,
-      runtime::OprTimer* timer_, bool insert_with_resize = false);
+      runtime::StorageUpdateInterface& graph,
+      const physical::PhysicalPlan& plan, runtime::OprTimer* timer_,
+      bool insert_with_resize = false);
 
   static result<results::CollectiveResults> execute_add_vertex_property(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::AddVertexPropertySchema& add_vertex_property_schema);
 
   static result<results::CollectiveResults> execute_add_edge_property(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::AddEdgePropertySchema& add_edge_property_schema);
 
   static result<results::CollectiveResults> execute_drop_vertex_property(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::DropVertexPropertySchema& drop_vertex_property_schema);
 
   static result<results::CollectiveResults> execute_drop_edge_property(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::DropEdgePropertySchema& drop_edge_property_schema);
 
   static result<results::CollectiveResults> execute_rename_vertex_type(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::RenameVertexTypeSchema& rename_vertex_type_schema);
 
   static result<results::CollectiveResults> execute_rename_edge_type(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::RenameEdgeTypeSchema& rename_edge_type_schema);
 
   static result<results::CollectiveResults> execute_rename_vertex_property(
-      NeugDBSession& graph, const physical::RenameVertexPropertySchema&
-                                rename_vertex_property_schema);
+      runtime::StorageUpdateInterface& graph,
+      const physical::RenameVertexPropertySchema&
+          rename_vertex_property_schema);
   static result<results::CollectiveResults> execute_rename_edge_property(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::RenameEdgePropertySchema& rename_edge_property_schema);
   static result<results::CollectiveResults> execute_drop_vertex_schema(
-      NeugDBSession& graph,
+      runtime::StorageUpdateInterface& graph,
       const physical::DropVertexSchema& drop_vertex_schema);
   static result<results::CollectiveResults> execute_drop_edge_schema(
-      NeugDBSession& graph, const physical::DropEdgeSchema& drop_edge_schema);
+      runtime::StorageUpdateInterface& graph,
+      const physical::DropEdgeSchema& drop_edge_schema);
 
  private:
   std::unordered_map<std::string, physical::PhysicalPlan> plan_cache_;

@@ -133,3 +133,6 @@ src/compiler/scripts/antlr4/hash.md5
 
 # Extension wheel build
 tools/python_bind/neug/extensions/
+
+# Coverage file
+**/.coverage

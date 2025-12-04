@@ -159,14 +159,14 @@ class UpdateTransaction {
 
   void Abort();
 
-  bool CreateVertexType(
+  Status CreateVertexType(
       const std::string& name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict);
 
-  bool CreateEdgeType(
+  Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
@@ -174,45 +174,47 @@ class UpdateTransaction {
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy);
 
-  bool AddVertexProperties(
+  Status AddVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict);
 
-  bool AddEdgeProperties(
+  Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::tuple<PropertyType, std::string, Property>>&
           add_properties,
       bool error_on_conflict);
 
-  bool RenameVertexProperties(
+  Status RenameVertexProperties(
       const std::string& vertex_type_name,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict);
 
-  bool RenameEdgeProperties(
+  Status RenameEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
       const std::vector<std::pair<std::string, std::string>>& rename_properties,
       bool error_on_conflict);
 
-  bool DeleteVertexProperties(const std::string& vertex_type_name,
+  Status DeleteVertexProperties(
+      const std::string& vertex_type_name,
+      const std::vector<std::string>& delete_properties,
+      bool error_on_conflict);
+
+  Status DeleteEdgeProperties(const std::string& src_type,
+                              const std::string& dst_type,
+                              const std::string& edge_type,
                               const std::vector<std::string>& delete_properties,
                               bool error_on_conflict);
 
-  bool DeleteEdgeProperties(const std::string& src_type,
-                            const std::string& dst_type,
-                            const std::string& edge_type,
-                            const std::vector<std::string>& delete_properties,
-                            bool error_on_conflict);
+  Status DeleteVertexType(const std::string& vertex_type_name,
+                          bool error_on_conflict = true);
 
-  bool DeleteVertexType(const std::string& vertex_type_name,
-                        bool error_on_conflict = true);
-
-  bool DeleteEdgeType(const std::string& src_type, const std::string& dst_type,
-                      const std::string& edge_type, bool error_on_conflict);
+  Status DeleteEdgeType(const std::string& src_type,
+                        const std::string& dst_type,
+                        const std::string& edge_type, bool error_on_conflict);
 
   bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props, vid_t& vid);

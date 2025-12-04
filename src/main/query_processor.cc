@@ -90,8 +90,7 @@ result<results::CollectiveResults> QueryProcessor::execute(
 result<results::CollectiveResults> QueryProcessor::execute_admin(
     const physical::AdminPlan& admin_plan, int32_t num_threads) {
   // For admin plan, we always use update transaction.
-  auto txn = db_.GetUpdateTransaction();
-  runtime::StorageTPUpdateInterface gui(txn);
+  runtime::StorageAPUpdateInterface gui(db_.graph(), 0, allocator_);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx =
@@ -99,36 +98,21 @@ result<results::CollectiveResults> QueryProcessor::execute_admin(
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
-    txn.Abort();
     RETURN_ERROR(ctx.error());
-  }
-  if (!txn.Commit()) {
-    LOG(ERROR) << "Commit failed";
-    // If commit fails, we return an error.
-    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
   return runtime::Sink::sink(ctx.value(), gui);
 }
 
 result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  auto txn = db_.GetReadTransaction();
-  runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
+  runtime::StorageReadInterface gri(db_.graph(), MAX_TIMESTAMP);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx = runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
-    txn.Abort();
-    // We encode the error message to the output, so that the client can
-    // get the error message.
     RETURN_ERROR(ctx.error());
-  }
-  if (!txn.Commit()) {
-    LOG(ERROR) << "Commit failed";
-    // If commit fails, we return an error.
-    RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, "Commit failed"));
   }
   return runtime::Sink::sink(ctx.value(), gri);
 }
@@ -136,13 +120,14 @@ result<results::CollectiveResults> QueryProcessor::execute_read_only(
 result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  return CypherUpdateApp::execute_update_query(db_.GetSession(0), plan,
-                                               timer.get(), true);
+  runtime::StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
+  return CypherUpdateApp::execute_update_query(gii, plan, timer.get());
 }
 
 result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  return CypherUpdateApp::execute_ddl(db_.GetSession(0), ddl_plan);
+  runtime::StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
+  return CypherUpdateApp::execute_ddl(gii, ddl_plan);
 }
 
 }  // namespace gs
