@@ -75,7 +75,6 @@ class EdgeRecord;
  */
 class PropertyGraph {
  public:
-  static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
   /**
    * @brief Construct PropertyGraph with default settings.
    *

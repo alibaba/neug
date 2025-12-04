@@ -28,14 +28,14 @@ namespace gs {
 enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 
 struct NeugDBConfig {
+  static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
   NeugDBConfig()
-      : csr_reserve_ratio(1.2),
+      : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         reset_timestamp_before_checkpoint(true),
         mode(DBMode::READ_WRITE),
         planner_kind("gopt"),
         thread_num(1),
         warmup(false),
-        enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
@@ -43,14 +43,13 @@ struct NeugDBConfig {
         compact_on_close(true),
         checkpoint_on_close(false) {}
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
-      : csr_reserve_ratio(1.2),
+      : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         reset_timestamp_before_checkpoint(true),
         mode(DBMode::READ_WRITE),
         data_dir(data_dir_),
         planner_kind("gopt"),
         thread_num(thread_num_),
         warmup(false),
-        enable_monitoring(false),
         enable_auto_compaction(false),
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
@@ -65,7 +64,6 @@ struct NeugDBConfig {
   std::string planner_kind;  // currently only gopt
   int thread_num;
   bool warmup;
-  bool enable_monitoring;
   bool enable_auto_compaction;
 
   /*

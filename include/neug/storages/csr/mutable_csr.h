@@ -51,7 +51,6 @@ void write_file(const std::string& filename, const void* buffer, size_t size,
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
  public:
-  static constexpr float RESERVE_RATIO = 1.2;
   using data_t = EDATA_T;
   using nbr_t = MutableNbr<EDATA_T>;
 
