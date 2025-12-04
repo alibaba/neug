@@ -44,18 +44,6 @@ struct GeneralVertexPredicate {
   Expr expr_;
 };
 
-struct ExactVertexPredicate {
-  static constexpr bool is_dummy = false;
-  ExactVertexPredicate(label_t label, vid_t vid) : label_(label), vid_(vid) {}
-
-  inline bool operator()(label_t label, vid_t vid, size_t path_idx) const {
-    return (label == label_) && (vid == vid_);
-  }
-
-  label_t label_;
-  vid_t vid_;
-};
-
 struct GeneralEdgePredicate {
   static constexpr bool is_dummy = false;
 

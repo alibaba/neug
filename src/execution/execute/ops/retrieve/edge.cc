@@ -50,6 +50,10 @@ class OprTimer;
 
 namespace ops {
 
+struct DummyPredicate {
+  static constexpr bool is_dummy = true;
+};
+
 bool edge_expand_get_v_fusable(const physical::EdgeExpand& ee_opr,
                                const physical::GetV& v_opr,
                                const physical::PhysicalOpr_MetaData& meta) {
@@ -98,28 +102,6 @@ bool edge_expand_get_v_fusable(const physical::EdgeExpand& ee_opr,
   return false;
 }
 
-class EdgeExpandVWithoutPredOpr : public IOperator {
- public:
-  explicit EdgeExpandVWithoutPredOpr(const EdgeExpandParams& eep) : eep_(eep) {}
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_vertex_without_predicate(graph, std::move(ctx),
-                                                       eep_);
-  }
-
-  std::string get_operator_name() const override {
-    return "EdgeExpandVWithoutPredOpr";
-  }
-
- private:
-  EdgeExpandParams eep_;
-};
-
 class EdgeExpandVWithEPCmpOpr : public IOperator {
  public:
   EdgeExpandVWithEPCmpOpr(const EdgeExpandParams& eep, const std::string& param,
@@ -157,15 +139,13 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
   SPPredicateType tp_;
 };
 
-class EdgeExpandVWithEdgePredOpr : public IOperator {
+class EdgeExpandVOpr : public IOperator {
  public:
-  EdgeExpandVWithEdgePredOpr(const EdgeExpandParams& eep,
-                             const common::Expression& pred)
+  EdgeExpandVOpr(const EdgeExpandParams& eep,
+                 const std::optional<common::Expression>& pred)
       : eep_(eep), pred_(pred) {}
 
-  std::string get_operator_name() const override {
-    return "EdgeExpandVWithEdgePredOpr";
-  }
+  std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
       gs::runtime::IStorageInterface& graph_interface,
@@ -173,37 +153,20 @@ class EdgeExpandVWithEdgePredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    GeneralEdgePredicate pred(graph, ctx, params, pred_);
-    return EdgeExpand::expand_vertex<GeneralEdgePredicate>(
-        graph, std::move(ctx), eep_, pred);
+
+    if (pred_.has_value()) {
+      GeneralEdgePredicate pred(graph, ctx, params, pred_.value());
+      return EdgeExpand::expand_vertex<GeneralEdgePredicate>(
+          graph, std::move(ctx), eep_, pred);
+    } else {
+      return EdgeExpand::expand_vertex<DummyPredicate>(graph, std::move(ctx),
+                                                       eep_, DummyPredicate());
+    }
   }
 
  private:
   EdgeExpandParams eep_;
-  common::Expression pred_;
-};
-
-class EdgeExpandEWithoutPredicateOpr : public IOperator {
- public:
-  explicit EdgeExpandEWithoutPredicateOpr(const EdgeExpandParams& eep)
-      : eep_(eep) {}
-
-  std::string get_operator_name() const override {
-    return "EdgeExpandEWithoutPredicateOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return EdgeExpand::expand_edge_without_predicate(graph, std::move(ctx),
-                                                     eep_);
-  }
-
- private:
-  EdgeExpandParams eep_;
+  std::optional<common::Expression> pred_;
 };
 
 class EdgeExpandEWithSPredOpr : public IOperator {
@@ -231,15 +194,13 @@ class EdgeExpandEWithSPredOpr : public IOperator {
   SpecialEdgePredicateConfig config_;
 };
 
-class EdgeExpandEWithGPredOpr : public IOperator {
+class EdgeExpandEOpr : public IOperator {
  public:
-  EdgeExpandEWithGPredOpr(const EdgeExpandParams& eep,
-                          const common::Expression& pred)
+  EdgeExpandEOpr(const EdgeExpandParams& eep,
+                 const std::optional<common::Expression>& pred)
       : eep_(eep), pred_(pred) {}
 
-  std::string get_operator_name() const override {
-    return "EdgeExpandEWithGPredOpr";
-  }
+  std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
       gs::runtime::IStorageInterface& graph_interface,
@@ -247,98 +208,19 @@ class EdgeExpandEWithGPredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    GeneralEdgePredicate pred(graph, ctx, params, pred_);
-    return EdgeExpand::expand_edge<GeneralEdgePredicate>(graph, std::move(ctx),
-                                                         eep_, pred);
-  }
-
- private:
-  EdgeExpandParams eep_;
-  common::Expression pred_;
-};
-
-class EdgeExpandVWithExactVertexOpr : public IOperator {
- public:
-  EdgeExpandVWithExactVertexOpr(const EdgeExpandParams& eep, label_t pk_label,
-                                const std::string& pk,
-                                const algebra::QueryParams& query_params)
-      : eep_(eep), pk_label_(pk_label), pk_(pk), query_params_(query_params) {}
-
-  std::string get_operator_name() const override {
-    return "EdgeExpandVWithExactVertexOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::string param_value = params.at(pk_);
-    int64_t oid = std::stoll(param_value);
-    vid_t vid = std::numeric_limits<vid_t>::max();
-    if (!graph.GetVertexIndex(pk_label_, Property(oid), vid)) {
-      LOG(ERROR) << "vertex not found with label " << pk_label_ << " and oid "
-                 << oid;
-      RETURN_UNSUPPORTED_ERROR("vertex not found with label " +
-                               std::to_string(static_cast<int>(pk_label_)) +
-                               " and oid " + std::to_string(oid));
-    }
-    ExactVertexPredicate v_pred(pk_label_, vid);
-    if (query_params_.has_predicate()) {
-      GeneralEdgePredicate e_pred(graph, ctx, params,
-                                  query_params_.predicate());
-      EdgeAndNbrPredicate<ExactVertexPredicate, GeneralEdgePredicate> ve_pred(
-          v_pred, e_pred);
-
-      return EdgeExpand::expand_vertex<
-          EdgeAndNbrPredicate<ExactVertexPredicate, GeneralEdgePredicate>>(
-          graph, std::move(ctx), eep_, ve_pred);
+    if (!pred_.has_value()) {
+      return EdgeExpand::expand_edge(graph, std::move(ctx), eep_,
+                                     DummyPredicate());
     } else {
-      return EdgeExpand::expand_vertex<EdgeNbrPredicate<ExactVertexPredicate>>(
-          graph, std::move(ctx), eep_,
-          EdgeNbrPredicate<ExactVertexPredicate>(v_pred));
+      GeneralEdgePredicate pred(graph, ctx, params, pred_.value());
+      return EdgeExpand::expand_edge<GeneralEdgePredicate>(
+          graph, std::move(ctx), eep_, pred);
     }
   }
 
  private:
   EdgeExpandParams eep_;
-  label_t pk_label_;
-  std::string pk_;
-  algebra::QueryParams query_params_;
-};
-
-class EdgeExpandVWithVertexEdgePredOpr : public IOperator {
- public:
-  EdgeExpandVWithVertexEdgePredOpr(const EdgeExpandParams& eep,
-                                   const common::Expression& v_pred,
-                                   const common::Expression& e_pred)
-      : eep_(eep), v_pred_(v_pred), e_pred_(e_pred) {}
-
-  std::string get_operator_name() const override {
-    return "EdgeExpandVWithVertexEdgePredOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    GeneralVertexPredicate v_pred(graph, ctx, params, v_pred_);
-    GeneralEdgePredicate e_pred(graph, ctx, params, e_pred_);
-    EdgeAndNbrPredicate<GeneralVertexPredicate, GeneralEdgePredicate> ve_pred(
-        v_pred, e_pred);
-    auto ret = EdgeExpand::expand_vertex<
-        EdgeAndNbrPredicate<GeneralVertexPredicate, GeneralEdgePredicate>>(
-        graph, std::move(ctx), eep_, ve_pred);
-    return ret;
-  }
-
- private:
-  EdgeExpandParams eep_;
-  common::Expression v_pred_;
-  common::Expression e_pred_;
+  std::optional<common::Expression> pred_;
 };
 
 class EdgeExpandVWithSPVertexPredOpr : public IOperator {
@@ -481,12 +363,12 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
                                   eep, param_name, query_params.predicate()),
                               meta);
       }
-      return std::make_pair(std::make_unique<EdgeExpandVWithEdgePredOpr>(
-                                eep, query_params.predicate()),
-                            meta);
+      return std::make_pair(
+          std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
+          meta);
 
     } else {
-      return std::make_pair(std::make_unique<EdgeExpandVWithoutPredOpr>(eep),
+      return std::make_pair(std::make_unique<EdgeExpandVOpr>(eep, std::nullopt),
                             meta);
     }
   } else if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_EDGE) {
@@ -496,13 +378,13 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
         return std::make_pair(
             std::make_unique<EdgeExpandEWithSPredOpr>(eep, config), meta);
       } else {
-        return std::make_pair(std::make_unique<EdgeExpandEWithGPredOpr>(
-                                  eep, query_params.predicate()),
-                              meta);
+        return std::make_pair(
+            std::make_unique<EdgeExpandEOpr>(eep, query_params.predicate()),
+            meta);
       }
     } else {
-      return std::make_pair(
-          std::make_unique<EdgeExpandEWithoutPredicateOpr>(eep), meta);
+      return std::make_pair(std::make_unique<EdgeExpandEOpr>(eep, std::nullopt),
+                            meta);
     }
   } else if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_DEGREE) {
     if (query_params.has_predicate()) {
@@ -560,12 +442,14 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     eep.is_optional = is_optional;
     if (!v_opr.params().has_predicate()) {
       if (query_params.has_predicate()) {
-        return std::make_pair(std::make_unique<EdgeExpandVWithEdgePredOpr>(
-                                  eep, query_params.predicate()),
-                              meta);
+        // used
+        return std::make_pair(
+            std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
+            meta);
       } else {
-        return std::make_pair(std::make_unique<EdgeExpandVWithoutPredOpr>(eep),
-                              meta);
+        // used
+        return std::make_pair(
+            std::make_unique<EdgeExpandVOpr>(eep, std::nullopt), meta);
       }
     }
 
@@ -584,21 +468,16 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
           }
           if (check_label_in_set(dir, eep.labels, labels_set)) {
             if (query_params.has_predicate()) {
-              return std::make_pair(
-                  std::make_unique<EdgeExpandVWithEdgePredOpr>(
-                      eep, query_params.predicate()),
-                  meta);
+              return std::make_pair(std::make_unique<EdgeExpandVOpr>(
+                                        eep, query_params.predicate()),
+                                    meta);
             } else {
               return std::make_pair(
-                  std::make_unique<EdgeExpandVWithoutPredOpr>(eep), meta);
+                  std::make_unique<EdgeExpandVOpr>(eep, std::nullopt), meta);
             }
           } else {
             if (query_params.has_predicate()) {
-              return std::make_pair(
-                  std::make_unique<EdgeExpandVWithVertexEdgePredOpr>(
-                      eep, v_opr.params().predicate(),
-                      query_params.predicate()),
-                  meta);
+              return std::make_pair(nullptr, meta);
             } else {
               return std::make_pair(
                   std::make_unique<EdgeExpandVWithGPVertexPredOpr>(
@@ -610,21 +489,8 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
       }
     }
 
-    // Exact vertex predicate
-    label_t exact_pk_label;
-    std::string pk_name;
-    if (is_pk_exact_check(schema, v_opr.params().predicate(), exact_pk_label,
-                          pk_name)) {
-      return std::make_pair(std::make_unique<EdgeExpandVWithExactVertexOpr>(
-                                eep, exact_pk_label, pk_name, v_opr.params()),
-                            meta);
-    }
-
     if (query_params.has_predicate()) {
-      return std::make_pair(
-          std::make_unique<EdgeExpandVWithVertexEdgePredOpr>(
-              eep, v_opr.params().predicate(), query_params.predicate()),
-          meta);
+      return std::make_pair(nullptr, meta);
     } else {
       SpecialVertexPredicateConfig config;
       if (is_special_vertex_predicate(v_opr.params().predicate(), config)) {

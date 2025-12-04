@@ -47,93 +47,13 @@ class OprTimer;
 
 namespace ops {
 
-class GetVFromVerticesWithLabelWithInOpr : public IOperator {
+class GetVFromVerticesOpr : public IOperator {
  public:
-  GetVFromVerticesWithLabelWithInOpr(const physical::GetV& opr,
-                                     const GetVParams& p,
-                                     const std::set<label_t>& labels)
-      : opr_(opr), v_params_(p), labels_set_(labels) {}
-
-  std::string get_operator_name() const override {
-    return "GetVFromVerticesWithLabelWithInOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto input_vertex_list_ptr =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(v_params_.tag));
-    CHECK(input_vertex_list_ptr) << ctx.get(v_params_.tag)->column_info();
-    bool flag = true;
-    for (auto label : input_vertex_list_ptr->get_labels_set()) {
-      if (labels_set_.find(label) == labels_set_.end()) {
-        flag = false;
-        break;
-      }
-    }
-    if (v_params_.tag == -1 && flag) {
-      ctx.set(v_params_.alias, input_vertex_list_ptr);
-      return ctx;
-    } else {
-      GeneralVertexPredicate pred(graph, ctx, params,
-                                  opr_.params().predicate());
-      return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
-                                            pred);
-    }
-  }
-
- private:
-  physical::GetV opr_;
-  GetVParams v_params_;
-  std::set<label_t> labels_set_;
-};
-
-class GetVFromVerticesWithPKExactOpr : public IOperator {
- public:
-  GetVFromVerticesWithPKExactOpr(const physical::GetV& opr, const GetVParams& p,
-                                 label_t exact_pk_label,
-                                 const std::string& exact_pk)
-      : opr_(opr),
-        v_params_(p),
-        exact_pk_label_(exact_pk_label),
-        exact_pk_(exact_pk) {}
-
-  std::string get_operator_name() const override {
-    return "GetVFromVerticesWithPKExact";
-  }
-
-  gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    int64_t pk = std::stoll(params.at(exact_pk_));
-    vid_t index = std::numeric_limits<vid_t>::max();
-    graph.GetVertexIndex(exact_pk_label_, Property::from_int64(pk), index);
-    ExactVertexPredicate pred(exact_pk_label_, index);
-    return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
-                                          pred);
-  }
-
- private:
-  physical::GetV opr_;
-  GetVParams v_params_;
-  label_t exact_pk_label_;
-  std::string exact_pk_;
-};
-
-class GetVFromVerticesWithPredicateOpr : public IOperator {
- public:
-  GetVFromVerticesWithPredicateOpr(const physical::GetV& opr,
-                                   const GetVParams& p)
+  GetVFromVerticesOpr(const physical::GetV& opr, const GetVParams& p)
       : opr_(opr), v_params_(p) {}
 
   std::string get_operator_name() const override {
-    return "GetVFromVerticesWithPredicate";
+    return "GetVFromVerticesOpr";
   }
 
   gs::result<gs::runtime::Context> Eval(
@@ -152,14 +72,12 @@ class GetVFromVerticesWithPredicateOpr : public IOperator {
   GetVParams v_params_;
 };
 
-class GetVFromEdgesWithPredicateOpr : public IOperator {
+class GetVFromEdgesOpr : public IOperator {
  public:
-  GetVFromEdgesWithPredicateOpr(const physical::GetV& opr, const GetVParams& p)
+  GetVFromEdgesOpr(const physical::GetV& opr, const GetVParams& p)
       : opr_(opr), v_params_(p) {}
 
-  std::string get_operator_name() const override {
-    return "GetVFromEdgesWithPredicate";
-  }
+  std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
       gs::runtime::IStorageInterface& graph_interface,
@@ -214,40 +132,15 @@ gs::result<OpBuildResultT> VertexOprBuilder::Build(
 
   if (vertex.params().has_predicate()) {
     if (opt == VOpt::kItself) {
-      // label within predicate
-      {
-        std::set<label_t> labels_set;
-        if (is_label_within_predicate(vertex.params().predicate(),
-                                      labels_set)) {
-          return std::make_pair(
-              std::make_unique<GetVFromVerticesWithLabelWithInOpr>(
-                  plan.query_plan().plan(op_idx).opr().vertex(), p, labels_set),
-              ret_meta);
-        }
-      }
-
-      // pk exact check
-      {
-        label_t exact_pk_label;
-        std::string exact_pk;
-        if (is_pk_exact_check(schema, vertex.params().predicate(),
-                              exact_pk_label, exact_pk)) {
-          return std::make_pair(
-              std::make_unique<GetVFromVerticesWithPKExactOpr>(
-                  plan.query_plan().plan(op_idx).opr().vertex(), p,
-                  exact_pk_label, exact_pk),
-              ret_meta);
-        }
-      }
       // general predicate
       return std::make_pair(
-          std::make_unique<GetVFromVerticesWithPredicateOpr>(
+          std::make_unique<GetVFromVerticesOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ret_meta);
     } else if (opt == VOpt::kEnd || opt == VOpt::kStart ||
                opt == VOpt::kOther) {
       return std::make_pair(
-          std::make_unique<GetVFromEdgesWithPredicateOpr>(
+          std::make_unique<GetVFromEdgesOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ret_meta);
     } else {
@@ -258,7 +151,7 @@ gs::result<OpBuildResultT> VertexOprBuilder::Build(
   } else {
     if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
       return std::make_pair(
-          std::make_unique<GetVFromEdgesWithPredicateOpr>(
+          std::make_unique<GetVFromEdgesOpr>(
               plan.query_plan().plan(op_idx).opr().vertex(), p),
           ret_meta);
     } else {

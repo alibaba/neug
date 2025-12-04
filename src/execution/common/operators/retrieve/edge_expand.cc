@@ -33,11 +33,7 @@ namespace gs {
 namespace runtime {
 class IContextColumn;
 
-struct DummyPredicate {
-  static constexpr bool is_dummy = true;
-};
-
-Context remove_null_from_ctx(Context&& ctx, int tag_id) {
+Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag_id));
   std::vector<size_t> selected_offsets;
@@ -98,122 +94,6 @@ gs::result<Context> EdgeExpand::expand_degree(const StorageReadInterface& graph,
   });
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
   return ctx;
-}
-
-gs::result<Context> EdgeExpand::expand_edge_without_predicate(
-    const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params) {
-  std::shared_ptr<IVertexColumn> input_vertex_list =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  auto vertex_column_type = input_vertex_list->vertex_column_type();
-  if (!params.is_optional && input_vertex_list->is_optional()) {
-    ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
-    input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  }
-  if (params.is_optional) {
-    if (vertex_column_type == VertexColumnType::kSingle) {
-      const SLVertexColumn& sl_col =
-          *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, true>(
-          graph, sl_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else if (vertex_column_type == VertexColumnType::kMultiple) {
-      const MLVertexColumn& ml_col =
-          *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, true>(
-          graph, ml_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else {
-      CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
-      const MSVertexColumn& ms_col =
-          *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, true>(
-          graph, ms_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    }
-  } else {
-    if (vertex_column_type == VertexColumnType::kSingle) {
-      const SLVertexColumn& sl_col =
-          *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, false>(
-          graph, sl_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else if (vertex_column_type == VertexColumnType::kMultiple) {
-      const MLVertexColumn& ml_col =
-          *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, false>(
-          graph, ml_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    } else {
-      CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
-      const MSVertexColumn& ms_col =
-          *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
-      auto pair = expand_edge_impl<DummyPredicate, false>(
-          graph, ms_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-      return ctx;
-    }
-  }
-}
-
-gs::result<Context> EdgeExpand::expand_vertex_without_predicate(
-    const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params) {
-  std::shared_ptr<IVertexColumn> input_vertex_list =
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  auto vertex_column_type = input_vertex_list->vertex_column_type();
-  if (!params.is_optional && input_vertex_list->is_optional()) {
-    ctx = remove_null_from_ctx(std::move(ctx), params.v_tag);
-    input_vertex_list =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
-  }
-  if (vertex_column_type == VertexColumnType::kSingle) {
-    const SLVertexColumn& sl_col =
-        *dynamic_cast<const SLVertexColumn*>(input_vertex_list.get());
-    if (params.is_optional) {
-      auto pair = expand_vertex_impl<DummyPredicate, true>(
-          graph, sl_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    } else {
-      auto pair = expand_vertex_impl<DummyPredicate, false>(
-          graph, sl_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    }
-    return ctx;
-  } else if (vertex_column_type == VertexColumnType::kMultiple) {
-    const MLVertexColumn& ml_col =
-        *dynamic_cast<const MLVertexColumn*>(input_vertex_list.get());
-    if (params.is_optional) {
-      auto pair = expand_vertex_impl<DummyPredicate, true>(
-          graph, ml_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    } else {
-      auto pair = expand_vertex_impl<DummyPredicate, false>(
-          graph, ml_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    }
-    return ctx;
-  } else {
-    CHECK(vertex_column_type == VertexColumnType::kMultiSegment);
-    const MSVertexColumn& ms_col =
-        *dynamic_cast<const MSVertexColumn*>(input_vertex_list.get());
-    if (params.is_optional) {
-      auto pair = expand_vertex_impl<DummyPredicate, true>(
-          graph, ms_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    } else {
-      auto pair = expand_vertex_impl<DummyPredicate, false>(
-          graph, ms_col, params.labels, params.dir, DummyPredicate());
-      ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    }
-    return ctx;
-  }
 }
 
 template <typename CMP_T>

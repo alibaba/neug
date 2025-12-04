@@ -32,31 +32,6 @@ namespace gs {
 
 namespace runtime {
 
-inline bool is_label_within_predicate(const common::Expression& expr,
-                                      std::set<label_t>& label_set) {
-  if (expr.operators_size() == 3) {
-    auto& var_op = expr.operators(0);
-
-    if (var_op.has_var() && var_op.var().has_property() &&
-        var_op.var().property().has_label()) {
-      auto& within_op = expr.operators(1);
-      if (within_op.item_case() == common::ExprOpr::kLogical &&
-          within_op.logical() == common::Logical::WITHIN) {
-        auto& labels_op = expr.operators(2);
-        if (labels_op.has_const_() && labels_op.const_().has_i64_array()) {
-          auto& array = labels_op.const_().i64_array();
-          size_t num = array.item_size();
-          for (size_t k = 0; k < num; ++k) {
-            label_set.insert(static_cast<label_t>(array.item(k)));
-          }
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
 inline bool is_pk_oid_exact_check(
     const gs::Schema& schema, label_t label, const common::Expression& expr,
     std::function<Property(const std::map<std::string, std::string>&)>& value) {
@@ -109,80 +84,6 @@ inline bool is_pk_oid_exact_check(
     return false;
   }
   return false;
-}
-
-inline bool is_pk_exact_check(const gs::Schema& schema,
-                              const common::Expression& expr, label_t& label,
-                              std::string& pk) {
-  if (expr.operators_size() != 11) {
-    return false;
-  }
-  if (!(expr.operators(0).item_case() == common::ExprOpr::kBrace &&
-        expr.operators(0).brace() ==
-            common::ExprOpr_Brace::ExprOpr_Brace_LEFT_BRACE)) {
-    return false;
-  }
-  if (!(expr.operators(1).has_var() && expr.operators(1).var().has_property() &&
-        expr.operators(1).var().property().has_label())) {
-    return false;
-  }
-  if (!(expr.operators(2).item_case() == common::ExprOpr::kLogical &&
-        expr.operators(2).logical() == common::Logical::WITHIN)) {
-    return false;
-  }
-  if (expr.operators(3).has_const_() &&
-      expr.operators(3).const_().has_i64_array()) {
-    auto& array = expr.operators(3).const_().i64_array();
-    if (array.item_size() != 1) {
-      return false;
-    }
-    label = static_cast<label_t>(array.item(0));
-  } else {
-    return false;
-  }
-  if (!(expr.operators(4).item_case() == common::ExprOpr::kBrace &&
-        expr.operators(4).brace() ==
-            common::ExprOpr_Brace::ExprOpr_Brace_RIGHT_BRACE)) {
-    return false;
-  }
-  if (!(expr.operators(5).item_case() == common::ExprOpr::kLogical &&
-        expr.operators(5).logical() == common::Logical::AND)) {
-    return false;
-  }
-  if (!(expr.operators(6).item_case() == common::ExprOpr::kBrace &&
-        expr.operators(6).brace() ==
-            common::ExprOpr_Brace::ExprOpr_Brace_LEFT_BRACE)) {
-    return false;
-  }
-  if (!(expr.operators(7).has_var() && expr.operators(7).var().has_property() &&
-        expr.operators(7).var().property().has_key())) {
-    auto& key = expr.operators(7).var().property().key();
-    if (!(key.item_case() == common::NameOrId::ItemCase::kName &&
-          key.name() == schema.get_vertex_primary_key_name(label))) {
-      return false;
-    }
-  }
-  if (!(expr.operators(8).item_case() == common::ExprOpr::kLogical &&
-        expr.operators(8).logical() == common::Logical::EQ)) {
-    return false;
-  }
-
-  if (expr.operators(9).has_param()) {
-    auto& p = expr.operators(9).param();
-    pk = p.name();
-    if (!(p.has_data_type() && p.data_type().type_case() ==
-                                   common::IrDataType::TypeCase::kDataType)) {
-      return false;
-    }
-  } else {
-    return false;
-  }
-  if (!(expr.operators(10).item_case() == common::ExprOpr::kBrace &&
-        expr.operators(10).brace() ==
-            common::ExprOpr_Brace::ExprOpr_Brace_RIGHT_BRACE)) {
-    return false;
-  }
-  return true;
 }
 
 enum class SPPredicateType {
