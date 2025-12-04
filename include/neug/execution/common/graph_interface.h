@@ -506,8 +506,9 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
   inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
                       vid_t dst, label_t edge_label,
                       const std::vector<Property>& properties) {
-    return graph_.AddEdge(src_label, src, dst_label, dst, edge_label,
-                          properties, gs::timestamp_t(0), alloc_);
+    graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
+                   gs::timestamp_t(0), alloc_);
+    return true;
   }
 
   inline void CreateCheckpoint() { graph_.Dump(); }

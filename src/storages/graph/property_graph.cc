@@ -1046,11 +1046,11 @@ Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
   return gs::Status::OK();
 }
 
-Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label,
-                                         label_t dst_v_label, label_t e_label,
-                                         vid_t src_vid, vid_t dst_vid,
-                                         int32_t oe_offset, int32_t ie_offset,
-                                         int32_t prop_id, const Property& value,
+Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
+                                         label_t dst_v_label, vid_t dst_vid,
+                                         label_t e_label, int32_t oe_offset,
+                                         int32_t ie_offset, int32_t prop_id,
+                                         const Property& value,
                                          timestamp_t ts) {
   assert(prop_id >= 0);
   assert(schema_.edge_label_valid(e_label));

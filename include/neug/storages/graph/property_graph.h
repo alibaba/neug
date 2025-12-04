@@ -311,11 +311,10 @@ class PropertyGraph {
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);
 
-  Status UpdateEdgeProperty(label_t src_label, label_t dst_label,
-                            label_t e_label, vid_t src_lid, vid_t dst_lid,
-                            int32_t oe_offset, int32_t ie_offset,
-                            int32_t col_id, const Property& new_prop,
-                            timestamp_t ts);
+  Status UpdateEdgeProperty(label_t src_label, vid_t src_lid, label_t dst_label,
+                            vid_t dst_lid, label_t e_label, int32_t oe_offset,
+                            int32_t ie_offset, int32_t col_id,
+                            const Property& new_prop, timestamp_t ts);
 
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,

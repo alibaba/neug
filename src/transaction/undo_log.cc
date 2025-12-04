@@ -43,7 +43,7 @@ void UpdateVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 
 void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   assert(graph.schema().exist(src_label, dst_label, edge_label));
-  graph.UpdateEdgeProperty(src_label, dst_label, edge_label, src_lid, dst_lid,
+  graph.UpdateEdgeProperty(src_label, src_lid, dst_label, dst_lid, edge_label,
                            oe_offset, ie_offset, col_id, value, ts);
 };
 

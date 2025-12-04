@@ -744,8 +744,8 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
                                       oe_offset, ie_offset, col_id, value);
         op_num_ += 1;
       }
-      auto status = graph_.UpdateEdgeProperty(src_label, dst_label, edge_label,
-                                              src, dst, oe_offset, ie_offset,
+      auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
+                                              edge_label, oe_offset, ie_offset,
                                               col_id, value, timestamp_);
       if (!status.ok()) {
         LOG(ERROR) << "Failed to update edge property: " << status.ToString();
@@ -800,9 +800,9 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   }
   assert(oe_iter != oe_edges.end());
   auto old_prop = prop_accessor.get_data(oe_iter);
-  auto status = graph_.UpdateEdgeProperty(src_label, dst_label, edge_label, src,
-                                          dst, oe_offset, ie_offset, col_id,
-                                          value, timestamp_);
+  auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
+                                          edge_label, oe_offset, ie_offset,
+                                          col_id, value, timestamp_);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to update edge property: " << status.ToString();
     return false;
@@ -871,8 +871,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       vid_t src_vid, dst_vid;
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
-      graph.UpdateEdgeProperty(redo.src_label, redo.dst_label, redo.edge_label,
-                               src_vid, dst_vid, redo.oe_offset, redo.ie_offset,
+      graph.UpdateEdgeProperty(redo.src_label, src_vid, redo.dst_label, dst_vid,
+                               redo.edge_label, redo.oe_offset, redo.ie_offset,
                                redo.prop_id, redo.value, timestamp);
     } else if (op_type == OpType::kRemoveVertex) {
       RemoveVertexRedo redo;
