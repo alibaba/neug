@@ -53,8 +53,6 @@ class FilterPushDownPattern : public LogicalOperatorVisitor {
   std::shared_ptr<binder::Expression> bindBooleanExpression(
       common::ExpressionType expressionType,
       const binder::expression_vector& children);
-  void renameDependentVar(std::shared_ptr<binder::Expression> predicate,
-                          const std::string& newVarName);
 };
 
 }  // namespace optimizer

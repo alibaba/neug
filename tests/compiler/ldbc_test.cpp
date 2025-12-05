@@ -57,5 +57,14 @@ TEST_F(LDBCTest, IU_7) {
   VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IU_7_logical"));
 }
 
+TEST_F(LDBCTest, IC_13) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_13.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_13_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
 }  // namespace gopt
 }  // namespace gs

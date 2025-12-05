@@ -311,7 +311,7 @@ class NEUG_API Planner {
   void appendScanNodeTable(std::shared_ptr<binder::Expression> nodeID,
                            std::vector<common::table_id_t> tableIDs,
                            const binder::expression_vector& properties,
-                           LogicalPlan& plan);
+                           LogicalPlan& plan, bool nodeIDScan = false);
 
   // Append extend operators
   void appendNonRecursiveExtend(

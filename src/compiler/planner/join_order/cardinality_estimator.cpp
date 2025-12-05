@@ -293,9 +293,13 @@ double CardinalityEstimator::getExtensionRate(
   case QueryRelType::WEIGHTED_SHORTEST:
   case QueryRelType::ALL_WEIGHTED_SHORTEST: {
     double rate = std::pow(
-        std::max<double>(1, oneHopExtensionRate),
+        std::max<double>(1, std::floor(oneHopExtensionRate)),
         std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1));
-    return std::min<double>(rate, MAX_EXTENSION_RATE);
+    double bound =
+        oneHopExtensionRate *
+        std::max<uint16_t>(rel.getRecursiveInfo()->bindData->upperBound, 1) *
+        context->getClientConfig()->recursivePatternCardinalityScaleFactor;
+    return std::min<double>(rate, bound);
   }
   default:
     NEUG_UNREACHABLE;

@@ -40,6 +40,7 @@
 #include "neug/compiler/optimizer/remove_factorization_rewriter.h"
 #include "neug/compiler/optimizer/remove_subquery_as_join.h"
 #include "neug/compiler/optimizer/remove_unnecessary_join_optimizer.h"
+#include "neug/compiler/optimizer/rename_dependent_var_optimizer.h"
 #include "neug/compiler/optimizer/schema_populator.h"
 #include "neug/compiler/optimizer/top_k_optimizer.h"
 #include "neug/compiler/optimizer/union_alias_map_optimizer.h"
@@ -95,6 +96,9 @@ void Optimizer::optimize(
 
     auto filterPushDownPattern = FilterPushDownPattern();
     filterPushDownPattern.rewrite(plan);
+
+    auto renameDependentVar = RenameDependentVarOpt();
+    renameDependentVar.rewrite(plan);
 
     auto expandGetVFusion = ExpandGetVFusion(context->getCatalog());
     expandGetVFusion.rewrite(plan);

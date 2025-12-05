@@ -12,10 +12,13 @@ class FlatJoinToExpandOptimizer : public LogicalOperatorVisitor {
       const std::shared_ptr<planner::LogicalOperator>& op);
   std::shared_ptr<planner::LogicalOperator> visitHashJoinReplace(
       std::shared_ptr<planner::LogicalOperator> op) override;
-
- private:
+  bool checkOperatorType(
+      std::shared_ptr<planner::LogicalOperator> op,
+      const std::vector<planner::LogicalOperatorType>& types);
   std::shared_ptr<planner::LogicalOperator> getScanParent(
       std::shared_ptr<planner::LogicalOperator> parent);
+
+ private:
   void setOptional(std::shared_ptr<planner::LogicalOperator> plan);
 };
 }  // namespace optimizer

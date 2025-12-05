@@ -73,16 +73,19 @@ void FlatJoinToExpandOptimizer::setOptional(
   }
 }
 
-bool hasFilter(std::shared_ptr<planner::LogicalOperator> op) {
-  if (op->getOperatorType() == planner::LogicalOperatorType::FILTER) {
-    return true;
+bool FlatJoinToExpandOptimizer::checkOperatorType(
+    std::shared_ptr<planner::LogicalOperator> op,
+    const std::vector<planner::LogicalOperatorType>& excludeTypes) {
+  if (std::find(excludeTypes.begin(), excludeTypes.end(),
+                op->getOperatorType()) != excludeTypes.end()) {
+    return false;
   }
   for (auto child : op->getChildren()) {
-    if (hasFilter(child)) {
-      return true;
+    if (!checkOperatorType(child, excludeTypes)) {
+      return false;
     }
   }
-  return false;
+  return true;
 }
 
 std::shared_ptr<planner::LogicalOperator>
@@ -101,11 +104,17 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
   auto joinID = joinIDs[0];
   auto rightChild = join->getChild(1);
 
-  // FlatJoinToExpandRule is applied after ExpandGetVFusionRule,
-  // if the right plan still contains filtering, it means the edge optional
-  // cannot be guaranteed
-  if (joinOp->getJoinType() == common::JoinType::LEFT &&
-      hasFilter(rightChild)) {
+  std::vector<planner::LogicalOperatorType> excludeOps;
+  if (joinOp->getJoinType() == common::JoinType::LEFT) {
+    // FlatJoinToExpandRule is applied after ExpandGetVFusionRule,
+    // if the right plan still contains filtering, it means the edge optional
+    // cannot be guaranteed
+    excludeOps.push_back(planner::LogicalOperatorType::FILTER);
+    // cannot support `optional = true` in recursive extend
+    excludeOps.push_back(planner::LogicalOperatorType::RECURSIVE_EXTEND);
+  }
+
+  if (!checkOperatorType(rightChild, excludeOps)) {
     return op;
   }
 

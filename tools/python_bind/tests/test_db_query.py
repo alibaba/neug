@@ -1068,20 +1068,6 @@ def test_path_expand():
         ],
         [
             [
-                {"_ID": 3, "_LABEL": "person"},
-                {
-                    "_ID": 4298113024,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 3,
-                    "_DST_ID": 72057594037927936,
-                },
-                {"_ID": 72057594037927936, "_LABEL": "software"},
-            ]
-        ],
-        [
-            [
                 {"_ID": 2, "_LABEL": "person"},
                 {
                     "_ID": 4297064449,
@@ -1096,38 +1082,20 @@ def test_path_expand():
         ],
         [
             [
-                {"_ID": 2, "_LABEL": "person"},
+                {"_ID": 3, "_LABEL": "person"},
                 {
-                    "_ID": 4297064448,
+                    "_ID": 4298113024,
                     "_LABEL": "created",
                     "_SRC_LABEL": "person",
                     "_DST_LABEL": "software",
-                    "_SRC_ID": 2,
+                    "_SRC_ID": 3,
                     "_DST_ID": 72057594037927936,
                 },
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 2,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 2,
-                },
-                {"_ID": 2, "_LABEL": "person"},
+                {"_ID": 72057594037927936, "_LABEL": "software"},
             ]
         ],
         [
             [
-                {"_ID": 2, "_LABEL": "person"},
-                {
-                    "_ID": 4297064449,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 2,
-                    "_DST_ID": 72057594037927937,
-                },
                 {"_ID": 0, "_LABEL": "person"},
                 {
                     "_ID": 2,
@@ -1138,6 +1106,44 @@ def test_path_expand():
                     "_DST_ID": 2,
                 },
                 {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_DST_ID": 72057594037927936,
+                    "_DST_LABEL": "software",
+                    "_ID": 4297064448,
+                    "_LABEL": "created",
+                    "_SRC_ID": 2,
+                    "_SRC_LABEL": "person",
+                },
+                {
+                    "_ID": 72057594037927936,
+                    "_LABEL": "software",
+                },
+            ]
+        ],
+        [
+            [
+                {"_ID": 0, "_LABEL": "person"},
+                {
+                    "_ID": 2,
+                    "_LABEL": "knows",
+                    "_SRC_LABEL": "person",
+                    "_DST_LABEL": "person",
+                    "_SRC_ID": 0,
+                    "_DST_ID": 2,
+                },
+                {"_ID": 2, "_LABEL": "person"},
+                {
+                    "_DST_ID": 72057594037927937,
+                    "_DST_LABEL": "software",
+                    "_ID": 4297064449,
+                    "_LABEL": "created",
+                    "_SRC_ID": 2,
+                    "_SRC_LABEL": "person",
+                },
+                {
+                    "_ID": 72057594037927937,
+                    "_LABEL": "software",
+                },
             ]
         ],
     ]

@@ -109,6 +109,9 @@ class LogicalScanNodeTable final : public LogicalOperator {
       message += " Predicates: " + predicates->toString();
     }
     message += " Cardinality: " + std::to_string(cardinality);
+    if (isNodeIDScan()) {
+      message += " NodeIDScan";
+    }
     return message;
   }
 
@@ -155,6 +158,9 @@ class LogicalScanNodeTable final : public LogicalOperator {
     return predicates;
   }
 
+  void setNodeIDScan(bool nodeIDScan_) { nodeIDScan = nodeIDScan_; }
+  bool isNodeIDScan() const { return nodeIDScan; }
+
  private:
   LogicalScanNodeTableType scanType;
   std::shared_ptr<binder::Expression> nodeID;
@@ -163,6 +169,7 @@ class LogicalScanNodeTable final : public LogicalOperator {
   std::vector<storage::ColumnPredicateSet> propertyPredicates;
   std::unique_ptr<ExtraScanNodeTableInfo> extraInfo;
   std::shared_ptr<binder::Expression> predicates;
+  bool nodeIDScan = false;
 };
 
 }  // namespace planner

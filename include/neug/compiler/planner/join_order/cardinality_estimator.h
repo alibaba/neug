@@ -90,8 +90,6 @@ class CardinalityEstimator {
   // perQueryGraphNodeIDName2dom when we start enumerating a new query graph we
   // will reset this map
   std::unordered_map<std::string, cardinality_t> perQueryGraphNodeIDName2dom;
-
-  constexpr static uint64_t MAX_EXTENSION_RATE = 1000000;
 };
 
 }  // namespace planner

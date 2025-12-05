@@ -23,10 +23,11 @@ static expression_vector removeInternalIDProperty(
 void Planner::appendScanNodeTable(std::shared_ptr<Expression> nodeID,
                                   std::vector<table_id_t> tableIDs,
                                   const expression_vector& properties,
-                                  LogicalPlan& plan) {
+                                  LogicalPlan& plan, bool nodeIDScan) {
   auto propertiesToScan_ = removeInternalIDProperty(properties);
   auto scan = make_shared<LogicalScanNodeTable>(
       std::move(nodeID), std::move(tableIDs), propertiesToScan_);
+  scan->setNodeIDScan(nodeIDScan);
   scan->computeFactorizedSchema();
   scan->setCardinality(cardinalityEstimator.estimateScanNode(*scan));
   plan.setLastOperator(std::move(scan));

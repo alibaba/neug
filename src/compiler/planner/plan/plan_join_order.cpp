@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
@@ -20,6 +21,9 @@
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
+#include "neug/compiler/optimizer/filter_push_down_optimizer.h"
+#include "neug/compiler/optimizer/filter_push_down_pattern.h"
+#include "neug/compiler/optimizer/flat_join_to_expand_optimizer.h"
 #include "neug/compiler/planner/join_order/cardinality_estimator.h"
 #include "neug/compiler/planner/join_order/cost_model.h"
 #include "neug/compiler/planner/join_order/join_plan_solver.h"
@@ -55,7 +59,42 @@ std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollectionInNewContext(
   auto prevContext = enterNewContext();
   auto plans = enumerateQueryGraphCollection(queryGraphCollection, info);
   exitContext(std::move(prevContext));
-  return getBestPlan(std::move(plans));
+  auto bestPlan = getBestPlan(std::move(plans));
+  optimizer::FlatJoinToExpandOptimizer joinToExpandOpt;
+  auto scanParent = joinToExpandOpt.getScanParent(bestPlan->getLastOperator());
+  if (!scanParent || scanParent->getNumChildren() == 0) {
+    return bestPlan;
+  }
+  auto scan = scanParent->getChild(0);
+  auto scanNode = scan->ptrCast<planner::LogicalScanNodeTable>();
+  // the scan node starts from the correlated expressions
+  if (!scanNode->isNodeIDScan()) {
+    return bestPlan;
+  }
+  if (info.corrExprs.empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "correlated expressions should not be empty");
+  }
+  if (info.corrExprs.size() == 1 && info.kind == MatchKind::REGULAR) {
+    return bestPlan;
+  } else if (info.corrExprs.size() == 1 && info.kind == MatchKind::OPTIONAL) {
+    std::vector<planner::LogicalOperatorType> excludeOps = {
+        planner::LogicalOperatorType::RECURSIVE_EXTEND,
+        planner::LogicalOperatorType::FILTER};
+    optimizer::FilterPushDownPattern pushDownOpt;
+    pushDownOpt.rewrite(bestPlan.get());
+    if (joinToExpandOpt.checkOperatorType(bestPlan->getLastOperator(),
+                                          excludeOps)) {
+      return bestPlan;
+    }
+  }
+  QueryGraphPlanningInfo newInfo;
+  newInfo.predicates = info.predicates;
+  newInfo.subqueryType = info.subqueryType;
+  newInfo.hint = info.hint;
+  newInfo.kind = info.kind;
+  cardinalityEstimator.clearPerQueryGraphStats();
+  return planQueryGraphCollectionInNewContext(queryGraphCollection, newInfo);
 }
 
 static int32_t getConnectedQueryGraphIdx(
@@ -327,7 +366,8 @@ void Planner::planNodeIDScan(uint32_t nodePos,
                                                    info.corrExprsCard);
   }
 
-  appendScanNodeTable(node->getInternalID(), node->getTableIDs(), {}, *plan);
+  appendScanNodeTable(node->getInternalID(), node->getTableIDs(), {}, *plan,
+                      true);
   context.addPlan(newSubgraph, std::move(plan));
 }
 
