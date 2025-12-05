@@ -377,20 +377,24 @@ std::string GlobalId::to_string() const { return std::to_string(global_id); }
 Date::Date(int64_t x) { from_timestamp(x); }
 
 Date::Date(const std::string& date_str) {
-  // Parse date string in format YYYY-MM-DD
-  std::istringstream ss(date_str);
-  // Extract year, month, and day
-  int year, month, day;
-  char dash1, dash2;
-  ss >> year >> dash1 >> month >> dash2 >> day;
-  if (ss.fail() || dash1 != '-' || dash2 != '-' || month < 1 || month > 12 ||
-      day < 1 || day > 31) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date string format");
+  if (std::all_of(date_str.begin(), date_str.end(), ::isdigit)) {
+    from_timestamp(std::stoll(date_str));
+  } else {
+    // Parse date string in format YYYY-MM-DD
+    std::istringstream ss(date_str);
+    // Extract year, month, and day
+    int year, month, day;
+    char dash1, dash2;
+    ss >> year >> dash1 >> month >> dash2 >> day;
+    if (ss.fail() || dash1 != '-' || dash2 != '-' || month < 1 || month > 12 ||
+        day < 1 || day > 31) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid date string format");
+    }
+    value.internal.year = year;
+    value.internal.month = month;
+    value.internal.day = day;
+    value.internal.hour = 0;
   }
-  value.internal.year = year;
-  value.internal.month = month;
-  value.internal.day = day;
-  value.internal.hour = 0;
 }
 
 bool Date::is_leap_year(int32_t year) {

@@ -840,6 +840,13 @@ struct TypedConverter<Interval> {
 };
 
 template <>
+struct TypedConverter<List> {
+  static RTAnyType type() { return RTAnyType::kList; }
+  static List to_typed(const RTAny& val) { return val.as_list(); }
+  static RTAny from_typed(List val) { return RTAny::from_list(std::move(val)); }
+  static const std::string name() { return "list"; }
+};
+template <>
 struct TypedConverter<Tuple> {
   static RTAnyType type() { return RTAnyType::kTuple; }
   static Tuple to_typed(const RTAny& val) { return val.as_tuple(); }

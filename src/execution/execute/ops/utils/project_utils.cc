@@ -21,7 +21,7 @@ namespace runtime {
 namespace ops {
 
 std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
-    const StorageReadInterface& graph, const Context& ctx,
+    const IStorageInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
   if (data_type_.has_value() &&
       data_type_.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
@@ -289,7 +289,7 @@ bool is_property_extract(const common::Expression& expr, int& tag,
 }
 
 std::unique_ptr<ProjectExprBase> create_sl_property_expr(
-    const Context& ctx, const StorageReadInterface& graph,
+    const Context& ctx, const IStorageInterface& graph,
     const SLVertexColumn& column, const std::string& property_name,
     RTAnyType type, int alias) {
   switch (type) {
@@ -369,7 +369,7 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
 
 template <typename VertexColumn>
 std::unique_ptr<ProjectExprBase> create_ml_property_expr(
-    const Context& ctx, const StorageReadInterface& graph,
+    const Context& ctx, const IStorageInterface& graph,
     const VertexColumn& column, const std::string& property_name,
     RTAnyType type, int alias) {
   switch (type) {
@@ -543,7 +543,7 @@ std::unique_ptr<ProjectExprBase> create_case_when_project(
 
 template <typename T, typename CMP_T>
 static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when_impl(
-    const Context& ctx, const StorageReadInterface& graph,
+    const Context& ctx, const IStorageInterface& graph,
     const std::shared_ptr<IVertexColumn>& vertex,
     const std::string& property_name, const CMP_T& cmp_val,
     const common::Value& then_value, const common::Value& else_value,
@@ -571,7 +571,7 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when_impl(
 
 template <typename T>
 static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
-    const Context& ctx, const StorageReadInterface& graph,
+    const Context& ctx, const IStorageInterface& graph,
     const std::map<std::string, std::string>& params,
     const std::shared_ptr<IVertexColumn>& vertex, SPPredicateType type,
     const std::string& name, const std::string& target,
@@ -613,7 +613,7 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
 
 template <typename T>
 static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
-    const StorageReadInterface& graph, const Context& ctx, int alias,
+    const IStorageInterface& graph, const Context& ctx, int alias,
     const std::shared_ptr<IVertexColumn>& vertex_col,
     const std::string& property_name, const std::string& lower_value,
     const std::string& upper_value, int then_value, int else_value) {
@@ -643,9 +643,8 @@ static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
 }
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
-    const common::Expression& expr, int alias,
-    const StorageReadInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
+    const common::Expression& expr, int alias, const IStorageInterface& graph,
+    const Context& ctx, const std::map<std::string, std::string>& params) {
   int tag = -1;
   if (is_exchange_index(expr, tag)) {
     return std::make_unique<DummyGetter>(tag, alias);

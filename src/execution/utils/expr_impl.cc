@@ -770,6 +770,37 @@ static RTAny parse_param(const ::common::DynamicParam& param,
         List list(ptr.get());
         arena->emplace_back(std::move(ptr));
         return RTAny::from_list(list);
+      } else if (type.has_array() &&
+                 type.array().component_type().has_primitive_type() &&
+                 type.array().component_type().primitive_type() ==
+                     ::common::PrimitiveType::DT_SIGNED_INT64) {
+        std::vector<List> vec;
+        arena = std::make_shared<Arena>();
+        const auto& val = input.at(name);
+        size_t start = 0;
+        for (size_t i = 0; i <= val.size(); ++i) {
+          if (i == val.size() || val[i] == ';') {
+            std::vector<int64_t> inner_vec;
+            size_t inner_start = start;
+            for (size_t j = start; j <= i; ++j) {
+              if (j == i || val[j] == ',') {
+                inner_vec.emplace_back(std::stoll(
+                    std::string(val.data() + inner_start, j - inner_start)));
+                inner_start = j + 1;
+              }
+            }
+            auto inner_ptr =
+                ListImpl<int64_t>::make_list_impl(std::move(inner_vec));
+            List inner_list(inner_ptr.get());
+            arena->emplace_back(std::move(inner_ptr));
+            vec.emplace_back(inner_list);
+            start = i + 1;
+          }
+        }
+        auto ptr = ListImpl<List>::make_list_impl(std::move(vec));
+        List list(ptr.get());
+        arena->emplace_back(std::move(ptr));
+        return RTAny::from_list(list);
       }
     }
 

@@ -59,9 +59,10 @@ struct PropertyValueCollector {
 template <typename VertexColumn, typename T>
 struct SLPropertyExpr {
   using V = T;
-  SLPropertyExpr(const StorageReadInterface& graph, const VertexColumn& column,
+  SLPropertyExpr(const IStorageInterface& igraph, const VertexColumn& column,
                  const std::string& property_name)
       : column(column) {
+    auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
     auto labels = column.get_labels_set();
     auto& label = *labels.begin();
     property = graph.GetVertexPropColumn<T>(label, property_name);
@@ -80,9 +81,10 @@ struct SLPropertyExpr {
 template <typename VertexColumn, typename T>
 struct MLPropertyExpr {
   using V = T;
-  MLPropertyExpr(const StorageReadInterface& graph, const VertexColumn& vertex,
+  MLPropertyExpr(const IStorageInterface& igraph, const VertexColumn& vertex,
                  const std::string& property_name)
       : vertex(vertex) {
+    auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
     auto labels = vertex.get_labels_set();
     int label_num = graph.schema().vertex_label_num();
     property.resize(label_num);
@@ -109,7 +111,7 @@ struct MLPropertyExpr {
 struct ProjectExprBuilderBase {
   virtual ~ProjectExprBuilderBase() = default;
   virtual std::unique_ptr<ProjectExprBase> build(
-      const StorageReadInterface& graph, const Context& ctx,
+      const IStorageInterface& graph, const Context& ctx,
       const std::map<std::string, std::string>& params) = 0;
   virtual bool is_general() const { return false; }
 };
@@ -124,7 +126,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 struct DummyGetterBuilder : public ProjectExprBuilderBase {
   DummyGetterBuilder(int from, int to) : from_(from), to_(to) {}
   std::unique_ptr<ProjectExprBase> build(
-      const StorageReadInterface& graph, const Context& ctx,
+      const IStorageInterface& graph, const Context& ctx,
       const std::map<std::string, std::string>& params) override {
     return std::make_unique<DummyGetter>(from_, to_);
   }
@@ -138,7 +140,7 @@ struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
                             int alias)
       : tag_(tag), property_name_(property_name), alias_(alias) {}
   std::unique_ptr<ProjectExprBase> build(
-      const StorageReadInterface& graph, const Context& ctx,
+      const IStorageInterface& graph, const Context& ctx,
       const std::map<std::string, std::string>& params) override {
     auto col = ctx.get(tag_);
     if (col->column_type() != ContextColumnType::kVertex) {
@@ -246,8 +248,9 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
         alias_(alias) {}
 
   std::unique_ptr<ProjectExprBase> build(
-      const StorageReadInterface& graph, const Context& ctx,
+      const IStorageInterface& igraph, const Context& ctx,
       const std::map<std::string, std::string>& params) override {
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
     auto col = ctx.get(tag_);
     if (col->column_type() != ContextColumnType::kVertex) {
       LOG(ERROR) << "Column with tag " << tag_ << " is not vertex column";
@@ -300,7 +303,7 @@ struct GeneralProjectExprBuilder : public ProjectExprBuilderBase {
                             int alias)
       : expr_(expr), data_type_(data_type), alias_(alias) {}
   std::unique_ptr<ProjectExprBase> build(
-      const StorageReadInterface& graph, const Context& ctx,
+      const IStorageInterface& graph, const Context& ctx,
       const std::map<std::string, std::string>& params) override;
 
   bool is_general() const override { return true; }
@@ -544,10 +547,13 @@ inline void parse_potential_dependencies(const common::Expression& expr,
 
 static inline std::unique_ptr<ProjectExprBase>
 make_project_expr_without_data_type(
-    const common::Expression& expr, int alias,
-    const StorageReadInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
-  Expr e(&graph, ctx, params, expr, VarType::kPathVar);
+    const common::Expression& expr, int alias, const IStorageInterface& graph,
+    const Context& ctx, const std::map<std::string, std::string>& params) {
+  const StorageReadInterface* graph_ptr = nullptr;
+  if (graph.readable()) {
+    graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
+  }
+  Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
 
   switch (e.type()) {
   case RTAnyType::kI64Value: {
@@ -620,12 +626,17 @@ make_project_expr_without_data_type(
 
 inline std::unique_ptr<ProjectExprBase> make_project_expr(
     const common::Expression& expr, const common::IrDataType& data_type,
-    int alias, const StorageReadInterface& graph, const Context& ctx,
+    int alias, const IStorageInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
+  const StorageReadInterface* graph_ptr = nullptr;
+  if (graph.readable()) {
+    graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
+  }
+
   switch (data_type.type_case()) {
   case common::IrDataType::kDataType: {
     auto type = parse_from_ir_data_type(data_type);
-    Expr e(&graph, ctx, params, expr, VarType::kPathVar);
+    Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
     switch (type) {
     case RTAnyType::kI64Value: {
       return _make_project_expr<int64_t>(std::move(e), alias, ctx);
@@ -687,7 +698,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
         label_t v_label = static_cast<label_t>(
             graph_data_type.graph_data_type(0).label().label());
 
-        Expr e(&graph, ctx, params, expr, VarType::kPathVar);
+        Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
         SLVertexCollector collector(v_label);
         collector.builder.reserve(ctx.row_num());
         return std::make_unique<
@@ -695,7 +706,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
             SLVertexCollector::EXPR(std::move(e)), collector, alias);
 
       } else if (label_num > 1) {
-        Expr e(&graph, ctx, params, expr, VarType::kPathVar);
+        Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
         MLVertexCollector collector;
         collector.builder.reserve(ctx.row_num());
         return std::make_unique<
@@ -707,7 +718,7 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
       }
     } else if (elem_opt == common::GraphDataType_GraphElementOpt::
                                GraphDataType_GraphElementOpt_EDGE) {
-      Expr e(&graph, ctx, params, expr, VarType::kPathVar);
+      Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
       EdgeCollector collector;
       return std::make_unique<
           ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
@@ -728,14 +739,13 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
 }
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
-    const common::Expression& expr, int alias,
-    const StorageReadInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params);
+    const common::Expression& expr, int alias, const IStorageInterface& graph,
+    const Context& ctx, const std::map<std::string, std::string>& params);
 
 inline std::unique_ptr<ProjectExprBase> create_project_expr(
     const common::Expression& expr, int alias,
     const std::optional<common::IrDataType>& data_type,
-    const StorageReadInterface& graph, const Context& ctx,
+    const IStorageInterface& graph, const Context& ctx,
     const std::map<std::string, std::string>& params) {
   auto func = parse_special_expr(expr, alias, graph, ctx, params);
   if (func != nullptr) {

@@ -275,6 +275,8 @@ class ListValueColumn : public ListValueColumnBase {
         ++i;
       }
       return {builder.finish(), offsets};
+    } else if (elem_type_ == RTAnyType::kList) {
+      return unfold_impl<List>();
     } else {
       LOG(FATAL) << "not implemented for " << this->column_info() << " "
                  << static_cast<int>(elem_type_);

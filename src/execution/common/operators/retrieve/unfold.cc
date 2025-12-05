@@ -61,6 +61,25 @@ Context unfold_impl(Context&& ctx, int alias, const Expr& key,
   ctx.set_with_reshuffle(alias, builder.finish(), offsets);
   return ctx;
 }
+template <>
+Context unfold_impl<List>(Context&& ctx, int alias, const Expr& key,
+                          std::shared_ptr<Arena> arena) {
+  ValueColumnBuilder<List> builder;
+  size_t row_num = ctx.row_num();
+  std::vector<size_t> offsets;
+  for (size_t i = 0; i < row_num; ++i) {
+    RTAny val = key.eval_path(i, *arena);
+    auto list = val.as_list();
+    size_t list_size = list.size();
+    for (size_t j = 0; j < list_size; ++j) {
+      builder.push_back_elem(list.get(j));
+      offsets.push_back(i);
+    }
+  }
+  builder.set_arena(arena);
+  ctx.set_with_reshuffle(alias, builder.finish(), offsets);
+  return ctx;
+}
 
 gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
   std::shared_ptr<Arena> arena = std::make_shared<Arena>();
@@ -81,6 +100,8 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
     return unfold_impl<uint32_t>(std::move(ctxs), alias, key, arena);
   } else if (type == RTAnyType::kU64Value) {
     return unfold_impl<uint64_t>(std::move(ctxs), alias, key, arena);
+  } else if (type == RTAnyType::kList) {
+    return unfold_impl<List>(std::move(ctxs), alias, key, arena);
   } else {
     LOG(ERROR) << "Unfold column type is not supported: "
                << static_cast<int>(type);
