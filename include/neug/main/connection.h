@@ -99,7 +99,7 @@ class Connection {
    *
    * @since v0.1.0
    */
-  const Schema& GetSchema() const;
+  std::string GetSchema() const;
 
   /**
    * @brief Close the connection and mark it as closed.

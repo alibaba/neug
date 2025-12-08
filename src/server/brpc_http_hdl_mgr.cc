@@ -86,8 +86,9 @@ int32_t status_code_to_http_code(gs::StatusCode code) {
   }
 }
 
-BrpcHttpHandlerManager::BrpcHttpHandlerManager(gs::NeugDB& graph_db)
-    : svc_(graph_db) {
+BrpcHttpHandlerManager::BrpcHttpHandlerManager(gs::NeugDB& graph_db,
+                                               gs::TransactionManager& txn_mgr)
+    : svc_(graph_db, txn_mgr) {
   brpc_server_ = std::make_unique<brpc::Server>();
 }
 

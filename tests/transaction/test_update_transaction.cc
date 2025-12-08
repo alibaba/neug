@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/graph_interface.h"
 #include "neug/neug.h"
+#include "neug/server/neug_db_service.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/transaction/update_transaction.h"
 
@@ -196,9 +197,9 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -207,7 +208,7 @@ TEST_F(UpdateTransactionTest, AddVertex) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -222,9 +223,9 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     for (int i = 4; i <= 10000; i++) {
       gs::vid_t vid;
@@ -236,7 +237,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
@@ -249,9 +250,9 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -267,7 +268,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -296,9 +297,9 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -328,7 +329,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -361,9 +362,9 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -382,7 +383,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -409,9 +410,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -422,7 +423,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
@@ -441,9 +442,9 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -462,7 +463,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -490,9 +491,9 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -502,7 +503,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -521,9 +522,9 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -538,7 +539,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -566,9 +567,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -578,7 +579,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
@@ -608,9 +609,9 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -633,7 +634,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -678,9 +679,9 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t vertex_id;
@@ -699,7 +700,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -738,9 +739,9 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -768,7 +769,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -804,9 +805,10 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -815,7 +817,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -833,7 +835,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   }
   {
     // Delete person label and then delete vertex should throw
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(txn.DeleteVertexType("person"));
     gs::vid_t vertex_id;
@@ -849,9 +851,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -865,7 +868,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t vid1, vid2;
@@ -878,7 +881,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     // Check edge count
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
@@ -905,9 +908,10 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -920,7 +924,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -932,7 +936,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   }
   {
     // Add again
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -941,7 +945,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -958,15 +962,16 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   gs::label_t dev_label, employ_label, cmp_label;
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     create_new_edge_type(txn, cmp_label, dev_label, employ_label);
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -994,15 +999,16 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   gs::label_t dev_label, employ_label, cmp_label;
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     create_new_edge_type(txn, cmp_label, dev_label, employ_label);
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1021,9 +1027,10 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto created_label = txn.schema().get_edge_label_id("created");
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -1033,7 +1040,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1050,9 +1057,10 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::PropertyType::StringView(), "email",
@@ -1068,7 +1076,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
@@ -1083,7 +1091,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(person_label, "address"),
@@ -1107,9 +1115,10 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::PropertyType::Int64(), "version",
                                      gs::Property::from_int64(0)),
@@ -1120,7 +1129,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::PropertyType::Double(),
                                      "contributions",
@@ -1130,7 +1139,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     auto gi = gs::runtime::StorageReadInterface(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1164,22 +1173,23 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     EXPECT_TRUE(txn.RenameVertexProperties(
         "person", {std::make_pair("age", "years")}, true));
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("lang", "language")};
     EXPECT_TRUE(txn.RenameVertexProperties("software", rename_props, true));
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1199,16 +1209,17 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     EXPECT_TRUE(txn.RenameEdgeProperties(
         "person", "software", "created",
         {std::make_pair("since", "start_year")}, true));
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("weight", "importance")};
     EXPECT_TRUE(txn.RenameEdgeProperties("person", "software", "created",
@@ -1216,7 +1227,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1246,10 +1257,11 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
     LOG(INFO) << "Starting delete edge properties transaction.";
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
                                          {"since"}, true));
     std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
@@ -1264,14 +1276,14 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     LOG(INFO) << "Committed delete edge properties transaction.";
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
                                          {"weight"}, true));
     txn.Abort();
     LOG(INFO) << "Aborted delete edge properties transaction.";
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1312,9 +1324,10 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     // auto person_label = txn.schema().get_vertex_label_id("person");
     // auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(txn.DeleteVertexProperties("person", {"age"}, true));
@@ -1326,7 +1339,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     // auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(txn.DeleteVertexProperties("person", {"name"}, true));
     EXPECT_TRUE(
@@ -1334,7 +1347,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     txn.Abort();
   }
   {
-    auto txn = db.GetReadTransaction();
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1359,8 +1372,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   {
     gs::NeugDB db;
     db.Open(config);
-    db.SwitchToTPMode();
-    auto txn = db.GetUpdateTransaction();
+    auto svc = std::make_shared<server::NeugDBService>(db);
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -1395,7 +1408,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   {
     gs::NeugDB db;
     db.Open(config);
-    auto txn = db.GetReadTransaction();
+    auto svc = std::make_shared<server::NeugDBService>(db);
+    auto txn = svc->GetReadTransaction();
     gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -1434,9 +1448,10 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(txn.DeleteVertexType("person"));
     gs::vid_t vid;
@@ -1460,7 +1475,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
     txn.Abort();
   }
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(txn.DeleteVertexProperties("person", {"age"}, true));
     EXPECT_THROW(txn.RenameVertexProperties(
@@ -1489,9 +1504,10 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   gs::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  db.SwitchToTPMode();
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
   {
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     EXPECT_TRUE(txn.DeleteEdgeType("person", "person", "knows", true));
@@ -1517,7 +1533,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   }
   {
     // Delete Edge Properties
-    auto txn = db.GetUpdateTransaction();
+    auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "person", "knows",

@@ -34,6 +34,7 @@
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/allocators.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 #include "neug/version.h"
@@ -41,19 +42,20 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-namespace gs {
+namespace server {
+class NeugDBService;
+}  // namespace server
 
+namespace gs {
 class AppManager;
 class Connection;
 class ConnectionManager;
 class FileLock;
 class IGraphPlanner;
-class IVersionManager;
 class IWalParser;
 class NeugDBSession;
 class QueryProcessor;
 class Schema;
-class TransactionManager;
 
 /**
  * @brief Core database engine for NeuG graph database system.
@@ -64,9 +66,7 @@ class TransactionManager;
  *
  * **Key Components:**
  * - PropertyGraph for graph data storage and schema management
- * - TransactionManager for ACID transaction control
  * - QueryProcessor for Cypher query execution
- * - VersionManager for multi-version concurrency control
  * - ConnectionManager for client connection handling
  *
  * **Database Modes:**
@@ -103,10 +103,10 @@ class NeugDB {
    * @param warmup Whether to warm up the graph in memory.
    * @param enable_auto_compaction Whether to enable auto compaction thread.
    * @param compact_csr Whether to compact the csr when doing auto compaction.
-   * @param compact_on_close Whether to compact the graph when closing the graph
-   * db.
-   * @param checkpoint_on_close Whether to dump the graph when closing the graph
-   * db.
+   * @param compact_on_close Whether to compact the graph when closing the
+   * graph db.
+   * @param checkpoint_on_close Whether to dump the graph when closing the
+   * graph db.
    * @return true if successed.
    *
    * @note This function is mainly for python binding.
@@ -137,11 +137,13 @@ class NeugDB {
 
   /**
    * @brief Open a connection to the database.
-   * @return A Connection object that can be used to interact with the database.
-   * @note We the mode is read-only, this method could be called multiple times.
-   * But if the mode is read-write, this method should be called only once.
-   * @note Each connection will hold a shared pointer, which means it will share
-   * the planner with other connections in the same database.
+   * @return A Connection object that can be used to interact with the
+   * database.
+   * @note We the mode is read-only, this method could be called multiple
+   * times. But if the mode is read-write, this method should be called only
+   * once.
+   * @note Each connection will hold a shared pointer, which means it will
+   * share the planner with other connections in the same database.
    */
   std::shared_ptr<Connection> Connect();
 
@@ -155,41 +157,10 @@ class NeugDB {
    */
   void RemoveConnection(std::shared_ptr<Connection> conn);
 
-  /** @brief Create a transaction to read vertices and edges.
-   *
-   * @return graph_dir The directory of graph data.
-   */
-  ReadTransaction GetReadTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to insert vertices and edges with a default
-   * allocator.
-   *
-   * @return InsertTransaction
-   */
-  InsertTransaction GetInsertTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to update vertices and edges.
-   *
-   * @param alloc Allocator to allocate memory for graph.
-   * @return UpdateTransaction
-   */
-  UpdateTransaction GetUpdateTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to compact the graph.
-   *
-   * @return CompactTransaction
-   */
-  CompactTransaction GetCompactTransaction(int thread_id = 0);
-
   inline const PropertyGraph& graph() const { return graph_; }
   inline PropertyGraph& graph() { return graph_; }
 
   inline const Schema& schema() const { return graph_.schema(); }
-
-  NeugDBSession& GetSession(int thread_id);
-  const NeugDBSession& GetSession(int thread_id) const;
-
-  int SessionNum() const;
 
   std::string work_dir() const { return work_dir_; }
 
@@ -199,42 +170,25 @@ class NeugDB {
 
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
-  /**
-   * @brief Switch the graph db to TP mode.
-   * This method should be called before starting the server to ensure that
-   * the version manager is appropriate for transactional processing workloads.
-   */
-  void SwitchToTPMode();
-
-  /**
-   * @brief Switch the graph db to AP mode.
-   * This method should be called before starting the server to ensure that
-   * the version manager is appropriate for analytical processing workloads.
-   */
-  void SwitchToAPMode();
-
-  bool IsReadyForServing() const;
+  std::shared_ptr<AppManager> GetAppManager() const { return app_manager_; }
 
  private:
   void preprocessConfig();
+  void initAllocators();
   void openGraphAndSchema();
   void ingestWals();
   void ingestWals(IWalParser& parser, const std::string& work_dir);
-  void startAutoCompactionIfNeeded();
-  void startCompactThreadIfNeeded();
-  void initVersionManager();
-  void initTransactionManager();
   void initPlannerAndQueryProcessor();
   void initAppManager();
   void createCheckpoint();
 
   bool registerApp(const std::string& path, uint8_t index = 0);
 
-  size_t getExecutedQueryNum() const;
-
   friend class NeugDBSession;
+  friend class server::NeugDBService;
 
   timestamp_t last_compaction_ts_;
+  timestamp_t last_ts_;
   // Configuration and settings
   std::atomic<bool> closed_;
   bool is_pure_memory_;
@@ -246,17 +200,13 @@ class NeugDB {
   // The property graph and transaction controls
   PropertyGraph graph_;
   std::shared_ptr<AppManager> app_manager_;
-  std::shared_ptr<IVersionManager> version_manager_;
-  std::shared_ptr<TransactionManager> txn_manager_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;
 
-  std::thread compact_thread_;
-  bool compact_thread_running_ = false;
-
   std::mutex mutex_;
-  std::unique_ptr<Allocator> default_allocator_;
+  std::vector<std::shared_ptr<Allocator>>
+      allocators_;  // Allocators for each thread
 };
 
 }  // namespace gs

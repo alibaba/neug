@@ -21,31 +21,13 @@
 
 namespace gs {
 
-physical::PhysicalPlan load_plan_from_resource(
-    const std::string& resource_path) {
-  physical::PhysicalPlan plan;
-  // Load the plan from the resource file.
-  std::ifstream plan_file(resource_path, std::ios::in | std::ios::binary);
-  if (!plan_file.is_open()) {
-    LOG(ERROR) << "Failed to open plan file: " << resource_path;
-    return plan;
-  }
-  if (!plan.ParseFromIstream(&plan_file)) {
-    LOG(ERROR) << "Failed to parse plan file: " << resource_path;
-    return plan;
-  }
-  plan_file.close();
-  LOG(INFO) << "Loaded plan from resource: " << resource_path
-            << ", plan size: " << plan.ByteSizeLong();
-  return plan;
-}
-
-const Schema& Connection::GetSchema() const {
+std::string Connection::GetSchema() const {
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot get schema.";
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
-  return graph_.schema();
+  auto yaml = graph_.schema().to_yaml();
+  return gs::get_json_string_from_yaml(yaml.value()).value();
 }
 
 void Connection::Close() {
@@ -55,7 +37,7 @@ void Connection::Close() {
   }
   LOG(INFO) << "Closing connection.";
   is_closed_.store(true);
-  // Propnecessary cleanup can be done here.
+  // Necessary cleanup can be done here.
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string) {

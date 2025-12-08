@@ -55,19 +55,6 @@ Processes the query string through the planner and query processor, then convert
 
 - **Since:** v0.1.0
 
-#### `GetSchema() const`
-
-Get the database schema.
-
-Returns a reference to the schema from the underlying property graph.
-
-- **Throws:**
-  - `std::runtime_error`: if the connection is closed
-
-- **Returns:** `const` `Schema`& Reference to the database schema
-
-- **Since:** v0.1.0
-
 #### `Close()`
 
 Close the connection and mark it as closed.
@@ -397,19 +384,6 @@ Create a transaction to compact the graph.
 #### `GetPlanner() const`
 
 #### `Version() const`
-
-#### `SwitchToTPMode()`
-
-Switch the graph db to TP mode.
-
-This method should be called before starting the server to ensure that the version manager is appropriate for transactional processing workloads.
-
-#### `SwitchToAPMode()`
-
-Switch the graph db to AP mode.
-
-This method should be called before starting the server to ensure that the version manager is appropriate for analytical processing workloads.
-
 
 ---
 
@@ -3968,7 +3942,6 @@ It provides methods to obtain different types of transactions (read, insert, upd
 - `Clear()`
 - `getExecutedQueryNum() const`
 - `SessionNum() const`
-- `GetAlloctedMemorySize(int thread_id) const`
 - `GetEvalDuration(int thread_id) const`
 - `GetQueryNum(int thread_id) const`
 - `GetReadTransaction(int thread_id=0) const`

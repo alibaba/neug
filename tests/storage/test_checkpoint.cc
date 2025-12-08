@@ -18,6 +18,7 @@
 #include <string>
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
+#include "neug/server/neug_db_service.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 
@@ -562,8 +563,9 @@ TEST_F(CheckpointTest, test_compact) {
     auto conn = db.Connect();
     load_modern_graph(conn);
     conn->Close();
+    auto svc = std::make_shared<server::NeugDBService>(db);
 
-    auto compact_txn = db.GetCompactTransaction(0);
+    auto compact_txn = svc->GetCompactTransaction(0);
     compact_txn.Commit();
 
     db.Close();
@@ -571,6 +573,7 @@ TEST_F(CheckpointTest, test_compact) {
 
   gs::NeugDB db2;
   db2.Open(db_path);
+  auto svc = std::make_shared<server::NeugDBService>(db2);
   auto conn2 = db2.Connect();
   std::vector<std::string> result_v, result_e;
   {
@@ -589,7 +592,7 @@ TEST_F(CheckpointTest, test_compact) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  auto compact_txn2 = db2.GetCompactTransaction(0);
+  auto compact_txn2 = svc->GetCompactTransaction(0);
   compact_txn2.Commit();
 
   {

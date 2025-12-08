@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/main/transaction_manager.h"
+#include "neug/transaction/transaction_manager.h"
 
 #include <glog/logging.h>
 #include <stdlib.h>
@@ -33,6 +33,7 @@ class PropertyGraph;
 TransactionManager::TransactionManager(
     std::shared_ptr<AppManager> app_manager,
     std::shared_ptr<IVersionManager> version_manager, PropertyGraph& graph,
+    std::vector<std::shared_ptr<Allocator>>& allocators,
     const NeugDBConfig& config, const std::string& work_dir, int32_t thread_num)
     : thread_num_(thread_num),
       work_dir_(work_dir),
@@ -52,7 +53,6 @@ TransactionManager::TransactionManager(
   // By default, we only allocate one context for embeded mode.
   contexts_ = static_cast<SessionLocalContext*>(
       aligned_alloc(4096, sizeof(SessionLocalContext) * thread_num_));
-  std::filesystem::create_directories(allocator_dir(work_dir));
 
   if (!version_manager_) {
     THROW_INTERNAL_EXCEPTION("Version manager is null");
@@ -62,8 +62,8 @@ TransactionManager::TransactionManager(
   }
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i]) SessionLocalContext(
-        graph_, *app_manager_, version_manager_, work_dir, i,
-        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter(), config_);
+        graph_, allocators[i], *app_manager_, version_manager_, work_dir, i,
+        WalWriterFactory::CreateWalWriter(wal_uri_, i), config_);
   }
 }
 
@@ -82,13 +82,6 @@ size_t TransactionManager::getExecutedQueryNum() const {
     ret += contexts_[i].session.query_num();
   }
   return ret;
-}
-
-size_t TransactionManager::GetAlloctedMemorySize(int thread_id) const {
-  if (thread_id < 0 || thread_id >= thread_num_) {
-    return 0;
-  }
-  return contexts_[thread_id].allocator.allocated_memory();
 }
 
 size_t TransactionManager::GetEvalDuration(int thread_id) const {
@@ -112,14 +105,14 @@ ReadTransaction TransactionManager::GetReadTransaction(int thread_id) const {
 
 InsertTransaction TransactionManager::GetInsertTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return InsertTransaction(graph_, contexts_[thread_id].allocator,
+  return InsertTransaction(graph_, *contexts_[thread_id].allocator,
                            *(contexts_[thread_id].logger), *version_manager_,
                            ts);
 }
 
 UpdateTransaction TransactionManager::GetUpdateTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(graph_, contexts_[thread_id].allocator,
+  return UpdateTransaction(graph_, *contexts_[thread_id].allocator,
                            *(contexts_[thread_id].logger), *version_manager_,
                            ts);
 }
@@ -148,49 +141,6 @@ const NeugDBSession& TransactionManager::GetSession(int thread_id) const {
         " >= " + std::to_string(thread_num_));
   }
   return contexts_[thread_id].session;
-}
-
-void TransactionManager::SwitchToTPMode(int32_t thread_num) {
-  VLOG(1) << "Switching to TP mode with " << thread_num << " threads."
-          << ", current thread num: " << thread_num_;
-  Clear();
-  // Reinitialize the contexts with the new thread_num
-  thread_num_ = thread_num;
-  CHECK(contexts_ == nullptr);
-  contexts_ = static_cast<SessionLocalContext*>(
-      aligned_alloc(4096, sizeof(SessionLocalContext) * thread_num_));
-
-  for (int i = 0; i < thread_num_; ++i) {
-    new (&contexts_[i]) SessionLocalContext(
-        graph_, *app_manager_, version_manager_, work_dir_, i,
-        allocator_strategy_,
-        // Create wal writer with real wal uri.
-        WalWriterFactory::CreateWalWriter(wal_uri_, i), config_);
-  }
-}
-
-void TransactionManager::SwitchToAPMode(int32_t thread_num) {
-  VLOG(1) << "Switching to AP mode with " << thread_num << " threads."
-          << ", current thread num: " << thread_num_;
-  Clear();
-  thread_num_ = thread_num;
-  CHECK(contexts_ == nullptr);
-  contexts_ = static_cast<SessionLocalContext*>(
-      aligned_alloc(4096, sizeof(SessionLocalContext) * thread_num_));
-
-  for (int i = 0; i < thread_num_; ++i) {
-    new (&contexts_[i]) SessionLocalContext(
-        graph_, *app_manager_, version_manager_, work_dir_, i,
-        allocator_strategy_, WalWriterFactory::CreateDummyWalWriter(), config_);
-  }
-}
-
-void TransactionManager::SetVersionManager(
-    std::shared_ptr<IVersionManager> vm) {
-  version_manager_ = vm;
-  for (int i = 0; i < thread_num_; ++i) {
-    contexts_[i].session.SetVersionManager(version_manager_);
-  }
 }
 
 }  // namespace gs

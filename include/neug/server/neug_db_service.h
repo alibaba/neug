@@ -23,7 +23,14 @@
 
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/config.h"
 #include "neug/main/neug_db.h"
+#include "neug/transaction/compact_transaction.h"
+#include "neug/transaction/insert_transaction.h"
+#include "neug/transaction/read_transaction.h"
+#include "neug/transaction/transaction_manager.h"
+#include "neug/transaction/update_transaction.h"
+#include "neug/transaction/version_manager.h"
 #include "neug/utils/http_handler_manager.h"
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
@@ -54,7 +61,13 @@ class NeugDBService {
    *
    * @note The database should be opened and ready before creating the service
    */
-  NeugDBService(gs::NeugDB& db) : db_(db) {}
+  NeugDBService(gs::NeugDB& db, const ServiceConfig& config = ServiceConfig())
+      : db_(db),
+        app_manager_(db_.GetAppManager()),
+        db_config_(db_.config()),
+        compact_thread_running_(false) {
+    init(config);
+  }
 
   /**
    * @brief Gets direct access to the underlying graph database
@@ -63,7 +76,7 @@ class NeugDBService {
    *
    * @warning Direct database access bypasses the service layer
    */
-  gs::NeugDB& graph_db() { return db_; }
+  gs::NeugDB& db() { return db_; }
 
   /**
    * @brief Destructor that ensures proper cleanup
@@ -72,23 +85,6 @@ class NeugDBService {
    * releases all associated resources.
    */
   ~NeugDBService();
-
-  /**
-   * @brief Initializes the service with configuration settings
-   *
-   * Creates a BrpcHttpHandlerManager and configures it with the provided
-   * settings. Sets up HTTP endpoints for:
-   * - /cypher (Cypher query execution)
-   * - /service_status (service health check)
-   * - /schema (schema information)
-   *
-   * @param config Service configuration containing host, port, sharding
-   * settings, etc.
-   *
-   * @note This method can be called only once. Subsequent calls are ignored.
-   * @note Must be called before Start() or run_and_wait_for_exit()
-   */
-  void init(const ServiceConfig& config);
 
   /**
    * @brief Starts the HTTP server
@@ -124,6 +120,35 @@ class NeugDBService {
    * @note Returns the configuration passed to init(), not runtime settings
    */
   const ServiceConfig& GetServiceConfig() const;
+
+  /** @brief Create a transaction to read vertices and edges.
+   *
+   * @return graph_dir The directory of graph data.
+   */
+  gs::ReadTransaction GetReadTransaction(int thread_id = 0);
+
+  /** @brief Create a transaction to insert vertices and edges with a default
+   * allocator.
+   *
+   * @return InsertTransaction
+   */
+  gs::InsertTransaction GetInsertTransaction(int thread_id = 0);
+
+  /** @brief Create a transaction to update vertices and edges.
+   *
+   * @param alloc Allocator to allocate memory for graph.
+   * @return UpdateTransaction
+   */
+  gs::UpdateTransaction GetUpdateTransaction(int thread_id = 0);
+
+  /** @brief Create a transaction to compact the graph.
+   *
+   * @return CompactTransaction
+   */
+  gs::CompactTransaction GetCompactTransaction(int thread_id = 0);
+
+  gs::NeugDBSession& GetSession(int thread_id);
+  const gs::NeugDBSession& GetSession(int thread_id) const;
 
   /**
    * @brief Checks if the service has been initialized
@@ -173,17 +198,48 @@ class NeugDBService {
    */
   void run_and_wait_for_exit();
 
- private:
-  NeugDBService() = delete;
+  size_t getExecutedQueryNum() const;
+
+  size_t SessionNum() const { return txn_manager_->SessionNum(); }
 
  private:
+  NeugDBService() = delete;
+  void startCompactThreadIfNeeded();
+
+  /**
+   * @brief Initializes the service with configuration settings
+   *
+   * Creates a BrpcHttpHandlerManager and configures it with the provided
+   * settings. Sets up HTTP endpoints for:
+   * - /cypher (Cypher query execution)
+   * - /service_status (service health check)
+   * - /schema (schema information)
+   *
+   * @param config Service configuration containing host, port, sharding
+   * settings, etc.
+   *
+   * @note This method can be called only once. Subsequent calls are ignored.
+   * @note Must be called before Start() or run_and_wait_for_exit()
+   */
+  void init(const ServiceConfig& config);
+
   gs::NeugDB& db_;
+  std::shared_ptr<gs::AppManager> app_manager_;
+  gs::NeugDBConfig db_config_;
+  std::shared_ptr<gs::IVersionManager> version_manager_;
+  std::unique_ptr<gs::TransactionManager> txn_manager_;
   std::unique_ptr<IHttpHandlerManager> hdl_mgr_;
+
+  std::thread compact_thread_;
+  bool compact_thread_running_ = false;
+
   std::atomic<bool> running_{false};
   std::atomic<bool> initialized_{false};
   std::mutex mtx_;
 
   ServiceConfig service_config_;
+
+  friend class gs::NeugDB;
 };
 
 }  // namespace server

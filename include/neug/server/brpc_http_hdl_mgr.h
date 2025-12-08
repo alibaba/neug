@@ -50,7 +50,9 @@ int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
  public:
-  explicit HttpServiceImpl(gs::NeugDB& graph_db) : graph_db_(graph_db) {
+  explicit HttpServiceImpl(gs::NeugDB& graph_db,
+                           gs::TransactionManager& txn_mgr)
+      : graph_db_(graph_db), txn_mgr_(txn_mgr) {
     planner_ = graph_db_.GetPlanner();
     pthread_key_create(&thread_id_key, cleanup);
   }
@@ -186,7 +188,7 @@ class HttpServiceImpl : public HttpService {
       return false;
     }
 
-    auto result = graph_db_.GetSession(id).Eval(plan_proto_str);
+    auto result = txn_mgr_.GetSession(id).Eval(plan_proto_str);
     if (!result) {
       LOG(ERROR) << "Eval failed: " << result.error().error_message();
       const char* error_msg = result.error().error_message().c_str();
@@ -232,6 +234,7 @@ class HttpServiceImpl : public HttpService {
   }
 
   gs::NeugDB& graph_db_;
+  gs::TransactionManager& txn_mgr_;
   std::shared_ptr<gs::IGraphPlanner> planner_;
   pthread_key_t thread_id_key;
   std::atomic<int> thread_id_key_count{0};
@@ -239,7 +242,8 @@ class HttpServiceImpl : public HttpService {
 
 class BrpcHttpHandlerManager : public IHttpHandlerManager {
  public:
-  explicit BrpcHttpHandlerManager(gs::NeugDB& graph_db);
+  explicit BrpcHttpHandlerManager(gs::NeugDB& graph_db,
+                                  gs::TransactionManager& txn_mgr);
 
   ~BrpcHttpHandlerManager();
   void Init(const ServiceConfig& config) override;

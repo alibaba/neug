@@ -24,6 +24,7 @@
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
+#include "neug/server/neug_db_service.h"
 
 #include <glog/logging.h>
 #include "cxxopts/cxxopts.hpp"
@@ -197,6 +198,7 @@ int main(int argc, char** argv) {
 
   config.enable_auto_compaction = false;
   db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
 
   if (!vm.count("benchmark-config")) {
     LOG(ERROR) << "benchmark-config is required";
@@ -205,7 +207,7 @@ int main(int argc, char** argv) {
   std::string benchmark_config_path = vm["benchmark-config"].as<std::string>();
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
-  auto txn = db.GetReadTransaction();
+  auto txn = svc->GetReadTransaction();
   gs::runtime::StorageReadInterface graph(txn.graph(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {

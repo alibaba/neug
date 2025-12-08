@@ -77,10 +77,6 @@ std::unique_ptr<PyQueryResult> PyConnection::execute(
   }
 }
 
-std::string PyConnection::get_schema() const {
-  const auto& schema = db_.schema();
-  auto yaml = schema.to_yaml();
-  return gs::get_json_string_from_yaml(yaml.value()).value();
-}
+std::string PyConnection::get_schema() const { return conn_->GetSchema(); }
 
 }  // namespace gs

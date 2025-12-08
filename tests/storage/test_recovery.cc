@@ -59,12 +59,10 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
     db_config.mode = DBMode::READ_WRITE;
     db_config.compact_on_close = true;
     ASSERT_TRUE(db_->Open(db_config));
-    db_->SwitchToTPMode();
-    service_ = std::make_unique<server::NeugDBService>(*db_);
     server::ServiceConfig config;
     config.host_str = neugdb_host_;
     config.query_port = neugdb_port_;
-    service_->init(config);
+    service_ = std::make_unique<server::NeugDBService>(*db_, config);
     service_->Start();
     // Wait for service to be ready
     for (int i = 0; i < 30; ++i) {

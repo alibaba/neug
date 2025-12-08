@@ -103,8 +103,6 @@ std::string PyDatabase::serve(int port, const std::string& host,
 
   database->Close();
   database->Open(database->config());
-  database->SwitchToTPMode();
-  service_ = std::make_unique<server::NeugDBService>(*database);
   server::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
@@ -116,7 +114,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   }
 #endif
 
-  service_->init(config);
+  service_ = std::make_unique<server::NeugDBService>(*database, config);
   return service_->Start();
 }
 
@@ -129,10 +127,6 @@ void PyDatabase::stop_serving() {
   if (service_) {
     service_->Stop();
     service_.reset();
-  }
-  // Switch back to APVersionManager for embedded mode.
-  if (database) {
-    database->SwitchToAPMode();
   }
 }
 

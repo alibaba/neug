@@ -14,6 +14,7 @@
  */
 #include "neug/server/neug_db_service.h"
 
+#include <glog/logging.h>
 #include "neug/server/brpc_http_hdl_mgr.h"
 
 #define STRINGIFY(x) #x
@@ -22,7 +23,7 @@
 namespace server {
 
 void NeugDBService::init(const ServiceConfig& config) {
-  if (db_.IsClosed() || !db_.IsReadyForServing()) {
+  if (db_.IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
   if (initialized_.load(std::memory_order_relaxed)) {
@@ -35,7 +36,15 @@ void NeugDBService::init(const ServiceConfig& config) {
     return;
   }
 
-  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_);
+  version_manager_ = std::make_shared<gs::TPVersionManager>();
+  version_manager_->init_ts(
+      db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
+
+  txn_manager_ = std::make_unique<gs::TransactionManager>(
+      app_manager_, version_manager_, db_.graph(), db_.allocators_, db_config_,
+      db_.work_dir(), db_config_.thread_num);
+
+  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, *txn_manager_);
   hdl_mgr_->Init(config);
 
   initialized_.store(true);
@@ -47,10 +56,38 @@ NeugDBService::~NeugDBService() {
     hdl_mgr_->Stop();
     hdl_mgr_.reset();
   }
+  if (compact_thread_running_) {
+    compact_thread_running_ = false;
+    compact_thread_.join();
+  }
 }
 
 const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
+}
+
+gs::ReadTransaction NeugDBService::GetReadTransaction(int thread_id) {
+  return txn_manager_->GetReadTransaction(thread_id);
+}
+
+gs::InsertTransaction NeugDBService::GetInsertTransaction(int thread_id) {
+  return txn_manager_->GetInsertTransaction(thread_id);
+}
+
+gs::UpdateTransaction NeugDBService::GetUpdateTransaction(int thread_id) {
+  return txn_manager_->GetUpdateTransaction(thread_id);
+}
+
+gs::CompactTransaction NeugDBService::GetCompactTransaction(int thread_id) {
+  return txn_manager_->GetCompactTransaction(thread_id);
+}
+
+gs::NeugDBSession& NeugDBService::GetSession(int thread_id) {
+  return txn_manager_->GetSession(thread_id);
+}
+
+const gs::NeugDBSession& NeugDBService::GetSession(int thread_id) const {
+  return txn_manager_->GetSession(thread_id);
 }
 
 bool NeugDBService::IsInitialized() const {
@@ -116,6 +153,39 @@ std::string NeugDBService::Start() {
     return hdl_mgr_->Start();
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
+  }
+}
+
+size_t NeugDBService::getExecutedQueryNum() const {
+  return txn_manager_->getExecutedQueryNum();
+}
+
+void NeugDBService::startCompactThreadIfNeeded() {
+  if (db_config_.enable_auto_compaction) {
+    if (compact_thread_running_) {
+      compact_thread_running_ = false;
+      compact_thread_.join();
+    }
+    compact_thread_running_ = true;
+    compact_thread_ = std::thread([&]() {
+      size_t last_compaction_at = 0;
+      while (compact_thread_running_) {
+        size_t query_num_before = getExecutedQueryNum();
+        sleep(30);
+        if (!compact_thread_running_) {
+          break;
+        }
+        size_t query_num_after = getExecutedQueryNum();
+        if (query_num_before == query_num_after &&
+            (query_num_after > (last_compaction_at + 100000))) {
+          VLOG(10) << "Trigger auto compaction";
+          last_compaction_at = query_num_after;
+          auto txn = txn_manager_->GetCompactTransaction(0);
+          txn.Commit();
+          VLOG(10) << "Finish compaction";
+        }
+      }
+    });
   }
 }
 

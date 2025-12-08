@@ -136,10 +136,6 @@ class NeugDBSession {
 
   // inline const std::string& work_dir() const { return work_dir_; }
 
-  inline void SetVersionManager(std::shared_ptr<IVersionManager> vm) {
-    version_manager_ = vm;
-  }
-
  private:
   /**
    * @brief Parse the input format of the query.
