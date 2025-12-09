@@ -295,39 +295,6 @@ class EdgeExpandDegreeOpr : public IOperator {
   EdgeExpandParams eep_;
 };
 
-static bool check_label_in_set(const Direction& dir,
-                               const std::vector<LabelTriplet>& edge_labels,
-                               const std::set<label_t>& labels_set) {
-  bool within = true;
-  if (dir == Direction::kOut) {
-    for (auto& triplet : edge_labels) {
-      if (labels_set.find(triplet.dst_label) == labels_set.end()) {
-        within = false;
-        break;
-      }
-    }
-  } else if (dir == Direction::kIn) {
-    for (auto& triplet : edge_labels) {
-      if (labels_set.find(triplet.src_label) == labels_set.end()) {
-        within = false;
-        break;
-      }
-    }
-  } else {
-    for (auto& triplet : edge_labels) {
-      if (labels_set.find(triplet.dst_label) == labels_set.end()) {
-        within = false;
-        break;
-      }
-      if (labels_set.find(triplet.src_label) == labels_set.end()) {
-        within = false;
-        break;
-      }
-    }
-  }
-  return within;
-}
-
 gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
@@ -442,50 +409,12 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     eep.is_optional = is_optional;
     if (!v_opr.params().has_predicate()) {
       if (query_params.has_predicate()) {
-        // used
         return std::make_pair(
             std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
             meta);
       } else {
-        // used
         return std::make_pair(
             std::make_unique<EdgeExpandVOpr>(eep, std::nullopt), meta);
-      }
-    }
-
-    if (parse_sp_pred(v_opr.params().predicate()) == SPPredicateType::kWithIn) {
-      auto property = v_opr.params().predicate().operators(0);
-      if (property.has_var() && property.var().has_property() &&
-          property.var().property().has_label()) {
-        auto labels = v_opr.params().predicate().operators(2);
-        // label with in
-        if (labels.has_const_() && labels.const_().has_i64_array()) {
-          std::set<label_t> labels_set;
-          const auto& label_array = labels.const_().i64_array();
-          size_t num = label_array.item_size();
-          for (size_t i = 0; i < num; ++i) {
-            labels_set.insert(label_array.item(i));
-          }
-          if (check_label_in_set(dir, eep.labels, labels_set)) {
-            if (query_params.has_predicate()) {
-              return std::make_pair(std::make_unique<EdgeExpandVOpr>(
-                                        eep, query_params.predicate()),
-                                    meta);
-            } else {
-              return std::make_pair(
-                  std::make_unique<EdgeExpandVOpr>(eep, std::nullopt), meta);
-            }
-          } else {
-            if (query_params.has_predicate()) {
-              return std::make_pair(nullptr, meta);
-            } else {
-              return std::make_pair(
-                  std::make_unique<EdgeExpandVWithGPVertexPredOpr>(
-                      eep, v_opr.params().predicate()),
-                  meta);
-            }
-          }
-        }
       }
     }
 

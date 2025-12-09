@@ -99,59 +99,6 @@ class FilterOidsGPredOpr : public IOperator {
   std::optional<common::Expression> pred_;
 };
 
-class FilterOidsMultiTypeGPredOpr : public IOperator {
- public:
-  FilterOidsMultiTypeGPredOpr(
-      ScanParams params,
-      const std::vector<std::function<std::vector<Property>(ParamsType)>>& oids,
-      const std::optional<common::Expression>& pred)
-      : params_(params), oids_(oids), pred_(pred) {}
-
-  std::string get_operator_name() const override {
-    return "FilterOidsMultiTypeGPredOpr";
-  }
-
-  gs::result<gs::runtime::Context> Eval(gs::runtime::IStorageInterface& graph,
-                                        ParamsType params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
-    ctx = Context();
-    std::vector<Property> all_ids;
-    for (auto& _oid : oids_) {
-      auto oid = _oid(params);
-      for (auto& o : oid) {
-        all_ids.push_back(o);
-      }
-    }
-    if (!pred_.has_value()) {
-      return Scan::filter_oids(
-          std::move(ctx), graph, params_,
-          [](label_t, vid_t, size_t) { return true; }, all_ids);
-    } else {
-      const StorageReadInterface* graph_ptr = nullptr;
-      if (graph.readable()) {
-        graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
-      }
-
-      auto expr = parse_expression(graph_ptr, ctx, params, pred_.value(),
-                                   VarType::kVertexVar);
-      Arena arena;
-
-      return Scan::filter_oids(
-          std::move(ctx), graph, params_,
-          [&expr, &arena](label_t label, vid_t vid, size_t idx) {
-            return expr->eval_vertex(label, vid, idx, arena).as_bool();
-          },
-          all_ids);
-    }
-  }
-
- private:
-  ScanParams params_;
-  std::vector<std::function<std::vector<Property>(ParamsType)>> oids_;
-  std::optional<common::Expression> pred_;
-};
-
 class ScanWithSPredOpr : public IOperator {
  public:
   ScanWithSPredOpr(const ScanParams& scan_params,
@@ -280,28 +227,16 @@ gs::result<OpBuildResultT> ScanOprBuilder::Build(
       pred = scan_opr.params().predicate();
     }
 
-    std::vector<std::function<std::vector<Property>(ParamsType)>> oids;
-    std::unordered_set<int> types;
+    std::function<std::vector<Property>(ParamsType)> oids;
     for (auto& table : scan_params.tables) {
       const auto& pks = schema.get_vertex_primary_key(table);
       const auto type = std::get<0>(pks[0]);
-      int type_impl = static_cast<int>(type.type_enum);
-      if (types.find(type_impl) == types.end()) {
-        types.insert(type_impl);
-        const auto& oid =
-            ScanUtils::parse_ids_with_type(type, scan_opr.idx_predicate());
-        oids.emplace_back(oid);
-      }
+      oids = ScanUtils::parse_ids_with_type(type, scan_opr.idx_predicate());
+      break;
     }
-    if (types.size() == 1) {
-      return std::make_pair(
-          std::make_unique<FilterOidsGPredOpr>(scan_params, oids[0], pred),
-          ret_meta);
-    } else {
-      return std::make_pair(std::make_unique<FilterOidsMultiTypeGPredOpr>(
-                                scan_params, oids, pred),
-                            ret_meta);
-    }
+    return std::make_pair(
+        std::make_unique<FilterOidsGPredOpr>(scan_params, oids, pred),
+        ret_meta);
 
   } else {
     if (scan_opr.params().has_predicate()) {
