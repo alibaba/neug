@@ -29,7 +29,7 @@ if (ENABLE_GCOV)
     target_link_options(neug_libraries PRIVATE --coverage)
 endif()
 target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES})
-target_link_libraries(neug_libraries PRIVATE neug_grape_lite ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES} ${ARROW_LIB})
+target_link_libraries(neug_libraries PRIVATE ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES} ${ARROW_LIB})
 if (BUILD_HTTP_SERVER)
     target_link_libraries(neug_libraries PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
     target_link_libraries(neug_libraries PUBLIC ${OPENSSL_LIBRARIES} ${CRYPTO_LIB}) #${PROTOC_LIB}

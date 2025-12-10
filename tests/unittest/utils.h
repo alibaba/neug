@@ -67,8 +67,8 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(dis(gen));
     }
     return data;
-  } else if constexpr (std::is_same<EDATA_T, grape::EmptyType>::value) {
-    return std::vector<EDATA_T>(len, grape::EmptyType());
+  } else if constexpr (std::is_same<EDATA_T, gs::EmptyType>::value) {
+    return std::vector<EDATA_T>(len, gs::EmptyType());
   } else if constexpr (std::is_same<EDATA_T, gs::Date>::value) {
     std::vector<EDATA_T> data;
     std::random_device rd;

@@ -22,13 +22,12 @@
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
-#include "libgrape-lite/grape/io/local_io_adaptor.h"
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace gs {
@@ -739,10 +738,10 @@ const std::string& Schema::get_vertex_primary_key_name(label_t index) const {
                    std::to_string(primary_keys.size()));
 }
 
-void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
-  vlabel_indexer_.Serialize(writer);
-  elabel_indexer_.Serialize(writer);
-  grape::InArchive arc;
+void Schema::Serialize(std::ostream& os) const {
+  vlabel_indexer_.Serialize(os);
+  elabel_indexer_.Serialize(os);
+  InArchive arc;
   arc << static_cast<uint32_t>(v_schemas_.size());
   for (const auto& v_schema : v_schemas_) {
     arc << (*v_schema);
@@ -752,17 +751,22 @@ void Schema::Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
   arc << description_ << version_ << remote_path_ << name_ << id_;
-  CHECK(writer->WriteArchive(arc));
-  vlabel_tomb_.Serialize(writer);
-  elabel_tomb_.Serialize(writer);
-  elabel_triplet_tomb_.Serialize(writer);
+  size_t size = arc.GetSize();
+  os.write(reinterpret_cast<char*>(&size), sizeof(size));
+  os.write(arc.GetBuffer(), size);
+  vlabel_tomb_.Serialize(os);
+  elabel_tomb_.Serialize(os);
+  elabel_triplet_tomb_.Serialize(os);
 }
 
-void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
-  vlabel_indexer_.Deserialize(reader);
-  elabel_indexer_.Deserialize(reader);
-  grape::OutArchive arc;
-  CHECK(reader->ReadArchive(arc));
+void Schema::Deserialize(std::istream& is) {
+  vlabel_indexer_.Deserialize(is);
+  elabel_indexer_.Deserialize(is);
+  OutArchive arc;
+  size_t arc_size;
+  is.read(reinterpret_cast<char*>(&arc_size), sizeof(arc_size));
+  arc.Allocate(arc_size);
+  is.read(arc.GetBuffer(), arc_size);
   uint32_t v_schema_size;
   arc >> v_schema_size;
   v_schemas_.resize(v_schema_size);
@@ -780,9 +784,9 @@ void Schema::Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
   }
 
   arc >> description_ >> version_ >> remote_path_ >> name_ >> id_;
-  vlabel_tomb_.Deserialize(reader);
-  elabel_tomb_.Deserialize(reader);
-  elabel_triplet_tomb_.Deserialize(reader);
+  vlabel_tomb_.Deserialize(is);
+  elabel_tomb_.Deserialize(is);
+  elabel_triplet_tomb_.Deserialize(is);
 }
 
 label_t Schema::vertex_label_to_index(const std::string& label) {
@@ -2082,8 +2086,7 @@ bool Schema::edge_has_property_internal(label_t src_label, label_t dst_label,
   return e_schemas_.at(label_id)->has_property_internal(prop);
 }
 
-grape::InArchive& operator<<(grape::InArchive& archive,
-                             const VertexSchema& v_schema) {
+InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.property_types << v_schema.property_names
           << v_schema.primary_keys << v_schema.storage_strategies
           << v_schema.description << v_schema.max_num
@@ -2091,16 +2094,14 @@ grape::InArchive& operator<<(grape::InArchive& archive,
   return archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& archive,
-                              VertexSchema& v_schema) {
+OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
   archive >> v_schema.property_types >> v_schema.property_names >>
       v_schema.primary_keys >> v_schema.storage_strategies >>
       v_schema.description >> v_schema.max_num >> v_schema.vprop_soft_deleted;
   return archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& archive,
-                             const EdgeSchema& e_schema) {
+InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
   archive << e_schema.src_label_name << e_schema.dst_label_name
           << e_schema.edge_label_name << e_schema.sort_on_compaction
           << e_schema.description << e_schema.ie_mutable << e_schema.oe_mutable
@@ -2110,8 +2111,7 @@ grape::InArchive& operator<<(grape::InArchive& archive,
   return archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& archive,
-                              EdgeSchema& e_schema) {
+OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
   archive >> e_schema.src_label_name >> e_schema.dst_label_name >>
       e_schema.edge_label_name >> e_schema.sort_on_compaction >>
       e_schema.description >> e_schema.ie_mutable >> e_schema.oe_mutable >>

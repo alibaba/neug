@@ -143,8 +143,8 @@ struct EdgeDataAccessor {
 
   template <typename T>
   inline T get_typed_data(const NbrIterator& it) const {
-    if constexpr (std::is_same<T, grape::EmptyType>::value) {
-      return grape::EmptyType();
+    if constexpr (std::is_same<T, EmptyType>::value) {
+      return EmptyType();
     } else {
       return data_column_ == nullptr
                  ? get_bundled_data_from_ptr<T>(it.get_data_ptr())
@@ -155,8 +155,8 @@ struct EdgeDataAccessor {
 
   template <typename T>
   inline T get_typed_data_from_ptr(const void* data_ptr) const {
-    if constexpr (std::is_same<T, grape::EmptyType>::value) {
-      return grape::EmptyType();
+    if constexpr (std::is_same<T, EmptyType>::value) {
+      return EmptyType();
     } else {
       auto ret =
           data_column_ == nullptr

@@ -20,8 +20,7 @@
 #include <ostream>
 #include <thread>
 
-#include "libgrape-lite/grape/utils/bitset.h"
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
+#include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 
 namespace gs {
@@ -110,7 +109,10 @@ bool APVersionManager::revert_update_timestamp(uint32_t ts) {
 
 // TPVersionManager implementation
 
-TPVersionManager::TPVersionManager() { buf_.init(ring_buf_size); }
+TPVersionManager::TPVersionManager() {
+  buf_.resize(ring_buf_size);
+  buf_.reset_all();
+}
 
 TPVersionManager::~TPVersionManager() {}
 
@@ -124,7 +126,7 @@ void TPVersionManager::clear() {
   write_ts_.store(1);
   read_ts_.store(0);
   pending_reqs_.store(0);
-  buf_.clear();
+  buf_.reset_all();
 }
 
 uint32_t TPVersionManager::acquire_read_timestamp() {
@@ -172,12 +174,12 @@ uint32_t TPVersionManager::acquire_insert_timestamp() {
 void TPVersionManager::release_insert_timestamp(uint32_t ts) {
   lock_.lock();
   if (ts == read_ts_.load() + 1) {
-    while (buf_.reset_bit_with_ret((ts + 1) & ring_index_mask)) {
+    while (buf_.atomic_reset_with_ret((ts + 1) & ring_index_mask)) {
       ++ts;
     }
     read_ts_.store(ts);
   } else {
-    buf_.set_bit(ts & ring_index_mask);
+    buf_.atomic_set(ts & ring_index_mask);
   }
   lock_.unlock();
 
@@ -208,7 +210,7 @@ void TPVersionManager::release_update_timestamp(uint32_t ts) {
   } else {
     LOG(ERROR) << "read ts is expected to be " << ts - 1 << ", while it is "
                << read_ts_.load();
-    buf_.set_bit(ts & ring_index_mask);
+    buf_.atomic_set(ts & ring_index_mask);
   }
   lock_.unlock();
 

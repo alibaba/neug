@@ -27,7 +27,6 @@
 #include "arrow/util/value_parsing.h"
 #include "common/configuration.h"  // odps/include
 #include "httplib.h"
-#include "libgrape-lite/grape/util.h"
 #include "neug/storages/loader/abstract_property_fragment_loader.h"
 #include "neug/storages/loader/loader_factory.h"
 #include "neug/storages/loader/loading_config.h"

@@ -16,10 +16,10 @@
 #ifndef INCLUDE_NEUG_TRANSACTION_UNDO_LOG_H_
 #define INCLUDE_NEUG_TRANSACTION_UNDO_LOG_H_
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 #include <string>
 #include <vector>

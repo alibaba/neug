@@ -14,11 +14,12 @@
  */
 
 #include "neug/utils/property/property.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const Property& value) {
+InArchive& operator<<(InArchive& in_archive, const Property& value) {
   if (value.type() == PropertyType::Empty()) {
     in_archive << value.type();
   } else if (value.type() == PropertyType::Bool()) {
@@ -57,7 +58,7 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
   return in_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value) {
+OutArchive& operator>>(OutArchive& out_archive, Property& value) {
   PropertyType pt;
   out_archive >> pt;
   if (pt == PropertyType::Empty()) {

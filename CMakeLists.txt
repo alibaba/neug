@@ -30,7 +30,6 @@ project (
 option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
 option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
-option(USE_PTHASH "Whether to use pthash" OFF)
 option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
 option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
@@ -123,8 +122,6 @@ endif()
 
 set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "Skip building performance sandbox comparison (requires boost)")
 set(BUILD_SANDBOX OFF CACHE BOOL "Build sandbox examples")
-add_subdirectory(third_party/cereal)
-include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cereal/include)
 
 if (BUILD_TEST)
     enable_testing()
@@ -201,7 +198,6 @@ endif()
 message(STATUS "Build test: ${BUILD_TEST}")
 message(STATUS "Build doc: ${BUILD_DOC}")
 message(STATUS "Build odps fragment loader: ${BUILD_ODPS_FRAGMENT_LOADER}")
-message(STATUS "Use pthash indexer : ${USE_PTHASH}")
 
 # ------------------------------------------------------------------------------
 # cmake configs
@@ -344,9 +340,6 @@ include_directories(SYSTEM third_party/boost/algorithm/include)
 include_directories(SYSTEM third_party/HowardHinnant/date/include)
 
 
-if(USE_PTHASH)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/murmurhash)
-endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 set(DEFAULT_BUILD_TYPE "Release")
@@ -655,11 +648,9 @@ endif()
 if (BUILD_TEST)
     add_subdirectory(tests)
 endif()
-add_subdirectory(third_party/libgrape-lite)
 if (BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/libgrape-lite)
 
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/antlr4_cypher/include)
 
@@ -770,17 +761,6 @@ set(CPACK_DEB_COMPONENT_INSTALL YES)
 
 #install CMakeLists.txt.template to resources/
 
-
-if(USE_PTHASH)
-    install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/murmurhash
-                      ${PROJECT_SOURCE_DIR}/third_party/pthash
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp"
-    )
-endif()
-
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/flat_hash_map
             DESTINATION include/
             FILES_MATCHING
@@ -798,18 +778,6 @@ install(FILES ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc_data.h
             ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc.h   
             ${PROJECT_SOURCE_DIR}/third_party/utf8proc/include/utf8proc_wrapper.h
             DESTINATION include/utf8proc
-)
-
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/pthash
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp"
-)
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/string_view
-            DESTINATION include
-            FILES_MATCHING
-            PATTERN "*.hpp"
 )
 
 if (NOT yaml-cpp_FOUND)

@@ -33,14 +33,13 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
-#include "libgrape-lite/grape/io/local_io_adaptor.h"
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/execution/common/utils/bitset.h"
+#include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 #include "neug/utils/string_view_vector.h"
 
 namespace gs {
@@ -69,23 +68,20 @@ template <typename T>
 struct KeyBuffer {
   using type = std::vector<T>;
 
-  template <typename IOADAPTOR_T>
-  static void serialize(std::unique_ptr<IOADAPTOR_T>& writer,
-                        const type& buffer) {
+  static void serialize(std::ostream& os, const type& buffer) {
     size_t size = buffer.size();
-    CHECK(writer->Write(&size, sizeof(size_t)));
+    os.write(reinterpret_cast<const char*>(&size), sizeof(size_t));
     if (size > 0) {
-      CHECK(writer->Write(buffer.data(), size * sizeof(T)));
+      os.write(reinterpret_cast<const char*>(buffer.data()), size * sizeof(T));
     }
   }
 
-  template <typename IOADAPTOR_T>
-  static void deserialize(std::unique_ptr<IOADAPTOR_T>& reader, type& buffer) {
+  static void deserialize(std::istream& is, type& buffer) {
     size_t size;
-    CHECK(reader->Read(&size, sizeof(size_t)));
+    is.read(reinterpret_cast<char*>(&size), sizeof(size_t));
     if (size > 0) {
       buffer.resize(size);
-      CHECK(reader->Read(buffer.data(), size * sizeof(T)));
+      is.read(reinterpret_cast<char*>(buffer.data()), size * sizeof(T));
     }
   }
 };
@@ -93,19 +89,20 @@ struct KeyBuffer {
 template <>
 struct KeyBuffer<std::string> {
   using type = std::vector<std::string>;
-
-  template <typename IOADAPTOR_T>
-  static void serialize(std::unique_ptr<IOADAPTOR_T>& writer,
-                        const type& buffer) {
-    grape::InArchive arc;
+  static void serialize(std::ostream& os, const type& buffer) {
+    InArchive arc;
     arc << buffer;
-    CHECK(writer->WriteArchive(arc));
+    size_t size = arc.GetSize();
+    os.write(reinterpret_cast<const char*>(&size), sizeof(size_t));
+    os.write(reinterpret_cast<const char*>(arc.GetBuffer()), size);
   }
 
-  template <typename IOADAPTOR_T>
-  static void deserialize(std::unique_ptr<IOADAPTOR_T>& reader, type& buffer) {
-    grape::OutArchive arc;
-    CHECK(reader->ReadArchive(arc));
+  static void deserialize(std::istream& is, type& buffer) {
+    OutArchive arc;
+    size_t size;
+    is.read(reinterpret_cast<char*>(&size), sizeof(size_t));
+    arc.Allocate(size);
+    is.read(reinterpret_cast<char*>(arc.GetBuffer()), size);
     arc >> buffer;
   }
 };
@@ -114,38 +111,37 @@ template <>
 struct KeyBuffer<std::string_view> {
   using type = StringViewVector;
 
-  template <typename IOADAPTOR_T>
-  static void serialize(std::unique_ptr<IOADAPTOR_T>& writer,
-                        const type& buffer) {
+  static void serialize(std::ostream& os, const type& buffer) {
     size_t content_buffer_size = buffer.content_buffer().size();
-    CHECK(writer->Write(&content_buffer_size, sizeof(size_t)));
+    os.write(reinterpret_cast<const char*>(&content_buffer_size),
+             sizeof(size_t));
     if (content_buffer_size > 0) {
-      CHECK(writer->Write(buffer.content_buffer().data(),
-                          content_buffer_size * sizeof(char)));
+      os.write(buffer.content_buffer().data(),
+               content_buffer_size * sizeof(char));
     }
     size_t offset_buffer_size = buffer.offset_buffer().size();
-    CHECK(writer->Write(&offset_buffer_size, sizeof(size_t)));
+    os.write(reinterpret_cast<const char*>(&offset_buffer_size),
+             sizeof(size_t));
     if (offset_buffer_size > 0) {
-      CHECK(writer->Write(buffer.offset_buffer().data(),
-                          offset_buffer_size * sizeof(size_t)));
+      os.write(reinterpret_cast<const char*>(buffer.offset_buffer().data()),
+               offset_buffer_size * sizeof(size_t));
     }
   }
 
-  template <typename IOADAPTOR_T>
-  static void deserialize(std::unique_ptr<IOADAPTOR_T>& reader, type& buffer) {
+  static void deserialize(std::istream& is, type& buffer) {
     size_t content_buffer_size;
-    CHECK(reader->Read(&content_buffer_size, sizeof(size_t)));
+    is.read(reinterpret_cast<char*>(&content_buffer_size), sizeof(size_t));
     if (content_buffer_size > 0) {
       buffer.content_buffer().resize(content_buffer_size);
-      CHECK(reader->Read(buffer.content_buffer().data(),
-                         content_buffer_size * sizeof(char)));
+      is.read(buffer.content_buffer().data(),
+              content_buffer_size * sizeof(char));
     }
     size_t offset_buffer_size;
-    CHECK(reader->Read(&offset_buffer_size, sizeof(size_t)));
+    is.read(reinterpret_cast<char*>(&offset_buffer_size), sizeof(size_t));
     if (offset_buffer_size > 0) {
       buffer.offset_buffer().resize(offset_buffer_size);
-      CHECK(reader->Read(buffer.offset_buffer().data(),
-                         offset_buffer_size * sizeof(size_t)));
+      is.read(reinterpret_cast<char*>(buffer.offset_buffer().data()),
+              offset_buffer_size * sizeof(size_t));
     }
   }
 };
@@ -515,7 +511,7 @@ class LFIndexer {
   }
 
   void dump_meta(const std::string& filename) const {
-    grape::InArchive arc;
+    InArchive arc;
     arc << get_type() << num_elements_.load() << num_slots_minus_one_
         << hash_policy_.get_mod_function_index();
     FILE* fout = fopen(filename.c_str(), "wb");
@@ -525,7 +521,7 @@ class LFIndexer {
   }
 
   void load_meta(const std::string& filename) {
-    grape::OutArchive arc;
+    OutArchive arc;
     FILE* fin = fopen(filename.c_str(), "r");
     size_t meta_file_size = std::filesystem::file_size(filename);
     std::vector<char> buf(meta_file_size);
@@ -854,29 +850,35 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   key_buffer_t& keys() { return keys_; }
 
-  void Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
-    id_indexer_impl::KeyBuffer<KEY_T>::serialize(writer, keys_);
-    grape::InArchive arc;
+  void Serialize(std::ostream& os) const {
+    id_indexer_impl::KeyBuffer<KEY_T>::serialize(os, keys_);
+    InArchive arc;
     arc << hash_policy_.get_mod_function_index() << max_lookups_
         << num_elements_ << num_slots_minus_one_ << indices_.size()
         << distances_.size();
-    CHECK(writer->WriteArchive(arc));
+    size_t arc_size = arc.GetSize();
+    os.write(reinterpret_cast<char*>(&arc_size), sizeof(size_t));
+    os.write(arc.GetBuffer(), arc_size);
+
     arc.Clear();
 
     if (indices_.size() > 0) {
-      CHECK(writer->Write(const_cast<uint8_t*>(indices_.data()),
-                          indices_.size() * sizeof(INDEX_T)));
+      os.write(reinterpret_cast<const char*>(indices_.data()),
+               indices_.size() * sizeof(INDEX_T));
     }
     if (distances_.size() > 0) {
-      CHECK(writer->Write(const_cast<int8_t*>(distances_.data()),
-                          distances_.size() * sizeof(int8_t)));
+      os.write(reinterpret_cast<const char*>(distances_.data()),
+               distances_.size() * sizeof(int8_t));
     }
   }
 
-  void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
-    id_indexer_impl::KeyBuffer<KEY_T>::deserialize(reader, keys_);
-    grape::OutArchive arc;
-    CHECK(reader->ReadArchive(arc));
+  void Deserialize(std::istream& is) {
+    id_indexer_impl::KeyBuffer<KEY_T>::deserialize(is, keys_);
+    OutArchive arc;
+    size_t arc_size;
+    is.read(reinterpret_cast<char*>(&arc_size), sizeof(size_t));
+    arc.Allocate(arc_size);
+    is.read(arc.GetBuffer(), arc_size);
     size_t mod_function_index;
     size_t indices_size, distances_size;
     arc >> mod_function_index >> max_lookups_ >> num_elements_ >>
@@ -887,11 +889,12 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
     indices_.resize(indices_size);
     distances_.resize(distances_size);
     if (indices_size > 0) {
-      CHECK(reader->Read(indices_.data(), indices_.size() * sizeof(INDEX_T)));
+      is.read(reinterpret_cast<char*>(indices_.data()),
+              indices_.size() * sizeof(INDEX_T));
     }
     if (distances_size > 0) {
-      CHECK(
-          reader->Read(distances_.data(), distances_.size() * sizeof(int8_t)));
+      is.read(reinterpret_cast<char*>(distances_.data()),
+              distances_.size() * sizeof(int8_t));
     }
   }
 

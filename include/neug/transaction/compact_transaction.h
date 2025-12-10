@@ -16,8 +16,8 @@
 #ifndef INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
 #define INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
 
 namespace gs {
 
@@ -48,7 +48,7 @@ class CompactTransaction {
   float reserve_ratio_;
   timestamp_t timestamp_;
 
-  grape::InArchive arc_;
+  InArchive arc_;
 };
 
 }  // namespace gs

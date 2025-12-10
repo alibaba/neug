@@ -26,8 +26,8 @@
 #include <memory>
 #include <thread>
 #include <utility>
-#include "libgrape-lite/grape/types.h"
 #include "neug/storages/file_names.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 
@@ -597,7 +597,7 @@ template class ImmutableCsr<int64_t>;
 template class ImmutableCsr<uint64_t>;
 template class ImmutableCsr<float>;
 template class ImmutableCsr<double>;
-template class ImmutableCsr<grape::EmptyType>;
+template class ImmutableCsr<EmptyType>;
 template class ImmutableCsr<Date>;
 template class ImmutableCsr<DateTime>;
 template class ImmutableCsr<Interval>;
@@ -608,7 +608,7 @@ template class SingleImmutableCsr<int64_t>;
 template class SingleImmutableCsr<uint64_t>;
 template class SingleImmutableCsr<float>;
 template class SingleImmutableCsr<double>;
-template class SingleImmutableCsr<grape::EmptyType>;
+template class SingleImmutableCsr<EmptyType>;
 template class SingleImmutableCsr<Date>;
 template class SingleImmutableCsr<DateTime>;
 template class SingleImmutableCsr<Interval>;

@@ -25,20 +25,15 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include "neug/execution/common/utils/bitset.h"
+#include "neug/utils/bitset.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
-
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace YAML {
 class Node;
-}
-
-namespace grape {
-class LocalIOAdaptor;
 }
 
 namespace gs {
@@ -503,9 +498,9 @@ class Schema {
 
   const std::string& get_vertex_primary_key_name(label_t index) const;
 
-  void Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const;
+  void Serialize(std::ostream& os) const;
 
-  void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader);
+  void Deserialize(std::istream& is);
 
   static gs::result<Schema> LoadFromYaml(const std::string& schema_config);
 
@@ -583,10 +578,10 @@ class Schema {
   friend class PropertyGraph;
 };
 
-grape::InArchive& operator<<(grape::InArchive& arc, const VertexSchema& schema);
-grape::InArchive& operator<<(grape::InArchive& arc, const EdgeSchema& schema);
-grape::OutArchive& operator>>(grape::OutArchive& arc, VertexSchema& schema);
-grape::OutArchive& operator>>(grape::OutArchive& arc, EdgeSchema& schema);
+InArchive& operator<<(InArchive& arc, const VertexSchema& schema);
+InArchive& operator<<(InArchive& arc, const EdgeSchema& schema);
+OutArchive& operator>>(OutArchive& arc, VertexSchema& schema);
+OutArchive& operator>>(OutArchive& arc, EdgeSchema& schema);
 
 }  // namespace gs
 

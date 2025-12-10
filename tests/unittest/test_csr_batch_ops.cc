@@ -7,11 +7,11 @@
 
 using CsrTypes = ::testing::Types<
     gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,
-    gs::MutableCsr<grape::EmptyType>, gs::MutableCsr<gs::DateTime>,
+    gs::MutableCsr<gs::EmptyType>, gs::MutableCsr<gs::DateTime>,
     gs::ImmutableCsr<uint32_t>, gs::ImmutableCsr<uint64_t>,
     gs::ImmutableCsr<double>, gs::ImmutableCsr<gs::Date>,
     gs::SingleImmutableCsr<int32_t>, gs::SingleImmutableCsr<int64_t>,
-    gs::SingleImmutableCsr<float>, gs::SingleImmutableCsr<grape::EmptyType>,
+    gs::SingleImmutableCsr<float>, gs::SingleImmutableCsr<gs::EmptyType>,
     gs::SingleImmutableCsr<gs::DateTime>, gs::SingleMutableCsr<uint32_t>,
     gs::SingleMutableCsr<uint64_t>, gs::SingleMutableCsr<double>,
     gs::SingleMutableCsr<gs::Date>>;

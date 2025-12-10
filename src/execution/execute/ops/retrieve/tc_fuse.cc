@@ -35,10 +35,6 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
-namespace grape {
-struct EmptyType;
-}  // namespace grape
-
 namespace gs {
 namespace runtime {
 class OprTimer;

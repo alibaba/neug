@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
-#include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/transaction_utils.h"
@@ -38,6 +37,7 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
 
 #define ENSURE_VERTEX_LABEL_NOT_DELETED(label)                            \
   do {                                                                    \
@@ -386,7 +386,7 @@ class UpdateTransaction {
   IVersionManager& vm_;
   timestamp_t timestamp_;
 
-  grape::InArchive arc_;
+  InArchive arc_;
   int op_num_;
 
   std::unordered_set<label_t> deleted_vertex_labels_;

@@ -21,7 +21,6 @@
 #include <set>
 #include <string_view>
 
-#include "libgrape-lite/grape/util.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/execution/utils/predicates.h"
@@ -119,7 +118,12 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
       expected_labels.emplace_back(triplet);
     }
   }
-  grape::DistinctSort(expected_labels);
+  {
+    std::sort(expected_labels.begin(), expected_labels.end());
+    expected_labels.erase(
+        std::unique(expected_labels.begin(), expected_labels.end()),
+        expected_labels.end());
+  }
   if (expected_labels.empty()) {
     MLVertexColumnBuilder builder;
     auto col = builder.finish();
@@ -314,7 +318,11 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       ctx.set_with_reshuffle(params.alias, col, {});
       return ctx;
     }
-    grape::DistinctSort(label_dirs);
+    {
+      std::sort(label_dirs.begin(), label_dirs.end());
+      label_dirs.erase(std::unique(label_dirs.begin(), label_dirs.end()),
+                       label_dirs.end());
+    }
     std::vector<PropertyType> ed_types;
     for (auto& label_dir : label_dirs) {
       Direction dir = std::get<2>(label_dir);

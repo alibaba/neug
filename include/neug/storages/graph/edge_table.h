@@ -33,10 +33,6 @@
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
-namespace grape {
-class OutArchive;
-}  // namespace grape
-
 namespace gs {
 
 class PropertyGraph;

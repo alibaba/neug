@@ -42,10 +42,6 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace grape {
-struct EmptyType;
-}  // namespace grape
-
 namespace gs {
 
 namespace runtime {

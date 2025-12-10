@@ -19,7 +19,6 @@
 #include <limits>
 #include <ostream>
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"

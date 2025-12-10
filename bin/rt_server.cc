@@ -19,6 +19,7 @@
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
+#include <chrono>
 #include <csignal>
 #include "cxxopts/cxxopts.hpp"
 
@@ -103,7 +104,7 @@ int main(int argc, char** argv) {
   setenv("TZ", "Asia/Shanghai", 1);
   tzset();
 
-  double t0 = -grape::GetCurrentTime();
+  auto start = std::chrono::high_resolution_clock::now();
   gs::NeugDB db;
   gs::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
@@ -114,9 +115,10 @@ int main(int argc, char** argv) {
   }
   db.Open(config);
 
-  t0 += grape::GetCurrentTime();
+  auto end = std::chrono::high_resolution_clock::now();
+  double elapsed = std::chrono::duration<double>(end - start).count();
 
-  LOG(INFO) << "Finished loading graph, elapsed " << t0 << " s";
+  LOG(INFO) << "Finished loading graph, elapsed " << elapsed << " s";
 
   // start service
   LOG(INFO) << "GraphScope http server start to listen on port " << http_port;

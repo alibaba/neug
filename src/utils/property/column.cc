@@ -17,12 +17,11 @@
 
 #include <limits>
 
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -82,7 +81,7 @@ class TypedEmptyColumn : public ColumnBase {
 
   Property get_prop(size_t index) const override { return Property(); }
 
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
+  void ingest(uint32_t index, OutArchive& arc) override {
     T val;
     arc >> val;
   }
@@ -124,7 +123,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
 
   Property get_prop(size_t index) const override { return Property(); }
 
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
+  void ingest(uint32_t index, OutArchive& arc) override {
     std::string_view val;
     arc >> val;
   }
@@ -185,7 +184,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
     }
   } else {
     if (type == PropertyType::kEmpty) {
-      return std::make_shared<TypedColumn<grape::EmptyType>>(strategy);
+      return std::make_shared<TypedColumn<EmptyType>>(strategy);
     } else if (type == PropertyType::kBool) {
       return std::make_shared<BoolColumn>(strategy);
     } else if (type == PropertyType::kInt32) {

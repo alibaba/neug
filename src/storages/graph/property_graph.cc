@@ -27,7 +27,6 @@
 #include <tl/expected.hpp>
 #include <utility>
 
-#include "libgrape-lite/grape/io/local_io_adaptor.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -65,10 +64,8 @@ PropertyGraph::~PropertyGraph() {
 }
 
 void PropertyGraph::loadSchema(const std::string& schema_path) {
-  auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
-      new grape::LocalIOAdaptor(schema_path));
-  io_adaptor->Open();
-  schema_.Deserialize(io_adaptor);
+  std::ifstream in(schema_path);
+  schema_.Deserialize(in);
 }
 
 void PropertyGraph::Clear() {
@@ -735,11 +732,11 @@ Status PropertyGraph::BatchDeleteEdges(
 
 void PropertyGraph::DumpSchema() {
   auto _schema_path = schema_path(work_dir_);
-  auto io_adaptor = std::unique_ptr<grape::LocalIOAdaptor>(
-      new grape::LocalIOAdaptor(_schema_path));
-  io_adaptor->Open("wb");
-  schema_.Serialize(io_adaptor);
-  io_adaptor->Close();
+  std::ofstream out(_schema_path);
+  schema_.Serialize(out);
+  out.flush();
+  out.close();
+
   LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();

@@ -20,7 +20,6 @@
 #include <queue>
 #include <tuple>
 
-#include "libgrape-lite/grape/types.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"

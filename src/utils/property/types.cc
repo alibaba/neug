@@ -30,10 +30,10 @@
 #include <regex>
 
 #include "date/date.h"
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -284,16 +284,14 @@ PropertyType PropertyType::Interval() {
   return PropertyType(impl::PropertyTypeImpl::kInterval);
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const PropertyType& value) {
+InArchive& operator<<(InArchive& in_archive, const PropertyType& value) {
   in_archive << value.type_enum;
   if (value.type_enum == impl::PropertyTypeImpl::kVarChar) {
     in_archive << value.additional_type_info.max_length;
   }
   return in_archive;
 }
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              PropertyType& value) {
+OutArchive& operator>>(OutArchive& out_archive, PropertyType& value) {
   out_archive >> value.type_enum;
   if (value.type_enum == impl::PropertyTypeImpl::kVarChar) {
     out_archive >> value.additional_type_info.max_length;
@@ -301,49 +299,30 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive,
   return out_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const std::string_view& str) {
-  in_archive << str.length();
-  in_archive.AddBytes(str.data(), str.length());
-  return in_archive;
-}
-
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              std::string_view& str) {
-  size_t size;
-  out_archive >> size;
-  str = std::string_view(reinterpret_cast<char*>(out_archive.GetBytes(size)),
-                         size);
-  return out_archive;
-}
-
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const GlobalId& value) {
+InArchive& operator<<(InArchive& in_archive, const GlobalId& value) {
   in_archive << value.global_id;
   return in_archive;
 }
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, GlobalId& value) {
+OutArchive& operator>>(OutArchive& out_archive, GlobalId& value) {
   out_archive >> value.global_id;
   return out_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const LabelKey& value) {
+InArchive& operator<<(InArchive& in_archive, const LabelKey& value) {
   in_archive << value.label_id;
   return in_archive;
 }
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, LabelKey& value) {
+OutArchive& operator>>(OutArchive& out_archive, LabelKey& value) {
   out_archive >> value.label_id;
   return out_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const Interval& value) {
+InArchive& operator<<(InArchive& in_archive, const Interval& value) {
   in_archive << value.months << value.days << value.micros;
   return in_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value) {
+OutArchive& operator>>(OutArchive& out_archive, Interval& value) {
   out_archive >> value.months >> value.days >> value.micros;
   return out_archive;
 }

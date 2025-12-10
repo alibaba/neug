@@ -24,10 +24,7 @@
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/column.h"
-
-namespace grape {
-class OutArchive;
-}  // namespace grape
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -355,7 +352,7 @@ void Table::resize(size_t row_num) {
   }
 }
 
-void Table::ingest(uint32_t index, grape::OutArchive& arc) {
+void Table::ingest(uint32_t index, OutArchive& arc) {
   if (column_ptrs_.size() == 0) {
     return;
   }

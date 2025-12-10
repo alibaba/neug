@@ -38,10 +38,6 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace grape {
-class OutArchive;
-}  // namespace grape
-
 namespace gs {
 
 namespace runtime {

@@ -23,9 +23,9 @@
 #include <string_view>
 #include <variant>
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -33,7 +33,7 @@ union PropValue {
   PropValue() {}
   ~PropValue() {}
 
-  grape::EmptyType empty;
+  EmptyType empty;
   bool b;
   int32_t i;
   uint32_t ui;
@@ -377,7 +377,7 @@ inline Property parse_property_from_string(PropertyType pt,
     return Property::empty();
   }
 }
-inline void serialize_property(grape::InArchive& arc, const Property& prop) {
+inline void serialize_property(InArchive& arc, const Property& prop) {
   auto type = prop.type();
   if (type == PropertyType::kBool) {
     arc << prop.as_bool();
@@ -409,7 +409,7 @@ inline void serialize_property(grape::InArchive& arc, const Property& prop) {
   }
 }
 
-inline void deserialize_property(grape::OutArchive& arc, PropertyType pt,
+inline void deserialize_property(OutArchive& arc, PropertyType pt,
                                  Property& prop) {
   if (pt == PropertyType::kBool) {
     bool v;
@@ -575,14 +575,10 @@ struct PropUtils<DateTime> {
 };
 
 template <>
-struct PropUtils<grape::EmptyType> {
+struct PropUtils<EmptyType> {
   static PropertyType prop_type() { return PropertyType::kEmpty; }
-  static grape::EmptyType to_typed(const Property& prop) {
-    return grape::EmptyType();
-  }
-  static Property to_prop(const grape::EmptyType& v) {
-    return Property::empty();
-  }
+  static EmptyType to_typed(const Property& prop) { return EmptyType(); }
+  static Property to_prop(const EmptyType& v) { return Property::empty(); }
 };
 
 template <>
@@ -597,9 +593,8 @@ struct PropUtils<Interval> {
   }
 };
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const Property& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value);
+InArchive& operator<<(InArchive& in_archive, const Property& value);
+OutArchive& operator>>(OutArchive& out_archive, Property& value);
 
 }  // namespace gs
 

@@ -31,14 +31,13 @@
 #include <string>
 #include <vector>
 
-#include "libgrape-lite/grape/types.h"
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/spinlock.h"
 
 namespace gs {
 
@@ -196,7 +195,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void dump_meta(const std::string& prefix) const;
 
-  grape::SpinLock* locks_;
+  SpinLock* locks_;
   mmap_array<nbr_t*> adj_list_buffer_;
   mmap_array<std::atomic<int>> adj_list_size_;
   mmap_array<int> adj_list_capacity_;

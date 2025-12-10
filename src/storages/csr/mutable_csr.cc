@@ -28,6 +28,8 @@
 
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/types.h"
+#include "neug/utils/spinlock.h"
 
 namespace gs {
 
@@ -109,7 +111,7 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
   adj_list_size_.resize(degree_list.size());
   adj_list_capacity_.open(tmp_dir(work_dir) + "/" + name + ".adj_cap", true);
   adj_list_capacity_.resize(degree_list.size());
-  locks_ = new grape::SpinLock[degree_list.size()];
+  locks_ = new SpinLock[degree_list.size()];
 
   nbr_t* ptr = nbr_list_.data();
   for (size_t i = 0; i < degree_list.size(); ++i) {
@@ -146,7 +148,7 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
   adj_list_buffer_.resize(v_cap);
   adj_list_size_.resize(v_cap);
   adj_list_capacity_.resize(v_cap);
-  locks_ = new grape::SpinLock[v_cap];
+  locks_ = new SpinLock[v_cap];
 
   nbr_t* ptr = nbr_list_.data();
   for (size_t i = 0; i < degree_list.size(); ++i) {
@@ -192,7 +194,7 @@ void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
   adj_list_size_.resize(v_cap);
   adj_list_capacity_.open_with_hugepages("");
   adj_list_capacity_.resize(v_cap);
-  locks_ = new grape::SpinLock[v_cap];
+  locks_ = new SpinLock[v_cap];
 
   nbr_t* ptr = nbr_list_.data();
   for (size_t i = 0; i < degree_list.size(); ++i) {
@@ -365,7 +367,7 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
       adj_list_capacity_[k] = 0;
     }
     delete[] locks_;
-    locks_ = new grape::SpinLock[vnum];
+    locks_ = new SpinLock[vnum];
   } else {
     adj_list_buffer_.resize(vnum);
     adj_list_size_.resize(vnum);
@@ -814,7 +816,7 @@ void SingleMutableCsr<EDATA_T>::batch_put_edges(
   }
 }
 
-template class MutableCsr<grape::EmptyType>;
+template class MutableCsr<EmptyType>;
 template class MutableCsr<int32_t>;
 template class MutableCsr<uint32_t>;
 template class MutableCsr<Date>;
@@ -832,7 +834,7 @@ template class SingleMutableCsr<int64_t>;
 template class SingleMutableCsr<Date>;
 template class SingleMutableCsr<uint32_t>;
 template class SingleMutableCsr<int32_t>;
-template class SingleMutableCsr<grape::EmptyType>;
+template class SingleMutableCsr<EmptyType>;
 template class SingleMutableCsr<DateTime>;
 template class SingleMutableCsr<Interval>;
 

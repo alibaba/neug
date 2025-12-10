@@ -23,6 +23,8 @@
 
 #include "neug/storages/file_names.h"
 #include "neug/transaction/wal/dummy_wal_writer.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -149,7 +151,7 @@ WalParserFactory::getKnownWalParsers() {
 ////////////////////////// Serialization operators //////////////////////////
 
 void CreateVertexTypeRedo::Serialize(
-    grape::InArchive& arc, const std::string& vertex_type,
+    InArchive& arc, const std::string& vertex_type,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties,
     const std::vector<std::string>& primary_key_names) {
@@ -167,7 +169,7 @@ void CreateVertexTypeRedo::Serialize(
   }
 }
 
-void CreateVertexTypeRedo::Deserialize(grape::OutArchive& arc,
+void CreateVertexTypeRedo::Deserialize(OutArchive& arc,
                                        CreateVertexTypeRedo& redo) {
   arc >> redo.vertex_type;
   uint32_t prop_size;
@@ -185,8 +187,8 @@ void CreateVertexTypeRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void CreateEdgeTypeRedo::Serialize(
-    grape::InArchive& arc, const std::string& src_type,
-    const std::string& dst_type, const std::string& edge_type,
+    InArchive& arc, const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties,
     EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
@@ -199,7 +201,7 @@ void CreateEdgeTypeRedo::Serialize(
   arc << oe_edge_strategy << ie_edge_strategy;
 }
 
-void CreateEdgeTypeRedo::Deserialize(grape::OutArchive& arc,
+void CreateEdgeTypeRedo::Deserialize(OutArchive& arc,
                                      CreateEdgeTypeRedo& redo) {
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
   uint32_t prop_size;
@@ -212,7 +214,7 @@ void CreateEdgeTypeRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void AddVertexPropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& vertex_type,
+    InArchive& arc, const std::string& vertex_type,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties) {
   arc << static_cast<uint8_t>(OpType::kAddVertexProp);
@@ -223,7 +225,7 @@ void AddVertexPropertiesRedo::Serialize(
   }
 }
 
-void AddVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
+void AddVertexPropertiesRedo::Deserialize(OutArchive& arc,
                                           AddVertexPropertiesRedo& redo) {
   arc >> redo.vertex_type;
   uint32_t prop_size;
@@ -235,8 +237,8 @@ void AddVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void AddEdgePropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& src_type,
-    const std::string& dst_type, const std::string& edge_type,
+    InArchive& arc, const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
     const std::vector<std::tuple<PropertyType, std::string, Property>>&
         properties) {
   arc << static_cast<uint8_t>(OpType::kAddEdgeProp);
@@ -247,7 +249,7 @@ void AddEdgePropertiesRedo::Serialize(
   }
 }
 
-void AddEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
+void AddEdgePropertiesRedo::Deserialize(OutArchive& arc,
                                         AddEdgePropertiesRedo& redo) {
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
   uint32_t prop_size;
@@ -259,7 +261,7 @@ void AddEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void RenameVertexPropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& vertex_type,
+    InArchive& arc, const std::string& vertex_type,
     const std::vector<std::pair<std::string, std::string>>& update_properties) {
   arc << static_cast<uint8_t>(OpType::kRenameVertexProp);
   arc << vertex_type;
@@ -269,7 +271,7 @@ void RenameVertexPropertiesRedo::Serialize(
   }
 }
 
-void RenameVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
+void RenameVertexPropertiesRedo::Deserialize(OutArchive& arc,
                                              RenameVertexPropertiesRedo& redo) {
   arc >> redo.vertex_type;
   uint32_t prop_size;
@@ -281,8 +283,8 @@ void RenameVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void RenameEdgePropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& src_type,
-    const std::string& dst_type, const std::string& edge_type,
+    InArchive& arc, const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
     const std::vector<std::pair<std::string, std::string>>& update_properties) {
   arc << static_cast<uint8_t>(OpType::kRenameEdgeProp);
   arc << src_type << dst_type << edge_type;
@@ -292,7 +294,7 @@ void RenameEdgePropertiesRedo::Serialize(
   }
 }
 
-void RenameEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
+void RenameEdgePropertiesRedo::Deserialize(OutArchive& arc,
                                            RenameEdgePropertiesRedo& redo) {
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
   uint32_t prop_size;
@@ -304,7 +306,7 @@ void RenameEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void DeleteVertexPropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& vertex_type,
+    InArchive& arc, const std::string& vertex_type,
     const std::vector<std::string>& delete_properties) {
   arc << static_cast<uint8_t>(OpType::kDeleteVertexProp);
   arc << vertex_type;
@@ -314,7 +316,7 @@ void DeleteVertexPropertiesRedo::Serialize(
   }
 }
 
-void DeleteVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
+void DeleteVertexPropertiesRedo::Deserialize(OutArchive& arc,
                                              DeleteVertexPropertiesRedo& redo) {
   arc >> redo.vertex_type;
   uint32_t prop_size;
@@ -326,8 +328,8 @@ void DeleteVertexPropertiesRedo::Deserialize(grape::OutArchive& arc,
 }
 
 void DeleteEdgePropertiesRedo::Serialize(
-    grape::InArchive& arc, const std::string& src_type,
-    const std::string& dst_type, const std::string& edge_type,
+    InArchive& arc, const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
     const std::vector<std::string>& delete_properties) {
   arc << static_cast<uint8_t>(OpType::kDeleteEdgeProp);
   arc << src_type << dst_type << edge_type;
@@ -337,7 +339,7 @@ void DeleteEdgePropertiesRedo::Serialize(
   }
 }
 
-void DeleteEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
+void DeleteEdgePropertiesRedo::Deserialize(OutArchive& arc,
                                            DeleteEdgePropertiesRedo& redo) {
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
   uint32_t prop_size;
@@ -348,31 +350,30 @@ void DeleteEdgePropertiesRedo::Deserialize(grape::OutArchive& arc,
   }
 }
 
-void DeleteVertexTypeRedo::Serialize(grape::InArchive& arc,
+void DeleteVertexTypeRedo::Serialize(InArchive& arc,
                                      const std::string& vertex_type) {
   arc << static_cast<uint8_t>(OpType::kDeleteVertexType);
   arc << vertex_type;
 }
 
-void DeleteVertexTypeRedo::Deserialize(grape::OutArchive& arc,
+void DeleteVertexTypeRedo::Deserialize(OutArchive& arc,
                                        DeleteVertexTypeRedo& redo) {
   arc >> redo.vertex_type;
 }
 
-void DeleteEdgeTypeRedo::Serialize(grape::InArchive& arc,
-                                   const std::string& src_type,
+void DeleteEdgeTypeRedo::Serialize(InArchive& arc, const std::string& src_type,
                                    const std::string& dst_type,
                                    const std::string& edge_type) {
   arc << static_cast<uint8_t>(OpType::kDeleteEdgeType);
   arc << src_type << dst_type << edge_type;
 }
 
-void DeleteEdgeTypeRedo::Deserialize(grape::OutArchive& arc,
+void DeleteEdgeTypeRedo::Deserialize(OutArchive& arc,
                                      DeleteEdgeTypeRedo& redo) {
   arc >> redo.src_type >> redo.dst_type >> redo.edge_type;
 }
 
-void InsertVertexRedo::Serialize(grape::InArchive& arc, label_t label,
+void InsertVertexRedo::Serialize(InArchive& arc, label_t label,
                                  const Property& oid,
                                  const std::vector<Property>& props) {
   arc << static_cast<uint8_t>(OpType::kInsertVertex);
@@ -383,8 +384,7 @@ void InsertVertexRedo::Serialize(grape::InArchive& arc, label_t label,
   }
 }
 
-void InsertVertexRedo::Deserialize(grape::OutArchive& arc,
-                                   InsertVertexRedo& redo) {
+void InsertVertexRedo::Deserialize(OutArchive& arc, InsertVertexRedo& redo) {
   arc >> redo.label >> redo.oid;
   uint32_t prop_size;
   arc >> prop_size;
@@ -394,7 +394,7 @@ void InsertVertexRedo::Deserialize(grape::OutArchive& arc,
   }
 }
 
-void InsertEdgeRedo::Serialize(grape::InArchive& arc, label_t src_label,
+void InsertEdgeRedo::Serialize(InArchive& arc, label_t src_label,
                                const Property& src, label_t dst_label,
                                const Property& dst, label_t edge_label,
                                const std::vector<Property>& properties) {
@@ -406,7 +406,7 @@ void InsertEdgeRedo::Serialize(grape::InArchive& arc, label_t src_label,
   }
 }
 
-void InsertEdgeRedo::Deserialize(grape::OutArchive& arc, InsertEdgeRedo& redo) {
+void InsertEdgeRedo::Deserialize(OutArchive& arc, InsertEdgeRedo& redo) {
   arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
       redo.edge_label;
   uint32_t prop_size;
@@ -417,19 +417,19 @@ void InsertEdgeRedo::Deserialize(grape::OutArchive& arc, InsertEdgeRedo& redo) {
   }
 }
 
-void UpdateVertexPropRedo::Serialize(grape::InArchive& arc, label_t label,
+void UpdateVertexPropRedo::Serialize(InArchive& arc, label_t label,
                                      const Property& oid, int prop_id,
                                      const Property& value) {
   arc << static_cast<uint8_t>(OpType::kUpdateVertexProp);
   arc << label << oid << prop_id << value;
 }
 
-void UpdateVertexPropRedo::Deserialize(grape::OutArchive& arc,
+void UpdateVertexPropRedo::Deserialize(OutArchive& arc,
                                        UpdateVertexPropRedo& redo) {
   arc >> redo.label >> redo.oid >> redo.prop_id >> redo.value;
 }
 
-void UpdateEdgePropRedo::Serialize(grape::InArchive& arc, label_t src_label,
+void UpdateEdgePropRedo::Serialize(InArchive& arc, label_t src_label,
                                    const Property& src, label_t dst_label,
                                    const Property& dst, label_t edge_label,
                                    int32_t oe_offset, int32_t ie_offset,
@@ -440,7 +440,7 @@ void UpdateEdgePropRedo::Serialize(grape::InArchive& arc, label_t src_label,
   arc << prop_id << value;
 }
 
-void UpdateEdgePropRedo::Deserialize(grape::OutArchive& arc,
+void UpdateEdgePropRedo::Deserialize(OutArchive& arc,
                                      UpdateEdgePropRedo& redo) {
   arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
       redo.edge_label;
@@ -448,18 +448,17 @@ void UpdateEdgePropRedo::Deserialize(grape::OutArchive& arc,
   arc >> redo.prop_id >> redo.value;
 }
 
-void RemoveVertexRedo::Serialize(grape::InArchive& arc, label_t label,
+void RemoveVertexRedo::Serialize(InArchive& arc, label_t label,
                                  const Property& oid) {
   arc << static_cast<uint8_t>(OpType::kRemoveVertex);
   arc << label << oid;
 }
 
-void RemoveVertexRedo::Deserialize(grape::OutArchive& arc,
-                                   RemoveVertexRedo& redo) {
+void RemoveVertexRedo::Deserialize(OutArchive& arc, RemoveVertexRedo& redo) {
   arc >> redo.label >> redo.oid;
 }
 
-void RemoveEdgeRedo::Serialize(grape::InArchive& arc, label_t src_label,
+void RemoveEdgeRedo::Serialize(InArchive& arc, label_t src_label,
                                const Property& src, label_t dst_label,
                                const Property& dst, label_t edge_label,
                                int32_t oe_offset, int32_t ie_offset) {
@@ -468,107 +467,102 @@ void RemoveEdgeRedo::Serialize(grape::InArchive& arc, label_t src_label,
   arc << oe_offset << ie_offset;
 }
 
-void RemoveEdgeRedo::Deserialize(grape::OutArchive& arc, RemoveEdgeRedo& redo) {
+void RemoveEdgeRedo::Deserialize(OutArchive& arc, RemoveEdgeRedo& redo) {
   arc >> redo.src_label >> redo.src >> redo.dst_label >> redo.dst >>
       redo.edge_label;
   arc >> redo.oe_offset >> redo.ie_offset;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const CreateVertexTypeRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const CreateVertexTypeRedo& value) {
   CreateVertexTypeRedo::Serialize(in_archive, value.vertex_type,
                                   value.properties, value.primary_key_names);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const CreateEdgeTypeRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const CreateEdgeTypeRedo& value) {
   CreateEdgeTypeRedo::Serialize(in_archive, value.src_type, value.dst_type,
                                 value.edge_type, value.properties,
                                 value.oe_edge_strategy, value.ie_edge_strategy);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const AddVertexPropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const AddVertexPropertiesRedo& value) {
   AddVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
                                      value.properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const AddEdgePropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const AddEdgePropertiesRedo& value) {
   AddEdgePropertiesRedo::Serialize(in_archive, value.src_type, value.dst_type,
                                    value.edge_type, value.properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const RenameVertexPropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const RenameVertexPropertiesRedo& value) {
   RenameVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
                                         value.update_properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const RenameEdgePropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const RenameEdgePropertiesRedo& value) {
   RenameEdgePropertiesRedo::Serialize(in_archive, value.src_type,
                                       value.dst_type, value.edge_type,
                                       value.update_properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const DeleteVertexPropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const DeleteVertexPropertiesRedo& value) {
   DeleteVertexPropertiesRedo::Serialize(in_archive, value.vertex_type,
                                         value.delete_properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const DeleteEdgePropertiesRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const DeleteEdgePropertiesRedo& value) {
   DeleteEdgePropertiesRedo::Serialize(in_archive, value.src_type,
                                       value.dst_type, value.edge_type,
                                       value.delete_properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const DeleteVertexTypeRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const DeleteVertexTypeRedo& value) {
   DeleteVertexTypeRedo::Serialize(in_archive, value.vertex_type);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const DeleteEdgeTypeRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const DeleteEdgeTypeRedo& value) {
   DeleteEdgeTypeRedo::Serialize(in_archive, value.src_type, value.dst_type,
                                 value.edge_type);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const InsertVertexRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const InsertVertexRedo& value) {
   InsertVertexRedo::Serialize(in_archive, value.label, value.oid, value.props);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const InsertEdgeRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const InsertEdgeRedo& value) {
   InsertEdgeRedo::Serialize(in_archive, value.src_label, value.src,
                             value.dst_label, value.dst, value.edge_label,
                             value.properties);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const UpdateVertexPropRedo& value) {
+InArchive& operator<<(InArchive& in_archive,
+                      const UpdateVertexPropRedo& value) {
   UpdateVertexPropRedo::Serialize(in_archive, value.label, value.oid,
                                   value.prop_id, value.value);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const UpdateEdgePropRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const UpdateEdgePropRedo& value) {
   UpdateEdgePropRedo::Serialize(in_archive, value.src_label, value.src,
                                 value.dst_label, value.dst, value.edge_label,
                                 value.oe_offset, value.ie_offset, value.prop_id,
@@ -576,14 +570,12 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const RemoveVertexRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const RemoveVertexRedo& value) {
   RemoveVertexRedo::Serialize(in_archive, value.label, value.oid);
   return in_archive;
 }
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const RemoveEdgeRedo& value) {
+InArchive& operator<<(InArchive& in_archive, const RemoveEdgeRedo& value) {
   RemoveEdgeRedo::Serialize(in_archive, value.src_label, value.src,
                             value.dst_label, value.dst, value.edge_label,
                             value.oe_offset, value.ie_offset);
@@ -592,98 +584,87 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
 
 ////////////////////////// Deserialization operators //////////////////////////
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              CreateVertexTypeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, CreateVertexTypeRedo& value) {
   CreateVertexTypeRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              CreateEdgeTypeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, CreateEdgeTypeRedo& value) {
   CreateEdgeTypeRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              AddVertexPropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive,
+                       AddVertexPropertiesRedo& value) {
   AddVertexPropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              AddEdgePropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, AddEdgePropertiesRedo& value) {
   AddEdgePropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              RenameVertexPropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive,
+                       RenameVertexPropertiesRedo& value) {
   RenameVertexPropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              RenameEdgePropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive,
+                       RenameEdgePropertiesRedo& value) {
   RenameEdgePropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              DeleteVertexPropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive,
+                       DeleteVertexPropertiesRedo& value) {
   DeleteVertexPropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              DeleteEdgePropertiesRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive,
+                       DeleteEdgePropertiesRedo& value) {
   DeleteEdgePropertiesRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              DeleteVertexTypeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, DeleteVertexTypeRedo& value) {
   DeleteVertexTypeRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              DeleteEdgeTypeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, DeleteEdgeTypeRedo& value) {
   DeleteEdgeTypeRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              InsertVertexRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, InsertVertexRedo& value) {
   InsertVertexRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              InsertEdgeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, InsertEdgeRedo& value) {
   InsertEdgeRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              UpdateVertexPropRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, UpdateVertexPropRedo& value) {
   UpdateVertexPropRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              UpdateEdgePropRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, UpdateEdgePropRedo& value) {
   UpdateEdgePropRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              RemoveVertexRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, RemoveVertexRedo& value) {
   RemoveVertexRedo::Deserialize(out_archive, value);
   return out_archive;
 }
 
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              RemoveEdgeRedo& value) {
+OutArchive& operator>>(OutArchive& out_archive, RemoveEdgeRedo& value) {
   RemoveEdgeRedo::Deserialize(out_archive, value);
   return out_archive;
 }

@@ -27,10 +27,6 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
-namespace grape {
-class OutArchive;
-}  // namespace grape
-
 namespace gs {
 
 class Table {
@@ -122,7 +118,7 @@ class Table {
     return column_ptrs_[col_id]->get_prop(row_id);
   }
 
-  void ingest(uint32_t index, grape::OutArchive& arc);
+  void ingest(uint32_t index, OutArchive& arc);
 
   void renameProperty(std::string& col_name, std::string& new_col_name);
 

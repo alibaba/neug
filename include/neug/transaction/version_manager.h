@@ -22,8 +22,8 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "libgrape-lite/grape/utils/bitset.h"
-#include "libgrape-lite/grape/utils/concurrent_queue.h"
+#include "neug/utils/bitset.h"
+#include "neug/utils/spinlock.h"
 
 namespace gs {
 
@@ -109,8 +109,8 @@ class TPVersionManager : public IVersionManager {
   std::atomic<int> pending_reqs_{0};
   std::atomic<int> pending_update_reqs_{0};
 
-  grape::Bitset buf_;
-  grape::SpinLock lock_;
+  Bitset buf_;
+  SpinLock lock_;
 };
 
 }  // namespace gs

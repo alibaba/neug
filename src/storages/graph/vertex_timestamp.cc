@@ -16,7 +16,8 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
 
-#include "libgrape-lite/grape/serialization/out_archive.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -197,7 +198,7 @@ void VertexTimestamp::load_meta(const std::string& meta_filename) {
   if (ret != file_size) {
     THROW_INTERNAL_EXCEPTION("Failed to read meta file: " + meta_filename);
   }
-  grape::OutArchive arc;
+  OutArchive arc;
   arc.SetSlice(buffer.data(), file_size);
   arc >> init_vertex_num_ >> max_vertex_num_;
   Init(init_vertex_num_, max_vertex_num_);
@@ -217,7 +218,7 @@ void VertexTimestamp::load_meta(const std::string& meta_filename) {
 }
 
 void VertexTimestamp::dump_meta(const std::string& meta_filename) {
-  grape::InArchive arc;
+  InArchive arc;
   arc << init_vertex_num_ << max_vertex_num_;
   if (removed_vertices_) {
     arc << static_cast<uint32_t>(removed_vertices_->size());
@@ -245,7 +246,7 @@ void VertexTimestamp::load_ts(const std::string& ts_filename) {
   if (ret != file_size) {
     THROW_INTERNAL_EXCEPTION("Failed to read ts file: " + ts_filename);
   }
-  grape::OutArchive arc;
+  OutArchive arc;
   arc.SetSlice(buffer.data(), file_size);
   uint32_t vec_size;
   arc >> vec_size;
@@ -264,7 +265,7 @@ void VertexTimestamp::load_ts(const std::string& ts_filename) {
 }
 
 void VertexTimestamp::dump_ts(const std::string& ts_filename) {
-  grape::InArchive arc;
+  InArchive arc;
   vid_t vec_size = max_vertex_num_ - init_vertex_num_;
   arc << static_cast<uint32_t>(vec_size);
   for (vid_t i = 0; i < vec_size; ++i) {

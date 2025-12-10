@@ -30,13 +30,12 @@
 #include <string_view>
 #include <vector>
 
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "libgrape-lite/grape/types.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 class Table;
@@ -76,7 +75,7 @@ class ColumnBase {
     LOG(FATAL) << "Not implemented";
   }
 
-  virtual void ingest(uint32_t index, grape::OutArchive& arc) = 0;
+  virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 
   virtual StorageStrategy storage_strategy() const = 0;
 
@@ -198,7 +197,7 @@ class TypedColumn : public ColumnBase {
     set_value(index, PropUtils<T>::to_typed(prop));
   }
 
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
+  void ingest(uint32_t index, OutArchive& arc) override {
     T val;
     arc >> val;
     set_value(index, val);
@@ -233,7 +232,7 @@ using DateTimeColumn = TypedColumn<DateTime>;
 using IntervalColumn = TypedColumn<Interval>;
 
 template <>
-class TypedColumn<grape::EmptyType> : public ColumnBase {
+class TypedColumn<EmptyType> : public ColumnBase {
  public:
   explicit TypedColumn(StorageStrategy strategy) : strategy_(strategy) {}
   ~TypedColumn() {}
@@ -255,15 +254,15 @@ class TypedColumn<grape::EmptyType> : public ColumnBase {
 
   void set_any_with_resize(size_t index, const Property& value) override {}
 
-  void set_value(size_t index, const grape::EmptyType& value) {}
+  void set_value(size_t index, const EmptyType& value) {}
 
   Property get_prop(size_t index) const override { return Property::empty(); }
 
   void set_prop(size_t index, const Property& prop) override {}
 
-  grape::EmptyType get_view(size_t index) const { return grape::EmptyType(); }
+  EmptyType get_view(size_t index) const { return EmptyType(); }
 
-  void ingest(uint32_t index, grape::OutArchive& arc) override {}
+  void ingest(uint32_t index, OutArchive& arc) override {}
 
   StorageStrategy storage_strategy() const override { return strategy_; }
 
@@ -434,7 +433,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, PropUtils<std::string_view>::to_typed(prop));
   }
 
-  void ingest(uint32_t index, grape::OutArchive& arc) override {
+  void ingest(uint32_t index, OutArchive& arc) override {
     std::string_view val;
     arc >> val;
     set_value(index, val);

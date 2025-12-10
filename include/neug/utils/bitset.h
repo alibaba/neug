@@ -13,16 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_
+#ifndef INCLUDE_NEUG_UTILS_BITSET_H_
+#define INCLUDE_NEUG_UTILS_BITSET_H_
 
+#include <cstdlib>
+#include <istream>
 #include <memory>
+#include <ostream>
 #include <utility>
 
-#include "libgrape-lite/grape/io/local_io_adaptor.h"
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
-#include "neug/execution/common/utils/allocator.h"
+#include <cstring>
 
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
@@ -33,10 +33,14 @@
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
 
-class Bitset : public SPAllocator<uint64_t> {
+namespace gs {
+
+class Bitset {
+  static constexpr size_t kAlignment = 64;
+
  public:
   Bitset()
-      : data_(NULL),
+      : data_(nullptr),
         size_(0),
         size_in_words_(0),
         capacity_(0),
@@ -48,9 +52,10 @@ class Bitset : public SPAllocator<uint64_t> {
         capacity_(other.capacity_),
         capacity_in_words_(other.capacity_in_words_) {
     if (capacity_ == 0) {
-      data_ = NULL;
+      data_ = nullptr;
     } else {
-      data_ = this->allocate(capacity_in_words_);
+      data_ = static_cast<uint64_t*>(
+          aligned_alloc(kAlignment, capacity_in_words_ * sizeof(uint64_t)));
       memcpy(data_, other.data_, NEUG_BYTE_SIZE(capacity_));
     }
   }
@@ -61,7 +66,7 @@ class Bitset : public SPAllocator<uint64_t> {
         size_in_words_(other.size_in_words_),
         capacity_(other.capacity_),
         capacity_in_words_(other.capacity_in_words_) {
-    other.data_ = NULL;
+    other.data_ = nullptr;
     other.size_ = 0;
     other.size_in_words_ = 0;
     other.capacity_ = 0;
@@ -69,8 +74,8 @@ class Bitset : public SPAllocator<uint64_t> {
   }
 
   ~Bitset() {
-    if (data_ != NULL) {
-      this->deallocate(data_, capacity_in_words_);
+    if (data_ != nullptr) {
+      free(data_);
     }
   }
 
@@ -79,8 +84,8 @@ class Bitset : public SPAllocator<uint64_t> {
       return *this;
     }
 
-    if (data_ != NULL) {
-      this->deallocate(data_, capacity_in_words_);
+    if (data_ != nullptr) {
+      free(data_);
     }
 
     size_ = other.size_;
@@ -89,9 +94,10 @@ class Bitset : public SPAllocator<uint64_t> {
     capacity_in_words_ = other.capacity_in_words_;
 
     if (capacity_ == 0) {
-      data_ = NULL;
+      data_ = nullptr;
     } else {
-      data_ = this->allocate(capacity_in_words_);
+      data_ = static_cast<uint64_t*>(
+          aligned_alloc(kAlignment, capacity_in_words_ * sizeof(uint64_t)));
       memcpy(data_, other.data_, NEUG_BYTE_SIZE(size_));
     }
     return *this;
@@ -102,8 +108,8 @@ class Bitset : public SPAllocator<uint64_t> {
       return *this;
     }
 
-    if (data_ != NULL) {
-      this->deallocate(data_, capacity_in_words_);
+    if (data_ != nullptr) {
+      free(data_);
     }
 
     data_ = other.data_;
@@ -112,7 +118,7 @@ class Bitset : public SPAllocator<uint64_t> {
     capacity_ = other.capacity_;
     capacity_in_words_ = other.capacity_in_words_;
 
-    other.data_ = NULL;
+    other.data_ = nullptr;
     other.size_ = 0;
     other.size_in_words_ = 0;
     other.capacity_ = 0;
@@ -126,10 +132,11 @@ class Bitset : public SPAllocator<uint64_t> {
       capacity_ = cap;
       return;
     }
-    uint64_t* new_data = this->allocate(new_cap_in_words);
-    if (data_ != NULL) {
+    uint64_t* new_data = static_cast<uint64_t*>(
+        aligned_alloc(kAlignment, new_cap_in_words * sizeof(uint64_t)));
+    if (data_ != nullptr) {
       memcpy(new_data, data_, size_in_words_ * sizeof(uint64_t));
-      this->deallocate(data_, capacity_in_words_);
+      free(data_);
     }
     data_ = new_data;
     capacity_ = cap;
@@ -168,6 +175,28 @@ class Bitset : public SPAllocator<uint64_t> {
 
   void reset(size_t i) { data_[WORD_INDEX(i)] &= (~(1ul << BIT_OFFSET(i))); }
 
+  void atomic_set(size_t i) {
+    uint64_t mask = 1ul << BIT_OFFSET(i);
+    __sync_fetch_and_or(data_ + WORD_INDEX(i), mask);
+  }
+
+  void atomic_reset(size_t i) {
+    uint64_t mask = 1ul << BIT_OFFSET(i);
+    __sync_fetch_and_and(data_ + WORD_INDEX(i), ~mask);
+  }
+
+  bool atomic_set_with_ret(size_t i) {
+    uint64_t mask = 1ul << BIT_OFFSET(i);
+    uint64_t ret = __sync_fetch_and_or(data_ + WORD_INDEX(i), mask);
+    return (ret & mask);
+  }
+
+  bool atomic_reset_with_ret(size_t i) {
+    uint64_t mask = 1ul << BIT_OFFSET(i);
+    uint64_t ret = __sync_fetch_and_and(data_ + WORD_INDEX(i), ~mask);
+    return (ret & mask);
+  }
+
   bool get(size_t i) const {
     return data_[WORD_INDEX(i)] & (1ul << BIT_OFFSET(i));
   }
@@ -182,29 +211,9 @@ class Bitset : public SPAllocator<uint64_t> {
 
   inline size_t size() const { return size_; }
 
-  void Serialize(std::unique_ptr<grape::LocalIOAdaptor>& writer) const {
-    grape::InArchive arc;
-    arc << size_ << size_in_words_ << capacity_ << capacity_in_words_;
-    CHECK(writer->WriteArchive(arc));
-    arc.Clear();
-    if (size_in_words_ > 0) {
-      CHECK(writer->Write(data_, size_in_words_ * sizeof(uint64_t)));
-    }
-  }
+  void Serialize(std::ostream& os) const;
 
-  void Deserialize(std::unique_ptr<grape::LocalIOAdaptor>& reader) {
-    if (data_ != NULL) {
-      this->deallocate(data_, capacity_in_words_);
-    }
-    grape::OutArchive arc;
-    CHECK(reader->ReadArchive(arc));
-    arc >> size_ >> size_in_words_ >> capacity_ >> capacity_in_words_;
-    arc.Clear();
-    data_ = this->allocate(capacity_in_words_);
-    if (size_in_words_ > 0) {
-      CHECK(reader->Read(data_, size_in_words_ * sizeof(uint64_t)));
-    }
-  }
+  void Deserialize(std::istream& is);
 
  private:
   uint64_t* data_;
@@ -215,6 +224,8 @@ class Bitset : public SPAllocator<uint64_t> {
   size_t capacity_in_words_;
 };
 
+}  // namespace gs
+
 #undef WORD_SIZE
 #undef NEUG_BYTE_SIZE
 #undef WORD_INDEX
@@ -222,4 +233,4 @@ class Bitset : public SPAllocator<uint64_t> {
 #undef ROUND_UP
 #undef ROUND_DOWN
 
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_UTILS_BITSET_H_
+#endif  // INCLUDE_NEUG_UTILS_BITSET_H_

@@ -16,8 +16,6 @@
 #ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
 #define STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
 
-#include "libgrape-lite/grape/types.h"
-
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -50,7 +48,7 @@ struct ImmutableNbr {
 };
 
 template <>
-struct ImmutableNbr<grape::EmptyType> {
+struct ImmutableNbr<EmptyType> {
   ImmutableNbr() = default;
   ImmutableNbr(const ImmutableNbr& rhs) : neighbor(rhs.neighbor) {}
   ~ImmutableNbr() = default;
@@ -60,14 +58,14 @@ struct ImmutableNbr<grape::EmptyType> {
     return *this;
   }
 
-  void set_data(const grape::EmptyType&) {}
+  void set_data(const EmptyType&) {}
   void set_neighbor(vid_t neighbor) { this->neighbor = neighbor; }
-  const grape::EmptyType& get_data() const { return data; }
+  const EmptyType& get_data() const { return data; }
   vid_t get_neighbor() const { return neighbor; }
 
   union {
     vid_t neighbor;
-    grape::EmptyType data;
+    EmptyType data;
   };
 };
 
@@ -104,7 +102,7 @@ struct MutableNbr {
 };
 
 template <>
-struct MutableNbr<grape::EmptyType> {
+struct MutableNbr<EmptyType> {
   MutableNbr() : timestamp(std::numeric_limits<timestamp_t>::max()) {}
   MutableNbr(const MutableNbr& rhs)
       : neighbor(rhs.neighbor), timestamp(rhs.timestamp.load()) {}
@@ -116,18 +114,16 @@ struct MutableNbr<grape::EmptyType> {
     return *this;
   }
 
-  void set_data(const grape::EmptyType&, timestamp_t ts) {
-    timestamp.store(ts);
-  }
+  void set_data(const EmptyType&, timestamp_t ts) { timestamp.store(ts); }
   void set_neighbor(vid_t neighbor) { this->neighbor = neighbor; }
   void set_timestamp(timestamp_t ts) { timestamp.store(ts); }
-  const grape::EmptyType& get_data() const { return data; }
+  const EmptyType& get_data() const { return data; }
   vid_t get_neighbor() const { return neighbor; }
   timestamp_t get_timestamp() const { return timestamp.load(); }
   vid_t neighbor;
   union {
     std::atomic<timestamp_t> timestamp;
-    grape::EmptyType data;
+    EmptyType data;
   };
 };
 

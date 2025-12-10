@@ -25,11 +25,11 @@
 #include <utility>
 #include <vector>
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/in_archive.h"
 
 namespace gs {
 
@@ -54,7 +54,7 @@ class Schema;
  * - Transaction commit/abort semantics
  *
  * **Implementation Details:**
- * - Uses grape::OutArchive for serializing operations to WAL
+ * - Uses OutArchive for serializing operations to WAL
  * - Maintains added_vertices_ map to track new vertices
  * - Destructor calls Abort() for cleanup
  * - Validates property types against schema
@@ -171,7 +171,7 @@ class InsertTransaction {
   static bool get_vertex_with_retries(PropertyGraph& graph, label_t label,
                                       const Property& oid, vid_t& lid,
                                       timestamp_t timestamp);
-  grape::InArchive arc_;
+  InArchive arc_;
 
   std::vector<std::unique_ptr<gs::IdIndexerBase<vid_t>>> added_vertices_;
   std::vector<vid_t> added_vertices_base_;

@@ -16,6 +16,7 @@
 #ifndef INCLUDE_NEUG_EXECUTION_UTILS_OPR_TIMER_H_
 #define INCLUDE_NEUG_EXECUTION_UTILS_OPR_TIMER_H_
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,15 +30,18 @@ namespace runtime {
 
 class TimerUnit {
  public:
-  TimerUnit() : start_(0.0) {}
+  TimerUnit() : start_() {}
   ~TimerUnit() = default;
 
-  void start() { start_ = -grape::GetCurrentTime(); }
+  void start() { start_ = std::chrono::high_resolution_clock::now(); }
 
-  double elapsed() const { return start_ + grape::GetCurrentTime(); }
+  double elapsed() const {
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration<double>(end - start_).count();
+  }
 
  private:
-  double start_;
+  std::chrono::high_resolution_clock::time_point start_;
 };
 
 class OprTimer {

@@ -52,7 +52,7 @@ static const std::vector<gs::Interval> interval_data = {
     gs::Interval(std::string("5milliseconds")),
     gs::Interval(std::string("7minutes")),
     gs::Interval(std::string("0day"))};
-static const std::vector<grape::EmptyType> empty_data;
+static const std::vector<gs::EmptyType> empty_data;
 
 static const std::set<gs::vid_t> delete_src_vertices = {1, 4};
 static const std::set<gs::vid_t> delete_dst_vertices = {1, 5, 7};
@@ -70,7 +70,7 @@ static const gs::vid_t insert_dst_vid = 4;
 namespace gs {
 namespace test {
 using Datatypes =
-    ::testing::Types<grape::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
+    ::testing::Types<gs::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
 template <typename EDATA_T>
@@ -123,7 +123,7 @@ class MutableCsrTest : public ::testing::Test {
       csr.batch_put_edges(src_vid, dst_vid, datetime_data);
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       csr.batch_put_edges(src_vid, dst_vid, interval_data);
-    } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
+    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
       csr.batch_put_edges(src_vid, dst_vid, empty_data);
     } else {
       FAIL();
@@ -159,7 +159,7 @@ class MutableCsrTest : public ::testing::Test {
       csr.batch_put_edges(single_src_vid, dst_vid, datetime_data);
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       csr.batch_put_edges(single_src_vid, dst_vid, interval_data);
-    } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
+    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
       csr.batch_put_edges(single_src_vid, dst_vid, empty_data);
     } else {
       FAIL();
@@ -280,7 +280,7 @@ class MutableCsrTest : public ::testing::Test {
             cur_value = next_value;
           }
         }
-      } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
+      } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
         continue;
       } else {
         return false;
@@ -319,8 +319,8 @@ class MutableCsrTest : public ::testing::Test {
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       Interval data(std::string("100seconds"));
       csr.put_edge(src, dst, data, ts, allocator);
-    } else if constexpr (std::is_same_v<EDATA_T, grape::EmptyType>) {
-      grape::EmptyType data;
+    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
+      gs::EmptyType data;
       csr.put_edge(src, dst, data, ts, allocator);
     } else {
       FAIL();

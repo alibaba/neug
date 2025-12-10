@@ -25,8 +25,6 @@
 #include <string_view>
 
 #include <flat_hash_map.hpp>
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/file_names.h"
@@ -42,6 +40,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -903,7 +902,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
                                   const std::string& work_dir,
                                   uint32_t timestamp, char* data, size_t length,
                                   Allocator& alloc) {
-  grape::OutArchive arc;
+  OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
     OpType op_type;

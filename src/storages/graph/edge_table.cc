@@ -27,15 +27,13 @@
 #include <string_view>
 #include <utility>
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/types.h"
-
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/property/types.h"
 
 namespace gs {
 
@@ -147,8 +145,8 @@ void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
                                         CsrBase* out_csr) {
   assert(src_lid.size() == dst_lid.size());
   if (property_type == PropertyType::kEmpty) {
-    batch_put_edges_with_default_edata_impl<grape::EmptyType>(src_lid, dst_lid,
-                                                              out_csr);
+    batch_put_edges_with_default_edata_impl<EmptyType>(src_lid, dst_lid,
+                                                       out_csr);
   } else if (property_type == PropertyType::kInt32) {
     batch_put_edges_with_default_edata_impl<int32_t>(src_lid, dst_lid, out_csr);
   } else if (property_type == PropertyType::kUInt32) {
@@ -201,7 +199,7 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
                                            EdgeStrategy strategy,
                                            PropertyType property_type) {
   if (property_type == PropertyType::kEmpty) {
-    return create_csr_impl<grape::EmptyType>(is_mutable, strategy);
+    return create_csr_impl<EmptyType>(is_mutable, strategy);
   } else if (property_type == PropertyType::kInt32) {
     return create_csr_impl<int32_t>(is_mutable, strategy);
   } else if (property_type == PropertyType::kUInt32) {
@@ -274,11 +272,11 @@ static void parse_endpoint_column(const IndexerType& indexer,
   }
 }
 
-void insert_edges_empty_impl(TypedCsrBase<grape::EmptyType>* out_csr,
-                             TypedCsrBase<grape::EmptyType>* in_csr,
+void insert_edges_empty_impl(TypedCsrBase<EmptyType>* out_csr,
+                             TypedCsrBase<EmptyType>* in_csr,
                              const std::vector<vid_t>& src_lid,
                              const std::vector<vid_t>& dst_lid) {
-  std::vector<grape::EmptyType> empty_data(src_lid.size());
+  std::vector<EmptyType> empty_data(src_lid.size());
   out_csr->batch_put_edges(src_lid, dst_lid, empty_data);
   in_csr->batch_put_edges(dst_lid, src_lid, empty_data);
 }
@@ -432,10 +430,9 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
                                   const std::vector<vid_t>& dst_lid_list,
                                   const std::vector<Property>& edge_data) {
   if (prop_types.empty() || prop_types[0] == PropertyType::kEmpty) {
-    insert_edges_empty_impl(
-        dynamic_cast<TypedCsrBase<grape::EmptyType>*>(out_csr),
-        dynamic_cast<TypedCsrBase<grape::EmptyType>*>(in_csr), src_lid_list,
-        dst_lid_list);
+    insert_edges_empty_impl(dynamic_cast<TypedCsrBase<EmptyType>*>(out_csr),
+                            dynamic_cast<TypedCsrBase<EmptyType>*>(in_csr),
+                            src_lid_list, dst_lid_list);
   } else if (prop_types[0] == PropertyType::kInt32) {
     insert_edges_bundled_typed_impl(
         dynamic_cast<TypedCsrBase<int32_t>*>(out_csr),
@@ -966,9 +963,9 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
   if (delete_property) {
-    dynamic_cast<TypedCsrBase<grape::EmptyType>*>(new_out_csr.get())
+    dynamic_cast<TypedCsrBase<EmptyType>*>(new_out_csr.get())
         ->batch_put_edges(std::get<0>(edges), std::get<1>(edges), {});
-    dynamic_cast<TypedCsrBase<grape::EmptyType>*>(new_in_csr.get())
+    dynamic_cast<TypedCsrBase<EmptyType>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), {});
   } else {
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_out_csr.get())

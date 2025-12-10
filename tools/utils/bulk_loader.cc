@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <filesystem>
@@ -26,7 +27,6 @@
 #include <system_error>
 
 #include "cxxopts/cxxopts.hpp"
-#include "libgrape-lite/grape/util.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/loader/i_fragment_loader.h"
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
   setenv("TZ", "Asia/Shanghai", 1);
   tzset();
 
-  double t = -grape::GetCurrentTime();
+  auto start = std::chrono::high_resolution_clock::now();
 
   auto schema_res = gs::Schema::LoadFromYaml(graph_schema_path);
   if (!schema_res) {
@@ -215,8 +215,9 @@ int main(int argc, char** argv) {
     LOG(ERROR) << "Failed to load fragment: " << result.error().error_message();
     return -1;
   }
-  t += grape::GetCurrentTime();
-  LOG(INFO) << "Finished bulk loading in " << t << " seconds.";
+  auto end = std::chrono::high_resolution_clock::now();
+  double elapsed = std::chrono::duration<double>(end - start).count();
+  LOG(INFO) << "Finished bulk loading in " << elapsed << " seconds.";
 
   // Also copy the graph.yaml to the data directory
   std::error_code ec;

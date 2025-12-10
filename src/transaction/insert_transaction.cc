@@ -22,8 +22,6 @@
 #include <ostream>
 #include <thread>
 
-#include "libgrape-lite/grape/serialization/in_archive.h"
-#include "libgrape-lite/grape/serialization/out_archive.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
@@ -33,6 +31,7 @@
 #include "neug/utils/likely.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 
@@ -180,7 +179,7 @@ timestamp_t InsertTransaction::timestamp() const { return timestamp_; }
 
 void InsertTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
                                   char* data, size_t length, Allocator& alloc) {
-  grape::OutArchive arc;
+  OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
     OpType op_type;

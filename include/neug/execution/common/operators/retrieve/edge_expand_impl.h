@@ -31,7 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "libgrape-lite/grape/util.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -39,10 +38,6 @@
 #include "neug/execution/common/types.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
-
-namespace grape {
-struct EmptyType;
-}  // namespace grape
 
 namespace gs {
 namespace runtime {
@@ -114,7 +109,11 @@ static std::vector<std::tuple<label_t, label_t, Direction>> get_label_dirs(
                               Direction::kIn);
     }
   }
-  grape::DistinctSort(label_dirs);
+  {
+    std::sort(label_dirs.begin(), label_dirs.end());
+    label_dirs.erase(std::unique(label_dirs.begin(), label_dirs.end()),
+                     label_dirs.end());
+  }
   return label_dirs;
 }
 
@@ -141,7 +140,11 @@ get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
     }
   }
   for (auto& label_dir : label_dirs) {
-    grape::DistinctSort(label_dir);
+    {
+      std::sort(label_dir.begin(), label_dir.end());
+      label_dir.erase(std::unique(label_dir.begin(), label_dir.end()),
+                      label_dir.end());
+    }
   }
   return label_dirs;
 }
@@ -921,7 +924,11 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
       }
     }
   }
-  grape::DistinctSort(all_triplets);
+  {
+    std::sort(all_triplets.begin(), all_triplets.end());
+    all_triplets.erase(std::unique(all_triplets.begin(), all_triplets.end()),
+                       all_triplets.end());
+  }
   BDMLEdgeColumnBuilder builder(all_triplets);
   std::vector<size_t> offsets;
   std::vector<std::vector<int>> triplet_idx_map(label_num);

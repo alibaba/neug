@@ -35,7 +35,6 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "libgrape-lite/grape/types.h"
 #include "neug/config.h"
 #include "neug/utils/exception/exception.h"
 
@@ -44,17 +43,13 @@ template <typename T>
 struct convert;
 }  // namespace YAML
 
-namespace grape {
-class InArchive;
-class OutArchive;
-
-inline bool operator<(const EmptyType& lhs, const EmptyType& rhs) {
-  return false;
-}
-
-}  // namespace grape
-
 namespace gs {
+
+struct EmptyType {
+  inline bool operator==(const EmptyType& other) const { return true; }
+  inline bool operator!=(const EmptyType& other) const { return false; }
+  inline bool operator<(const EmptyType& other) const { return false; }
+};
 
 using timestamp_t = uint32_t;
 using vid_t = uint32_t;
@@ -583,23 +578,17 @@ union AnyValue {
   StringPtr s_ptr;
 };
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const PropertyType& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              PropertyType& value);
+class InArchive;
+class OutArchive;
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const std::string_view& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive,
-                              std::string_view& value);
+InArchive& operator<<(InArchive& in_archive, const PropertyType& value);
+OutArchive& operator>>(OutArchive& out_archive, PropertyType& value);
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const GlobalId& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, GlobalId& value);
+InArchive& operator<<(InArchive& in_archive, const GlobalId& value);
+OutArchive& operator>>(OutArchive& out_archive, GlobalId& value);
 
-grape::InArchive& operator<<(grape::InArchive& in_archive,
-                             const Interval& value);
-grape::OutArchive& operator>>(grape::OutArchive& out_archive, Interval& value);
+InArchive& operator<<(InArchive& in_archive, const Interval& value);
+OutArchive& operator>>(OutArchive& out_archive, Interval& value);
 
 // Init value of types
 static const bool DEFAULT_BOOL_VALUE = false;
@@ -706,12 +695,6 @@ struct hash<gs::GlobalId> {
 };
 
 }  // namespace std
-
-namespace grape {
-inline bool operator==(const EmptyType& a, const EmptyType& b) { return true; }
-
-inline bool operator!=(const EmptyType& a, const EmptyType& b) { return false; }
-}  // namespace grape
 
 namespace YAML {
 template <>
