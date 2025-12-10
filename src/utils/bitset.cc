@@ -39,8 +39,10 @@ void Bitset::Deserialize(std::istream& is) {
   arc.Allocate(size);
   is.read(arc.GetBuffer(), size);
   arc >> size_ >> size_in_words_ >> capacity_ >> capacity_in_words_;
-  data_ = static_cast<uint64_t*>(
-      aligned_alloc(kAlignment, capacity_in_words_ * sizeof(uint64_t)));
+  if (data_ != nullptr) {
+    free(data_);
+  }
+  data_ = static_cast<uint64_t*>(malloc(capacity_in_words_ * sizeof(uint64_t)));
   if (size_in_words_ > 0) {
     is.read(reinterpret_cast<char*>(data_), size_in_words_ * sizeof(uint64_t));
   }

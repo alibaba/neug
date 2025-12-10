@@ -36,8 +36,6 @@
 namespace gs {
 
 class Bitset {
-  static constexpr size_t kAlignment = 64;
-
  public:
   Bitset()
       : data_(nullptr),
@@ -46,84 +44,10 @@ class Bitset {
         capacity_(0),
         capacity_in_words_(0) {}
 
-  Bitset(const Bitset& other)
-      : size_(other.size_),
-        size_in_words_(other.size_in_words_),
-        capacity_(other.capacity_),
-        capacity_in_words_(other.capacity_in_words_) {
-    if (capacity_ == 0) {
-      data_ = nullptr;
-    } else {
-      data_ = static_cast<uint64_t*>(
-          aligned_alloc(kAlignment, capacity_in_words_ * sizeof(uint64_t)));
-      memcpy(data_, other.data_, NEUG_BYTE_SIZE(capacity_));
-    }
-  }
-
-  Bitset(Bitset&& other)
-      : data_(other.data_),
-        size_(other.size_),
-        size_in_words_(other.size_in_words_),
-        capacity_(other.capacity_),
-        capacity_in_words_(other.capacity_in_words_) {
-    other.data_ = nullptr;
-    other.size_ = 0;
-    other.size_in_words_ = 0;
-    other.capacity_ = 0;
-    other.capacity_in_words_ = 0;
-  }
-
   ~Bitset() {
     if (data_ != nullptr) {
       free(data_);
     }
-  }
-
-  Bitset& operator=(const Bitset& other) {
-    if (this == &other) {
-      return *this;
-    }
-
-    if (data_ != nullptr) {
-      free(data_);
-    }
-
-    size_ = other.size_;
-    size_in_words_ = other.size_in_words_;
-    capacity_ = other.capacity_;
-    capacity_in_words_ = other.capacity_in_words_;
-
-    if (capacity_ == 0) {
-      data_ = nullptr;
-    } else {
-      data_ = static_cast<uint64_t*>(
-          aligned_alloc(kAlignment, capacity_in_words_ * sizeof(uint64_t)));
-      memcpy(data_, other.data_, NEUG_BYTE_SIZE(size_));
-    }
-    return *this;
-  }
-
-  Bitset& operator=(Bitset&& other) {
-    if (this == &other) {
-      return *this;
-    }
-
-    if (data_ != nullptr) {
-      free(data_);
-    }
-
-    data_ = other.data_;
-    size_ = other.size_;
-    size_in_words_ = other.size_in_words_;
-    capacity_ = other.capacity_;
-    capacity_in_words_ = other.capacity_in_words_;
-
-    other.data_ = nullptr;
-    other.size_ = 0;
-    other.size_in_words_ = 0;
-    other.capacity_ = 0;
-    other.size_in_words_ = 0;
-    return *this;
   }
 
   void reserve(size_t cap) {
@@ -132,8 +56,8 @@ class Bitset {
       capacity_ = cap;
       return;
     }
-    uint64_t* new_data = static_cast<uint64_t*>(
-        aligned_alloc(kAlignment, new_cap_in_words * sizeof(uint64_t)));
+    uint64_t* new_data =
+        static_cast<uint64_t*>(malloc(new_cap_in_words * sizeof(uint64_t)));
     if (data_ != nullptr) {
       memcpy(new_data, data_, size_in_words_ * sizeof(uint64_t));
       free(data_);
