@@ -37,6 +37,7 @@ from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
+from neug.proto.error_pb2 import ERR_PROPERTY_NOT_FOUND
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
@@ -201,7 +202,6 @@ def test_insert_basic_type_check(tmp_path):
     db.close()
 
 
-@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/792")
 def test_insert_type_check(tmp_path):
     db_dir = tmp_path / "insert_type"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -231,7 +231,7 @@ def test_insert_type_check(tmp_path):
     # UNSIGNED invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 2, u32: -1})")
-    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    assert str(ERR_TYPE_OVERFLOW) in str(excinfo.value)
     # FLOAT invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 3, f: 'bad'})")
@@ -243,7 +243,7 @@ def test_insert_type_check(tmp_path):
     # DATETIME invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 5, dttm: 'notadatetime'})")
-    assert str(ERR_TYPE_CONVERSION) in str(excinfo.value)
+    assert str(ERR_PROPERTY_NOT_FOUND) in str(excinfo.value)
     # INTERVAL invalid
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE (t:T {id: 6, ivl: 'notaninterval'})")
@@ -356,7 +356,6 @@ def test_create_rel_table_with_multiple_src_dst(tmp_path):
     conn.close()
 
 
-@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/790")
 def test_create_rel_table_with_multiple_relationships(tmp_path):
     db_dir = tmp_path / "create_rel_multiple"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -642,7 +641,7 @@ def test_insert_edge(tmp_path):
         conn.execute(
             "CREATE (u:person {name: 'Alice2'})-[:follows {nonprop:2022}]->(b:person {name: 'Josh2'});"
         )
-    assert str(ERR_COMPILATION) in str(excinfo.value)
+    assert str(ERR_QUERY_SYNTAX) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -691,8 +690,6 @@ def test_set_node_property(tmp_path):
     db.close()
 
 
-# DB-003-11 DML-SET edge property
-@pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/943")
 def test_set_multi_edge_property(tmp_path):
     db_dir = tmp_path / "set_multi_edge_prop"
     shutil.rmtree(db_dir, ignore_errors=True)

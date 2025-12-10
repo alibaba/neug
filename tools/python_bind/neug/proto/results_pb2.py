@@ -17,7 +17,7 @@ import expr_pb2 as expr__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\rresults.proto\x12\x07results\x1a\x0c\x63ommon.proto\x1a\nexpr.proto"G\n\x08Property\x12\x1d\n\x03key\x18\x01 \x01(\x0b\x32\x10.common.NameOrId\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.common.Value"\\\n\x06Vertex\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x1f\n\x05label\x18\x02 \x01(\x0b\x32\x10.common.NameOrId\x12%\n\nproperties\x18\x03 \x03(\x0b\x32\x11.results.Property"\xc4\x01\n\x04\x45\x64ge\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x1f\n\x05label\x18\x02 \x01(\x0b\x32\x10.common.NameOrId\x12\x0e\n\x06src_id\x18\x03 \x01(\x03\x12#\n\tsrc_label\x18\x04 \x01(\x0b\x32\x10.common.NameOrId\x12\x0e\n\x06\x64st_id\x18\x05 \x01(\x03\x12#\n\tdst_label\x18\x06 \x01(\x0b\x32\x10.common.NameOrId\x12%\n\nproperties\x18\x07 \x03(\x0b\x32\x11.results.Property"\x95\x01\n\tGraphPath\x12-\n\x04path\x18\x01 \x03(\x0b\x32\x1f.results.GraphPath.VertexOrEdge\x1aY\n\x0cVertexOrEdge\x12!\n\x06vertex\x18\x01 \x01(\x0b\x32\x0f.results.VertexH\x00\x12\x1d\n\x04\x65\x64ge\x18\x02 \x01(\x0b\x32\r.results.EdgeH\x00\x42\x07\n\x05inner"\x9f\x01\n\x07\x45lement\x12!\n\x06vertex\x18\x01 \x01(\x0b\x32\x0f.results.VertexH\x00\x12\x1d\n\x04\x65\x64ge\x18\x02 \x01(\x0b\x32\r.results.EdgeH\x00\x12(\n\ngraph_path\x18\x03 \x01(\x0b\x32\x12.results.GraphPathH\x00\x12\x1f\n\x06object\x18\x04 \x01(\x0b\x32\r.common.ValueH\x00\x42\x07\n\x05inner"2\n\nCollection\x12$\n\ncollection\x18\x01 \x03(\x0b\x32\x10.results.Element"\x83\x01\n\tKeyValues\x12/\n\nkey_values\x18\x01 \x03(\x0b\x32\x1b.results.KeyValues.KeyValue\x1a\x45\n\x08KeyValue\x12\x1a\n\x03key\x18\x01 \x01(\x0b\x32\r.common.Value\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.results.Entry"\x83\x01\n\x05\x45ntry\x12#\n\x07\x65lement\x18\x01 \x01(\x0b\x32\x10.results.ElementH\x00\x12)\n\ncollection\x18\x02 \x01(\x0b\x32\x13.results.CollectionH\x00\x12!\n\x03map\x18\x03 \x01(\x0b\x32\x12.results.KeyValuesH\x00\x42\x07\n\x05inner"M\n\x06\x43olumn\x12$\n\nname_or_id\x18\x01 \x01(\x0b\x32\x10.common.NameOrId\x12\x1d\n\x05\x65ntry\x18\x02 \x01(\x0b\x32\x0e.results.Entry"*\n\x06Record\x12 \n\x07\x63olumns\x18\x01 \x03(\x0b\x32\x0f.results.Column"5\n\x07Results\x12!\n\x06record\x18\x01 \x01(\x0b\x32\x0f.results.RecordH\x00\x42\x07\n\x05inner"M\n\x11\x43ollectiveResults\x12!\n\x07results\x18\x01 \x03(\x0b\x32\x10.results.Results\x12\x15\n\rresult_schema\x18\x02 \x01(\tB-\n!com.alibaba.graphscope.gaia.protoB\x08IrResultb\x06proto3'
+    b'\n\rresults.proto\x12\x07results\x1a\x0c\x63ommon.proto\x1a\nexpr.proto"G\n\x08Property\x12\x1d\n\x03key\x18\x01 \x01(\x0b\x32\x10.common.NameOrId\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.common.Value"\\\n\x06Vertex\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x1f\n\x05label\x18\x02 \x01(\x0b\x32\x10.common.NameOrId\x12%\n\nproperties\x18\x03 \x03(\x0b\x32\x11.results.Property"\xc4\x01\n\x04\x45\x64ge\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x1f\n\x05label\x18\x02 \x01(\x0b\x32\x10.common.NameOrId\x12\x0e\n\x06src_id\x18\x03 \x01(\x03\x12#\n\tsrc_label\x18\x04 \x01(\x0b\x32\x10.common.NameOrId\x12\x0e\n\x06\x64st_id\x18\x05 \x01(\x03\x12#\n\tdst_label\x18\x06 \x01(\x0b\x32\x10.common.NameOrId\x12%\n\nproperties\x18\x07 \x03(\x0b\x32\x11.results.Property"\x95\x01\n\tGraphPath\x12-\n\x04path\x18\x01 \x03(\x0b\x32\x1f.results.GraphPath.VertexOrEdge\x1aY\n\x0cVertexOrEdge\x12!\n\x06vertex\x18\x01 \x01(\x0b\x32\x0f.results.VertexH\x00\x12\x1d\n\x04\x65\x64ge\x18\x02 \x01(\x0b\x32\r.results.EdgeH\x00\x42\x07\n\x05inner"\x9f\x01\n\x07\x45lement\x12!\n\x06vertex\x18\x01 \x01(\x0b\x32\x0f.results.VertexH\x00\x12\x1d\n\x04\x65\x64ge\x18\x02 \x01(\x0b\x32\r.results.EdgeH\x00\x12(\n\ngraph_path\x18\x03 \x01(\x0b\x32\x12.results.GraphPathH\x00\x12\x1f\n\x06object\x18\x04 \x01(\x0b\x32\r.common.ValueH\x00\x42\x07\n\x05inner"0\n\nCollection\x12"\n\ncollection\x18\x01 \x03(\x0b\x32\x0e.results.Entry"\x83\x01\n\tKeyValues\x12/\n\nkey_values\x18\x01 \x03(\x0b\x32\x1b.results.KeyValues.KeyValue\x1a\x45\n\x08KeyValue\x12\x1a\n\x03key\x18\x01 \x01(\x0b\x32\r.common.Value\x12\x1d\n\x05value\x18\x02 \x01(\x0b\x32\x0e.results.Entry"\x83\x01\n\x05\x45ntry\x12#\n\x07\x65lement\x18\x01 \x01(\x0b\x32\x10.results.ElementH\x00\x12)\n\ncollection\x18\x02 \x01(\x0b\x32\x13.results.CollectionH\x00\x12!\n\x03map\x18\x03 \x01(\x0b\x32\x12.results.KeyValuesH\x00\x42\x07\n\x05inner"M\n\x06\x43olumn\x12$\n\nname_or_id\x18\x01 \x01(\x0b\x32\x10.common.NameOrId\x12\x1d\n\x05\x65ntry\x18\x02 \x01(\x0b\x32\x0e.results.Entry"*\n\x06Record\x12 \n\x07\x63olumns\x18\x01 \x03(\x0b\x32\x0f.results.Column"5\n\x07Results\x12!\n\x06record\x18\x01 \x01(\x0b\x32\x0f.results.RecordH\x00\x42\x07\n\x05inner"M\n\x11\x43ollectiveResults\x12!\n\x07results\x18\x01 \x03(\x0b\x32\x10.results.Results\x12\x15\n\rresult_schema\x18\x02 \x01(\tB-\n!com.alibaba.graphscope.gaia.protoB\x08IrResultb\x06proto3'
 )
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
@@ -41,19 +41,19 @@ if _descriptor._USE_C_DESCRIPTORS == False:
     _ELEMENT._serialized_start = 571
     _ELEMENT._serialized_end = 730
     _COLLECTION._serialized_start = 732
-    _COLLECTION._serialized_end = 782
-    _KEYVALUES._serialized_start = 785
-    _KEYVALUES._serialized_end = 916
-    _KEYVALUES_KEYVALUE._serialized_start = 847
-    _KEYVALUES_KEYVALUE._serialized_end = 916
-    _ENTRY._serialized_start = 919
-    _ENTRY._serialized_end = 1050
-    _COLUMN._serialized_start = 1052
-    _COLUMN._serialized_end = 1129
-    _RECORD._serialized_start = 1131
-    _RECORD._serialized_end = 1173
-    _RESULTS._serialized_start = 1175
-    _RESULTS._serialized_end = 1228
-    _COLLECTIVERESULTS._serialized_start = 1230
-    _COLLECTIVERESULTS._serialized_end = 1307
+    _COLLECTION._serialized_end = 780
+    _KEYVALUES._serialized_start = 783
+    _KEYVALUES._serialized_end = 914
+    _KEYVALUES_KEYVALUE._serialized_start = 845
+    _KEYVALUES_KEYVALUE._serialized_end = 914
+    _ENTRY._serialized_start = 917
+    _ENTRY._serialized_end = 1048
+    _COLUMN._serialized_start = 1050
+    _COLUMN._serialized_end = 1127
+    _RECORD._serialized_start = 1129
+    _RECORD._serialized_end = 1171
+    _RESULTS._serialized_start = 1173
+    _RESULTS._serialized_end = 1226
+    _COLLECTIVERESULTS._serialized_start = 1228
+    _COLLECTIVERESULTS._serialized_end = 1305
 # @@protoc_insertion_point(module_scope)

@@ -180,6 +180,9 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_COMPILATION, err.what()));     \
   } catch (const gs::exception::StorageException& err) {                       \
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
+  } catch (const gs::exception::PropertyNotFoundException& err) {              \
+    RETURN_ERROR(                                                              \
+        gs::Status(gs::StatusCode::ERR_PROPERTY_NOT_FOUND, err.what()));       \
   } catch (const gs::exception::Exception& err) {                              \
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
   } catch (const std::exception& err) {                                        \

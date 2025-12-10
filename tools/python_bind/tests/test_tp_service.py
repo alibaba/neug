@@ -136,7 +136,6 @@ def test_start_serving_and_dump():
     db2.close()
 
 
-# @pytest.mark.skip(reason="https://github.com/GraphScope/neug/issues/846")
 def test_start_service_and_stop():
     db_dir = "/tmp/test_start_service_and_stop"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -172,11 +171,9 @@ def test_start_service_and_stop():
 
     db.serve(10002, "localhost", False)
     time.sleep(1)
+    session = Session(uri, timeout="10s")
+    res = session.execute("MATCH (n) WHERE n.id = 3 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "josh"
     db.stop_serving()
     db.close()
-    # session = Session(uri, timeout="10s")
-    # res = session.execute("MATCH (n) WHERE n.id = 3 RETURN n.name;")
-    # assert len(res) == 1
-    # assert res[0][0] == "josh"
-    # db.stop_serving()
-    # db.close()

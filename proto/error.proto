@@ -132,6 +132,9 @@ enum Code {
   ERR_TYPE_OVERFLOW = 5004;
   // Error when indexing, e.g., trying to access an element out of bounds.
   ERR_INDEX_ERROR = 5005;
+  // The requested property not found in the schema.
+  ERR_PROPERTY_NOT_FOUND = 5006;
+
 
   // Deployment related errors
   ERR_PLATFORM_ABI = 6001;

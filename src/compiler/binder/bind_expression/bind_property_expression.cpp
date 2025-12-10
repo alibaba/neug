@@ -146,8 +146,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindNodeOrRelPropertyExpression(
     return node.getInternalID();
   }
   if (!nodeOrRel.hasPropertyExpression(propertyName)) {
-    THROW_BINDER_EXCEPTION("Cannot find property " + propertyName + " for " +
-                           child.toString() + ".");
+    THROW_PROPERTY_NOT_FOUND("Cannot find property " + propertyName + " for " +
+                             child.toString() + ".");
   }
   return nodeOrRel.getPropertyExpression(propertyName);
 }

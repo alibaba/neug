@@ -307,28 +307,28 @@ class BuildProto(Command):
             We avoid requiring protoc in the user's environment to simplify installation.
         """
         pass
-        # if proto_files is None:
-        #     proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
-        # os.makedirs(output_dir, exist_ok=True)
-        # # find protoc executable
-        # protoc_executable = shutil.which("protoc")
-        # if protoc_executable is None:
-        #     # trying /opt/neug/bin/protoc
-        #     protoc_executable = "/opt/neug/bin/protoc"
-        # for proto_file in proto_files:
-        #     if not os.path.exists(proto_file):
-        #         proto_file = os.path.join(proto_path, proto_file)
-        #     cmd = [
-        #         protoc_executable,
-        #         f"--proto_path={proto_path}",
-        #         f"--python_out={output_dir}",
-        #         proto_file,
-        #     ]
-        #     print(f"Running command: {' '.join(cmd)}")
-        #     subprocess.check_call(
-        #         cmd,
-        #         stderr=subprocess.STDOUT,
-        #     )
+        if proto_files is None:
+            proto_files = glob.glob(os.path.join(proto_path, "*.proto"))
+        os.makedirs(output_dir, exist_ok=True)
+        # find protoc executable
+        protoc_executable = shutil.which("protoc")
+        if protoc_executable is None:
+            # trying /opt/neug/bin/protoc
+            protoc_executable = "/opt/neug/bin/protoc"
+        for proto_file in proto_files:
+            if not os.path.exists(proto_file):
+                proto_file = os.path.join(proto_path, proto_file)
+            cmd = [
+                protoc_executable,
+                f"--proto_path={proto_path}",
+                f"--python_out={output_dir}",
+                proto_file,
+            ]
+            print(f"Running command: {' '.join(cmd)}")
+            subprocess.check_call(
+                cmd,
+                stderr=subprocess.STDOUT,
+            )
 
     def run(self):
         proto_path = os.path.join(repo_root, "proto")
@@ -341,17 +341,12 @@ class BuildProto(Command):
             proto_path,
             output_dir,
             [
-                "algebra.proto",
+                "common.proto",
+                "results.proto",
                 "common.proto",
                 "expr.proto",
-                "results.proto",
-                "schema.proto",
                 "type.proto",
                 "basic_type.proto",
-                "physical.proto",
-                "cypher_write.proto",
-                "cypher_dml.proto",
-                "cypher_ddl.proto",
                 "error.proto",
             ],
         )

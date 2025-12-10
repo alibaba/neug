@@ -231,5 +231,14 @@ TxStateConflictException::TxStateConflictException(const std::string& msg,
     : Exception("Transaction state conflict: " + msg, file_line,
                 gs::StatusCode::ERR_TX_STATE_CONFLICT) {}
 
+PropertyNotFoundException::PropertyNotFoundException(const std::string& msg)
+    : Exception("Property not found: " + msg,
+                gs::StatusCode::ERR_PROPERTY_NOT_FOUND) {}
+
+PropertyNotFoundException::PropertyNotFoundException(
+    const std::string& msg, const std::string& file_line)
+    : Exception("Property not found: " + msg, file_line,
+                gs::StatusCode::ERR_PROPERTY_NOT_FOUND) {}
+
 }  // namespace exception
 }  // namespace gs

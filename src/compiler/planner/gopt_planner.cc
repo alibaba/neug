@@ -79,6 +79,10 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
   } catch (const gs::exception::TransactionManagerException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
+  } catch (const gs::exception::OverflowException& e) {
+    RETURN_ERROR(Status(StatusCode::ERR_TYPE_OVERFLOW, e.what()));
+  } catch (const gs::exception::PropertyNotFoundException& e) {
+    RETURN_ERROR(Status(StatusCode::ERR_PROPERTY_NOT_FOUND, e.what()));
   } catch (const gs::exception::Exception& e) {
     RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const std::exception& e) {
