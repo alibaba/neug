@@ -1,0 +1,9 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE AdminQuery
+
+-LOG TestCheckpoint
+-STATEMENT Checkpoint;
+---- 0

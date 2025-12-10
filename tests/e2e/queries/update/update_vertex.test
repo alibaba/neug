@@ -1,0 +1,15 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE UpdateVertex
+
+-LOG UpdateVertexProperty
+-STATEMENT Match (v:person) where v.id=2 SET v.isStudent=false RETURN v.isStudent
+---- 1
+False
+
+-LOG CheckUpdateVertexProperty
+-STATEMENT Match (v:person) where v.id=2 return v.fName, v.isStudent
+---- 1
+Bob|False

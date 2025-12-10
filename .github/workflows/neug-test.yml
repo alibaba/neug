@@ -250,7 +250,8 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tests/e2e
         # tests running on tinysnb
         # in convenience, we use "read-write" model to run all test cases together
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb "" true
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb !update true
+        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb update true
 
     - name: Run E2E LSQB Test
       run: |

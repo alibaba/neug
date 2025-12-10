@@ -1,0 +1,15 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE UpdateEdge
+
+-LOG UpdateEdgeProperty
+-STATEMENT Match (v:person)-[e:knows]->(u:person) WHERE v.id=2 AND u.id=0 SET e.summary="updatedSummary" return e.summary
+---- 1
+updatedSummary
+
+-LOG CheckUpdateVertexBoolProperty
+-STATEMENT Match (v:person)-[e:knows]->(u:person) WHERE v.id=2 AND u.id=0 RETURN v.fName, e.summary
+---- 1
+Bob|updatedSummary

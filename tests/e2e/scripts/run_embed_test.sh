@@ -28,13 +28,39 @@ BASE_REPORT_DIR="$TEST_DIR/report/$DATASET_NAME"
 TEST_MARKER="neug_test"
 
 function test_queries_embedded {
+    all_dirs=()
+    for d in "$BASE_QUERY_DIR"/*/; do
+        [[ -d "$d" ]] && all_dirs+=("$(basename "$d")")
+    done
     if [ -z "$SUBQUERY_ARG" ]; then
-        SUBQUERY_DIRS=()
-        for d in "$BASE_QUERY_DIR"/*/; do
-            [ -d "$d" ] && SUBQUERY_DIRS+=("$(basename "$d")")
-        done
+        SUBQUERY_DIRS=("${all_dirs[@]}")
     else
         IFS=',' read -ra SUBQUERY_DIRS <<<"$SUBQUERY_ARG"
+        IFS=',' read -ra parts <<< "$SUBQUERY_ARG"
+        if [[ "${parts[0]}" == !* ]]; then
+            excludes=()
+            for item in "${parts[@]}"; do
+            if [[ "$item" == !* ]]; then
+                excludes+=("${item#!}")
+            else
+                echo "Warning: Non-exclusion items should not appear in exclusion mode. '$item'" >&2
+            fi
+        done
+        for dir in "${all_dirs[@]}"; do
+            skip=false
+            for excl in "${excludes[@]}"; do
+                if [[ "$dir" == "$excl" ]]; then
+                    skip=true
+                    break
+                fi
+            done
+            if ! $skip; then
+                SUBQUERY_DIRS+=("$dir")
+            fi
+        done
+        else
+          SUBQUERY_DIRS=("${parts[@]}")
+        fi
     fi
 
     pushd "$TEST_DIR" >/dev/null
