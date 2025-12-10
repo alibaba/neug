@@ -105,7 +105,8 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
     added_vertices_[label]->_add(id);
-    vid = vertex_nums_[label]++;
+    vid = vertex_nums_[label] + added_vertices_base_[label];
+    vertex_nums_[label]++;
     InsertVertexRedo::Serialize(arc_, label, id, props);
   }
   return true;
