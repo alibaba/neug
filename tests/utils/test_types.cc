@@ -17,6 +17,8 @@
 
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace gs {
 namespace test {
@@ -250,10 +252,10 @@ TEST(TestType, TestArchive) {
   LabelKey label_key_value = LabelKey(5);
   Interval interval_value = Interval(std::string("2years"));
 
-  grape::InArchive in_archive;
+  InArchive in_archive;
   in_archive << property_type_value << string_view_value << global_id_value
              << label_key_value << interval_value;
-  grape::OutArchive out_archive;
+  OutArchive out_archive;
   PropertyType out_property_type;
   std::string_view out_string_view;
   GlobalId out_global_id;
@@ -448,10 +450,10 @@ TEST_F(PropertyTest, EqualityOperator) {
 
 TEST_F(PropertyTest, TestArchive) {
   Property p = Property::from_bool(true);
-  grape::InArchive in;
+  InArchive in;
   in << p;
   Property p2;
-  grape::OutArchive out;
+  OutArchive out;
   out.SetSlice(in.GetBuffer(), in.GetSize());
   out >> p2;
   EXPECT_EQ(p, p2);
@@ -499,19 +501,19 @@ TEST_F(PropertyTest, ParsePropertyFromString) {
   EXPECT_EQ(p_empty.type(), PropertyType::kEmpty);
 }
 
-Property round_trip_property(const Property& input, grape::InArchive& arc) {
+Property round_trip_property(const Property& input, InArchive& arc) {
   arc.Clear();
   serialize_property(arc, input);
 
   Property output;
-  grape::OutArchive oarc;
+  OutArchive oarc;
   oarc.SetSlice(arc.GetBuffer(), arc.GetSize());
   deserialize_property(oarc, input.type(), output);
   return output;
 }
 
 TEST_F(PropertyTest, SerializeDeserializePropertyRoundTrip) {
-  grape::InArchive arc;
+  InArchive arc;
 
   // bool
   {
@@ -590,11 +592,11 @@ TEST_F(PropertyTest, DeserializeStringSupported) {
   Property p_orig;
   p_orig.set_string("hello string");
 
-  grape::InArchive arc;
+  InArchive arc;
   serialize_property(arc, p_orig);
 
   Property p_restored;
-  grape::OutArchive oarc;
+  OutArchive oarc;
   oarc.SetSlice(arc.GetBuffer(), arc.GetSize());
   deserialize_property(oarc, PropertyType{impl::PropertyTypeImpl::kString},
                        p_restored);
