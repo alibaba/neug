@@ -381,6 +381,8 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     meta.set(alias);
     const auto& ee_opr = plan.query_plan().plan(op_idx).opr().edge();
     const auto& v_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
+    auto vtables = parse_tables(v_opr.params());
+
     int v_tag = ee_opr.has_v_tag() ? ee_opr.v_tag().value() : -1;
     Direction dir = parse_direction(ee_opr.direction());
     bool is_optional = ee_opr.is_optional();
@@ -404,6 +406,19 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     eep.v_tag = v_tag;
     eep.labels =
         parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
+    std::vector<LabelTriplet> filtered_labels;
+    for (auto label : eep.labels) {
+      if ((dir == Direction::kOut || dir == Direction::kBoth) &&
+          std::find(vtables.begin(), vtables.end(), label.dst_label) !=
+              vtables.end()) {
+        filtered_labels.push_back(label);
+      } else if ((dir == Direction::kIn || dir == Direction::kBoth) &&
+                 std::find(vtables.begin(), vtables.end(), label.src_label) !=
+                     vtables.end()) {
+        filtered_labels.push_back(label);
+      }
+    }
+    eep.labels = filtered_labels;
     eep.dir = dir;
     eep.alias = alias;
     eep.is_optional = is_optional;
