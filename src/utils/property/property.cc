@@ -47,7 +47,8 @@ grape::InArchive& operator<<(grape::InArchive& in_archive,
   } else if (value.type() == PropertyType::DateTime()) {
     in_archive << value.type() << value.as_datetime().milli_second;
   } else if (value.type() == PropertyType::Interval()) {
-    in_archive << value.type() << value.as_interval().to_mill_seconds();
+    in_archive << value.type() << value.as_interval().months
+               << value.as_interval().days << value.as_interval().micros;
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(std::string("Not supported: ") +
                                   value.type().ToString());
@@ -105,8 +106,9 @@ grape::OutArchive& operator>>(grape::OutArchive& out_archive, Property& value) {
     out_archive >> date_time_val;
     value.set_datetime(date_time_val);
   } else if (pt == PropertyType::Interval()) {
-    uint64_t interval_val;
-    out_archive >> interval_val;
+    Interval interval_val;
+    out_archive >> interval_val.months >> interval_val.days >>
+        interval_val.micros;
     value.set_interval(interval_val);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " + value.type().ToString());

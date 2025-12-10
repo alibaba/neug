@@ -385,8 +385,6 @@ void Table::buildColumnPtrs() {
   }
 }
 
-void renameProperty(std::string& col_name, std::string& new_col_name) {}
-
 void Table::close() {
   columns_.clear();
   column_ptrs_.clear();

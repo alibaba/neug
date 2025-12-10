@@ -156,11 +156,6 @@ class Property {
     value_.itv = v;
   }
 
-  void set_interval(uint64_t mill_seconds) {
-    type_ = PropertyType::kInterval;
-    value_.itv.from_mill_seconds(mill_seconds);
-  }
-
   bool as_bool() const {
     assert(type() == PropertyType::kBool);
     return value_.b;
