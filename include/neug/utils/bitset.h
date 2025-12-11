@@ -16,6 +16,7 @@
 #ifndef INCLUDE_NEUG_UTILS_BITSET_H_
 #define INCLUDE_NEUG_UTILS_BITSET_H_
 
+#include <cassert>
 #include <cstdlib>
 #include <istream>
 #include <memory>
@@ -24,18 +25,26 @@
 
 #include <cstring>
 
+#include <glog/logging.h>
+
 #define WORD_SIZE(n) (((n) + 63ul) >> 6)
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
 #define WORD_INDEX(i) ((i) >> 6)
-#define BIT_OFFSET(i) ((i) & 0x3f)
+#define BIT_OFFSET(i) ((i) &0x3f)
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
 
+// Round up to the nearest multiple of alignment
+#define ROUND_UP_TO_ALIGNMENT(i, alignment) \
+  (((i) + (alignment) -1) & (~((alignment) -1)))
+
 namespace gs {
 
 class Bitset {
+  static constexpr size_t kAlignment = 64;  // 64-byte alignment
+
  public:
   Bitset()
       : data_(nullptr),
@@ -44,20 +53,102 @@ class Bitset {
         capacity_(0),
         capacity_in_words_(0) {}
 
+  Bitset(const Bitset& other)
+      : size_(other.size_),
+        size_in_words_(other.size_in_words_),
+        capacity_(other.capacity_),
+        capacity_in_words_(other.capacity_in_words_) {
+    if (capacity_ == 0) {
+      data_ = nullptr;
+    } else {
+      assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
+      auto alloc_size = ROUND_UP_TO_ALIGNMENT(
+          capacity_in_words_ * sizeof(uint64_t), kAlignment);
+      data_ = static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
+      memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
+    }
+  }
+
+  Bitset(Bitset&& other)
+      : data_(other.data_),
+        size_(other.size_),
+        size_in_words_(other.size_in_words_),
+        capacity_(other.capacity_),
+        capacity_in_words_(other.capacity_in_words_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.size_in_words_ = 0;
+    other.capacity_ = 0;
+    other.capacity_in_words_ = 0;
+  }
+
   ~Bitset() {
     if (data_ != nullptr) {
       free(data_);
     }
   }
 
+  Bitset& operator=(const Bitset& other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (data_ != nullptr) {
+      free(data_);
+    }
+
+    size_ = other.size_;
+    size_in_words_ = other.size_in_words_;
+    capacity_ = other.capacity_;
+    capacity_in_words_ = other.capacity_in_words_;
+
+    if (capacity_ == 0) {
+      data_ = nullptr;
+    } else {
+      assert(kAlignment <= capacity_in_words_ * sizeof(uint64_t));
+      auto alloc_size = ROUND_UP_TO_ALIGNMENT(
+          capacity_in_words_ * sizeof(uint64_t), kAlignment);
+      data_ = static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
+      memcpy(data_, other.data_, capacity_in_words_ * sizeof(uint64_t));
+    }
+    return *this;
+  }
+
+  Bitset& operator=(Bitset&& other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (data_ != nullptr) {
+      free(data_);
+    }
+
+    data_ = other.data_;
+    size_ = other.size_;
+    size_in_words_ = other.size_in_words_;
+    capacity_ = other.capacity_;
+    capacity_in_words_ = other.capacity_in_words_;
+
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.size_in_words_ = 0;
+    other.capacity_ = 0;
+    other.size_in_words_ = 0;
+    return *this;
+  }
+
   void reserve(size_t cap) {
+    cap = std::max(cap, kAlignment * 8);  // Here 8 represents 8 bits in a byte
     size_t new_cap_in_words = WORD_SIZE(cap);
     if (new_cap_in_words <= capacity_in_words_) {
       capacity_ = cap;
       return;
     }
+    assert(kAlignment <= new_cap_in_words * sizeof(uint64_t));
+    size_t alloc_size =
+        ROUND_UP_TO_ALIGNMENT(new_cap_in_words * sizeof(uint64_t), kAlignment);
     uint64_t* new_data =
-        static_cast<uint64_t*>(malloc(new_cap_in_words * sizeof(uint64_t)));
+        static_cast<uint64_t*>(aligned_alloc(kAlignment, alloc_size));
     if (data_ != nullptr) {
       memcpy(new_data, data_, size_in_words_ * sizeof(uint64_t));
       free(data_);
