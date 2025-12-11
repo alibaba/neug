@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_APP_APP_BASE_H_
-#define INCLUDE_NEUG_MAIN_APP_APP_BASE_H_
+#pragma once
 
 #include <glog/logging.h>
 #include <stdint.h>
@@ -184,5 +182,3 @@ std::istream& operator>>(std::istream& in, gs::AppBase::AppMode& mode);
 std::ostream& operator<<(std::ostream& out, const gs::AppBase::AppMode& mode);
 
 }  // namespace std
-
-#endif  // INCLUDE_NEUG_MAIN_APP_APP_BASE_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
-#define STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_
+#pragma once
 
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
@@ -324,5 +322,3 @@ class VertexTable {
   friend class PropertyGraph;
 };
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_VERTEX_TABLE_H_

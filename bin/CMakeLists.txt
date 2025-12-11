@@ -12,5 +12,5 @@ endif()
 
 add_executable(benchmark benchmark.cc)
 target_link_libraries(benchmark PUBLIC neug_libraries)
-target_link_libraries(benchmark PUBLIC ${ARROW_LIB} ${Boost_LIBRARIES} ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${Protobuf_LIBRARIES} ${YAML_CPP_LIBRARIES})
+target_link_libraries(benchmark PUBLIC ${ARROW_LIB} ${GLOG_LIBRARIES} ${GFLAGS_LIBRARIES} ${Protobuf_LIBRARIES} ${YAML_CPP_LIBRARIES})
 install_without_export_neug_target(benchmark)

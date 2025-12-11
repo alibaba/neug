@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
-#define STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_
+#pragma once
 
 #include <glog/logging.h>
 
@@ -379,5 +377,3 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_CSR_MUTABLE_CSR_H_

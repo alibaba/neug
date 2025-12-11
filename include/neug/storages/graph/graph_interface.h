@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_STORAGES_GRAPH_GRAPH_INTERFACE_H_
-#define INCLUDE_NEUG_STORAGES_GRAPH_GRAPH_INTERFACE_H_
+#pragma once
 
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -357,5 +355,3 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_STORAGES_GRAPH_GRAPH_INTERFACE_H_

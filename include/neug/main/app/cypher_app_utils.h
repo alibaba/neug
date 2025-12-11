@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_
-#define INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_
+#pragma once
 
 #include <map>
 #include <string>
@@ -32,5 +30,3 @@ bool generate_plan(const std::string& query, const std::string& statistics,
 void parse_params(std::string_view sw,
                   std::map<std::string, std::string>& params);
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_APP_UTILS_H_

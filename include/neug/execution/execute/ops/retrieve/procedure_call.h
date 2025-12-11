@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef EXECUTION_EXECUTE_RETRIEVE_OPS_PROCEDURE_CALL_H_
-#define EXECUTION_EXECUTE_RETRIEVE_OPS_PROCEDURE_CALL_H_
+#pragma once
 
 #include <vector>
 
@@ -53,5 +51,3 @@ class ProcedureCallOprBuilder : public IOperatorBuilder {
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // EXECUTION_EXECUTE_RETRIEVE_OPS_PROCEDURE_CALL_H_

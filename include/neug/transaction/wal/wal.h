@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_
-#define INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -377,5 +375,3 @@ OutArchive& operator>>(OutArchive& out_archive, RemoveVertexRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, RemoveEdgeRedo& value);
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_TRANSACTION_WAL_WAL_H_

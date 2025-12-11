@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-#ifndef INCLUDE_NEUG_UTILS_ID_INDEXER_H_
-#define INCLUDE_NEUG_UTILS_ID_INDEXER_H_
+#pragma once
 
 #include <algorithm>
 #include <atomic>
@@ -1112,5 +1110,3 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
 }
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_ID_INDEXER_H_

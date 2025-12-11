@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_UTILS_OPR_TIMER_H_
-#define INCLUDE_NEUG_EXECUTION_UTILS_OPR_TIMER_H_
+#pragma once
 
 #include <chrono>
 #include <memory>
@@ -109,5 +107,3 @@ class OprTimer {
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_UTILS_OPR_TIMER_H_

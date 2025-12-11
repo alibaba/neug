@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_CSR_BASE_H_
-#define STORAGES_RT_MUTABLE_GRAPH_CSR_CSR_BASE_H_
+#pragma once
 
 #include <string>
 #include <vector>
@@ -124,5 +122,3 @@ class TypedCsrBase : public CsrBase {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_CSR_CSR_BASE_H_

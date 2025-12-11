@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
-#define INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_
+#pragma once
 
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -52,5 +50,3 @@ class CompactTransaction {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_TRANSACTION_COMPACT_TRANSACTION_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_FACTORY_H_
-#define STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_FACTORY_H_
+#pragma once
 
 #include <memory>                                 // for shared_ptr
 #include <string>                                 // for string
@@ -56,5 +54,3 @@ class LoaderFactory {
   getKnownLoaders();
 };
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_FACTORY_H_

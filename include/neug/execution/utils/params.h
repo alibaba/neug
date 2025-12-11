@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_
-#define INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_
+#pragma once
 
 #include <limits>
 #include <vector>
@@ -69,5 +67,3 @@ struct ShortestPathParams {
 
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_UTILS_PARAMS_H_

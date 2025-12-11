@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_LOADER_ABSTRACT_PROPERTY_GRAPH_LOADER_H_
-#define STORAGES_LOADER_ABSTRACT_PROPERTY_GRAPH_LOADER_H_
+#pragma once
 
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -80,5 +78,3 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_LOADER_ABSTRACT_PROPERTY_GRAPH_LOADER_H_

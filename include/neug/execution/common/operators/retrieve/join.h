@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_
+#pragma once
 
 #include <vector>
 
@@ -43,5 +41,3 @@ class Join {
 };
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_JOIN_H_

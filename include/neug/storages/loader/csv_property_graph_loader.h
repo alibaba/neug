@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_LOADER_CSV_PROPERTY_GRAPH_LOADER_H_
-#define STORAGES_LOADER_CSV_PROPERTY_GRAPH_LOADER_H_
+#pragma once
 
 #include "neug/storages/loader/abstract_property_graph_loader.h"
 #include "neug/storages/loader/i_fragment_loader.h"
@@ -50,5 +48,3 @@ class CSVPropertyGraphLoader : public AbstractPropertyGraphLoader {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_LOADER_CSV_PROPERTY_GRAPH_LOADER_H_

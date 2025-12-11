@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_TYPES_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_TYPES_H_
+#pragma once
 
 #include <stdint.h>
 #include <ostream>
@@ -120,5 +119,3 @@ inline ostream& operator<<(ostream& os, gs::runtime::JoinKind k) {
 }
 
 }  // namespace std
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_TYPES_H_

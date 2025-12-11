@@ -12,9 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_EDGE_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_EDGE_H_
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/expr.h"
@@ -99,4 +98,3 @@ class CreateEdge {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_EDGE_H_

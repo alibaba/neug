@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_INSERT_APP_H_
-#define INCLUDE_NEUG_MAIN_APP_CYPHER_INSERT_APP_H_
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -54,5 +52,3 @@ class CypherInsertAppFactory : public AppFactoryBase {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_READ_APP_H_

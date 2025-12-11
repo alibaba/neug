@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-#ifndef INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_
-#define INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_
+#pragma once
 
 #include <stdlib.h>
 #include <string.h>
@@ -80,5 +78,3 @@ class StringViewVector {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_STRING_VIEW_VECTOR_H_

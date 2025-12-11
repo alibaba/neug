@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_
-#define INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_
+#pragma once
 
 #include <stddef.h>
 #include <string>
@@ -39,5 +37,3 @@ class DummyWalWriter : public IWalWriter {
   bool append(const char* data, size_t length) override;
 };
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_TRANSACTION_WAL_DUMMY_WAL_WRITER_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_BITSET_H_
-#define INCLUDE_NEUG_UTILS_BITSET_H_
+#pragma once
 
 #include <cassert>
 #include <cstdlib>
@@ -249,5 +247,3 @@ class Bitset {
 #undef BIT_OFFSET
 #undef ROUND_UP
 #undef ROUND_DOWN
-
-#endif  // INCLUDE_NEUG_UTILS_BITSET_H_

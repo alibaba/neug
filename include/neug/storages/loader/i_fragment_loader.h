@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
-#define STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_
+#pragma once
 
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/schema.h"
@@ -32,5 +30,3 @@ class IFragmentLoader {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_LOADER_FRAGMENT_LOADER_H_

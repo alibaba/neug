@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_
-#define INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_
+#pragma once
 
 #include <string>
 #include <tuple>
@@ -199,5 +197,3 @@ class CypherWriteProcAppBase : public WriteAppBase {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_APP_CYPHER_PROC_APP_BASE_H_

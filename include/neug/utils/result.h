@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_RESULT_H_
-#define INCLUDE_NEUG_UTILS_RESULT_H_
+#pragma once
 
 #include <cstdint>
 #include <iomanip>
@@ -190,5 +188,3 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
   } catch (...) {                                                              \
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error"));    \
   }
-
-#endif  // INCLUDE_NEUG_UTILS_RESULT_H_

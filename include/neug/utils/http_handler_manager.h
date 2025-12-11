@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_
-#define INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_
+#pragma once
 
 #include <algorithm>
 #include <atomic>
@@ -215,5 +213,3 @@ struct convert<server::ServiceConfig> {
   }
 };
 }  // namespace YAML
-
-#endif  // INCLUDE_NEUG_UTILS_HTTP_HANDLER_MANAGER_H_

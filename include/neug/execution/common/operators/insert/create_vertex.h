@@ -12,9 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_VERTEX_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_VERTEX_H_
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -106,5 +105,3 @@ class CreateVertex {
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_VERTEX_H_

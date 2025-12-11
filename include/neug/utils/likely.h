@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-#ifndef INCLUDE_NEUG_UTILS_LIKELY_H_
-#define INCLUDE_NEUG_UTILS_LIKELY_H_
+#pragma once
 
 #if __GNUC__
 #define NEUG_BULTIN_EXPECT(cond, expected_value) \
@@ -25,5 +23,3 @@ limitations under the License.
 
 #define NEUG_LIKELY(...) NEUG_BULTIN_EXPECT(!!(__VA_ARGS__), 1)
 #define NEUG_UNLIKELY(...) NEUG_BULTIN_EXPECT(!!(__VA_ARGS__), 0)
-
-#endif  // INCLUDE_NEUG_UTILS_LIKELY_H_

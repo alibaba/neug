@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_
+
+#pragma once
 
 #include <algorithm>
 #include <numeric>
@@ -47,5 +47,3 @@ class ColumnsUtils {
   }
 };
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_COLUMNS_UTILS_H_

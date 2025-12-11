@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
-#define STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_
+#pragma once
 
 #include <stddef.h>
 #include <cstdint>
@@ -584,5 +582,3 @@ OutArchive& operator>>(OutArchive& arc, VertexSchema& schema);
 OutArchive& operator>>(OutArchive& arc, EdgeSchema& schema);
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_SCHEMA_H_

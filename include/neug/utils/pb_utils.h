@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_PB_UTILS_H_
-#define INCLUDE_NEUG_UTILS_PB_UTILS_H_
+#pragma once
 
 #include <google/protobuf/util/json_util.h>
 #include <string>
@@ -102,5 +100,3 @@ Property expr_opr_value_to_prop(const ::common::ExprOpr& value);
 
 std::string expr_opr_to_string(const ::common::ExprOpr& opr);
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_PB_UTILS_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_STORAGES_CSR_GENERIC_VIEW_UTILS_H_
-#define INCLUDE_NEUG_STORAGES_CSR_GENERIC_VIEW_UTILS_H_
+#pragma once
 
 #include "neug/storages/csr/generic_view.h"
 
@@ -42,5 +40,3 @@ int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
                                         const std::vector<PropertyType>& props);
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_STORAGES_CSR_GENERIC_VIEW_UTILS_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_
+#pragma once
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -431,5 +429,3 @@ class PathExpand {
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_PATH_EXPAND_H_

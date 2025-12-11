@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_
-#define INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_
+#pragma once
 
 #include <stddef.h>
 #include <memory>
@@ -67,5 +65,3 @@ bool vertex_id_topN(bool asc, size_t limit,
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_UTILS_UTILS_H_

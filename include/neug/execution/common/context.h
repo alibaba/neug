@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_
+#pragma once
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -123,5 +122,3 @@ class ContextMeta {
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_CONTEXT_H_

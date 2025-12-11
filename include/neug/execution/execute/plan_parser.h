@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_PLAN_PARSER_H_
-#define INCLUDE_NEUG_EXECUTION_EXECUTE_PLAN_PARSER_H_
+#pragma once
 
 #include <map>
 #include <memory>
@@ -85,5 +83,3 @@ gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_PLAN_PARSER_H_

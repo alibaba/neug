@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_
-#define INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_
+#pragma once
 
 #include <glog/logging.h>
 #include <compare>
@@ -1124,5 +1122,3 @@ inline ostream& operator<<(ostream& os, const gs::runtime::EdgeRecord& e) {
 }
 
 }  // namespace std
-
-#endif  // INCLUDE_NEUG_UTILS_RUNTIME_RT_ANY_H_

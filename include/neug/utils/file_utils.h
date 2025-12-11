@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_UTILS_FILE_UTILS_H_
-#define INCLUDE_NEUG_UTILS_FILE_UTILS_H_
+#pragma once
 
 #include <string>
 
@@ -40,5 +39,3 @@ void copy_directory(const std::string& src, const std::string& dst,
 void remove_directory(const std::string& dir_path);
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_FILE_UTILS_H_

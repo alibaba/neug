@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_APP_MANAGER_H_
-#define INCLUDE_NEUG_MAIN_APP_MANAGER_H_
+#pragma once
 
 #include <stdint.h>
 #include <algorithm>
@@ -51,5 +49,3 @@ class AppManager {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_APP_MANAGER_H_

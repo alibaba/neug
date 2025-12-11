@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PLANNER_GRAPH_PLANNER_H_
-#define SRC_PLANNER_GRAPH_PLANNER_H_
+#pragma once
 
 #include <string>
 #include <vector>
@@ -60,5 +59,3 @@ class IGraphPlanner {
 };
 
 }  // namespace gs
-
-#endif  // SRC_PLANNER_GRAPH_PLANNER_H_

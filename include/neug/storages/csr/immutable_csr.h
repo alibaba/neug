@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_IMMUTABLE_CSR_H_
-#define STORAGES_RT_MUTABLE_GRAPH_CSR_IMMUTABLE_CSR_H_
+#pragma once
 
 #include <stddef.h>
 #include <limits>
@@ -216,5 +214,3 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_CSR_IMMUTABLE_CSR_H_

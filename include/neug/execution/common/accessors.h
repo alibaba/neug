@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_
+#pragma once
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -694,5 +693,3 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_ACCESSORS_H_

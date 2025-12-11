@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_UTILS_H_
-#define STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_UTILS_H_
+#pragma once
 
 #include <arrow/api.h>
 #include <arrow/csv/api.h>
@@ -218,5 +216,3 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
                            const std::vector<vid_t>& vids);
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_LOADER_LOADER_UTILS_H_

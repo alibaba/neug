@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_
-#define INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_
+#pragma once
 
 #include <queue>
 #include <utility>
@@ -161,5 +159,3 @@ class InplaceTopNGenerator {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_TOP_N_GENERATOR_H_

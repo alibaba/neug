@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_
+#pragma once
 
 #include <arrow/array/array_base.h>
 #include <arrow/type_fwd.h>
@@ -174,5 +173,3 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
 
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_COLUMNS_ARROW_CONTEXT_COLUMN_H_

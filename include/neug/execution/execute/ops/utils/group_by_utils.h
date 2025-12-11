@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
-#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_
+#pragma once
 
 #include <algorithm>
 #include <map>
@@ -1120,5 +1118,3 @@ inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
 
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_UTILS_GROUP_BY_UTILS_H_

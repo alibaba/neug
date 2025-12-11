@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_TRANSACTION_UNDO_LOG_H_
-#define INCLUDE_NEUG_TRANSACTION_UNDO_LOG_H_
+#pragma once
 
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
@@ -223,5 +221,3 @@ struct DeleteEdgeTypeUndo : public IUndoLog {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_TRANSACTION_UNDO_LOG_H_

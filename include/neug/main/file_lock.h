@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_FILE_LOCK_H_
-#define INCLUDE_NEUG_MAIN_FILE_LOCK_H_
+#pragma once
 
 #include <cstdio>
 #include <filesystem>
@@ -60,5 +58,3 @@ class FileLock {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_FILE_LOCK_H_

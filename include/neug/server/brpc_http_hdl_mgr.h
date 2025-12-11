@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_
-#define INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_
+#pragma once
 
 #include <brpc/server.h>
 #include <json2pb/pb_to_json.h>
@@ -261,5 +259,3 @@ class BrpcHttpHandlerManager : public IHttpHandlerManager {
 };
 
 }  // namespace server
-
-#endif  // INCLUDE_NEUG_SERVER_BRPC_HTTP_HDL_MGR_H_

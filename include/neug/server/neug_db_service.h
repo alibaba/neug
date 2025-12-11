@@ -12,8 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_
-#define INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_
+#pragma once
 
 #include <yaml-cpp/yaml.h>
 #include <cctype>
@@ -243,5 +242,3 @@ class NeugDBService {
 };
 
 }  // namespace server
-
-#endif  // INCLUDE_NEUG_SERVER_NEUG_DB_SERVICE_H_

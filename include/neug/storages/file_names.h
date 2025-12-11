@@ -12,8 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef STORAGES_RT_MUTABLE_GRAPH_FILE_NAMES_H_
-#define STORAGES_RT_MUTABLE_GRAPH_FILE_NAMES_H_
+#pragma once
 
 #include <assert.h>
 #include <fcntl.h>
@@ -248,5 +247,3 @@ inline std::string wal_ingest_allocator_prefix(const std::string& work_dir,
 }
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_FILE_NAMES_H_

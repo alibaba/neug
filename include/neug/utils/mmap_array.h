@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_
-#define INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_
+#pragma once
 
 #include <assert.h>
 #include <sys/mman.h>
@@ -622,5 +620,3 @@ class mmap_array<std::string_view> {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_MMAP_ARRAY_H_

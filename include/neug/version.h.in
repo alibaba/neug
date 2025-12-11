@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_VERSION_H_
-#define NEUG_VERSION_H_
+#pragma once
 
 /**
  * @file version.h
@@ -37,5 +36,3 @@
 #define NEUG_VERSION_NUMBER                                      \
   (@NEUG_VERSION_MAJOR@ * 10000 + @NEUG_VERSION_MINOR@ * 100 + \
    @NEUG_VERSION_PATCH@)
-
-#endif  // NEUG_VERSION_H_

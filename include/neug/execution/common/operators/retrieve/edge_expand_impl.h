@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
-#define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -995,5 +993,3 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
 
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_RETRIEVE_EDGE_EXPAND_IMPL_H_

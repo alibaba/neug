@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_
-#define INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -57,5 +55,3 @@ class CsvExportWriter : public IExportWriter {
 
 }  // namespace runtime
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_WRITER_CSV_EXPORT_WRITER_H_

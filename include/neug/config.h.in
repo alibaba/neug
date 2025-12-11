@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef NEUG_CONFIG_H_
-#define NEUG_CONFIG_H_
+#pragma once
 
 #include <string>
 
@@ -87,5 +86,3 @@ struct NeugDBConfig {
 
 // Other build configuration options can be added here
 #cmakedefine BUILD_WITH_OSS
-
-#endif  // NEUG_CONFIG_H_

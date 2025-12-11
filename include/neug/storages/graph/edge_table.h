@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_EDGE_TABLE_H_
-#define STORAGES_RT_MUTABLE_GRAPH_EDGE_TABLE_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -134,5 +132,3 @@ class EdgeTable {
   friend class PropertyGraph;
 };
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_EDGE_TABLE_H_

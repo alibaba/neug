@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
-#define STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_
+#pragma once
 
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/table.h"
@@ -128,5 +126,3 @@ struct MutableNbr<EmptyType> {
 };
 
 }  // namespace gs
-
-#endif  // STORAGES_RT_MUTABLE_GRAPH_CSR_NBR_H_

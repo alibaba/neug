@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_
-#define INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_
+#pragma once
 
 #include <glog/logging.h>
 
@@ -64,5 +62,3 @@ class QueryProcessor {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_QUERY_PROCESSOR_H_

@@ -329,14 +329,10 @@ if (BUILD_PYTHON)
 endif()
 
 
-#find boost----------------------------------------------------------------------
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
-include_directories(SYSTEM third_party/boost/date_time/include)
-include_directories(SYSTEM third_party/boost/container_hash/include)
-include_directories(SYSTEM third_party/boost/algorithm/include)
 include_directories(SYSTEM third_party/HowardHinnant/date/include)
 
 

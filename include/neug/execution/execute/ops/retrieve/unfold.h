@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNFOLD_H_
-#define INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNFOLD_H_
+#pragma once
 
 #include <vector>
 
@@ -50,5 +48,3 @@ class UnfoldOprBuilder : public IOperatorBuilder {
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_EXECUTE_OPS_RETRIEVE_UNFOLD_H_

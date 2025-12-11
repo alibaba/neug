@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef STORAGE_RT_MUTABLE_GRAPH_LOADING_CONFIG_H_
-#define STORAGE_RT_MUTABLE_GRAPH_LOADING_CONFIG_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -250,5 +248,3 @@ inline ostream& operator<<(ostream& os, const gs::BulkLoadMethod& method) {
   return os;
 }
 }  // namespace std
-
-#endif  // STORAGE_RT_MUTABLE_GRAPH_LOADING_CONFIG_H_

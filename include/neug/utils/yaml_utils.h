@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_YAML_UTILS_H_
-#define INCLUDE_NEUG_UTILS_YAML_UTILS_H_
+#pragma once
 
 #include <yaml-cpp/yaml.h>
 #include <ostream>
@@ -94,5 +92,3 @@ static bool expect_config(YAML::Node root, const std::string& key,
 
 }  // namespace config_parsing
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_YAML_UTILS_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_PROPERTY_PROPERTY_H_
-#define INCLUDE_NEUG_UTILS_PROPERTY_PROPERTY_H_
+#pragma once
 
 #include <cassert>
 #include <cstdint>
@@ -597,5 +595,3 @@ InArchive& operator<<(InArchive& in_archive, const Property& value);
 OutArchive& operator>>(OutArchive& out_archive, Property& value);
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_PROPERTY_PROPERTY_H_

@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef NEUG_STORAGES_CSR_GENERIC_VIEW_H
-#define NEUG_STORAGES_CSR_GENERIC_VIEW_H
+#pragma once
 
 #include "neug/storages/csr/nbr.h"
 #include "neug/utils/property/column.h"
@@ -445,5 +443,3 @@ struct GenericView {
 };
 
 }  // namespace gs
-
-#endif  // NEUG_STORAGES_CSR_GENERIC_VIEW_H

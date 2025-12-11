@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_TRANSACTION_TRANSACTION_UTILS_H_
-#define INCLUDE_NEUG_TRANSACTION_TRANSACTION_UTILS_H_
+#pragma once
 
 #include "glog/logging.h"
 #include "neug/storages/graph/property_graph.h"
@@ -56,5 +54,3 @@ inline OutArchive& operator>>(OutArchive& out_archive, OpType& value) {
 }
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_TRANSACTION_TRANSACTION_UTILS_H_

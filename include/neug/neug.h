@@ -13,11 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_NEUG_NEUG_H_
-#define INCLUDE_NEUG_NEUG_H_
+#pragma once
 
 #include "neug/config.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
-
-#endif  // INCLUDE_NEUG_NEUG_H_

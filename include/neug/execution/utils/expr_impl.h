@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_
-#define INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_
+#pragma once
 
 #include <assert.h>
 #include <glog/logging.h>
@@ -1122,5 +1120,3 @@ bool graph_related_expr(const ::common::Expression& expr);
 }  // namespace runtime
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_EXECUTION_UTILS_EXPR_IMPL_H_

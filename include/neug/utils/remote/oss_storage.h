@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_
-#define INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_
+#pragma once
 
 #ifdef BUILD_WITH_OSS
 
@@ -94,5 +92,3 @@ class OSSRemoteStorageDownloader : public RemoteStorageDownloader {
 }  // namespace gs
 
 #endif  // BUILD_WITH_OSS
-
-#endif  // INCLUDE_NEUG_UTILS_REMOTE_OSS_STORAGE_H_

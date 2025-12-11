@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-#ifndef INCLUDE_NEUG_UTILS_SERIALIZATION_OUT_ARCHIVE_H_
-#define INCLUDE_NEUG_UTILS_SERIALIZATION_OUT_ARCHIVE_H_
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -169,5 +167,3 @@ inline OutArchive& operator>>(OutArchive& out_archive,
 }
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_SERIALIZATION_OUT_ARCHIVE_H_

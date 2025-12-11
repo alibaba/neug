@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_
-#define INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
@@ -120,5 +118,3 @@ class TransactionManager {
 };
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_MAIN_TRANSACTION_MANAGER_H_

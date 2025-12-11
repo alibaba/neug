@@ -12,8 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef INCLUDE_NEUG_UTILS_ARROW_UTILS_H_
-#define INCLUDE_NEUG_UTILS_ARROW_UTILS_H_
+#pragma once
 
 #include <arrow/api.h>
 #include <arrow/array/array_binary.h>     // for LargeStringArray
@@ -372,5 +371,3 @@ struct TypeConverter<Interval> {
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type);
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_ARROW_UTILS_H_

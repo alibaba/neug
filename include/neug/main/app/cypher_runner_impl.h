@@ -12,9 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef INCLUDE_NEUG_MAIN_CYPHER_RUNNER_IMPL_H_
-#define INCLUDE_NEUG_MAIN_CYPHER_RUNNER_IMPL_H_
+#pragma once
 
 #include <map>
 #include <memory>
@@ -50,7 +48,7 @@ struct PlanCache {
 };
 class CypherRunnerImpl {
  public:
-    static CypherRunnerImpl& get();
+  static CypherRunnerImpl& get();
 
   bool gen_plan(const NeugDB& db, const std::string& query, std::string& plan);
 
@@ -68,4 +66,3 @@ class CypherRunnerImpl {
 };
 }  // namespace runtime
 }  // namespace gs
-#endif  // INCLUDE_NEUG_MAIN_CYPHER_RUNNER_IMPL_H_

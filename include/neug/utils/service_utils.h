@@ -12,8 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_
-#define INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_
+#pragma once
 
 #include <rapidjson/encodings.h>
 #include <stdint.h>
@@ -213,5 +212,3 @@ std::string memory_to_mb_str(uint64_t mem_bytes);
 size_t human_readable_to_bytes(const std::string& human_readable);
 
 }  // namespace gs
-
-#endif  // INCLUDE_NEUG_UTILS_SERVICE_UTILS_H_
