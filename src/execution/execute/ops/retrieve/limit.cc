@@ -24,8 +24,8 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/limit.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 class Schema;
@@ -48,7 +48,7 @@ class LimitOpr : public IOperator {
   std::string get_operator_name() const override { return "LimitOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Limit::limit(std::move(ctx), lower_, upper_);

@@ -17,9 +17,9 @@
 #include <ostream>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/execute/ops/batch/batch_insert_vertex.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/update_transaction.h"

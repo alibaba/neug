@@ -32,7 +32,7 @@ class DataExportOpr : public IOperator {
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override;
 
@@ -44,7 +44,7 @@ class DataExportOpr : public IOperator {
 };
 
 gs::result<gs::runtime::Context> DataExportOpr::Eval(
-    gs::runtime::IStorageInterface& graph_interface,
+    IStorageInterface& graph_interface,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) {
   const auto& graph =

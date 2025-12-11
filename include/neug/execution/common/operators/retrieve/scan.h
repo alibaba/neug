@@ -28,9 +28,9 @@
 
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 

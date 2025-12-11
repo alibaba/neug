@@ -30,13 +30,13 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/utils.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -57,7 +57,7 @@ class GetVFromVerticesOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -80,7 +80,7 @@ class GetVFromEdgesOpr : public IOperator {
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =

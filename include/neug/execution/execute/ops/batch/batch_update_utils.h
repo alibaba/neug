@@ -66,14 +66,13 @@ bool check_csv_import_options(
 bool check_csv_export_options(
     const std::unordered_map<std::string, std::string>& options);
 
-std::string vertex_to_json_string(
-    label_t label, vid_t vid, const gs::runtime::StorageReadInterface& graph);
+std::string vertex_to_json_string(label_t label, vid_t vid,
+                                  const StorageReadInterface& graph);
 
 std::string edge_to_json_string(const EdgeRecord& edge,
-                                const gs::runtime::StorageReadInterface& graph);
+                                const StorageReadInterface& graph);
 
-std::string path_to_json_string(Path& path,
-                                const gs::runtime::StorageReadInterface& graph);
+std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
 PropertyType get_the_pk_type_from_schema(const Schema& schema,
                                          label_t label_id);

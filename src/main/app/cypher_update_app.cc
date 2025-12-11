@@ -24,12 +24,12 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/pb_utils.h"
@@ -37,7 +37,7 @@
 namespace gs {
 
 result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::AddVertexPropertySchema& add_vertex_property_schema) {
   auto vertex_type_name = add_vertex_property_schema.vertex_type().name();
   auto tuple_res =
@@ -56,7 +56,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::AddEdgePropertySchema& add_edge_property_schema) {
   auto edge_type_name = add_edge_property_schema.edge_type().type_name().name();
   auto src_type_name =
@@ -81,7 +81,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_add_edge_property(
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_drop_vertex_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::DropVertexPropertySchema& drop_vertex_property_schema) {
   auto vertex_type_name = drop_vertex_property_schema.vertex_type().name();
   std::vector<std::string> property_names;
@@ -99,7 +99,7 @@ CypherUpdateApp::execute_drop_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::DropEdgePropertySchema& drop_edge_property_schema) {
   auto edge_type_name =
       drop_edge_property_schema.edge_type().type_name().name();
@@ -123,7 +123,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_property(
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_vertex_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::RenameVertexPropertySchema& rename_vertex_property_schema) {
   auto vertex_type_name = rename_vertex_property_schema.vertex_type().name();
   std::vector<std::pair<std::string, std::string>> rename_pairs;
@@ -141,20 +141,20 @@ CypherUpdateApp::execute_rename_vertex_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_rename_vertex_type(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::RenameVertexTypeSchema& rename_vertex_type_schema) {
   THROW_NOT_IMPLEMENTED_EXCEPTION("Rename vertex type is not implemented yet");
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_rename_edge_type(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::RenameEdgeTypeSchema& rename_edge_type_schema) {
   THROW_NOT_IMPLEMENTED_EXCEPTION("Rename edge type is not implemented yet");
 }
 
 result<results::CollectiveResults>
 CypherUpdateApp::execute_rename_edge_property(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::RenameEdgePropertySchema& rename_edge_property_schema) {
   auto edge_type_name =
       rename_edge_property_schema.edge_type().type_name().name();
@@ -177,7 +177,7 @@ CypherUpdateApp::execute_rename_edge_property(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::DropVertexSchema& drop_vertex_schema) {
   auto vertex_type_name = drop_vertex_schema.vertex_type().name();
   // Todo(NENG): Always drop vertex type with detach mode
@@ -192,7 +192,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_vertex_schema(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
-    runtime::StorageUpdateInterface& graph,
+    StorageUpdateInterface& graph,
     const physical::DropEdgeSchema& drop_edge_schema) {
   auto edge_type_name = drop_edge_schema.edge_type().type_name().name();
   auto src_type_name = drop_edge_schema.edge_type().src_type_name().name();
@@ -207,7 +207,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_drop_edge_schema(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
-    runtime::StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan) {
+    StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan) {
   try {
     if (ddl_plan.has_create_vertex_schema()) {
       auto& create_vertex = ddl_plan.create_vertex_schema();
@@ -403,7 +403,7 @@ result<results::CollectiveResults> CypherUpdateApp::execute_ddl(
 }
 
 result<results::CollectiveResults> CypherUpdateApp::execute_update_query(
-    runtime::StorageUpdateInterface& graph, const physical::PhysicalPlan& plan,
+    StorageUpdateInterface& graph, const physical::PhysicalPlan& plan,
     runtime::OprTimer* timer, bool insert_with_resize) {
   auto ctx = runtime::ParseAndExecuteQueryPipeline(graph, plan, timer);
 
@@ -429,7 +429,7 @@ bool CypherUpdateApp::Query(NeugDBSession& graph, Decoder& input,
       return false;
     }
     auto txn = graph.GetUpdateTransaction();
-    runtime::StorageTPUpdateInterface gii(txn);
+    StorageTPUpdateInterface gii(txn);
 
     VLOG(1) << "plan: " << plan.DebugString();
     if (plan.has_ddl_plan()) {

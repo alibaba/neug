@@ -16,8 +16,8 @@
 #ifndef INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_VERTEX_H_
 #define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_VERTEX_H_
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/expr.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 namespace gs {
 namespace runtime {

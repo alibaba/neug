@@ -26,11 +26,11 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/select.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/runtime/rt_any.h"
@@ -69,7 +69,7 @@ class SelectIdNeOpr : public IOperator {
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     auto tag = expr_.operators(0).var().tag().id();
@@ -131,7 +131,7 @@ class SelectOpr : public IOperator {
   std::string get_operator_name() const override { return "SelectOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     StorageReadInterface* graph = nullptr;

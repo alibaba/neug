@@ -34,8 +34,8 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/types.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 

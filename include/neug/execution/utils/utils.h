@@ -22,13 +22,13 @@
 #include <vector>
 
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace algebra {

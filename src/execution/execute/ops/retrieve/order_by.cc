@@ -31,11 +31,11 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 
 namespace gs {
@@ -57,7 +57,7 @@ class OrderByOprBeta : public IOperator {
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =

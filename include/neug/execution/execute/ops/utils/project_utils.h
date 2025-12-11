@@ -29,12 +29,12 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/runtime/rt_any.h"
 
 namespace gs {

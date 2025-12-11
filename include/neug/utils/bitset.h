@@ -31,14 +31,14 @@
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
 #define WORD_INDEX(i) ((i) >> 6)
-#define BIT_OFFSET(i) ((i) &0x3f)
+#define BIT_OFFSET(i) ((i) & 0x3f)
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
 
 // Round up to the nearest multiple of alignment
 #define ROUND_UP_TO_ALIGNMENT(i, alignment) \
-  (((i) + (alignment) -1) & (~((alignment) -1)))
+  (((i) + (alignment) - 1) & (~((alignment) - 1)))
 
 namespace gs {
 
@@ -140,6 +140,8 @@ class Bitset {
   void reserve(size_t cap) {
     cap = std::max(cap, kAlignment * 8);  // Here 8 represents 8 bits in a byte
     size_t new_cap_in_words = WORD_SIZE(cap);
+    new_cap_in_words =
+        std::max(new_cap_in_words, kAlignment / sizeof(uint64_t));
     if (new_cap_in_words <= capacity_in_words_) {
       capacity_ = cap;
       return;

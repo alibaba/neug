@@ -31,13 +31,13 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
@@ -57,7 +57,7 @@ class FilterOidsGPredOpr : public IOperator {
       const std::optional<common::Expression>& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
-  gs::result<gs::runtime::Context> Eval(gs::runtime::IStorageInterface& graph,
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
                                         ParamsType params,
                                         gs::runtime::Context&& ctx,
                                         gs::runtime::OprTimer* timer) override {
@@ -108,7 +108,7 @@ class ScanWithSPredOpr : public IOperator {
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -130,7 +130,7 @@ class ScanWithGPredOpr : public IOperator {
       : scan_params_(scan_params), pred_(pred) {}
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -260,7 +260,7 @@ class DummySourceOpr : public IOperator {
   DummySourceOpr() {}
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();

@@ -31,7 +31,7 @@
 
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/graph_interface.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/utils/property/types.h"
 

@@ -14,9 +14,9 @@
  */
 
 #include "neug/execution/common/operators/insert/create_edge.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/execute/ops/insert/create_edge.h"
 #include "neug/execution/utils/expr.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 namespace runtime {

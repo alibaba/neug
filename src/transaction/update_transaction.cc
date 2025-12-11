@@ -1115,4 +1115,121 @@ void UpdateTransaction::applyEdgePropDeletion() {
   deleted_edge_properties_.clear();
 }
 
+void StorageTPUpdateInterface::CreateCheckpoint() { txn_.CreateCheckpoint(); }
+
+Status StorageTPUpdateInterface::BatchAddVertices(
+    label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+  return txn_.BatchAddVertices(v_label_id, std::move(supplier));
+}
+
+Status StorageTPUpdateInterface::BatchAddEdges(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    std::shared_ptr<IRecordBatchSupplier> supplier) {
+  return txn_.BatchAddEdges(src_label, dst_label, edge_label,
+                            std::move(supplier));
+}
+
+Status StorageTPUpdateInterface::BatchDeleteVertices(
+    label_t v_label_id, const std::vector<vid_t>& vids) {
+  return txn_.BatchDeleteVertices(v_label_id, vids);
+}
+
+Status StorageTPUpdateInterface::BatchDeleteEdges(
+    label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+    const std::vector<std::tuple<vid_t, vid_t>>& edges) {
+  return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
+                               edges);
+}
+
+Status StorageTPUpdateInterface::BatchDeleteEdges(
+    label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
+    const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
+    const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
+  return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
+                               oe_edges, ie_edges);
+}
+
+Status StorageTPUpdateInterface::CreateVertexType(
+    const std::string& name,
+    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+        properties,
+    const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
+  return txn_.CreateVertexType(name, properties, primary_key_names,
+                               error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::CreateEdgeType(
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
+    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+        properties,
+    bool error_on_conflict, EdgeStrategy oe_edge_strategy,
+    EdgeStrategy ie_edge_strategy) {
+  return txn_.CreateEdgeType(src_type, dst_type, edge_type, properties,
+                             error_on_conflict, oe_edge_strategy,
+                             ie_edge_strategy);
+}
+
+Status StorageTPUpdateInterface::AddVertexProperties(
+    const std::string& vertex_type_name,
+    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+        add_properties,
+    bool error_on_conflict) {
+  return txn_.AddVertexProperties(vertex_type_name, add_properties,
+                                  error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::AddEdgeProperties(
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
+    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+        add_properties,
+    bool error_on_conflict) {
+  return txn_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,
+                                error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::RenameVertexProperties(
+    const std::string& vertex_type_name,
+    const std::vector<std::pair<std::string, std::string>>& rename_properties,
+    bool error_on_conflict) {
+  return txn_.RenameVertexProperties(vertex_type_name, rename_properties,
+                                     error_on_conflict);
+}
+Status StorageTPUpdateInterface::RenameEdgeProperties(
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
+    const std::vector<std::pair<std::string, std::string>>& rename_properties,
+    bool error_on_conflict) {
+  return txn_.RenameEdgeProperties(src_type, dst_type, edge_type,
+                                   rename_properties, error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::DeleteVertexProperties(
+    const std::string& vertex_type_name,
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+  return txn_.DeleteVertexProperties(vertex_type_name, delete_properties,
+                                     error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::DeleteEdgeProperties(
+    const std::string& src_type, const std::string& dst_type,
+    const std::string& edge_type,
+    const std::vector<std::string>& delete_properties, bool error_on_conflict) {
+  return txn_.DeleteEdgeProperties(src_type, dst_type, edge_type,
+                                   delete_properties, error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::DeleteVertexType(
+    const std::string& vertex_type_name, bool error_on_conflict) {
+  return txn_.DeleteVertexType(vertex_type_name, error_on_conflict);
+}
+
+Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
+                                                const std::string& dst_type,
+                                                const std::string& edge_type,
+                                                bool error_on_conflict) {
+  return txn_.DeleteEdgeType(src_type, dst_type, edge_type, error_on_conflict);
+}
+
 }  // namespace gs

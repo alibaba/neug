@@ -271,4 +271,17 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
 }
 
+Status StorageTPInsertInterface::BatchAddVertices(
+    label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
+  LOG(FATAL) << "BatchAddVertices is not supported in TP mode currently.";
+  return Status::OK();
+}
+
+Status StorageTPInsertInterface::BatchAddEdges(
+    label_t src_label, label_t dst_label, label_t edge_label,
+    std::shared_ptr<IRecordBatchSupplier> supplier) {
+  LOG(FATAL) << "BatchAddEdges is not supported in TP mode currently.";
+  return Status::OK();
+}
+
 }  // namespace gs

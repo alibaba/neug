@@ -25,6 +25,7 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/graph/graph_interface.h"
 
 #include <glog/logging.h>
 #include "cxxopts/cxxopts.hpp"
@@ -134,7 +135,7 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 }
 
 void benchmark_iteration(
-    gs::runtime::IStorageInterface& graph, gs::runtime::Pipeline& pipeline,
+    gs::IStorageInterface& graph, gs::runtime::Pipeline& pipeline,
     const std::vector<std::map<std::string, std::string>>& parameters,
     int query_num, std::vector<std::vector<char>>& outputs,
     gs::runtime::OprTimer& timer) {
@@ -151,8 +152,7 @@ void benchmark_iteration(
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
       gs::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<gs::runtime::StorageReadInterface&>(graph),
-          output);
+          ctx.value(), dynamic_cast<gs::StorageReadInterface&>(graph), output);
     } else {
       gs::runtime::OprTimer cur_timer;
       auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer);
@@ -160,8 +160,7 @@ void benchmark_iteration(
       outputs[i].clear();
       gs::Encoder output(outputs[i]);
       gs::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<gs::runtime::StorageReadInterface&>(graph),
-          output);
+          ctx.value(), dynamic_cast<gs::StorageReadInterface&>(graph), output);
       timer += cur_timer;
     }
   }
@@ -208,7 +207,7 @@ int main(int argc, char** argv) {
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
   auto txn = svc->GetReadTransaction();
-  gs::runtime::StorageReadInterface graph(txn.graph(), txn.timestamp());
+  gs::StorageReadInterface graph(txn.graph(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {
     int query_num = unit.repeat;

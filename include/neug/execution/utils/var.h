@@ -22,9 +22,9 @@
 
 #include "neug/execution/common/accessors.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/runtime/rt_any.h"
 

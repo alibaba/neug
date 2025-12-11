@@ -24,10 +24,10 @@
 #include <tuple>
 #include <vector>
 #include "neug/config.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
@@ -131,8 +131,8 @@ void neug_parallel_client(std::shared_ptr<server::NeugDBService> svc,
 }
 
 // Helper: get random vertex iterator
-bool neug_get_random_vertex(const gs::runtime::StorageReadInterface& txn,
-                            label_t label_id, vid_t& vid) {
+bool neug_get_random_vertex(const StorageReadInterface& txn, label_t label_id,
+                            vid_t& vid) {
   auto vertex_set = txn.GetVertexSet(label_id);
   int vnum = 0;
   for ([[maybe_unused]] auto v : vertex_set) {
@@ -155,8 +155,7 @@ bool neug_get_random_vertex(const gs::runtime::StorageReadInterface& txn,
   return false;
 }
 
-auto neug_get_random_vertex(gs::runtime::StorageTPUpdateInterface& gi,
-                            label_t label_id) {
+auto neug_get_random_vertex(StorageTPUpdateInterface& gi, label_t label_id) {
   auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
   gs::vid_t vid = 0;
@@ -181,8 +180,8 @@ auto neug_get_random_vertex(gs::runtime::StorageTPUpdateInterface& gi,
 }
 
 // Helper: append string to field
-void neug_append_string_to_field(gs::runtime::StorageTPUpdateInterface& gui,
-                                 label_t label, gs::vid_t vit, int col_id,
+void neug_append_string_to_field(StorageTPUpdateInterface& gui, label_t label,
+                                 gs::vid_t vit, int col_id,
                                  const std::string& str) {
   std::string cur_str =
       std::string(gui.GetVertexProperty(label, vit, col_id).as_string_view());
@@ -213,7 +212,7 @@ std::shared_ptr<server::NeugDBService> neug_AtomicityInit(
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = service->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   int64_t id1 = 1;
   std::string name1 = "Alice";
   std::string email1 = "alice@aol.com";
@@ -239,7 +238,7 @@ std::shared_ptr<server::NeugDBService> neug_AtomicityInit(
 bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -268,7 +267,7 @@ bool neug_AtomicityC(NeugDBSession& db, int64_t person2_id,
 bool neug_AtomicityRB(NeugDBSession& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
   UpdateTransaction txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vit1 = neug_get_random_vertex(gui, person_label_id);
   neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
@@ -305,7 +304,7 @@ std::pair<int64_t, int64_t> neug_AtomicityCheck(
     std::shared_ptr<server::NeugDBService> svc) {
   auto txn = svc->GetReadTransaction();
   const auto& db = svc->db();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   int64_t num_persons = 0, num_emails = 0;
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vprop_accessor =
@@ -341,7 +340,7 @@ std::shared_ptr<server::NeugDBService> G0Init(NeugDB& db,
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
 
   std::string value = "0";
   for (int i = 0; i < 100; ++i) {
@@ -368,7 +367,7 @@ std::shared_ptr<server::NeugDBService> G0Init(NeugDB& db,
 void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
 
@@ -437,7 +436,7 @@ std::tuple<std::string, std::string, std::string> G0Check(
   auto txn = svc->GetReadTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id2");
 
   auto name_col = gi.GetVertexPropColumn<std::string_view>(person_label_id,
@@ -504,7 +503,7 @@ std::shared_ptr<server::NeugDBService> G1BInit(NeugDB& db,
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
@@ -520,7 +519,7 @@ std::shared_ptr<server::NeugDBService> G1BInit(NeugDB& db,
 
 void G1B1(NeugDBSession& db, int64_t even, int64_t odd) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vit = neug_get_random_vertex(gui, person_label_id);
   gui.UpdateVertexProperty(person_label_id, vit, 1, Property::From(even));
@@ -531,7 +530,7 @@ void G1B1(NeugDBSession& db, int64_t even, int64_t odd) {
 
 int64_t G1B2(NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
 
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
@@ -559,7 +558,7 @@ std::shared_ptr<server::NeugDBService> G1CInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = svc->GetInsertTransaction();
 
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
 
   int64_t version_property = 0;
   for (int i = 0; i < 100; ++i) {
@@ -577,7 +576,7 @@ std::shared_ptr<server::NeugDBService> G1CInit(NeugDB& db,
 int64_t G1C(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   gs::vid_t person1_vid;
   bool flag = false;
@@ -629,7 +628,7 @@ std::shared_ptr<server::NeugDBService> G1AInit(NeugDB& db,
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   int64_t vertex_data = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t vertex_id_property = i + 1;
@@ -645,7 +644,7 @@ std::shared_ptr<server::NeugDBService> G1AInit(NeugDB& db,
 
 void G1A1(NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   // select a random person
   auto vit = neug_get_random_vertex(gui, person_label_id);
@@ -660,7 +659,7 @@ void G1A1(NeugDBSession& db) {
 
 int64_t G1A2(NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
 
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
@@ -703,7 +702,7 @@ std::shared_ptr<server::NeugDBService> IMPInit(NeugDB& db,
 void IMP1(NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto vit = neug_get_random_vertex(gui, person_label_id);
   int64_t old_version =
       gui.GetVertexProperty(person_label_id, vit, 1).as_int64();
@@ -714,7 +713,7 @@ void IMP1(NeugDBSession& db) {
 
 std::tuple<int64_t, int64_t> IMP2(NeugDBSession& db, int64_t person1_id) {
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vit0_index = 0;
   auto v_prop_col0 =
@@ -772,7 +771,7 @@ std::shared_ptr<server::NeugDBService> PMPInit(NeugDB& db,
   auto post_label_id = schema.get_vertex_label_id("POST");
 
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
     int64_t value = i + 1;
     vid_t vid;
@@ -787,7 +786,7 @@ std::shared_ptr<server::NeugDBService> PMPInit(NeugDB& db,
 
 bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto post_label_id = db.schema().get_vertex_label_id("POST");
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
@@ -826,7 +825,7 @@ bool PMP1(NeugDBSession& db, int64_t person_id, int64_t post_id) {
 
 std::tuple<int64_t, int64_t> PMP2(NeugDBSession& db, int64_t post_id) {
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto post_label_id = db.schema().get_vertex_label_id("POST");
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
@@ -889,7 +888,7 @@ std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   int64_t value = 0;
 
   for (int j = 1; j <= 100; j++) {
@@ -916,7 +915,7 @@ std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
 
 void OTV1(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   vid_t vid1;
@@ -984,7 +983,7 @@ std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
 OTV2(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
 
@@ -1089,7 +1088,7 @@ std::shared_ptr<server::NeugDBService> LUInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gii(txn);
+  StorageTPInsertInterface gii(txn);
   int64_t num_property = 0;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
@@ -1106,7 +1105,7 @@ std::shared_ptr<server::NeugDBService> LUInit(NeugDB& db,
 
 bool LU1(NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
   gs::vid_t person_vid;
@@ -1134,7 +1133,7 @@ bool LU1(NeugDBSession& db, int64_t person_id) {
 std::map<int64_t, int64_t> LU2(NeugDBSession& db) {
   std::map<int64_t, int64_t> numFriends;
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
   auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
@@ -1167,7 +1166,7 @@ std::shared_ptr<server::NeugDBService> WSInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
   auto txn = svc->GetInsertTransaction();
-  gs::runtime::StorageTPInsertInterface gi(txn);
+  StorageTPInsertInterface gi(txn);
 
   for (int i = 1; i <= 100; i++) {
     int64_t id1 = 2 * i - 1;
@@ -1189,7 +1188,7 @@ std::shared_ptr<server::NeugDBService> WSInit(NeugDB& db,
 void WS1(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
   auto txn = db.GetUpdateTransaction();
-  gs::runtime::StorageTPUpdateInterface gui(txn);
+  StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
   vid_t person1_vid;
@@ -1243,7 +1242,7 @@ std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
     NeugDBSession& db) {
   std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> results;
   auto txn = db.GetReadTransaction();
-  gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+  StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto person_prop_col =
       gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");

@@ -20,9 +20,9 @@
 #include <memory>
 #include <string>
 
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/expr_impl.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/runtime/rt_any.h"
 

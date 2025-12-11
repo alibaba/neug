@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/union.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/likely.h"
 
 namespace gs {
@@ -42,7 +42,7 @@ class UnionOpr : public IOperator {
   std::string get_operator_name() const override { return "UnionOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     std::vector<gs::runtime::Context> ctxs;

@@ -21,8 +21,8 @@
 #include <tuple>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/pb_utils.h"

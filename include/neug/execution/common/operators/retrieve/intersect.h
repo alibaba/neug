@@ -44,7 +44,7 @@ class Intersect {
   template <typename PRED_LEFT, typename PRED_RIGHT, typename PRED_E_LEFT,
             typename PRED_E_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect_SL_Impl(
-      const gs::runtime::StorageReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
       const PRED_RIGHT& right_pred, const PRED_E_LEFT& left_e_pred,
@@ -150,7 +150,7 @@ class Intersect {
   template <typename PRED_LEFT, typename PRED_RIGHT, typename E_PRED_LEFT,
             typename E_PRED_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect_ML_Impl(
-      const gs::runtime::StorageReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
       const PRED_RIGHT& right_pred, const E_PRED_LEFT& left_e_pred,
@@ -282,7 +282,7 @@ class Intersect {
   template <typename PRED_V_LEFT, typename PRED_V_RIGHT, typename PRED_E_LEFT,
             typename PRED_E_RIGHT>
   static gs::result<gs::runtime::Context> Binary_Intersect(
-      const gs::runtime::StorageReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, const PRED_V_LEFT& left_v_pred,
       const PRED_V_RIGHT& right_v_pred, const PRED_E_LEFT& left_e_pred,
@@ -300,7 +300,7 @@ class Intersect {
   }
 
   static gs::result<gs::runtime::Context> Binary_Intersect_With_Edge(
-      const gs::runtime::StorageReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::function<bool(label_t, vid_t, size_t)>& left_pred,
@@ -313,7 +313,7 @@ class Intersect {
       int vertex_alias, const std::vector<int>& edge_alias);
 
   static gs::result<gs::runtime::Context> Multiple_Intersect(
-      const gs::runtime::StorageReadInterface& graph,
+      const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,

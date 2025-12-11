@@ -17,8 +17,8 @@
 #define INCLUDE_NEUG_EXECUTION_COMMON_OPERATORS_INSERT_CREATE_EDGE_H_
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/expr.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
 namespace gs {

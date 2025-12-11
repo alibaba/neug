@@ -24,9 +24,9 @@
 
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/dedup.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
@@ -42,7 +42,7 @@ class DedupOpr : public IOperator {
   std::string get_operator_name() const override { return "DedupOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph,
+      IStorageInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     return Dedup::dedup(std::move(ctx), tag_ids_);

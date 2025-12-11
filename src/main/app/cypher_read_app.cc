@@ -27,13 +27,13 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/app/cypher_runner_impl.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/result.h"
@@ -55,7 +55,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
     VLOG(1) << "plan: " << plan.DebugString();
     auto txn = graph.GetReadTransaction();
 
-    gs::runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
+    StorageReadInterface gri(txn.graph(), txn.timestamp());
 
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
     gs::result<gs::runtime::Context> ctx =
@@ -108,7 +108,7 @@ bool CypherReadApp::Query(const NeugDBSession& graph, Decoder& input,
     }
     auto txn = graph.GetReadTransaction();
     std::unique_ptr<runtime::OprTimer> timer = nullptr;
-    gs::runtime::StorageReadInterface gri(txn.graph(), txn.timestamp());
+    StorageReadInterface gri(txn.graph(), txn.timestamp());
     auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(),
                                                  params, timer.get());
     if (type == Schema::CYPHER_READ_PLUGIN_ID) {

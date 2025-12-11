@@ -23,9 +23,9 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
 namespace gs {

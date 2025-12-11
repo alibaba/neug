@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/graph_interface.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -34,7 +34,7 @@ class IExportWriter {
   virtual ~IExportWriter() = default;
   virtual Status Write(
       const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-      const gs::runtime::StorageReadInterface& graph) = 0;
+      const StorageReadInterface& graph) = 0;
 };
 
 class ExportWriterFactory {

@@ -39,11 +39,11 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/utils/group_by_utils.h"
 #include "neug/execution/utils/var.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -101,7 +101,7 @@ class GroupByOprBeta : public IOperator {
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =

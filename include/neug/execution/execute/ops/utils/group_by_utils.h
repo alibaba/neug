@@ -30,11 +30,11 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/utils/var.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 namespace runtime {

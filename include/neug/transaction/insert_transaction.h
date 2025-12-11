@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/property.h"
@@ -183,6 +184,40 @@ class InsertTransaction {
   IWalWriter& logger_;
   IVersionManager& vm_;
   timestamp_t timestamp_;
+};
+
+class StorageTPInsertInterface : public StorageInsertInterface {
+ public:
+  explicit StorageTPInsertInterface(InsertTransaction& txn) : txn_(txn) {}
+  ~StorageTPInsertInterface() {}
+
+  inline bool AddVertex(label_t label, const Property& id,
+                        const std::vector<Property>& props, vid_t& vid) {
+    return txn_.AddVertex(label, id, props, vid);
+  }
+
+  inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
+                      vid_t dst, label_t edge_label,
+                      const std::vector<Property>& properties) {
+    return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
+  }
+
+  inline const Schema& schema() const { return txn_.schema(); }
+
+  bool GetVertexIndex(label_t label, const Property& id,
+                      vid_t& index) const override {
+    return txn_.GetVertexIndex(label, id, index);
+  }
+
+  inline Status BatchAddVertices(
+      label_t v_label_id,
+      std::shared_ptr<IRecordBatchSupplier> supplier) override;
+
+  Status BatchAddEdges(label_t src_label, label_t dst_label, label_t edge_label,
+                       std::shared_ptr<IRecordBatchSupplier> supplier) override;
+
+ private:
+  InsertTransaction& txn_;
 };
 
 }  // namespace gs

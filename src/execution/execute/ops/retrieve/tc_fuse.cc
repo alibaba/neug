@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/execute/operator.h"
@@ -32,6 +31,7 @@
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
@@ -86,7 +86,7 @@ class TCOpr : public IOperator {
   std::string get_operator_name() const override { return "TCOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const std::string& param_value = params.at(param_name_);

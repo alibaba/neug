@@ -19,10 +19,10 @@
 #include <string>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/var.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 

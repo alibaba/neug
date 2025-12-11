@@ -90,7 +90,7 @@ result<results::CollectiveResults> QueryProcessor::execute(
 result<results::CollectiveResults> QueryProcessor::execute_admin(
     const physical::AdminPlan& admin_plan, int32_t num_threads) {
   // For admin plan, we always use update transaction.
-  runtime::StorageAPUpdateInterface gui(db_.graph(), 0, allocator_);
+  StorageAPUpdateInterface gui(db_.graph(), 0, allocator_);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx =
@@ -105,7 +105,7 @@ result<results::CollectiveResults> QueryProcessor::execute_admin(
 
 result<results::CollectiveResults> QueryProcessor::execute_read_only(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
-  runtime::StorageReadInterface gri(db_.graph(), MAX_TIMESTAMP);
+  StorageReadInterface gri(db_.graph(), MAX_TIMESTAMP);
 
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx = runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
@@ -120,13 +120,13 @@ result<results::CollectiveResults> QueryProcessor::execute_read_only(
 result<results::CollectiveResults> QueryProcessor::execute_read_write(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  runtime::StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
+  StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
   return CypherUpdateApp::execute_update_query(gii, plan, timer.get());
 }
 
 result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  runtime::StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
+  StorageAPUpdateInterface gii(db_.graph(), 0, allocator_);
   return CypherUpdateApp::execute_ddl(gii, ddl_plan);
 }
 

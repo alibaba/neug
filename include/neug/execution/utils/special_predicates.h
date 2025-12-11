@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/graph_interface.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/runtime/rt_any.h"
 
@@ -617,8 +617,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
 
 template <typename OP_T, typename CMP_T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
-    const gs::runtime::IStorageInterface& graph,
-    const std::set<label_t>& expected_labels,
+    const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, const CMP_T& cmp_val,
     Args&&... args) {
@@ -646,8 +645,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 
 template <typename OP_T, typename T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_typed(
-    const gs::runtime::IStorageInterface& graph,
-    const std::set<label_t>& expected_labels,
+    const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
   if (config.ptype == SPPredicateType::kPropertyLT) {
@@ -709,8 +707,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
 
 template <typename OP_T, typename... Args>
 gs::result<Context> dispatch_vertex_predicate(
-    const gs::runtime::IStorageInterface& graph,
-    const std::set<label_t>& expected_labels,
+    const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
   if (config.param_type == RTAnyType::kI64Value) {

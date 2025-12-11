@@ -22,7 +22,7 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 class Schema;

@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/intersect.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
@@ -30,6 +29,7 @@
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/utils.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 class Schema;
@@ -54,7 +54,7 @@ class IntersectOprMultip : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval_Impl(
-      const gs::runtime::IStorageInterface& graph_interface,
+      const IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t, size_t)>>& v_preds,
@@ -68,7 +68,7 @@ class IntersectOprMultip : public IOperator {
                                          e_preds, eeps_, alias_);
   }
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -138,7 +138,7 @@ class IntersectOprBeta : public IOperator {
   std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -241,7 +241,7 @@ class IntersectWithEdgeOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =

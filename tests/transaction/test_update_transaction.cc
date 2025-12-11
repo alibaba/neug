@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "neug/execution/common/graph_interface.h"
 #include "neug/neug.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/csr/generic_view_utils.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/update_transaction.h"
 
 #include "glog/logging.h"
@@ -79,7 +79,7 @@ class UpdateTransactionTest : public ::testing::Test {
     }
   }
 
-  size_t count_edges_filter_src(const gs::runtime::StorageReadInterface& gi,
+  size_t count_edges_filter_src(const gs::StorageReadInterface& gi,
                                 gs::label_t src_label,
                                 gs::label_t neighbor_label,
                                 gs::label_t edge_label, gs::vid_t src_vid,
@@ -96,17 +96,16 @@ class UpdateTransactionTest : public ::testing::Test {
     return edge_count;
   }
 
-  size_t count_vertices(const gs::runtime::StorageReadInterface& gi,
-                        gs::label_t label) {
+  size_t count_vertices(const gs::StorageReadInterface& gi, gs::label_t label) {
     size_t vertex_count = 0;
     auto v_set = gi.GetVertexSet(label);
     v_set.foreach_vertex([&](gs::vid_t vid) { vertex_count++; });
     return vertex_count;
   }
 
-  size_t count_edges(const gs::runtime::StorageReadInterface& gi,
-                     gs::label_t src_label, gs::label_t neighbor_label,
-                     gs::label_t edge_label, bool oe) {
+  size_t count_edges(const gs::StorageReadInterface& gi, gs::label_t src_label,
+                     gs::label_t neighbor_label, gs::label_t edge_label,
+                     bool oe) {
     size_t edge_count = 0;
     auto view = oe ? gi.GetGenericOutgoingGraphView(src_label, neighbor_label,
                                                     edge_label)
@@ -209,7 +208,7 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
@@ -238,7 +237,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
   }
@@ -269,7 +268,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -330,7 +329,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -384,7 +383,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -424,7 +423,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     auto vertex_set = gi.GetVertexSet(person_label);
@@ -464,7 +463,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -504,7 +503,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
   }
@@ -540,7 +539,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -580,7 +579,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
     auto vertex_set = gi.GetVertexSet(person_label);
@@ -635,7 +634,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -701,7 +700,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
     auto view =
@@ -770,7 +769,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -818,7 +817,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -883,7 +882,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   {
     auto txn = svc->GetReadTransaction();
     // Check edge count
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
     auto s_label_id = gi.schema().get_vertex_label_id("software");
     auto e_label_id = gi.schema().get_edge_label_id("created");
@@ -925,7 +924,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
     gs::vid_t vertex_id;
@@ -946,7 +945,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     gs::vid_t vertex_id;
@@ -972,7 +971,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_THROW(gi.schema().get_edge_label_id("developed"),
@@ -1009,7 +1008,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.schema().get_edge_label_id("developed"), dev_label);
@@ -1041,7 +1040,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1092,7 +1091,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(person_label, "address"),
               nullptr);
@@ -1140,7 +1139,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    auto gi = gs::runtime::StorageReadInterface(txn.graph(), txn.timestamp());
+    auto gi = gs::StorageReadInterface(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1190,7 +1189,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
@@ -1228,7 +1227,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1284,7 +1283,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1348,7 +1347,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   }
   {
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
@@ -1410,7 +1409,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     db.Open(config);
     auto svc = std::make_shared<server::NeugDBService>(db);
     auto txn = svc->GetReadTransaction();
-    gs::runtime::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
     gs::vid_t src_p, dst_p;

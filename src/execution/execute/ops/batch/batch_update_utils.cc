@@ -213,7 +213,7 @@ void add_prop_member(rapidjson::Value& object,
 }
 
 rapidjson::Value build_vertex_object(
-    label_t label, vid_t vid, const gs::runtime::StorageReadInterface& graph,
+    label_t label, vid_t vid, const StorageReadInterface& graph,
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value vertex_object(rapidjson::kObjectType);
   std::string internal_id_key = "_ID";
@@ -233,8 +233,8 @@ rapidjson::Value build_vertex_object(
   return vertex_object;
 }
 
-std::string vertex_to_json_string(
-    label_t label, vid_t vid, const gs::runtime::StorageReadInterface& graph) {
+std::string vertex_to_json_string(label_t label, vid_t vid,
+                                  const StorageReadInterface& graph) {
   rapidjson::Document doc;
   auto& allocator = doc.GetAllocator();
   rapidjson::Value vertex_object =
@@ -247,7 +247,7 @@ std::string vertex_to_json_string(
 }
 
 rapidjson::Value build_edge_object(
-    const EdgeRecord& edge, const gs::runtime::StorageReadInterface& graph,
+    const EdgeRecord& edge, const StorageReadInterface& graph,
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value edge_object(rapidjson::kObjectType);
   label_t src_label = edge.label.src_label;
@@ -286,8 +286,8 @@ rapidjson::Value build_edge_object(
   return edge_object;
 }
 
-std::string edge_to_json_string(
-    const EdgeRecord& edge, const gs::runtime::StorageReadInterface& graph) {
+std::string edge_to_json_string(const EdgeRecord& edge,
+                                const StorageReadInterface& graph) {
   rapidjson::Document doc;
   auto& allocator = doc.GetAllocator();
   auto edge_object = build_edge_object(edge, graph, allocator);
@@ -298,8 +298,7 @@ std::string edge_to_json_string(
   return buffer.GetString();
 }
 
-std::string path_to_json_string(
-    Path& path, const gs::runtime::StorageReadInterface& graph) {
+std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   rapidjson::Document doc;
   doc.SetObject();
   auto& allocator = doc.GetAllocator();

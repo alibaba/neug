@@ -27,13 +27,13 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/app/cypher_app_utils.h"
 #include "neug/main/app/cypher_runner_impl.h"
 #include "neug/main/neug_db.h"
 #include "neug/main/neug_db_session.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/result.h"
@@ -77,7 +77,7 @@ bool CypherInsertApp::Query(NeugDBSession& graph, Decoder& input,
                    .value());
   }
 
-  gs::runtime::StorageTPInsertInterface gri(txn);
+  StorageTPInsertInterface gri(txn);
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   auto ctx = pipeline_cache_.at(query).Execute(gri, runtime::Context(), params,
                                                timer.get());

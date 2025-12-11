@@ -41,7 +41,7 @@ class CsvExportWriter : public IExportWriter {
       const std::unordered_map<std::string, std::string>& write_config);
 
   Status Write(const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-               const gs::runtime::StorageReadInterface& graph) override;
+               const StorageReadInterface& graph) override;
 
  private:
   void parse_csv_options(

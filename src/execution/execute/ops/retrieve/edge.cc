@@ -31,7 +31,6 @@
 #include <utility>
 
 #include "neug/execution/common/context.h"
-#include "neug/execution/common/graph_interface.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 #include "neug/execution/common/types.h"
 #include "neug/execution/utils/params.h"
@@ -39,6 +38,7 @@
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/utils.h"
 #include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -113,7 +113,7 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -148,7 +148,7 @@ class EdgeExpandVOpr : public IOperator {
   std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -180,7 +180,7 @@ class EdgeExpandEWithSPredOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -203,7 +203,7 @@ class EdgeExpandEOpr : public IOperator {
   std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -234,7 +234,7 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -258,7 +258,7 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
@@ -279,7 +279,7 @@ class EdgeExpandDegreeOpr : public IOperator {
   EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
   gs::result<gs::runtime::Context> Eval(
-      gs::runtime::IStorageInterface& graph_interface,
+      IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
