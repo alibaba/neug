@@ -335,7 +335,7 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
       if (ptr->timestamp < unsorted_since) {
         break;
       }
-      if (threshold < ptr->data) {
+      if (threshold > ptr->data) {
         func(ptr->neighbor, ptr->data);
       }
       --ptr;
