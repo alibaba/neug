@@ -54,31 +54,46 @@ struct DummyPredicate {
   static constexpr bool is_dummy = true;
 };
 
-bool edge_expand_get_v_fusable(const physical::EdgeExpand& ee_opr,
-                               const physical::GetV& v_opr,
+bool edge_expand_get_v_fusable(const physical::PhysicalPlan& plan, int idx,
                                const physical::PhysicalOpr_MetaData& meta) {
+  const auto& ee_opr = plan.query_plan().plan(idx).opr().edge();
+  const auto& v_opr = plan.query_plan().plan(idx + 1).opr().vertex();
   if (ee_opr.expand_opt() !=
           physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE &&
       ee_opr.expand_opt() !=
           physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX) {
     return false;
   }
-  if (ee_opr.params().has_predicate()) {
-    return false;
-  }
-  int alias = -1;
-  if (ee_opr.has_alias()) {
-    alias = ee_opr.alias().value();
-  }
+
+  int alias = ee_opr.has_alias() ? ee_opr.alias().value() : -1;
   if (alias != -1) {
-    return false;
+    if (idx + 2 < plan.query_plan().plan_size() &&
+        plan.query_plan().plan(idx + 2).opr().has_project()) {
+      auto proj_opr = plan.query_plan().plan(idx + 2).opr().project();
+      if (proj_opr.is_append()) {
+        return false;
+      }
+      const auto& mappings = proj_opr.mappings();
+      for (auto i = 0; i < mappings.size(); ++i) {
+        auto expr = mappings.Get(i).expr();
+        for (auto j = 0; j < expr.operators_size(); ++j) {
+          const auto& opr = expr.operators().Get(j);
+          if (!opr.has_var()) {
+            return false;
+          }
+          if (opr.has_var() && opr.var().has_tag() &&
+              opr.var().tag().id() == alias) {
+            return false;
+          }
+        }
+      }
+    } else {
+      return false;
+    }
   }
 
-  int tag = -1;
-  if (v_opr.has_tag()) {
-    tag = v_opr.tag().value();
-  }
-  if (tag != -1) {
+  int tag = v_opr.has_tag() ? v_opr.tag().value() : -1;
+  if (tag != alias && tag != -1) {
     return false;
   }
 
@@ -104,9 +119,10 @@ bool edge_expand_get_v_fusable(const physical::EdgeExpand& ee_opr,
 
 class EdgeExpandVWithEPCmpOpr : public IOperator {
  public:
-  EdgeExpandVWithEPCmpOpr(const EdgeExpandParams& eep, const std::string& param,
+  EdgeExpandVWithEPCmpOpr(const EdgeExpandParams& eep,
+                          const SpecialEdgePredicateConfig& config,
                           const common::Expression& pred)
-      : eep_(eep), param_(param), pred_(pred), tp_(parse_sp_pred(pred)) {}
+      : eep_(eep), pred_(pred), config_(config) {}
 
   std::string get_operator_name() const override {
     return "EdgeExpandVWithEPCmpOpr";
@@ -119,9 +135,9 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
-      std::string param_value = params.at(param_);
+      std::string param_value = params.at(config_.param_name);
       auto ret = EdgeExpand::expand_vertex_ep_cmp(graph, std::move(ctx), eep_,
-                                                  param_value, tp_);
+                                                  param_value, config_.ptype);
       if (ret) {
         return ret.value();
       }
@@ -134,9 +150,8 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
 
  private:
   EdgeExpandParams eep_;
-  std::string param_;
   common::Expression pred_;
-  SPPredicateType tp_;
+  SpecialEdgePredicateConfig config_;
 };
 
 class EdgeExpandVOpr : public IOperator {
@@ -322,12 +337,10 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
   eep.is_optional = is_optional;
   if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_VERTEX) {
     if (query_params.has_predicate()) {
-      const auto& op2 = query_params.predicate().operators(2);
-      if (op2.has_param()) {
-        std::string param_name =
-            query_params.predicate().operators(2).param().name();
+      SpecialEdgePredicateConfig config;
+      if (is_special_edge_predicate(query_params.predicate(), config)) {
         return std::make_pair(std::make_unique<EdgeExpandVWithEPCmpOpr>(
-                                  eep, param_name, query_params.predicate()),
+                                  eep, config, query_params.predicate()),
                               meta);
       }
       return std::make_pair(
@@ -369,10 +382,8 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
 gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  if (edge_expand_get_v_fusable(
-          plan.query_plan().plan(op_idx).opr().edge(),
-          plan.query_plan().plan(op_idx + 1).opr().vertex(),
-          plan.query_plan().plan(op_idx).meta_data(0))) {
+  if (edge_expand_get_v_fusable(plan, op_idx,
+                                plan.query_plan().plan(op_idx).meta_data(0))) {
     int alias = -1;
     if (plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()) {
       alias = plan.query_plan().plan(op_idx + 1).opr().vertex().alias().value();
@@ -408,14 +419,26 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
         parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
     std::vector<LabelTriplet> filtered_labels;
     for (auto label : eep.labels) {
-      if ((dir == Direction::kOut || dir == Direction::kBoth) &&
+      if (dir == Direction::kOut &&
           std::find(vtables.begin(), vtables.end(), label.dst_label) !=
               vtables.end()) {
         filtered_labels.push_back(label);
-      } else if ((dir == Direction::kIn || dir == Direction::kBoth) &&
+      } else if (dir == Direction::kIn &&
                  std::find(vtables.begin(), vtables.end(), label.src_label) !=
                      vtables.end()) {
         filtered_labels.push_back(label);
+      } else if (dir == Direction::kBoth) {
+        if (std::find(vtables.begin(), vtables.end(), label.src_label) !=
+                vtables.end() &&
+            std::find(vtables.begin(), vtables.end(), label.dst_label) !=
+                vtables.end()) {
+          filtered_labels.push_back(label);
+        } else if ((std::find(vtables.begin(), vtables.end(),
+                              label.src_label) != vtables.end()) ||
+                   (std::find(vtables.begin(), vtables.end(),
+                              label.dst_label) != vtables.end())) {
+          return std::make_pair(nullptr, ContextMeta());
+        }
       }
     }
     eep.labels = filtered_labels;
@@ -424,6 +447,12 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     eep.is_optional = is_optional;
     if (!v_opr.params().has_predicate()) {
       if (query_params.has_predicate()) {
+        SpecialEdgePredicateConfig config;
+        if (is_special_edge_predicate(query_params.predicate(), config)) {
+          return std::make_pair(std::make_unique<EdgeExpandVWithEPCmpOpr>(
+                                    eep, config, query_params.predicate()),
+                                meta);
+        }
         return std::make_pair(
             std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
             meta);
