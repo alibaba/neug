@@ -29,6 +29,7 @@ on:
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
       - 'include/**'
+      - 'CMakeLists.txt'
   push:
     branches:
       - main
@@ -41,6 +42,7 @@ on:
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'include/**'
+      - 'CMakeLists.txt'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}

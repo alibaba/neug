@@ -120,9 +120,6 @@ if (WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
-set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "Skip building performance sandbox comparison (requires boost)")
-set(BUILD_SANDBOX OFF CACHE BOOL "Build sandbox examples")
-
 if (BUILD_TEST)
     enable_testing()
     find_package(GTest)
