@@ -890,6 +890,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
         }
       }
     }
+    seg_start_idx += vertices.size();
   }
   return std::make_pair(builder.finish(), std::move(offsets));
 }
