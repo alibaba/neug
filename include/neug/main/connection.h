@@ -55,12 +55,9 @@ class NeugDB;
  */
 class Connection {
  public:
-  Connection(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+  Connection(PropertyGraph& graph,
              std::shared_ptr<QueryProcessor> query_processor)
-      : graph_(graph),
-        planner_(planner),
-        query_processor_(query_processor),
-        is_closed_(false) {}
+      : graph_(graph), query_processor_(query_processor), is_closed_(false) {}
   ~Connection() { Close(); }
 
   /**
@@ -71,6 +68,11 @@ class Connection {
    * consumption.
    *
    * @param query_string The query string to execute
+   * @param access_mode The access mode of the query. It could be `read(r)`,
+   * `insert(i)`, `update(u)` (include deletion). User should specify the
+   * correct access mode for the query to ensure the correctness of the
+   * database. If the access mode is not specified, it will be set to `update`
+   * by default.
    * @return Result<QueryResult> containing either the query results or an error
    * status
    *
@@ -81,7 +83,8 @@ class Connection {
    *
    * @since v0.1.0
    */
-  result<QueryResult> Query(const std::string& query_string);
+  result<QueryResult> Query(const std::string& query_string,
+                            const std::string& access_mode = "update");
 
   /**
    * @brief Get the database schema.
@@ -124,18 +127,8 @@ class Connection {
   bool IsClosed() const { return is_closed_.load(); }
 
  private:
-  /**
-   * @brief Execute the query and return the result.
-   * @note The query process is divided into two parts:
-   * 1. Parse the query string and generate the execution plan.
-   * 2. Execute the execution plan using runtime engine.
-   */
-  result<results::CollectiveResults> query_impl(
-      const std::string& query_string);
-
   PropertyGraph& graph_;
 
-  std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
 
   std::atomic<bool> is_closed_{false};

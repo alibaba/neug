@@ -38,8 +38,7 @@ void ConnectionManager::ConnectionManager::Close() {
 std::shared_ptr<Connection> ConnectionManager::CreateConnection() {
   std::lock_guard<std::mutex> lock(connection_mutex_);
   if (config_.mode == DBMode::READ_ONLY) {
-    auto conn =
-        std::make_shared<Connection>(graph_, planner_, query_processor_);
+    auto conn = std::make_shared<Connection>(graph_, query_processor_);
     read_only_connections_.push_back(conn);
     return conn;
   } else if (config_.mode == DBMode::READ_WRITE) {
@@ -49,7 +48,7 @@ std::shared_ptr<Connection> ConnectionManager::CreateConnection() {
           "There is already a read-write connection constructed.");
     }
     read_write_connection_ =
-        std::make_shared<Connection>(graph_, planner_, query_processor_);
+        std::make_shared<Connection>(graph_, query_processor_);
     return read_write_connection_;
   } else {
     THROW_RUNTIME_ERROR("Invalid mode.");

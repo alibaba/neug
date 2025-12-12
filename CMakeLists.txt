@@ -639,6 +639,7 @@ if (BUILD_EXECUTABLES)
 endif()
 
 if (BUILD_TEST)
+    include_directories(tests)
     add_subdirectory(tests)
 endif()
 if (BUILD_EXAMPLES)

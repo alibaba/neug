@@ -96,7 +96,9 @@ class Connection(object):
             self._py_connection.close()
             self._is_open = False
 
-    def execute(self, query: str, format: str = "proto") -> QueryResult:
+    def execute(
+        self, query: str, access_mode="update", format: str = "proto"
+    ) -> QueryResult:
         """
         Execute a cypher query on the database. User could specify multiple queries in a single string,
         separated by semicolons. The query will be executed in the order they are specified.
@@ -139,6 +141,18 @@ class Connection(object):
         ----------
         query : str
             The query to execute.
+        access_mode : str
+            The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion). User should
+            specify the correct access mode for the query to ensure the correctness of the database.
+            If the access mode is not specified, it will be set to `update` by default.
+            supported access modes are:
+            - `read`,`r`,`READ`,`R`: for read-only queries
+            - `insert`,`i`,`INSERT`,`I`: for insert-only queries
+            - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
+        format : str
+            The format of the result. It could be `proto` or `json`. If the format is `proto`, the result will be
+            returned as a `QueryResult` object. If the format is `json`, the result will be returned as a JSON string.
+            The default format is `proto`.
 
         Returns
         -------
@@ -150,7 +164,16 @@ class Connection(object):
                 f"Connection is closed. Please open the connection before executing queries."
                 f"Error code: {ERR_CONNECTION_CLOSED}"
             )
-        ret = QueryResult(self._py_connection.execute(query, format))
+        if format not in ["proto", "json"]:
+            raise ValueError(
+                f"Invalid format: {format}. Supported formats are 'proto' and 'json'."
+            )
+        if access_mode.lower() not in ["read", "r", "insert", "i", "update", "u"]:
+            raise ValueError(
+                f"Invalid access_mode: {access_mode}. Supported access modes are "
+                f"'read(r)', 'insert(i)', 'update(u)'."
+            )
+        ret = QueryResult(self._py_connection.execute(query, access_mode, format))
         status_code = ret._result.status_code()
         try:
             msg = ret._result.status_message()

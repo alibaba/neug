@@ -272,3 +272,68 @@ def test_connection_pool_exhausted(started_server):
         Session.open(endpoint)
     assert str(ERR_POOL_EXHAUSTED) in str(excinfo.value)
     s1.close()
+
+
+def test_parallel_connections(tmp_path):
+    shutil.rmtree("/tmp/parallel_conn_db", ignore_errors=True)
+    db_dir = tmp_path / "parallel_conn_db"
+    db = Database(db_path=str(db_dir), mode="r")
+    connections = []
+    for _ in range(5):
+        conn = db.connect()
+        connections.append(conn)
+    for conn in connections:
+        conn.execute("MATCH (n) RETURN n")
+        conn.close()
+    db.close()
+
+
+def test_parallel_query_executions(tmp_path):
+    shutil.rmtree("/tmp/parallel_query_db", ignore_errors=True)
+    db_dir = tmp_path / "parallel_query_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    def run_query(thread_id, conn):
+        for i in range(10):
+            result = conn.execute(
+                f"CREATE (p: person {{id: {thread_id * 10 + i}, name: 'Node{thread_id * 10 + i}'}});"
+            )
+            assert len(result) == 1
+
+    import threading
+
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
+    threads = []
+    for i in range(10):
+        t = threading.Thread(target=run_query, args=(i, conn))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+    res = conn.execute("MATCH (p) RETURN p.id AS id ORDER BY id;")
+    assert len(res) == 100
+    conn.close()
+
+
+def test_access_mode(tmp_path):
+    shutil.rmtree("/tmp/access_mode_db", ignore_errors=True)
+    db_dir = tmp_path / "access_mode_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn_rw = db.connect()
+    supported_access_modes = ["read", "r", "insert", "i", "update", "u"]
+    for mode in supported_access_modes:
+        conn_rw.execute(
+            f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
+            access_mode=mode,
+        )
+    unsupported_access_modes = ["delete", "d", "drop", "dr"]
+    for mode in unsupported_access_modes:
+        with pytest.raises(Exception) as excinfo:
+            conn_rw.execute(
+                f"CREATE NODE TABLE test_table_{mode}(id INT64, PRIMARY KEY(id));",
+                access_mode=mode,
+            )
+        assert "Invalid access_mode" in str(excinfo.value)
+    conn_rw.close()
+    db.close()

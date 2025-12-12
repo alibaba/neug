@@ -18,6 +18,7 @@
 #include <random>
 #include <vector>
 
+#include "neug/main/connection.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
@@ -278,5 +279,69 @@ std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>> generate_random_edges(
   }
   return edges;
 }
+
+namespace gs {
+namespace test {
+
+inline void load_modern_graph(std::shared_ptr<gs::Connection> conn) {
+  const char* csv_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
+  if (csv_dir_ptr == nullptr) {
+    throw std::runtime_error(
+        "MODERN_GRAPH_DATA_DIR environment variable is not set");
+  }
+  LOG(INFO) << "CSV data dir: " << csv_dir_ptr;
+  std::string csv_dir = csv_dir_ptr;
+  auto res = conn->Query(
+      "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY "
+      "KEY(id));");
+  EXPECT_TRUE(res) << res.error().ToString();
+
+  {
+    auto res = conn->Query(
+        "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
+        "PRIMARY "
+        "KEY(id));");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+  {
+    auto res = conn->Query(
+        "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  {
+    auto res = conn->Query(
+        "CREATE REL TABLE created(FROM person TO software, weight DOUBLE, "
+        "since INT64);");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  {
+    auto res = conn->Query("COPY person from \"" + csv_dir + "/person.csv\";");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  {
+    auto res =
+        conn->Query("COPY software from \"" + csv_dir + "/software.csv\";");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  {
+    auto res = conn->Query(
+        "COPY knows from \"" + csv_dir +
+        "/person_knows_person.csv\" (from=\"person\", to=\"person\");");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+
+  {
+    auto res = conn->Query("COPY created from \"" + csv_dir +
+                           "/person_created_software.csv\" (from=\"person\", "
+                           "to =\"software\");");
+    EXPECT_TRUE(res) << res.error().ToString();
+  }
+}
+}  // namespace test
+}  // namespace gs
 
 #endif  // NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_

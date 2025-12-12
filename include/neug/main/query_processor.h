@@ -16,8 +16,10 @@
 
 #include <glog/logging.h>
 
+#include <shared_mutex>
 #include <string>
 
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -28,37 +30,44 @@
 
 namespace gs {
 
-class NeugDB;
-
 class QueryProcessor {
  public:
-  QueryProcessor(NeugDB& db, Allocator& alloc, int32_t max_num_threads,
+  QueryProcessor(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+                 Allocator& alloc, int32_t max_num_threads,
                  bool is_read_only = false)
-      : db_(db),
+      : g_(graph),
+        planner_(planner),
         allocator_(alloc),
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
 
-  result<results::CollectiveResults> execute(const physical::PhysicalPlan& plan,
+  result<results::CollectiveResults> execute(const std::string& query_string,
+                                             const std::string& access_mode,
                                              int32_t num_threads = 0);
 
  private:
+  result<results::CollectiveResults> execute_internal(
+      const std::string& query_string, int32_t num_threads = 0);
   result<results::CollectiveResults> execute_admin(
       const physical::AdminPlan& admin_plan, int32_t num_threads);
 
-  result<results::CollectiveResults> execute_read_only(
-      const physical::PhysicalPlan& plan, int32_t num_threads);
-
-  result<results::CollectiveResults> execute_read_write(
+  result<results::CollectiveResults> execute_query(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
   result<results::CollectiveResults> execute_ddl(
       const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
-  NeugDB& db_;
+  bool need_exclusive_lock(const std::string& access_mode);
+
+  void update_compiler_meta_if_needed(const physical::PhysicalPlan& plan);
+
+  PropertyGraph& g_;
+  std::shared_ptr<IGraphPlanner> planner_;
   Allocator& allocator_;
   int32_t max_num_threads_;
   bool is_read_only_ = false;
+
+  std::shared_mutex mutex_;
 };
 
 }  // namespace gs

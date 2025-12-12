@@ -34,12 +34,14 @@ void PyConnection::initialize(pybind11::handle& m) {
       .def("close", &PyConnection::close,
            "Close the connection to the database.\n")
       .def("execute", &PyConnection::execute, pybind11::arg("query_string"),
+           pybind11::arg("access_mode") = "update",
            pybind11::arg("format") = "proto",
            "Execute a query_string on the database. Which is passed to the "
            "query "
            "processor.\n\n"
            "Args:\n"
            "    query_string (str): The query string to execute.\n"
+           "    access_mode (str): The access mode of the query. It could be "
            "    format (str): Output format of query result.\n\n"
            "Returns:\n"
            "    PyQueryResult: The result of the query execution.\n")
@@ -63,8 +65,9 @@ void PyConnection::close() {
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
-    const std::string& query_string, const std::string& format) {
-  auto query_result = conn_->Query(query_string);
+    const std::string& query_string, const std::string& access_mode,
+    const std::string& format) {
+  auto query_result = conn_->Query(query_string, access_mode);
   if (!query_result) {
     return std::make_unique<PyQueryResult>(query_result.error());
   }

@@ -163,6 +163,7 @@ jobs:
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
         ctest -R logical_delete_test -V
+        ctest -R test_connection
 
     - name: Run Python Test
       run: |

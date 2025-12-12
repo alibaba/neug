@@ -34,25 +34,10 @@ from neug.connection import Connection
 from neug.proto.error_pb2 import ERR_CONFIG_INVALID
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_PATH
+from neug.utils import readable
 from neug.version import __version__
 
 logger = logging.getLogger(__name__)
-
-cur_file_path = os.path.dirname(os.path.abspath(__file__))
-cur_dir_path = os.path.dirname(cur_file_path)
-resource_dir = os.path.join(cur_dir_path, "neug", "resources")
-
-
-def readable(mode: str) -> str:
-    """Convert mode to a readable string."""
-    if mode in ["r", "read", "read-only", "read_only"]:
-        return "read-only"
-    elif mode in ["w", "rw", "write", "readwrite", "read-write", "read_write"]:
-        return "read-write"
-    else:
-        raise ValueError(
-            f"Invalid mode: {mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
-        )
 
 
 class Database(object):

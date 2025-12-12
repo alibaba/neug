@@ -159,6 +159,7 @@ class HttpServiceImpl : public HttpService {
     if (document.HasMember("format") && document["format"].IsString()) {
       format = document["format"].GetString();
     }
+    // TODO(zhanglei): support access_mode in http query
 
     gs::Status status;
     auto plan_res = planner_->compilePlan(query);

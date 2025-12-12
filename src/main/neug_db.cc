@@ -302,7 +302,8 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_statistics(graph().get_statistics_json());
 
   query_processor_ = std::make_shared<QueryProcessor>(
-      *this, *allocators_[0], thread_num_, config_.mode == DBMode::READ_ONLY);
+      graph_, planner_, *allocators_[0], thread_num_,
+      config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       graph_, planner_, query_processor_, config_);
