@@ -57,10 +57,10 @@ class IntersectOprMultip : public IOperator {
       const IStorageInterface& graph_interface,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
-      const std::vector<std::function<bool(label_t, vid_t, size_t)>>& v_preds,
-      const std::vector<
-          std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
-                             const void*, size_t)>>& e_preds,
+      const std::vector<std::function<bool(label_t, vid_t)>>& v_preds,
+      const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
+                                           label_t, Direction, const void*)>>&
+          e_preds,
       gs::runtime::OprTimer* timer) {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
@@ -73,9 +73,9 @@ class IntersectOprMultip : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::vector<std::function<bool(label_t, vid_t, size_t)>> v_preds;
+    std::vector<std::function<bool(label_t, vid_t)>> v_preds;
     std::vector<std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
-                                   Direction, const void*, size_t)>>
+                                   Direction, const void*)>>
         e_preds;
     std::vector<std::unique_ptr<GeneralVertexPredicate>> pred_wrappers;
     std::vector<std::unique_ptr<GeneralEdgePredicate>> edge_pred_wrappers;
@@ -85,11 +85,11 @@ class IntersectOprMultip : public IOperator {
             graph, ctx, params, pred.value());
         pred_wrappers.emplace_back(std::move(vpred));
         auto& vpred_ref = *pred_wrappers.back();
-        v_preds.emplace_back([&vpred_ref](label_t label, vid_t v, size_t idx) {
-          return vpred_ref(label, v, idx);
+        v_preds.emplace_back([&vpred_ref](label_t label, vid_t v) {
+          return vpred_ref(label, v);
         });
       } else {
-        v_preds.emplace_back([](label_t, vid_t, size_t) { return true; });
+        v_preds.emplace_back([](label_t, vid_t) { return true; });
       }
     }
     for (const auto& pred : edge_preds_) {
@@ -101,14 +101,12 @@ class IntersectOprMultip : public IOperator {
         e_preds.emplace_back([&epred_ref](label_t label, vid_t v,
                                           label_t nbr_label, vid_t dst,
                                           label_t e_label, Direction dir,
-                                          const void* edata_ptr, size_t idx) {
-          return epred_ref(label, v, nbr_label, dst, e_label, dir, edata_ptr,
-                           idx);
+                                          const void* edata_ptr) {
+          return epred_ref(label, v, nbr_label, dst, e_label, dir, edata_ptr);
         });
       } else {
         e_preds.emplace_back([](label_t, vid_t, label_t, vid_t, label_t,
-                                Direction, const void*,
-                                size_t) { return true; });
+                                Direction, const void*) { return true; });
       }
     }
     return Eval_Impl(graph, params, std::move(ctx), v_preds, e_preds, timer);
@@ -143,12 +141,12 @@ class IntersectOprBeta : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto lambda = [](label_t label, vid_t v, size_t idx) {
+    auto lambda = [](label_t label, vid_t v) {
       return true;  // Dummy predicate that always returns true
     };
-    std::array<std::function<bool(label_t, vid_t, size_t)>, 2> v_preds;
+    std::array<std::function<bool(label_t, vid_t)>, 2> v_preds;
     std::array<std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
-                                  Direction, const void*, size_t)>,
+                                  Direction, const void*)>,
                2>
         e_preds;
     std::shared_ptr<GeneralVertexPredicate> vpred1_wrapper, vpred2_wrapper;
@@ -156,8 +154,8 @@ class IntersectOprBeta : public IOperator {
     if (left_v_pred_.has_value()) {
       vpred1_wrapper = std::make_shared<GeneralVertexPredicate>(
           graph, ctx, params, left_v_pred_.value());
-      v_preds[0] = [vpred1_wrapper](label_t label, vid_t v, size_t idx) {
-        return (*vpred1_wrapper)(label, v, idx);
+      v_preds[0] = [vpred1_wrapper](label_t label, vid_t v) {
+        return (*vpred1_wrapper)(label, v);
       };
     } else {
       v_preds[0] = lambda;
@@ -166,8 +164,8 @@ class IntersectOprBeta : public IOperator {
     if (right_v_pred_.has_value()) {
       vpred2_wrapper = std::make_shared<GeneralVertexPredicate>(
           graph, ctx, params, right_v_pred_.value());
-      v_preds[1] = [vpred2_wrapper](label_t label, vid_t v, size_t idx) {
-        return (*vpred2_wrapper)(label, v, idx);
+      v_preds[1] = [vpred2_wrapper](label_t label, vid_t v) {
+        return (*vpred2_wrapper)(label, v);
       };
     } else {
       v_preds[1] = lambda;
@@ -178,14 +176,14 @@ class IntersectOprBeta : public IOperator {
           graph, ctx, params, left_e_pred_.value());
       e_preds[0] = [epred1_wrapper](label_t label, vid_t v, label_t nbr_label,
                                     vid_t nbr, label_t e_label, Direction dir,
-                                    const void* edata_ptr, size_t idx) {
+                                    const void* edata_ptr) {
         return (*epred1_wrapper)(label, v, nbr_label, nbr, e_label, dir,
-                                 edata_ptr, idx);
+                                 edata_ptr);
       };
     } else {
       e_preds[0] = [](label_t label, vid_t v, label_t nbr_label, vid_t nbr,
-                      label_t e_label, Direction dir, const void* edata_ptr,
-                      size_t idx) { return true; };
+                      label_t e_label, Direction dir,
+                      const void* edata_ptr) { return true; };
     }
 
     if (right_e_pred_.has_value()) {
@@ -193,14 +191,14 @@ class IntersectOprBeta : public IOperator {
           graph, ctx, params, right_e_pred_.value());
       e_preds[1] = [epred2_wrapper](label_t label, vid_t v, label_t nbr_label,
                                     vid_t nbr, label_t e_label, Direction dir,
-                                    const void* edata_ptr, size_t idx) {
+                                    const void* edata_ptr) {
         return (*epred2_wrapper)(label, v, nbr_label, nbr, e_label, dir,
-                                 edata_ptr, idx);
+                                 edata_ptr);
       };
     } else {
       e_preds[1] = [](label_t label, vid_t v, label_t nbr_label, vid_t nbr,
-                      label_t e_label, Direction dir, const void* edata_ptr,
-                      size_t idx) { return true; };
+                      label_t e_label, Direction dir,
+                      const void* edata_ptr) { return true; };
     }
 
     return Intersect::Binary_Intersect(graph, params, std::move(ctx),
@@ -246,12 +244,12 @@ class IntersectWithEdgeOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto lambda = [](label_t label, vid_t v, size_t idx) {
+    auto lambda = [](label_t label, vid_t v) {
       return true;  // Dummy predicate that always returns true
     };
-    std::array<std::function<bool(label_t, vid_t, size_t)>, 2> v_preds;
+    std::array<std::function<bool(label_t, vid_t)>, 2> v_preds;
     std::array<std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
-                                  Direction, const void*, size_t)>,
+                                  Direction, const void*)>,
                2>
         e_preds;
     std::shared_ptr<GeneralVertexPredicate> vpred1_wrapper, vpred2_wrapper;
@@ -259,8 +257,8 @@ class IntersectWithEdgeOpr : public IOperator {
     if (left_v_pred_.has_value()) {
       vpred1_wrapper = std::make_shared<GeneralVertexPredicate>(
           graph, ctx, params, left_v_pred_.value());
-      v_preds[0] = [vpred1_wrapper](label_t label, vid_t v, size_t idx) {
-        return (*vpred1_wrapper)(label, v, idx);
+      v_preds[0] = [vpred1_wrapper](label_t label, vid_t v) {
+        return (*vpred1_wrapper)(label, v);
       };
     } else {
       v_preds[0] = lambda;
@@ -269,8 +267,8 @@ class IntersectWithEdgeOpr : public IOperator {
     if (right_v_pred_.has_value()) {
       vpred2_wrapper = std::make_shared<GeneralVertexPredicate>(
           graph, ctx, params, right_v_pred_.value());
-      v_preds[1] = [vpred2_wrapper](label_t label, vid_t v, size_t idx) {
-        return (*vpred2_wrapper)(label, v, idx);
+      v_preds[1] = [vpred2_wrapper](label_t label, vid_t v) {
+        return (*vpred2_wrapper)(label, v);
       };
     } else {
       v_preds[1] = lambda;
@@ -281,14 +279,14 @@ class IntersectWithEdgeOpr : public IOperator {
           graph, ctx, params, left_e_pred_.value());
       e_preds[0] = [epred1_wrapper](label_t label, vid_t v, label_t nbr_label,
                                     vid_t nbr, label_t e_label, Direction dir,
-                                    const void* edata_ptr, size_t idx) {
+                                    const void* edata_ptr) {
         return (*epred1_wrapper)(label, v, nbr_label, nbr, e_label, dir,
-                                 edata_ptr, idx);
+                                 edata_ptr);
       };
     } else {
       e_preds[0] = [](label_t label, vid_t v, label_t nbr_label, vid_t nbr,
-                      label_t e_label, Direction dir, const void* edata_ptr,
-                      size_t idx) { return true; };
+                      label_t e_label, Direction dir,
+                      const void* edata_ptr) { return true; };
     }
 
     if (right_e_pred_.has_value()) {
@@ -296,14 +294,14 @@ class IntersectWithEdgeOpr : public IOperator {
           graph, ctx, params, right_e_pred_.value());
       e_preds[1] = [epred2_wrapper](label_t label, vid_t v, label_t nbr_label,
                                     vid_t nbr, label_t e_label, Direction dir,
-                                    const void* edata_ptr, size_t idx) {
+                                    const void* edata_ptr) {
         return (*epred2_wrapper)(label, v, nbr_label, nbr, e_label, dir,
-                                 edata_ptr, idx);
+                                 edata_ptr);
       };
     } else {
       e_preds[1] = [](label_t label, vid_t v, label_t nbr_label, vid_t nbr,
-                      label_t e_label, Direction dir, const void* edata_ptr,
-                      size_t idx) { return true; };
+                      label_t e_label, Direction dir,
+                      const void* edata_ptr) { return true; };
     }
 
     return Intersect::Binary_Intersect_With_Edge(

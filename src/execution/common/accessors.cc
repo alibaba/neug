@@ -50,8 +50,6 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<Tuple>>(ctx, tag);
   case RTAnyType::kList:
     return std::make_shared<ContextValueAccessor<List>>(ctx, tag);
-  case RTAnyType::kMap:
-    return std::make_shared<ContextValueAccessor<Map>>(ctx, tag);
   case RTAnyType::kPath:
     return std::make_shared<ContextValueAccessor<Path>>(ctx, tag);
   case RTAnyType::kVertex:

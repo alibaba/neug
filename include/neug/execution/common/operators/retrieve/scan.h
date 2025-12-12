@@ -50,7 +50,7 @@ class Scan {
       auto vertices = graph.GetVertexSet(label);
       builder.start_label(label);
       for (auto vid : vertices) {
-        if (predicate(label, vid, 0)) {
+        if (predicate(label, vid)) {
           builder.push_back_opt(vid);
         }
       }
@@ -74,7 +74,7 @@ class Scan {
         if (cur_limit <= 0) {
           break;
         }
-        if (predicate(label, vid, 0)) {
+        if (predicate(label, vid)) {
           builder.push_back_opt(vid);
           cur_limit--;
         }
@@ -92,7 +92,7 @@ class Scan {
           if (cur_limit <= 0) {
             break;
           }
-          if (predicate(label, vid, 0)) {
+          if (predicate(label, vid)) {
             builder.push_back_opt(vid);
             cur_limit--;
           }
@@ -124,7 +124,7 @@ class Scan {
         }
         vid_t vid;
         if (graph.GetVertexIndex(label, oid, vid)) {
-          if (predicate(label, vid, 0)) {
+          if (predicate(label, vid)) {
             builder.push_back_opt(vid);
             --limit;
           }
@@ -145,7 +145,7 @@ class Scan {
           }
           vid_t vid;
           if (graph.GetVertexIndex(label, oid, vid)) {
-            if (predicate(label, vid, 0)) {
+            if (predicate(label, vid)) {
               vids.emplace_back(label, vid);
               --limit;
             }

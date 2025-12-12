@@ -258,8 +258,6 @@ class ListValueColumn : public ListValueColumnBase {
         ++i;
       }
       return {builder.finish(), offsets};
-    } else if (elem_type_ == RTAnyType::kMap) {
-      return unfold_impl<Map>();
     } else if (elem_type_ == RTAnyType::kVertex) {
       std::vector<size_t> offsets;
       MLVertexColumnBuilder builder;
@@ -337,7 +335,7 @@ class OptionalValueColumn : public IValueColumn<T> {
            std::to_string(size()) + "]";
   }
   inline ContextColumnType column_type() const override {
-    return ContextColumnType::kOptionalValue;
+    return ContextColumnType::kValue;
   }
 
   std::shared_ptr<IContextColumn> shuffle(

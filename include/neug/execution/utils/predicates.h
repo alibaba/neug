@@ -34,8 +34,8 @@ struct GeneralVertexPredicate {
                          const common::Expression& expr)
       : expr_(&graph, ctx, params, expr, VarType::kVertexVar) {}
 
-  inline bool operator()(label_t label, vid_t v, size_t path_idx) const {
-    auto val = expr_.eval_vertex(label, v, path_idx, arena_);
+  inline bool operator()(label_t label, vid_t v) const {
+    auto val = expr_.eval_vertex(label, v, arena_);
     return val.as_bool();
   }
 
@@ -52,14 +52,14 @@ struct GeneralEdgePredicate {
       : expr_(&graph, ctx, params, expr, VarType::kEdgeVar) {}
 
   inline bool operator()(label_t label, vid_t src, label_t nbr_label, vid_t nbr,
-                         label_t e_label, Direction dir, const void* edata_ptr,
-                         size_t idx) const {
+                         label_t e_label, Direction dir,
+                         const void* edata_ptr) const {
     auto triplet = (dir == Direction::kOut)
                        ? LabelTriplet(label, nbr_label, e_label)
                        : LabelTriplet(nbr_label, label, e_label);
-    auto val = expr_.eval_edge(triplet, dir == Direction::kOut ? src : nbr,
-                               dir == Direction::kOut ? nbr : src, edata_ptr,
-                               idx, arena_);
+    auto val =
+        expr_.eval_edge(triplet, dir == Direction::kOut ? src : nbr,
+                        dir == Direction::kOut ? nbr : src, edata_ptr, arena_);
     return val.as_bool();
   }
 
@@ -69,9 +69,7 @@ struct GeneralEdgePredicate {
 
 struct DummyVertexPredicate {
   static constexpr bool is_dummy = true;
-  bool operator()(label_t label, vid_t v, size_t path_idx) const {
-    return true;
-  }
+  bool operator()(label_t label, vid_t v) const { return true; }
 };
 
 template <typename VERTEX_PRED_T>
@@ -82,8 +80,8 @@ struct EdgeNbrPredicate {
 
   inline bool operator()(label_t label, vid_t src, label_t nbr_label, vid_t nbr,
                          label_t edge_label, Direction dir,
-                         const void* data_ptr, size_t idx) const {
-    return vertex_pred(nbr_label, nbr, idx);
+                         const void* data_ptr) const {
+    return vertex_pred(nbr_label, nbr);
   }
 
   const VERTEX_PRED_T& vertex_pred;
@@ -100,10 +98,9 @@ struct EdgeAndNbrPredicate {
 
   inline bool operator()(label_t label, vid_t src, label_t nbr_label, vid_t nbr,
                          label_t edge_label, Direction dir,
-                         const void* data_ptr, size_t path_idx) const {
-    return vertex_pred(nbr_label, nbr, path_idx) &&
-           edge_pred(label, src, nbr_label, nbr, edge_label, dir, data_ptr,
-                     path_idx);
+                         const void* data_ptr) const {
+    return vertex_pred(nbr_label, nbr) &&
+           edge_pred(label, src, nbr_label, nbr, edge_label, dir, data_ptr);
   }
 
   const VERTEX_PRED_T& vertex_pred;

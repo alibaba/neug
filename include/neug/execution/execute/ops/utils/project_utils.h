@@ -207,7 +207,7 @@ struct SPOpr {
         else_value(else_value) {}
   inline RESULT_T operator()(size_t idx) const {
     auto v = vertex_col->get_vertex(idx);
-    if (pred(v.label_, v.vid_, idx)) {
+    if (pred(v.label_, v.vid_)) {
       return then_value;
     } else {
       return else_value;
@@ -610,9 +610,6 @@ make_project_expr_without_data_type(
     return std::make_unique<
         ProjectExpr<typename ListCollector::EXPR, ListCollector>>(
         ListCollector::EXPR(std::move(expr)), collector, alias);
-  } break;
-  case RTAnyType::kMap: {
-    return _make_project_expr<Map>(std::move(e), alias, ctx);
   } break;
 
   default:

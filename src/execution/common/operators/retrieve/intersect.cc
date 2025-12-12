@@ -61,10 +61,10 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,
-    const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-    const std::vector<
-        std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
-                           const void*, size_t)>>& e_preds,
+    const std::vector<std::function<bool(label_t, vid_t)>>& preds,
+    const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
+                                         label_t, Direction, const void*)>>&
+        e_preds,
     const std::vector<EdgeExpandParams>& eeps, int vertex_alias) {
   std::vector<IVertexColumn*> vertex_cols;
   for (const auto& eep : eeps) {
@@ -103,8 +103,8 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
           vid_t vid = iter.get_vertex();
           if (e_preds[0](v.label_, v.vid_, label_triplet.dst_label, vid,
                          label_triplet.edge_label, Direction::kOut,
-                         iter.get_data_ptr(), i)) {
-            if (preds[0](label_triplet.dst_label, vid, i)) {
+                         iter.get_data_ptr())) {
+            if (preds[0](label_triplet.dst_label, vid)) {
               VertexRecord v_record{label_triplet.dst_label, vid};
               if (vertex_set.find(v_record) == vertex_set.end()) {
                 vertex_set.emplace(v_record, 0);
@@ -127,8 +127,8 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
           vid_t vid = iter.get_vertex();
           if (e_preds[0](v.label_, v.vid_, label_triplet.src_label, vid,
                          label_triplet.edge_label, Direction::kIn,
-                         iter.get_data_ptr(), i)) {
-            if (preds[0](label_triplet.src_label, vid, i)) {
+                         iter.get_data_ptr())) {
+            if (preds[0](label_triplet.src_label, vid)) {
               VertexRecord v_record{label_triplet.src_label, vid};
               if (vertex_set.find(v_record) == vertex_set.end()) {
                 vertex_set.emplace(v_record, 0);
@@ -155,10 +155,10 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
             vid_t vid = iter.get_vertex();
             if (e_preds[j](v.label_, v.vid_, label_triplet.dst_label, vid,
                            label_triplet.edge_label, Direction::kOut,
-                           iter.get_data_ptr(), i)) {
+                           iter.get_data_ptr())) {
               VertexRecord v_record{label_triplet.dst_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
-                  preds[j](v_record.label_, v_record.vid_, i)) {
+                  preds[j](v_record.label_, v_record.vid_)) {
                 if (tmp_set.find(v_record) == tmp_set.end()) {
                   tmp_set.emplace(v_record, 0);
                 }
@@ -180,10 +180,10 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
             vid_t vid = iter.get_vertex();
             if (e_preds[j](v.label_, v.vid_, label_triplet.src_label, vid,
                            label_triplet.edge_label, Direction::kIn,
-                           iter.get_data_ptr(), i)) {
+                           iter.get_data_ptr())) {
               VertexRecord v_record{label_triplet.src_label, vid};
               if (vertex_set.find(v_record) != vertex_set.end() &&
-                  preds[j](v_record.label_, v_record.vid_, i)) {
+                  preds[j](v_record.label_, v_record.vid_)) {
                 if (tmp_set.find(v_record) == tmp_set.end()) {
                   tmp_set.emplace(v_record, 0);
                 }
@@ -217,12 +217,12 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
     const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx,
-    const std::function<bool(label_t, vid_t, size_t)>& left_pred,
-    const std::function<bool(label_t, vid_t, size_t)>& right_pred,
+    const std::function<bool(label_t, vid_t)>& left_pred,
+    const std::function<bool(label_t, vid_t)>& right_pred,
     const std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
-                             const void*, size_t)>& left_e_pred,
+                             const void*)>& left_e_pred,
     const std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
-                             const void*, size_t)>& right_e_pred,
+                             const void*)>& right_e_pred,
     const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
     int vertex_alias, const std::vector<int>& edge_alias) {
   const auto& vertex_col0 =
@@ -279,8 +279,8 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
           vid_t vid = iter.get_vertex();
           if (left_e_pred(v0.label_, v0.vid_, label_triplet.dst_label, vid,
                           label_triplet.edge_label, Direction::kOut,
-                          iter.get_data_ptr(), i) &&
-              left_pred(label_triplet.dst_label, vid, i)) {
+                          iter.get_data_ptr()) &&
+              left_pred(label_triplet.dst_label, vid)) {
             auto rcd = VertexRecord{label_triplet.dst_label, vid};
             aux_values.emplace_back(label_triplet, v0.vid_, vid,
                                     iter.get_data_ptr(), Direction::kOut);
@@ -303,8 +303,8 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
           vid_t vid = iter.get_vertex();
           if (left_e_pred(v0.label_, v0.vid_, label_triplet.src_label, vid,
                           label_triplet.edge_label, Direction::kIn,
-                          iter.get_data_ptr(), i) &&
-              left_pred(label_triplet.src_label, vid, i)) {
+                          iter.get_data_ptr()) &&
+              left_pred(label_triplet.src_label, vid)) {
             auto rcd = VertexRecord{label_triplet.src_label, vid};
             aux_values.emplace_back(label_triplet, vid, v0.vid_,
                                     iter.get_data_ptr(), Direction::kIn);
@@ -328,8 +328,8 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
           vid_t vid = iter.get_vertex();
           if (right_e_pred(v1.label_, v1.vid_, label_triplet.dst_label, vid,
                            label_triplet.edge_label, Direction::kOut,
-                           iter.get_data_ptr(), i) &&
-              right_pred(label_triplet.dst_label, vid, i)) {
+                           iter.get_data_ptr()) &&
+              right_pred(label_triplet.dst_label, vid)) {
             auto rcd = VertexRecord{label_triplet.dst_label, vid};
             if (vertex_set.find(rcd) != vertex_set.end()) {
               const auto& values = vertex_set[rcd];
@@ -367,9 +367,9 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
           VertexRecord v_record{label_triplet.src_label, vid};
           if (right_e_pred(v1.label_, v1.vid_, label_triplet.src_label, vid,
                            label_triplet.edge_label, Direction::kIn,
-                           iter.get_data_ptr(), i) &&
+                           iter.get_data_ptr()) &&
               vertex_set.find(v_record) != vertex_set.end() &&
-              right_pred(label_triplet.src_label, vid, i)) {
+              right_pred(label_triplet.src_label, vid)) {
             const auto& values = vertex_set[v_record];
             for (const auto& value : values) {
               builder.push_back_opt(v_record);

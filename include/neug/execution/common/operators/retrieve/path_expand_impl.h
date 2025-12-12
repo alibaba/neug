@@ -205,7 +205,7 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -233,7 +233,7 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -307,7 +307,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -345,7 +345,7 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             std::vector<vid_t> path(depth + 1);
             vid_t x = u;
             for (int i = 0; i <= depth; ++i) {
@@ -446,7 +446,7 @@ void sssp_both_dir_with_order_by_length_limit(
     if (depth >= lower) {
       if (depth == upper - 1) {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             dest_col_builder.push_back_opt(u);
 
             path_len_builder.push_back_opt(depth);
@@ -455,7 +455,7 @@ void sssp_both_dir_with_order_by_length_limit(
         }
       } else {
         for (auto u : cur) {
-          if (pred(v_label, u, idx)) {
+          if (pred(v_label, u)) {
             dest_col_builder.push_back_opt(u);
 
             path_len_builder.push_back_opt(depth);
@@ -621,7 +621,7 @@ default_single_source_shortest_path_impl(
       int depth = 0;
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
-          if (depth >= lower && pred(v_label, vid, idx)) {
+          if (depth >= lower && pred(v_label, vid)) {
             std::vector<VertexRecord> path;
             std::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;
@@ -693,7 +693,7 @@ default_single_source_shortest_path_impl(
       int depth = 0;
       while (depth < upper && !cur.empty()) {
         for (auto [v_label, vid] : cur) {
-          if (depth >= lower && pred(v_label, vid, idx)) {
+          if (depth >= lower && pred(v_label, vid)) {
             std::vector<VertexRecord> path;
             std::vector<std::tuple<label_t, Direction, const void*>>
                 edge_labels;

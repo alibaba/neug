@@ -131,12 +131,12 @@ class GetV {
                 }
               }
               if (dir == Direction::kOut) {
-                if (pred(label.dst_label, dst, index)) {
+                if (pred(label.dst_label, dst)) {
                   builder.push_back_opt(dst);
                   shuffle_offset.push_back(index);
                 }
               } else {
-                if (pred(label.src_label, src, index)) {
+                if (pred(label.src_label, src)) {
                   builder.push_back_opt(src);
                   shuffle_offset.push_back(index);
                 }
@@ -160,12 +160,12 @@ class GetV {
                 }
               }
               if (dir == Direction::kOut) {
-                if (pred(label.dst_label, dst, index)) {
+                if (pred(label.dst_label, dst)) {
                   builder.push_back_opt({label.dst_label, dst});
                   shuffle_offset.push_back(index);
                 }
               } else {
-                if (pred(label.src_label, src, index)) {
+                if (pred(label.src_label, src)) {
                   builder.push_back_opt({label.src_label, src});
                   shuffle_offset.push_back(index);
                 }
@@ -202,7 +202,7 @@ class GetV {
                   return;
                 }
               }
-              if (pred(label.src_label, src, index)) {
+              if (pred(label.src_label, src)) {
                 builder.push_back_opt(src);
                 shuffle_offset.push_back(index);
               }
@@ -224,7 +224,7 @@ class GetV {
                   return;
                 }
               }
-              if (pred(label.src_label, src, index)) {
+              if (pred(label.src_label, src)) {
                 builder.push_back_opt({label.src_label, src});
                 shuffle_offset.push_back(index);
               }
@@ -260,7 +260,7 @@ class GetV {
                   return;
                 }
               }
-              if (pred(label.dst_label, dst, index)) {
+              if (pred(label.dst_label, dst)) {
                 builder.push_back_opt(dst);
                 shuffle_offset.push_back(index);
               }
@@ -282,7 +282,7 @@ class GetV {
                   return;
                 }
               }
-              if (pred(label.dst_label, dst, index)) {
+              if (pred(label.dst_label, dst)) {
                 builder.push_back_opt({label.dst_label, dst});
                 shuffle_offset.push_back(index);
               }
@@ -314,7 +314,7 @@ class GetV {
     input_path_list.foreach_path([&](size_t index, const Path& path) {
       auto [label, vid] = path.get_end();
 
-      if (required_label[label] && pred(label, vid, index)) {
+      if (required_label[label] && pred(label, vid)) {
         builder.push_back_vertex({label, vid});
         shuffle_offset.push_back(index);
       }
@@ -366,7 +366,7 @@ class GetV {
     if (params.tag == params.alias) {
       foreach_vertex(input_vertex_list,
                      [&](size_t idx, label_t label, vid_t v) {
-                       if (pred(label, v, idx)) {
+                       if (pred(label, v)) {
                          offset.push_back(idx);
                        }
                      });
@@ -377,7 +377,7 @@ class GetV {
         MSVertexColumnBuilder builder(*label_set.begin());
         foreach_vertex(input_vertex_list,
                        [&](size_t idx, label_t label, vid_t v) {
-                         if (pred(label, v, idx)) {
+                         if (pred(label, v)) {
                            builder.push_back_opt(v);
                            offset.push_back(idx);
                          }
@@ -388,7 +388,7 @@ class GetV {
         MLVertexColumnBuilderOpt builder(input_vertex_list.get_labels_set());
         foreach_vertex(input_vertex_list,
                        [&](size_t idx, label_t label, vid_t v) {
-                         if (pred(label, v, idx)) {
+                         if (pred(label, v)) {
                            builder.push_back_vertex({label, v});
                            offset.push_back(idx);
                          }

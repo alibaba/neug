@@ -70,8 +70,8 @@ class FilterOidsGPredOpr : public IOperator {
             std::move(ctx), graph, params_.tables[0], oids[0], params_.alias);
       }
       return Scan::filter_oids(
-          std::move(ctx), graph, params_,
-          [](label_t, vid_t, size_t) { return true; }, oids);
+          std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
+          oids);
     } else {
       Arena arena;
       const StorageReadInterface* graph_ptr = nullptr;
@@ -82,8 +82,8 @@ class FilterOidsGPredOpr : public IOperator {
                                    VarType::kVertexVar);
       return Scan::filter_oids(
           std::move(ctx), graph, params_,
-          [&expr, &arena](label_t label, vid_t vid, size_t idx) {
-            return expr->eval_vertex(label, vid, idx, arena).as_bool();
+          [&expr, &arena](label_t label, vid_t vid) {
+            return expr->eval_vertex(label, vid, arena).as_bool();
           },
           oids);
     }
@@ -138,11 +138,11 @@ class ScanWithGPredOpr : public IOperator {
     if (!pred_.has_value()) {
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
         return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
-                                 [](label_t, vid_t, size_t) { return true; });
+                                 [](label_t, vid_t) { return true; });
       } else {
         return Scan::scan_vertex_with_limit(
             std::move(ctx), graph, scan_params_,
-            [](label_t, vid_t, size_t) { return true; });
+            [](label_t, vid_t) { return true; });
       }
     } else {
       StorageReadInterface* graph_ptr = nullptr;
@@ -154,15 +154,15 @@ class ScanWithGPredOpr : public IOperator {
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
         auto ret = Scan::scan_vertex(
             std::move(ctx), graph, scan_params_,
-            [&expr, &arena](label_t label, vid_t vid, size_t idx) {
-              return expr->eval_vertex(label, vid, idx, arena).as_bool();
+            [&expr, &arena](label_t label, vid_t vid) {
+              return expr->eval_vertex(label, vid, arena).as_bool();
             });
         return ret;
       } else {
         auto ret = Scan::scan_vertex_with_limit(
             std::move(ctx), graph, scan_params_,
-            [&expr, &arena](label_t label, vid_t vid, size_t idx) {
-              return expr->eval_vertex(label, vid, idx, arena).as_bool();
+            [&expr, &arena](label_t label, vid_t vid) {
+              return expr->eval_vertex(label, vid, arena).as_bool();
             });
         return ret;
       }

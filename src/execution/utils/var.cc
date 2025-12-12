@@ -77,9 +77,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
       } else {
         getter_ = std::make_shared<VertexPathAccessor>(ctx, tag);
       }
-    } else if (ctx.get(tag)->column_type() == ContextColumnType::kValue ||
-               ctx.get(tag)->column_type() ==
-                   ContextColumnType::kOptionalValue) {
+    } else if (ctx.get(tag)->column_type() == ContextColumnType::kValue) {
       getter_ = create_context_value_accessor(ctx, tag, type_);
     } else if (ctx.get(tag)->column_type() == ContextColumnType::kEdge) {
       if (pb.has_property()) {
@@ -156,13 +154,13 @@ Var::~Var() {}
 
 RTAny Var::get(size_t path_idx) const { return getter_->eval_path(path_idx); }
 
-RTAny Var::get_vertex(label_t label, vid_t v, size_t idx) const {
-  return getter_->eval_vertex(label, v, idx);
+RTAny Var::get_vertex(label_t label, vid_t v) const {
+  return getter_->eval_vertex(label, v);
 }
 
 RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                    const void* data_ptr, size_t idx) const {
-  return getter_->eval_edge(label, src, dst, data_ptr, idx);
+                    const void* data_ptr) const {
+  return getter_->eval_edge(label, src, dst, data_ptr);
 }
 
 RTAnyType Var::type() const { return type_; }

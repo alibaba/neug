@@ -66,7 +66,7 @@ class IContextColumn;
     for (auto it = es.begin(); it != es.end(); ++it) {                    \
       auto nbr = it.get_vertex();                                         \
       if (pred(input_label, v, nbr_label, nbr, edge_label, dir,           \
-               it.get_data_ptr(), v_idx)) {                               \
+               it.get_data_ptr())) {                                      \
         builder.push_back_opt(nbr);                                       \
         offsets.push_back(v_idx);                                         \
       }                                                                   \
@@ -80,7 +80,7 @@ class IContextColumn;
     for (auto it = es.begin(); it != es.end(); ++it) {                    \
       auto nbr = it.get_vertex();                                         \
       if (pred(input_label, v, nbr_label, nbr, edge_label, dir,           \
-               it.get_data_ptr(), v_idx)) {                               \
+               it.get_data_ptr())) {                                      \
         builder.push_back_opt({nbr_label, nbr});                          \
         offsets.push_back(v_idx);                                         \
       }                                                                   \
@@ -754,7 +754,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
           for (auto it = es.begin(); it != es.end(); ++it) {
             auto nbr = it.get_vertex();
             if (pred(input_label, v, nbr_label, nbr, edge_label, dir,
-                     it.get_data_ptr(), idx)) {
+                     it.get_data_ptr())) {
               builder.push_back_opt(dir == Direction::kOut ? v : nbr,
                                     dir == Direction::kOut ? nbr : v,
                                     it.get_data_ptr());
@@ -770,7 +770,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
           for (auto it = es.begin(); it != es.end(); ++it) {
             auto nbr = it.get_vertex();
             if (pred(input_label, v, nbr_label, nbr, edge_label, dir,
-                     it.get_data_ptr(), idx)) {
+                     it.get_data_ptr())) {
               builder.push_back_opt(dir == Direction::kOut ? v : nbr,
                                     dir == Direction::kOut ? nbr : v,
                                     it.get_data_ptr());
@@ -862,7 +862,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
             for (auto it = es.begin(); it != es.end(); ++it) {
               auto nbr = it.get_vertex();
               if (pred(input_label, v, nbr_label, nbr, edge_label, dir,
-                       it.get_data_ptr(), vertex_idx)) {
+                       it.get_data_ptr())) {
                 builder.push_back_opt(dir == Direction::kOut ? v : nbr,
                                       dir == Direction::kOut ? nbr : v,
                                       it.get_data_ptr());
@@ -878,7 +878,7 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
             for (auto it = es.begin(); it != es.end(); ++it) {
               auto nbr = it.get_vertex();
               if (pred(input_label, v, nbr_label, nbr, edge_label, dir,
-                       it.get_data_ptr(), vertex_idx)) {
+                       it.get_data_ptr())) {
                 builder.push_back_opt(dir == Direction::kOut ? v : nbr,
                                       dir == Direction::kOut ? nbr : v,
                                       it.get_data_ptr());
@@ -971,8 +971,8 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
         auto es = view.get_edges(vid);
         for (auto it = es.begin(); it != es.end(); ++it) {
           auto nbr = it.get_vertex();
-          if (pred(l, vid, nbr_label, nbr, edge_label, dir, it.get_data_ptr(),
-                   idx)) {
+          if (pred(l, vid, nbr_label, nbr, edge_label, dir,
+                   it.get_data_ptr())) {
             builder.push_back_opt(
                 triplet_idx, dir == Direction::kOut ? vid : nbr,
                 dir == Direction::kOut ? nbr : vid, it.get_data_ptr(), dir);

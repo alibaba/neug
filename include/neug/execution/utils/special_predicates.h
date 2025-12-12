@@ -357,8 +357,8 @@ class EdgePropertyCmpPredicate {
   ~EdgePropertyCmpPredicate() = default;
 
   bool operator()(label_t v_label, vid_t v, label_t nbr_label, vid_t nbr,
-                  label_t edge_label, Direction dir, const void* data_ptr,
-                  size_t path_idx) const {
+                  label_t edge_label, Direction dir,
+                  const void* data_ptr) const {
     T val = getter_.get(v_label, v, nbr_label, nbr, edge_label, dir, data_ptr);
     return cmp_(val);
   }
@@ -377,7 +377,7 @@ class VertexPropertyCmpPredicate {
   VertexPropertyCmpPredicate(const GETTER_T& getter, const CMP_T& cmp)
       : getter_(getter), cmp_(cmp) {}
 
-  bool operator()(label_t label, vid_t v, size_t path_idx) const {
+  bool operator()(label_t label, vid_t v) const {
     T val = getter_.get(label, v);
     return cmp_(val);
   }

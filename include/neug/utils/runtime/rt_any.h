@@ -500,20 +500,6 @@ class Tuple {
   TupleImplBase* impl_;
 };
 
-class MapImpl : public CObject {
- public:
-  MapImpl();
-  ~MapImpl();
-  static std::unique_ptr<MapImpl> make_map_impl(
-      const std::vector<RTAny>& keys, const std::vector<RTAny>& values);
-  size_t size() const;
-  bool operator<(const MapImpl& p) const;
-  bool operator==(const MapImpl& p) const;
-
-  std::vector<RTAny> keys;
-  std::vector<RTAny> values;
-};
-
 class StringImpl : public CObject {
  public:
   std::string_view str_view() const {
@@ -554,7 +540,6 @@ enum class RTAnyType {
   kNull = 15,
   kTuple = 16,
   kList = 17,
-  kMap = 18,
   kSet = 19,
   kEmpty = 20,
 };
@@ -562,20 +547,6 @@ enum class RTAnyType {
 PropertyType rt_type_to_property_type(RTAnyType type);
 
 RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
-
-class Map {
- public:
-  static Map make_map(MapImpl* impl);
-  std::pair<const std::vector<RTAny>, const std::vector<RTAny>> key_vals()
-      const;
-  bool operator<(const Map& p) const;
-  bool operator==(const Map& p) const;
-
-  size_t size() const;
-  std::string to_string() const;
-
-  MapImpl* map_;
-};
 
 struct pod_string_view {
   const char* data_;
@@ -618,7 +589,6 @@ union RTAnyValue {
   Path p;
   Tuple t;
   List list;
-  Map map;
   Set set;
   bool b_val;
 };
@@ -656,7 +626,6 @@ class RTAny {
   static RTAny from_list(const List& list);
   static RTAny from_float(float v);
   static RTAny from_double(double v);
-  static RTAny from_map(const Map& m);
   static RTAny from_set(const Set& s);
   static RTAny from_interval(const Interval& v);
 
@@ -676,7 +645,6 @@ class RTAny {
   Path as_path() const;
   Tuple as_tuple() const;
   List as_list() const;
-  Map as_map() const;
   Set as_set() const;
 
   bool operator<(const RTAny& other) const;
@@ -852,14 +820,6 @@ struct TypedConverter<Tuple> {
     return RTAny::from_tuple(std::move(val));
   }
   static const std::string name() { return "tuple"; }
-};
-
-template <>
-struct TypedConverter<Map> {
-  static RTAnyType type() { return RTAnyType::kMap; }
-  static Map to_typed(const RTAny& val) { return val.as_map(); }
-  static RTAny from_typed(Map val) { return RTAny::from_map(val); }
-  static const std::string name() { return "map"; }
 };
 
 template <>
@@ -1073,8 +1033,8 @@ class SetImpl<VertexRecord> : public SetImplBase {
 template <typename T>
 using is_view_type =
     std::disjunction<std::is_same<T, List>, std::is_same<T, Tuple>,
-                     std::is_same<T, Map>, std::is_same<T, Set>,
-                     std::is_same<T, std::string_view>, std::is_same<T, Path>>;
+                     std::is_same<T, Set>, std::is_same<T, std::string_view>,
+                     std::is_same<T, Path>>;
 }  // namespace runtime
 
 }  // namespace gs
@@ -1093,11 +1053,6 @@ inline ostream& operator<<(ostream& os, const gs::runtime::Tuple& tuple) {
 
 inline ostream& operator<<(ostream& os, const gs::runtime::List& list) {
   os << list.to_string();
-  return os;
-}
-
-inline ostream& operator<<(ostream& os, const gs::runtime::Map& map) {
-  os << map.to_string();
   return os;
 }
 

@@ -291,16 +291,16 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
       Arena arena;
       auto v_pred = parse_expression(&graph, std::move(ctx), params,
                                      pred_.value(), VarType::kVertexVar);
-      auto pred = [&v_pred, &arena](label_t label, vid_t vid, size_t idx) {
-        return v_pred->eval_vertex(label, vid, idx, arena).as_bool();
+      auto pred = [&v_pred, &arena](label_t label, vid_t vid) {
+        return v_pred->eval_vertex(label, vid, arena).as_bool();
       };
 
       return PathExpand::single_source_shortest_path_with_order_by_length_limit(
           graph, std::move(ctx), spp_, pred, limit_);
     } else {
       return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_,
-          [](label_t, vid_t, size_t) { return true; }, limit_);
+          graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; },
+          limit_);
     }
   }
 
@@ -408,8 +408,8 @@ class SPGPredOpr : public IOperator {
     auto predicate = parse_expression(&graph, std::move(ctx), params, pred_,
                                       VarType::kVertexVar);
     Arena arena;
-    auto pred = [&arena, &predicate](label_t label, vid_t v, size_t idx) {
-      return predicate->eval_vertex(label, v, idx, arena).as_bool();
+    auto pred = [&arena, &predicate](label_t label, vid_t v) {
+      return predicate->eval_vertex(label, v, arena).as_bool();
     };
 
     return PathExpand::single_source_shortest_path(graph, std::move(ctx), spp_,
@@ -433,8 +433,7 @@ class SPWithoutPredOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::single_source_shortest_path(
-        graph, std::move(ctx), spp_,
-        [](label_t, vid_t, size_t) { return true; });
+        graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; });
   }
 
  private:
@@ -785,7 +784,7 @@ class AnyWeightedShortestPathOpr : public IOperator {
     Arena arena;
     auto weight_func = [&expr, &arena](const LabelTriplet& label, vid_t src,
                                        vid_t dst, const void* data_ptr) {
-      return expr.eval_edge(label, src, dst, data_ptr, 0, arena).as_double();
+      return expr.eval_edge(label, src, dst, data_ptr, arena).as_double();
     };
     return PathExpand::any_weighted_shortest_path(graph, std::move(ctx), pep_,
                                                   weight_func);

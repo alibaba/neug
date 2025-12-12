@@ -23,7 +23,7 @@
 namespace gs {
 namespace runtime {
 
-using neug_func_exec_t = RTAny (*)(size_t, Arena&, const std::vector<RTAny>&);
+using neug_func_exec_t = RTAny (*)(Arena&, const std::vector<RTAny>&);
 
 }  // namespace runtime
 }  // namespace gs

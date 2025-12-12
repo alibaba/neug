@@ -231,33 +231,6 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   }
 }
 
-Map Map::make_map(MapImpl* impl) {
-  Map m;
-  m.map_ = impl;
-  return m;
-}
-
-std::pair<const std::vector<RTAny>, const std::vector<RTAny>> Map::key_vals()
-    const {
-  return std::make_pair(map_->keys, map_->values);
-}
-
-bool Map::operator<(const Map& p) const { return *map_ < *(p.map_); }
-bool Map::operator==(const Map& p) const { return *map_ == *(p.map_); }
-size_t Map::size() const { return map_->keys.size(); }
-std::string Map::to_string() const {
-  std::stringstream ss;
-  ss << "{";
-  for (size_t i = 0; i < map_->keys.size(); i++) {
-    if (i != 0) {
-      ss << ", ";
-    }
-    ss << map_->keys[i].to_string() << ": " << map_->values[i].to_string();
-  }
-  ss << "}";
-  return ss.str();
-}
-
 RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 
@@ -338,8 +311,6 @@ RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
     value_.f32_val = rhs.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     value_.f64_val = rhs.value_.f64_val;
-  } else if (type_ == RTAnyType::kMap) {
-    value_.map = rhs.value_.map;
   } else if (type_ == RTAnyType::kDate) {
     value_.date_val = rhs.value_.date_val;
   } else if (type_ == RTAnyType::kDateTime) {
@@ -378,8 +349,6 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.f32_val = rhs.value_.f32_val;
   } else if (type_ == RTAnyType::kF64Value) {
     value_.f64_val = rhs.value_.f64_val;
-  } else if (type_ == RTAnyType::kMap) {
-    value_.map = rhs.value_.map;
   } else if (type_ == RTAnyType::kPath) {
     value_.p = rhs.value_.p;
   } else if (type_ == RTAnyType::kDate) {
@@ -538,13 +507,6 @@ RTAny RTAny::from_double(double v) {
   return ret;
 }
 
-RTAny RTAny::from_map(const Map& m) {
-  RTAny ret;
-  ret.type_ = RTAnyType::kMap;
-  ret.value_.map = std::move(m);
-  return ret;
-}
-
 RTAny RTAny::from_set(const Set& s) {
   RTAny ret;
   ret.type_ = RTAnyType::kSet;
@@ -652,11 +614,6 @@ Tuple RTAny::as_tuple() const {
   return value_.t;
 }
 
-Map RTAny::as_map() const {
-  assert(type_ == RTAnyType::kMap);
-  return value_.map;
-}
-
 RTAny TupleImpl<RTAny>::get(size_t idx) const {
   CHECK(idx < values.size());
   return values[idx];
@@ -689,29 +646,6 @@ std::string TupleImpl<RTAny>::to_string() const {
   }
   ss << ")";
   return ss.str();
-}
-
-MapImpl::MapImpl() {}
-
-MapImpl::~MapImpl() {}
-
-std::unique_ptr<MapImpl> MapImpl::make_map_impl(
-    const std::vector<RTAny>& keys, const std::vector<RTAny>& values) {
-  auto new_map = std::make_unique<MapImpl>();
-  new_map->keys = keys;
-  new_map->values = values;
-  return new_map;
-}
-
-size_t MapImpl::size() const { return keys.size(); }
-
-bool MapImpl::operator<(const MapImpl& p) const {
-  // return std::tie(keys, values) < std::tie(p.keys, p.values);
-  THROW_NOT_SUPPORTED_EXCEPTION("MapImpl should not be compared directly.");
-  return false;  // This line is unreachable but avoids compiler warning.
-}
-bool MapImpl::operator==(const MapImpl& p) const {
-  return std::tie(keys, values) == std::tie(p.keys, p.values);
 }
 
 int RTAny::numerical_cmp(const RTAny& other) const {
@@ -1464,24 +1398,6 @@ std::string RTAny::to_string() const {
     return std::to_string(value_.f32_val);
   } else if (type_ == RTAnyType::kF64Value) {
     return std::to_string(value_.f64_val);
-  } else if (type_ == RTAnyType::kMap) {
-    std::string ret = "{";
-    auto [keys_ptr, vals_ptr] = value_.map.key_vals();
-    auto& keys = keys_ptr;
-    auto& vals = vals_ptr;
-    for (size_t i = 0; i < keys.size(); ++i) {
-      if (vals[i].is_null()) {
-        continue;
-      }
-      ret += keys[i].to_string();
-      ret += ": ";
-      ret += vals[i].to_string();
-      if (i != keys.size() - 1) {
-        ret += ", ";
-      }
-    }
-    ret += "}";
-    return ret;
   } else if (type_ == RTAnyType::kDateTime) {
     return value_.dt_val.to_string();
   } else if (type_ == RTAnyType::kDate) {

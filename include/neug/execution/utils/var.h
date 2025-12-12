@@ -62,9 +62,9 @@ class Var {
   ~Var();
 
   RTAny get(size_t path_idx) const;
-  RTAny get_vertex(label_t label, vid_t v, size_t idx) const;
+  RTAny get_vertex(label_t label, vid_t v) const;
   RTAny get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                 const void* data_ptr, size_t idx) const;
+                 const void* data_ptr) const;
 
   RTAnyType type() const;
   bool is_optional() const { return getter_->is_optional(); }

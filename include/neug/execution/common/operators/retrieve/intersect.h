@@ -75,8 +75,8 @@ class Intersect {
           vid_t vid = iter.get_vertex();
           if (left_e_pred(v0.label_, v0.vid_, label, vid,
                           eep0.labels[0].edge_label, Direction::kOut,
-                          iter.get_data_ptr(), i)) {
-            if (left_pred(label, vid, i)) {
+                          iter.get_data_ptr())) {
+            if (left_pred(label, vid)) {
               if (vertex_set.find(vid) == vertex_set.end()) {
                 vertex_set.emplace(vid);
               }
@@ -92,8 +92,8 @@ class Intersect {
           vid_t vid = iter.get_vertex();
           if (left_e_pred(v0.label_, v0.vid_, label, vid,
                           eep0.labels[0].edge_label, Direction::kIn,
-                          iter.get_data_ptr(), i)) {
-            if (left_pred(label, vid, i)) {
+                          iter.get_data_ptr())) {
+            if (left_pred(label, vid)) {
               if (vertex_set.find(vid) == vertex_set.end()) {
                 vertex_set.emplace(vid);
               }
@@ -112,9 +112,9 @@ class Intersect {
           vid_t vid = iter.get_vertex();
           if (right_e_pred(v1.label_, v1.vid_, label, vid,
                            eep1.labels[0].edge_label, Direction::kOut,
-                           iter.get_data_ptr(), i)) {
+                           iter.get_data_ptr())) {
             if (vertex_set.find(vid) != vertex_set.end() &&
-                right_pred(label, vid, i)) {
+                right_pred(label, vid)) {
               builder.push_back_opt(vid);
               offsets.emplace_back(i);
             }
@@ -129,9 +129,9 @@ class Intersect {
           vid_t vid = iter.get_vertex();
           if (right_e_pred(v1.label_, v1.vid_, label, vid,
                            eep1.labels[0].edge_label, Direction::kIn,
-                           iter.get_data_ptr(), i)) {
+                           iter.get_data_ptr())) {
             if (vertex_set.find(vid) != vertex_set.end() &&
-                right_pred(label, vid, i)) {
+                right_pred(label, vid)) {
               builder.push_back_opt(vid);
               offsets.emplace_back(i);
             }
@@ -183,8 +183,8 @@ class Intersect {
             vid_t vid = iter.get_vertex();
             if (left_e_pred(v0.label_, v0.vid_, label_triplet.dst_label, vid,
                             label_triplet.edge_label, Direction::kOut,
-                            iter.get_data_ptr(), i) &&
-                left_pred(label_triplet.dst_label, vid, i)) {
+                            iter.get_data_ptr()) &&
+                left_pred(label_triplet.dst_label, vid)) {
               auto rcd = VertexRecord{label_triplet.dst_label, vid};
               if (vertex_set.find(rcd) == vertex_set.end()) {
                 vertex_set[rcd] = 0;
@@ -206,8 +206,8 @@ class Intersect {
             vid_t vid = iter.get_vertex();
             if (left_e_pred(v0.label_, v0.vid_, label_triplet.src_label, vid,
                             label_triplet.edge_label, Direction::kIn,
-                            iter.get_data_ptr(), i) &&
-                left_pred(label_triplet.src_label, vid, i)) {
+                            iter.get_data_ptr()) &&
+                left_pred(label_triplet.src_label, vid)) {
               auto rcd = VertexRecord{label_triplet.src_label, vid};
               if (vertex_set.find(rcd) == vertex_set.end()) {
                 vertex_set[rcd] = 0;
@@ -231,8 +231,8 @@ class Intersect {
             vid_t vid = iter.get_vertex();
             if (right_e_pred(v1.label_, v1.vid_, label_triplet.dst_label, vid,
                              label_triplet.edge_label, Direction::kOut,
-                             iter.get_data_ptr(), i) &&
-                right_pred(label_triplet.dst_label, vid, i)) {
+                             iter.get_data_ptr()) &&
+                right_pred(label_triplet.dst_label, vid)) {
               auto rcd = VertexRecord{label_triplet.dst_label, vid};
               if (vertex_set.find(rcd) != vertex_set.end()) {
                 uint32_t vertex_count = vertex_set[rcd];
@@ -258,9 +258,9 @@ class Intersect {
             VertexRecord v_record{label_triplet.src_label, vid};
             if (right_e_pred(v1.label_, v1.vid_, label_triplet.src_label, vid,
                              label_triplet.edge_label, Direction::kIn,
-                             iter.get_data_ptr(), i) &&
+                             iter.get_data_ptr()) &&
                 vertex_set.find(v_record) != vertex_set.end() &&
-                right_pred(label_triplet.src_label, vid, i)) {
+                right_pred(label_triplet.src_label, vid)) {
               uint32_t count = vertex_set[v_record];
               for (uint32_t _ = 0; _ < count; ++_) {
                 builder.push_back_opt(v_record);
@@ -301,12 +301,12 @@ class Intersect {
       const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
-      const std::function<bool(label_t, vid_t, size_t)>& left_pred,
-      const std::function<bool(label_t, vid_t, size_t)>& right_pred,
+      const std::function<bool(label_t, vid_t)>& left_pred,
+      const std::function<bool(label_t, vid_t)>& right_pred,
       const std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
-                               Direction, const void*, size_t)>& left_e_pred,
+                               Direction, const void*)>& left_e_pred,
       const std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
-                               Direction, const void*, size_t)>& right_e_pred,
+                               Direction, const void*)>& right_e_pred,
       const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
       int vertex_alias, const std::vector<int>& edge_alias);
 
@@ -314,10 +314,10 @@ class Intersect {
       const StorageReadInterface& graph,
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx,
-      const std::vector<std::function<bool(label_t, vid_t, size_t)>>& preds,
-      const std::vector<
-          std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
-                             const void*, size_t)>>& e_preds,
+      const std::vector<std::function<bool(label_t, vid_t)>>& preds,
+      const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
+                                           label_t, Direction, const void*)>>&
+          e_preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
 };
 

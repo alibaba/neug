@@ -50,7 +50,7 @@ static int checkAndGetIndex(const runtime::RTAny& value) {
   }
 }
 
-static runtime::RTAny execFunc(size_t idx, runtime::Arena& arena,
+static runtime::RTAny execFunc(runtime::Arena& arena,
                                const std::vector<runtime::RTAny>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(

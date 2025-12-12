@@ -173,27 +173,6 @@ static void sink_entry(const RTAny& rt_val, const StorageReadInterface& graph,
     if (!sink_vertex(graph, rt_val.value().vertex, ele->mutable_vertex())) {
       ele->mutable_object()->mutable_none();
     }
-  } else if (type_ == RTAnyType::kMap) {
-    auto mp = entry->mutable_map();
-    auto [keys_ptr, vals_ptr] = rt_val.value().map.key_vals();
-    auto& keys = keys_ptr;
-    auto& vals = vals_ptr;
-    for (size_t i = 0; i < keys.size(); ++i) {
-      if (vals[i].is_null()) {
-        continue;
-      }
-      auto ret = mp->add_key_values();
-      keys[i].sink_impl(ret->mutable_key());
-      if (vals[i].type() == RTAnyType::kVertex) {
-        auto ele = ret->mutable_value()->mutable_element();
-        if (!sink_vertex(graph, vals[i].as_vertex(), ele->mutable_vertex())) {
-          ele->mutable_object()->mutable_none();
-        }
-      } else {
-        vals[i].sink_impl(
-            ret->mutable_value()->mutable_element()->mutable_object());
-      }
-    }
   } else if (type_ == RTAnyType::kEdge) {
     sink_edge(graph, rt_val.value().edge,
               entry->mutable_element()->mutable_edge());

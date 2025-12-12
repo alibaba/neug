@@ -49,9 +49,9 @@ class Expr {
   }
 
   RTAny eval_path(size_t idx, Arena&) const;
-  RTAny eval_vertex(label_t label, vid_t v, size_t idx, Arena&) const;
+  RTAny eval_vertex(label_t label, vid_t v, Arena&) const;
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const void* data_ptr, size_t idx, Arena&) const;
+                  const void* data_ptr, Arena&) const;
 
   RTAnyType type() const;
 

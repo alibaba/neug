@@ -33,8 +33,7 @@ function_set JsonDummyFunction::getFunctionSet() {
   return functionSet;
 }
 
-RTAny JsonDummyFunction::Exec(size_t idx, Arena& arena,
-                              const std::vector<RTAny>& args) {
+RTAny JsonDummyFunction::Exec(Arena& arena, const std::vector<RTAny>& args) {
   if (args.size() != 1) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "JSON_DUMMY: expect exactly 1 argument, got " +

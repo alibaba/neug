@@ -170,7 +170,7 @@ class PathExpand {
               for (auto it = oes.begin(); it != oes.end(); ++it) {
                 if (pred(end.label_, end.vid_, label_triplet.dst_label,
                          it.get_vertex(), label_triplet.edge_label,
-                         Direction::kOut, it.get_data_ptr(), index)) {
+                         Direction::kOut, it.get_data_ptr())) {
                   PathImpl* new_path =
                       path->expand(label_triplet.edge_label,
                                    label_triplet.dst_label, it.get_vertex(),
@@ -221,7 +221,7 @@ class PathExpand {
               for (auto it = ies.begin(); it != ies.end(); ++it) {
                 if (pred(end.label_, end.vid_, label_triplet.src_label,
                          it.get_vertex(), label_triplet.edge_label,
-                         Direction::kIn, it.get_data_ptr(), index)) {
+                         Direction::kIn, it.get_data_ptr())) {
                   PathImpl* new_path =
                       path->expand(label_triplet.edge_label,
                                    label_triplet.src_label, it.get_vertex(),
@@ -272,7 +272,7 @@ class PathExpand {
               for (auto it = oes.begin(); it != oes.end(); ++it) {
                 if (pred(end.label_, end.vid_, label_triplet.dst_label,
                          it.get_vertex(), label_triplet.edge_label,
-                         Direction::kOut, it.get_data_ptr(), index)) {
+                         Direction::kOut, it.get_data_ptr())) {
                   PathImpl* new_path =
                       path->expand(label_triplet.edge_label,
                                    label_triplet.dst_label, it.get_vertex(),
@@ -290,7 +290,7 @@ class PathExpand {
               for (auto it = ies.begin(); it != ies.end(); ++it) {
                 if (pred(end.label_, end.vid_, label_triplet.src_label,
                          it.get_vertex(), label_triplet.edge_label,
-                         Direction::kIn, it.get_data_ptr(), index)) {
+                         Direction::kIn, it.get_data_ptr())) {
                   PathImpl* new_path =
                       path->expand(label_triplet.edge_label,
                                    label_triplet.src_label, it.get_vertex(),

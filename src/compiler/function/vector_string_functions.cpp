@@ -172,7 +172,7 @@ function_set UpperFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny UpperFunction::Exec(size_t idx, runtime::Arena& arena,
+runtime::RTAny UpperFunction::Exec(runtime::Arena& arena,
                                    const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " +
@@ -198,7 +198,7 @@ function_set LowerFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny LowerFunction::Exec(size_t idx, runtime::Arena& arena,
+runtime::RTAny LowerFunction::Exec(runtime::Arena& arena,
                                    const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " +
@@ -224,7 +224,7 @@ function_set ReverseFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny ReverseFunction::Exec(size_t idx, runtime::Arena& arena,
+runtime::RTAny ReverseFunction::Exec(runtime::Arena& arena,
                                      const std::vector<runtime::RTAny>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " +
