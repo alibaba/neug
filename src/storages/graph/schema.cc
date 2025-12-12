@@ -205,6 +205,20 @@ std::string VertexSchema::get_property_name(size_t index) const {
   }
 }
 
+bool VertexSchema::is_pk_same(const VertexSchema& lhs,
+                              const VertexSchema& rhs) {
+  if (lhs.primary_keys.size() != rhs.primary_keys.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < lhs.primary_keys.size(); i++) {
+    if (std::get<0>(lhs.primary_keys[i]) != std::get<0>(rhs.primary_keys[i]) ||
+        std::get<1>(lhs.primary_keys[i]) != std::get<1>(rhs.primary_keys[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool VertexSchema::has_property_internal(const std::string& prop) const {
   assert(primary_keys.size() == 1);
   if (std::get<1>(primary_keys[0]) == prop) {
@@ -387,8 +401,8 @@ void Schema::AddVertexLabel(
   }
   v_schemas_.resize(v_label_id + 1);
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
-      property_types, property_names, primary_key, strategies, description,
-      max_vnum);
+      label, property_types, property_names, primary_key, strategies,
+      description, max_vnum);
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
            << ", prop size: " << v_schemas_[v_label_id]->property_names.size();
 }
@@ -2086,18 +2100,86 @@ bool Schema::edge_has_property_internal(label_t src_label, label_t dst_label,
   return e_schemas_.at(label_id)->has_property_internal(prop);
 }
 
+Schema Schema::Compact() const {
+  Schema new_schema;
+  new_schema.name_ = name_;
+  new_schema.id_ = id_;
+  new_schema.description_ = description_;
+  new_schema.version_ = version_;
+  new_schema.remote_path_ = remote_path_;
+
+  for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
+    if (vlabel_tomb_.get(v_label)) {
+      continue;
+    }
+    auto vlabel_name = vlabel_indexer_.get_key(v_label);
+    label_t new_label;
+    if (!new_schema.vlabel_indexer_.add(vlabel_name, new_label)) {
+      THROW_RUNTIME_ERROR("Failed to add vertex label: " + vlabel_name);
+    }
+    assert(new_label == new_schema.v_schemas_.size());
+    new_schema.v_schemas_.push_back(v_schemas_[v_label]);
+  }
+
+  for (label_t e_label = 0; e_label < elabel_indexer_.size(); ++e_label) {
+    if (elabel_tomb_.get(e_label)) {
+      continue;
+    }
+    auto elabel_name = elabel_indexer_.get_key(e_label);
+    label_t new_label;
+    if (!new_schema.elabel_indexer_.add(elabel_name, new_label)) {
+      THROW_RUNTIME_ERROR("Failed to add edge label: " + elabel_name);
+    }
+    assert(new_label == new_schema.elabel_indexer_.size() - 1);
+  }
+
+  uint32_t max_e_triplet_index = 0;
+  for (const auto& pair : e_schemas_) {
+    label_t src_v, dst_v, e_label;
+    std::tie(src_v, dst_v, e_label) = parse_edge_label(pair.first);
+    if (vlabel_tomb_.get(src_v) || vlabel_tomb_.get(dst_v) ||
+        elabel_tomb_.get(e_label) ||
+        !edge_triplet_valid(src_v, dst_v, e_label)) {
+      continue;
+    }
+    auto src_label_name = vlabel_indexer_.get_key(src_v);
+    auto dst_label_name = vlabel_indexer_.get_key(dst_v);
+    auto e_label_name = elabel_indexer_.get_key(e_label);
+    label_t new_src_v, new_dst_v, new_e_label;
+    if (!new_schema.vlabel_indexer_.get_index(src_label_name, new_src_v)) {
+      THROW_RUNTIME_ERROR("Failed to get vertex label: " + src_label_name);
+    }
+    if (!new_schema.vlabel_indexer_.get_index(dst_label_name, new_dst_v)) {
+      THROW_RUNTIME_ERROR("Failed to get vertex label: " + dst_label_name);
+    }
+    if (!new_schema.elabel_indexer_.get_index(e_label_name, new_e_label)) {
+      THROW_RUNTIME_ERROR("Failed to get edge label: " + e_label_name);
+    }
+
+    auto new_index =
+        new_schema.generate_edge_label(new_src_v, new_dst_v, new_e_label);
+    max_e_triplet_index = std::max(max_e_triplet_index, new_index);
+    new_schema.e_schemas_[new_index] = pair.second;
+  }
+  new_schema.vlabel_tomb_.resize(new_schema.v_schemas_.size());
+  new_schema.elabel_tomb_.resize(new_schema.elabel_indexer_.size());
+  new_schema.elabel_triplet_tomb_.resize(max_e_triplet_index + 1);
+  return new_schema;
+}
+
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
-  archive << v_schema.property_types << v_schema.property_names
-          << v_schema.primary_keys << v_schema.storage_strategies
-          << v_schema.description << v_schema.max_num
-          << v_schema.vprop_soft_deleted;
+  archive << v_schema.label_name << v_schema.property_types
+          << v_schema.property_names << v_schema.primary_keys
+          << v_schema.storage_strategies << v_schema.description
+          << v_schema.max_num << v_schema.vprop_soft_deleted;
   return archive;
 }
 
 OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
-  archive >> v_schema.property_types >> v_schema.property_names >>
-      v_schema.primary_keys >> v_schema.storage_strategies >>
-      v_schema.description >> v_schema.max_num >> v_schema.vprop_soft_deleted;
+  archive >> v_schema.label_name >> v_schema.property_types >>
+      v_schema.property_names >> v_schema.primary_keys >>
+      v_schema.storage_strategies >> v_schema.description >> v_schema.max_num >>
+      v_schema.vprop_soft_deleted;
   return archive;
 }
 

@@ -409,6 +409,9 @@ class PropertyGraph {
                             const std::string& edge_type_name);
 
   Status vertex_label_check(const std::string& vertex_type_name);
+
+  void compact_schema();
+
   std::string work_dir_;
   Schema schema_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;

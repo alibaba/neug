@@ -79,6 +79,7 @@ static void IngestWalRange(PropertyGraph& graph,
 
 NeugDB::NeugDB()
     : last_compaction_ts_(0),
+      last_ts_(0),
       closed_(true),
       is_pure_memory_(false),
       thread_num_(1) {}
@@ -137,6 +138,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
 
   LOG(INFO) << "NeugDB opened successfully";
   closed_.store(false);
+  if (last_ts_ > 0 && config.checkpoint_after_recovery) {
+    LOG(INFO) << "Creating checkpoint after recovery at ts " << last_ts_;
+    createCheckpoint(true);
+  }
   return true;
 }
 
@@ -303,9 +308,9 @@ void NeugDB::initPlannerAndQueryProcessor() {
       graph_, planner_, query_processor_, config_);
 }
 
-void NeugDB::createCheckpoint() {
+void NeugDB::createCheckpoint(bool force_compaction) {
   std::unique_lock<std::mutex> lock(mutex_);
-  if (config_.compact_on_close) {
+  if (config_.compact_on_close || force_compaction) {
     graph_.Compact(config_.reset_timestamp_before_checkpoint,
                    config_.compact_csr, config_.csr_reserve_ratio,
                    MAX_TIMESTAMP);

@@ -481,7 +481,7 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
   }
 }
 
-EdgeTable::EdgeTable(std::shared_ptr<EdgeSchema> meta) : meta_(meta) {
+EdgeTable::EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {
   table_ = std::make_unique<Table>();
 
   if (meta_->is_bundled()) {
@@ -506,6 +506,25 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
   table_idx_ = edge_table.table_idx_.load();
+}
+
+void EdgeTable::Swap(EdgeTable& edge_table) {
+  std::swap(meta_, edge_table.meta_);
+  std::swap(work_dir_, edge_table.work_dir_);
+  std::swap(memory_level_, edge_table.memory_level_);
+  auto v = csr_alter_version_.load();
+  csr_alter_version_.store(edge_table.csr_alter_version_.load());
+  edge_table.csr_alter_version_.store(v);
+  out_csr_.swap(edge_table.out_csr_);
+  in_csr_.swap(edge_table.in_csr_);
+  table_.swap(edge_table.table_);
+  auto t_idx = table_idx_.load();
+  table_idx_.store(edge_table.table_idx_.load());
+  edge_table.table_idx_.store(t_idx);
+}
+
+void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
+  meta_ = meta;
 }
 
 void EdgeTable::Open(const std::string& work_dir) {

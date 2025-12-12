@@ -178,7 +178,16 @@ class NeugDB {
   void ingestWals(IWalParser& parser, const std::string& work_dir);
   void initPlannerAndQueryProcessor();
   void initAppManager();
-  void createCheckpoint();
+  /**
+   * @brief Create a checkpoint of the current graph.
+   * @param force_compaction Whether to force compaction before creating the
+   * checkpoint.
+   * @note force_compaction will override the config_.compact_on_close setting.
+   * force_compaction should be set to true after the database is recovered from
+   * wals to remove the tombstone type/data, otherwise the graph size will keep
+   * growing.
+   */
+  void createCheckpoint(bool force_compaction = false);
 
   bool registerApp(const std::string& path, uint8_t index = 0);
 

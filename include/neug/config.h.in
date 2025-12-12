@@ -40,7 +40,8 @@ struct NeugDBConfig {
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
-        checkpoint_on_close(false) {}
+        checkpoint_on_close(false),
+        checkpoint_after_recovery(false) {}
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         reset_timestamp_before_checkpoint(true),
@@ -54,7 +55,8 @@ struct NeugDBConfig {
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
-        checkpoint_on_close(false) {}
+        checkpoint_on_close(false),
+        checkpoint_after_recovery(false) {}
 
   float csr_reserve_ratio;
   bool reset_timestamp_before_checkpoint;
@@ -79,7 +81,9 @@ struct NeugDBConfig {
   bool compact_on_close;     // whether compact the graph when closing the graph
                              // db.
   bool checkpoint_on_close;  // whether dump the graph when
-                             // closing the graph db.
+  // closing the graph db.
+  bool checkpoint_after_recovery;  // whether create a checkpoint after recovery
+                                   // from wal.
 };
 
 }  // namespace gs

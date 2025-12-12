@@ -79,23 +79,21 @@ class VertexSet {
 class PropertyGraph;
 class VertexTable {
  public:
-  VertexTable(std::string v_label_name, PropertyType pk_type,
-              std::shared_ptr<const VertexSchema> vertex_schema)
+  VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
       : table_(std::make_unique<Table>()),
-        pk_type_(pk_type),
-        v_label_name_(v_label_name),
         vertex_schema_(vertex_schema),
         v_ts_(),
         memory_level_(1),
         work_dir_("") {
-    indexer_.init(pk_type);
+    assert(vertex_schema->primary_keys.size() == 1);
+    pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
+    indexer_.init(pk_type_);
   }
 
   VertexTable(VertexTable&& other)
       : indexer_(std::move(other.indexer_)),
         table_(std::move(other.table_)),
         pk_type_(other.pk_type_),
-        v_label_name_(std::move(other.v_label_name_)),
         vertex_schema_(other.vertex_schema_),
         v_ts_(std::move(other.v_ts_)),
         memory_level_(other.memory_level_),
@@ -106,7 +104,6 @@ class VertexTable {
   void Swap(VertexTable& other) {
     indexer_.swap(other.indexer_);
     table_.swap(other.table_);
-    std::swap(v_label_name_, other.v_label_name_);
     std::swap(pk_type_, other.pk_type_);
     std::swap(vertex_schema_, other.vertex_schema_);
     v_ts_.Swap(other.v_ts_);
@@ -120,6 +117,8 @@ class VertexTable {
   void Dump(const std::string& target_dir);
 
   void Close();
+
+  void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
   void Reserve(size_t cap);
 
@@ -312,7 +311,6 @@ class VertexTable {
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
   PropertyType pk_type_;
-  std::string v_label_name_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
   VertexTimestamp v_ts_;
   int memory_level_;

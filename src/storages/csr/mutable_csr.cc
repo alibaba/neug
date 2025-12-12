@@ -220,7 +220,6 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::dump(const std::string& name,
                                const std::string& new_snapshot_dir) {
   size_t vnum = adj_list_buffer_.size();
-  bool reuse_nbr_list = true;
   dump_meta(new_snapshot_dir + "/" + name);
   mmap_array<int> degree_list;
   std::vector<int> cap_list;
@@ -230,12 +229,6 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   bool need_cap_list = false;
   size_t offset = 0;
   for (size_t i = 0; i < vnum; ++i) {
-    if (adj_list_size_[i] != 0) {
-      if (!(adj_list_buffer_[i] == nbr_list_.data() + offset &&
-            offset < nbr_list_.size())) {
-        reuse_nbr_list = false;
-      }
-    }
     offset += adj_list_capacity_[i];
 
     degree_list[i] = adj_list_size_[i];
@@ -252,62 +245,40 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
   degree_list.dump(new_snapshot_dir + "/" + name + ".deg");
 
-  if (reuse_nbr_list && !nbr_list_.filename().empty() &&
-      std::filesystem::exists(nbr_list_.filename())) {
-    std::error_code errorCode;
-    std::string link_filename = new_snapshot_dir + "/" + name + ".nbr";
-    if (std::filesystem::exists(link_filename)) {
-      std::filesystem::remove(link_filename);
-    }
-    std::filesystem::create_hard_link(nbr_list_.filename(),
-                                      new_snapshot_dir + "/" + name + ".nbr",
-                                      errorCode);
-    if (errorCode) {
-      std::stringstream ss;
-      ss << "Failed to create hard link from " << nbr_list_.filename() << " to "
-         << new_snapshot_dir + "/" + name + ".snbr"
-         << ", error code: " << errorCode << " " << errorCode.message();
-      LOG(ERROR) << ss.str();
-      throw std::runtime_error(ss.str());
-    }
-  } else {
-    FILE* fout = fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
-    std::string filename = new_snapshot_dir + "/" + name + ".nbr";
-    if (fout == nullptr) {
-      std::stringstream ss;
-      ss << "Failed to open nbr list " << filename << ", " << strerror(errno);
-      LOG(ERROR) << ss.str();
-      throw std::runtime_error(ss.str());
-    }
+  FILE* fout = fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
+  std::string filename = new_snapshot_dir + "/" + name + ".nbr";
+  if (fout == nullptr) {
+    std::stringstream ss;
+    ss << "Failed to open nbr list " << filename << ", " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    throw std::runtime_error(ss.str());
+  }
 
-    for (size_t i = 0; i < vnum; ++i) {
-      size_t ret{};
-      if ((ret = fwrite(adj_list_buffer_[i], sizeof(nbr_t),
-                        adj_list_capacity_[i], fout)) !=
-          static_cast<size_t>(adj_list_capacity_[i])) {
-        std::stringstream ss;
-        ss << "Failed to write nbr list " << filename << ", expected "
-           << adj_list_capacity_[i] << ", got " << ret << ", "
-           << strerror(errno);
-        LOG(ERROR) << ss.str();
-        throw std::runtime_error(ss.str());
-      }
-    }
-    int ret = 0;
-    if ((ret = fflush(fout)) != 0) {
+  for (size_t i = 0; i < vnum; ++i) {
+    size_t ret{};
+    if ((ret = fwrite(adj_list_buffer_[i], sizeof(nbr_t), adj_list_capacity_[i],
+                      fout)) != static_cast<size_t>(adj_list_capacity_[i])) {
       std::stringstream ss;
-      ss << "Failed to flush nbr list " << filename << ", error code: " << ret
-         << " " << strerror(errno);
+      ss << "Failed to write nbr list " << filename << ", expected "
+         << adj_list_capacity_[i] << ", got " << ret << ", " << strerror(errno);
       LOG(ERROR) << ss.str();
       throw std::runtime_error(ss.str());
     }
-    if ((ret = fclose(fout)) != 0) {
-      std::stringstream ss;
-      ss << "Failed to close nbr list " << filename << ", error code: " << ret
-         << " " << strerror(errno);
-      LOG(ERROR) << ss.str();
-      throw std::runtime_error(ss.str());
-    }
+  }
+  int ret = 0;
+  if ((ret = fflush(fout)) != 0) {
+    std::stringstream ss;
+    ss << "Failed to flush nbr list " << filename << ", error code: " << ret
+       << " " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    throw std::runtime_error(ss.str());
+  }
+  if ((ret = fclose(fout)) != 0) {
+    std::stringstream ss;
+    ss << "Failed to close nbr list " << filename << ", error code: " << ret
+       << " " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    throw std::runtime_error(ss.str());
   }
 }
 

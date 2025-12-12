@@ -107,8 +107,7 @@ class VertexTableTest : public ::testing::Test {
 };
 
 TEST_F(VertexTableTest, VertexTableBasicOps) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(vertex_count_);
 
@@ -161,8 +160,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
   std::filesystem::create_directories(gs::checkpoint_dir(dump_dir));
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
   {
-    gs::VertexTable table(v_label_name_, pk_type_,
-                          schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(vertex_count_);
 
@@ -184,8 +182,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
                           gs::checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_,
-                              schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
@@ -206,8 +203,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   gs::vid_t lid1, lid2, lid3;
   gs::Property oid1, oid2, oid3;
   {
-    gs::VertexTable table(v_label_name_, pk_type_,
-                          schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(vertex_count_);
 
@@ -232,8 +228,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_,
-                              schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
@@ -256,8 +251,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   std::filesystem::create_directories(gs::temp_checkpoint_dir(dump_dir));
 
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_,
-                              schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 1);
     EXPECT_EQ(new_table.LidNum(), 3);
@@ -270,8 +264,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 }
 
 TEST_F(VertexTableTest, AddVertexBasic) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -310,8 +303,7 @@ TEST_F(VertexTableTest, AddVertexBasic) {
 
 // Test AddVertex for concurrent scenarios
 TEST_F(VertexTableTest, AddVertex) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   gs::vid_t tmp_vid;
   EXPECT_FALSE(
@@ -342,8 +334,7 @@ TEST_F(VertexTableTest, AddVertex) {
 
 // Test DeleteVertex basic functionality
 TEST_F(VertexTableTest, DeleteVertexBasic) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -376,8 +367,7 @@ TEST_F(VertexTableTest, DeleteVertexBasic) {
 
 // Test RevertDeleteVertex basic functionality
 TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -407,8 +397,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
 
 // Test complex combination: Add -> Delete -> Revert
 TEST_F(VertexTableTest, AddDeleteRevertCombination) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -453,8 +442,7 @@ TEST_F(VertexTableTest, AddDeleteRevertCombination) {
 
 // Test complex combination: Multiple deletes and reverts
 TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -489,8 +477,7 @@ TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
 
 // Test AddVertex and AddVertexSafe mixed usage
 TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(50);
 
@@ -514,8 +501,7 @@ TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
 
 // Test temporal visibility with add/delete/revert
 TEST_F(VertexTableTest, TemporalVisibilityComplex) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -558,8 +544,7 @@ TEST_F(VertexTableTest, TemporalVisibilityComplex) {
 
 // Test edge cases: Delete already deleted vertex
 TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -582,8 +567,7 @@ TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
 
 // Test edge cases: Revert non-deleted vertex
 TEST_F(VertexTableTest, RevertNonDeletedVertex) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 
@@ -616,8 +600,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 
   // Create complex state
   {
-    gs::VertexTable table(v_label_name_, pk_type_,
-                          schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_, true);
     table.Reserve(100);
 
@@ -647,8 +630,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 
   // Reload and verify
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_,
-                              schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
 
     EXPECT_EQ(new_table.VertexNum(), 15);
@@ -679,8 +661,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 
 // Test stress: Many add/delete/revert operations
 TEST_F(VertexTableTest, StressAddDeleteRevert) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(1000);
 
@@ -732,8 +713,7 @@ TEST_F(VertexTableTest, StressAddDeleteRevert) {
 }
 
 TEST_F(VertexTableTest, VertexTableResizeTest) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   auto record_batches = generate_record_batches(10000);
   std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier =
@@ -759,8 +739,7 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   std::filesystem::rename(gs::temp_checkpoint_dir(dump_dir),
                           gs::checkpoint_dir(dump_dir));
   {
-    gs::VertexTable new_table(v_label_name_, pk_type_,
-                              schema_.get_vertex_schema(v_label_id_));
+    gs::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
     new_table.Open(dump_dir, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 10000);
     EXPECT_EQ(new_table.LidNum(), 10000);
@@ -801,8 +780,7 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
 }
 
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
-  gs::VertexTable table(v_label_name_, pk_type_,
-                        schema_.get_vertex_schema(v_label_id_));
+  gs::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_, true);
   table.Reserve(100);
 

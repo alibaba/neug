@@ -41,14 +41,16 @@ class Schema;
 
 struct VertexSchema {
   VertexSchema() = default;
-  VertexSchema(const std::vector<PropertyType>& property_types_,
+  VertexSchema(const std::string& label_name_,
+               const std::vector<PropertyType>& property_types_,
                const std::vector<std::string>& property_names_,
                const std::vector<std::tuple<PropertyType, std::string, size_t>>&
                    primary_keys_,
                const std::vector<StorageStrategy>& storage_strategies_,
                const std::string& description_ = "",
                size_t max_num_ = static_cast<size_t>(1) << 32)
-      : property_types(property_types_),
+      : label_name(label_name_),
+        property_types(property_types_),
         property_names(property_names_),
         primary_keys(primary_keys_),
         storage_strategies(storage_strategies_),
@@ -85,6 +87,9 @@ struct VertexSchema {
 
   bool has_property(const std::string& prop) const;
 
+  static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
+
+  std::string label_name;
   std::vector<PropertyType> property_types;
   std::vector<std::string> property_names;
   // <PropertyType, property_name, index_in_property_list>
@@ -545,6 +550,12 @@ class Schema {
   void ensure_edge_label_valid(label_t label) const;
   void ensure_edge_triplet_valid(label_t src, label_t dst, label_t edge) const;
   label_t vertex_label_to_index(const std::string& label);
+
+  /**
+   * @brief Compact the schema by removing soft deleted labels and properties.
+   * @return A new Schema object with the compacted schema.
+   */
+  Schema Compact() const;
 
  private:
   label_t edge_label_to_index(const std::string& label);

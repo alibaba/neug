@@ -118,8 +118,6 @@ class Table {
 
   void ingest(uint32_t index, OutArchive& arc);
 
-  void renameProperty(std::string& col_name, std::string& new_col_name);
-
   void close();
 
   void drop();

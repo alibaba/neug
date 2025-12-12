@@ -54,8 +54,8 @@ class VertexTableBenchmark : public ::testing::Test {
     pk_types_ = {{gs::PropertyType::kStringView, "name", 0}};
     description = "Person vertex label";
     v_schema_ = std::make_shared<gs::VertexSchema>(
-        property_types_, property_names_, pk_types_, storage_strategies_,
-        description);
+        v_label_name_, property_types_, property_names_, pk_types_,
+        storage_strategies_, description);
 
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
@@ -173,7 +173,7 @@ class VertexTableBenchmark : public ::testing::Test {
 TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   const size_t vertex_count = 1000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
   CreateAndOpenVertexTable(table);
   table.Reserve(vertex_count);
 
@@ -205,7 +205,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   LOG(INFO) << "Finish Open table";
@@ -273,7 +273,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -339,7 +339,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
 TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   const size_t vertex_count = 100000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -390,7 +390,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
   const size_t vertex_count = 100000000;
   const size_t operation_count = 25000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -441,7 +441,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
 TEST_F(VertexTableBenchmark, BulkLoadTest) {
   const size_t vertex_count = 100000000;
 
-  gs::VertexTable table(v_label_name_, pk_type_, v_schema_);
+  gs::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
 

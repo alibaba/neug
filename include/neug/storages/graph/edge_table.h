@@ -39,11 +39,15 @@ class IRecordBatchSupplier;
 
 class EdgeTable {
  public:
-  EdgeTable(std::shared_ptr<EdgeSchema> meta);
+  EdgeTable(std::shared_ptr<const EdgeSchema> meta);
   EdgeTable(EdgeTable&& edge_table);
 
   EdgeTable(const EdgeTable&) = delete;
   ~EdgeTable() = default;
+
+  void Swap(EdgeTable& other);
+
+  void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
   void Open(const std::string& work_dir);
 
@@ -120,7 +124,7 @@ class EdgeTable {
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
 
-  std::shared_ptr<EdgeSchema> meta_;
+  std::shared_ptr<const EdgeSchema> meta_;
   std::string work_dir_;
   int memory_level_{0};
   std::atomic<int32_t> csr_alter_version_{0};

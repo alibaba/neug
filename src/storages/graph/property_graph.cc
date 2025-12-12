@@ -200,10 +200,8 @@ Status PropertyGraph::CreateVertexType(
     auto& vtable = vertex_tables_[vertex_label_id];
     if (vtable.is_dropped()) {
       // Reuse a dropped vertex table
-      auto new_v_table = VertexTable(
-          vertex_type_name,
-          std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
-          schema_.get_vertex_schema(vertex_label_id));
+      auto new_v_table =
+          VertexTable(schema_.get_vertex_schema(vertex_label_id));
 
       vtable.Swap(new_v_table);
     } else {
@@ -211,10 +209,7 @@ Status PropertyGraph::CreateVertexType(
                     "Vertex label id conflict.");
     }
   } else {
-    vertex_tables_.emplace_back(
-        vertex_type_name,
-        std::get<0>(schema_.get_vertex_primary_key(vertex_label_id)[0]),
-        schema_.get_vertex_schema(vertex_label_id));
+    vertex_tables_.emplace_back(schema_.get_vertex_schema(vertex_label_id));
   }
 
   auto& vtable = vertex_tables_.back();
@@ -767,28 +762,32 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     for (size_t i = 0; i < vertex_label_num_; i++) {
+      if (!schema_.vertex_label_valid(i)) {
+        THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " +
+                                 std::to_string(i));
+      }
       std::string v_label_name = schema_.get_vertex_label_name(i);
       auto properties = schema_.get_vertex_properties(i);
       auto property_names = schema_.get_vertex_property_names(i);
       auto property_strategies =
           schema_.get_vertex_storage_strategies(v_label_name);
-      vertex_tables_.emplace_back(
-          v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
-          schema_.get_vertex_schema(i));
+      vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
     }
     checkpoint_dir_path = checkpoint_dir(work_dir_);
   } else {
     vertex_label_num_ = schema_.vertex_label_num();
     edge_label_num_ = schema_.edge_label_num();
     for (size_t i = 0; i < vertex_label_num_; i++) {
+      if (!schema_.vertex_label_valid(i)) {
+        THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " +
+                                 std::to_string(i));
+      }
       std::string v_label_name = schema_.get_vertex_label_name(i);
       auto properties = schema_.get_vertex_properties(i);
       auto property_names = schema_.get_vertex_property_names(i);
       auto property_strategies =
           schema_.get_vertex_storage_strategies(v_label_name);
-      vertex_tables_.emplace_back(
-          v_label_name, std::get<0>(schema_.get_vertex_primary_key(i)[0]),
-          schema_.get_vertex_schema(i));
+      vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
     }
     build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
@@ -864,8 +863,85 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   }
 }
 
+void PropertyGraph::compact_schema() {
+  auto new_schema = schema_.Compact();
+  std::vector<VertexTable> new_vertex_tables;
+  std::unordered_map<uint32_t, EdgeTable> new_edge_tables;
+
+  for (size_t old_v_label = 0; old_v_label != vertex_label_num_;
+       ++old_v_label) {
+    if (schema_.vertex_label_valid(old_v_label)) {
+      auto src_name = schema_.get_vertex_label_name(old_v_label);
+      size_t cur_new_label_id =
+          new_schema.get_vertex_label_id_internal(src_name);
+      new_vertex_tables.emplace_back(
+          new_schema.get_vertex_schema(cur_new_label_id));
+      new_vertex_tables.back().Swap(vertex_tables_[old_v_label]);
+      // Update the handle to VertexSchema for the new vertex table.
+      // The soft deleted properties should be removed physically in this step.
+      new_vertex_tables.back().SetVertexSchema(
+          new_schema.get_vertex_schema(cur_new_label_id));
+    }
+  }
+  assert(new_vertex_tables.size() == new_schema.vertex_label_num());
+  for (size_t old_src_label = 0; old_src_label != vertex_label_num_;
+       ++old_src_label) {
+    if (!schema_.vertex_label_valid(old_src_label)) {
+      continue;
+    }
+    auto src_name = schema_.get_vertex_label_name(old_src_label);
+    for (size_t old_dst_label = 0; old_dst_label != vertex_label_num_;
+         ++old_dst_label) {
+      if (!schema_.vertex_label_valid(old_dst_label)) {
+        continue;
+      }
+      auto dst_name = schema_.get_vertex_label_name(old_dst_label);
+      for (size_t old_e_label = 0; old_e_label != edge_label_num_;
+           ++old_e_label) {
+        if (!schema_.edge_label_valid(old_e_label) ||
+            !schema_.exist(old_src_label, old_dst_label, old_e_label)) {
+          continue;
+        }
+        auto e_name = schema_.get_edge_label_name(old_e_label);
+        size_t old_index = schema_.generate_edge_label(
+            old_src_label, old_dst_label, old_e_label);
+        size_t new_src_label =
+            new_schema.get_vertex_label_id_internal(src_name);
+        size_t new_dst_label =
+            new_schema.get_vertex_label_id_internal(dst_name);
+        size_t new_e_label = new_schema.get_edge_label_id_internal(e_name);
+        size_t new_index = new_schema.generate_edge_label(
+            new_src_label, new_dst_label, new_e_label);
+        new_edge_tables.emplace(
+            new_index, EdgeTable(new_schema.get_edge_schema(
+                           new_src_label, new_dst_label, new_e_label)));
+        new_edge_tables.at(new_index).Swap(edge_tables_.at(old_index));
+        new_edge_tables.at(new_index).SetEdgeSchema(new_schema.get_edge_schema(
+            new_src_label, new_dst_label, new_e_label));
+      }
+    }
+  }
+
+  vertex_label_num_ = new_schema.vertex_label_num();
+  edge_label_num_ = new_schema.edge_label_num();
+  schema_ = new_schema;
+  vertex_tables_.swap(new_vertex_tables);
+  edge_tables_.swap(new_edge_tables);
+  v_mutex_.resize(new_schema.vertex_label_num());
+}
+
 void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
                             float reserve_ratio, timestamp_t ts) {
+  /**
+   * The compaction process includes two parts:
+   * 1. Schema: remove the deleted properties and labels from
+   *    schema.
+   * 2. Data: for each vertex and edge table, remove the deleted
+   *    data and compact the storage.
+   *
+   * Assume concurrency is controlled by the caller.
+   */
+  compact_schema();
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
     if (schema_.vertex_label_valid(src_label_i)) {

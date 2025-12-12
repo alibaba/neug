@@ -1368,6 +1368,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
   config.memory_level = 1;
   config.checkpoint_on_close = false;
   config.compact_on_close = false;
+  config.checkpoint_after_recovery = true;
   {
     gs::NeugDB db;
     db.Open(config);
@@ -1439,6 +1440,32 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     EXPECT_TRUE(gi.schema().contains_edge_label("employed_by"));
     txn.Commit();
     db.Close();
+  }
+  {
+    // Open again to check checkpoint after recovery
+    gs::NeugDB db;
+    db.Open(config);
+    auto svc = std::make_shared<server::NeugDBService>(db);
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    gs::vid_t src_p, dst_p;
+    EXPECT_TRUE(
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(1), src_p));
+    EXPECT_TRUE(
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(2), dst_p));
+    auto ed_accessor =
+        gi.GetEdgeDataAccessor(person_label, person_label, knows_label, 0);
+    auto view =
+        gi.GetGenericOutgoingGraphView(person_label, person_label, knows_label);
+    auto edge_iter = view.get_edges(src_p);
+    for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+      if (it.get_vertex() == dst_p) {
+        EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.5);
+      }
+    }
   }
 }
 

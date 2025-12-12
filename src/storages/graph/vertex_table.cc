@@ -25,18 +25,19 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
   std::string tmp_dir_path = tmp_dir(work_dir_);
   std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
 
+  const auto& label_name = vertex_schema_->label_name;
   std::string vertex_tracker_filename =
-      checkpoint_dir_path + "/" + vertex_tracker_file(v_label_name_);
+      checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
-      IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_);
+      IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
   if (memory_level_ == 0) {
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
-    table_->open(vertex_table_prefix(v_label_name_), work_dir_,
+    table_->open(vertex_table_prefix(label_name), work_dir_,
                  vertex_schema_->property_names, vertex_schema_->property_types,
                  vertex_schema_->storage_strategies);
   } else if (memory_level_ == 1) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
-    table_->open_in_memory(vertex_table_prefix(v_label_name_), work_dir_,
+    table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types,
                            vertex_schema_->storage_strategies);
@@ -44,7 +45,7 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
                                  (memory_level_ > 2));
     table_->open_with_hugepages(
-        vertex_table_prefix(v_label_name_), work_dir_,
+        vertex_table_prefix(label_name), work_dir_,
         vertex_schema_->property_names, vertex_schema_->property_types,
         vertex_schema_->storage_strategies, (memory_level_ > 2));
   } else {
@@ -69,19 +70,20 @@ void VertexTable::insert_vertices(
     insert_vertices_impl<std::string_view>(supplier);
   } else {
     LOG(FATAL) << "Unsupported primary key type for vertex, type: " << pk_type_
-               << ", label: " << v_label_name_;
+               << ", label: " << vertex_schema_->label_name;
   }
 }
 
 void VertexTable::Dump(const std::string& target_dir) {
-  indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(v_label_name_),
+  const auto& label_name = vertex_schema_->label_name;
+  indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
                 target_dir);
   table_->resize(indexer_.size());
-  table_->dump(vertex_table_prefix(v_label_name_), target_dir);
+  table_->dump(vertex_table_prefix(label_name), target_dir);
   // Shrink v_ts_ to fit the indexer size
   v_ts_.Reserve(indexer_.size());
-  v_ts_.Dump(target_dir + "/" + vertex_tracker_file(v_label_name_));
-  VLOG(1) << "Dump vertex table " << v_label_name_ << " done, size "
+  v_ts_.Dump(target_dir + "/" + vertex_tracker_file(label_name));
+  VLOG(1) << "Dump vertex table " << label_name << " done, size "
           << indexer_.size();
 }
 
@@ -89,6 +91,22 @@ void VertexTable::Close() {
   indexer_.close();
   table_->close();
   v_ts_.Clear();
+}
+
+void VertexTable::SetVertexSchema(
+    std::shared_ptr<const VertexSchema> vertex_schema) {
+  // First ensure the primary key is same with the existing one
+  if (vertex_schema->primary_keys.size() != 1) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Vertex schema must have exactly one primary key.");
+  }
+  if (!VertexSchema::is_pk_same(*vertex_schema_, *vertex_schema)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "New vertex schema's primary key is different from the existing "
+        "one.");
+  }
+
+  vertex_schema_ = vertex_schema;
 }
 
 bool VertexTable::get_index(const Property& oid, vid_t& lid,
