@@ -35,21 +35,18 @@
 
 namespace gs {
 
-class AppManager;
 class IVersionManager;
 class PropertyGraph;
 
 struct SessionLocalContext {
   SessionLocalContext(PropertyGraph& graph_, std::shared_ptr<Allocator> alloc,
-                      AppManager& app_manager,
                       std::shared_ptr<IVersionManager> version_manager,
                       const std::string& work_dir, int thread_id,
                       std::unique_ptr<IWalWriter> in_logger,
                       const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
-        session(graph_, app_manager, version_manager, *alloc, *logger, config_,
-                thread_id) {
+        session(graph_, version_manager, *alloc, *logger, config_, thread_id) {
     logger->open();
   }
   ~SessionLocalContext() {
@@ -74,8 +71,7 @@ struct SessionLocalContext {
  */
 class TransactionManager {
  public:
-  TransactionManager(std::shared_ptr<AppManager> app_manager,
-                     std::shared_ptr<IVersionManager> version_manager,
+  TransactionManager(std::shared_ptr<IVersionManager> version_manager,
                      PropertyGraph& graph,
                      std::vector<std::shared_ptr<Allocator>>& allocators,
                      const NeugDBConfig& config, const std::string& work_dir,
@@ -108,7 +104,6 @@ class TransactionManager {
   std::string work_dir_;
   std::string wal_uri_;
 
-  std::shared_ptr<AppManager> app_manager_;
   std::shared_ptr<IVersionManager> version_manager_;
   PropertyGraph& graph_;
   NeugDBConfig config_;

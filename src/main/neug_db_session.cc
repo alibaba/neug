@@ -31,10 +31,11 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/stored_procedure.pb.h"
-#include "neug/main/app/app_base.h"
-#include "neug/main/app_manager.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
@@ -44,6 +45,7 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/likely.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -72,58 +74,73 @@ PropertyGraph& NeugDBSession::graph() { return graph_; }
 
 const Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
-result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
+result<results::CollectiveResults> NeugDBSession::Eval(
+    const physical::PhysicalPlan& plan, AccessMode access_mode) {
   const auto start = std::chrono::high_resolution_clock::now();
-
-  if (input.size() < 2) {
-    RETURN_ERROR(
-        Status(StatusCode::ERR_INVALID_ARGUMENT,
-               "Invalid input, input size: " + std::to_string(input.size())));
-  }
-
-  auto type_res = parse_query_type(input);
-  if (!type_res) {
-    LOG(ERROR) << "Fail to parse query type";
-    RETURN_ERROR(type_res.error());
-  }
-
-  uint8_t type;
-  std::string_view sv;
-  std::tie(type, sv) = type_res.value();
-
-  std::vector<char> result_buffer;
-
-  Encoder encoder(result_buffer);
-  Decoder decoder(sv.data(), sv.size());
-
-  AppBase* app = GetApp(type);
-  if (!app) {
-    RETURN_ERROR(Status(
-        StatusCode::ERR_NOT_FOUND,
-        "Procedure not found, id:" + std::to_string(static_cast<int>(type))));
-  }
-
-  for (size_t i = 0; i < MAX_RETRY; ++i) {
-    result_buffer.clear();
-    if (app->run(*this, decoder, encoder)) {
-      const auto end = std::chrono::high_resolution_clock::now();
-      app_metrics_[type].add_record(
-          std::chrono::duration_cast<std::chrono::microseconds>(end - start)
-              .count());
-      eval_duration_.fetch_add(
-          std::chrono::duration_cast<std::chrono::microseconds>(end - start)
-              .count());
-      ++query_num_;
-      return result_buffer;
+  // Acquire different transaction on provided access_mode.;
+  std::unique_ptr<runtime::OprTimer> timer = nullptr;
+  results::CollectiveResults ret;
+  if (access_mode == AccessMode::kRead) {
+    auto read_txn = GetReadTransaction();
+    StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
+    auto ctx = runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
+    if (!ctx) {
+      LOG(ERROR) << "Error: " << ctx.error().ToString();
+      RETURN_ERROR(ctx.error());
     }
-
-    LOG(INFO) << "[Query-" << static_cast<int>(type) << "][Thread-"
-              << thread_id_ << "] retry - " << i << " / " << MAX_RETRY;
-    if (i + 1 < MAX_RETRY) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (!read_txn.Commit()) {
+      LOG(ERROR) << "Read transaction commit failed.";
+      RETURN_ERROR(Status::IntervalError("Read transaction commit failed."));
     }
-
-    decoder.reset(sv.data(), sv.size());
+    ret = runtime::Sink::sink(ctx.value(), gri);
+  } else if (access_mode == AccessMode::kInsert) {
+    auto insert_txn = GetInsertTransaction();
+    StorageTPInsertInterface gii(insert_txn);
+    auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer.get());
+    if (!ctx) {
+      LOG(ERROR) << "Error: " << ctx.error().ToString();
+      RETURN_ERROR(ctx.error());
+    }
+    if (!insert_txn.Commit()) {
+      LOG(ERROR) << "Insert transaction commit failed.";
+      RETURN_ERROR(Status::IntervalError("Insert transaction commit failed."));
+    }
+    // TODO(zhanglei,lexiao): enable sink for insert interface
+  } else if (access_mode == AccessMode::kUpdate) {  // Update mode
+    auto update_txn = GetUpdateTransaction();
+    StorageTPUpdateInterface gui(update_txn);
+    gs::result<runtime::Context> ctx;
+    if (plan.has_ddl_plan()) {  // UpdateSchema
+      ctx = runtime::ParseAndExecuteDDLPipeline(gui, plan.ddl_plan(),
+                                                timer.get());
+    } else {  // UpdateData
+      ctx = runtime::ParseAndExecuteQueryPipeline(gui, plan, timer.get());
+    }
+    if (!ctx) {
+      LOG(ERROR) << "Error: " << ctx.error().ToString();
+      RETURN_ERROR(ctx.error());
+    }
+    if (!update_txn.Commit()) {
+      LOG(ERROR) << "Update transaction commit failed.";
+      RETURN_ERROR(Status::IntervalError("Update transaction commit failed."));
+    }
+    ret = runtime::Sink::sink(ctx.value(), gui);
+  } else {  // Must be admin
+    assert(access_mode == AccessMode::kAdmin);
+    auto update_txn = GetUpdateTransaction();
+    StorageTPUpdateInterface gui(update_txn);
+    auto ctx = runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
+                                                     timer.get());
+    if (!ctx) {
+      LOG(ERROR) << "Error: " << ctx.error().ToString();
+      RETURN_ERROR(ctx.error());
+    }
+    if (!update_txn.Commit()) {
+      LOG(ERROR) << "Admin transaction commit failed.";
+      RETURN_ERROR(Status::IntervalError("Admin transaction commit failed."));
+    }
+    // TODO(zhanglei,lexiao): enable sink for admin interface
+    ret = runtime::Sink::sink(ctx.value(), gui);
   }
 
   const auto end = std::chrono::high_resolution_clock::now();
@@ -131,21 +148,7 @@ result<std::vector<char>> NeugDBSession::Eval(const std::string& input) {
       std::chrono::duration_cast<std::chrono::microseconds>(end - start)
           .count());
   ++query_num_;
-  // When query failed, we assume the user may put the error message in the
-  // output buffer.
-  // For example, for adhoc_app.cc, if the query failed, the error info will
-  // be put in the output buffer.
-  if (result_buffer.size() > 4) {
-    RETURN_ERROR(Status(
-        StatusCode::ERR_QUERY_EXECUTION,
-        std::string(result_buffer.data() + 4, result_buffer.size() - 4)
-        // The first 4 bytes are the length of the message.
-        ));
-  } else {
-    RETURN_ERROR(Status(StatusCode::ERR_QUERY_EXECUTION,
-                        "Query failed for procedure id:" +
-                            std::to_string(static_cast<int>(type))));
-  }
+  return ret;
 }
 
 int NeugDBSession::SessionId() const { return thread_id_; }
@@ -163,33 +166,5 @@ double NeugDBSession::eval_duration() const {
 }
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
-
-AppBase* NeugDBSession::GetApp(int type) {
-  // create if not exist
-  if (type >= MAX_PLUGIN_NUM) {
-    LOG(ERROR) << "Query type is out of range: " << type << " > "
-               << MAX_PLUGIN_NUM;
-    return nullptr;
-  }
-  AppBase* app = nullptr;
-  if (NEUG_LIKELY(apps_[type] != nullptr)) {
-    app = apps_[type];
-  } else {
-    app_wrappers_[type] = app_manager_.CreateApp(type, thread_id_);
-    if (app_wrappers_[type].app() == NULL) {
-      LOG(ERROR) << "[Query-" + std::to_string(static_cast<int>(type))
-                 << "] is not registered...";
-      return nullptr;
-    } else {
-      apps_[type] = app_wrappers_[type].app();
-      app = apps_[type];
-    }
-  }
-  return app;
-}
-
-const AppMetric& NeugDBSession::GetAppMetric(int idx) const {
-  return app_metrics_[idx];
-}
 
 }  // namespace gs

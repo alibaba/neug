@@ -311,7 +311,7 @@ def test_create_node_table_errors(tmp_path):
     # 1. create duplicate node table
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person(name STRING, PRIMARY KEY (name));")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. create node table without primary key
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE person1(name STRING, age INT64);")
@@ -426,21 +426,21 @@ def test_alter_vertex_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person ADD age INT64;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     conn.execute("ALTER TABLE person RENAME age TO newAge;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person RENAME age1 TO newAge1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 3. drop property
     # correctly drop a property
     conn.execute("ALTER TABLE person DROP newAge;")
     # incorrectly drop a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE person DROP age1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     conn.close()
     db.close()
 
@@ -459,14 +459,14 @@ def test_session_alter_vertex_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         sess.execute("ALTER TABLE person ADD age INT64;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     sess.execute("ALTER TABLE person RENAME age TO newAge;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         sess.execute("ALTER TABLE person RENAME age1 TO newAge1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 3. drop property
     # correctly drop a property
     sess.execute("ALTER TABLE person DROP newAge;")
@@ -494,14 +494,14 @@ def test_alter_edge_table(tmp_path):
     # incorrectly add a property that already exists
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows ADD weight DOUBLE;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     # 2. rename property
     # correctly rename a property
     conn.execute("ALTER TABLE knows RENAME weight TO newWeight;")
     # incorrectly rename a property that does not exist
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE knows RENAME weight1 TO newWeight1;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     conn.close()
     db.close()
 

@@ -30,7 +30,6 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
-#include "neug/main/app_manager.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/neug_db_session.h"
@@ -132,7 +131,6 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   gs::runtime::PlanParser::get().init();
   initAllocators();
   openGraphAndSchema();
-  initAppManager();
   ingestWals();
   initPlannerAndQueryProcessor();
 
@@ -154,9 +152,6 @@ void NeugDB::Close() {
   if (connection_manager_) {
     connection_manager_->Close();
     connection_manager_.reset();
-  }
-  if (app_manager_) {
-    app_manager_.reset();
   }
   if (planner_) {
     planner_.reset();
@@ -181,14 +176,6 @@ std::shared_ptr<Connection> NeugDB::Connect() {
 
 void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
   connection_manager_->RemoveConnection(conn);
-}
-
-void NeugDB::initAppManager() {
-  if (app_manager_) {
-    THROW_INTERNAL_EXCEPTION("App manager has already been initialized");
-  }
-  app_manager_ = std::make_shared<AppManager>(*this);
-  app_manager_->initApps();
 }
 
 void NeugDB::preprocessConfig() {

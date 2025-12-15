@@ -99,7 +99,7 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
     }
     return gs::Status::OK();
   } else {
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex label does not exist.");
   }
 }
@@ -132,7 +132,7 @@ Status PropertyGraph::CreateVertexType(
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (schema_.contains_vertex_label(vertex_type_name)) {
     if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Vertex label already exists.");
     } else {
       return Status(StatusCode::OK, "Vertex label already exists.");
@@ -145,10 +145,10 @@ Status PropertyGraph::CreateVertexType(
   std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
   if (primary_key_inds.size() > 1) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Multi primary keys are not supported.");
   } else if (primary_key_inds.size() == 0) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "At least one primary key is required.");
   }
   for (size_t i = 0; i < properties.size(); i++) {
@@ -169,7 +169,7 @@ Status PropertyGraph::CreateVertexType(
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " is not found in properties";
       return Status(
-          StatusCode::ERR_INVALID_SCHEMA,
+          StatusCode::ERR_INVALID_ARGUMENT,
           "Primary key " + primary_key_name + " is not found in properties");
     }
     if (property_types[primary_key_inds[i]] != PropertyType::kInt64 &&
@@ -180,7 +180,7 @@ Status PropertyGraph::CreateVertexType(
         !property_types[primary_key_inds[i]].IsVarchar()) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Primary key " + primary_key_name +
                         " should be int64/int32/uint64/"
                         "uint32 or string/varchar");
@@ -205,7 +205,7 @@ Status PropertyGraph::CreateVertexType(
 
       vtable.Swap(new_v_table);
     } else {
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Vertex label id conflict.");
     }
   } else {
@@ -244,13 +244,13 @@ Status PropertyGraph::CreateEdgeType(
     LOG(ERROR) << "Source_vertex [" << src_vertex_type
                << "] does not exist in the graph.";
     return Status(
-        StatusCode::ERR_INVALID_SCHEMA,
+        StatusCode::ERR_INVALID_ARGUMENT,
         "Source_vertex [" + src_vertex_type + "] does not exist in the graph.");
   }
   if (!schema_.contains_vertex_label(dst_vertex_type)) {
     LOG(ERROR) << "Destination_vertex [" << dst_vertex_type
                << "] does not exist in the graph.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Destination_vertex [" + dst_vertex_type +
                       "] does not exist in the graph.");
   }
@@ -259,7 +259,7 @@ Status PropertyGraph::CreateEdgeType(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_vertex_type
                << "] to [" << dst_vertex_type << "] already exists";
     if (error_on_conflict) {
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
                     "Edge [" + edge_type_name + "] from [" + src_vertex_type +
                         "] to [" + dst_vertex_type + "] already exists");
     } else {
@@ -294,7 +294,7 @@ Status PropertyGraph::CreateEdgeType(
       schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
 
   if (edge_tables_.count(index) > 0) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA, "Edge label id conflict.");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Edge label id conflict.");
   }
   EdgeTable edge_table(
       schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
@@ -327,7 +327,7 @@ Status PropertyGraph::AddVertexProperties(
       LOG(ERROR) << "Property [" << property_name
                  << "] already exists in vertex [" << vertex_type_name << "].";
       if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_SCHEMA,
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "Property [" + property_name +
                           "] already exists in vertex [" + vertex_type_name +
                           "].");
@@ -380,7 +380,7 @@ Status PropertyGraph::AddEdgeProperties(
                         "] from [" + src_type_name + "] to [" + dst_type_name +
                         "].";
       if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -401,7 +401,7 @@ Status PropertyGraph::AddEdgeProperties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot add properties.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot add properties.");
@@ -429,7 +429,7 @@ Status PropertyGraph::RenameVertexProperties(
                         "].";
       LOG(ERROR) << msg;
       if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -465,7 +465,7 @@ Status PropertyGraph::RenameEdgeProperties(
                         "].";
       LOG(ERROR) << msg;
       if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_SCHEMA, msg);
+        return Status(StatusCode::ERR_INVALID_ARGUMENT, msg);
       } else {
         return Status(StatusCode::OK, msg);
       }
@@ -480,7 +480,7 @@ Status PropertyGraph::RenameEdgeProperties(
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
   size_t index = schema_.generate_edge_label(src_label, dst_label, e_label);
   if (edge_tables_.count(index) == 0) {
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot rename properties.");
@@ -504,7 +504,7 @@ Status PropertyGraph::delete_vertex_properties_check(
                         "] does not exist in vertex [" + vertex_type_name +
                         "].";
       if (error_on_conflict) {
-        return Status(StatusCode::ERR_INVALID_SCHEMA,
+        return Status(StatusCode::ERR_INVALID_ARGUMENT,
                       "Property [" + property_name +
                           "] does not exist in vertex [" + vertex_type_name +
                           "].");
@@ -581,7 +581,7 @@ Status PropertyGraph::DeleteEdgeProperties(
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name
                << "] does not exist, cannot delete properties.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
@@ -1257,7 +1257,7 @@ Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
   if (!schema_.exist(src_type_name, dst_type_name, edge_type_name)) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name << "] does not exist";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name + "] does not exist");
   }
@@ -1272,7 +1272,7 @@ Status PropertyGraph::edge_triplet_exist(const std::string& src_type_name,
   if (!ret) {
     LOG(ERROR) << "Edge [" << edge_type_name << "] from [" << src_type_name
                << "] to [" << dst_type_name << "] does not exist";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name + "] does not exist");
   }
@@ -1282,7 +1282,7 @@ Status PropertyGraph::edge_triplet_exist(const std::string& src_type_name,
 Status PropertyGraph::vertex_label_check(const std::string& vertex_type_name) {
   if (!schema_.contains_vertex_label(vertex_type_name)) {
     LOG(ERROR) << "Vertex label[" << vertex_type_name << "] does not exists.";
-    return Status(StatusCode::ERR_INVALID_SCHEMA,
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex label[" + vertex_type_name + "] does not exists.");
   }
   return gs::Status::OK();

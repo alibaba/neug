@@ -31,13 +31,11 @@ class AppManager;
 class PropertyGraph;
 
 TransactionManager::TransactionManager(
-    std::shared_ptr<AppManager> app_manager,
     std::shared_ptr<IVersionManager> version_manager, PropertyGraph& graph,
     std::vector<std::shared_ptr<Allocator>>& allocators,
     const NeugDBConfig& config, const std::string& work_dir, int32_t thread_num)
     : thread_num_(thread_num),
       work_dir_(work_dir),
-      app_manager_(app_manager),
       version_manager_(version_manager),
       graph_(graph),
       config_(std::move(config)) {
@@ -57,12 +55,9 @@ TransactionManager::TransactionManager(
   if (!version_manager_) {
     THROW_INTERNAL_EXCEPTION("Version manager is null");
   }
-  if (!app_manager_) {
-    THROW_INTERNAL_EXCEPTION("App manager is null");
-  }
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i]) SessionLocalContext(
-        graph_, allocators[i], *app_manager_, version_manager_, work_dir, i,
+        graph_, allocators[i], version_manager_, work_dir, i,
         WalWriterFactory::CreateWalWriter(wal_uri_, i), config_);
   }
 }

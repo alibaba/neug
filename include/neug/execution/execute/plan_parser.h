@@ -47,6 +47,9 @@ class PlanParser {
 
   void register_operator_builder(std::unique_ptr<IOperatorBuilder>&& builder);
 
+  void register_schema_operator_builder(
+      std::unique_ptr<ISchemaOperatorBuilder>&& builder);
+
   void register_admin_operator_builder(
       std::unique_ptr<IAdminOperatorBuilder>&& builder);
 
@@ -61,6 +64,9 @@ class PlanParser {
   gs::result<AdminPipeline> parse_admin_pipeline(
       const gs::Schema& schema, const physical::AdminPlan& admin_plan);
 
+  gs::result<DDLPipeline> parse_ddl_pipeline(const gs::Schema& schema,
+                                             const physical::DDLPlan& ddl_plan);
+
  private:
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,
@@ -70,6 +76,9 @@ class PlanParser {
   std::map<physical::AdminPlan_Operator::KindCase,
            std::unique_ptr<IAdminOperatorBuilder>>
       admin_op_builders_;
+
+  std::map<physical::DDLPlan::PlanCase, std::unique_ptr<ISchemaOperatorBuilder>>
+      schema_op_builders_;
 };
 
 gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
@@ -78,6 +87,10 @@ gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
 
 gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
     StorageUpdateInterface& graph, const physical::AdminPlan& admin_plan,
+    OprTimer* timer);
+
+gs::result<runtime::Context> ParseAndExecuteDDLPipeline(
+    StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan,
     OprTimer* timer);
 
 }  // namespace runtime

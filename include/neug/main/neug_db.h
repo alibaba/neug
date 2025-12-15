@@ -168,8 +168,6 @@ class NeugDB {
 
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
-  std::shared_ptr<AppManager> GetAppManager() const { return app_manager_; }
-
  private:
   void preprocessConfig();
   void initAllocators();
@@ -177,7 +175,6 @@ class NeugDB {
   void ingestWals();
   void ingestWals(IWalParser& parser, const std::string& work_dir);
   void initPlannerAndQueryProcessor();
-  void initAppManager();
   /**
    * @brief Create a checkpoint of the current graph.
    * @param force_compaction Whether to force compaction before creating the
@@ -188,8 +185,6 @@ class NeugDB {
    * growing.
    */
   void createCheckpoint(bool force_compaction = false);
-
-  bool registerApp(const std::string& path, uint8_t index = 0);
 
   friend class NeugDBSession;
   friend class server::NeugDBService;
@@ -206,7 +201,6 @@ class NeugDB {
 
   // The property graph and transaction controls
   PropertyGraph graph_;
-  std::shared_ptr<AppManager> app_manager_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;

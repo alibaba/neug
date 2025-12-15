@@ -26,6 +26,7 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
@@ -169,13 +170,13 @@ def test_auto_transaction_management(tmp_path):
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("CREATE NODE TABLE T(id INT32, PRIMARY KEY(id));")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     r3 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r3) == 1
 
     with pytest.raises(Exception) as excinfo:
         conn.execute("ALTER TABLE T DROP not_exist;")
-    assert str(ERR_INVALID_SCHEMA) in str(excinfo.value)
+    assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
     r4 = conn.execute("MATCH (n:T) RETURN n;")
     assert len(r4) == 1
 

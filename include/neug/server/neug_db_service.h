@@ -61,10 +61,7 @@ class NeugDBService {
    * @note The database should be opened and ready before creating the service
    */
   NeugDBService(gs::NeugDB& db, const ServiceConfig& config = ServiceConfig())
-      : db_(db),
-        app_manager_(db_.GetAppManager()),
-        db_config_(db_.config()),
-        compact_thread_running_(false) {
+      : db_(db), db_config_(db_.config()), compact_thread_running_(false) {
     init(config);
   }
 
@@ -223,7 +220,6 @@ class NeugDBService {
   void init(const ServiceConfig& config);
 
   gs::NeugDB& db_;
-  std::shared_ptr<gs::AppManager> app_manager_;
   gs::NeugDBConfig db_config_;
   std::shared_ptr<gs::IVersionManager> version_manager_;
   std::unique_ptr<gs::TransactionManager> txn_manager_;

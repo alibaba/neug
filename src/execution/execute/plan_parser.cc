@@ -55,6 +55,17 @@
 #include "neug/execution/execute/ops/insert/create_edge.h"
 #include "neug/execution/execute/ops/insert/create_vertex.h"
 
+#include "neug/execution/execute/ops/ddl/add_edge_property.h"
+#include "neug/execution/execute/ops/ddl/add_vertex_property.h"
+#include "neug/execution/execute/ops/ddl/create_edge_type.h"
+#include "neug/execution/execute/ops/ddl/create_vertex_type.h"
+#include "neug/execution/execute/ops/ddl/drop_edge_property.h"
+#include "neug/execution/execute/ops/ddl/drop_edge_type.h"
+#include "neug/execution/execute/ops/ddl/drop_vertex_property.h"
+#include "neug/execution/execute/ops/ddl/drop_vertex_type.h"
+#include "neug/execution/execute/ops/ddl/rename_edge_property.h"
+#include "neug/execution/execute/ops/ddl/rename_vertex_property.h"
+
 #include "neug/execution/execute/pipeline.h"
 #include "neug/utils/result.h"
 
@@ -120,6 +131,28 @@ void PlanParser::init() {
   // TODO: Review which pipeline should procedureCall be put.
   register_operator_builder(std::make_unique<ops::ProcedureCallOprBuilder>());
 
+  // ---------------------- DDL Operators ----------------------
+  register_schema_operator_builder(
+      std::make_unique<ops::CreateVertexTypeOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::CreateEdgeTypeOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::AddVertexPropertySchemaOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::AddEdgePropertySchemaOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::DropVertexPropertySchemaOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::DropEdgePropertySchemaOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::RenameVertexPropertyOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::RenameEdgePropertyOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::DropVertexTypeOprBuilder>());
+  register_schema_operator_builder(
+      std::make_unique<ops::DropEdgeTypeOprBuilder>());
+
   // ---------------------- Admin Operators ----------------------
   register_admin_operator_builder(
       std::make_unique<ops::CheckpointOprBuilder>());
@@ -146,6 +179,12 @@ void PlanParser::register_admin_operator_builder(
     std::unique_ptr<IAdminOperatorBuilder>&& builder) {
   auto op = builder->GetOpKind();
   admin_op_builders_[op] = std::move(builder);
+}
+
+void PlanParser::register_schema_operator_builder(
+    std::unique_ptr<ISchemaOperatorBuilder>&& builder) {
+  auto op = builder->GetOpKind();
+  schema_op_builders_[op] = std::move(builder);
 }
 
 #if 1
@@ -369,6 +408,37 @@ gs::result<AdminPipeline> PlanParser::parse_admin_pipeline(
   return AdminPipeline(std::move(operators));
 }
 
+gs::result<DDLPipeline> PlanParser::parse_ddl_pipeline(
+    const gs::Schema& schema, const physical::DDLPlan& ddl_plan) {
+  std::vector<std::unique_ptr<IOperator>> operators;
+  ContextMeta ctx_meta;
+  // DDLPlan only has one operator each time
+
+  auto op_kind = ddl_plan.plan_case();
+  if (schema_op_builders_.find(op_kind) == schema_op_builders_.end()) {
+    std::stringstream ss;
+    ss << "[DDL Pipeline Parse Failed] " << static_cast<int>(op_kind)
+       << " failed to parse ddl plan";
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str()));
+  }
+
+  auto op =
+      schema_op_builders_.at(op_kind)->Build(schema, ctx_meta, ddl_plan, 0);
+  if (!op) {
+    std::stringstream ss;
+    ss << "[DDL Pipeline Parse Failed] " << static_cast<int>(op_kind)
+       << " failed to parse ddl plan";
+    auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
+    LOG(ERROR) << err.ToString();
+    RETURN_ERROR(err);
+  }
+
+  operators.emplace_back(std::move(op.value().first));
+  ctx_meta = op.value().second;
+
+  return DDLPipeline(std::move(operators));
+}
+
 gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
@@ -406,6 +476,30 @@ gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
             .parse_admin_pipeline(graph.schema(), admin_plan)
             .and_then([&](AdminPipeline&& ap) {
               return ap.Execute(graph, runtime::Context(), {}, timer);
+            });
+      },
+      [&](const auto& _status) { status = _status; },
+      [&](gs::result<runtime::Context>&& res) {
+        ctx = std::move(res.value());
+      });
+  if (!status.ok()) {
+    RETURN_ERROR(status);
+  }
+  return std::move(ctx);
+}
+
+gs::result<runtime::Context> ParseAndExecuteDDLPipeline(
+    StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan,
+    OprTimer* timer) {
+  runtime::Context ctx;
+  gs::Status status = Status::OK();
+  TRY_HANDLE_ALL_WITH_EXCEPTION(
+      gs::result<runtime::Context>,
+      [&]() {
+        return runtime::PlanParser::get()
+            .parse_ddl_pipeline(graph.schema(), ddl_plan)
+            .and_then([&](DDLPipeline&& dp) {
+              return dp.Execute(graph, runtime::Context(), {}, timer);
             });
       },
       [&](const auto& _status) { status = _status; },

@@ -57,7 +57,7 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
     NeugDBConfig db_config(data_dir_, std::thread::hardware_concurrency());
     db_config.checkpoint_on_close = GetParam();
     db_config.mode = DBMode::READ_WRITE;
-    db_config.compact_on_close = true;
+    db_config.compact_on_close = db_config.checkpoint_on_close;
     ASSERT_TRUE(db_->Open(db_config));
     server::ServiceConfig config;
     config.host_str = neugdb_host_;
@@ -92,6 +92,7 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
     std::string body = std::string("{\"query\":\"") + cypher + "\"}";
     auto res = cli.Post("/cypher", headers, body, "application/json");
     if (!res) {
+      LOG(ERROR) << res.error();
       return "";
     }
     auto query_result = QueryResult::From(res->body);

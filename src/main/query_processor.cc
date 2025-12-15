@@ -17,7 +17,6 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
 #include "neug/execution/execute/plan_parser.h"
-#include "neug/main/app/cypher_update_app.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/pb_utils.h"
@@ -139,8 +138,15 @@ result<results::CollectiveResults> QueryProcessor::execute_query(
 
 result<results::CollectiveResults> QueryProcessor::execute_ddl(
     const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  StorageAPUpdateInterface gii(g_, 0, allocator_);
-  return CypherUpdateApp::execute_ddl(gii, ddl_plan);
+  StorageAPUpdateInterface gii(g_, std::numeric_limits<timestamp_t>::max(),
+                               allocator_);
+  std::unique_ptr<runtime::OprTimer> timer = nullptr;
+  auto ctx = runtime::ParseAndExecuteDDLPipeline(gii, ddl_plan, timer.get());
+  if (!ctx) {
+    LOG(ERROR) << "Error: " << ctx.error().ToString();
+    RETURN_ERROR(ctx.error());
+  }
+  return runtime::Sink::sink(ctx.value(), gii);
 }
 
 bool QueryProcessor::need_exclusive_lock(const std::string& access_mode) {

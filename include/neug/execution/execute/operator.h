@@ -69,6 +69,18 @@ class IAdminOperatorBuilder {
   virtual physical::AdminPlan_Operator::KindCase GetOpKind() const = 0;
 };
 
+class ISchemaOperatorBuilder {
+ public:
+  virtual ~ISchemaOperatorBuilder() = default;
+  virtual int stepping(int i) { return i + 1; }
+
+  virtual gs::result<OpBuildResultT> Build(const Schema& schema,
+                                           const ContextMeta& ctx_meta,
+                                           const physical::DDLPlan& plan,
+                                           int op_id) = 0;
+  virtual physical::DDLPlan::PlanCase GetOpKind() const = 0;
+};
+
 }  // namespace runtime
 
 }  // namespace gs

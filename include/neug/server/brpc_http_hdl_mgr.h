@@ -127,7 +127,6 @@ class HttpServiceImpl : public HttpService {
       pthread_setspecific(thread_id_key, id_ptr);
     }
     int id = *id_ptr;
-    results::CollectiveResults final_res;
 
     cntl->http_response().set_content_type("text/plain");
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
@@ -176,29 +175,25 @@ class HttpServiceImpl : public HttpService {
     const auto& physical_plan = plan_res.value().first;
 
     VLOG(10) << "got plan: " << physical_plan.DebugString();
-    std::string plan_proto_str;
-    physical_plan.SerializeToString(&plan_proto_str);
     bool update_schema = false, update_statistics = false;
-    if (!append_plugin_id(physical_plan, plan_proto_str, update_schema,
-                          update_statistics)) {
-      cntl->SetFailed(
-          status_code_to_http_code(gs::StatusCode::ERR_NOT_SUPPORTED), "%s",
-          "Unsupported plan type, only query and DDL plans are supported");
-      return false;
+    // TODO(zhanglei): We should get access_mode from user input in the future.
+    auto access_mode = gs::ParseAccessMode(physical_plan);
+    if (access_mode == gs::AccessMode::kUpdate) {
+      update_schema = true;
+      update_statistics = true;
+    } else if (access_mode == gs::AccessMode::kInsert) {
+      update_statistics = true;
     }
 
-    auto result = txn_mgr_.GetSession(id).Eval(plan_proto_str);
+    auto result = txn_mgr_.GetSession(id).Eval(physical_plan, access_mode);
     if (!result) {
-      LOG(ERROR) << "Eval failed: " << result.error().error_message();
-      const char* error_msg = result.error().error_message().c_str();
+      std::string error_msg = result.error().ToString();
+      LOG(ERROR) << "Eval failed: " << error_msg;
       cntl->SetFailed(status_code_to_http_code(result.error().error_code()),
-                      "%s", error_msg);
-      cntl->response_attachment().append(result.error().error_message());
+                      "%s", error_msg.c_str());
+      cntl->response_attachment().append(error_msg);
       return false;
     }
-    const auto& result_buffer = result.value();
-    // TODO(zhanglei): Remove encoder/decoder in de/serialization.
-    gs::Decoder decoder(result_buffer.data(), result_buffer.size());
 
     VLOG(10) << "Query executed successfully, updating planner's schema and "
                 "statistics";
@@ -216,10 +211,7 @@ class HttpServiceImpl : public HttpService {
     if (update_statistics) {
       planner_->update_statistics(graph_db_.graph().get_statistics_json());
     }
-
-    std::string_view actual_res = decoder.get_bytes();
-    LOG(INFO) << "Actual response size: " << actual_res.size();
-    final_res.ParseFromArray(actual_res.data(), actual_res.size());
+    results::CollectiveResults& final_res = result.value();
     final_res.set_result_schema(plan_res.value().second);
     if (format == "proto") {
       final_res_str = final_res.SerializeAsString();
