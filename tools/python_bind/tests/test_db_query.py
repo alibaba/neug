@@ -1857,10 +1857,17 @@ def test_checkpoint():
     conn.execute("CREATE REL TABLE Knows(FROM Person TO Person)")
     conn.execute("CREATE REL TABLE Likes(FROM Person TO Person, weight DOUBLE)")
     conn.execute(
+        "CREATE REL TABLE Visits(FROM Person TO Person, time STRING, location STRING)"
+    )
+    conn.execute(
         "MATCH (p1:Person), (p2:Person)  WHERE p1.id = 1 AND p2.id = 2 CREATE (p1)-[:Knows]->(p2);"
     )
     conn.execute(
         "MATCH (p1:Person), (p2:Person)  WHERE p1.id = 1 AND p2.id = 2 CREATE (p1)-[:Likes {weight: 0.5}]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p1:Person), (p2:Person)  WHERE p1.id = 2 AND p2.id = 1 "
+        " CREATE (p1)-[:Visits {time: '2024-01-01', location: 'NYC'}]->(p2);"
     )
     res = conn.execute("MATCH (p1:Person)-[k:Knows]->(p2:Person) RETURN p1.id, p2.id;")
     records = list(res)
@@ -1870,6 +1877,11 @@ def test_checkpoint():
     )
     records = list(res)
     assert records == [[1, 2, 0.5]]
+    res = conn.execute(
+        "MATCH (p1:Person)-[k:Visits]->(p2:Person) RETURN p1.id, p2.id, k.time, k.location;"
+    )
+    records = list(res)
+    assert records == [[2, 1, "2024-01-01", "NYC"]]
     conn.execute("CHECKPOINT;")
     res = conn.execute("MATCH (p:Person) RETURN p.id, p.name;")
     records = list(res)
