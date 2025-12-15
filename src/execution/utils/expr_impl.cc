@@ -1075,32 +1075,6 @@ static std::unique_ptr<ExprBase> build_expr(
                                                   std::move(children));
     }
 
-    case ::common::ExprOpr::kVars: {
-      auto op = opr.vars();
-
-      if (op.keys_size() == 3) {
-        std::array<std::unique_ptr<ExprBase>, 3> exprs;
-        for (int i = 0; i < op.keys_size(); ++i) {
-          exprs[i] =
-              std::make_unique<VariableExpr>(graph, ctx, op.keys(i), var_type);
-        }
-        return TypedTupleBuilder<3, 3>().build_typed_tuple(std::move(exprs));
-      } else if (op.keys_size() == 2) {
-        std::array<std::unique_ptr<ExprBase>, 2> exprs;
-        for (int i = 0; i < op.keys_size(); ++i) {
-          exprs[i] =
-              std::make_unique<VariableExpr>(graph, ctx, op.keys(i), var_type);
-        }
-        return TypedTupleBuilder<2, 2>().build_typed_tuple(std::move(exprs));
-      }
-
-      std::vector<std::unique_ptr<ExprBase>> exprs;
-      for (int i = 0; i < op.keys_size(); ++i) {
-        exprs.push_back(
-            std::make_unique<VariableExpr>(graph, ctx, op.keys(i), var_type));
-      }
-      return std::make_unique<TupleExpr>(std::move(exprs));
-    }
     case ::common::ExprOpr::kUdfFunc: {
       auto op = opr.udf_func();
       std::string name = op.name();
@@ -1190,8 +1164,7 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     }
     case ::common::ExprOpr::kConst:
     case ::common::ExprOpr::kVar:
-    case ::common::ExprOpr::kParam:
-    case ::common::ExprOpr::kVars: {
+    case ::common::ExprOpr::kParam: {
       opr_stack2.push(*it);
       break;
     }
@@ -1215,7 +1188,6 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
     }
     case ::common::ExprOpr::kExtract:
     case ::common::ExprOpr::kCase:
-    case ::common::ExprOpr::kMap:
     case ::common::ExprOpr::kUdfFunc:
     case ::common::ExprOpr::kToInterval:
     case ::common::ExprOpr::kToDate:

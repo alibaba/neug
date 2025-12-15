@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/execution/execute/ops/utils/group_by_utils.h"
+#include "neug/execution/execute/ops/retrieve/group_by_utils.h"
 
 namespace gs {
 namespace runtime {

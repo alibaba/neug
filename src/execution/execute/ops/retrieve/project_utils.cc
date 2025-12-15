@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/execution/execute/ops/utils/project_utils.h"
+#include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/utils/special_predicates.h"
 
 namespace gs {

@@ -45,8 +45,6 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
       tag = pb.tag().id();
       assert(ctx.get(tag) != nullptr);
       type_ = ctx.get(tag)->elem_type();
-    } else if (pb.has_property() && pb.property().has_label()) {
-      type_ = RTAnyType::kStringValue;
     } else {
       VLOG(10) << "receive empty variable, using tag -1";
       tag = -1;
@@ -54,7 +52,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
     }
   }
 
-  if (pb.has_tag() || var_type == VarType::kPathVar) {
+  if (var_type == VarType::kPathVar) {
     if (ctx.get(tag) == nullptr) {
       THROW_INTERNAL_EXCEPTION(
           "Variable tag " + std::to_string(tag) +

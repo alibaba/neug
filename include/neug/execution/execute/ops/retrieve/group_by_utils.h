@@ -656,16 +656,24 @@ std::unique_ptr<ReducerBase> _make_reducer(const Context& ctx, EXPR&& expr,
         std::move(r), std::move(collector), alias);
   }
   case AggrKind::kMin: {
-    MinReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
-    SingleValueCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    if constexpr (std::is_same<typename EXPR::V, VertexRecord>::value) {
+      LOG(FATAL) << "Min not support VertexRecord";
+    } else {
+      MinReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
+      SingleValueCollector<typename EXPR::V> collector;
+      return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
+          std::move(r), std::move(collector), alias);
+    }
   }
   case AggrKind::kMax: {
-    MaxReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
-    SingleValueCollector<typename EXPR::V> collector;
-    return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
-        std::move(r), std::move(collector), alias);
+    if constexpr (std::is_same<typename EXPR::V, VertexRecord>::value) {
+      LOG(FATAL) << "Max not support VertexRecord";
+    } else {
+      MaxReducer<EXPR, IS_OPTIONAL> r(std::move(expr));
+      SingleValueCollector<typename EXPR::V> collector;
+      return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
+          std::move(r), std::move(collector), alias);
+    }
   }
   case AggrKind::kFirst: {
     FirstReducer<EXPR, IS_OPTIONAL> r(std::move(expr));

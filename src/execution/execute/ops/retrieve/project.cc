@@ -41,7 +41,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
-#include "neug/execution/execute/ops/utils/project_utils.h"
+#include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/execution/utils/var.h"

@@ -32,19 +32,10 @@ class IPathColumn : public IContextColumn {
  public:
   IPathColumn() = default;
   virtual ~IPathColumn() = default;
-  virtual size_t size() const = 0;
-  virtual std::string column_info() const = 0;
-  virtual ContextColumnType column_type() const = 0;
-  virtual std::shared_ptr<IContextColumn> shuffle(
-      const std::vector<size_t>& offsets) const = 0;
-  virtual RTAnyType elem_type() const = 0;
-  virtual RTAny get_elem(size_t idx) const = 0;
   virtual const Path& get_path(size_t idx) const = 0;
   virtual int get_path_length(size_t idx) const {
     return get_path(idx).len() - 1;
   }
-  virtual ISigColumn* generate_signature() const = 0;
-  virtual void generate_dedup_offset(std::vector<size_t>& offsets) const = 0;
 };
 
 class GeneralPathColumnBuilder;

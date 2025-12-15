@@ -52,10 +52,6 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<List>>(ctx, tag);
   case RTAnyType::kPath:
     return std::make_shared<ContextValueAccessor<Path>>(ctx, tag);
-  case RTAnyType::kVertex:
-    return std::make_shared<ContextValueAccessor<VertexRecord>>(ctx, tag);
-  case RTAnyType::kEdge:
-    return std::make_shared<ContextValueAccessor<EdgeRecord>>(ctx, tag);
   case RTAnyType::kF32Value:
     return std::make_shared<ContextValueAccessor<float>>(ctx, tag);
   case RTAnyType::kF64Value:
