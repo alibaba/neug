@@ -764,7 +764,7 @@ void Schema::Serialize(std::ostream& os) const {
   for (const auto& e_pair : e_schemas_) {
     arc << (uint32_t) e_pair.first << (*e_pair.second);
   }
-  arc << description_ << version_ << remote_path_ << name_ << id_;
+  arc << description_ << name_ << id_;
   size_t size = arc.GetSize();
   os.write(reinterpret_cast<char*>(&size), sizeof(size));
   os.write(arc.GetBuffer(), size);
@@ -797,7 +797,7 @@ void Schema::Deserialize(std::istream& is) {
     e_schemas_.emplace(key, e_schema);
   }
 
-  arc >> description_ >> version_ >> remote_path_ >> name_ >> id_;
+  arc >> description_ >> name_ >> id_;
   vlabel_tomb_.Deserialize(is);
   elabel_tomb_.Deserialize(is);
   elabel_triplet_tomb_.Deserialize(is);
@@ -969,12 +969,10 @@ static bool parse_property_type(YAML::Node node, PropertyType& type) {
   }
 }
 
-static Status parse_vertex_properties(YAML::Node node,
-                                      const std::string& label_name,
-                                      std::vector<PropertyType>& types,
-                                      std::vector<std::string>& names,
-                                      std::vector<StorageStrategy>& strategies,
-                                      const std::string& version) {
+static Status parse_vertex_properties(
+    YAML::Node node, const std::string& label_name,
+    std::vector<PropertyType>& types, std::vector<std::string>& names,
+    std::vector<StorageStrategy>& strategies) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no vertex properties specified for vertex: "
              << label_name;
@@ -1036,8 +1034,7 @@ static Status parse_vertex_properties(YAML::Node node,
 static Status parse_edge_properties(YAML::Node node,
                                     const std::string& label_name,
                                     std::vector<PropertyType>& types,
-                                    std::vector<std::string>& names,
-                                    const std::string& version) {
+                                    std::vector<std::string>& names) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no edge properties specified for edge: " << label_name;
     return Status::OK();
@@ -1127,7 +1124,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
 
   RETURN_IF_NOT_OK(parse_vertex_properties(node["properties"], label_name,
                                            property_types, property_names,
-                                           strategies, schema.GetVersion()));
+                                           strategies));
   if (!node["primary_keys"]) {
     LOG(ERROR) << "Expect field primary_keys for " << label_name;
     return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -1224,8 +1221,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
   std::vector<std::string> prop_names;
   std::string description;  // default is empty string
   RETURN_IF_NOT_OK(parse_edge_properties(node["properties"], edge_label_name,
-                                         property_types, prop_names,
-                                         schema.GetVersion()));
+                                         property_types, prop_names));
 
   if (node["description"]) {
     description = node["description"].as<std::string>();
@@ -1476,28 +1472,6 @@ static Status parse_schema_from_yaml_node(const YAML::Node& graph_node,
     schema.SetDescription(graph_node["description"].as<std::string>());
   }
 
-  if (graph_node["remote_path"]) {
-    schema.SetRemotePath(graph_node["remote_path"].as<std::string>());
-  }
-
-  // check whether a version field is specified for the schema, if
-  // specified, we will use it to check the compatibility of the schema.
-  // If not specified, we will use the default version.
-  if (graph_node["version"]) {
-    auto version = graph_node["version"].as<std::string>();
-    const auto& supported_versions = Schema::GetCompatibleVersions();
-    if (std::find(supported_versions.begin(), supported_versions.end(),
-                  version) == supported_versions.end()) {
-      LOG(ERROR) << "Unsupported schema version: " << version;
-      return Status(StatusCode::ERR_INVALID_SCHEMA,
-                    "Unsupported schema version: " + version);
-    }
-    schema.SetVersion(version);
-  } else {
-    schema.SetVersion(Schema::DEFAULT_SCHEMA_VERSION);
-  }
-  VLOG(10) << "Parse schema version: " << schema.GetVersion();
-
   auto schema_node = graph_node["schema"];
 
   if (!graph_node["schema"]) {
@@ -1629,13 +1603,6 @@ void Schema::SetDescription(const std::string& description) {
   description_ = description;
 }
 
-void Schema::SetRemotePath(const std::string& remote_path) {
-  remote_path_ = remote_path;
-}
-
-void Schema::SetVersion(const std::string& version) { version_ = version; }
-std::string Schema::GetVersion() const { return version_; }
-
 // check whether prop in vprop_names, or is the primary key
 bool Schema::vertex_has_property(const std::string& label,
                                  const std::string& prop) const {
@@ -1738,8 +1705,6 @@ gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   graph_node["name"] = schema.GetGraphName();
   graph_node["id"] = schema.GetGraphId();
   graph_node["description"] = schema.GetDescription();
-  graph_node["remote_path"] = schema.GetRemotePath();
-  graph_node["version"] = schema.GetVersion();
 
   YAML::Node vertex_types(YAML::NodeType::Sequence);
   config_parsing::dump_vertices_schema(schema, vertex_types);
@@ -1751,16 +1716,6 @@ gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
 
   return graph_node;
 }
-
-const std::vector<std::string>& Schema::GetCompatibleVersions() {
-  return COMPATIBLE_VERSIONS;
-}
-
-const std::vector<std::string> Schema::COMPATIBLE_VERSIONS = {
-    "v0.0",  // v0.0 is the version before schema unified, and is the
-             // default version, if no version is specified
-    "v0.1"   // v0.1 is the version after schema unified
-};
 
 void Schema::AddVertexProperties(
     const std::string& label, std::vector<std::string>& properties_names,
@@ -2105,8 +2060,6 @@ Schema Schema::Compact() const {
   new_schema.name_ = name_;
   new_schema.id_ = id_;
   new_schema.description_ = description_;
-  new_schema.version_ = version_;
-  new_schema.remote_path_ = remote_path_;
 
   for (label_t v_label = 0; v_label < v_schemas_.size(); ++v_label) {
     if (vlabel_tomb_.get(v_label)) {

@@ -202,16 +202,11 @@ class Schema {
   static constexpr const char* VARCHAR_KEY = "varchar";
   static constexpr const char* MAX_LENGTH_KEY = "max_length";
 
-  // An array containing all compatible versions of schema.
-  static const std::vector<std::string> COMPATIBLE_VERSIONS;
-  static constexpr const char* DEFAULT_SCHEMA_VERSION = "v0.0";
   static constexpr const size_t MAX_VNUM = static_cast<size_t>(1) << 32;
 
   using label_type = label_t;
   Schema();
   ~Schema();
-
-  static const std::vector<std::string>& GetCompatibleVersions();
 
   void Clear();
 
@@ -527,14 +522,6 @@ class Schema {
 
   void SetDescription(const std::string& description);
 
-  void SetRemotePath(const std::string& remote_path);
-
-  inline std::string GetRemotePath() const { return remote_path_; }
-
-  void SetVersion(const std::string& version);
-
-  std::string GetVersion() const;
-
   uint32_t generate_edge_label(label_t src, label_t dst, label_t edge) const;
 
   std::tuple<label_t, label_t, label_t> parse_edge_label(
@@ -577,8 +564,6 @@ class Schema {
   std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>> e_schemas_;
 
   std::string description_;
-  std::string version_;
-  std::string remote_path_;  // The path to the data on the remote storage
 
   Bitset vlabel_tomb_;
   Bitset elabel_tomb_;          // tombstone for edge label
