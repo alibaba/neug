@@ -201,4 +201,18 @@ int32_t search_ie_offset_with_oe_offset(
       ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(), e_prop_type);
 }
 
+int32_t search_oe_offset_with_ie_offset(
+    const GenericView& oe, const GenericView& ie, vid_t src_lid, vid_t dst_lid,
+    int32_t ie_offset, const std::vector<PropertyType>& props) {
+  NbrList oe_nbr_list = oe.get_edges(src_lid);
+  auto ie_edges = ie.get_edges(dst_lid);
+  auto ie_nbr_it = ie_edges.begin();
+  ie_nbr_it += ie_offset;
+  assert(ie_nbr_it != ie_edges.end());
+  PropertyType e_prop_type =
+      props.size() == 1 ? props[0] : PropertyType::UInt64();
+  return gs::fuzzy_search_offset_from_nbr_list(
+      oe_nbr_list, dst_lid, ie_nbr_it.get_data_ptr(), e_prop_type);
+}
+
 }  // namespace gs

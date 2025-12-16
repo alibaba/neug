@@ -218,6 +218,13 @@ class UpdateTransaction {
   bool AddVertex(label_t label, const Property& oid,
                  const std::vector<Property>& props, vid_t& vid);
 
+  /**
+   * @brief Delete vertex and its associated edges.
+   * @param label Vertex label id.
+   * @param lid Local vertex id.
+   * @return true if deletion is successful, false otherwise.
+   * @note We always delete vertex in detach mode.
+   */
   bool DeleteVertex(label_t label, vid_t lid);
 
   bool AddEdge(label_t src_label, vid_t src, label_t dst_label, vid_t dst,

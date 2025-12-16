@@ -231,6 +231,14 @@ class PropertyGraph {
   Status BatchDeleteVertices(label_t v_label_id,
                              const std::vector<vid_t>& vids);
 
+  /**
+   * @brief Delete vertex and its associated edges.
+   * @param label Vertex label id.
+   * @param oid Vertex original id.
+   * @param ts Timestamp of the deletion.
+   * @return true if deletion is successful, false otherwise.
+   * @note We always delete vertex in detach mode.
+   */
   Status DeleteVertex(label_t v_label, const Property& oid, timestamp_t ts);
 
   Status DeleteVertex(label_t v_label, vid_t lid, timestamp_t ts);

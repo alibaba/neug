@@ -677,14 +677,30 @@ Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
 
 Status PropertyGraph::DeleteVertex(label_t label, const Property& oid,
                                    timestamp_t ts) {
-  vertex_tables_.at(label).DeleteVertex(oid, ts);
-  return Status::OK();
+  vid_t lid;
+  if (!vertex_tables_.at(label).get_index(oid, lid, ts)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex oid does not exist.");
+  }
+  return DeleteVertex(label, lid, ts);
 }
 
 Status PropertyGraph::DeleteVertex(label_t label, vid_t lid, timestamp_t ts) {
+  for (label_t i = 0; i < vertex_label_num_; i++) {
+    for (label_t j = 0; j < edge_label_num_; j++) {
+      if (schema_.has_edge_label(i, label, j)) {
+        size_t index = schema_.generate_edge_label(i, label, j);
+        assert(edge_tables_.count(index) > 0);
+        edge_tables_.at(index).DeleteVertex(true, lid, ts);
+      }
+      if (schema_.has_edge_label(label, i, j)) {
+        size_t index = schema_.generate_edge_label(label, i, j);
+        assert(edge_tables_.count(index) > 0);
+        edge_tables_.at(index).DeleteVertex(false, lid, ts);
+      }
+    }
+  }
   vertex_tables_.at(label).DeleteVertex(lid, ts);
-  // TODO(zhanglei): Delete the edges starting from or end to lid in the
-  // related edge tables. issue 1132
   return Status::OK();
 }
 

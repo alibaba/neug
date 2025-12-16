@@ -113,7 +113,15 @@ struct UpdateEdgePropUndo : public IUndoLog {
 struct RemoveVertexUndo : public IUndoLog {
   label_t v_label;
   vid_t lid;
-  RemoveVertexUndo(label_t v_label, vid_t lid) : v_label(v_label), lid(lid) {}
+  std::unordered_map<uint32_t,
+                     std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
+      related_edges;  // edge_triplet_id: <src, dst, oe_offset, ie_offset>
+  RemoveVertexUndo(
+      label_t v_label, vid_t lid,
+      const std::unordered_map<
+          uint32_t, std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>&
+          related_edges)
+      : v_label(v_label), lid(lid), related_edges(related_edges) {}
   OpType GetType() const override { return OpType::kRemoveVertex; }
   void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };

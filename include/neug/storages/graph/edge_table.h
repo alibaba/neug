@@ -109,6 +109,14 @@ class EdgeTable {
   void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                   int32_t ie_offset, timestamp_t ts);
 
+  /**
+   * @brief Delete edges associated with a vertex.
+   * @param is_src Whether the vertex is the source vertex.
+   * @param lid The local id of the vertex.
+   * @param ts The timestamp.
+   */
+  void DeleteVertex(bool is_src, vid_t lid, timestamp_t ts);
+
   void RevertDeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                         int32_t ie_offset, timestamp_t ts);
 

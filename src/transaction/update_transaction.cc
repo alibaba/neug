@@ -44,6 +44,92 @@
 
 namespace gs {
 
+std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
+fetch_edges_related_to_vertex_from_view(const std::vector<PropertyType>& props,
+                                        const GenericView& oe,
+                                        const GenericView& ie, vid_t lid,
+                                        bool is_src) {
+  std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
+  if (is_src) {
+    NbrList nbr_list = oe.get_edges(lid);
+    auto stride = nbr_list.cfg.stride;
+    auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
+    for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
+      auto oe_offset =
+          (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
+      vid_t dst_lid = it.get_vertex();
+      int32_t ie_offset = gs::search_oe_offset_with_ie_offset(
+          oe, ie, lid, dst_lid, oe_offset, props);
+      related_edges.emplace_back(lid, dst_lid, oe_offset, ie_offset);
+    }
+  } else {
+    NbrList nbr_list = ie.get_edges(lid);
+    auto stride = nbr_list.cfg.stride;
+    auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
+    for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
+      auto ie_offset =
+          (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
+      vid_t src_lid = it.get_vertex();
+      int32_t oe_offset = gs::search_oe_offset_with_ie_offset(
+          oe, ie, src_lid, lid, ie_offset, props);
+      related_edges.emplace_back(src_lid, lid, oe_offset, ie_offset);
+    }
+  }
+  return related_edges;
+}
+
+std::unordered_map<uint32_t,
+                   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
+fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
+                              vid_t lid) {
+  std::unordered_map<uint32_t,
+                     std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
+      related_edges;  // edge_triplet_id: <src, dst, oe_offset, ie_offset>
+  auto v_label_num = txn.schema().vertex_label_num();
+  auto e_label_num = txn.schema().edge_label_num();
+  auto& schema = txn.schema();
+  for (auto other_label_id = 0; other_label_id < v_label_num;
+       ++other_label_id) {
+    if (!schema.vertex_label_valid(other_label_id)) {
+      continue;
+    }
+    for (auto e_label_id = 0; e_label_id < e_label_num; ++e_label_id) {
+      if (!schema.edge_label_valid(e_label_id)) {
+        continue;
+      }
+      if (schema.exist(v_label, other_label_id, e_label_id)) {
+        auto props =
+            schema.get_edge_properties(v_label, other_label_id, e_label_id);
+        auto edge_triplet_id =
+            schema.generate_edge_label(v_label, other_label_id, e_label_id);
+        auto oe_view = txn.GetGenericOutgoingGraphView(v_label, other_label_id,
+                                                       e_label_id);
+        auto ie_view = txn.GetGenericIncomingGraphView(other_label_id, v_label,
+                                                       e_label_id);
+
+        related_edges[edge_triplet_id] =
+            fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
+                                                    lid, true);
+      }
+      if (other_label_id != v_label &&
+          schema.exist(other_label_id, v_label, e_label_id)) {
+        auto props =
+            schema.get_edge_properties(other_label_id, v_label, e_label_id);
+        auto edge_triplet_id =
+            schema.generate_edge_label(other_label_id, v_label, e_label_id);
+        auto oe_view = txn.GetGenericOutgoingGraphView(other_label_id, v_label,
+                                                       e_label_id);
+        auto ie_view = txn.GetGenericIncomingGraphView(v_label, other_label_id,
+                                                       e_label_id);
+        related_edges[edge_triplet_id] =
+            fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
+                                                    lid, false);
+      }
+    }
+  }
+  return related_edges;
+}
+
 UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
                                      timestamp_t timestamp)
@@ -601,7 +687,12 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   auto oid = graph_.GetOid(label, lid, timestamp_);
   RemoveVertexRedo::Serialize(arc_, label, oid);
   op_num_ += 1;
-  undo_logs_.push(std::make_unique<RemoveVertexUndo>(label, lid));
+  // edge_triplet_id: < src, dst, oe_offset, ie_offset>
+  std::unordered_map<uint32_t,
+                     std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
+      related_edges = fetch_edges_related_to_vertex(*this, label, lid);
+  undo_logs_.push(
+      std::make_unique<RemoveVertexUndo>(label, lid, related_edges));
   auto status = graph_.DeleteVertex(label, lid, timestamp_);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to delete vertex of label "

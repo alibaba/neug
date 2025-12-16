@@ -50,6 +50,14 @@ void UpdateEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 void RemoveVertexUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   assert(graph.schema().vertex_label_valid(v_label));
   graph.get_vertex_table(v_label).RevertDeleteVertex(lid, ts);
+  for (const auto& [edge_triplet_id, edge_vec] : related_edges) {
+    auto [src_label, dst_label, edge_label] =
+        graph.schema().parse_edge_label(edge_triplet_id);
+    auto& edge_table = graph.get_edge_table(src_label, dst_label, edge_label);
+    for (const auto& edge : edge_vec)  // <src, dst, oe_offset, ie_offset>
+      edge_table.RevertDeleteEdge(std::get<0>(edge), std::get<1>(edge),
+                                  std::get<2>(edge), std::get<3>(edge), ts);
+  }
 };
 
 void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {

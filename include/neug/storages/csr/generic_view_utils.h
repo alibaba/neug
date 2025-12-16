@@ -39,4 +39,9 @@ int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
                                         vid_t dst_lid, int32_t oe_offset,
                                         const std::vector<PropertyType>& props);
 
+int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
+                                        const GenericView& ie, vid_t src_lid,
+                                        vid_t dst_lid, int32_t ie_offset,
+                                        const std::vector<PropertyType>& props);
+
 }  // namespace gs

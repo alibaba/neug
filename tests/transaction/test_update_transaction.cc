@@ -827,10 +827,8 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
                                    vertex_id));
     EXPECT_EQ(
         count_edges(gi, person_label, software_label, created_label, true), 1);
-    // TODO(zhanglei): comment out this line when issue #1132 is solved.
-    // EXPECT_EQ(
-    //     count_edges(txn, software_label, person_label, created_label, false),
-    //     1);
+    EXPECT_EQ(
+        count_edges(gi, software_label, person_label, created_label, false), 1);
   }
   {
     // Delete person label and then delete vertex should throw
@@ -1578,5 +1576,232 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
         gs::exception::Exception);
     txn.Abort();
   }
+  db.Close();
+}
+
+// Test DeleteVertex deletes all associated outgoing edges
+TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+
+    gs::vid_t p1_vid;
+    EXPECT_FALSE(
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_EQ(count_vertices(gi, person_label), 1);
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 1);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              0);
+  }
+  db.Close();
+}
+
+// Test DeleteVertex with both incoming and outgoing edges
+TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto knows_label = txn.schema().get_edge_label_id("knows");
+    gs::vid_t p1_vid, p2_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), p2_vid));
+    EXPECT_TRUE(txn.AddEdge(person_label, p2_vid, person_label, p1_vid,
+                            knows_label, {gs::Property::from_double(0.85)}));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              2);
+  }
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              0);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, false),
+              0);
+  }
+  db.Close();
+}
+
+// Test DeleteVertex rollback restores edges correctly
+TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+  size_t initial_created_count, initial_knows_count;
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    gs::vid_t p1_vid, p2_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(software_label, gs::Property::from_int64(1),
+                                   p2_vid));
+    auto oe_view = txn.GetGenericOutgoingGraphView(person_label, software_label,
+                                                   created_label);
+    auto ie_view = txn.GetGenericIncomingGraphView(software_label, person_label,
+                                                   created_label);
+    auto props = txn.schema().get_edge_properties(person_label, software_label,
+                                                  created_label);
+    auto oe_edges = oe_view.get_edges(p1_vid);
+    auto stride = oe_edges.cfg.stride;
+    auto begin_ptr = reinterpret_cast<const char*>(oe_edges.start_ptr);
+    for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+      if (it.get_vertex() != p2_vid) {
+        continue;
+      }
+      auto oe_offset =
+          (reinterpret_cast<const char*>(it.get_nbr_ptr()) - begin_ptr) /
+          stride;
+      auto ie_offset = gs::search_ie_offset_with_oe_offset(
+          oe_view, ie_view, p1_vid, p2_vid, oe_offset, props);
+      EXPECT_TRUE(txn.DeleteEdge(person_label, p1_vid, software_label, p2_vid,
+                                 created_label, oe_offset, ie_offset));
+    }
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    initial_created_count =
+        count_edges(gi, person_label, software_label, created_label, true);
+    initial_knows_count =
+        count_edges(gi, person_label, person_label, knows_label, true);
+  }
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    txn.Abort();
+  }
+  {
+    // Verify person 1 and all edges are restored
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true),
+        initial_created_count);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              initial_knows_count);
+  }
+  db.Close();
+}
+
+// Test DeleteVertex with multiple edge types
+TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
+        edge_props = {std::make_tuple(gs::PropertyType::Int64(), "since",
+                                      gs::Property::from_int64(2020))};
+    EXPECT_TRUE(txn.CreateEdgeType("person", "person", "follows", edge_props,
+                                   true, gs::EdgeStrategy::kMultiple,
+                                   gs::EdgeStrategy::kMultiple));
+
+    gs::vid_t p1_vid, p2_vid;
+    auto follows_label = txn.schema().get_edge_label_id("follows");
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(2), p2_vid));
+    EXPECT_TRUE(txn.AddEdge(person_label, p1_vid, person_label, p2_vid,
+                            follows_label, {gs::Property::from_int64(2022)}));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = svc->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(txn.DeleteVertex(person_label, p1_vid));
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    // Verify all edge types are deleted
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto knows_label = gi.schema().get_edge_label_id("knows");
+    auto follows_label = gi.schema().get_edge_label_id("follows");
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 1);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, knows_label, true),
+              0);
+    EXPECT_EQ(count_edges(gi, person_label, person_label, follows_label, true),
+              0);
+  }
+
   db.Close();
 }
