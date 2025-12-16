@@ -378,7 +378,7 @@ gs::result<Pipeline> PlanParser::parse_execute_pipeline(
   return std::move(ret.value().first);
 }
 
-gs::result<AdminPipeline> PlanParser::parse_admin_pipeline(
+gs::result<Pipeline> PlanParser::parse_admin_pipeline(
     const gs::Schema& schema, const physical::AdminPlan& admin_plan) {
   std::vector<std::unique_ptr<IOperator>> operators;
   ContextMeta ctx_meta;
@@ -405,10 +405,10 @@ gs::result<AdminPipeline> PlanParser::parse_admin_pipeline(
     operators.emplace_back(std::move(op.value().first));
     ctx_meta = op.value().second;
   }
-  return AdminPipeline(std::move(operators));
+  return Pipeline(std::move(operators));
 }
 
-gs::result<DDLPipeline> PlanParser::parse_ddl_pipeline(
+gs::result<Pipeline> PlanParser::parse_ddl_pipeline(
     const gs::Schema& schema, const physical::DDLPlan& ddl_plan) {
   std::vector<std::unique_ptr<IOperator>> operators;
   ContextMeta ctx_meta;
@@ -436,7 +436,7 @@ gs::result<DDLPipeline> PlanParser::parse_ddl_pipeline(
   operators.emplace_back(std::move(op.value().first));
   ctx_meta = op.value().second;
 
-  return DDLPipeline(std::move(operators));
+  return Pipeline(std::move(operators));
 }
 
 gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
@@ -474,7 +474,7 @@ gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
       [&]() {
         return runtime::PlanParser::get()
             .parse_admin_pipeline(graph.schema(), admin_plan)
-            .and_then([&](AdminPipeline&& ap) {
+            .and_then([&](Pipeline&& ap) {
               return ap.Execute(graph, runtime::Context(), {}, timer);
             });
       },
@@ -498,7 +498,7 @@ gs::result<runtime::Context> ParseAndExecuteDDLPipeline(
       [&]() {
         return runtime::PlanParser::get()
             .parse_ddl_pipeline(graph.schema(), ddl_plan)
-            .and_then([&](DDLPipeline&& dp) {
+            .and_then([&](Pipeline&& dp) {
               return dp.Execute(graph, runtime::Context(), {}, timer);
             });
       },

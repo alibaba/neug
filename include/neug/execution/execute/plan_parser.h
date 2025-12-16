@@ -61,11 +61,11 @@ class PlanParser {
       const gs::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
-  gs::result<AdminPipeline> parse_admin_pipeline(
+  gs::result<Pipeline> parse_admin_pipeline(
       const gs::Schema& schema, const physical::AdminPlan& admin_plan);
 
-  gs::result<DDLPipeline> parse_ddl_pipeline(const gs::Schema& schema,
-                                             const physical::DDLPlan& ddl_plan);
+  gs::result<Pipeline> parse_ddl_pipeline(const gs::Schema& schema,
+                                          const physical::DDLPlan& ddl_plan);
 
  private:
   std::vector<std::vector<

@@ -139,7 +139,6 @@ result<results::CollectiveResults> NeugDBSession::Eval(
       LOG(ERROR) << "Admin transaction commit failed.";
       RETURN_ERROR(Status::IntervalError("Admin transaction commit failed."));
     }
-    // TODO(zhanglei,lexiao): enable sink for admin interface
     ret = runtime::Sink::sink(ctx.value(), gui);
   }
 

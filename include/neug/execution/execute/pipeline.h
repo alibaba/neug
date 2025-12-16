@@ -29,38 +29,6 @@ namespace runtime {
 class Context;
 class OprTimer;
 
-class DDLPipeline {
- public:
-  DDLPipeline() {}
-  DDLPipeline(DDLPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit DDLPipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
-      : operators_(std::move(operators)) {}
-  ~DDLPipeline() = default;
-
-  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
-                              const std::map<std::string, std::string>& params,
-                              OprTimer* timer);
-
- private:
-  std::vector<std::unique_ptr<IOperator>> operators_;
-};
-
-class AdminPipeline {
- public:
-  AdminPipeline() {}
-  AdminPipeline(AdminPipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit AdminPipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
-      : operators_(std::move(operators)) {}
-  ~AdminPipeline() = default;
-
-  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
-                              const std::map<std::string, std::string>& params,
-                              OprTimer* timer);
-
- private:
-  std::vector<std::unique_ptr<IOperator>> operators_;
-};
-
 class Pipeline {
  public:
   Pipeline() {}
