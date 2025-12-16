@@ -113,6 +113,9 @@ result<results::CollectiveResults> NeugDBSession::Eval(
     if (plan.has_ddl_plan()) {  // UpdateSchema
       ctx = runtime::ParseAndExecuteDDLPipeline(gui, plan.ddl_plan(),
                                                 timer.get());
+    } else if (plan.has_admin_plan()) {  // UpdateAdmin
+      ctx = runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
+                                                  timer.get());
     } else {  // UpdateData
       ctx = runtime::ParseAndExecuteQueryPipeline(gui, plan, timer.get());
     }
@@ -125,21 +128,10 @@ result<results::CollectiveResults> NeugDBSession::Eval(
       RETURN_ERROR(Status::IntervalError("Update transaction commit failed."));
     }
     ret = runtime::Sink::sink(ctx.value(), gui);
-  } else {  // Must be admin
-    assert(access_mode == AccessMode::kAdmin);
-    auto update_txn = GetUpdateTransaction();
-    StorageTPUpdateInterface gui(update_txn);
-    auto ctx = runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
-                                                     timer.get());
-    if (!ctx) {
-      LOG(ERROR) << "Error: " << ctx.error().ToString();
-      RETURN_ERROR(ctx.error());
-    }
-    if (!update_txn.Commit()) {
-      LOG(ERROR) << "Admin transaction commit failed.";
-      RETURN_ERROR(Status::IntervalError("Admin transaction commit failed."));
-    }
-    ret = runtime::Sink::sink(ctx.value(), gui);
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported access mode for NeugDBSession::Eval" +
+        std::to_string(static_cast<int>(access_mode)));
   }
 
   const auto end = std::chrono::high_resolution_clock::now();

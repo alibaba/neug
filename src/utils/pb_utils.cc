@@ -55,8 +55,6 @@ AccessMode ParseAccessMode(const physical::PhysicalPlan& plan) {
       // TODO(zhanglei): distinguish insert and update
       return AccessMode::kUpdate;
     }
-  } else if (plan.has_admin_plan()) {
-    return AccessMode::kAdmin;
   } else {
     THROW_RUNTIME_ERROR("Physical plan has neither query plan nor ddl plan");
   }
