@@ -10,10 +10,14 @@ requirements:  ## Install requirements
 	pip3 install -r requirements.txt 
 	pip3 install -r requirements_dev.txt
 
+.PHONY: proto
+proto:  ## Compile protobuf files. proto is not included in dev since it may not be frequently changed
+	@echo "Compiling protobuf files..."
+	python3 setup.py build_proto
+
 .PHONY: dev
 dev: ## Compile neug and python bindings, and copy to build directory
 	@echo "Building neug python package..."
-	python3 setup.py build_proto
 	python3 setup.py build_ext
 
 .PHONY: build

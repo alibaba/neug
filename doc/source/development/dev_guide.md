@@ -17,7 +17,6 @@ source ~/.neug_env
 
 #### Building Locally
 
-<!-- You can also set up all required dependencies in your local environment using the provided script: -->
 As nearlly all dependencies are also included as third-party libraries in the NeuG repository, you could build NeuG locally by installing only a few essential packages.
 
 ##### On Ubuntu

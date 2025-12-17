@@ -1,22 +1,11 @@
 # Dev and Test
 
-## Install depdencies
-
-Skip if you are in dev-container.
-
-```bash
-bash scripts/install_deps.sh
-source ~/.neug_env
-```
-
 ## Build NeuG
 
 ```bash
 cd tools/python_bind
-pip3 install -r requirements.txt
-pip3 install -r requirements_dev.txt
-python3 setup.py build_proto
-python3 setup.py build_ext
+make requirements
+make build
 ```
 
 
@@ -74,7 +63,7 @@ This command executes all test cases in `neug/tests/e2e/queries` using the `tiny
 To run tests for a specific operator (for example, `filter`), specify the operator's subdirectory as the third argument:
 
 ```bash
-./scripts/run_tinysnb_test.sh tinysnb /tmp/tinysnb "filter"
+./scripts/run_embed_test.sh tinysnb /tmp/tinysnb "filter"
 ```
 This will only run tests in `neug/tests/e2e/queries/filter`.
 
