@@ -946,8 +946,8 @@ void PropertyGraph::compact_schema() {
   v_mutex_.resize(new_schema.vertex_label_num());
 }
 
-void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
-                            float reserve_ratio, timestamp_t ts) {
+void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
+                            timestamp_t ts) {
   /**
    * The compaction process includes two parts:
    * 1. Schema: remove the deleted properties and labels from
@@ -961,7 +961,7 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
   for (size_t src_label_i = 0; src_label_i != vertex_label_num_;
        ++src_label_i) {
     if (schema_.vertex_label_valid(src_label_i)) {
-      vertex_tables_[src_label_i].Compact(reset_timestamp, ts);
+      vertex_tables_[src_label_i].Compact(ts);
     } else {
       continue;
     }
@@ -979,8 +979,7 @@ void PropertyGraph::Compact(bool reset_timestamp, bool compact_csr,
               src_label_i, dst_label_i, e_label_i);
           if (edge_tables_.count(index) > 0) {
             auto& edge_table = edge_tables_.at(index);
-            edge_table.Compact(reset_timestamp, compact_csr, sort_on_compaction,
-                               ts);
+            edge_table.Compact(compact_csr, sort_on_compaction, ts);
           }
         }
       }

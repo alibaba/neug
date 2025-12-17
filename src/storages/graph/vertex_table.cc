@@ -263,10 +263,8 @@ void VertexTable::RenameProperties(const std::vector<std::string>& old_names,
   }
 }
 
-void VertexTable::Compact(bool reset_timestamp, timestamp_t ts) {
-  if (reset_timestamp) {
-    v_ts_.Compact();
-  }
+void VertexTable::Compact(timestamp_t ts) {
+  v_ts_.Compact();
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
 

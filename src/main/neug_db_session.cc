@@ -147,7 +147,6 @@ int NeugDBSession::SessionId() const { return thread_id_; }
 CompactTransaction NeugDBSession::GetCompactTransaction() {
   timestamp_t ts = version_manager_->acquire_update_timestamp();
   return CompactTransaction(graph_, logger_, *version_manager_,
-                            db_config_.reset_timestamp_before_checkpoint,
                             db_config_.compact_csr,
                             db_config_.csr_reserve_ratio, ts);
 }

@@ -999,7 +999,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       delete_count++;
     }
   }
-  this->edge_table->Compact(true, true, false, gs::MAX_TIMESTAMP);
+  this->edge_table->Compact(true, false, gs::MAX_TIMESTAMP);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {
     auto edges = ie_view.get_edges(dst_lids[i]);

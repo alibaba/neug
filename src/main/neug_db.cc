@@ -259,8 +259,7 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
                      thread_num_);
     }
     if (update_wal.size == 0) {
-      graph_.Compact(config_.reset_timestamp_before_checkpoint,
-                     config_.compact_csr, config_.csr_reserve_ratio,
+      graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                      update_wal.timestamp);
       last_compaction_ts_ = update_wal.timestamp;
     } else {
@@ -299,8 +298,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
 void NeugDB::createCheckpoint(bool force_compaction) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (config_.compact_on_close || force_compaction) {
-    graph_.Compact(config_.reset_timestamp_before_checkpoint,
-                   config_.compact_csr, config_.csr_reserve_ratio,
+    graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                    MAX_TIMESTAMP);
   }
   graph_.Dump();

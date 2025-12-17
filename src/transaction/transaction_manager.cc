@@ -114,10 +114,9 @@ UpdateTransaction TransactionManager::GetUpdateTransaction(int thread_id) {
 
 CompactTransaction TransactionManager::GetCompactTransaction(int thread_id) {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return CompactTransaction(
-      graph_, *(contexts_[thread_id].logger), *version_manager_,
-      config_.reset_timestamp_before_checkpoint, config_.enable_auto_compaction,
-      config_.csr_reserve_ratio, ts);
+  return CompactTransaction(graph_, *(contexts_[thread_id].logger),
+                            *version_manager_, config_.enable_auto_compaction,
+                            config_.csr_reserve_ratio, ts);
 }
 
 NeugDBSession& TransactionManager::GetSession(int thread_id) {

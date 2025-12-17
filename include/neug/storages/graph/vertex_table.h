@@ -193,7 +193,7 @@ class VertexTable {
 
   std::string work_dir() const { return work_dir_; }
 
-  void Compact(bool reset_timestamp, timestamp_t ts = MAX_TIMESTAMP);
+  void Compact(timestamp_t ts = MAX_TIMESTAMP);
 
   inline std::string& work_dir() { return work_dir_; }
 

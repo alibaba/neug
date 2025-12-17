@@ -905,8 +905,8 @@ void EdgeTable::BatchAddEdges(
   }
 }
 
-void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
-                        bool sort_on_compaction, timestamp_t ts) {
+void EdgeTable::Compact(bool compact_csr, bool sort_on_compaction,
+                        timestamp_t ts) {
   if (compact_csr) {
     out_csr_->compact();
     in_csr_->compact();
@@ -915,10 +915,8 @@ void EdgeTable::Compact(bool reset_timestamp, bool compact_csr,
     out_csr_->batch_sort_by_edge_data(ts);
     in_csr_->batch_sort_by_edge_data(ts);
   }
-  if (reset_timestamp) {
-    out_csr_->reset_timestamp();
-    in_csr_->reset_timestamp();
-  }
+  out_csr_->reset_timestamp();
+  in_csr_->reset_timestamp();
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR() {

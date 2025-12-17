@@ -185,7 +185,7 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
   try {
     loadVertices();
     loadEdges();
-    graph_.Compact(false, false, 0.0, 1);
+    graph_.Compact(false, 0.0, 1);
     graph_.Dump(false);
 
   } catch (const std::exception& e) {

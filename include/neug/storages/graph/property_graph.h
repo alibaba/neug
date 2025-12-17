@@ -106,8 +106,7 @@ class PropertyGraph {
   void Open(const Schema& schema, const std::string& work_dir,
             int memory_level);
 
-  void Compact(bool reset_timestamp, bool compact_csr, float reserve_ratio,
-               timestamp_t ts);
+  void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
   void Dump(bool reopen = true);
 
