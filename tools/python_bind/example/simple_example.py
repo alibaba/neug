@@ -31,7 +31,6 @@ if __name__ == "__main__":
 
     # Then load data.
     conn.execute(f'COPY person from "{person_csv}"')
-    # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
     conn.execute(
         f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
     )

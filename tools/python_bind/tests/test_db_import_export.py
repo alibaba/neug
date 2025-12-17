@@ -254,7 +254,6 @@ def test_export_config(tmp_path):
 
 
 # DB-005-07
-# TODO: no error code is returned, need to fix it in the compiler
 def test_import_file_not_found(tmp_path):
     db_dir = tmp_path / "import_file_not_found"
     db_dir.mkdir()

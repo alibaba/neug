@@ -396,7 +396,6 @@ def test_create_rel_table_errors(tmp_path):
     db.close()
 
 
-# TODO: confirm if this is as expected behavior
 def test_create_duplicated_rel_table_between_same_vertex_tables(tmp_path):
     db_dir = tmp_path / "create_duplicated_rel"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -543,8 +542,6 @@ def test_drop_table(tmp_path):
     conn.execute("DROP TABLE person;")
 
 
-# TODO: Currently drop vertex table will also drop all edges connected to it by default.
-# Is this the expected behavior?
 def test_drop_table_errors(tmp_path):
     db_dir = tmp_path / "drop_table_errors"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -1626,7 +1623,6 @@ def test_null_value_tuple():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n {name: 'lop'}) Return [n.name, n.age]")
     for record in result:
         assert record[0] == [
@@ -1894,7 +1890,6 @@ def test_checkpoint():
 
 
 # test START_NODE and END_NODE
-# todo(engine): Engine Abort
 def test_start_end_node():
     db_dir = "/tmp/ldbc"
     db = Database(db_path=db_dir, mode="r")

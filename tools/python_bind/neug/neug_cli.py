@@ -240,7 +240,6 @@ def connect(db_uri, timeout):
         click.echo(f"Invalid db_uri: {db_uri}")
     click.echo(f"Connecting to {host}:{port}")
 
-    # TODO: connect to neug in TP mode
     from neug.session import Session
 
     session = Session.open(f"http://{host}:{port}/", timeout=timeout)

@@ -25,7 +25,6 @@ async def create_graph(conn: AsyncConnection, data_dir: str):
 
     # Then load data.
     await conn.execute(f'COPY person from "{person_csv}"')
-    # TODO(zhanglei,xiaoli): support specifying the starting/ending label name
     await conn.execute(
         f'COPY knows from "{person_knows_person_csv}" (from="person", to="person")'
     )
