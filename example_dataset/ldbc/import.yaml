@@ -48,6 +48,11 @@ edge_mappings:
       - column:
           index: 1
           name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: creationDate
+        property: creationDate
   - type_triplet:
       edge: HASCREATOR
       source_vertex: POST
@@ -62,6 +67,11 @@ edge_mappings:
       - column:
           index: 1
           name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: creationDate
+        property: creationDate  
   - type_triplet:
       edge: HASTAG
       source_vertex: POST

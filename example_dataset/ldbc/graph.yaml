@@ -15,17 +15,20 @@ schema:
           property_name: name
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 2
           property_name: url
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 3
           property_name: type
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 32
       primary_keys:
         - id
     - type_id: 1
@@ -41,17 +44,20 @@ schema:
           property_name: firstName
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 2
           property_name: lastName
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 3
           property_name: gender
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 4
           property_name: birthday
           property_type:
@@ -66,22 +72,26 @@ schema:
           property_name: locationIP
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 7
           property_name: browserUsed
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 8
           property_name: language
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 9
           property_name: email
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 2144
       primary_keys:
         - id
     - type_id: 2
@@ -102,17 +112,20 @@ schema:
           property_name: locationIP
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 3
           property_name: browserUsed
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 4
           property_name: content
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 2144
         - property_id: 5
           property_name: length
           property_type:
@@ -132,7 +145,8 @@ schema:
           property_name: imageFile
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 2
           property_name: creationDate
           property_type:
@@ -142,22 +156,26 @@ schema:
           property_name: locationIP
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 4
           property_name: browserUsed
           property_type:
-            string:
-              long_text:
+           string:
+              var_char:
+                max_length: 80
         - property_id: 5
           property_name: language
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 80
         - property_id: 6
           property_name: content
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 2144
         - property_id: 7
           property_name: length
           property_type:
@@ -177,7 +195,8 @@ schema:
           property_name: title
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 2
           property_name: creationDate
           property_type:
@@ -198,17 +217,20 @@ schema:
           property_name: type
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 32
         - property_id: 2
           property_name: name
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 3
           property_name: url
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
       primary_keys:
         - id
     - type_id: 6
@@ -224,12 +246,14 @@ schema:
           property_name: name
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 2
           property_name: url
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
       primary_keys:
         - id
     - type_id: 7
@@ -245,12 +269,14 @@ schema:
           property_name: name
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
         - property_id: 2
           property_name: url
           property_type:
             string:
-              long_text:
+              var_char:
+                max_length: 256
       primary_keys:
         - id
   edge_types:
@@ -259,10 +285,14 @@ schema:
       vertex_type_pair_relations:
         - source_vertex: COMMENT
           destination_vertex: PERSON
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
+          x_csr_params:
+              sort_on_compaction: TRUE
         - source_vertex: POST
           destination_vertex: PERSON
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
+          x_csr_params:
+              sort_on_compaction: TRUE
       properties:
         - property_id: 0
           property_name: creationDate
@@ -289,19 +319,21 @@ schema:
           relation: MANY_TO_MANY
         - source_vertex: COMMENT
           destination_vertex: POST
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
     - type_id: 3
       type_name: CONTAINEROF
       vertex_type_pair_relations:
         - source_vertex: FORUM
           destination_vertex: POST
-          relation: ONE_TO_MANY
+          relation: MANY_TO_MANY
     - type_id: 4
       type_name: HASMEMBER
       vertex_type_pair_relations:
         - source_vertex: FORUM
           destination_vertex: PERSON
           relation: MANY_TO_MANY
+          x_csr_params:
+              sort_on_compaction: TRUE
       properties:
         - property_id: 0
           property_name: joinDate
@@ -313,7 +345,7 @@ schema:
       vertex_type_pair_relations:
         - source_vertex: FORUM
           destination_vertex: PERSON
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
     - type_id: 6
       type_name: HASINTEREST
       vertex_type_pair_relations:
@@ -325,16 +357,16 @@ schema:
       vertex_type_pair_relations:
         - source_vertex: COMMENT
           destination_vertex: PLACE
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
         - source_vertex: PERSON
           destination_vertex: PLACE
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
         - source_vertex: POST
           destination_vertex: PLACE
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
         - source_vertex: ORGANISATION
           destination_vertex: PLACE
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
     - type_id: 8
       type_name: KNOWS
       vertex_type_pair_relations:
@@ -384,7 +416,7 @@ schema:
       vertex_type_pair_relations:
         - source_vertex: TAG
           destination_vertex: TAGCLASS
-          relation: MANY_TO_ONE
+          relation: MANY_TO_MANY
     - type_id: 13
       type_name: ISSUBCLASSOF
       vertex_type_pair_relations:

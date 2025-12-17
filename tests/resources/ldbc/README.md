@@ -46,8 +46,8 @@ loading_config:
 export DATA_DIR=
 
 ./tools/utils/bulk_loader \
-    -g ${NEUG_DIR}/tests/resources/ldbc/configs/graph.yaml \
-    -l ${NEUG_DIR}/tests/resources/ldbc/configs/import.yaml \
+    -g ${NEUG_DIR}/example_dataset/ldbc/graph.yaml \
+    -l ${NEUG_DIR}/example_dataset/ldbc/import.yaml \
     -d ${DATA_DIR} \
     -p 64
 ```
