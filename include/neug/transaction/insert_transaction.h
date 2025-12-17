@@ -207,7 +207,7 @@ class StorageTPInsertInterface : public StorageInsertInterface {
     return txn_.GetVertexIndex(label, id, index);
   }
 
-  inline Status BatchAddVertices(
+  Status BatchAddVertices(
       label_t v_label_id,
       std::shared_ptr<IRecordBatchSupplier> supplier) override;
 

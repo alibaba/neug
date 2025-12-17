@@ -1210,34 +1210,41 @@ void StorageTPUpdateInterface::CreateCheckpoint() { txn_.CreateCheckpoint(); }
 
 Status StorageTPUpdateInterface::BatchAddVertices(
     label_t v_label_id, std::shared_ptr<IRecordBatchSupplier> supplier) {
-  return txn_.BatchAddVertices(v_label_id, std::move(supplier));
+  LOG(ERROR) << "BatchAddVertices is not supported in TP mode currently.";
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchAddVertices is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::BatchAddEdges(
     label_t src_label, label_t dst_label, label_t edge_label,
     std::shared_ptr<IRecordBatchSupplier> supplier) {
-  return txn_.BatchAddEdges(src_label, dst_label, edge_label,
-                            std::move(supplier));
+  LOG(ERROR) << "BatchAddEdges is not supported in TP mode currently.";
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchAddEdges is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
-  return txn_.BatchDeleteVertices(v_label_id, vids);
+  LOG(ERROR) << "BatchDeleteVertices is not supported in TP mode currently.";
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchDeleteVertices is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
-  return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
-                               edges);
+  LOG(ERROR) << "BatchDeleteEdges is not supported in TP mode currently.";
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchDeleteEdges is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
-  return txn_.BatchDeleteEdges(src_v_label_id, dst_v_label_id, edge_label_id,
-                               oe_edges, ie_edges);
+  LOG(ERROR) << "BatchDeleteEdges is not supported in TP mode currently.";
+  return Status(StatusCode::ERR_NOT_SUPPORTED,
+                "BatchDeleteEdges is not supported in TP mode currently.");
 }
 
 Status StorageTPUpdateInterface::CreateVertexType(
