@@ -69,7 +69,8 @@ int main(int argc, char** argv) {
       cxxopts::value<std::string>()->default_value("cooperative"))(
       "wal-uri", "URI for Write-Ahead Logging storage",
       cxxopts::value<std::string>()->default_value(
-          "file://{GRAPH_DATA_DIR}/wal"));
+          "file://{GRAPH_DATA_DIR}/wal"))("host", "Host address",
+                                          cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
@@ -87,7 +88,6 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  bool enable_dpdk = false;
   bool warmup = vm["warmup"].as<bool>();
   int memory_level = vm["memory-level"].as<int>();
   uint32_t shard_num = vm["shard-num"].as<uint32_t>();
@@ -125,9 +125,9 @@ int main(int argc, char** argv) {
 
   server::ServiceConfig service_config;
   service_config.shard_num = shard_num;
-  service_config.dpdk_mode = enable_dpdk;
+  service_config.host_str =
+      vm.count("host") ? vm["host"].as<std::string>() : "127.0.0.1";
   service_config.query_port = http_port;
-  service_config.set_sharding_mode(vm["sharding-mode"].as<std::string>());
   server::NeugDBService service(db, service_config);
 
   service.run_and_wait_for_exit();
