@@ -244,7 +244,64 @@ expand_vertex_impl(const StorageReadInterface& graph,
     MLVertexColumnBuilder builder;
     return std::make_pair(builder.finish(), std::vector<size_t>());
   }
-  if (nbr_labels.size() == 1) {
+  if (input_labels.size() == 1) {
+    label_t input_label = *input_labels.begin();
+    MSVertexColumnBuilder builder(std::get<0>(label_dirs[input_label][0]));
+    std::vector<size_t> offsets;
+    const auto& label_dirs_input = label_dirs[input_label];
+    for (auto& label_dir : label_dirs_input) {
+      label_t nbr_label = std::get<0>(label_dir);
+      label_t edge_label = std::get<1>(label_dir);
+      Direction dir = std::get<2>(label_dir);
+
+      auto view = (dir == Direction::kOut)
+                      ? (graph.GetGenericOutgoingGraphView(
+                            input_label, nbr_label, edge_label))
+                      : (graph.GetGenericIncomingGraphView(
+                            input_label, nbr_label, edge_label));
+      builder.start_label(nbr_label);
+      if constexpr (GPRED_T::is_dummy) {
+        input.foreach_vertex([&](size_t idx, label_t l, vid_t v) {
+          if constexpr (is_optional) {
+            if (v != std::numeric_limits<vid_t>::max()) {
+              size_t old_size = builder.cur_size();
+              expand_sv_np_ms(v, idx, view, builder, offsets);
+              if (builder.cur_size() == old_size) {
+                builder.push_back_null();
+                offsets.push_back(idx);
+              }
+            } else {
+              builder.push_back_null();
+              offsets.push_back(idx);
+            }
+          } else {
+            expand_sv_np_ms(v, idx, view, builder, offsets);
+          }
+        });
+      } else {
+        input.foreach_vertex([&](size_t idx, label_t l, vid_t v) {
+          if constexpr (is_optional) {
+            if (v != std::numeric_limits<vid_t>::max()) {
+              size_t old_size = builder.cur_size();
+              expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
+                             view, gpred, builder, offsets);
+              if (builder.cur_size() == old_size) {
+                builder.push_back_null();
+                offsets.push_back(idx);
+              }
+            } else {
+              builder.push_back_null();
+              offsets.push_back(idx);
+            }
+          } else {
+            expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
+                           view, gpred, builder, offsets);
+          }
+        });
+      }
+    }
+    return std::make_pair(builder.finish(), std::move(offsets));
+  } else if (nbr_labels.size() == 1) {
     label_t nbr_label = *nbr_labels.begin();
     MSVertexColumnBuilder builder(nbr_label);
     std::vector<size_t> offsets;
@@ -593,7 +650,10 @@ expand_vertex_impl(const StorageReadInterface& graph,
 
   size_t input_seg_num = input.seg_num();
   size_t seg_start_idx = 0;
-  std::vector<bool> edges_found(input.size(), false);
+  std::vector<bool> edges_found;
+  if constexpr (is_optional) {
+    edges_found.resize(input.size(), false);
+  }
   for (size_t k = 0; k < input_seg_num; ++k) {
     label_t input_label = input.seg_label(k);
     auto& vertices = input.seg_vertices(k);
@@ -610,11 +670,11 @@ expand_vertex_impl(const StorageReadInterface& graph,
             if (vid != std::numeric_limits<vid_t>::max()) {
               expand_sv_np_ms(vid, vertex_idx, view, builder, offsets);
             }
+            if (builder.cur_size() > old_size) {
+              edges_found[vertex_idx] = true;
+            }
           } else {
             expand_sv_np_ms(vid, vertex_idx, view, builder, offsets);
-          }
-          if (builder.cur_size() > old_size) {
-            edges_found[vertex_idx] = true;
           }
           ++vertex_idx;
         }
@@ -629,12 +689,12 @@ expand_vertex_impl(const StorageReadInterface& graph,
               expand_sv_p_ms(input_label, vid, vertex_idx, nbr_label,
                              edge_label, dir, view, gpred, builder, offsets);
             }
+            if (builder.cur_size() > old_size) {
+              edges_found[vertex_idx] = true;
+            }
           } else {
             expand_sv_p_ms(input_label, vid, vertex_idx, nbr_label, edge_label,
                            dir, view, gpred, builder, offsets);
-          }
-          if (builder.cur_size() > old_size) {
-            edges_found[vertex_idx] = true;
           }
           ++vertex_idx;
         }
