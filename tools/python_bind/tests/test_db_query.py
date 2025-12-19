@@ -2174,6 +2174,54 @@ def test_delete_vertex_detach_edge():
     db.close()
 
 
+def test_delete_vertex_detach_edge2():
+    db_dir = "/tmp/test_delete_vertex_detach_edge2"
+    logger.info("Starting test_delete_vertex_detach_edge2")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE City(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE LivesIn(FROM Person TO City, id INT64);")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person, id INT64);")
+    conn.execute("CREATE (p: Person {id: 1});")
+    conn.execute("CREATE (p: Person {id: 2});")
+    conn.execute("CREATE (p: Person {id: 3});")
+    conn.execute("CREATE (c: City {id: 100});")
+    conn.execute("CREATE (c: City {id: 200});")
+    conn.execute(
+        "MATCH (p1: Person {id: 1}), (p2: Person {id: 2}) CREATE (p1)-[k:Knows {id: 10}]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p1: Person {id: 2}), (p2: Person {id: 3}) CREATE (p1)-[k:Knows {id: 20}]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p: Person {id: 3}), (p2: Person {id: 1}) CREATE (p)-[k:Knows {id: 30}]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p: Person {id: 1}), (c: City {id: 100}) CREATE (p)-[k:LivesIn {id: 1000}]->(c);"
+    )
+    conn.execute(
+        "MATCH (p: Person {id: 2}), (c: City {id: 200}) CREATE (p)-[k:LivesIn {id: 2000}]->(c);"
+    )
+    conn.execute(
+        "MATCH (p: Person {id: 3}), (c: City {id: 100}) CREATE (p)-[k:LivesIn {id: 3000}]->(c);"
+    )
+    conn.execute(
+        "MATCH (p: Person {id: 3}), (c: City {id: 200}) CREATE (p)-[k:LivesIn {id: 4000}]->(c);"
+    )
+    conn.execute("MATCH (p1: Person {id: 3}) DELETE p1;")
+    res = conn.execute("MATCH (p: Person) RETURN count(p);")
+    assert list(res) == [[2]], f"Expected value [[2]], got {list(res)}"
+    res = conn.execute("MATCH ()-[e: Knows]->() RETURN count(e);")
+    assert list(res) == [[1]], f"Expected value [[1]], got {list(res)}"
+    res = conn.execute("MATCH ()-[e: LivesIn]->() RETURN count(e);")
+    assert list(res) == [[2]], f"Expected value [[2]], got {list(res)}"
+    logger.info("test_delete_vertex_detach_edge2 passed")
+    conn.close()
+    db.close()
+
+
 def test_list_extract_function():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="w")
