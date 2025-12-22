@@ -412,3 +412,54 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
   std::sort(edges_after_delete.begin(), edges_after_delete.end());
   this->CheckEqual(edges_after_delete);
 }
+
+TYPED_TEST(CsrBatchTest, DeleteEdgesAndCompact) {
+  auto work_dir = this->WorkDirectory();
+  auto snapshot_dir = this->SnapshotDirectory();
+  this->csr->open("csr", snapshot_dir.string(), work_dir.string());
+
+  auto edges = generate_random_edges<typename TypeParam::data_t>(
+      1000, 1000, 10000,
+      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == gs::CsrType::kSingleMutable);
+  this->csr->resize(1000);
+  EXPECT_EQ(this->csr->size(), 1000);
+  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<typename TypeParam::data_t> edata_list;
+  std::set<std::pair<gs::vid_t, gs::vid_t>> delete_edge_set;
+
+  for (size_t i = 0; i < edges.size() * 0.2; ++i) {
+    delete_edge_set.insert({std::get<0>(edges[i]), std::get<1>(edges[i])});
+  }
+
+  std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+      edges_after_delete;
+  for (size_t i = 0; i < edges.size(); ++i) {
+    if (delete_edge_set.count({std::get<0>(edges[i]), std::get<1>(edges[i])}) ==
+        0) {
+      edges_after_delete.push_back(edges[i]);
+    }
+    src_list.push_back(std::get<0>(edges[i]));
+    dst_list.push_back(std::get<1>(edges[i]));
+    edata_list.push_back(std::get<2>(edges[i]));
+  }
+  this->csr->batch_put_edges(src_list, dst_list, edata_list, 0);
+  auto view = this->csr->get_generic_view(0);
+  for (const auto& edge : delete_edge_set) {
+    gs::vid_t src = edge.first;
+    gs::vid_t dst = edge.second;
+    auto es = view.get_edges(src);
+    for (auto it = es.begin(); it != es.end(); ++it) {
+      if (it.get_vertex() == dst) {
+        int32_t offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                          reinterpret_cast<const char*>(es.start_ptr)) /
+                         it.cfg.stride;
+        this->csr->delete_edge(src, offset, 0);
+      }
+    }
+  }
+  std::sort(edges_after_delete.begin(), edges_after_delete.end());
+  this->CheckEqual(edges_after_delete);
+  this->csr->compact();
+  this->CheckEqual(edges_after_delete);
+}

@@ -143,7 +143,11 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
   // For current adj_list where the dst vertex is invalid, swap it to the end.
   vid_t vnum = adj_lists_.size();
+  if (vnum <= 0) {
+    return;
+  }
   size_t removed = 0;
+  nbr_t* write_ptr = adj_lists_[0];
   for (vid_t i = 0; i < vnum; ++i) {
     int deg = degree_list_[i];
     if (deg == 0) {
@@ -151,7 +155,6 @@ void ImmutableCsr<EDATA_T>::compact() {
     }
     const nbr_t* read_ptr = adj_lists_[i];
     const nbr_t* read_end = read_ptr + deg;
-    nbr_t* write_ptr = adj_lists_[i];
     while (read_ptr != read_end) {
       if (read_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
         if (removed) {
@@ -389,11 +392,17 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
                                        const std::string& snapshot_dir,
                                        const std::string& work_dir) {
-  if (!std::filesystem::exists(tmp_dir(work_dir) + "/" + name + ".snbr")) {
-    copy_file(snapshot_dir + "/" + name + ".snbr",
-              tmp_dir(work_dir) + "/" + name + ".snbr");
+  auto tmp_file = tmp_dir(work_dir) + "/" + name + ".snbr";
+  auto snapshot_file = snapshot_dir + "/" + name + ".snbr";
+  if (std::filesystem::exists(tmp_file)) {
+    std::filesystem::remove(tmp_file);
   }
-  nbr_list_.open(tmp_dir(work_dir) + "/" + name + ".snbr", true);
+  if (!std::filesystem::exists(tmp_file)) {
+    if (std::filesystem::exists(snapshot_file)) {
+      copy_file(snapshot_file, tmp_file);
+    }
+  }
+  nbr_list_.open(tmp_file, true);
 }
 
 template <typename EDATA_T>

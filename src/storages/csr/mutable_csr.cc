@@ -571,11 +571,17 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
-  if (!std::filesystem::exists(tmp_dir(work_dir) + "/" + name + ".snbr")) {
-    copy_file(snapshot_dir + "/" + name + ".snbr",
-              tmp_dir(work_dir) + "/" + name + ".snbr");
+  auto tmp_file = tmp_dir(work_dir) + "/" + name + ".snbr";
+  auto snapshot_file = snapshot_dir + "/" + name + ".snbr";
+  if (std::filesystem::exists(tmp_file)) {
+    std::filesystem::remove(tmp_file);
   }
-  nbr_list_.open(tmp_dir(work_dir) + "/" + name + ".snbr", true);
+  if (!std::filesystem::exists(tmp_file)) {
+    if (std::filesystem::exists(snapshot_file)) {
+      copy_file(snapshot_file, tmp_file);
+    }
+  }
+  nbr_list_.open(tmp_file, true);
 }
 
 template <typename EDATA_T>
