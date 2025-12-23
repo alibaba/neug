@@ -201,7 +201,6 @@ int main(int argc, char** argv) {
   // LOG(FATAL) cause SIGABRT
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
-  std::signal(SIGKILL, signal_handler);
   std::signal(SIGSEGV, signal_handler);
   std::signal(SIGABRT, signal_handler);
   std::signal(SIGFPE, signal_handler);
