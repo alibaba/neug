@@ -77,8 +77,6 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
 
-  void warmup(int thread_num) const override;
-
   void reset_timestamp() override;
 
   void compact() override;
@@ -171,8 +169,6 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
-
-  void warmup(int thread_num) const override;
 
   void reset_timestamp() override;
 

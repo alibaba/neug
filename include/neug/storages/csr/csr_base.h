@@ -60,8 +60,6 @@ class CsrBase {
   virtual void dump(const std::string& name,
                     const std::string& new_snapshot_dir) = 0;
 
-  virtual void warmup(int thread_num) const = 0;
-
   virtual void reset_timestamp() = 0;
 
   virtual void compact() = 0;

@@ -253,7 +253,6 @@ Open(
     int32_t max_num_threads=0,
     const DBMode mode=DBMode::READ_WRITE,
     const std::string &planner_kind="gopt",
-    bool warmup=false,
     bool enable_auto_compaction=false,
     bool compact_csr=true,
     bool compact_on_close=false,
@@ -268,7 +267,6 @@ Load the graph from data directory.
   - `max_num_threads`: The maximum number of threads for graph db concurrency. If it is 0, it will be set to the number of hardware cores.
   - `mode`: The mode of opening graph db, could be "read_only" or "read_write".
   - `planner_kind`: The kind of graph planner, could be "gopt" or "greedy"
-  - `warmup`: Whether to warm up the graph in memory.
   - `enable_auto_compaction`: Whether to enable auto compaction thread.
   - `compact_csr`: Whether to compact the csr when doing auto compaction.
   - `compact_on_close`: Whether to compact the graph when closing the graph db.

@@ -98,7 +98,6 @@ class NeugDB {
    * "read_write".
    * @param planner_kind The kind of graph planner, could be "gopt" or
    * "greedy"
-   * @param warmup Whether to warm up the graph in memory.
    * @param enable_auto_compaction Whether to enable auto compaction thread.
    * @param compact_csr Whether to compact the csr when doing auto compaction.
    * @param compact_on_close Whether to compact the graph when closing the
@@ -111,7 +110,7 @@ class NeugDB {
    */
   bool Open(const std::string& data_dir, int32_t max_num_threads = 0,
             const DBMode mode = DBMode::READ_WRITE,
-            const std::string& planner_kind = "gopt", bool warmup = false,
+            const std::string& planner_kind = "gopt",
             bool enable_auto_compaction = false, bool compact_csr = true,
             bool compact_on_close = true, bool checkpoint_on_close = true);
 

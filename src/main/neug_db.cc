@@ -101,11 +101,10 @@ NeugDB::~NeugDB() {
 
 bool NeugDB::Open(const std::string& data_dir, int32_t max_num_threads,
                   const DBMode mode, const std::string& planner_kind,
-                  bool warmup, bool enable_auto_compaction, bool compact_csr,
+                  bool enable_auto_compaction, bool compact_csr,
                   bool compact_on_close, bool checkpoint_on_close) {
   NeugDBConfig config(data_dir, max_num_threads);
   config.mode = mode;
-  config.warmup = warmup;
   config.planner_kind = planner_kind;
   config.enable_auto_compaction = enable_auto_compaction;
   config.compact_csr = compact_csr;

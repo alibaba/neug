@@ -58,8 +58,6 @@ int main(int argc, char** argv) {
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
       "d,data-path", "Data directory path", cxxopts::value<std::string>())(
-      "w,warmup", "Warmup graph data",
-      cxxopts::value<bool>()->default_value("false"))(
       "m,memory-level", "Memory level for graph data",
       cxxopts::value<int>()->default_value("1"))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
@@ -85,7 +83,6 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  bool warmup = vm["warmup"].as<bool>();
   int memory_level = vm["memory-level"].as<int>();
   uint32_t shard_num = vm["shard-num"].as<uint32_t>();
   uint16_t http_port = vm["http-port"].as<uint16_t>();
@@ -106,7 +103,6 @@ int main(int argc, char** argv) {
   gs::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
-  config.warmup = warmup;
   if (config.memory_level >= 2) {
     config.enable_auto_compaction = true;
   }

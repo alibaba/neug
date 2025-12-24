@@ -360,12 +360,10 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
   this->load_csr_data(mutable_csr, 1);
   EXPECT_EQ(mutable_csr.size(), src_v_num);
   EXPECT_EQ(mutable_csr.edge_num(), edge_num);
-  mutable_csr.warmup(4);
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, 1);
   EXPECT_EQ(single_mutable_csr.size(), single_src_v_num);
   EXPECT_EQ(single_mutable_csr.edge_num(), edge_num);
-  single_mutable_csr.warmup(4);
   EmptyCsr<TypeParam> empty_csr;
   EXPECT_EQ(empty_csr.size(), 0);
   EXPECT_EQ(empty_csr.edge_num(), 0);

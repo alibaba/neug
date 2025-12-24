@@ -134,9 +134,6 @@ void ImmutableCsr<EDATA_T>::dump(const std::string& name,
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::warmup(int thread_num) const {}
-
-template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::reset_timestamp() {}
 
 template <typename EDATA_T>
@@ -445,37 +442,6 @@ void SingleImmutableCsr<EDATA_T>::dump(const std::string& name,
   fwrite(nbr_list_.data(), sizeof(nbr_t), nbr_list_.size(), fp);
   fflush(fp);
   fclose(fp);
-}
-
-template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::warmup(int thread_num) const {
-  size_t vnum = nbr_list_.size();
-  std::vector<std::thread> threads;
-  std::atomic<size_t> v_i(0);
-  std::atomic<size_t> output(0);
-  const size_t chunk = 4096;
-  for (int i = 0; i < thread_num; ++i) {
-    threads.emplace_back([&]() {
-      size_t ret = 0;
-      while (true) {
-        size_t begin = std::min(v_i.fetch_add(chunk), vnum);
-        size_t end = std::min(begin + chunk, vnum);
-        if (begin == end) {
-          break;
-        }
-        while (begin < end) {
-          auto& nbr = nbr_list_[begin];
-          ret += nbr.neighbor;
-          ++begin;
-        }
-      }
-      output.fetch_add(ret);
-    });
-  }
-  for (auto& thrd : threads) {
-    thrd.join();
-  }
-  (void) output.load();
 }
 
 template <typename EDATA_T>

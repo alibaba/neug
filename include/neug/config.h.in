@@ -33,7 +33,6 @@ struct NeugDBConfig {
         mode(DBMode::READ_WRITE),
         planner_kind("gopt"),
         thread_num(1),
-        warmup(false),
         enable_auto_compaction(false),
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
@@ -47,7 +46,6 @@ struct NeugDBConfig {
         data_dir(data_dir_),
         planner_kind("gopt"),
         thread_num(thread_num_),
-        warmup(false),
         enable_auto_compaction(false),
         memory_level(1),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
@@ -61,7 +59,6 @@ struct NeugDBConfig {
   std::string data_dir;
   std::string planner_kind;  // currently only gopt
   int thread_num;
-  bool warmup;
   bool enable_auto_compaction;
 
   /*

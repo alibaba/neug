@@ -98,8 +98,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
 
-  void warmup(int thread_num) const override;
-
   void reset_timestamp() override;
 
   void compact() override;
@@ -248,8 +246,6 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
 
-  void warmup(int thread_num) const override;
-
   void reset_timestamp() override;
 
   void compact() override;
@@ -333,8 +329,6 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
 
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
-
-  void warmup(int thread_num) const override {}
 
   void reset_timestamp() override {}
 
