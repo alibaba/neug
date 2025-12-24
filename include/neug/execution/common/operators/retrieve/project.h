@@ -131,57 +131,54 @@ class Project {
           const Context& ctx)>>& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,
       size_t upper, const std::set<int>& order_index,
-      const std::tuple<int, int, bool>& first_key) {
+      const std::function<bool(const Context&, std::vector<size_t>&)>&
+          index_generator) {
     lower = std::max(lower, static_cast<size_t>(0));
     upper = std::min(upper, ctx.row_num());
 
     Context ret;
+    Context tmp;
 
-    Context tmp(ctx);
     std::vector<int> alias;
-    auto [fst_key, fst_idx, fst_asc] = first_key;
-    auto expr = exprs[fst_idx](graph, params, ctx);
+
     std::vector<size_t> indices;
 
-    if (upper < ctx.row_num() &&
-        expr->order_by_limit(ctx, fst_asc, upper, indices)) {
+    if (upper * 2 < ctx.row_num() && index_generator(ctx, indices)) {
       ctx.reshuffle(indices);
       for (size_t i : order_index) {
         auto expr = exprs[i](graph, params, ctx);
         int alias_ = expr->alias();
-        ctx = expr->evaluate(ctx, std::move(ctx));
+        tmp = expr->evaluate(ctx, std::move(tmp));
         alias.push_back(alias_);
       }
-      auto cmp_ = cmp(ctx);
-      auto ctx_res = OrderBy::order_by_with_limit(graph, std::move(ctx), cmp_,
-                                                  lower, upper);
-      if (!ctx_res) {
-        return ctx_res;
+      auto cmp_ = cmp(tmp);
+      std::vector<size_t> offsets;
+
+      OrderBy::order_by_limit_impl(graph, tmp, cmp_, lower, upper, offsets);
+      ctx.reshuffle(offsets);
+      tmp.reshuffle(offsets);
+      for (size_t i = 0; i < exprs.size(); ++i) {
+        if (order_index.find(i) == order_index.end()) {
+          ret = exprs[i](graph, params, ctx)->evaluate(ctx, std::move(ret));
+        }
       }
-      ctx = std::move(ctx_res.value());
+      for (size_t i = 0; i < tmp.col_num(); ++i) {
+        if (tmp.get(i)) {
+          ret.set(i, tmp.get(i));
+        }
+      }
     } else {
-      for (size_t i : order_index) {
+      for (size_t i = 0; i < exprs.size(); ++i) {
         auto expr = exprs[i](graph, params, ctx);
         int alias_ = expr->alias();
-        ctx = expr->evaluate(ctx, std::move(ctx));
+        ret = expr->evaluate(ctx, std::move(ret));
         alias.push_back(alias_);
       }
-      auto cmp_ = cmp(ctx);
-      auto ctx_res = OrderBy::order_by_with_limit(graph, std::move(ctx), cmp_,
-                                                  lower, upper);
-      if (!ctx_res) {
-        return ctx_res;
-      }
-      ctx = std::move(ctx_res.value());
-    }
+      auto cmp_ = cmp(ret);
+      std::vector<size_t> offsets;
+      OrderBy::order_by_limit_impl(graph, ret, cmp_, lower, upper, offsets);
 
-    for (int i : alias) {
-      ret.set(i, ctx.get(i));
-    }
-    for (size_t i = 0; i < exprs.size(); ++i) {
-      if (order_index.find(i) == order_index.end()) {
-        ret = exprs[i](graph, params, ctx)->evaluate(ctx, std::move(ret));
-      }
+      ret.reshuffle(offsets);
     }
 
     return ret;

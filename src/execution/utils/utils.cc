@@ -181,54 +181,6 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
   return success;
 }
 
-template <typename T>
-bool vertex_id_topN_impl(bool asc, size_t limit,
-                         const std::shared_ptr<IVertexColumn>& col,
-                         const StorageReadInterface& graph,
-                         std::vector<size_t>& offsets) {
-  if (asc) {
-    TopNGenerator<T, TopNAscCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      auto oid = PropUtils<T>::to_typed(graph.GetVertexId(label, v));
-      gen.push(oid, idx);
-    });
-    gen.generate_indices(offsets);
-  } else {
-    TopNGenerator<T, TopNDescCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      auto oid = PropUtils<T>::to_typed(graph.GetVertexId(label, v));
-      gen.push(oid, idx);
-    });
-    gen.generate_indices(offsets);
-  }
-  return true;
-}
-
-bool vertex_id_topN(bool asc, size_t limit,
-                    const std::shared_ptr<IVertexColumn>& col,
-                    const StorageReadInterface& graph,
-                    std::vector<size_t>& offsets) {
-  if (col->get_labels_set().size() != 1) {
-    return false;
-  }
-  auto& vec =
-      graph.schema().get_vertex_primary_key(*col->get_labels_set().begin());
-  if (vec.size() != 1) {
-    return false;
-  }
-  auto type = std::get<0>(vec[0]);
-  if (type == PropertyType::Int64()) {
-    return vertex_id_topN_impl<int64_t>(asc, limit, col, graph, offsets);
-  } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-    return vertex_id_topN_impl<std::string_view>(asc, limit, col, graph,
-                                                 offsets);
-  } else if (type == PropertyType::Int32()) {
-    return vertex_id_topN_impl<int32_t>(asc, limit, col, graph, offsets);
-  } else {
-    return false;
-  }
-}
-
 bool vertex_property_topN(bool asc, size_t limit,
                           const std::shared_ptr<IVertexColumn>& col,
                           const StorageReadInterface& graph,

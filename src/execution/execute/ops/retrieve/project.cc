@@ -44,6 +44,7 @@
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/schema.h"
@@ -263,8 +264,7 @@ class ProjectOrderByOprBeta : public IOperator {
       const std::vector<std::pair<int, std::set<int>>>& dependencies,
       const std::set<int>& order_by_keys,
       const std::vector<std::pair<common::Variable, bool>>& order_by_pairs,
-      int lower_bound, int upper_bound,
-      const std::tuple<int, int, bool>& first_pair)
+      int lower_bound, int upper_bound, const std::pair<int, bool>& first_pair)
       : exprs_infos_(exprs_infos),
         dependencies_(dependencies),
         order_by_keys_(order_by_keys),
@@ -315,9 +315,41 @@ class ProjectOrderByOprBeta : public IOperator {
         return create_project_expr(expr, alias, data_type, graph, ctx, params);
       });
     }
+    auto fst_idx = first_pair_.first;
+    const auto& fst_var = std::get<0>(exprs_infos_[fst_idx]);
+    bool asc = first_pair_.second;
+    auto index_generator = [&](const Context& ctx,
+                               std::vector<size_t>& indices) -> bool {
+      if (fst_var.operators_size() == 1 && fst_var.operators(0).has_var()) {
+        const auto& var = fst_var.operators(0).var();
+        if (var.has_tag()) {
+          int tag = var.tag().id();
+          auto col = ctx.get(tag);
+          if (!var.has_property()) {
+            if (col->column_type() == ContextColumnType::kValue) {
+              if (col->order_by_limit(asc, upper_bound_, indices)) {
+                return true;
+              }
+            }
+          } else if (col->column_type() == ContextColumnType::kVertex) {
+            std::string prop_name = var.property().key().name();
+            auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
+            if (vertex_property_topN(asc, upper_bound_, vertex_col, graph,
+                                     prop_name, indices)) {
+              return true;
+            }
+          }
+        }
+      }
+      auto expr = exprs[fst_idx](graph, params, ctx);
+      if (expr->order_by_limit(ctx, asc, upper_bound_, indices)) {
+        return true;
+      }
+      return false;
+    };
     auto ret = Project::project_order_by_fuse<GeneralComparer>(
         graph, params, std::move(ctx), exprs, cmp_func, lower_bound_,
-        upper_bound_, order_by_keys_, first_pair_);
+        upper_bound_, order_by_keys_, index_generator);
     if (!ret) {
       return ret;
     }
@@ -345,7 +377,7 @@ class ProjectOrderByOprBeta : public IOperator {
   std::set<int> order_by_keys_;
   std::vector<std::pair<common::Variable, bool>> order_by_pairs_;
   int lower_bound_, upper_bound_;
-  std::tuple<int, int, bool> first_pair_;
+  std::pair<int, bool> first_pair_;
 };
 
 static bool project_order_by_fusable_beta(
@@ -370,9 +402,6 @@ static bool project_order_by_fusable_beta(
     const physical::Project_ExprAlias& m = project_opr.mappings(i);
     if (m.has_alias()) {
       int alias = m.alias().value();
-      if (ctx_meta.exist(alias)) {
-        return false;
-      }
       if (new_generate_columns.find(alias) != new_generate_columns.end()) {
         return false;
       }
@@ -393,9 +422,6 @@ static bool project_order_by_fusable_beta(
       return false;
     }
     order_by_keys.insert(order_by_opr.pairs(k_i).key().tag().id());
-  }
-  if (data_types.size() == order_by_keys.size()) {
-    return false;
   }
   for (auto key : order_by_keys) {
     if (new_generate_columns.find(key) == new_generate_columns.end() &&
@@ -466,7 +492,7 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     auto order_by_opr = plan.query_plan().plan(op_idx + 1).opr().order_by();
     int pair_size = order_by_opr.pairs_size();
     std::vector<std::pair<common::Variable, bool>> order_by_pairs;
-    std::tuple<int, int, bool> first_tuple;
+    std::pair<int, bool> first_tuple;
     for (int i = 0; i < pair_size; ++i) {
       const auto& pair = order_by_opr.pairs(i);
       if (pair.order() != algebra::OrderBy_OrderingPair_Order::
@@ -481,7 +507,7 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
           algebra::OrderBy_OrderingPair_Order::OrderBy_OrderingPair_Order_ASC;
       order_by_pairs.emplace_back(pair.key(), asc);
       if (i == 0) {
-        first_tuple = std::make_tuple(first_key, first_idx, asc);
+        first_tuple = std::make_pair(first_idx, asc);
         if (pair.key().has_property()) {
           LOG(ERROR) << "key has property" << pair.DebugString();
           return std::make_pair(nullptr, ContextMeta());

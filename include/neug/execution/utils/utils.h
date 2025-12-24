@@ -57,11 +57,6 @@ bool vertex_property_topN(bool asc, size_t limit,
                           const std::string& prop_name,
                           std::vector<size_t>& offsets);
 
-bool vertex_id_topN(bool asc, size_t limit,
-                    const std::shared_ptr<IVertexColumn>& col,
-                    const StorageReadInterface& graph,
-                    std::vector<size_t>& offsets);
-
 }  // namespace runtime
 
 }  // namespace gs

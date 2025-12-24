@@ -30,16 +30,16 @@ namespace runtime {
 class OrderBy {
  public:
   template <typename Comparer>
-  static gs::result<Context> order_by_with_limit(
-      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
-      size_t low, size_t high) {
+  static void order_by_limit_impl(const StorageReadInterface& graph,
+                                  const Context& ctx, const Comparer& cmp,
+                                  size_t low, size_t high,
+                                  std::vector<size_t>& offsets) {
     if (low == 0 && high >= ctx.row_num()) {
-      std::vector<size_t> offsets(ctx.row_num());
+      offsets.resize(ctx.row_num());
       std::iota(offsets.begin(), offsets.end(), 0);
       std::sort(offsets.begin(), offsets.end(),
                 [&](size_t lhs, size_t rhs) { return cmp(lhs, rhs); });
-      ctx.reshuffle(offsets);
-      return ctx;
+      return;
     }
     size_t row_num = ctx.row_num();
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
@@ -49,7 +49,6 @@ class OrderBy {
         queue.pop();
       }
     }
-    std::vector<size_t> offsets;
     for (size_t k = 0; k < low; ++k) {
       queue.pop();
     }
@@ -60,7 +59,14 @@ class OrderBy {
       offsets[--idx] = queue.top();
       queue.pop();
     }
+  }
 
+  template <typename Comparer>
+  static gs::result<Context> order_by_with_limit(
+      const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
+      size_t low, size_t high) {
+    std::vector<size_t> offsets;
+    order_by_limit_impl(graph, ctx, cmp, low, high, offsets);
     ctx.reshuffle(offsets);
     return ctx;
   }

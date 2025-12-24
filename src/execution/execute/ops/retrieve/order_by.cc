@@ -147,31 +147,17 @@ gs::result<OpBuildResultT> OrderByOprBuilder::Build(
       } else if (col->column_type() == ContextColumnType::kVertex) {
         std::string prop_name = key.property().key().name();
         auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-        int label_num = vertex_col->get_labels_set().size();
-        if (label_num == 1 &&
-            prop_name == schema.get_vertex_primary_key_name(
-                             *vertex_col->get_labels_set().begin())) {
-          return [=](const StorageReadInterface& graph,
-                     const Context& ctx) -> std::optional<std::vector<size_t>> {
-            std::vector<size_t> indices;
-            if (vertex_id_topN(order, upper, vertex_col, graph, indices)) {
-              return indices;
-            } else {
-              return std::nullopt;
-            }
-          };
-        } else {
-          return [=](const StorageReadInterface& graph,
-                     const Context& ctx) -> std::optional<std::vector<size_t>> {
-            std::vector<size_t> indices;
-            if (vertex_property_topN(order, upper, vertex_col, graph, prop_name,
-                                     indices)) {
-              return indices;
-            } else {
-              return std::nullopt;
-            }
-          };
-        }
+
+        return [=](const StorageReadInterface& graph,
+                   const Context& ctx) -> std::optional<std::vector<size_t>> {
+          std::vector<size_t> indices;
+          if (vertex_property_topN(order, upper, vertex_col, graph, prop_name,
+                                   indices)) {
+            return indices;
+          } else {
+            return std::nullopt;
+          }
+        };
       }
     }
     return std::nullopt;
