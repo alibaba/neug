@@ -748,7 +748,7 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs =
       get_label_dirs(input_label, graph.schema(), labels, dir);
   if (label_dirs.empty()) {
-    MLVertexColumnBuilder builder;
+    MSEdgeColumnBuilder builder;
     return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   MSEdgeColumnBuilder builder;
