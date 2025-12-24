@@ -45,5 +45,40 @@ class ColumnsUtils {
       }
     }
   }
+
+  template <typename VEC_T>
+  static void generate_optional_dedup_offset(const VEC_T& vec,
+                                             const std::vector<bool>& valid,
+                                             size_t row_num,
+                                             std::vector<size_t>& offsets) {
+    std::vector<size_t> row_indices(row_num);
+    row_indices.resize(row_num);
+    std::iota(row_indices.begin(), row_indices.end(), 0);
+    std::sort(row_indices.begin(), row_indices.end(),
+              [&vec, &valid](size_t a, size_t b) {
+                auto a_val = vec[a];
+                auto b_val = vec[b];
+                if (valid[a] ^ valid[b]) {
+                  return valid[a];
+                }
+                if (a_val == b_val) {
+                  return a < b;
+                }
+                return a_val < b_val;
+              });
+    offsets.clear();
+    offsets.push_back(row_indices[0]);
+    for (size_t i = 1; i < row_indices.size(); ++i) {
+      if (!valid[row_indices[i]]) {
+        if (valid[row_indices[0]]) {
+          offsets.push_back(row_indices[i]);
+          break;
+        }
+      }
+      if (!(vec[row_indices[i]] == vec[row_indices[i - 1]])) {
+        offsets.push_back(row_indices[i]);
+      }
+    }
+  }
 };
 }  // namespace gs

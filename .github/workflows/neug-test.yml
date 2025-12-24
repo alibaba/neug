@@ -150,13 +150,14 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export STORAGE_RESOURCE=${GITHUB_WORKSPACE}/tests/storage/resources
+        export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
         ctest -R storage_test -V
         ctest -R transaction_test -V
         ctest -R csr_test -V
         ctest -R edge_table_test -V
         ctest -R utils_test -V
+        ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
         ctest -R gopt_test -V
         ctest -R version_manager_test -V

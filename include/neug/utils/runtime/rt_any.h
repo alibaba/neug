@@ -611,6 +611,7 @@ class RTAny {
   static RTAny from_vertex(label_t l, vid_t v);
   static RTAny from_vertex(VertexRecord v);
   static RTAny from_edge(const EdgeRecord& v);
+  static RTAny from_path(const Path& v);
 
   static RTAny from_bool(bool v);
   static RTAny from_int64(int64_t v);

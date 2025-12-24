@@ -78,10 +78,7 @@ class IVertexColumnBuilder : public IContextColumnBuilder {
     this->push_back_vertex(val.as_vertex());
   }
 
-  virtual void push_back_null() {
-    this->push_back_vertex({std::numeric_limits<label_t>::max(),
-                            std::numeric_limits<vid_t>::max()});
-  }
+  virtual void push_back_null() = 0;
 };
 
 class MSVertexColumnBuilder;

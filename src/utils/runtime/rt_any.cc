@@ -416,6 +416,13 @@ RTAny RTAny::from_edge(const EdgeRecord& v) {
   return ret;
 }
 
+RTAny RTAny::from_path(const Path& v) {
+  RTAny ret;
+  ret.type_ = RTAnyType::kPath;
+  ret.value_.p = v;
+  return ret;
+}
+
 RTAny RTAny::from_bool(bool v) {
   RTAny ret;
   ret.type_ = RTAnyType::kBoolValue;

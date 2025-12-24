@@ -369,6 +369,9 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
   EmptyCsr<TypeParam> empty_csr;
   EXPECT_EQ(empty_csr.size(), 0);
   EXPECT_EQ(empty_csr.edge_num(), 0);
+  empty_csr.warmup(4);
+  empty_csr.compact();
+  empty_csr.close();
 }
 
 TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
@@ -511,6 +514,9 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
 
   single_mutable_csr.batch_delete_edges(edges_to_delete);
   EXPECT_EQ(single_mutable_csr.edge_num(), enum_after_delete_edge_single);
+
+  EmptyCsr<TypeParam> empty_csr;
+  empty_csr.batch_delete_edges(edges_to_delete);
 }
 
 TYPED_TEST(MutableCsrTest, TestPutEdge) {

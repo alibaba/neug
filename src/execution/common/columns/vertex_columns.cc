@@ -127,11 +127,28 @@ std::shared_ptr<IContextColumn> SLVertexColumn::union_col(
         dynamic_cast<const SLVertexColumn&>(vertex_column);
     if (label() == col.label()) {
       MSVertexColumnBuilder builder(label());
-      for (auto v : vertices_) {
-        builder.push_back_opt(v);
-      }
-      for (auto v : col.vertices_) {
-        builder.push_back_opt(v);
+      if (is_optional_ || other->is_optional()) {
+        for (auto v : vertices_) {
+          if (v == std::numeric_limits<vid_t>::max()) {
+            builder.push_back_opt(v);
+          } else {
+            builder.push_back_null();
+          }
+        }
+        for (auto v : col.vertices_) {
+          if (v != std::numeric_limits<vid_t>::max()) {
+            builder.push_back_opt(v);
+          } else {
+            builder.push_back_null();
+          }
+        }
+      } else {
+        for (auto v : vertices_) {
+          builder.push_back_opt(v);
+        }
+        for (auto v : col.vertices_) {
+          builder.push_back_opt(v);
+        }
       }
       return builder.finish();
     }

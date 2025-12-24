@@ -375,7 +375,8 @@ class OptionalValueColumn : public IValueColumn<T> {
   }
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(data_, data_.size(), offsets);
+    ColumnsUtils::generate_optional_dedup_offset(data_, valid_, data_.size(),
+                                                 offsets);
   }
 
   bool has_value(size_t idx) const override { return valid_[idx]; }

@@ -1103,9 +1103,9 @@ TYPED_TEST_SUITE(EdgeTableToolsTest, Datatypes);
 
 TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   using EdType = typename TypeParam::EdType;
-  const char* var = std::getenv("STORAGE_RESOURCE");
-  std::string resource_path =
-      var ? var : "/workspaces/neug/tests/storage/resources";
+  const char* var = std::getenv("TEST_PATH");
+  std::string test_path = var ? var : "/workspaces/neug/tests";
+  std::string resource_path = test_path + "/storage/resources";
   std::shared_ptr<EdgeSchema> edge_schema = std::make_shared<EdgeSchema>();
   edge_schema->ie_mutable = true;
   edge_schema->oe_mutable = true;
@@ -1210,9 +1210,9 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
 
 TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   using EdType = typename TypeParam::EdType;
-  const char* var = std::getenv("STORAGE_RESOURCE");
-  std::string resource_path =
-      var ? var : "/workspaces/neug/tests/storage/resources";
+  const char* var = std::getenv("TEST_PATH");
+  std::string test_path = var ? var : "/workspaces/neug/tests";
+  std::string resource_path = test_path + "/storage/resources";
   std::shared_ptr<EdgeSchema> edge_schema = std::make_shared<EdgeSchema>();
   edge_schema->ie_mutable = true;
   edge_schema->oe_mutable = true;
