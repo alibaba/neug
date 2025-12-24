@@ -833,9 +833,9 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
     RTAnyType then_type, const std::vector<std::string>& param_names,
     const common::Value& then_value, const common::Value& else_value, int tag,
     const std::string& property_name, int alias) {
-  if (then_type == RTAnyType::kI32Value) {
-    return std::make_unique<CaseWhenExprBuilder<CMP_T, int32_t>>(
-        param_names, then_value.i32(), else_value.i32(), tag, property_name,
+  if (then_type == RTAnyType::kI64Value) {
+    return std::make_unique<CaseWhenExprBuilder<CMP_T, int64_t>>(
+        param_names, then_value.i64(), else_value.i64(), tag, property_name,
         alias);
   } else {
     LOG(ERROR) << "unsupported then type " << static_cast<int>(then_type);
@@ -918,8 +918,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
                  << then_value.DebugString() << else_value.DebugString();
       return nullptr;
     }
-    if (then_value.item_case() == common::Value::kI32) {
-      then_type = RTAnyType::kI32Value;
+    if (then_value.item_case() == common::Value::kI64) {
+      then_type = RTAnyType::kI64Value;
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
@@ -939,8 +939,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
                  << then_value.DebugString() << else_value.DebugString();
       return nullptr;
     }
-    if (then_value.item_case() == common::Value::kI32) {
-      then_type = RTAnyType::kI32Value;
+    if (then_value.item_case() == common::Value::kI64) {
+      then_type = RTAnyType::kI64Value;
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
