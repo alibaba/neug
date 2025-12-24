@@ -79,6 +79,8 @@ RTAnyType parse_from_data_type(const ::common::DataType& ddt) {
   }
   case ::common::DataType::kArray:
     return RTAnyType::kList;
+  case ::common::DataType::kTuple:
+    return RTAnyType::kTuple;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
                                   ddt.DebugString());

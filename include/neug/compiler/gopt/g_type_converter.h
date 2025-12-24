@@ -17,6 +17,7 @@
 
 #include <google/protobuf/wrappers.pb.h>
 #include <memory>
+#include <unordered_set>
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/generated/proto/plan/common.pb.h"
@@ -38,6 +39,8 @@ class GTypeConverter {
   std::unique_ptr<::common::IrDataType> convertPathType(
       const GRelType& relType);
   std::unique_ptr<::common::IrDataType> convertArrayType(
+      const common::LogicalType& type, const binder::Expression& expr);
+  std::unique_ptr<::common::IrDataType> convertStructType(
       const common::LogicalType& type, const binder::Expression& expr);
   std::unique_ptr<::common::IrDataType> convertLogicalType(
       const common::LogicalType& type, const binder::Expression& expr);

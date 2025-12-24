@@ -146,6 +146,31 @@
               ]
              }
             ]
+           },
+           "node_type": {
+            "data_type": {
+             "tuple": {
+              "component_types": [
+               {
+                "primitive_type": "DT_SIGNED_INT32"
+               },
+               {
+                "string": {
+                 "var_char": {
+                  "max_length": 65536
+                 }
+                }
+               },
+               {
+                "temporal": {
+                 "date": {
+                  "date_format": "DF_YYYY_MM_DD"
+                 }
+                }
+               }
+              ]
+             }
+            }
            }
           }
          ]
@@ -160,11 +185,26 @@
      {
       "type": {
        "data_type": {
-        "array": {
-         "component_type": {
-          "primitive_type": "DT_ANY"
-         },
-         "max_length": 0
+        "tuple": {
+         "component_types": [
+          {
+           "primitive_type": "DT_SIGNED_INT32"
+          },
+          {
+           "string": {
+            "var_char": {
+             "max_length": 65536
+            }
+           }
+          },
+          {
+           "temporal": {
+            "date": {
+             "date_format": "DF_YYYY_MM_DD"
+            }
+           }
+          }
+         ]
         }
        }
       },

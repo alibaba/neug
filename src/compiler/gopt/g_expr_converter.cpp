@@ -609,7 +609,11 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
     *fieldPB = std::move(*exprPB);
   }
   auto exprPB = std::make_unique<::common::Expression>();
-  exprPB->add_operators()->set_allocated_to_tuple(tuplePB.release());
+  auto opr = exprPB->add_operators();
+  opr->set_allocated_to_tuple(tuplePB.release());
+  opr->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType().copy(), expr)
+          .release());
   return exprPB;
 }
 

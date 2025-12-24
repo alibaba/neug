@@ -20,9 +20,12 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <openssl/dsa.h>
 #include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/compiler/planner/operator/logical_transaction.h"
 
 using namespace gs::common;
 
@@ -55,16 +58,40 @@ void ListCreationFunction::execFunc(
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
   LogicalType combinedType(LogicalTypeID::ANY);
-  // Support `ANY` composite type in array, the following codes are deprecated.
-  // binder::ExpressionUtil::tryCombineDataType(input.arguments, combinedType);
-  // if (combinedType.getLogicalTypeID() == LogicalTypeID::ANY) {
-  //   combinedType = LogicalType::INT64();
-  // }
-  auto resultType = LogicalType::LIST(combinedType.copy());
+  // check if all arguments have the same type, if not, set to ANY.
+  auto& args = input.arguments;
+  // if all arguments have the same type, set sameType to true and
+  // combinedType to that type
+  bool sameType = true;
+  // if any argument is ANY, set anyType to true
+  bool anyType = false;
+  for (auto& arg : args) {
+    if (arg->getDataType() == LogicalType::ANY()) {
+      combinedType = LogicalType::ANY();
+      anyType = true;
+      break;
+    }
+    if (combinedType == LogicalType::ANY()) {
+      combinedType = arg->getDataType().copy();
+    } else if (combinedType != arg->getDataType()) {
+      sameType = false;
+      break;
+    }
+  }
+  LogicalType resultType;
+  // convert to struct type
+  if (!anyType && !sameType) {
+    std::vector<StructField> fields;
+    for (auto& arg : args) {
+      fields.emplace_back("", arg->getDataType().copy());
+    }
+    resultType = LogicalType::STRUCT(std::move(fields));
+  } else {
+    resultType = LogicalType::LIST(combinedType.copy());
+  }
   auto bindData = std::make_unique<FunctionBindData>(std::move(resultType));
-  for (auto& _ : input.arguments) {
-    (void) _;
-    bindData->paramTypes.push_back(combinedType.copy());
+  for (auto& arg : input.arguments) {
+    bindData->paramTypes.push_back(arg->getDataType().copy());
   }
   return bindData;
 }

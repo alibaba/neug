@@ -88,6 +88,30 @@
               ]
              }
             ]
+           },
+           "node_type": {
+            "data_type": {
+             "tuple": {
+              "component_types": [
+               {
+                "primitive_type": "DT_SIGNED_INT64"
+               },
+               {
+                "primitive_type": "DT_DOUBLE"
+               },
+               {
+                "primitive_type": "DT_SIGNED_INT64"
+               },
+               {
+                "string": {
+                 "var_char": {
+                  "max_length": 65536
+                 }
+                }
+               }
+              ]
+             }
+            }
            }
           }
          ]
@@ -102,11 +126,25 @@
      {
       "type": {
        "data_type": {
-        "array": {
-         "component_type": {
-          "primitive_type": "DT_ANY"
-         },
-         "max_length": 0
+        "tuple": {
+         "component_types": [
+          {
+           "primitive_type": "DT_SIGNED_INT64"
+          },
+          {
+           "primitive_type": "DT_DOUBLE"
+          },
+          {
+           "primitive_type": "DT_SIGNED_INT64"
+          },
+          {
+           "string": {
+            "var_char": {
+             "max_length": 65536
+            }
+           }
+          }
+         ]
         }
        }
       },

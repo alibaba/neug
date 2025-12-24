@@ -109,6 +109,10 @@ message Array {
     uint32 max_length = 2;
 }
 
+message Tuple {
+    repeated DataType component_types = 1;
+}
+
 message Map {
     DataType key_type = 1;
     DataType value_type = 2;
@@ -122,5 +126,6 @@ message DataType {
         Temporal temporal = 4;
         Array array = 5;
         Map map = 6;
+        Tuple tuple = 7;
     }
 }

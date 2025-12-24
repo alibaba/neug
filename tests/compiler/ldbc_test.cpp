@@ -18,6 +18,15 @@ class LDBCTest : public GOptTest {
   std::vector<std::string> rules = {"FilterPushDown", "ExpandGetVFusion"};
 };
 
+TEST_F(LDBCTest, IC_1) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_1.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getLDBCResource("IC_1_physical"));
+}
+
 TEST_F(LDBCTest, IC_9) {
   std::string query =
       gs::gopt::Utils::readString(getLDBCResourcePath("ic_9.cypher"));

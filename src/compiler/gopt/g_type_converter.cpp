@@ -17,14 +17,20 @@
 
 #include <google/protobuf/wrappers.pb.h>
 #include <memory>
+#include <vector>
+#include "neug/compiler/binder/expression/case_expression.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/cast.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/gopt/g_rel_table_entry.h"
+#include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
@@ -72,6 +78,60 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertRelType(
   graphType->set_element_opt(::common::GraphDataType_GraphElementOpt::
                                  GraphDataType_GraphElementOpt_EDGE);
   result->set_allocated_graph_type(graphType.release());
+  return result;
+}
+
+const binder::Expression* childFunction(const binder::Expression* curExpr,
+                                        ScalarType targetType) {
+  if (!curExpr)
+    return nullptr;
+  if (curExpr->expressionType == common::ExpressionType::FUNCTION) {
+    auto& scalarExpr = curExpr->constCast<binder::ScalarFunctionExpression>();
+    GScalarType scalarType{scalarExpr};
+    if (scalarType.getType() == targetType) {
+      return curExpr;
+    }
+  }
+  binder::expression_vector children;
+  if (curExpr->expressionType == common::ExpressionType::CASE_ELSE) {
+    auto& caseExpr = curExpr->constCast<binder::CaseExpression>();
+    for (size_t pos = 0; pos < caseExpr.getNumCaseAlternatives(); ++pos) {
+      auto alternative = caseExpr.getCaseAlternative(pos);
+      children.push_back(alternative->thenExpression);
+      children.push_back(alternative->whenExpression);
+    }
+    children.push_back(caseExpr.getElseExpression());
+  } else {
+    children = curExpr->getChildren();
+  }
+  for (auto child : children) {
+    auto result = childFunction(child.get(), targetType);
+    if (result)
+      return result;
+  }
+  return nullptr;
+}
+
+std::unique_ptr<::common::IrDataType> GTypeConverter::convertStructType(
+    const common::LogicalType& type, const binder::Expression& expr) {
+  auto typeInfo =
+      type.getExtraTypeInfo()->constPtrCast<common::StructTypeInfo>();
+  auto tupleType = std::make_unique<::common::Tuple>();
+  for (auto& field : typeInfo->getStructFields()) {
+    auto childType = convertLogicalType(field.getType().copy(), expr);
+    if (!childType) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Failed to convert child type for TUPLE type: " + type.toString());
+    }
+    if (!childType->has_data_type()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Component type of TUPLE should be basic, others are unsupported");
+    }
+    // Otherwise, we can directly set the data type
+    tupleType->add_component_types()->CopyFrom(childType->data_type());
+  }
+  auto result = std::make_unique<::common::IrDataType>();
+  result->mutable_data_type()->set_allocated_tuple(tupleType.release());
   return result;
 }
 
@@ -165,6 +225,10 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
     CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
     auto& child_type = list_type_info->getChildType();
     return convertArrayType(child_type, expr);
+    break;
+  }
+  case common::LogicalTypeID::STRUCT: {
+    return convertStructType(type, expr);
     break;
   }
   default:
