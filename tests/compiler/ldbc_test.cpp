@@ -36,6 +36,33 @@ TEST_F(LDBCTest, IC_9) {
                                       getLDBCResource("IC_9_physical"));
 }
 
+TEST_F(LDBCTest, IC_11) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_11.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_11_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(LDBCTest, IC_6) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_6.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_6_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
+TEST_F(LDBCTest, IC_3) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_3.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_3_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
+}
+
 TEST_F(LDBCTest, IC_5) {
   std::string query =
       gs::gopt::Utils::readString(getLDBCResourcePath("ic_5.cypher"));
@@ -50,6 +77,8 @@ TEST_F(LDBCTest, IC_14) {
       gs::gopt::Utils::readString(getLDBCResourcePath("ic_14.cypher"));
   auto logical = planLogical(query, schemaData, statsData, rules);
   VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_14_logical"));
+  auto physical = planPhysical(*logical);
+  ASSERT_TRUE(physical != nullptr);
 }
 
 TEST_F(LDBCTest, IC_7) {

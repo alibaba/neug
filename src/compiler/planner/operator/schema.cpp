@@ -72,6 +72,15 @@ bool Schema::isExpressionInScope(const Expression& expression) const {
     if (expressionInScope->getUniqueName() == expression.getUniqueName()) {
       return true;
     }
+
+    if (expression.expressionType == common::ExpressionType::PROPERTY) {
+      auto propertyExpr = expression.constCast<binder::PropertyExpression>();
+      if (expressionInScope->getUniqueName() ==
+          propertyExpr.getVariableName()) {
+        return true;
+      }
+    }
+
     // for query `MATCH (a:person) WHERE a.gender = 1 WITH a AS k MATCH
     // (k)-[e:knows]->(b:person)`, `with a` will project a pattern expression of
     // the query node, but its schema does not contain the internal ID. the

@@ -141,7 +141,9 @@ std::string LogicalHashJoin::getExpressionsForPrinting() const {
   } else {
     result = binder::ExpressionUtil::toString(joinConditions).append(extra);
   }
-  // result += ", Cardinality: " + std::to_string(cardinality);
+  if (preQuery) {
+    result += ", PreQuery";
+  }
   return result;
 }
 

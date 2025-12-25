@@ -19,7 +19,8 @@ add_library(neug_optimizer
 	filter_push_down_pattern.cpp
         flat_join_to_expand_optimizer.cpp
         union_alias_map_optimizer.cpp
-        remove_subquery_as_join.cpp)
+        remove_subquery_as_join.cpp
+        common_pattern_reuse_optimizer.cpp)
 add_dependencies(neug_optimizer neug_plan_proto)
 
 set(ALL_OBJECT_FILES

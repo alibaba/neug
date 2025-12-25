@@ -1,4 +1,4 @@
-MATCH (person1:PERSON { id: $id1 })-[path : KNOWS* ALL SHORTEST 1..]-(person2:PERSON {id: $id2})
+MATCH (person1:PERSON { id: $person1Id })-[path : KNOWS* ALL SHORTEST 1..]-(person2:PERSON {id: $person2Id})
 WITH path, rels(path) as rels_in_path
 UNWIND rels_in_path as rel
 WITH path,  START_NODE(rel) as rel0, END_NODE(rel) as rel1
@@ -9,5 +9,5 @@ With path,
 With path, nodes(path) as nodes_in_path,  SUM(ra) AS weight1Count, SUM(rb) as weight2Count
 UNWIND nodes_in_path as node
 WITH path, COLLECT(node.id) as personIdsInPath, weight1Count, weight2Count
-RETURN personIdsInPath, (weight1Count + weight2Count / 2.0) AS pathWeight
+RETURN personIdsInPath, (weight1Count + weight2Count *0.5) AS pathWeight
 ORDER BY pathWeight DESC;

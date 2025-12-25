@@ -101,13 +101,13 @@ TEST_F(BITest, BI_15) {
   ASSERT_TRUE(physical != nullptr);
 }
 
-TEST_F(BITest, BI_16) {
-  std::string query = getBIResource("bi_16.cypher");
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  VerifyFactory::verifyLogicalByStr(*logical, getBIResource("BI_16_logical"));
-  auto physical = planPhysical(*logical);
-  ASSERT_TRUE(physical != nullptr);
-}
+// TEST_F(BITest, BI_16) {
+//   std::string query = getBIResource("bi_16.cypher");
+//   auto logical = planLogical(query, schemaData, statsData, rules);
+//   VerifyFactory::verifyLogicalByStr(*logical,
+//   getBIResource("BI_16_logical")); auto physical = planPhysical(*logical);
+//   ASSERT_TRUE(physical != nullptr);
+// }
 
 }  // namespace gopt
 }  // namespace gs

@@ -24,6 +24,8 @@
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/common/assert.h"
+#include "neug/compiler/common/enums/expression_type.h"
 
 namespace gs {
 namespace binder {
@@ -53,7 +55,10 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
 
   void setNodeUniqueName(const std::string& uniqueName) {
     this->uniqueName = uniqueName;
-    this->internalID->setUniqueName(uniqueName);
+    NEUG_ASSERT(internalID &&
+                internalID->expressionType == common::ExpressionType::PROPERTY);
+    auto propertyExpr = internalID->ptrCast<binder::PropertyExpression>();
+    propertyExpr->setUniqueVarName(uniqueName);
     for (auto& expr : this->propertyExprs) {
       auto propertyExpr = expr->ptrCast<binder::PropertyExpression>();
       propertyExpr->setUniqueVarName(uniqueName);

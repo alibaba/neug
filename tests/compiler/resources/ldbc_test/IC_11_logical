@@ -1,0 +1,18 @@
+PROJECTION[personId,personFirstName,personLastName,organizationName,organizationWorkFromYear]
+PROJECTION[friend,com,organizationWorkFromYear]
+ORDER_BY[organizationWorkFromYear,friend.id,com.name SKIP 0 LIMIT 10]
+PROJECTION[friend,com,organizationWorkFromYear,friend.id,com.name]
+HASH_JOIN[friend._ID, SIP: NONE, Join Type: INNER, Join Conditions: friend._ID=friend._ID]
+CHILD:
+    FILTER[NOT_EQUALS(friend.id,$personId) Cardinality: 1]
+    DISTINCT[friend]
+    PROJECTION[friend]
+    GET_V[GET_V() Cardinality: 1]
+    RECURSIVE_EXTEND[rel=, bound=p, nbr=friend, nodePred=null, relPred=null]
+    SCAN_NODE_TABLE[p._ID p.id PK_SCAN($personId)Type: INTERNAL_ID Cardinality: 1]
+CHILD:
+    GET_V[GET_V() Cardinality: 3312]
+    EXTEND[com<-waWORKAT,-friend Cardinality: 3312 WHERE LESS_THAN(wa.workFrom,$workFromYear)]
+    GET_V[GET_V() Cardinality: 7954]
+    EXTEND[<-ISLOCATEDIN_ORGANISATION_PLACE,-com Cardinality: 7954]
+    SCAN_NODE_TABLE[._ID .nameType: INTERNAL_ID Predicates: EQUALS(.name,$countryName) Cardinality: 1460]

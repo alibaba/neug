@@ -29,6 +29,7 @@
 #include "neug/compiler/optimizer/acc_hash_join_optimizer.h"
 #include "neug/compiler/optimizer/agg_key_dependency_optimizer.h"
 #include "neug/compiler/optimizer/cardinality_updater.h"
+#include "neug/compiler/optimizer/common_pattern_reuse_optimizer.h"
 #include "neug/compiler/optimizer/correlated_subquery_unnest_solver.h"
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/optimizer/factorization_rewriter.h"
@@ -105,6 +106,9 @@ void Optimizer::optimize(
 
     auto flatJoinToExpandOptimizer = FlatJoinToExpandOptimizer();
     flatJoinToExpandOptimizer.rewrite(plan);
+
+    auto commonPatternReuseOptimizer = CommonPatternReuseOptimizer(context);
+    commonPatternReuseOptimizer.rewrite(plan);
 
     auto unionAliasMapOptimizer = UnionAliasMapOptimizer();
     unionAliasMapOptimizer.rewrite(plan);

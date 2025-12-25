@@ -1,7 +1,9 @@
 #include "neug/compiler/planner/join_order/cardinality_estimator.h"
 #include <cmath>
 
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/join_order/join_order_util.h"
 #include "neug/compiler/planner/operator/logical_aggregate.h"
@@ -174,41 +176,25 @@ static bool isSingleLabelledProperty(const Expression& expression) {
   return expression.constCast<PropertyExpression>().isSingleLabel();
 }
 
-static std::optional<cardinality_t> getTableStatsIfPossible(
-    main::ClientContext* context, const Expression& predicate,
-    const std::unordered_map<common::table_id_t, storage::TableStats>&
-        nodeTableStats) {
-  NEUG_ASSERT(predicate.getNumChildren() >= 1);
-  // if (isSingleLabelledProperty(*predicate.getChild(0))) {
-  //     auto& propertyExpr = predicate.getChild(0)->cast<PropertyExpression>();
-  //     auto tableID = propertyExpr.getSingleTableID();
-  //     if (nodeTableStats.contains(tableID)) {
-  //         auto columnID = propertyExpr.getColumnID(
-  //             *context->getCatalog()->getTableCatalogEntry(context->getTransaction(),
-  //             tableID));
-  //         if (columnID != INVALID_COLUMN_ID && columnID != ROW_IDX_COLUMN_ID)
-  //         {
-  //             auto& stats = nodeTableStats.at(tableID);
-  //             return atLeastOne(stats.getNumDistinctValues(columnID));
-  //         }
-  //     }
-  // }
-  return {};
-}
-
 uint64_t CardinalityEstimator::estimateFilter(
     const LogicalOperator& childPlan, const Expression& predicate) const {
+  if (predicate.expressionType == ExpressionType::OR) {
+    bool allEquals = true;
+    for (auto& child : predicate.getChildren()) {
+      if (child->expressionType != ExpressionType::EQUALS) {
+        allEquals = false;
+        break;
+      }
+    }
+    if (allEquals && !predicate.getChildren().empty()) {
+      return estimateFilter(childPlan, *predicate.getChildren()[0]);
+    }
+  }
   if (predicate.expressionType == ExpressionType::EQUALS) {
     if (isPrimaryKey(*predicate.getChild(0)) ||
         isPrimaryKey(*predicate.getChild(1))) {
       return 1;
     } else {
-      const auto numDistinctValues =
-          getTableStatsIfPossible(context, predicate, nodeTableStats);
-      if (numDistinctValues.has_value()) {
-        return atLeastOne(childPlan.getCardinality() /
-                          numDistinctValues.value());
-      }
       return atLeastOne(childPlan.getCardinality() *
                         PlannerKnobs::EQUALITY_PREDICATE_SELECTIVITY);
     }

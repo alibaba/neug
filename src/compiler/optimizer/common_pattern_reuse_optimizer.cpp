@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-#include "neug/compiler/optimizer/flat_join_to_expand_optimizer.h"
-#include <iostream>
+#include "neug/compiler/optimizer/common_pattern_reuse_optimizer.h"
 #include <memory>
+#include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/enums/join_type.h"
-#include "neug/compiler/planner/operator/extend/logical_extend.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/compiler/planner/operator/logical_distinct.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
+#include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
 namespace gs {
@@ -29,7 +34,7 @@ namespace optimizer {
 // get the sequential-parent (the parent cannot be join or union) operator on
 // top of the scan operator
 std::shared_ptr<planner::LogicalOperator>
-FlatJoinToExpandOptimizer::getScanParent(
+CommonPatternReuseOptimizer::getScanParent(
     std::shared_ptr<planner::LogicalOperator> parent) {
   auto children = parent->getChildren();
   // guarantee sequential parent
@@ -44,7 +49,7 @@ FlatJoinToExpandOptimizer::getScanParent(
 }
 
 std::shared_ptr<planner::LogicalOperator>
-FlatJoinToExpandOptimizer::visitOperator(
+CommonPatternReuseOptimizer::visitOperator(
     const std::shared_ptr<planner::LogicalOperator>& op) {
   // bottom-up traversal
   for (auto i = 0u; i < op->getNumChildren(); ++i) {
@@ -56,40 +61,14 @@ FlatJoinToExpandOptimizer::visitOperator(
   return result;
 }
 
-void FlatJoinToExpandOptimizer::rewrite(planner::LogicalPlan* plan) {
+void CommonPatternReuseOptimizer::rewrite(planner::LogicalPlan* plan) {
   auto root = plan->getLastOperator();
   auto rootOpt = visitOperator(root);
   plan->setLastOperator(rootOpt);
 }
 
-void FlatJoinToExpandOptimizer::setOptional(
-    std::shared_ptr<planner::LogicalOperator> plan) {
-  if (plan->getOperatorType() == planner::LogicalOperatorType::EXTEND) {
-    auto extend = plan->ptrCast<planner::LogicalExtend>();
-    extend->setOptional(true);
-  }
-  for (auto child : plan->getChildren()) {
-    setOptional(child);
-  }
-}
-
-bool FlatJoinToExpandOptimizer::checkOperatorType(
-    std::shared_ptr<planner::LogicalOperator> op,
-    const std::vector<planner::LogicalOperatorType>& includeTypes) {
-  if (std::find(includeTypes.begin(), includeTypes.end(),
-                op->getOperatorType()) == includeTypes.end()) {
-    return false;
-  }
-  for (auto child : op->getChildren()) {
-    if (!checkOperatorType(child, includeTypes)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 std::shared_ptr<planner::LogicalOperator>
-FlatJoinToExpandOptimizer::visitHashJoinReplace(
+CommonPatternReuseOptimizer::visitHashJoinReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
   auto joinOp = op->ptrCast<planner::LogicalHashJoin>();
   if (joinOp->getJoinType() != common::JoinType::INNER &&
@@ -98,29 +77,11 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
   }
   auto join = op->ptrCast<planner::LogicalHashJoin>();
   auto joinIDs = join->getJoinNodeIDs();
-  if (joinIDs.size() != 1) {
+  if (joinIDs.size() != 2) {
     return op;
   }
-  auto joinID = joinIDs[0];
+
   auto rightChild = join->getChild(1);
-
-  std::vector<planner::LogicalOperatorType> includeOps;
-  if (joinOp->getJoinType() == common::JoinType::INNER) {
-    includeOps.push_back(planner::LogicalOperatorType::SCAN_NODE_TABLE);
-    includeOps.push_back(planner::LogicalOperatorType::EXTEND);
-    includeOps.push_back(planner::LogicalOperatorType::GET_V);
-    includeOps.push_back(planner::LogicalOperatorType::RECURSIVE_EXTEND);
-    includeOps.push_back(planner::LogicalOperatorType::FILTER);
-  } else {
-    includeOps.push_back(planner::LogicalOperatorType::SCAN_NODE_TABLE);
-    includeOps.push_back(planner::LogicalOperatorType::EXTEND);
-    includeOps.push_back(planner::LogicalOperatorType::GET_V);
-  }
-
-  if (!checkOperatorType(rightChild, includeOps)) {
-    return op;
-  }
-
   auto rightScanParent = getScanParent(rightChild);
   if (!rightScanParent || rightScanParent->getNumChildren() == 0) {
     return op;
@@ -131,16 +92,26 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
     return op;
   }
   auto rightScanNodeID = rightScan->getNodeID();
-  if (rightScanNodeID->getUniqueName() != joinID->getUniqueName()) {
+  if (rightScanNodeID->getUniqueName() != joinIDs[0]->getUniqueName() &&
+      rightScanNodeID->getUniqueName() != joinIDs[1]->getUniqueName()) {
     return op;
   }
-  if (joinOp->getJoinType() == common::JoinType::LEFT) {
-    setOptional(rightChild);
-  }
-  // set the left plan as the child of the right plan, to flat the join
-  // structure and make it as a chain
-  rightScanParent->setChild(0, join->getChild(0));
-  return rightChild;
+  joinOp->setPreQuery(true);
+  auto rightScanUniqueName = rightScan->getAliasName();
+  auto rightScanType = rightScan->getNodeType(ctx->getCatalog());
+  // set distinct to guarantee the right scan node is not duplicated, distinct
+  // key is the unique name of the right scan node
+  auto distinctKey = std::make_shared<binder::VariableExpression>(
+      common::LogicalType::NODE(std::make_unique<common::StructTypeInfo>()),
+      rightScanUniqueName, rightScanUniqueName);
+  // convert right scan node to expression scan, and set expression scan as the
+  // child of distinct
+  auto expressionScan = std::make_shared<planner::LogicalExpressionsScan>(
+      binder::expression_vector{rightScanNodeID});
+  auto distinct = std::make_shared<planner::LogicalDistinct>(
+      binder::expression_vector{distinctKey}, expressionScan);
+  rightScanParent->setChild(0, distinct);
+  return op;
 }
 
 }  // namespace optimizer

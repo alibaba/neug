@@ -23,6 +23,7 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/common/enums/expression_type.h"
 
 namespace gs {
 namespace binder {
@@ -132,6 +133,20 @@ class ConstantExpressionVisitor {
   static bool visitFunction(const Expression& expr);
   static bool visitCase(const Expression& expr);
   static bool visitChildren(const Expression& expr);
+};
+
+class EqualFilteringVisitor : public ExpressionVisitor {
+ private:
+  bool equalFiltering = false;
+
+ public:
+  virtual void visitFunctionExpr(std::shared_ptr<Expression> expr) override {
+    if (expr->expressionType == common::ExpressionType::EQUALS) {
+      equalFiltering = true;
+    }
+  }
+
+  bool containsEqualFiltering() { return equalFiltering; }
 };
 
 }  // namespace binder

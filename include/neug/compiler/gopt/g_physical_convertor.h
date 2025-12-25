@@ -33,6 +33,14 @@ class GPhysicalConvertor {
                      gs::catalog::Catalog* catalog)
       : aliasManager{aliasManager}, catalog{catalog} {}
 
+  std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
+    auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
+    auto queryPlan = std::make_unique<::physical::QueryPlan>();
+    queryPlan->set_mode(::physical::QueryPlan::READ_ONLY);
+    physicalPlan->set_allocated_query_plan(queryPlan.release());
+    return physicalPlan;
+  }
+
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink = false) {
     GPhysicalAnalyzer analyzer;

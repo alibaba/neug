@@ -1598,18 +1598,24 @@ void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
                                       ::physical::QueryPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
   GPhysicalConvertor convertor(aliasManager, catalog);
-  // convert left plan
-  planner::LogicalPlan leftPlan;
   auto leftOp = join.getChild(0);
-  leftPlan.setLastOperator(leftOp);
-  auto leftPB = convertor.convert(leftPlan, true);
+  // convert left plan to pre query before the join, and set empty plan as the
+  // join left branch
+  if (join.getPreQuery()) {
+    convertOperator(*leftOp, plan);
+    joinPB->set_allocated_left_plan(convertor.createEmptyPlan().release());
+  } else {
+    planner::LogicalPlan leftPlan;
+    leftPlan.setLastOperator(leftOp);
+    auto leftPB = convertor.convert(leftPlan, true);
+    joinPB->set_allocated_left_plan(leftPB.release());
+  }
   // convert right plan
   planner::LogicalPlan rightPlan;
   auto rightOp = join.getChild(1);
   rightPlan.setLastOperator(rightOp);
   auto rightPB = convertor.convert(rightPlan, true);
   // set join PB
-  joinPB->set_allocated_left_plan(leftPB.release());
   joinPB->set_allocated_right_plan(rightPB.release());
   // set join kind
   joinPB->set_join_kind(convertJoinKind(join.getJoinType()));

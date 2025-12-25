@@ -53,6 +53,22 @@ std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollection(
   return getBestPlan(enumerateQueryGraphCollection(queryGraphCollection, info));
 }
 
+bool containsEqualFiltering(std::shared_ptr<planner::LogicalOperator> bestOp) {
+  if (bestOp->getOperatorType() == planner::LogicalOperatorType::FILTER) {
+    auto filter = bestOp->ptrCast<planner::LogicalFilter>();
+    auto visitor = binder::EqualFilteringVisitor();
+    visitor.visit(filter->getPredicate());
+    return visitor.containsEqualFiltering();
+  }
+
+  for (auto child : bestOp->getChildren()) {
+    if (containsEqualFiltering(child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollectionInNewContext(
     const QueryGraphCollection& queryGraphCollection,
     const QueryGraphPlanningInfo& info) {
@@ -75,19 +91,46 @@ std::unique_ptr<LogicalPlan> Planner::planQueryGraphCollectionInNewContext(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "correlated expressions should not be empty");
   }
-  if (info.corrExprs.size() == 1 && info.kind == MatchKind::REGULAR) {
-    return bestPlan;
-  } else if (info.corrExprs.size() == 1 && info.kind == MatchKind::OPTIONAL) {
-    std::vector<planner::LogicalOperatorType> excludeOps = {
-        planner::LogicalOperatorType::RECURSIVE_EXTEND,
-        planner::LogicalOperatorType::FILTER};
-    optimizer::FilterPushDownPattern pushDownOpt;
-    pushDownOpt.rewrite(bestPlan.get());
-    if (joinToExpandOpt.checkOperatorType(bestPlan->getLastOperator(),
-                                          excludeOps)) {
-      return bestPlan;
+
+  std::vector<planner::LogicalOperatorType> includeOps;
+
+  if (info.corrExprs.size() > 2) {
+    goto re_plan;
+  }
+  if (info.kind != MatchKind::OPTIONAL && info.kind != MatchKind::REGULAR) {
+    goto re_plan;
+  }
+  if (containsEqualFiltering(bestPlan->getLastOperator())) {
+    goto re_plan;
+  }
+
+  if (info.corrExprs.size() == 2) {
+    includeOps.emplace_back(planner::LogicalOperatorType::SCAN_NODE_TABLE);
+    includeOps.emplace_back(planner::LogicalOperatorType::EXTEND);
+    includeOps.emplace_back(planner::LogicalOperatorType::GET_V);
+  } else if (info.corrExprs.size() == 1) {
+    if (info.kind == MatchKind::REGULAR) {
+      includeOps.push_back(planner::LogicalOperatorType::SCAN_NODE_TABLE);
+      includeOps.push_back(planner::LogicalOperatorType::EXTEND);
+      includeOps.push_back(planner::LogicalOperatorType::GET_V);
+      includeOps.push_back(planner::LogicalOperatorType::RECURSIVE_EXTEND);
+      includeOps.push_back(planner::LogicalOperatorType::FILTER);
+    } else {  // OPTIONAL
+      includeOps.push_back(planner::LogicalOperatorType::SCAN_NODE_TABLE);
+      includeOps.push_back(planner::LogicalOperatorType::EXTEND);
+      includeOps.push_back(planner::LogicalOperatorType::GET_V);
+      // check bestPlan after filtering push down optimization
+      optimizer::FilterPushDownPattern pushDownOpt;
+      pushDownOpt.rewrite(bestPlan.get());
     }
   }
+
+  if (joinToExpandOpt.checkOperatorType(bestPlan->getLastOperator(),
+                                        includeOps)) {
+    return bestPlan;
+  }
+re_plan:
+  // clear stats of correlated expressions and re-plan query
   QueryGraphPlanningInfo newInfo;
   newInfo.predicates = info.predicates;
   newInfo.subqueryType = info.subqueryType;
@@ -360,11 +403,8 @@ void Planner::planNodeIDScan(uint32_t nodePos,
   newSubgraph.addQueryNode(nodePos);
   auto plan = std::make_unique<LogicalPlan>();
 
-  if (info.corrExprs.size() == 1 &&
-      (info.kind == MatchKind::REGULAR || info.kind == MatchKind::OPTIONAL)) {
-    cardinalityEstimator.addPerQueryGraphNodeIDDom(*node->getInternalID(),
-                                                   info.corrExprsCard);
-  }
+  cardinalityEstimator.addPerQueryGraphNodeIDDom(*node->getInternalID(),
+                                                 info.corrExprsCard);
 
   appendScanNodeTable(node->getInternalID(), node->getTableIDs(), {}, *plan,
                       true);

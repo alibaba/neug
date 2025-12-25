@@ -24,7 +24,8 @@ class NEUG_API LogicalHashJoin final : public LogicalOperator {
       : LogicalOperator{type_, std::move(probeChild), std::move(buildChild)},
         joinConditions(std::move(joinConditions)),
         joinType{joinType},
-        mark{std::move(mark)} {
+        mark{std::move(mark)},
+        preQuery(false) {
     this->cardinality = cardinality;
   }
 
@@ -71,11 +72,16 @@ class NEUG_API LogicalHashJoin final : public LogicalOperator {
   static bool isNodeIDOnlyJoin(
       const std::vector<join_condition_t>& joinConditions);
 
+  bool getPreQuery() const { return preQuery; }
+
+  void setPreQuery(bool preQuery) { this->preQuery = preQuery; }
+
  private:
   std::vector<join_condition_t> joinConditions;
   common::JoinType joinType;
   std::shared_ptr<binder::Expression> mark;  // when joinType is Mark or Left
   SIPInfo sipInfo;
+  bool preQuery;
 };
 
 }  // namespace planner
