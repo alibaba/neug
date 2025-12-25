@@ -216,7 +216,7 @@ RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     return RTAnyType::kF64Value;
   } else if (type->Equals(arrow::boolean())) {
     return RTAnyType::kBoolValue;
-  } else if (type->Equals(arrow::utf8())) {
+  } else if (type->Equals(arrow::utf8()) || type->Equals(arrow::large_utf8())) {
     return RTAnyType::kStringValue;
   } else if (type->Equals(arrow::date32())) {
     return RTAnyType::kDate;

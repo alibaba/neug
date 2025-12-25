@@ -24,6 +24,7 @@
 #include <glog/logging.h>
 #include <stdint.h>
 #include <sys/statvfs.h>
+#include <memory>
 #include <ostream>
 
 #include "neug/utils/arrow_utils.h"
@@ -335,19 +336,14 @@ ArrowRecordBatchArraySupplier::GetNextBatch() {
 std::shared_ptr<arrow::RecordBatch>
 ArrowRecordBatchStreamSupplier::GetNextBatch() {
   if (!reader_) {
+    LOG(ERROR) << "Reader is null";
     return nullptr;
   }
-  auto result = reader_->ReadNext();
+  auto result = reader_->Next();
   if (result.ok()) {
-    auto batch = result.ValueOrDie().batch;
-    auto metadata = result.ValueOrDie().custom_metadata;
-    if (metadata) {
-      // Handle metadata if needed
-      LOG(INFO) << "Batch metadata: " << metadata->ToString();
-    }
-    return batch;
+    return result.ValueOrDie();
   } else {
-    LOG(INFO) << "No more batches";
+    LOG(ERROR) << "Failed to get next batch: " << result.status().message();
     return nullptr;  // Handle error appropriately in production code
   }
 }

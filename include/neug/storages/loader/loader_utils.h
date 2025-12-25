@@ -17,6 +17,7 @@
 #include <arrow/api.h>
 #include <arrow/csv/api.h>
 #include <arrow/io/api.h>
+#include <arrow/record_batch.h>
 #include <glog/logging.h>
 #include <stddef.h>
 
@@ -181,13 +182,13 @@ class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
 class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
  public:
   ArrowRecordBatchStreamSupplier(
-      const std::shared_ptr<arrow::csv::StreamingReader>& reader)
+      const std::shared_ptr<arrow::RecordBatchReader>& reader)
       : reader_(reader) {}
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
  private:
-  std::shared_ptr<arrow::csv::StreamingReader> reader_;
+  std::shared_ptr<arrow::RecordBatchReader> reader_;
 };
 
 void fillVertexReaderMeta(
