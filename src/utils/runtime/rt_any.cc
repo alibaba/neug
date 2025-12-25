@@ -171,35 +171,6 @@ std::string Tuple::to_string() const {
   ss << ")";
   return ss.str();
 }
-PropertyType rt_type_to_property_type(RTAnyType type) {
-  switch (type) {
-  case RTAnyType::kEmpty:
-    return PropertyType::kEmpty;
-  case RTAnyType::kI64Value:
-    return PropertyType::kInt64;
-  case RTAnyType::kI32Value:
-    return PropertyType::kInt32;
-  case RTAnyType::kU32Value:
-    return PropertyType::kUInt32;
-  case RTAnyType::kF32Value:
-    return PropertyType::kFloat;
-  case RTAnyType::kF64Value:
-    return PropertyType::kDouble;
-  case RTAnyType::kBoolValue:
-    return PropertyType::kBool;
-  case RTAnyType::kStringValue:
-    return PropertyType::kString;
-  case RTAnyType::kDateTime:
-    return PropertyType::kDateTime;
-  case RTAnyType::kDate:
-    return PropertyType::kDate;  // FIXME
-  case RTAnyType::kInterval:
-    return PropertyType::kInterval;
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
-                                  std::to_string(static_cast<int>(type)));
-  }
-}
 
 RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   if (type->Equals(arrow::int64())) {
@@ -237,47 +208,44 @@ RTAny::RTAny() : type_(RTAnyType::kUnknown) {}
 RTAny::RTAny(RTAnyType type) : type_(type) {}
 
 RTAny::RTAny(const Property& val) {
-  if (val.type() == PropertyType::Bool()) {
+  if (val.type() == DataTypeId::kBool) {
     type_ = RTAnyType::kBoolValue;
     value_.b_val = val.as_bool();
-  } else if (val.type() == PropertyType::Int64()) {
+  } else if (val.type() == DataTypeId::kInt64) {
     type_ = RTAnyType::kI64Value;
     value_.i64_val = val.as_int64();
-  } else if (val.type() == PropertyType::Int32()) {
+  } else if (val.type() == DataTypeId::kInt32) {
     type_ = RTAnyType::kI32Value;
     value_.i32_val = val.as_int32();
-  } else if (val.type() == PropertyType::UInt32()) {
+  } else if (val.type() == DataTypeId::kUInt32) {
     type_ = RTAnyType::kU32Value;
     value_.i32_val = val.as_uint32();
-  } else if (val.type() == PropertyType::UInt64()) {
+  } else if (val.type() == DataTypeId::kUInt64) {
     type_ = RTAnyType::kU64Value;
     value_.u64_val = val.as_uint64();
-  } else if (val.type() == PropertyType::Float()) {
+  } else if (val.type() == DataTypeId::kFloat) {
     type_ = RTAnyType::kF32Value;
     value_.f32_val = val.as_float();
-  } else if (val.type() == PropertyType::kDouble) {
+  } else if (val.type() == DataTypeId::kDouble) {
     type_ = RTAnyType::kF64Value;
     value_.f64_val = val.as_double();
-  } else if (val.type().type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (val.type() == DataTypeId::kStringView) {
     type_ = RTAnyType::kStringValue;
     value_.str_val = val.as_string_view();
-  } else if (val.type().type_enum == impl::PropertyTypeImpl::kString) {
-    type_ = RTAnyType::kStringValue;
-    value_.str_val = val.as_string();
-  } else if (val.type() == PropertyType::Empty()) {
+  } else if (val.type() == DataTypeId::kEmpty) {
     type_ = RTAnyType::kNull;
-  } else if (val.type() == PropertyType::Date()) {
+  } else if (val.type() == DataTypeId::kDate) {
     type_ = RTAnyType::kDate;
     value_.date_val = val.as_date();
-  } else if (val.type() == PropertyType::Interval()) {
+  } else if (val.type() == DataTypeId::kInterval) {
     type_ = RTAnyType::kInterval;
     value_.interval_val = val.as_interval();
-  } else if (val.type() == PropertyType::DateTime()) {
+  } else if (val.type() == DataTypeId::kDateTime) {
     type_ = RTAnyType::kDateTime;
     value_.dt_val = val.as_datetime();
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected property type: " + val.type().ToString() +
+        "Unexpected property type: " + std::to_string(val.type()) +
         "value: " + val.to_string());
   }
 }
@@ -383,7 +351,7 @@ Property RTAny::to_any() const {
   case RTAnyType::kF64Value:
     return Property::from_double(value_.f64_val);
   case RTAnyType::kStringValue:
-    return Property::from_string(std::string(value_.str_val));
+    return Property::from_string_view(value_.str_val);
   case RTAnyType::kDate:
     return Property::from_date(value_.date_val);
   case RTAnyType::kDateTime:

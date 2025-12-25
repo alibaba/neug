@@ -15,11 +15,11 @@
 
 #pragma once
 
-#include <rapidjson/document.h>
 #include <arrow/array.h>
 #include <arrow/builder.h>
-#include <vector>
+#include <rapidjson/document.h>
 #include <memory>
+#include <vector>
 
 #include "json/json_vfs_reader.h"
 #include "neug/utils/property/types.h"
@@ -30,12 +30,11 @@ namespace extension {
 class JsonStreamingState {
  public:
   JsonStreamingState(std::unique_ptr<JsonVFSReader> reader,
-                     const std::vector<PropertyType>& columnTypes);
+                     const std::vector<DataTypeId>& columnTypes);
   ~JsonStreamingState();
 
   // Read and parse the next batch of data, directly constructing Arrow Arrays
   size_t readNextBatch();
-
 
   // Complete the construction of all Arrow Arrays
   std::vector<std::shared_ptr<arrow::Array>> finishArrays();
@@ -50,14 +49,14 @@ class JsonStreamingState {
   uint8_t* findNextNewline(uint8_t* start, uint64_t size);
 
   std::unique_ptr<JsonVFSReader> reader_;
-  const std::vector<PropertyType>& columnTypes_;
+  const std::vector<DataTypeId>& columnTypes_;
 
   // buffer
   std::vector<uint8_t> buffer_;
   uint64_t bufferSize_;
   uint64_t bufferOffset_;
   bool finished_;
-  
+
   // Buffer used for reconstruction
   std::vector<uint8_t> reconstructBuffer_;
   uint64_t reconstructSize_;

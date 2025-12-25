@@ -183,9 +183,9 @@ gs::result<OpBuildResultT> DataSourceOprBuilder::Build(
     options.insert({upper_str, entry.second});
   }
   const auto& metadatas = plan.query_plan().plan(op_idx).meta_data();
-  std::vector<PropertyType> column_types;
+  std::vector<DataTypeId> column_types;
   for (const auto& metadata : metadatas) {
-    PropertyType type;
+    DataTypeId type;
     if (!gs::data_type_to_property_type(metadata.type().data_type(), type)) {
       THROW_RUNTIME_ERROR("Unrecognized data type: " +
                           metadata.type().DebugString());

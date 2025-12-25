@@ -31,11 +31,11 @@ namespace extension {
 
 struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
   std::string filePath;
-  std::vector<PropertyType> columnTypes;
+  std::vector<DataTypeId> columnTypes;
   JsonFormat format;
 
   JsonScanFuncInput(const std::string& path,
-                    const std::vector<PropertyType>& types, JsonFormat fmt)
+                    const std::vector<DataTypeId>& types, JsonFormat fmt)
       : filePath(std::move(path)), columnTypes(std::move(types)), format(fmt) {}
 };
 
@@ -74,7 +74,7 @@ struct JsonScanFunction {
  private:
   struct AutoDetectResult {
     JsonFormat format;
-    std::vector<PropertyType> detectedColumnTypes;
+    std::vector<DataTypeId> detectedColumnTypes;
     std::vector<std::string> detectedColumnNames;
   };
 
@@ -91,11 +91,11 @@ struct JsonScanFunction {
                                               uint64_t& lineCountInJson);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFileStreaming(
-      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
+      const std::string& filePath, const std::vector<DataTypeId>& columnTypes,
       common::VirtualFileSystem* vfs, JsonFormat format);
 
   static std::vector<std::shared_ptr<arrow::Array>> parseJsonFile(
-      const std::string& filePath, const std::vector<PropertyType>& columnTypes,
+      const std::string& filePath, const std::vector<DataTypeId>& columnTypes,
       common::VirtualFileSystem* vfs);
 };
 

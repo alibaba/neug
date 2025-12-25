@@ -474,11 +474,11 @@ class ASPOpr : public IOperator {
     if (!graph.GetVertexIndex(aspp_.labels[0].dst_label, oid, vid)) {
       LOG(ERROR) << "vertex not found "
                  << static_cast<int>(aspp_.labels[0].dst_label) << " "
-                 << oid.as_string();
+                 << oid.to_string();
       RETURN_UNSUPPORTED_ERROR(
           "vertex not found" +
           std::to_string(static_cast<int>(aspp_.labels[0].dst_label)) + " " +
-          std::string(oid.as_string()));
+          std::string(oid.to_string()));
     }
 
     auto v = std::make_pair(aspp_.labels[0].dst_label, vid);
@@ -512,11 +512,11 @@ class SSSDSPOpr : public IOperator {
     vid_t vid;
     if (!graph.GetVertexIndex(spp_.labels[0].dst_label, vertex, vid)) {
       LOG(ERROR) << "vertex not found" << spp_.labels[0].dst_label << " "
-                 << vertex.as_string();
+                 << vertex.to_string();
       RETURN_UNSUPPORTED_ERROR(
           "vertex not found" +
           std::to_string(static_cast<int>(spp_.labels[0].dst_label)) + " " +
-          vertex.as_string());
+          vertex.to_string());
     }
 
     auto v = std::make_pair(spp_.labels[0].dst_label, vid);

@@ -21,37 +21,37 @@
 namespace gs {
 
 bool nbr_data_eq(const char* data_ptr, const char* expected_ptr,
-                 const PropertyType& type) {
-  if (type == PropertyType::Bool()) {
+                 const DataTypeId& type) {
+  if (type == DataTypeId::kBool) {
     return *reinterpret_cast<const bool*>(data_ptr) ==
            *reinterpret_cast<const bool*>(expected_ptr);
-  } else if (type == PropertyType::Int32()) {
+  } else if (type == DataTypeId::kInt32) {
     return *reinterpret_cast<const int32_t*>(data_ptr) ==
            *reinterpret_cast<const int32_t*>(expected_ptr);
-  } else if (type == PropertyType::UInt32()) {
+  } else if (type == DataTypeId::kUInt32) {
     return *reinterpret_cast<const uint32_t*>(data_ptr) ==
            *reinterpret_cast<const uint32_t*>(expected_ptr);
-  } else if (type == PropertyType::Int64()) {
+  } else if (type == DataTypeId::kInt64) {
     return *reinterpret_cast<const int64_t*>(data_ptr) ==
            *reinterpret_cast<const int64_t*>(expected_ptr);
-  } else if (type == PropertyType::UInt64()) {
+  } else if (type == DataTypeId::kUInt64) {
     return *reinterpret_cast<const uint64_t*>(data_ptr) ==
            *reinterpret_cast<const uint64_t*>(expected_ptr);
-  } else if (type == PropertyType::Float()) {
+  } else if (type == DataTypeId::kFloat) {
     return *reinterpret_cast<const float*>(data_ptr) ==
            *reinterpret_cast<const float*>(expected_ptr);
-  } else if (type == PropertyType::Double()) {
+  } else if (type == DataTypeId::kDouble) {
     return *reinterpret_cast<const double*>(data_ptr) ==
            *reinterpret_cast<const double*>(expected_ptr);
-  } else if (type == PropertyType::Date()) {
+  } else if (type == DataTypeId::kDate) {
     return *reinterpret_cast<const Date*>(data_ptr) ==
            *reinterpret_cast<const Date*>(expected_ptr);
-  } else if (type == PropertyType::DateTime()) {
+  } else if (type == DataTypeId::kDateTime) {
     return *reinterpret_cast<const DateTime*>(data_ptr) ==
            *reinterpret_cast<const DateTime*>(expected_ptr);
   } else {
     THROW_NOT_IMPLEMENTED_EXCEPTION("Unsupported property type in nbr_data_eq" +
-                                    type.ToString());
+                                    std::to_string(type));
   }
   return false;
 }
@@ -66,7 +66,7 @@ int32_t find_exact_match_in_candidates(const std::vector<int32_t>& candidates,
                                        int32_t nbr_stride, int32_t data_offset,
                                        int32_t ts_offset,
                                        const void* expected_prop,
-                                       const PropertyType& type) {
+                                       const DataTypeId& type) {
   for (const auto& offset : candidates) {
     auto ptr = reinterpret_cast<const char*>(expected_prop);
     auto nbr_ptr = reinterpret_cast<const char*>(start_ptr) +
@@ -88,7 +88,7 @@ int32_t find_exact_match_in_candidates(const std::vector<int32_t>& candidates,
 int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
                                           vid_t expected_nbr,
                                           const void* expected_prop,
-                                          const PropertyType& type) {
+                                          const DataTypeId& type) {
   std::vector<int32_t> candidates;
   const char* start_ptr = reinterpret_cast<const char*>(nbr_list.start_ptr);
   for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
@@ -112,7 +112,7 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
 
 size_t get_offset_for_edge_record(const NbrList& nbr_list, vid_t expected_nbr,
                                   const void* expected_prop,
-                                  const PropertyType& type) {
+                                  const DataTypeId& type) {
   auto casted_ptr =
       const_cast<char*>(reinterpret_cast<const char*>(expected_prop));
   auto data_offset = nbr_list.cfg.data_offset;
@@ -155,7 +155,7 @@ size_t get_offset_for_edge_record(const NbrList& nbr_list, vid_t expected_nbr,
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
     const gs::runtime::EdgeRecord& record,
-    const std::vector<PropertyType>& props) {
+    const std::vector<DataTypeId>& props) {
   NbrList cur_nbr_list, another_nbr_list;
   vid_t src, nbr;
   if (record.dir == runtime::Direction::kOut) {
@@ -171,8 +171,7 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   }
 
   int32_t cur_offset, another_offset;
-  PropertyType e_prop_type =
-      props.size() == 1 ? props[0] : PropertyType::UInt64();
+  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
   cur_offset = gs::get_offset_for_edge_record(cur_nbr_list, nbr, record.prop,
                                               e_prop_type);
   assert(cur_offset != std::numeric_limits<int32_t>::max());
@@ -187,30 +186,30 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   }
 }
 
-int32_t search_ie_offset_with_oe_offset(
-    const GenericView& oe, const GenericView& ie, vid_t src_lid, vid_t dst_lid,
-    int32_t oe_offset, const std::vector<PropertyType>& props) {
+int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
+                                        const GenericView& ie, vid_t src_lid,
+                                        vid_t dst_lid, int32_t oe_offset,
+                                        const std::vector<DataTypeId>& props) {
   NbrList ie_nbr_list = ie.get_edges(dst_lid);
   auto oe_edges = oe.get_edges(src_lid);
   auto oe_nbr_it = oe_edges.begin();
   oe_nbr_it += oe_offset;
   assert(oe_nbr_it != oe_edges.end());
-  PropertyType e_prop_type =
-      props.size() == 1 ? props[0] : PropertyType::UInt64();
+  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
   return gs::fuzzy_search_offset_from_nbr_list(
       ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(), e_prop_type);
 }
 
-int32_t search_oe_offset_with_ie_offset(
-    const GenericView& oe, const GenericView& ie, vid_t src_lid, vid_t dst_lid,
-    int32_t ie_offset, const std::vector<PropertyType>& props) {
+int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
+                                        const GenericView& ie, vid_t src_lid,
+                                        vid_t dst_lid, int32_t ie_offset,
+                                        const std::vector<DataTypeId>& props) {
   NbrList oe_nbr_list = oe.get_edges(src_lid);
   auto ie_edges = ie.get_edges(dst_lid);
   auto ie_nbr_it = ie_edges.begin();
   ie_nbr_it += ie_offset;
   assert(ie_nbr_it != ie_edges.end());
-  PropertyType e_prop_type =
-      props.size() == 1 ? props[0] : PropertyType::UInt64();
+  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
   return gs::fuzzy_search_offset_from_nbr_list(
       oe_nbr_list, dst_lid, ie_nbr_it.get_data_ptr(), e_prop_type);
 }

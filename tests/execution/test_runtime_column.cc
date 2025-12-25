@@ -1252,10 +1252,10 @@ TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
   std::string test_path = var ? var : "/workspaces/neug/tests";
   std::string resource_path = test_path + "/execution/resources";
   std::string file_path = resource_path + "/test.csv";
-  std::vector<PropertyType> column_types;
-  column_types.emplace_back(PropertyType::Int32());
-  column_types.emplace_back(PropertyType::String());
-  column_types.emplace_back(PropertyType::Int32());
+  std::vector<DataTypeId> column_types;
+  column_types.emplace_back(DataTypeId::kInt32);
+  column_types.emplace_back(DataTypeId::kStringView);
+  column_types.emplace_back(DataTypeId::kInt32);
   std::unordered_map<std::string, std::string> options;
   options.insert({"HEADER", "TRUE"});
   options.insert({"DELIM", "|"});

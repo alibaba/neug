@@ -69,7 +69,7 @@ class TypedEmptyColumn : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  PropertyType type() const override { return PropUtils<T>::prop_type(); }
+  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
 
   void set_value(size_t index, const T& val) {}
 
@@ -96,8 +96,7 @@ class TypedEmptyColumn : public ColumnBase {
 template <>
 class TypedEmptyColumn<std::string_view> : public ColumnBase {
  public:
-  TypedEmptyColumn(
-      int32_t max_length = PropertyType::GetStringDefaultMaxLength()) {}
+  TypedEmptyColumn() {}
   ~TypedEmptyColumn() {}
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -111,7 +110,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  PropertyType type() const override { return PropertyType::kStringView; }
+  DataTypeId type() const override { return DataTypeId::kStringView; }
 
   void set_value(size_t index, const std::string_view& val) {}
 
@@ -149,73 +148,72 @@ using DoubleEmptyColumn = TypedEmptyColumn<double>;
 using StringEmptyColumn = TypedEmptyColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
-    PropertyType type, StorageStrategy strategy,
-    const std::vector<PropertyType>& sub_types) {
+    DataTypeId type, StorageStrategy strategy,
+    std::shared_ptr<ExtraTypeInfo> extra_type_info,
+    const std::vector<DataTypeId>& sub_types) {
   if (strategy == StorageStrategy::kNone) {
-    if (type == PropertyType::kBool) {
+    if (type == DataTypeId::kBool) {
       return std::make_shared<BoolEmptyColumn>();
-    } else if (type == PropertyType::kInt32) {
+    } else if (type == DataTypeId::kInt32) {
       return std::make_shared<IntEmptyColumn>();
-    } else if (type == PropertyType::kInt64) {
+    } else if (type == DataTypeId::kInt64) {
       return std::make_shared<LongEmptyColumn>();
-    } else if (type == PropertyType::kUInt32) {
+    } else if (type == DataTypeId::kUInt32) {
       return std::make_shared<UIntEmptyColumn>();
-    } else if (type == PropertyType::kUInt64) {
+    } else if (type == DataTypeId::kUInt64) {
       return std::make_shared<ULongEmptyColumn>();
-    } else if (type == PropertyType::kDouble) {
+    } else if (type == DataTypeId::kDouble) {
       return std::make_shared<DoubleEmptyColumn>();
-    } else if (type == PropertyType::kFloat) {
+    } else if (type == DataTypeId::kFloat) {
       return std::make_shared<FloatEmptyColumn>();
-    } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-      return std::make_shared<StringEmptyColumn>(
-          gs::PropertyType::GetStringDefaultMaxLength());
-    } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-      return std::make_shared<StringEmptyColumn>(
-          type.additional_type_info.max_length);
-    } else if (type == PropertyType::kDate) {
+    } else if (type == DataTypeId::kStringView) {
+      return std::make_shared<StringEmptyColumn>();
+    } else if (type == DataTypeId::kDate) {
       return std::make_shared<DateEmptyColumn>();
-    } else if (type == PropertyType::kDateTime) {
+    } else if (type == DataTypeId::kDateTime) {
       return std::make_shared<DateTimeEmptyColumn>();
-    } else if (type == PropertyType::kInterval) {
+    } else if (type == DataTypeId::kInterval) {
       return std::make_shared<IntervalEmptyColumn>();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for empty column: " +
-                                    type.ToString());
+                                    std::to_string(type));
     }
   } else {
-    if (type == PropertyType::kEmpty) {
+    if (type == DataTypeId::kEmpty) {
       return std::make_shared<TypedColumn<EmptyType>>(strategy);
-    } else if (type == PropertyType::kBool) {
+    } else if (type == DataTypeId::kBool) {
       return std::make_shared<BoolColumn>(strategy);
-    } else if (type == PropertyType::kInt32) {
+    } else if (type == DataTypeId::kInt32) {
       return std::make_shared<IntColumn>(strategy);
-    } else if (type == PropertyType::kInt64) {
+    } else if (type == DataTypeId::kInt64) {
       return std::make_shared<LongColumn>(strategy);
-    } else if (type == PropertyType::kUInt32) {
+    } else if (type == DataTypeId::kUInt32) {
       return std::make_shared<UIntColumn>(strategy);
-    } else if (type == PropertyType::kUInt64) {
+    } else if (type == DataTypeId::kUInt64) {
       return std::make_shared<ULongColumn>(strategy);
-    } else if (type == PropertyType::kDouble) {
+    } else if (type == DataTypeId::kDouble) {
       return std::make_shared<DoubleColumn>(strategy);
-    } else if (type == PropertyType::kFloat) {
+    } else if (type == DataTypeId::kFloat) {
       return std::make_shared<FloatColumn>(strategy);
-    } else if (type == PropertyType::kDate) {
+    } else if (type == DataTypeId::kDate) {
       return std::make_shared<DateColumn>(strategy);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-      // We must check is varchar first, because in implementation of
-      // PropertyType::operator==(const PropertyType& other), we string_view is
-      // equal to varchar.
-      return std::make_shared<StringColumn>(
-          strategy, type.additional_type_info.max_length);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
-      return std::make_shared<StringColumn>(strategy);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kDateTime) {
+    } else if (type == DataTypeId::kStringView) {
+      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+      if (extra_type_info) {
+        auto str_info =
+            std::dynamic_pointer_cast<StringTypeInfo>(extra_type_info);
+        if (str_info) {
+          max_length = str_info->max_length;
+        }
+      }
+      return std::make_shared<StringColumn>(strategy, max_length);
+    } else if (type == DataTypeId::kDateTime) {
       return std::make_shared<DateTimeColumn>(strategy);
-    } else if (type.type_enum == impl::PropertyTypeImpl::kInterval) {
+    } else if (type == DataTypeId::kInterval) {
       return std::make_shared<IntervalColumn>(strategy);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
-                                    type.ToString());
+                                    std::to_string(type));
     }
   }
 }
@@ -246,42 +244,42 @@ void TypedColumn<std::string_view>::set_value_safe(
 
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   auto type = column.type();
-  if (type == PropertyType::kBool) {
+  if (type == DataTypeId::kBool) {
     return std::make_shared<TypedRefColumn<bool>>(
         dynamic_cast<const TypedColumn<bool>&>(column));
-  } else if (type == PropertyType::kInt32) {
+  } else if (type == DataTypeId::kInt32) {
     return std::make_shared<TypedRefColumn<int32_t>>(
         dynamic_cast<const TypedColumn<int32_t>&>(column));
-  } else if (type == PropertyType::kInt64) {
+  } else if (type == DataTypeId::kInt64) {
     return std::make_shared<TypedRefColumn<int64_t>>(
         dynamic_cast<const TypedColumn<int64_t>&>(column));
-  } else if (type == PropertyType::kUInt32) {
+  } else if (type == DataTypeId::kUInt32) {
     return std::make_shared<TypedRefColumn<uint32_t>>(
         dynamic_cast<const TypedColumn<uint32_t>&>(column));
-  } else if (type == PropertyType::kUInt64) {
+  } else if (type == DataTypeId::kUInt64) {
     return std::make_shared<TypedRefColumn<uint64_t>>(
         dynamic_cast<const TypedColumn<uint64_t>&>(column));
-  } else if (type == PropertyType::kStringView || type.IsVarchar()) {
+  } else if (type == DataTypeId::kStringView) {
     return std::make_shared<TypedRefColumn<std::string_view>>(
         dynamic_cast<const TypedColumn<std::string_view>&>(column));
-  } else if (type == PropertyType::kFloat) {
+  } else if (type == DataTypeId::kFloat) {
     return std::make_shared<TypedRefColumn<float>>(
         dynamic_cast<const TypedColumn<float>&>(column));
-  } else if (type == PropertyType::kDouble) {
+  } else if (type == DataTypeId::kDouble) {
     return std::make_shared<TypedRefColumn<double>>(
         dynamic_cast<const TypedColumn<double>&>(column));
-  } else if (type == PropertyType::kDate) {
+  } else if (type == DataTypeId::kDate) {
     return std::make_shared<TypedRefColumn<Date>>(
         dynamic_cast<const TypedColumn<Date>&>(column));
-  } else if (type == PropertyType::kDateTime) {
+  } else if (type == DataTypeId::kDateTime) {
     return std::make_shared<TypedRefColumn<DateTime>>(
         dynamic_cast<const TypedColumn<DateTime>&>(column));
-  } else if (type == PropertyType::kInterval) {
+  } else if (type == DataTypeId::kInterval) {
     return std::make_shared<TypedRefColumn<Interval>>(
         dynamic_cast<const TypedColumn<Interval>&>(column));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
-                                  type.ToString());
+                                  std::to_string(type));
   }
 }
 

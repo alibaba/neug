@@ -20,37 +20,35 @@
 
 namespace gs {
 
-std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type) {
-  if (type == PropertyType::Bool()) {
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
+  if (type == DataTypeId::kBool) {
     return arrow::boolean();
-  } else if (type == PropertyType::Int32()) {
+  } else if (type == DataTypeId::kInt32) {
     return arrow::int32();
-  } else if (type == PropertyType::Int64()) {
+  } else if (type == DataTypeId::kInt64) {
     return arrow::int64();
-  } else if (type == PropertyType::UInt32()) {
+  } else if (type == DataTypeId::kUInt32) {
     return arrow::uint32();
-  } else if (type == PropertyType::UInt64()) {
+  } else if (type == DataTypeId::kUInt64) {
     return arrow::uint64();
-  } else if (type == PropertyType::Double()) {
+  } else if (type == DataTypeId::kDouble) {
     return arrow::float64();
-  } else if (type == PropertyType::Float()) {
+  } else if (type == DataTypeId::kFloat) {
     return arrow::float32();
-  } else if (type == PropertyType::Date()) {
+  } else if (type == DataTypeId::kDate) {
     return arrow::date32();
-  } else if (type == PropertyType::StringView()) {
+  } else if (type == DataTypeId::kStringView) {
     return arrow::large_utf8();
-  } else if (type == PropertyType::Empty()) {
+  } else if (type == DataTypeId::kEmpty) {
     return arrow::null();
-  } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-    return arrow::large_utf8();
-  } else if (type.type_enum == impl::PropertyTypeImpl::kDateTime) {
+  } else if (type == DataTypeId::kDateTime) {
     return arrow::timestamp(arrow::TimeUnit::type::MILLI);
-  } else if (type.type_enum == impl::PropertyTypeImpl::kInterval) {
+  } else if (type == DataTypeId::kInterval) {
     return arrow::large_utf8();  // Use large_utf8 for interval, use
                                  // PropUtils to handle it
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
-                                  type.ToString());
+                                  std::to_string(type));
     return nullptr;
   }
 }

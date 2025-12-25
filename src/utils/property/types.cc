@@ -39,263 +39,123 @@ namespace gs {
 
 namespace config_parsing {
 
-std::string PrimitivePropertyTypeToString(PropertyType type) {
-  if (type == PropertyType::kEmpty) {
+std::string PrimitivePropertyTypeToString(DataTypeId type) {
+  if (type == DataTypeId::kEmpty) {
     return "Empty";
-  } else if (type == PropertyType::kBool) {
+  } else if (type == DataTypeId::kBool) {
     return DT_BOOL;
-  } else if (type == PropertyType::kInt32) {
+  } else if (type == DataTypeId::kInt32) {
     return DT_SIGNED_INT32;
-  } else if (type == PropertyType::kUInt32) {
+  } else if (type == DataTypeId::kUInt32) {
     return DT_UNSIGNED_INT32;
-  } else if (type == PropertyType::kInt64) {
+  } else if (type == DataTypeId::kInt64) {
     return DT_SIGNED_INT64;
-  } else if (type == PropertyType::kUInt64) {
+  } else if (type == DataTypeId::kUInt64) {
     return DT_UNSIGNED_INT64;
-  } else if (type == PropertyType::kFloat) {
+  } else if (type == DataTypeId::kFloat) {
     return DT_FLOAT;
-  } else if (type == PropertyType::kDouble) {
+  } else if (type == DataTypeId::kDouble) {
     return DT_DOUBLE;
-  } else if (type.type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (type == DataTypeId::kStringView) {
     return DT_STRING;
-  } else if (type == PropertyType::kDate) {
+  } else if (type == DataTypeId::kDate) {
     return DT_DATE;
-  } else if (type == PropertyType::kDateTime) {
+  } else if (type == DataTypeId::kDateTime) {
     return DT_DATETIME;
-  } else if (type == PropertyType::kInterval) {
+  } else if (type == DataTypeId::kInterval) {
     return DT_INTERVAL;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown property type: " +
-                                     type.ToString());
+                                     std::to_string(type));
   }
 }
 
-PropertyType StringToPrimitivePropertyType(const std::string& str) {
+DataTypeId StringToPrimitivePropertyType(const std::string& str) {
   if (str == "int32" || str == "INT" || str == DT_SIGNED_INT32) {
-    return PropertyType::kInt32;
+    return DataTypeId::kInt32;
   } else if (str == "uint32" || str == DT_UNSIGNED_INT32) {
-    return PropertyType::kUInt32;
+    return DataTypeId::kUInt32;
   } else if (str == "bool" || str == "BOOL" || str == DT_BOOL) {
-    return PropertyType::kBool;
+    return DataTypeId::kBool;
   } else if (str == "Date" || str == DT_DATE) {
-    return PropertyType::kDate;
+    return DataTypeId::kDate;
   } else if (str == "DateTime" || str == DT_DATETIME) {
-    return PropertyType::kDateTime;
+    return DataTypeId::kDateTime;
   } else if (str == "Interval" || str == DT_INTERVAL) {
-    return PropertyType::kInterval;
+    return DataTypeId::kInterval;
   } else if (str == "Timestamp" || str == DT_TIMESTAMP) {
-    return PropertyType::kDateTime;
+    return DataTypeId::kDateTime;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
-    // DT_STRING is a alias for VARCHAR(GetStringDefaultMaxLength());
-    return PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
+    return DataTypeId::kStringView;
   } else if (str == "Empty") {
-    return PropertyType::kEmpty;
+    return DataTypeId::kEmpty;
   } else if (str == "int64" || str == "LONG" || str == DT_SIGNED_INT64) {
-    return PropertyType::kInt64;
+    return DataTypeId::kInt64;
   } else if (str == "uint64" || str == DT_UNSIGNED_INT64) {
-    return PropertyType::kUInt64;
+    return DataTypeId::kUInt64;
   } else if (str == "float" || str == "FLOAT" || str == DT_FLOAT) {
-    return PropertyType::kFloat;
+    return DataTypeId::kFloat;
   } else if (str == "double" || str == "DOUBLE" || str == DT_DOUBLE) {
-    return PropertyType::kDouble;
+    return DataTypeId::kDouble;
   } else {
-    return PropertyType::kEmpty;
+    return DataTypeId::kEmpty;
   }
 }
 
-YAML::Node TemporalTypeToYAML(PropertyType type) {
+YAML::Node TemporalTypeToYAML(DataTypeId type) {
   YAML::Node node;
-  if (type == PropertyType::kDate) {
+  if (type == DataTypeId::kDate) {
     node["date"] = "";
-  } else if (type == PropertyType::kDateTime) {
+  } else if (type == DataTypeId::kDateTime) {
     node["datetime"] = "";
-  } else if (type == PropertyType::kInterval) {
+  } else if (type == DataTypeId::kInterval) {
     node["interval"] = "";
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Unsupported temporal type for YAML encoding: " + type.ToString());
+        "Unsupported temporal type for YAML encoding: " + std::to_string(type));
   }
   return node;
 }
 
 }  // namespace config_parsing
 
-static uint16_t get_string_default_max_length_env() {
-  static uint16_t max_length = 0;
-  if (max_length == 0) {
-    char* env = std::getenv("FLEX_STRING_DEFAULT_MAX_LENGTH");
-    if (env) {
-      try {
-        max_length = static_cast<uint16_t>(std::stoi(env));
-        LOG(INFO) << "FLEX_STRING_DEFAULT_MAX_LENGTH: " << max_length;
-      } catch (std::exception& e) {
-        LOG(ERROR) << "Invalid FLEX_STRING_DEFAULT_MAX_LENGTH: " << env;
-      }
-    }
+InArchive& operator<<(InArchive& arc,
+                      const std::shared_ptr<const ExtraTypeInfo>& type_info) {
+  if (!type_info) {
+    arc << ExtraTypeInfoType::kUnSet;
+    return arc;
+  } else {
+    arc << type_info->type;
   }
-  return max_length;
-}
-
-uint16_t PropertyType::GetStringDefaultMaxLength() {
-  return get_string_default_max_length_env() > 0
-             ? get_string_default_max_length_env()
-             : PropertyType::STRING_DEFAULT_MAX_LENGTH;
-}
-
-const PropertyType PropertyType::kEmpty =
-    PropertyType(impl::PropertyTypeImpl::kEmpty);
-const PropertyType PropertyType::kBool =
-    PropertyType(impl::PropertyTypeImpl::kBool);
-const PropertyType PropertyType::kInt32 =
-    PropertyType(impl::PropertyTypeImpl::kInt32);
-const PropertyType PropertyType::kUInt32 =
-    PropertyType(impl::PropertyTypeImpl::kUInt32);
-const PropertyType PropertyType::kInt64 =
-    PropertyType(impl::PropertyTypeImpl::kInt64);
-const PropertyType PropertyType::kUInt64 =
-    PropertyType(impl::PropertyTypeImpl::kUInt64);
-const PropertyType PropertyType::kFloat =
-    PropertyType(impl::PropertyTypeImpl::kFloat);
-const PropertyType PropertyType::kDouble =
-    PropertyType(impl::PropertyTypeImpl::kDouble);
-const PropertyType PropertyType::kStringView =
-    PropertyType(impl::PropertyTypeImpl::kStringView);
-const PropertyType PropertyType::kString =
-    PropertyType(impl::PropertyTypeImpl::kString);
-const PropertyType PropertyType::kDate =
-    PropertyType(impl::PropertyTypeImpl::kDate);
-const PropertyType PropertyType::kDateTime =
-    PropertyType(impl::PropertyTypeImpl::kDateTime);
-const PropertyType PropertyType::kInterval =
-    PropertyType(impl::PropertyTypeImpl::kInterval);
-
-bool PropertyType::operator==(const PropertyType& other) const {
-  if (type_enum == impl::PropertyTypeImpl::kVarChar &&
-      other.type_enum == impl::PropertyTypeImpl::kVarChar) {
-    return additional_type_info.max_length ==
-           other.additional_type_info.max_length;
+  if (type_info->type == ExtraTypeInfoType::kStringTypeInfo) {
+    std::shared_ptr<const StringTypeInfo> string_type_info =
+        std::dynamic_pointer_cast<const StringTypeInfo>(type_info);
+    arc << string_type_info->max_length;
   }
-  if ((type_enum == impl::PropertyTypeImpl::kStringView &&
-       other.type_enum == impl::PropertyTypeImpl::kVarChar) ||
-      (type_enum == impl::PropertyTypeImpl::kVarChar &&
-       other.type_enum == impl::PropertyTypeImpl::kStringView)) {
-    return true;
+  return arc;
+}
+OutArchive& operator>>(OutArchive& arc,
+                       std::shared_ptr<ExtraTypeInfo>& type_info) {
+  assert(type_info == nullptr);
+  ExtraTypeInfoType type;
+  arc >> type;
+  if (type == ExtraTypeInfoType::kStringTypeInfo) {
+    type_info = std::make_shared<StringTypeInfo>();
+    StringTypeInfo& string_type_info =
+        dynamic_cast<StringTypeInfo&>(*type_info);
+    arc >> string_type_info.max_length;
   }
-  if ((type_enum == impl::PropertyTypeImpl::kString &&
-       (other.type_enum == impl::PropertyTypeImpl::kStringView ||
-        other.type_enum == impl::PropertyTypeImpl::kVarChar)) ||
-      (other.type_enum == impl::PropertyTypeImpl::kString &&
-       (type_enum == impl::PropertyTypeImpl::kStringView ||
-        type_enum == impl::PropertyTypeImpl::kVarChar))) {
-    return true;
-  }
-  return type_enum == other.type_enum;
+  return arc;
 }
 
-bool PropertyType::operator!=(const PropertyType& other) const {
-  return !(*this == other);
-}
-
-bool PropertyType::IsVarchar() const {
-  return type_enum == impl::PropertyTypeImpl::kVarChar;
-}
-
-std::string PropertyType::ToString() const {
-  switch (type_enum) {
-  case impl::PropertyTypeImpl::kEmpty:
-    return "Empty";
-  case impl::PropertyTypeImpl::kBool:
-    return "Bool";
-  case impl::PropertyTypeImpl::kInt32:
-    return "Int32";
-  case impl::PropertyTypeImpl::kUInt32:
-    return "UInt32";
-  case impl::PropertyTypeImpl::kInt64:
-    return "Int64";
-  case impl::PropertyTypeImpl::kUInt64:
-    return "UInt64";
-  case impl::PropertyTypeImpl::kFloat:
-    return "Float";
-  case impl::PropertyTypeImpl::kDouble:
-    return "Double";
-  case impl::PropertyTypeImpl::kVarChar:
-    return "VarChar";
-  case impl::PropertyTypeImpl::kString:
-    return "String";
-  case impl::PropertyTypeImpl::kStringView:
-    return "StringView";
-  case impl::PropertyTypeImpl::kDate:
-    return "Date";
-  case impl::PropertyTypeImpl::kDateTime:
-    return "DateTime";
-  case impl::PropertyTypeImpl::kInterval:
-    return "Interval";
-  default:
-    return "Unknown";
-  }
-}
-
-/////////////////////////////// Get Type Instance
-//////////////////////////////////
-PropertyType PropertyType::Empty() {
-  return PropertyType(impl::PropertyTypeImpl::kEmpty);
-}
-PropertyType PropertyType::Bool() {
-  return PropertyType(impl::PropertyTypeImpl::kBool);
-}
-PropertyType PropertyType::Int32() {
-  return PropertyType(impl::PropertyTypeImpl::kInt32);
-}
-PropertyType PropertyType::UInt32() {
-  return PropertyType(impl::PropertyTypeImpl::kUInt32);
-}
-PropertyType PropertyType::Int64() {
-  return PropertyType(impl::PropertyTypeImpl::kInt64);
-}
-PropertyType PropertyType::UInt64() {
-  return PropertyType(impl::PropertyTypeImpl::kUInt64);
-}
-PropertyType PropertyType::Float() {
-  return PropertyType(impl::PropertyTypeImpl::kFloat);
-}
-PropertyType PropertyType::Double() {
-  return PropertyType(impl::PropertyTypeImpl::kDouble);
-}
-PropertyType PropertyType::String() {
-  return PropertyType(impl::PropertyTypeImpl::kString);
-}
-PropertyType PropertyType::StringView() {
-  return PropertyType(impl::PropertyTypeImpl::kStringView);
-}
-
-PropertyType PropertyType::Varchar(uint16_t max_length) {
-  return PropertyType(impl::PropertyTypeImpl::kVarChar, max_length);
-}
-
-PropertyType PropertyType::Date() {
-  return PropertyType(impl::PropertyTypeImpl::kDate);
-}
-
-PropertyType PropertyType::DateTime() {
-  return PropertyType(impl::PropertyTypeImpl::kDateTime);
-}
-
-PropertyType PropertyType::Interval() {
-  return PropertyType(impl::PropertyTypeImpl::kInterval);
-}
-
-InArchive& operator<<(InArchive& in_archive, const PropertyType& value) {
-  in_archive << value.type_enum;
-  if (value.type_enum == impl::PropertyTypeImpl::kVarChar) {
-    in_archive << value.additional_type_info.max_length;
-  }
+InArchive& operator<<(InArchive& in_archive, const DataTypeId& value) {
+  in_archive << static_cast<int32_t>(value);
   return in_archive;
 }
-OutArchive& operator>>(OutArchive& out_archive, PropertyType& value) {
-  out_archive >> value.type_enum;
-  if (value.type_enum == impl::PropertyTypeImpl::kVarChar) {
-    out_archive >> value.additional_type_info.max_length;
-  }
+OutArchive& operator>>(OutArchive& out_archive, DataTypeId& value) {
+  int32_t tmp;
+  out_archive >> tmp;
+  value = static_cast<DataTypeId>(tmp);
   return out_archive;
 }
 
@@ -305,15 +165,6 @@ InArchive& operator<<(InArchive& in_archive, const GlobalId& value) {
 }
 OutArchive& operator>>(OutArchive& out_archive, GlobalId& value) {
   out_archive >> value.global_id;
-  return out_archive;
-}
-
-InArchive& operator<<(InArchive& in_archive, const LabelKey& value) {
-  in_archive << value.label_id;
-  return in_archive;
-}
-OutArchive& operator>>(OutArchive& out_archive, LabelKey& value) {
-  out_archive >> value.label_id;
   return out_archive;
 }
 
@@ -785,3 +636,50 @@ int64_t Interval::to_mill_seconds() const {
 }
 
 }  // namespace gs
+
+namespace std {
+
+std::string to_string(gs::DataTypeId type) {
+  switch (type) {
+  case gs::DataTypeId::kEmpty: {
+    return "Empty";
+  }
+  case gs::DataTypeId::kBool: {
+    return "Bool";
+  }
+  case gs::DataTypeId::kInt32: {
+    return "Int32";
+  }
+  case gs::DataTypeId::kUInt32: {
+    return "UInt32";
+  }
+  case gs::DataTypeId::kInt64: {
+    return "Int64";
+  }
+  case gs::DataTypeId::kUInt64: {
+    return "UInt64";
+  }
+  case gs::DataTypeId::kFloat: {
+    return "Float";
+  }
+  case gs::DataTypeId::kDouble: {
+    return "Double";
+  }
+  case gs::DataTypeId::kStringView: {
+    return "StringView";
+  }
+  case gs::DataTypeId::kDate: {
+    return "Date";
+  }
+  case gs::DataTypeId::kDateTime: {
+    return "DateTime";
+  }
+  case gs::DataTypeId::kInterval: {
+    return "Interval";
+  }
+  default: {
+    return "Unknown";
+  }
+  }
+}
+}  // namespace std

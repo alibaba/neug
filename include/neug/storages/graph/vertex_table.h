@@ -181,8 +181,9 @@ class VertexTable {
 
   void AddProperties(
       const std::vector<std::string>& property_names,
-      const std::vector<PropertyType>& property_types,
-      const std::vector<StorageStrategy>& storage_strategies = {});
+      const std::vector<DataTypeId>& property_types,
+      const std::vector<StorageStrategy>& storage_strategies = {},
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -238,8 +239,7 @@ class VertexTable {
         auto casted_array =
             std::static_pointer_cast<arrow::StringArray>(primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid =
-              Property::from_string(std::string(casted_array->GetView(j)));
+          auto oid = Property::from_string_view(casted_array->GetView(j));
           if (indexer_.get_index(oid, vids[j])) {
             if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();
@@ -254,8 +254,7 @@ class VertexTable {
         auto casted_array = std::static_pointer_cast<arrow::LargeStringArray>(
             primary_key_column);
         for (size_t j = 0; j < row_num; ++j) {
-          auto oid =
-              Property::from_string(std::string(casted_array->GetView(j)));
+          auto oid = Property::from_string_view(casted_array->GetView(j));
           if (indexer_.get_index(oid, vids[j])) {
             if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vids[j], MAX_TIMESTAMP))) {
               vids[j] = std::numeric_limits<vid_t>::max();
@@ -310,7 +309,7 @@ class VertexTable {
 
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
-  PropertyType pk_type_;
+  DataTypeId pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
   VertexTimestamp v_ts_;
   int memory_level_;

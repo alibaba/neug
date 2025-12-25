@@ -44,11 +44,11 @@ class VertexTableTest : public ::testing::Test {
     std::filesystem::create_directories(dir_);
 
     v_label_name_ = "person";
-    pk_type_ = gs::PropertyType::kInt64;
+    pk_type_ = gs::DataTypeId::kInt64;
     property_names_ = {"name", "age", "score"};
-    property_types_ = {gs::PropertyType::kStringView, gs::PropertyType::kInt32,
-                       gs::PropertyType::kDouble};
-    property_values_ = {gs::Property::from_string("Alice"),
+    property_types_ = {gs::DataTypeId::kStringView, gs::DataTypeId::kInt32,
+                       gs::DataTypeId::kDouble};
+    property_values_ = {gs::Property::from_string_view("Alice"),
                         gs::Property::from_int32(30),
                         gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
@@ -56,7 +56,7 @@ class VertexTableTest : public ::testing::Test {
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
                            {std::make_tuple(pk_type_, "id", 0)},
-                           storage_strategies_, 4096, "");
+                           storage_strategies_, {}, 4096, "");
     v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
   }
   void TearDown() override {
@@ -94,9 +94,9 @@ class VertexTableTest : public ::testing::Test {
   std::string dir_;
   int32_t memory_level_;
   std::string v_label_name_;
-  gs::PropertyType pk_type_;
+  gs::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
-  std::vector<gs::PropertyType> property_types_;
+  std::vector<gs::DataTypeId> property_types_;
   std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
   std::mt19937 generator_;

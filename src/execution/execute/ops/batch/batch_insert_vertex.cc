@@ -37,7 +37,7 @@ namespace ops {
 class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
-      const label_t& vertex_label_id, const PropertyType& pk_type,
+      const label_t& vertex_label_id, const DataTypeId& pk_type,
       const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
       : vertex_label_id_(vertex_label_id),
         pk_type_(pk_type),
@@ -53,7 +53,7 @@ class BatchInsertVertexOpr : public IOperator {
 
  private:
   label_t vertex_label_id_;
-  PropertyType pk_type_;
+  DataTypeId pk_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 

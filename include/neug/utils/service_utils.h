@@ -101,33 +101,26 @@ inline std::string toUpper(const std::string str) {
 }
 
 // With the help of the following functions, we can serialize and deserialize
-// by json.get<PropertyType>() and operator <</operator =;
+// by json.get<DataTypeId>() and operator <</operator =;
 // These two functions are inlined to avoid linking library in codegen.
-inline bool to_json(rapidjson::Document& j, const PropertyType& p) {
-  if (p == PropertyType::Empty()) {
+inline bool to_json(rapidjson::Document& j, const DataTypeId& p) {
+  if (p == DataTypeId::kEmpty) {
     j.AddMember("empty", "empty", j.GetAllocator());
-  } else if (p == PropertyType::Bool() || p == PropertyType::Int32() ||
-             p == PropertyType::UInt32() || p == PropertyType::Float() ||
-             p == PropertyType::Int64() || p == PropertyType::UInt64() ||
-             p == PropertyType::Double()) {
+  } else if (p == DataTypeId::kBool || p == DataTypeId::kInt32 ||
+             p == DataTypeId::kUInt32 || p == DataTypeId::kFloat ||
+             p == DataTypeId::kInt64 || p == DataTypeId::kUInt64 ||
+             p == DataTypeId::kDouble) {
     j.AddMember("primitive_type",
                 gs::config_parsing::PrimitivePropertyTypeToString(p),
                 j.GetAllocator());
-  } else if (p == PropertyType::Date()) {
+  } else if (p == DataTypeId::kDate) {
     rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
     temporal.AddMember("timestamp", "", j.GetAllocator());
     j.AddMember("temporal", temporal, j.GetAllocator());
-  } else if (p.type_enum == impl::PropertyTypeImpl::kString) {
+  } else if (p == DataTypeId::kStringView) {
     rapidjson::Document long_text(rapidjson::kObjectType, &j.GetAllocator());
     long_text.AddMember("long_text", "", j.GetAllocator());
     j.AddMember("string", long_text, j.GetAllocator());
-  } else if (p.IsVarchar()) {
-    rapidjson::Document string(rapidjson::kObjectType, &j.GetAllocator());
-    rapidjson::Document var_char(rapidjson::kObjectType, &j.GetAllocator());
-    var_char.AddMember("max_length", p.additional_type_info.max_length,
-                       j.GetAllocator());
-    string.AddMember("var_char", var_char, j.GetAllocator());
-    j.AddMember("string", string, j.GetAllocator());
   } else {
     LOG(ERROR) << "Unknown property type";
     return false;
@@ -136,7 +129,7 @@ inline bool to_json(rapidjson::Document& j, const PropertyType& p) {
 }
 
 inline rapidjson::Document to_json(
-    const PropertyType& p,
+    const DataTypeId& p,
     rapidjson::Document::AllocatorType* allocator = nullptr) {
   rapidjson::Document j;
   if (allocator) {
@@ -145,25 +138,18 @@ inline rapidjson::Document to_json(
     j = rapidjson::Document(rapidjson::kObjectType);
   }
   if (!to_json(j, p)) {
-    LOG(ERROR) << "Failed to convert PropertyType to json";
+    LOG(ERROR) << "Failed to convert DataTypeId to json";
   }
   return j;
 }
 
-inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
+inline bool from_json(const rapidjson::Value& j, DataTypeId& p) {
   if (j.HasMember("primitive_type")) {
     p = config_parsing::StringToPrimitivePropertyType(
         j["primitive_type"].GetString());
   } else if (j.HasMember("string")) {
     if (j["string"].HasMember("long_text")) {
-      p = PropertyType::String();
-    } else if (j.HasMember("string") && j["string"].HasMember("var_char")) {
-      if (j["string"]["var_char"].HasMember("max_length")) {
-        p = PropertyType::Varchar(
-            j["string"]["var_char"]["max_length"].GetInt());
-      } else {
-        p = PropertyType::Varchar(PropertyType::GetStringDefaultMaxLength());
-      }
+      p = DataTypeId::kStringView;
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unknown string type: " +
                                        rapidjson_stringify(j));
@@ -171,13 +157,14 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
   } else if (j.HasMember("temporal")) {
     if (j["temporal"].HasMember("timestamp") ||
         j["temporal"].HasMember("datetime")) {
-      p = PropertyType::DateTime();
+      p = DataTypeId::kDateTime;
     } else if (j["temporal"].HasMember("date")) {
-      p = PropertyType::Date();
+      p = DataTypeId::kDate;
+      ;
     } else if (j["temporal"].HasMember("interval")) {
-      p = PropertyType::Interval();
+      p = DataTypeId::kInterval;
     } else if (j["temporal"].HasMember("timestamp")) {
-      p = PropertyType::DateTime();
+      p = DataTypeId::kDateTime;
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unknown temporal type: " +
                                        rapidjson_stringify(j));
@@ -189,10 +176,10 @@ inline bool from_json(const rapidjson::Value& j, PropertyType& p) {
   return true;
 }
 
-inline PropertyType from_json(const rapidjson::Value& j) {
-  PropertyType p;
+inline DataTypeId from_json(const rapidjson::Value& j) {
+  DataTypeId p;
   if (!from_json(j, p)) {
-    LOG(ERROR) << "Failed to convert json to PropertyType";
+    LOG(ERROR) << "Failed to convert json to DataTypeId";
   }
   return p;
 }

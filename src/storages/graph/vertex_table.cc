@@ -34,20 +34,23 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
                  vertex_schema_->property_names, vertex_schema_->property_types,
-                 vertex_schema_->storage_strategies);
+                 vertex_schema_->storage_strategies,
+                 vertex_schema_->property_extra_infos);
   } else if (memory_level_ == 1) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types,
-                           vertex_schema_->storage_strategies);
+                           vertex_schema_->storage_strategies,
+                           vertex_schema_->property_extra_infos);
   } else if (memory_level_ >= 2) {
     indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
                                  (memory_level_ > 2));
     table_->open_with_hugepages(
         vertex_table_prefix(label_name), work_dir_,
         vertex_schema_->property_names, vertex_schema_->property_types,
-        vertex_schema_->storage_strategies, (memory_level_ > 2));
+        vertex_schema_->storage_strategies,
+        vertex_schema_->property_extra_infos, (memory_level_ > 2));
   } else {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
                              std::to_string(memory_level_));
@@ -57,16 +60,15 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IRecordBatchSupplier> supplier) {
-  if (pk_type_ == PropertyType::kInt64) {
+  if (pk_type_ == DataTypeId::kInt64) {
     insert_vertices_impl<int64_t>(supplier);
-  } else if (pk_type_ == PropertyType::kInt32) {
+  } else if (pk_type_ == DataTypeId::kInt32) {
     insert_vertices_impl<int32_t>(supplier);
-  } else if (pk_type_ == PropertyType::kUInt32) {
+  } else if (pk_type_ == DataTypeId::kUInt32) {
     insert_vertices_impl<uint32_t>(supplier);
-  } else if (pk_type_ == PropertyType::kUInt64) {
+  } else if (pk_type_ == DataTypeId::kUInt64) {
     insert_vertices_impl<uint64_t>(supplier);
-  } else if (pk_type_.type_enum == impl::PropertyTypeImpl::kVarChar ||
-             pk_type_.type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (pk_type_ == DataTypeId::kStringView) {
     insert_vertices_impl<std::string_view>(supplier);
   } else {
     LOG(FATAL) << "Unsupported primary key type for vertex, type: " << pk_type_
@@ -241,9 +243,11 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
 
 void VertexTable::AddProperties(
     const std::vector<std::string>& properties,
-    const std::vector<PropertyType>& types,
-    const std::vector<StorageStrategy>& strategies) {
-  table_->add_columns(properties, types, memory_level_);
+    const std::vector<DataTypeId>& types,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
+  table_->add_columns(properties, types, strategies, extra_type_infos,
+                      memory_level_);
 }
 
 void VertexTable::Drop() {

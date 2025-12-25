@@ -223,11 +223,11 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
 }
 
 inline bool parse_edge_type(const Schema& schema, const LabelTriplet& label,
-                            PropertyType& ep) {
+                            DataTypeId& ep) {
   auto properties0 = schema.get_edge_properties(
       label.src_label, label.dst_label, label.edge_label);
   if (properties0.empty()) {
-    ep = PropertyType::Empty();
+    ep = DataTypeId::kEmpty;
     return true;
   } else {
     if (1 == properties0.size()) {
@@ -242,14 +242,14 @@ std::unique_ptr<IOperator> make_tc_opr(
     const physical::EdgeExpand& ee_opr0, const physical::EdgeExpand& ee_opr1,
     const physical::EdgeExpand& ee_opr2, const LabelTriplet& label0,
     const LabelTriplet& label1, const LabelTriplet& label2,
-    const std::array<PropertyType, 3>& eps, int alias1, int alias2) {
-  if (eps[0] == PropertyType::DateTime()) {
+    const std::array<DataTypeId, 3>& eps, int alias1, int alias2) {
+  if (eps[0] == DataTypeId::kDateTime) {
     return std::make_unique<TCOpr<DateTime>>(ee_opr0, ee_opr1, ee_opr2, label0,
                                              label1, label2, alias1, alias2);
-  } else if (eps[0] == PropertyType::Int64()) {
+  } else if (eps[0] == DataTypeId::kInt64) {
     return std::make_unique<TCOpr<int64_t>>(ee_opr0, ee_opr1, ee_opr2, label0,
                                             label1, label2, alias1, alias2);
-  } else if (eps[0] == PropertyType::Int32()) {
+  } else if (eps[0] == DataTypeId::kInt32) {
     return std::make_unique<TCOpr<int32_t>>(ee_opr0, ee_opr1, ee_opr2, label0,
                                             label1, label2, alias1, alias2);
   }
@@ -276,7 +276,7 @@ gs::result<OpBuildResultT> TCOprBuilder::Build(
     if (labels0.size() != 1 || labels1.size() != 1 || labels2.size() != 1) {
       return std::make_pair(nullptr, ContextMeta());
     }
-    std::array<PropertyType, 3> eps;
+    std::array<DataTypeId, 3> eps;
     if (!parse_edge_type(schema, labels0[0], eps[0]) ||
         !parse_edge_type(schema, labels1[0], eps[1]) ||
         !parse_edge_type(schema, labels2[0], eps[2])) {

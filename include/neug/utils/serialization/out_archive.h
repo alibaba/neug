@@ -157,12 +157,11 @@ inline OutArchive& operator>>(OutArchive& out_archive, std::vector<T>& vec) {
   return out_archive;
 }
 
-template <typename T0, typename T1, typename T2>
+template <typename... Args>
 inline OutArchive& operator>>(OutArchive& out_archive,
-                              std::tuple<T0, T1, T2>& tup) {
-  out_archive >> std::get<0>(tup);
-  out_archive >> std::get<1>(tup);
-  out_archive >> std::get<2>(tup);
+                              std::tuple<Args...>& tup) {
+  std::apply([&out_archive](Args&... args) { (out_archive >> ... >> args); },
+             tup);
   return out_archive;
 }
 

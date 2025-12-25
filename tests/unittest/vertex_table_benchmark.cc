@@ -41,22 +41,22 @@ class VertexTableBenchmark : public ::testing::Test {
 
     // Setup vertex table with three properties
     v_label_name_ = "person";
-    pk_type_ = gs::PropertyType::kInt64;
+    pk_type_ = gs::DataTypeId::kInt64;
 
     property_names_ = {"name", "age", "score"};
-    property_types_ = {gs::PropertyType::kStringView, gs::PropertyType::kInt32,
-                       gs::PropertyType::kDouble};
-    property_values_ = {gs::Property::from_string("Alice"),
+    property_types_ = {gs::DataTypeId::kStringView, gs::DataTypeId::kInt32,
+                       gs::DataTypeId::kDouble};
+    property_values_ = {gs::Property::from_string_view("Alice"),
                         gs::Property::from_int32(30),
                         gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
-    pk_types_ = {{gs::PropertyType::kStringView, "name", 0}};
+    pk_types_ = {{gs::DataTypeId::kStringView, "name", 0}};
+    property_extra_infos_ = {};
     description = "Person vertex label";
     v_schema_ = std::make_shared<gs::VertexSchema>(
         v_label_name_, property_types_, property_names_, pk_types_,
-        storage_strategies_, description);
-
+        storage_strategies_, property_extra_infos_, description);
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
   }
@@ -159,13 +159,14 @@ class VertexTableBenchmark : public ::testing::Test {
  protected:
   std::string test_dir_;
   std::string v_label_name_;
-  gs::PropertyType pk_type_;
+  gs::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
-  std::vector<gs::PropertyType> property_types_;
+  std::vector<gs::DataTypeId> property_types_;
   std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
   std::shared_ptr<gs::VertexSchema> v_schema_;
-  std::vector<std::tuple<gs::PropertyType, std::string, size_t>> pk_types_;
+  std::vector<std::tuple<gs::DataTypeId, std::string, size_t>> pk_types_;
+  std::vector<std::shared_ptr<gs::ExtraTypeInfo>> property_extra_infos_;
   std::string description;
   std::mt19937 generator_;
 };

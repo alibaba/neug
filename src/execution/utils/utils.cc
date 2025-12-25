@@ -186,7 +186,7 @@ bool vertex_property_topN(bool asc, size_t limit,
                           const StorageReadInterface& graph,
                           const std::string& prop_name,
                           std::vector<size_t>& offsets) {
-  std::vector<PropertyType> prop_types;
+  std::vector<DataTypeId> prop_types;
   const auto& labels = col->get_labels_set();
   for (auto l : labels) {
     const auto& prop_names = graph.schema().get_vertex_property_names(l);
@@ -207,19 +207,19 @@ bool vertex_property_topN(bool asc, size_t limit,
       return false;
     }
   }
-  if (prop_types[0] == PropertyType::Date()) {
+  if (prop_types[0] == DataTypeId::kDate) {
     return vertex_property_topN_impl<Date>(asc, limit, col, graph, prop_name,
                                            offsets);
-  } else if (prop_types[0] == PropertyType::Int32()) {
+  } else if (prop_types[0] == DataTypeId::kInt32) {
     return vertex_property_topN_impl<int>(asc, limit, col, graph, prop_name,
                                           offsets);
-  } else if (prop_types[0] == PropertyType::Int64()) {
+  } else if (prop_types[0] == DataTypeId::kInt64) {
     return vertex_property_topN_impl<int64_t>(asc, limit, col, graph, prop_name,
                                               offsets);
-  } else if (prop_types[0] == PropertyType::String()) {
+  } else if (prop_types[0] == DataTypeId::kStringView) {
     return vertex_property_topN_impl<std::string_view>(asc, limit, col, graph,
                                                        prop_name, offsets);
-  } else if (prop_types[0] == PropertyType::DateTime()) {
+  } else if (prop_types[0] == DataTypeId::kDateTime) {
     return vertex_property_topN_impl<DateTime>(asc, limit, col, graph,
                                                prop_name, offsets);
   } else {

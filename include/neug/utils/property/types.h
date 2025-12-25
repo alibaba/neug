@@ -83,6 +83,7 @@ static constexpr const char* DT_INTERVAL =
     "DT_INTERVAL";  // Y Year, M Month, D Day, H Hour, M Minute, S Second
 static constexpr const char* DT_TIMESTAMP =
     "DT_TIMESTAMP";  // millisecond timestamp
+static constexpr const uint16_t STRING_DEFAULT_MAX_LENGTH = 256;
 
 enum class StorageStrategy {
   kNone,
@@ -96,9 +97,7 @@ enum class EdgeStrategy {
   kMultiple,
 };
 
-namespace impl {
-
-enum class PropertyTypeImpl {
+enum class DataTypeId : uint8_t {
   // Numeric types
   kEmpty,
   kBool,
@@ -106,93 +105,44 @@ enum class PropertyTypeImpl {
   kUInt32,
   kInt64,
   kUInt64,
-  // floating point types
   kFloat,
   kDouble,
-  // string types
+
+  // String type
   kStringView,
-  kVarChar,  // TODO(zhanglei): Not implemented for Property now.
-  kString,   // holding a string
 
   // temporal types
   kDate,
   kDateTime,
-  // kDay,
   kInterval,
 };
 
-// Stores additional type information for PropertyTypeImpl
-union AdditionalTypeInfo {
-  uint16_t max_length;  // for varchar
+enum class ExtraTypeInfoType {
+  kUnSet,
+  kStringTypeInfo,
 };
-}  // namespace impl
 
-struct PropertyType {
- private:
-  static constexpr const uint16_t STRING_DEFAULT_MAX_LENGTH = 256;
+struct ExtraTypeInfo {
+  ExtraTypeInfoType type;
+  ExtraTypeInfo() : type(ExtraTypeInfoType::kUnSet) {}
+  virtual ~ExtraTypeInfo() = default;
+  explicit ExtraTypeInfo(ExtraTypeInfoType t) : type(t) {}
+};
 
- public:
-  static uint16_t GetStringDefaultMaxLength();
-  impl::PropertyTypeImpl type_enum;
-  impl::AdditionalTypeInfo additional_type_info;
-
-  constexpr PropertyType()
-      : type_enum(impl::PropertyTypeImpl::kEmpty), additional_type_info() {}
-  explicit constexpr PropertyType(impl::PropertyTypeImpl type)
-      : type_enum(type), additional_type_info() {}
-  constexpr PropertyType(impl::PropertyTypeImpl type, uint16_t max_length)
-      : type_enum(type), additional_type_info() {
-    assert(type == impl::PropertyTypeImpl::kVarChar);
-    additional_type_info.max_length = max_length;
-  }
-
-  bool IsVarchar() const;
-  std::string ToString() const;
-
-  static PropertyType Empty();
-  static PropertyType Bool();
-  static PropertyType Int32();
-  static PropertyType UInt32();
-  static PropertyType Int64();
-  static PropertyType UInt64();
-  static PropertyType Float();
-  static PropertyType Double();
-
-  static PropertyType StringView();
-  static PropertyType String();
-  static PropertyType Varchar(uint16_t max_length);
-
-  static PropertyType Date();
-  static PropertyType DateTime();
-  static PropertyType Interval();
-
-  static const PropertyType kEmpty;
-  static const PropertyType kBool;
-  static const PropertyType kInt32;
-  static const PropertyType kUInt32;
-  static const PropertyType kInt64;
-  static const PropertyType kUInt64;
-  static const PropertyType kFloat;
-  static const PropertyType kDouble;
-
-  static const PropertyType kStringView;
-  static const PropertyType kString;
-  static const PropertyType kVertexGlobalId;
-  static const PropertyType kLabel;
-
-  static const PropertyType kDate;
-  static const PropertyType kDateTime;
-  static const PropertyType kInterval;
-
-  bool operator==(const PropertyType& other) const;
-  bool operator!=(const PropertyType& other) const;
+struct StringTypeInfo : public ExtraTypeInfo {
+  size_t max_length;
+  StringTypeInfo()
+      : ExtraTypeInfo(ExtraTypeInfoType::kStringTypeInfo),
+        max_length(STRING_DEFAULT_MAX_LENGTH) {}
+  explicit StringTypeInfo(size_t length)
+      : ExtraTypeInfo(ExtraTypeInfoType::kStringTypeInfo), max_length(length) {}
 };
 
 namespace config_parsing {
-std::string PrimitivePropertyTypeToString(PropertyType type);
-PropertyType StringToPrimitivePropertyType(const std::string& str);
+std::string PrimitivePropertyTypeToString(DataTypeId type);
+DataTypeId StringToPrimitivePropertyType(const std::string& str);
 
-YAML::Node TemporalTypeToYAML(PropertyType type);
+YAML::Node TemporalTypeToYAML(DataTypeId type);
 
 }  // namespace config_parsing
 
@@ -504,83 +454,18 @@ struct DateTime {
   int64_t milli_second;
 };
 
-struct LabelKey {
-  using label_data_type = uint8_t;
-  int32_t label_id;
-  LabelKey() = default;
-  explicit LabelKey(label_data_type id) : label_id(id) {}
-};
-
 class Table;
-struct Any;
-
-struct StringPtr {
-  StringPtr() : ptr(nullptr) {}
-  explicit StringPtr(const std::string& str) : ptr(new std::string(str)) {}
-  StringPtr(const StringPtr& other) {
-    if (other.ptr) {
-      ptr = new std::string(*other.ptr);
-    } else {
-      ptr = nullptr;
-    }
-  }
-  StringPtr(StringPtr&& other) : ptr(other.ptr) { other.ptr = nullptr; }
-  StringPtr& operator=(const StringPtr& other) {
-    if (this == &other) {
-      return *this;
-    }
-    if (ptr) {
-      delete ptr;
-    }
-    if (other.ptr) {
-      ptr = new std::string(*other.ptr);
-    } else {
-      ptr = nullptr;
-    }
-    return *this;
-  }
-  ~StringPtr() {
-    if (ptr) {
-      delete ptr;
-    }
-  }
-  // return string_view
-  std::string_view operator*() const {
-    return std::string_view((*ptr).data(), (*ptr).size());
-  }
-  std::string* ptr;
-};
-union AnyValue {
-  AnyValue() {}
-  ~AnyValue() {}
-
-  bool b;
-  int32_t i;
-  uint32_t ui;
-  float f;
-  int64_t l;
-  uint64_t ul;
-  GlobalId vertex_gid;
-  LabelKey label_key;
-
-  std::string_view s;
-  double db;
-  uint8_t u8;
-  uint16_t u16;
-
-  // temporal types
-  Date d;
-  DateTime dt;
-  Interval interval;
-
-  StringPtr s_ptr;
-};
 
 class InArchive;
 class OutArchive;
 
-InArchive& operator<<(InArchive& in_archive, const PropertyType& value);
-OutArchive& operator>>(OutArchive& out_archive, PropertyType& value);
+InArchive& operator<<(InArchive& arc,
+                      const std::shared_ptr<const ExtraTypeInfo>& type_info);
+OutArchive& operator>>(OutArchive& arc,
+                       std::shared_ptr<ExtraTypeInfo>& type_info);
+
+InArchive& operator<<(InArchive& in_archive, const DataTypeId& value);
+OutArchive& operator>>(OutArchive& out_archive, DataTypeId& value);
 
 InArchive& operator<<(InArchive& in_archive, const GlobalId& value);
 OutArchive& operator>>(OutArchive& out_archive, GlobalId& value);
@@ -604,6 +489,8 @@ static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
 }  // namespace gs
 
 namespace std {
+
+std::string to_string(gs::DataTypeId type);
 
 inline ostream& operator<<(ostream& os, const gs::EdgeStrategy& strategy) {
   switch (strategy) {
@@ -637,36 +524,8 @@ inline ostream& operator<<(ostream& os, const gs::Interval& interval) {
   return os;
 }
 
-inline ostream& operator<<(ostream& os, gs::PropertyType pt) {
-  if (pt == gs::PropertyType::Bool()) {
-    os << "bool";
-  } else if (pt == gs::PropertyType::Empty()) {
-    os << "empty";
-  } else if (pt == gs::PropertyType::Int32()) {
-    os << "int32";
-  } else if (pt == gs::PropertyType::UInt32()) {
-    os << "uint32";
-  } else if (pt == gs::PropertyType::Float()) {
-    os << "float";
-  } else if (pt == gs::PropertyType::Int64()) {
-    os << "int64";
-  } else if (pt == gs::PropertyType::UInt64()) {
-    os << "uint64";
-  } else if (pt == gs::PropertyType::Double()) {
-    os << "double";
-  } else if (pt == gs::PropertyType::StringView()) {
-    os << "string";
-  } else if (pt.type_enum == gs::impl::PropertyTypeImpl::kVarChar) {
-    os << "varchar(" << pt.additional_type_info.max_length << ")";
-  } else if (pt == gs::PropertyType::Date()) {
-    os << "date";
-  } else if (pt == gs::PropertyType::DateTime()) {
-    os << "datetime";
-  } else if (pt == gs::PropertyType::Interval()) {
-    os << "interval";
-  } else {
-    os << "unknown";
-  }
+inline ostream& operator<<(ostream& os, gs::DataTypeId pt) {
+  os << std::to_string(pt);
   return os;
 }
 
@@ -695,25 +554,56 @@ struct hash<gs::GlobalId> {
 }  // namespace std
 
 namespace YAML {
+
 template <>
-struct convert<gs::PropertyType> {
+struct convert<std::shared_ptr<gs::ExtraTypeInfo>> {
+  static Node encode(const std::shared_ptr<gs::ExtraTypeInfo>& type) {
+    YAML::Node node;
+    if (type->type == gs::ExtraTypeInfoType::kStringTypeInfo) {
+      auto string_type_info =
+          std::dynamic_pointer_cast<gs::StringTypeInfo>(type);
+      if (!string_type_info) {
+        THROW_INTERNAL_EXCEPTION("Failed to cast to StringTypeInfo");
+      }
+      node["string"]["varchar"]["max_length"] = string_type_info->max_length;
+    }
+    return node;
+  }
+
+  static bool decode(const Node& node,
+                     std::shared_ptr<gs::ExtraTypeInfo>& rhs) {
+    if (node["string"]) {
+      if (node["string"]["varchar"] &&
+          node["string"]["varchar"]["max_length"]) {
+        size_t max_length =
+            node["string"]["varchar"]["max_length"].as<size_t>();
+        rhs = std::make_shared<gs::StringTypeInfo>(max_length);
+      } else if (node["string"]["var_char"] &&
+                 node["string"]["var_char"]["max_length"]) {
+        LOG(WARNING) << "var_char is deprecated, use varchar instead.";
+        size_t max_length =
+            node["string"]["var_char"]["max_length"].as<size_t>();
+        rhs = std::make_shared<gs::StringTypeInfo>(max_length);
+      }
+    }
+    return true;
+  }
+};
+
+template <>
+struct convert<gs::DataTypeId> {
   // concurrently preserve backwards compatibility with old config files
-  static bool decode(const Node& config, gs::PropertyType& property_type) {
+  static bool decode(const Node& config, gs::DataTypeId& property_type) {
     if (config["primitive_type"]) {
       property_type = gs::config_parsing::StringToPrimitivePropertyType(
           config["primitive_type"].as<std::string>());
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["long_text"]) {
-          property_type = gs::PropertyType::StringView();
+          property_type = gs::DataTypeId::kStringView;
         } else if (config["string"]["var_char"]) {
-          if (config["string"]["var_char"]["max_length"]) {
-            property_type = gs::PropertyType::Varchar(
-                config["string"]["var_char"]["max_length"].as<int32_t>());
-          } else {
-            property_type = gs::PropertyType::Varchar(
-                gs::PropertyType::GetStringDefaultMaxLength());
-          }
+          LOG(WARNING) << "var_char is deprecated, use long_text instead.";
+          property_type = gs::DataTypeId::kStringView;
         } else {
           LOG(ERROR) << "Unrecognized string type";
         }
@@ -723,28 +613,19 @@ struct convert<gs::PropertyType> {
     } else if (config["temporal"]) {
       auto temporal = config["temporal"];
       if (temporal["date"]) {
-        property_type = gs::PropertyType::Date();
+        property_type = gs::DataTypeId::kDate;
       } else if (temporal["datetime"]) {
-        property_type = gs::PropertyType::DateTime();
+        property_type = gs::DataTypeId::kDateTime;
       } else if (temporal["interval"]) {
-        property_type = gs::PropertyType::Interval();
+        property_type = gs::DataTypeId::kInterval;
       } else if (temporal["timestamp"]) {
-        property_type = gs::PropertyType::DateTime();
+        property_type = gs::DataTypeId::kDateTime;
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
-    } else if (config["varchar"]) {
-      // compatibility with old config files
-      if (config["varchar"]["max_length"]) {
-        property_type = gs::PropertyType::Varchar(
-            config["varchar"]["max_length"].as<int32_t>());
-      } else {
-        property_type = gs::PropertyType::Varchar(
-            gs::PropertyType::GetStringDefaultMaxLength());
-      }
     } else if (config["date"]) {
-      property_type = gs::PropertyType::Date();
+      property_type = gs::DataTypeId::kDate;
     } else {
       LOG(ERROR) << "Unrecognized property type: " << config;
       return false;
@@ -752,22 +633,17 @@ struct convert<gs::PropertyType> {
     return true;
   }
 
-  static Node encode(const gs::PropertyType& type) {
+  static Node encode(const gs::DataTypeId& type) {
     YAML::Node node;
-    if (type == gs::PropertyType::Bool() || type == gs::PropertyType::Int32() ||
-        type == gs::PropertyType::UInt32() ||
-        type == gs::PropertyType::Float() ||
-        type == gs::PropertyType::Int64() ||
-        type == gs::PropertyType::UInt64() ||
-        type == gs::PropertyType::Double()) {
+    if (type == gs::DataTypeId::kBool || type == gs::DataTypeId::kInt32 ||
+        type == gs::DataTypeId::kUInt32 || type == gs::DataTypeId::kFloat ||
+        type == gs::DataTypeId::kInt64 || type == gs::DataTypeId::kUInt64 ||
+        type == gs::DataTypeId::kDouble) {
       node["primitive_type"] =
           gs::config_parsing::PrimitivePropertyTypeToString(type);
-    } else if (type == gs::PropertyType::StringView()) {
+    } else if (type == gs::DataTypeId::kStringView) {
       node["string"]["long_text"] = "";
-    } else if (type.IsVarchar()) {
-      node["string"]["var_char"]["max_length"] =
-          type.additional_type_info.max_length;
-    } else if (type == gs::PropertyType::Date()) {
+    } else if (type == gs::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;

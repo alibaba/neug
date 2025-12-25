@@ -352,8 +352,8 @@ void fillVertexReaderMeta(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
     const LoadingConfig& loading_config,
     const std::vector<std::string>& vertex_property_names,
-    const std::vector<PropertyType>& vertex_edge_property_types,
-    PropertyType pk_type, const std::string& pk_name, size_t pk_ind,
+    const std::vector<DataTypeId>& vertex_edge_property_types,
+    DataTypeId pk_type, const std::string& pk_name, size_t pk_ind,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options,
     arrow::csv::ConvertOptions& convert_options) {
@@ -493,8 +493,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<PropertyType>& edge_property_types,
-                        PropertyType src_pk_type, PropertyType dst_pk_type,
+                        const std::vector<DataTypeId>& edge_property_types,
+                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
                         arrow::csv::ReadOptions& read_options,
                         arrow::csv::ParseOptions& parse_options,
                         arrow::csv::ConvertOptions& convert_options) {
@@ -803,29 +803,27 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
   auto col_type = col->type();
 
   // TODO(zhanglei): reduce the dummy code here with a template function.
-  if (col_type == PropertyType::kBool) {
+  if (col_type == DataTypeId::kBool) {
     set_column<bool>(col, array, vids);
-  } else if (col_type == PropertyType::kInt64) {
+  } else if (col_type == DataTypeId::kInt64) {
     set_column<int64_t>(col, array, vids);
-  } else if (col_type == PropertyType::kInt32) {
+  } else if (col_type == DataTypeId::kInt32) {
     set_column<int32_t>(col, array, vids);
-  } else if (col_type == PropertyType::kUInt64) {
+  } else if (col_type == DataTypeId::kUInt64) {
     set_column<uint64_t>(col, array, vids);
-  } else if (col_type == PropertyType::kUInt32) {
+  } else if (col_type == DataTypeId::kUInt32) {
     set_column<uint32_t>(col, array, vids);
-  } else if (col_type == PropertyType::kDouble) {
+  } else if (col_type == DataTypeId::kDouble) {
     set_column<double>(col, array, vids);
-  } else if (col_type == PropertyType::kFloat) {
+  } else if (col_type == DataTypeId::kFloat) {
     set_column<float>(col, array, vids);
-  } else if (col_type == PropertyType::kDateTime) {
+  } else if (col_type == DataTypeId::kDateTime) {
     set_column_from_timestamp_array<DateTime>(col, array, vids);
-  } else if (col_type == PropertyType::kDate) {
+  } else if (col_type == DataTypeId::kDate) {
     set_column_from_date_array(col, array, vids);
-  } else if (col_type == PropertyType::kInterval) {
+  } else if (col_type == DataTypeId::kInterval) {
     set_interval_column_from_string_array(col, array, vids);
-  } else if (col_type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-    set_column_from_string_array(col, array, vids);
-  } else if (col_type.type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (col_type == DataTypeId::kStringView) {
     set_column_from_string_array(col, array, vids, true);
   } else {
     LOG(FATAL) << "Not support type: " << type->ToString();

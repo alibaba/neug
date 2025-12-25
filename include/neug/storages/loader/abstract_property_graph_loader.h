@@ -41,8 +41,7 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
   virtual std::vector<std::shared_ptr<IRecordBatchSupplier>>
   createVertexRecordBatchSupplier(label_t v_label,
                                   const std::string& v_label_name,
-                                  const std::string& v_file,
-                                  PropertyType pk_type,
+                                  const std::string& v_file, DataTypeId pk_type,
                                   const std::string& pk_name, int pk_ind,
                                   const LoadingConfig& loading_config,
                                   int thread_id) const = 0;
@@ -57,8 +56,8 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
   void addVertices(label_t v_label_id, const std::vector<std::string>& v_files);
   void addVerticesToVertexTable(label_t v_label_id,
                                 const std::string& label_name,
-                                PropertyType pk_type,
-                                const std::string& pk_name, int pk_ind,
+                                DataTypeId pk_type, const std::string& pk_name,
+                                int pk_ind,
                                 const std::vector<std::string>& v_files);
 
   void loadEdges();

@@ -47,7 +47,7 @@ namespace runtime {
 
 namespace ops {
 
-void put_column_types_option(const std::vector<PropertyType>& column_types,
+void put_column_types_option(const std::vector<DataTypeId>& column_types,
                              std::vector<std::string>& column_names,
                              arrow::csv::ConvertOptions& convert_options) {
   if (column_types.size() != column_names.size()) {
@@ -111,52 +111,45 @@ bool check_csv_export_options(
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
                 const std::string& key, Property value) {
-  if (value.type() == PropertyType::kBool) {
+  if (value.type() == DataTypeId::kBool) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_bool(), allocator);
-  } else if (value.type() == PropertyType::kInt32) {
+  } else if (value.type() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int32(), allocator);
-  } else if (value.type() == PropertyType::kUInt32) {
+  } else if (value.type() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint32(), allocator);
-  } else if (value.type() == PropertyType::kInt64) {
+  } else if (value.type() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int64(), allocator);
-  } else if (value.type() == PropertyType::kUInt64) {
+  } else if (value.type() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint64(), allocator);
-  } else if (value.type() == PropertyType::kFloat) {
+  } else if (value.type() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_float(), allocator);
-  } else if (value.type() == PropertyType::kDouble) {
+  } else if (value.type() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_double(), allocator);
-  } else if (value.type() == PropertyType::kDate) {
+  } else if (value.type() == DataTypeId::kDate) {
     std::string date = value.as_date().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == PropertyType::kDateTime) {
+  } else if (value.type() == DataTypeId::kDateTime) {
     std::string date_time = value.as_datetime().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date_time.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type().type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (value.type() == DataTypeId::kStringView) {
     rapidjson::Value valueVal;
     auto str_value = value.as_string_view();
     LOG(INFO) << "String view value: " << std::string(str_value);
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
-  } else if (value.type().type_enum == impl::PropertyTypeImpl::kString) {
-    rapidjson::Value valueVal;
-    auto str_value = value.as_string();
-    LOG(INFO) << "String value: " << str_value;
-    valueVal.SetString(str_value.data(), str_value.size(), allocator);
-    object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
-                     allocator);
-  } else if (value.type() == PropertyType::kInterval) {
+  } else if (value.type() == DataTypeId::kInterval) {
     std::string interval_str = value.as_interval().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
@@ -169,40 +162,40 @@ void add_member(rapidjson::Value& object,
 void add_prop_member(rapidjson::Value& object,
                      rapidjson::Document::AllocatorType& allocator,
                      const std::string& key, Property value) {
-  if (value.type() == PropertyType::kInt32) {
+  if (value.type() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int32(), allocator);
-  } else if (value.type() == PropertyType::kUInt32) {
+  } else if (value.type() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint32(), allocator);
-  } else if (value.type() == PropertyType::kInt64) {
+  } else if (value.type() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int64(), allocator);
-  } else if (value.type() == PropertyType::kUInt64) {
+  } else if (value.type() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint64(), allocator);
-  } else if (value.type() == PropertyType::kFloat) {
+  } else if (value.type() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_float(), allocator);
-  } else if (value.type() == PropertyType::kDouble) {
+  } else if (value.type() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_double(), allocator);
-  } else if (value.type() == PropertyType::kDate) {
+  } else if (value.type() == DataTypeId::kDate) {
     std::string date = value.as_date().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == PropertyType::kDateTime) {
+  } else if (value.type() == DataTypeId::kDateTime) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_datetime().milli_second, allocator);
-  } else if (value.type() == PropertyType::kInterval) {
+  } else if (value.type() == DataTypeId::kInterval) {
     std::string interval_str = value.as_interval().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type().type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (value.type() == DataTypeId::kStringView) {
     rapidjson::Value valueVal;
-    auto str_value = value.as_string();
+    auto str_value = value.as_string_view();
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
@@ -217,10 +210,13 @@ rapidjson::Value build_vertex_object(
     rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value vertex_object(rapidjson::kObjectType);
   std::string internal_id_key = "_ID";
-  Property encoded_id(std::to_string(label) + ":" + std::to_string(vid));
+  std::string encoded_id_str =
+      std::to_string(label) + ":" + std::to_string(vid);
+  Property encoded_id = Property::from_string_view(encoded_id_str);
   add_member(vertex_object, allocator, internal_id_key, encoded_id);
   std::string internal_label_key = "_LABEL";
-  Property label_name(graph.schema().get_vertex_label_name(label));
+  std::string label_name_str = graph.schema().get_vertex_label_name(label);
+  Property label_name = Property::from_string_view(label_name_str);
   add_member(vertex_object, allocator, internal_label_key, label_name);
   std::string primary_key = graph.schema().get_vertex_primary_key_name(label);
   add_member(vertex_object, allocator, primary_key,
@@ -254,25 +250,30 @@ rapidjson::Value build_edge_object(
   label_t dst_label = edge.label.dst_label;
   label_t edge_label = edge.label.edge_label;
   std::string internal_src_id = "_SRC";
-  Property encoded_src_id(std::to_string(src_label) + ":" +
-                          std::to_string(edge.src));
+  std::string encoded_src_id_str =
+      std::to_string(src_label) + ":" + std::to_string(edge.src);
+  Property encoded_src_id = Property::from_string_view(encoded_src_id_str);
   add_member(edge_object, allocator, internal_src_id, encoded_src_id);
 
   std::string internal_dst_id = "_DST";
-  Property encoded_dst_id(std::to_string(dst_label) + ":" +
-                          std::to_string(edge.dst));
+  std::string encoded_dst_id_str =
+      std::to_string(dst_label) + ":" + std::to_string(edge.dst);
+  Property encoded_dst_id = Property::from_string_view(encoded_dst_id_str);
   add_member(edge_object, allocator, internal_dst_id, encoded_dst_id);
 
   std::string internal_src_label_key = "_SRC_LABEL";
-  Property src_label_name(graph.schema().get_vertex_label_name(src_label));
+  Property src_label_name = Property::from_string_view(
+      graph.schema().get_vertex_label_name(src_label));
   add_member(edge_object, allocator, internal_src_label_key, src_label_name);
 
   std::string internal_dst_label_key = "_DST_LABEL";
-  Property dst_label_name(graph.schema().get_vertex_label_name(dst_label));
+  Property dst_label_name = Property::from_string_view(
+      graph.schema().get_vertex_label_name(dst_label));
   add_member(edge_object, allocator, internal_dst_label_key, dst_label_name);
 
   std::string internal_label_key = "_LABEL";
-  Property edge_label_name(graph.schema().get_edge_label_name(edge_label));
+  Property edge_label_name = Property::from_string_view(
+      graph.schema().get_edge_label_name(edge_label));
   add_member(edge_object, allocator, internal_label_key, edge_label_name);
 
   auto property_names =
@@ -313,17 +314,17 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
     if (i > 0) {
       rapidjson::Value edge_object(rapidjson::kObjectType);
       std::string internal_src_label_key = "_SRC_LABEL";
-      Property src_label_name(
+      Property src_label_name = Property::from_string_view(
           graph.schema().get_vertex_label_name(path_vertices[i - 1].label_));
       add_member(edge_object, allocator, internal_src_label_key,
                  src_label_name);
       std::string internal_dst_label_key = "_DST_LABEL";
-      Property dst_label_name(
+      Property dst_label_name = Property::from_string_view(
           graph.schema().get_vertex_label_name(path_vertices[i].label_));
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      Property edge_label_name(
+      Property edge_label_name = Property::from_string_view(
           graph.schema().get_edge_label_name(path_edges[i - 1]));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);
@@ -337,8 +338,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   return buffer.GetString();
 }
 
-PropertyType get_the_pk_type_from_schema(const Schema& schema,
-                                         label_t label_id) {
+DataTypeId get_the_pk_type_from_schema(const Schema& schema, label_t label_id) {
   auto pks = schema.get_vertex_primary_key(label_id);
   if (pks.empty()) {
     LOG(FATAL) << "No primary key found for label id: " << label_id;
@@ -347,7 +347,7 @@ PropertyType get_the_pk_type_from_schema(const Schema& schema,
     LOG(FATAL) << "Multiple primary keys found for label id: " << label_id;
   }
   auto pk = pks[0];
-  if (std::get<0>(pk) == PropertyType::Empty()) {
+  if (std::get<0>(pk) == DataTypeId::kEmpty) {
     LOG(FATAL) << "Invalid primary key type for label id: " << label_id;
   }
   return std::get<0>(pk);
@@ -468,7 +468,7 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
 void to_arrow_csv_options(
     const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
-    const std::vector<PropertyType>& column_types,
+    const std::vector<DataTypeId>& column_types,
     arrow::csv::ConvertOptions& convert_options,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options) {
@@ -600,7 +600,7 @@ std::vector<std::string> match_files_with_pattern(
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path, const std::vector<PropertyType>& column_types,
+    const std::string& file_path, const std::vector<DataTypeId>& column_types,
     const std::unordered_map<std::string, std::string> csv_options) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   std::vector<std::string> file_paths = match_files_with_pattern(file_path);

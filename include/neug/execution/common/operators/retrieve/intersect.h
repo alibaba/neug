@@ -33,8 +33,7 @@ class Context;
 
 void get_labels(
     const EdgeExpandParams& eep, const StorageReadInterface& graph,
-    std::vector<
-        std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>&
+    std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>&
         labels);
 
 class Intersect {

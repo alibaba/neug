@@ -21,27 +21,27 @@ namespace gs {
 namespace runtime {
 class EdgeRecord;
 }  // namespace runtime
-class PropertyType;
+enum class DataTypeId : uint8_t;
 class Property;
 
 int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
                                           vid_t expected_nbr,
                                           const void* expected_prop,
-                                          const PropertyType& type);
+                                          const DataTypeId& type);
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
     const gs::runtime::EdgeRecord& record,
-    const std::vector<PropertyType>& props);
+    const std::vector<DataTypeId>& props);
 
 int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
                                         const GenericView& ie, vid_t src_lid,
                                         vid_t dst_lid, int32_t oe_offset,
-                                        const std::vector<PropertyType>& props);
+                                        const std::vector<DataTypeId>& props);
 
 int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
                                         const GenericView& ie, vid_t src_lid,
                                         vid_t dst_lid, int32_t ie_offset,
-                                        const std::vector<PropertyType>& props);
+                                        const std::vector<DataTypeId>& props);
 
 }  // namespace gs

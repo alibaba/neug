@@ -36,13 +36,12 @@
 
 namespace fs = std::filesystem;
 using namespace gs;
-using gs::Any;
 using gs::EdgeStrategy;
 using gs::NeugDB;
 using gs::NeugDBSession;
 using gs::StorageStrategy;
 using oid_t = int64_t;
-using gs::PropertyType;
+using gs::DataTypeId;
 using gs::Schema;
 using gs::vid_t;
 
@@ -423,7 +422,7 @@ void G0(NeugDBSession& db, int64_t person1_id, int64_t person2_id,
     cur_str += std::to_string(txn_id);
   }
   Property new_value;
-  new_value.set_string(cur_str);
+  new_value.set_string_view(cur_str);
 
   ed_accessor.set_data(oeit, new_value, txn.timestamp());
 
@@ -479,7 +478,7 @@ std::tuple<std::string, std::string, std::string> G0Check(
 
   CHECK(iter != end);
   Property k_version_history_field = ed_accessor.get_data(iter);
-  CHECK(k_version_history_field.type() == gs::PropertyType::kStringView);
+  CHECK(k_version_history_field.type() == gs::DataTypeId::kStringView);
   std::string k_version_history(k_version_history_field.as_string_view());
 
   return std::make_tuple(p1_version_history, p2_version_history,
@@ -890,16 +889,17 @@ std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
   auto txn = svc->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t value = 0;
-
+  std::vector<std::string> string_props;
   for (int j = 1; j <= 100; j++) {
     std::vector<vid_t> vids;
     for (int i = 1; i <= 4; i++) {
       auto id = neug_generate_id();
       int64_t id_property = j * 4 + i;
       vid_t vid;
+      string_props.push_back(std::to_string(j));
       CHECK(gii.AddVertex(person_label_id, id,
                           {Property::from_int64(id_property),
-                           Property::from_string(std::to_string(j)),
+                           Property::from_string_view(string_props.back()),
                            Property::from_int64(value)},
                           vid));
       vids.push_back(vid);

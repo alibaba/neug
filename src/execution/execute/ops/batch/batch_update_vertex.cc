@@ -103,11 +103,12 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
              col_id < static_cast<int32_t>(property_names.size()));
       if (property_types[col_id] != value.type()) {
         LOG(ERROR) << "Property type mismatch for property " << prop_name
-                   << ": expected " << property_types[col_id].ToString()
-                   << ", got " << value.type().ToString();
+                   << ": expected " << std::to_string(property_types[col_id])
+                   << ", got " << std::to_string(value.type());
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
-                            ": expected " + property_types[col_id].ToString() +
-                            ", got " + value.type().ToString());
+                            ": expected " +
+                            std::to_string(property_types[col_id]) + ", got " +
+                            std::to_string(value.type()));
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }

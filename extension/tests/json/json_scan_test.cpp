@@ -60,12 +60,12 @@ class JsonLoadFunctionTest : public ::testing::Test {
 };
 
 TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
-  std::vector<gs::PropertyType> columnTypes = {
-      gs::PropertyType::Int32(),   // id
-      gs::PropertyType::String(),  // name
-      gs::PropertyType::Int32(),   // age
-      gs::PropertyType::Double(),  // height
-      gs::PropertyType::Date()     // birthday
+  std::vector<gs::DataTypeId> columnTypes = {
+      gs::DataTypeId::kInt32,       // id
+      gs::DataTypeId::kStringView,  // name
+      gs::DataTypeId::kInt32,       // age
+      gs::DataTypeId::kDouble,      // height
+      gs::DataTypeId::kDate         // birthday
   };
 
   // Create input directly for exec function testing

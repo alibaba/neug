@@ -45,7 +45,7 @@
 namespace gs {
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
-fetch_edges_related_to_vertex_from_view(const std::vector<PropertyType>& props,
+fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
                                         const GenericView& oe,
                                         const GenericView& ie, vid_t lid,
                                         bool is_src) {
@@ -190,7 +190,7 @@ void UpdateTransaction::revert_changes() {
 
 Status UpdateTransaction::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (graph_.schema().contains_vertex_label(name)) {
@@ -226,7 +226,7 @@ Status UpdateTransaction::CreateVertexType(
 Status UpdateTransaction::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
@@ -272,7 +272,7 @@ Status UpdateTransaction::CreateEdgeType(
 
 Status UpdateTransaction::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
@@ -318,7 +318,7 @@ Status UpdateTransaction::AddVertexProperties(
 Status UpdateTransaction::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
@@ -645,16 +645,14 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  std::vector<PropertyType> types =
-      graph_.schema().get_vertex_properties(label);
+  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     return false;
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     if (props[col_i].type() != types[col_i]) {
-      if (props[col_i].type().type_enum ==
-          impl::PropertyTypeImpl::kStringView) {
+      if (props[col_i].type() == DataTypeId::kStringView) {
         continue;
       }
       return false;
@@ -752,7 +750,7 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
   auto edge_prop_types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   auto search_edge_prop_type =
-      edge_prop_types.size() == 1 ? edge_prop_types[0] : PropertyType::UInt64();
+      edge_prop_types.size() == 1 ? edge_prop_types[0] : DataTypeId::kUInt64;
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst_lid) {
@@ -853,8 +851,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
                << " is not valid in this transaction.";
     return false;
   }
-  std::vector<PropertyType> types =
-      graph_.schema().get_vertex_properties(label);
+  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
   if (static_cast<size_t>(col_id) >= types.size()) {
     return false;
   }
@@ -906,7 +903,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   assert(col_id >= 0 && static_cast<size_t>(col_id) < edge_prop_types.size());
   auto search_prop_type =
-      edge_prop_types.size() == 1 ? edge_prop_types[0] : PropertyType::UInt64();
+      edge_prop_types.size() == 1 ? edge_prop_types[0] : DataTypeId::kUInt64;
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst) {
@@ -1249,7 +1246,7 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
 
 Status StorageTPUpdateInterface::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   return txn_.CreateVertexType(name, properties, primary_key_names,
@@ -1259,7 +1256,7 @@ Status StorageTPUpdateInterface::CreateVertexType(
 Status StorageTPUpdateInterface::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
@@ -1270,7 +1267,7 @@ Status StorageTPUpdateInterface::CreateEdgeType(
 
 Status StorageTPUpdateInterface::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return txn_.AddVertexProperties(vertex_type_name, add_properties,
@@ -1280,7 +1277,7 @@ Status StorageTPUpdateInterface::AddVertexProperties(
 Status StorageTPUpdateInterface::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return txn_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,

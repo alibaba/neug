@@ -177,8 +177,7 @@ class ODPSFragmentLoader : public AbstractPropertyGraphLoader {
   virtual std::vector<std::shared_ptr<IRecordBatchSupplier>>
   createVertexRecordBatchSupplier(label_t v_label,
                                   const std::string& v_label_name,
-                                  const std::string& v_file,
-                                  PropertyType pk_type,
+                                  const std::string& v_file, DataTypeId pk_type,
                                   const std::string& pk_name, int pk_ind,
                                   const LoadingConfig& loading_config,
                                   int thread_id) const = 0;

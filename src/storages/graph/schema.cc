@@ -32,6 +32,15 @@
 
 namespace gs {
 
+std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
+  try {
+    return node.as<std::shared_ptr<ExtraTypeInfo>>();
+  } catch (const YAML::BadConversion& e) {
+    LOG(ERROR) << "Failed to parse extra type info: " << e.what();
+    return nullptr;
+  }
+}
+
 template <typename T>
 std::vector<T> extract_with_invalid_flags(
     const std::vector<T>& in, const std::vector<bool>& invalid_flags) {
@@ -59,24 +68,29 @@ void VertexSchema::clear() {
 }
 
 void VertexSchema::add_properties(
-    const std::vector<std::string>& names,
-    const std::vector<PropertyType>& types,
-    const std::vector<StorageStrategy>& strategies) {
+    const std::vector<std::string>& names, const std::vector<DataTypeId>& types,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   for (size_t i = 0; i < names.size(); i++) {
     property_names.emplace_back(names[i]);
     property_types.emplace_back(types[i]);
     storage_strategies.emplace_back(strategies[i]);
+    property_extra_infos.emplace_back(i < extra_infos.size() ? extra_infos[i]
+                                                             : nullptr);
     vprop_soft_deleted.emplace_back(false);
   }
 }
 
 void VertexSchema::set_properties(
-    const std::vector<PropertyType>& types,
-    const std::vector<StorageStrategy>& strategies) {
+    const std::vector<DataTypeId>& types,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   property_types = types;
   storage_strategies = strategies;
+  property_extra_infos = extra_infos;
   storage_strategies.resize(types.size(), StorageStrategy::kMem);
   vprop_soft_deleted.resize(property_types.size(), false);
+  property_extra_infos.resize(property_types.size(), nullptr);
 }
 
 void VertexSchema::rename_properties(const std::vector<std::string>& names,
@@ -114,6 +128,7 @@ void VertexSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         property_types.erase(property_types.begin() + j);
         storage_strategies.erase(storage_strategies.begin() + j);
+        property_extra_infos.erase(property_extra_infos.begin() + j);
         vprop_soft_deleted.erase(vprop_soft_deleted.begin() + j);
       } else {
         vprop_soft_deleted[j] = true;
@@ -235,7 +250,7 @@ bool EdgeSchema::is_bundled() const {
   if (properties.empty()) {
     return true;
   } else if (properties.size() == 1 &&
-             properties[0].type_enum == impl::PropertyTypeImpl::kStringView) {
+             properties[0] == DataTypeId::kStringView) {
     return false;
   } else if (properties.size() > 1) {
     return false;
@@ -258,9 +273,9 @@ bool EdgeSchema::has_property(const std::string& prop) const {
 }
 
 void EdgeSchema::add_properties(
-    const std::vector<std::string>& names,
-    const std::vector<PropertyType>& types,
-    const std::vector<StorageStrategy>& new_strategies) {
+    const std::vector<std::string>& names, const std::vector<DataTypeId>& types,
+    const std::vector<StorageStrategy>& new_strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   for (size_t i = 0; i < names.size(); i++) {
     if (std::find(property_names.begin(), property_names.end(), names[i]) !=
         property_names.end()) {
@@ -272,6 +287,8 @@ void EdgeSchema::add_properties(
     properties.emplace_back(types[i]);
     strategies.emplace_back(new_strategies.size() > i ? new_strategies[i]
                                                       : StorageStrategy::kMem);
+    property_extra_infos.emplace_back(extra_infos.size() > i ? extra_infos[i]
+                                                             : nullptr);
     eprop_soft_deleted.emplace_back(false);
   }
 }
@@ -307,6 +324,7 @@ void EdgeSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         properties.erase(properties.begin() + j);
         strategies.erase(strategies.begin() + j);
+        property_extra_infos.erase(property_extra_infos.begin() + j);
         eprop_soft_deleted.erase(eprop_soft_deleted.begin() + j);
       } else {
         eprop_soft_deleted[j] = true;
@@ -388,13 +406,14 @@ void Schema::Clear() {
   elabel_triplet_tomb_.clear();
 }
 
+// TODO(zhanglei): support extra_type_info for primary key
 void Schema::AddVertexLabel(
-    const std::string& label, const std::vector<PropertyType>& property_types,
+    const std::string& label, const std::vector<DataTypeId>& property_types,
     const std::vector<std::string>& property_names,
-    const std::vector<std::tuple<PropertyType, std::string, size_t>>&
-        primary_key,
-    const std::vector<StorageStrategy>& strategies, size_t max_vnum,
-    const std::string& description) {
+    const std::vector<std::tuple<DataTypeId, std::string, size_t>>& primary_key,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos,
+    size_t max_vnum, const std::string& description) {
   label_t v_label_id = vertex_label_to_index(label);
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
@@ -402,20 +421,19 @@ void Schema::AddVertexLabel(
   v_schemas_.resize(v_label_id + 1);
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
       label, property_types, property_names, primary_key, strategies,
-      description, max_vnum);
+      property_extra_infos, description, max_vnum);
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
            << ", prop size: " << v_schemas_[v_label_id]->property_names.size();
 }
 
-void Schema::AddEdgeLabel(const std::string& src_label,
-                          const std::string& dst_label,
-                          const std::string& edge_label,
-                          const std::vector<PropertyType>& properties,
-                          const std::vector<std::string>& prop_names,
-                          const std::vector<StorageStrategy>& strategies,
-                          EdgeStrategy oe, EdgeStrategy ie, bool oe_mutable,
-                          bool ie_mutable, bool sort_on_compaction,
-                          const std::string& description) {
+void Schema::AddEdgeLabel(
+    const std::string& src_label, const std::string& dst_label,
+    const std::string& edge_label, const std::vector<DataTypeId>& properties,
+    const std::vector<std::string>& prop_names,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos,
+    EdgeStrategy oe, EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
+    bool sort_on_compaction, const std::string& description) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
@@ -426,10 +444,10 @@ void Schema::AddEdgeLabel(const std::string& src_label,
   uint32_t label_id =
       generate_edge_label(src_label_id, dst_label_id, edge_label_id);
   e_schemas_.emplace(
-      label_id,
-      std::make_shared<EdgeSchema>(
-          src_label, dst_label, edge_label, sort_on_compaction, description,
-          ie_mutable, oe_mutable, oe, ie, properties, prop_names, strategies));
+      label_id, std::make_shared<EdgeSchema>(
+                    src_label, dst_label, edge_label, sort_on_compaction,
+                    description, ie_mutable, oe_mutable, oe, ie, properties,
+                    prop_names, strategies, property_extra_infos));
   if (label_id >= elabel_triplet_tomb_.size()) {
     elabel_triplet_tomb_.resize(label_id + 1);
   }
@@ -509,19 +527,20 @@ std::vector<label_t> Schema::get_edge_label_ids() const {
 }
 
 void Schema::set_vertex_properties(
-    label_t label_id, const std::vector<PropertyType>& types,
-    const std::vector<StorageStrategy>& strategies) {
+    label_t label_id, const std::vector<DataTypeId>& types,
+    const std::vector<StorageStrategy>& strategies,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   ensure_vertex_label_valid(label_id);
-  v_schemas_[label_id]->set_properties(types, strategies);
+  v_schemas_[label_id]->set_properties(types, strategies, extra_infos);
 }
 
-std::vector<PropertyType> Schema::get_vertex_properties(
+std::vector<DataTypeId> Schema::get_vertex_properties(
     const std::string& label) const {
   label_t index = get_vertex_label_id(label);
   return get_vertex_properties(index);
 }
 
-std::vector<PropertyType> Schema::get_vertex_properties(label_t label) const {
+std::vector<DataTypeId> Schema::get_vertex_properties(label_t label) const {
   ensure_vertex_label_valid(label);
   return extract_with_invalid_flags(v_schemas_.at(label)->property_types,
                                     v_schemas_.at(label)->vprop_soft_deleted);
@@ -583,7 +602,7 @@ bool Schema::exist(label_t src_label, label_t dst_label,
              generate_edge_label(src_label, dst_label, edge_label)) > 0;
 }
 
-std::vector<PropertyType> Schema::get_edge_properties(
+std::vector<DataTypeId> Schema::get_edge_properties(
     const std::string& src_label, const std::string& dst_label,
     const std::string& label) const {
   label_t src = get_vertex_label_id(src_label);
@@ -592,9 +611,9 @@ std::vector<PropertyType> Schema::get_edge_properties(
   return get_edge_properties(src, dst, edge);
 }
 
-std::vector<PropertyType> Schema::get_edge_properties(label_t src_label,
-                                                      label_t dst_label,
-                                                      label_t label) const {
+std::vector<DataTypeId> Schema::get_edge_properties(label_t src_label,
+                                                    label_t dst_label,
+                                                    label_t label) const {
   ensure_vertex_label_valid(src_label);
   ensure_vertex_label_valid(dst_label);
   ensure_edge_label_valid(label);
@@ -736,7 +755,7 @@ const std::string& Schema::get_edge_label_name(label_t index) const {
   return elabel_indexer_.get_key(index);
 }
 
-const std::vector<std::tuple<PropertyType, std::string, size_t>>&
+const std::vector<std::tuple<DataTypeId, std::string, size_t>>&
 Schema::get_vertex_primary_key(label_t index) const {
   ensure_vertex_label_valid(index);
   return v_schemas_.at(index)->primary_keys;
@@ -959,9 +978,9 @@ StorageStrategy StringToStorageStrategy(const std::string& str) {
   }
 }
 
-static bool parse_property_type(YAML::Node node, PropertyType& type) {
+static bool parse_property_type(YAML::Node node, DataTypeId& type) {
   try {
-    type = node.as<gs::PropertyType>();
+    type = node.as<gs::DataTypeId>();
     return true;
   } catch (const YAML::BadConversion& e) {
     LOG(ERROR) << "Failed to parse property type: " << e.what();
@@ -971,8 +990,9 @@ static bool parse_property_type(YAML::Node node, PropertyType& type) {
 
 static Status parse_vertex_properties(
     YAML::Node node, const std::string& label_name,
-    std::vector<PropertyType>& types, std::vector<std::string>& names,
-    std::vector<StorageStrategy>& strategies) {
+    std::vector<DataTypeId>& types, std::vector<std::string>& names,
+    std::vector<StorageStrategy>& strategies,
+    std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no vertex properties specified for vertex: "
              << label_name;
@@ -1008,7 +1028,7 @@ static Status parse_vertex_properties(
                         std::to_string(i - 1) + " is not specified...");
     }
     auto prop_type_node = node[i]["property_type"];
-    PropertyType prop_type;
+    DataTypeId prop_type;
     if (!parse_property_type(prop_type_node, prop_type)) {
       LOG(ERROR) << "Fail to parse property type of vertex-" << label_name
                  << " prop-" << i - 1;
@@ -1016,6 +1036,8 @@ static Status parse_vertex_properties(
                     "Fail to parse property type of vertex-" + label_name +
                         " prop-" + std::to_string(i - 1));
     }
+    std::shared_ptr<ExtraTypeInfo> extra_type_info =
+        parse_extra_type_info(prop_type_node);
     {
       if (node[i]["x_csr_params"]) {
         get_scalar(node[i]["x_csr_params"], "storage_strategy", strategy_str);
@@ -1023,6 +1045,7 @@ static Status parse_vertex_properties(
     }
     types.push_back(prop_type);
     strategies.push_back(StringToStorageStrategy(strategy_str));
+    property_extra_infos.push_back(extra_type_info);
     VLOG(10) << "prop-" << i - 1 << " name: " << prop_name_str
              << " type: " << prop_type << " strategy: " << strategy_str;
     names.push_back(prop_name_str);
@@ -1031,10 +1054,11 @@ static Status parse_vertex_properties(
   return Status::OK();
 }
 
-static Status parse_edge_properties(YAML::Node node,
-                                    const std::string& label_name,
-                                    std::vector<PropertyType>& types,
-                                    std::vector<std::string>& names) {
+static Status parse_edge_properties(
+    YAML::Node node, const std::string& label_name,
+    std::vector<DataTypeId>& types, std::vector<std::string>& names,
+    std::vector<StorageStrategy>& strategies,
+    std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no edge properties specified for edge: " << label_name;
     return Status::OK();
@@ -1059,13 +1083,20 @@ static Status parse_edge_properties(YAML::Node node,
                         std::to_string(i - 1) + " is not specified...");
     }
     auto prop_type_node = node[i]["property_type"];
-    PropertyType prop_type;
+    DataTypeId prop_type;
     if (!parse_property_type(prop_type_node, prop_type)) {
       LOG(ERROR) << "type of edge-" << label_name << " prop-" << i - 1
                  << " is not specified...";
       return Status(StatusCode::ERR_INVALID_SCHEMA,
                     "type of edge-" + label_name + " prop-" +
                         std::to_string(i - 1) + " is not specified...");
+    }
+    std::shared_ptr<ExtraTypeInfo> extra_type_info =
+        parse_extra_type_info(prop_type_node);
+    {
+      if (node[i]["x_csr_params"]) {
+        get_scalar(node[i]["x_csr_params"], "storage_strategy", strategy_str);
+      }
     }
 
     if (!get_scalar(node[i], "property_name", prop_name_str)) {
@@ -1078,6 +1109,8 @@ static Status parse_edge_properties(YAML::Node node,
 
     types.push_back(prop_type);
     names.push_back(prop_name_str);
+    strategies.push_back(StringToStorageStrategy(strategy_str));
+    property_extra_infos.push_back(extra_type_info);
   }
 
   return Status::OK();
@@ -1101,9 +1134,10 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
     auto csr_node = node["x_csr_params"];
     get_scalar(csr_node, "max_vertex_num", max_num);
   }
-  std::vector<PropertyType> property_types;
+  std::vector<DataTypeId> property_types;
   std::vector<std::string> property_names;
   std::vector<StorageStrategy> strategies;
+  std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
   std::string description;  // default is empty string
 
   if (node["description"]) {
@@ -1124,7 +1158,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
 
   RETURN_IF_NOT_OK(parse_vertex_properties(node["properties"], label_name,
                                            property_types, property_names,
-                                           strategies));
+                                           strategies, property_extra_infos));
   if (!node["primary_keys"]) {
     LOG(ERROR) << "Expect field primary_keys for " << label_name;
     return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -1139,7 +1173,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
   // remove primary key from properties.
 
   std::vector<int> primary_key_inds(primary_key_node.size(), -1);
-  std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
+  std::vector<std::tuple<DataTypeId, std::string, size_t>> primary_keys;
   for (size_t i = 0; i < primary_key_node.size(); ++i) {
     auto cur_primary_key = primary_key_node[i];
     std::string primary_key_name = primary_key_node[0].as<std::string>();
@@ -1156,12 +1190,11 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
           StatusCode::ERR_INVALID_SCHEMA,
           "Primary key " + primary_key_name + " is not found in properties");
     }
-    if (property_types[primary_key_inds[i]] != PropertyType::kInt64 &&
-        property_types[primary_key_inds[i]] != PropertyType::kStringView &&
-        property_types[primary_key_inds[i]] != PropertyType::kUInt64 &&
-        property_types[primary_key_inds[i]] != PropertyType::kInt32 &&
-        property_types[primary_key_inds[i]] != PropertyType::kUInt32 &&
-        !property_types[primary_key_inds[i]].IsVarchar()) {
+    if (property_types[primary_key_inds[i]] != DataTypeId::kInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kStringView &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kInt32 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt32) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
       return Status(StatusCode::ERR_INVALID_SCHEMA,
@@ -1169,6 +1202,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
                         " should be int64/int32/uint64/"
                         "uint32 or string/varchar");
     }
+    // TODO(zhanglei): extra_info is not used here
     primary_keys.emplace_back(property_types[primary_key_inds[i]],
                               property_names[primary_key_inds[i]],
                               primary_key_inds[i]);
@@ -1176,10 +1210,13 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
     property_names.erase(property_names.begin() + primary_key_inds[i]);
     property_types.erase(property_types.begin() + primary_key_inds[i]);
     strategies.erase(strategies.begin() + primary_key_inds[i]);
+    property_extra_infos.erase(property_extra_infos.begin() +
+                               primary_key_inds[i]);
   }
 
   schema.AddVertexLabel(label_name, property_types, property_names,
-                        primary_keys, strategies, max_num, description);
+                        primary_keys, strategies, property_extra_infos, max_num,
+                        description);
   // check the type_id equals to storage's label_id
   int32_t type_id;
   if (!get_scalar(node, "type_id", type_id)) {
@@ -1217,11 +1254,14 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
   }
   edge_label_name = node["type_name"].as<std::string>();
 
-  std::vector<PropertyType> property_types;
+  std::vector<DataTypeId> property_types;
   std::vector<std::string> prop_names;
+  std::vector<StorageStrategy> strategies;
+  std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
   std::string description;  // default is empty string
   RETURN_IF_NOT_OK(parse_edge_properties(node["properties"], edge_label_name,
-                                         property_types, prop_names));
+                                         property_types, prop_names, strategies,
+                                         property_extra_infos));
 
   if (node["description"]) {
     description = node["description"].as<std::string>();
@@ -1405,9 +1445,9 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
              << " to " << dst_label_name << " with " << property_types.size()
              << " properties";
     schema.AddEdgeLabel(src_label_name, dst_label_name, edge_label_name,
-                        property_types, prop_names, {}, cur_oe, cur_ie,
-                        oe_mutable, ie_mutable, cur_sort_on_compaction,
-                        description);
+                        property_types, prop_names, strategies,
+                        property_extra_infos, cur_oe, cur_ie, oe_mutable,
+                        ie_mutable, cur_sort_on_compaction, description);
   }
 
   // check the type_id equals to storage's label_id
@@ -1719,13 +1759,15 @@ gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
 
 void Schema::AddVertexProperties(
     const std::string& label, std::vector<std::string>& properties_names,
-    std::vector<PropertyType>& properties_types,
-    std::vector<StorageStrategy>& storage_strategies,
-    std::vector<Property>& properties_default_values) {
+    const std::vector<DataTypeId>& properties_types,
+    const std::vector<StorageStrategy>& storage_strategies,
+    const std::vector<Property>& properties_default_values,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& properties_extra_infos) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   v_schemas_[v_label_id]->add_properties(properties_names, properties_types,
-                                         storage_strategies);
+                                         storage_strategies,
+                                         properties_extra_infos);
   // TODO(zhanglei): default_values are ignored
 }
 
@@ -1888,15 +1930,17 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
 void Schema::AddEdgeProperties(
     const std::string& src_label, const std::string& dst_label,
     const std::string& edge_label, std::vector<std::string>& properties_names,
-    std::vector<PropertyType>& properties_types,
-    std::vector<Property>& properties_default_values) {
+    const std::vector<DataTypeId>& properties_types,
+    const std::vector<Property>& properties_default_values,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& properties_extra_infos) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);
   uint32_t index = generate_edge_label(src, dst, edge);
   // Check if the property name already exists
   assert(e_schemas_.count(index) > 0);
-  e_schemas_.at(index)->add_properties(properties_names, properties_types, {});
+  e_schemas_.at(index)->add_properties(properties_names, properties_types, {},
+                                       properties_extra_infos);
 }
 
 void Schema::RenameEdgeProperties(
@@ -2123,16 +2167,17 @@ Schema Schema::Compact() const {
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.label_name << v_schema.property_types
           << v_schema.property_names << v_schema.primary_keys
-          << v_schema.storage_strategies << v_schema.description
-          << v_schema.max_num << v_schema.vprop_soft_deleted;
+          << v_schema.storage_strategies << v_schema.property_extra_infos
+          << v_schema.description << v_schema.max_num
+          << v_schema.vprop_soft_deleted;
   return archive;
 }
 
 OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
   archive >> v_schema.label_name >> v_schema.property_types >>
       v_schema.property_names >> v_schema.primary_keys >>
-      v_schema.storage_strategies >> v_schema.description >> v_schema.max_num >>
-      v_schema.vprop_soft_deleted;
+      v_schema.storage_strategies >> v_schema.property_extra_infos >>
+      v_schema.description >> v_schema.max_num >> v_schema.vprop_soft_deleted;
   return archive;
 }
 
@@ -2142,7 +2187,8 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
           << e_schema.description << e_schema.ie_mutable << e_schema.oe_mutable
           << e_schema.ie_strategy << e_schema.oe_strategy << e_schema.properties
           << e_schema.property_names << e_schema.strategies
-          << e_schema.eprop_soft_deleted;
+          << e_schema.property_extra_infos << e_schema.eprop_soft_deleted;
+
   return archive;
 }
 
@@ -2152,7 +2198,7 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
       e_schema.description >> e_schema.ie_mutable >> e_schema.oe_mutable >>
       e_schema.ie_strategy >> e_schema.oe_strategy >> e_schema.properties >>
       e_schema.property_names >> e_schema.strategies >>
-      e_schema.eprop_soft_deleted;
+      e_schema.property_extra_infos >> e_schema.eprop_soft_deleted;
   return archive;
 }
 

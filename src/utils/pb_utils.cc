@@ -836,35 +836,35 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   return buffer.GetString();
 }
 
-Property get_default_value(const PropertyType& type) {
+Property get_default_value(const DataTypeId& type) {
   Property default_value;
-  switch (type.type_enum) {
-  case impl::PropertyTypeImpl::kEmpty:
+  switch (type) {
+  case DataTypeId::kEmpty:
     break;
-  case impl::PropertyTypeImpl::kBool:
+  case DataTypeId::kBool:
     default_value.set_bool(false);
     break;
-  case impl::PropertyTypeImpl::kInt32:
+  case DataTypeId::kInt32:
     default_value.set_int32(0);
     break;
-  case impl::PropertyTypeImpl::kUInt32:
+  case DataTypeId::kUInt32:
     default_value.set_uint32(0);
     break;
-  case impl::PropertyTypeImpl::kInt64:
+  case DataTypeId::kInt64:
     default_value.set_int64(0);
     break;
-  case impl::PropertyTypeImpl::kUInt64:
+  case DataTypeId::kUInt64:
     default_value.set_uint64(0);
     break;
-  case impl::PropertyTypeImpl::kFloat:
+  case DataTypeId::kFloat:
     default_value.set_float(0.0f);
     break;
-  case impl::PropertyTypeImpl::kDouble:
+  case DataTypeId::kDouble:
     default_value.set_double(0.0);
     break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported property type for default value: " + type.ToString());
+        "Unsupported property type for default value: " + std::to_string(type));
   }
   return default_value;
 }
@@ -897,34 +897,34 @@ bool multiplicity_to_storage_strategy(
 }
 
 bool primitive_type_to_property_type(
-    const common::PrimitiveType& primitive_type, PropertyType& out_type) {
+    const common::PrimitiveType& primitive_type, DataTypeId& out_type) {
   switch (primitive_type) {
   case common::PrimitiveType::DT_ANY:
     LOG(ERROR) << "Proptype is not supported";
     return false;
   case common::PrimitiveType::DT_SIGNED_INT32:
-    out_type = PropertyType::Int32();
+    out_type = DataTypeId::kInt32;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT32:
-    out_type = PropertyType::UInt32();
+    out_type = DataTypeId::kUInt32;
     break;
   case common::PrimitiveType::DT_SIGNED_INT64:
-    out_type = PropertyType::Int64();
+    out_type = DataTypeId::kInt64;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT64:
-    out_type = PropertyType::UInt64();
+    out_type = DataTypeId::kUInt64;
     break;
   case common::PrimitiveType::DT_BOOL:
-    out_type = PropertyType::Bool();
+    out_type = DataTypeId::kBool;
     break;
   case common::PrimitiveType::DT_FLOAT:
-    out_type = PropertyType::Float();
+    out_type = DataTypeId::kFloat;
     break;
   case common::PrimitiveType::DT_DOUBLE:
-    out_type = PropertyType::Double();
+    out_type = DataTypeId::kDouble;
     break;
   case common::PrimitiveType::DT_NULL:
-    out_type = PropertyType::Empty();
+    out_type = DataTypeId::kEmpty;
     break;
   default:
     LOG(ERROR) << "Unknown primitive type: " << primitive_type;
@@ -934,28 +934,19 @@ bool primitive_type_to_property_type(
 }
 
 bool string_type_to_property_type(const common::String& string_type,
-                                  PropertyType& out_type) {
+                                  DataTypeId& out_type) {
   switch (string_type.item_case()) {
   case common::String::kVarChar: {
-    // Take care of the casting from uint32_t to uint16_t
-    if (string_type.var_char().max_length() >
-        std::numeric_limits<uint16_t>::max()) {
-      LOG(WARNING) << "VarChar max length exceeds uint16_t limit, "
-                   << "using max uint16_t value instead.";
-      out_type = PropertyType::Varchar(std::numeric_limits<uint16_t>::max());
-    } else {
-      out_type = PropertyType::Varchar(string_type.var_char().max_length());
-      break;
-    }
+    out_type = DataTypeId::kStringView;
+    break;
   }
   case common::String::kLongText: {
-    out_type = PropertyType::StringView();
+    out_type = DataTypeId::kStringView;
     break;
   }
   case common::String::kChar: {
     // Currently, we implement fixed-char as varchar with fixed length.
-    out_type = PropertyType::Varchar(string_type.char_().fixed_length());
-    break;
+    THROW_NOT_SUPPORTED_EXCEPTION("Char type is not supported yet");
   }
   case common::String::ITEM_NOT_SET: {
     LOG(ERROR) << "String type is not set: " << string_type.DebugString();
@@ -969,23 +960,25 @@ bool string_type_to_property_type(const common::String& string_type,
 }
 
 bool temporal_type_to_property_type(const common::Temporal& temporal_type,
-                                    PropertyType& out_type) {
+                                    DataTypeId& out_type) {
   switch (temporal_type.item_case()) {
   case common::Temporal::kDate32:
-    out_type = PropertyType::Date();
+    out_type = DataTypeId::kDate;
+    ;
     break;
   case common::Temporal::kDateTime:
-    out_type = PropertyType::DateTime();
+    out_type = DataTypeId::kDateTime;
     break;
   case common::Temporal::kTimestamp:
-    out_type = PropertyType::DateTime();
+    out_type = DataTypeId::kDateTime;
     break;
   case common::Temporal::kDate:
     // TODO(zhanglei): Parse format
-    out_type = PropertyType::Date();
+    out_type = DataTypeId::kDate;
+    ;
     break;
   case common::Temporal::kInterval:
-    out_type = PropertyType::Interval();
+    out_type = DataTypeId::kInterval;
     break;
   default:
     LOG(ERROR) << "Unknown temporal type: " << temporal_type.DebugString();
@@ -995,7 +988,7 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
 }
 
 bool data_type_to_property_type(const common::DataType& data_type,
-                                PropertyType& out_type) {
+                                DataTypeId& out_type) {
   switch (data_type.item_case()) {
   case common::DataType::kPrimitiveType: {
     return primitive_type_to_property_type(data_type.primitive_type(),
@@ -1048,7 +1041,7 @@ bool common_value_to_any(const common::Value& value, Property& out_any) {
     out_any.set_double(value.f64());
     break;
   case common::Value::kStr:
-    out_any.set_string(value.str());
+    out_any.set_string_view(value.str());
     break;
   case common::Value::kDate:
     LOG(ERROR) << "Date type is not supported";
@@ -1066,13 +1059,13 @@ bool common_value_to_any(const common::Value& value, Property& out_any) {
   return true;
 }
 
-gs::result<std::vector<std::tuple<PropertyType, std::string, Property>>>
+gs::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::tuple<PropertyType, std::string, Property>> result;
+  std::vector<std::tuple<DataTypeId, std::string, Property>> result;
   for (const auto& property : properties) {
-    std::tuple<PropertyType, std::string, Property> tuple;
+    std::tuple<DataTypeId, std::string, Property> tuple;
     std::get<1>(tuple) = property.name();
     if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -1164,7 +1157,7 @@ Property const_value_to_prop(const common::Value& value) {
     return Property::from_float(value.f32());
   }
   case common::Value::ItemCase::kStr: {
-    return Property::from_string(value.str());
+    return Property::from_string_view(value.str());
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +

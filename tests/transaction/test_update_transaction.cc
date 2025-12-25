@@ -127,19 +127,19 @@ class UpdateTransactionTest : public ::testing::Test {
                             gs::label_t& employ_label) {
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto software_label = interface.schema().get_vertex_label_id("software");
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        edge_props = {std::make_tuple(gs::PropertyType::Double(), "rating",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        edge_props = {std::make_tuple(gs::DataTypeId::kDouble, "rating",
                                       gs::Property::from_double(0.0)),
-                      std::make_tuple(gs::PropertyType::Int64(), "year",
+                      std::make_tuple(gs::DataTypeId::kInt64, "year",
                                       gs::Property::from_int64(2000))};
     EXPECT_TRUE(interface.CreateEdgeType(
         "person", "software", "developed", edge_props, true,
         gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple));
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        v_props = {std::make_tuple(gs::PropertyType::Int64(), "id",
-                                   gs::Property::from_int64(0)),
-                   std::make_tuple(gs::PropertyType::StringView(), "name",
-                                   gs::Property::from_string(""))};
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>> v_props =
+        {std::make_tuple(gs::DataTypeId::kInt64, "id",
+                         gs::Property::from_int64(0)),
+         std::make_tuple(gs::DataTypeId::kStringView, "name",
+                         gs::Property::from_string_view(""))};
     EXPECT_TRUE(interface.CreateVertexType("company", v_props, {"id"}, true));
     EXPECT_TRUE(interface.CreateEdgeType("person", "company", "employed_by", {},
                                          true, gs::EdgeStrategy::kMultiple,
@@ -148,9 +148,9 @@ class UpdateTransactionTest : public ::testing::Test {
     cmp_label = interface.schema().get_vertex_label_id("company");
     dev_label = interface.schema().get_edge_label_id("developed");
     gs::vid_t vid;
-    EXPECT_TRUE(interface.AddVertex(cmp_label, gs::Property::from_int64(1),
-                                    {gs::Property::from_string("TechCorp")},
-                                    vid));
+    EXPECT_TRUE(
+        interface.AddVertex(cmp_label, gs::Property::from_int64(1),
+                            {gs::Property::from_string_view("TechCorp")}, vid));
     gs::vid_t p1_vid;
     EXPECT_TRUE(
         txn.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
@@ -206,7 +206,8 @@ TEST_F(UpdateTransactionTest, AddVertex) {
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
+        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
+        vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -232,7 +233,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
     for (int i = 4; i <= 10000; i++) {
       gs::vid_t vid;
       EXPECT_TRUE(txn.AddVertex(person_label, gs::Property::from_int64(i),
-                                {gs::Property::from_string("User"),
+                                {gs::Property::from_string_view("User"),
                                  gs::Property::from_int64(20 + i % 10)},
                                 vid));
     }
@@ -308,12 +309,12 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     gs::vid_t vid2, vid4, vid3;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(4),
-        {gs::Property::from_string("David"), gs::Property::from_int64(32)},
+        {gs::Property::from_string_view("David"), gs::Property::from_int64(32)},
         vid4));
-    EXPECT_TRUE(txn.AddVertex(
-        software_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("NeugDB"), gs::Property::from_string("C++")},
-        vid3));
+    EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(3),
+                              {gs::Property::from_string_view("NeugDB"),
+                               gs::Property::from_string_view("C++")},
+                              vid3));
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid4, software_label, vid3, created_label,
         {gs::Property::from_double(0.85), gs::Property::from_int64(2023)}));
@@ -373,11 +374,11 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
     gs::vid_t vid5, vid4;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(5),
-        {gs::Property::from_string("Frank"), gs::Property::from_int64(27)},
+        {gs::Property::from_string_view("Frank"), gs::Property::from_int64(27)},
         vid5));
     EXPECT_TRUE(txn.AddVertex(software_label, gs::Property::from_int64(4),
-                              {gs::Property::from_string("UltraGraph"),
-                               gs::Property::from_string("Go")},
+                              {gs::Property::from_string_view("UltraGraph"),
+                               gs::Property::from_string_view("Go")},
                               vid4));
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid5, software_label, vid4, created_label,
@@ -498,10 +499,10 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
-    EXPECT_TRUE(txn.AddVertex(
-        person_label, gs::Property::from_int64(4),
-        {gs::Property::from_string("Charlie"), gs::Property::from_int64(29)},
-        vid));
+    EXPECT_TRUE(txn.AddVertex(person_label, gs::Property::from_int64(4),
+                              {gs::Property::from_string_view("Charlie"),
+                               gs::Property::from_int64(29)},
+                              vid));
     txn.Abort();
   }
   {
@@ -899,7 +900,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
         person_label, person_label, knows_label);
     auto search_edge_prop_type = edge_prop_types.size() == 1
                                      ? edge_prop_types[0]
-                                     : gs::PropertyType::UInt64();
+                                     : gs::DataTypeId::kUInt64;
     int32_t oe_offset = 0, ie_offset = 0;
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       if (it.get_vertex() == vid2) {
@@ -954,7 +955,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     gs::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
+        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
+        vid));
     txn.Abort();
   }
   {
@@ -975,7 +977,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
+        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
+        vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -1098,17 +1101,18 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   {
     auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::StringView(), "email",
-                                     gs::Property::from_string("")),
-                     std::make_tuple(gs::PropertyType::Double(), "height",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kStringView, "email",
+                                     gs::Property::from_string_view("")),
+                     std::make_tuple(gs::DataTypeId::kDouble, "height",
                                      gs::Property::from_double(0.0))};
     EXPECT_TRUE(txn.AddVertexProperties("person", new_props, true));
     auto email_accessor = txn.get_vertex_property_column(person_label, "email");
     gs::vid_t vid;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
     EXPECT_TRUE(txn.UpdateVertexProperty(
-        person_label, vid, 2, gs::Property::from_string("eve@example.com")));
+        person_label, vid, 2,
+        gs::Property::from_string_view("eve@example.com")));
     EXPECT_TRUE(txn.Commit());
   }
   {
@@ -1116,9 +1120,9 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::StringView(), "address",
-                                     gs::Property::from_string(""))};
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kStringView, "address",
+                                     gs::Property::from_string_view(""))};
     EXPECT_TRUE(txn.AddVertexProperties("person", new_props, true));
     gs::vid_t vid;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2), vid));
@@ -1156,11 +1160,11 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   {
     auto txn = svc->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::Int64(), "version",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kInt64, "version",
                                      gs::Property::from_int64(0)),
-                     std::make_tuple(gs::PropertyType::StringView(), "license",
-                                     gs::Property::from_string(""))};
+                     std::make_tuple(gs::DataTypeId::kStringView, "license",
+                                     gs::Property::from_string_view(""))};
     EXPECT_TRUE(interface.AddEdgeProperties("person", "software", "created",
                                             new_props, true));
     EXPECT_TRUE(txn.Commit());
@@ -1168,9 +1172,8 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   {
     auto txn = svc->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::Double(),
-                                     "contributions",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kDouble, "contributions",
                                      gs::Property::from_double(0.0))};
     EXPECT_TRUE(interface.AddEdgeProperties("person", "software", "created",
                                             new_props, true));
@@ -1308,9 +1311,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     gs::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
                                          {"since"}, true));
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::Double(),
-                                     "contributions",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kDouble, "contributions",
                                      gs::Property::from_double(0.0))};
     LOG(INFO) << "Adding new edge property 'contributions'.";
     EXPECT_TRUE(interface.AddEdgeProperties("person", "software", "created",
@@ -1378,9 +1380,9 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     // auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(interface.DeleteVertexProperties("person", {"age"}, true));
     EXPECT_TRUE(interface.DeleteVertexProperties("software", {"lang"}, true));
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::StringView(), "authors",
-                                     gs::Property::from_string(""))};
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kStringView, "authors",
+                                     gs::Property::from_string_view(""))};
     EXPECT_TRUE(interface.AddVertexProperties("software", new_props, true));
     EXPECT_TRUE(txn.Commit());
   }
@@ -1427,13 +1429,14 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     gs::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
+        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
+        vid));
     EXPECT_TRUE(interface.CreateVertexType(
         "company",
-        {std::make_tuple(gs::PropertyType::Int64(), "id",
+        {std::make_tuple(gs::DataTypeId::kInt64, "id",
                          gs::Property::from_int64(0)),
-         std::make_tuple(gs::PropertyType::StringView(), "name",
-                         gs::Property::from_string(""))},
+         std::make_tuple(gs::DataTypeId::kStringView, "name",
+                         gs::Property::from_string_view(""))},
         {"id"}, true));
     EXPECT_TRUE(interface.CreateEdgeType("person", "company", "employed_by", {},
                                          true, gs::EdgeStrategy::kMultiple,
@@ -1536,7 +1539,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
         txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid),
         gs::exception::Exception);
     EXPECT_THROW(interface.AddVertex(person_label, gs::Property::from_int64(3),
-                                     {gs::Property::from_string("Eve"),
+                                     {gs::Property::from_string_view("Eve"),
                                       gs::Property::from_int64(28)},
                                      vid),
                  gs::exception::Exception);
@@ -1544,7 +1547,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
                                                 gs::Property::from_int64(30)),
                  gs::exception::Exception);
     EXPECT_THROW(interface.AddVertex(person_label, gs::Property::from_int64(3),
-                                     {gs::Property::from_string("Eve"),
+                                     {gs::Property::from_string_view("Eve"),
                                       gs::Property::from_int64(28)},
                                      vid),
                  gs::exception::Exception);
@@ -1566,8 +1569,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
                  gs::exception::Exception);
 
     // add back age property
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        new_props = {std::make_tuple(gs::PropertyType::Int32(), "age",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        new_props = {std::make_tuple(gs::DataTypeId::kInt32, "age",
                                      gs::Property::from_int32(0))};
     EXPECT_NO_THROW(interface.AddVertexProperties("person", new_props, true));
     EXPECT_NO_THROW(txn.get_vertex_property_column(person_label, "age"));
@@ -1816,8 +1819,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   {
     auto txn = svc->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    std::vector<std::tuple<gs::PropertyType, std::string, gs::Property>>
-        edge_props = {std::make_tuple(gs::PropertyType::Int64(), "since",
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        edge_props = {std::make_tuple(gs::DataTypeId::kInt64, "since",
                                       gs::Property::from_int64(2020))};
     EXPECT_TRUE(txn.CreateEdgeType("person", "person", "follows", edge_props,
                                    true, gs::EdgeStrategy::kMultiple,

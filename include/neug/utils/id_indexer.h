@@ -165,19 +165,20 @@ struct GHash<int64_t> {
 template <>
 struct GHash<Property> {
   size_t operator()(const Property& val) const {
-    if (val.type() == PropertyType::kInt64) {
+    if (val.type() == DataTypeId::kInt64) {
       return GHash<int64_t>()(val.as_int64());
-    } else if (val.type() == PropertyType::kInt32) {
+    } else if (val.type() == DataTypeId::kInt32) {
       return GHash<int32_t>()(val.as_int32());
-    } else if (val.type() == PropertyType::kUInt64) {
+    } else if (val.type() == DataTypeId::kUInt64) {
       return GHash<uint64_t>()(val.as_uint64());
-    } else if (val.type() == PropertyType::kUInt32) {
+    } else if (val.type() == DataTypeId::kUInt32) {
       return GHash<uint32_t>()(val.as_uint32());
-    } else if (val.type() == PropertyType::kStringView) {
+    } else if (val.type() == DataTypeId::kStringView) {
       return GHash<std::string_view>()(val.as_string_view());
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION(
-          "Hash function not implemented for type: " + val.type().ToString());
+          "Hash function not implemented for type: " +
+          std::to_string(val.type()));
     }
   }
 };
@@ -192,7 +193,7 @@ template <typename KEY_T, typename INDEX_T>
 void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
                       const std::string& filename, LFIndexer<INDEX_T>& lf,
                       const std::string& snapshot_dir,
-                      const std::string& work_dir, PropertyType type);
+                      const std::string& work_dir, DataTypeId type);
 
 template <typename INDEX_T>
 class LFIndexer {
@@ -235,35 +236,37 @@ class LFIndexer {
     std::swap(hasher_, other.hasher_);
   }
 
-  void init(const PropertyType& type) {
+  void init(const DataTypeId& type,
+            std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
-    if (type == PropertyType::kInt64) {
+    if (type == DataTypeId::kInt64) {
       keys_ = std::shared_ptr<ColumnBase>(
           new TypedColumn<int64_t>(StorageStrategy::kMem));
-    } else if (type == PropertyType::kInt32) {
+    } else if (type == DataTypeId::kInt32) {
       keys_ = std::shared_ptr<ColumnBase>(
           new TypedColumn<int32_t>(StorageStrategy::kMem));
-    } else if (type == PropertyType::kUInt64) {
+    } else if (type == DataTypeId::kUInt64) {
       keys_ = std::shared_ptr<ColumnBase>(
           new TypedColumn<uint64_t>(StorageStrategy::kMem));
-    } else if (type == PropertyType::kUInt32) {
+    } else if (type == DataTypeId::kUInt32) {
       keys_ = std::shared_ptr<ColumnBase>(
           new TypedColumn<uint32_t>(StorageStrategy::kMem));
-    } else if (type.type_enum == impl::PropertyTypeImpl::kVarChar) {
-      keys_ = std::shared_ptr<ColumnBase>(new StringColumn(
-          StorageStrategy::kMem, type.additional_type_info.max_length));
-    } else if (type == PropertyType::kStringView) {
-      LOG(WARNING) << "String type is a deprecated type, use varchar instead.";
-      LOG(WARNING) << "Use default max length"
-                   << PropertyType::GetStringDefaultMaxLength()
-                   << " for varchar type.";
-      keys_ = std::shared_ptr<ColumnBase>(new StringColumn(
-          StorageStrategy::kMem, PropertyType::GetStringDefaultMaxLength()));
+    } else if (type == DataTypeId::kStringView) {
+      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+      if (extra_type_info) {
+        auto str_type_info =
+            std::dynamic_pointer_cast<StringTypeInfo>(extra_type_info);
+        if (str_type_info) {
+          max_length = str_type_info->max_length;
+        }
+      }
+      keys_ = std::shared_ptr<ColumnBase>(
+          new StringColumn(StorageStrategy::kMem, max_length));
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Only (u)int64/32 and string_view types for pk are supported, but "
           "got: " +
-          type.ToString());
+          std::to_string(type));
     }
   }
 
@@ -326,7 +329,7 @@ class LFIndexer {
   size_t capacity() const { return keys_->size(); }
 
   size_t size() const { return num_elements_.load(); }
-  PropertyType get_type() const { return keys_->type(); }
+  DataTypeId get_type() const { return keys_->type(); }
 
   // only for update transaction
   INDEX_T insert_safe(const Property& oid) {
@@ -527,7 +530,7 @@ class LFIndexer {
              meta_file_size);
     arc.SetSlice(buf.data(), meta_file_size);
     size_t mod_function_index;
-    PropertyType type;
+    DataTypeId type;
     arc >> type;
     size_t num_elements;
     arc >> num_elements;
@@ -565,7 +568,7 @@ class LFIndexer {
                                const std::string& filename,
                                LFIndexer<_INDEX_T>& output,
                                const std::string& snapshot_dir,
-                               const std::string& work_dir, PropertyType type);
+                               const std::string& work_dir, DataTypeId type);
 };
 
 template <typename INDEX_T>
@@ -573,7 +576,7 @@ class IdIndexerBase {
  public:
   IdIndexerBase() = default;
   virtual ~IdIndexerBase() = default;
-  virtual PropertyType get_type() const = 0;
+  virtual DataTypeId get_type() const = 0;
   virtual void _add(const Property& oid) = 0;
   virtual bool add(const Property& oid, INDEX_T& lid) = 0;
   virtual bool get_key(const INDEX_T& lid, Property& oid) const = 0;
@@ -591,9 +594,7 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   IdIndexer() : hasher_() { reset_to_empty_state(); }
   ~IdIndexer() {}
 
-  PropertyType get_type() const override {
-    return PropUtils<KEY_T>::prop_type();
-  }
+  DataTypeId get_type() const override { return PropUtils<KEY_T>::prop_type(); }
 
   void _add(const Property& oid) override {
     assert(get_type() == oid.type());
@@ -1032,7 +1033,7 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
                                const std::string& filename,
                                LFIndexer<_INDEX_T>& output,
                                const std::string& snapshot_dir,
-                               const std::string& work_dir, PropertyType type);
+                               const std::string& work_dir, DataTypeId type);
 };
 
 template <typename KEY_T, typename INDEX_T>
@@ -1062,7 +1063,7 @@ template <typename KEY_T, typename INDEX_T>
 void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
                       const std::string& filename, LFIndexer<INDEX_T>& lf,
                       const std::string& snapshot_dir,
-                      const std::string& work_dir, PropertyType type) {
+                      const std::string& work_dir, DataTypeId type) {
   size_t size = input.keys_.size();
   lf.init(type);
   lf.keys_->open(filename + ".keys", "", work_dir);

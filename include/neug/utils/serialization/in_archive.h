@@ -117,12 +117,11 @@ inline InArchive& operator<<(InArchive& in_archive, const std::vector<T>& vec) {
   return in_archive;
 }
 
-template <typename T0, typename T1, typename T2>
+template <typename... Args>
 inline InArchive& operator<<(InArchive& in_archive,
-                             const std::tuple<T0, T1, T2>& tup) {
-  in_archive << std::get<0>(tup);
-  in_archive << std::get<1>(tup);
-  in_archive << std::get<2>(tup);
+                             const std::tuple<Args...>& tup) {
+  std::apply(
+      [&in_archive](const Args&... args) { (in_archive << ... << args); }, tup);
   return in_archive;
 }
 

@@ -72,8 +72,7 @@ std::string edge_to_json_string(const EdgeRecord& edge,
 
 std::string path_to_json_string(Path& path, const StorageReadInterface& graph);
 
-PropertyType get_the_pk_type_from_schema(const Schema& schema,
-                                         label_t label_id);
+DataTypeId get_the_pk_type_from_schema(const Schema& schema, label_t label_id);
 
 // The datasource operator will really load the data into the memory, and stored
 // as arrow::Array in Context.
@@ -86,7 +85,7 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
 void to_arrow_csv_options(
     const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
-    const std::vector<PropertyType>& column_types,
+    const std::vector<DataTypeId>& column_types,
     arrow::csv::ConvertOptions& convert_options,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options);
@@ -94,7 +93,7 @@ void to_arrow_csv_options(
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path, const std::vector<PropertyType>& column_types,
+    const std::string& file_path, const std::vector<DataTypeId>& column_types,
     const std::unordered_map<std::string, std::string> csv_options);
 
 void parse_property_mappings(

@@ -26,21 +26,19 @@
 namespace gs {
 namespace extension {
 
-// Create an Arrow Builder corresponding to the given PropertyType
-std::unique_ptr<arrow::ArrayBuilder> createArrowBuilder(PropertyType type);
+// Create an Arrow Builder corresponding to the given DataTypeId
+std::unique_ptr<arrow::ArrayBuilder> createArrowBuilder(DataTypeId type);
 
 // Append a rapidjson Value to an Arrow Builder
 // @return true if successful, false if failed (null will be appended)
-bool appendJsonValueToBuilder(
-    arrow::ArrayBuilder* builder,
-    const rapidjson::Value& val,
-    PropertyType type);
+bool appendJsonValueToBuilder(arrow::ArrayBuilder* builder,
+                              const rapidjson::Value& val, DataTypeId type);
 
-// Infer PropertyType from a JSON value
-PropertyType inferPropertyTypeFromValue(const rapidjson::Value& val);
+// Infer DataTypeId from a JSON value
+DataTypeId inferPropertyTypeFromValue(const rapidjson::Value& val);
 
 // Merge two PropertyTypes (choose the more general type)
-PropertyType mergePropertyTypes(PropertyType a, PropertyType b);
+DataTypeId mergePropertyTypes(DataTypeId a, DataTypeId b);
 
 }  // namespace extension
 }  // namespace gs

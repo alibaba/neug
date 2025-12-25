@@ -191,23 +191,23 @@ class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
   std::shared_ptr<arrow::RecordBatchReader> reader_;
 };
 
-void fillVertexReaderMeta(
-    label_t v_label, const std::string& v_label_name, const std::string& v_file,
-    const LoadingConfig& loading_config,
-    const std::vector<std::string>& vertex_property_names,
-    const std::vector<PropertyType>& vertex_property_types,
-    PropertyType pk_type, const std::string& pk_name, size_t pk_ind,
-    arrow::csv::ReadOptions& read_options,
-    arrow::csv::ParseOptions& parse_options,
-    arrow::csv::ConvertOptions& convert_options);
+void fillVertexReaderMeta(label_t v_label, const std::string& v_label_name,
+                          const std::string& v_file,
+                          const LoadingConfig& loading_config,
+                          const std::vector<std::string>& vertex_property_names,
+                          const std::vector<DataTypeId>& vertex_property_types,
+                          DataTypeId pk_type, const std::string& pk_name,
+                          size_t pk_ind, arrow::csv::ReadOptions& read_options,
+                          arrow::csv::ParseOptions& parse_options,
+                          arrow::csv::ConvertOptions& convert_options);
 
 void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         label_t label_id, const std::string& edge_label_name,
                         const std::string& e_file,
                         const LoadingConfig& loading_config,
                         const std::vector<std::string>& edge_property_names,
-                        const std::vector<PropertyType>& edge_property_types,
-                        PropertyType src_pk_type, PropertyType dst_pk_type,
+                        const std::vector<DataTypeId>& edge_property_types,
+                        DataTypeId src_pk_type, DataTypeId dst_pk_type,
                         arrow::csv::ReadOptions& read_options,
                         arrow::csv::ParseOptions& parse_options,
                         arrow::csv::ConvertOptions& convert_options);

@@ -37,8 +37,7 @@ class ScanUtils {
  public:
   static std::function<
       std::vector<Property>(const std::map<std::string, std::string>&)>
-  parse_ids_with_type(PropertyType type,
-                      const algebra::IndexPredicate& triplet);
+  parse_ids_with_type(DataTypeId type, const algebra::IndexPredicate& triplet);
 
   static bool check_idx_predicate(const physical::Scan& scan_opr);
 };

@@ -28,9 +28,9 @@ class Emitter;
 
 namespace gs {
 
-struct PropertyType;
+enum class DataTypeId : uint8_t;
 
-YAML::Node property_type_to_yaml(const PropertyType& type);
+YAML::Node property_type_to_yaml(const DataTypeId& type);
 
 std::vector<std::string> get_yaml_files(const std::string& plugin_dir);
 

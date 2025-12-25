@@ -61,7 +61,7 @@ class ColumnBase {
                            const std::string& tmp_path) = 0;
   virtual void resize(size_t size) = 0;
 
-  virtual PropertyType type() const = 0;
+  virtual DataTypeId type() const = 0;
 
   virtual void set_any(size_t index, const Property& value) = 0;
 
@@ -153,7 +153,7 @@ class TypedColumn : public ColumnBase {
     buffer_.resize(size_);
   }
 
-  PropertyType type() const override { return PropUtils<T>::prop_type(); }
+  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
@@ -246,7 +246,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  PropertyType type() const override { return PropertyType::kEmpty; }
+  DataTypeId type() const override { return DataTypeId::kEmpty; }
 
   void set_any(size_t index, const Property& value) override {}
 
@@ -277,13 +277,13 @@ class TypedColumn<std::string_view> : public ColumnBase {
         pos_(0),
         strategy_(strategy),
         width_(width),
-        type_(PropertyType::Varchar(width_)) {}
+        type_(DataTypeId::kStringView) {}
   explicit TypedColumn(StorageStrategy strategy)
       : size_(0),
         pos_(0),
         strategy_(strategy),
-        width_(PropertyType::GetStringDefaultMaxLength()),
-        type_(PropertyType::kStringView) {}
+        width_(STRING_DEFAULT_MAX_LENGTH),
+        type_(DataTypeId::kStringView) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
     buffer_.swap(rhs.buffer_);
     size_ = rhs.size_;
@@ -371,7 +371,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  PropertyType type() const override { return type_; }
+  DataTypeId type() const override { return type_; }
 
   void set_value(size_t idx, const std::string_view& val) {
     auto copied_val = val;
@@ -454,14 +454,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
   StorageStrategy strategy_;
   std::shared_mutex rw_mutex_;
   uint16_t width_;
-  PropertyType type_;
+  DataTypeId type_;
 };
 
 using StringColumn = TypedColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
-    PropertyType type, StorageStrategy strategy = StorageStrategy::kMem,
-    const std::vector<PropertyType>& sub_types = {});
+    DataTypeId type, StorageStrategy strategy = StorageStrategy::kMem,
+    std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr,
+    const std::vector<DataTypeId>& sub_types = {});
 
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {
@@ -472,7 +473,7 @@ class RefColumnBase {
   };
   virtual ~RefColumnBase() {}
   virtual Property get(size_t index) const = 0;
-  virtual PropertyType type() const = 0;
+  virtual DataTypeId type() const = 0;
   virtual ColType col_type() const = 0;
 };
 
@@ -495,7 +496,7 @@ class TypedRefColumn : public RefColumnBase {
     return PropUtils<T>::to_prop(get_view(index));
   }
 
-  PropertyType type() const override { return PropUtils<T>::prop_type(); }
+  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
 
   ColType col_type() const override { return ColType::kInternal; }
 

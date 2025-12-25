@@ -48,37 +48,35 @@ template YAML::detail::node& YAML::detail::node_data::get<char[9]>(
     char const (&)[9], std::shared_ptr<YAML::detail::memory_holder>);
 namespace gs {
 
-YAML::Node property_type_to_yaml(const PropertyType& type) {
+YAML::Node property_type_to_yaml(const DataTypeId& type) {
   YAML::Node node;
-  switch (type.type_enum) {
-  case impl::PropertyTypeImpl::kBool:
-  case impl::PropertyTypeImpl::kInt32:
-  case impl::PropertyTypeImpl::kUInt32:
-  case impl::PropertyTypeImpl::kInt64:
-  case impl::PropertyTypeImpl::kUInt64:
-  case impl::PropertyTypeImpl::kFloat:
-  case impl::PropertyTypeImpl::kDouble:
-
+  switch (type) {
+  case DataTypeId::kBool:
+  case DataTypeId::kInt32:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     node["primitive_type"] =
         config_parsing::PrimitivePropertyTypeToString(type);
     break;
-  case impl::PropertyTypeImpl::kStringView:
-  case impl::PropertyTypeImpl::kVarChar:
-    node["string"]["var_char"]["max_length"] =
-        type.additional_type_info.max_length;
+  case DataTypeId::kStringView:
+    node["string"]["long_text"] = "";
     break;
-  case impl::PropertyTypeImpl::kDate:
+  case DataTypeId::kDate:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
-  case impl::PropertyTypeImpl::kDateTime:
+  case DataTypeId::kDateTime:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
-  case impl::PropertyTypeImpl::kInterval:
+  case DataTypeId::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Unrecognized property type for YAML encoding: " + type.ToString());
+        "Unrecognized property type for YAML encoding: " +
+        std::to_string(type));
   }
   return node;
 }

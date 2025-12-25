@@ -79,8 +79,7 @@ Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
 bool InsertTransaction::AddVertex(label_t label, const Property& id,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
-  std::vector<PropertyType> types =
-      graph_.schema().get_vertex_properties(label);
+  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     std::string label_name = graph_.schema().get_vertex_label_name(label);
     LOG(ERROR) << "Vertex [" << label_name
@@ -92,14 +91,11 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
     if (prop.type() != types[col_i]) {
-      if (prop.type().type_enum == impl::PropertyTypeImpl::kStringView) {
-      } else {
-        std::string label_name = graph_.schema().get_vertex_label_name(label);
-        LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
-                   << "] property type not match, expected " << types[col_i]
-                   << ", but got " << prop.type().ToString();
-        return false;
-      }
+      std::string label_name = graph_.schema().get_vertex_label_name(label);
+      LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
+                 << "] property type not match, expected " << types[col_i]
+                 << ", but got " << std::to_string(prop.type());
+      return false;
     }
   }
   create_id_indexer_if_not_exists(label);
@@ -132,7 +128,7 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
                  << " type not match, expected " << types[i] << ", got "
-                 << properties[i].type().ToString();
+                 << std::to_string(properties[i].type());
       return false;
     }
   }
@@ -249,23 +245,23 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
   if (added_vertices_[label] == nullptr) {
     const auto& pks = graph_.schema().get_vertex_primary_key(label);
-    PropertyType type = std::get<0>(pks[0]);
-    if (type == PropertyType::kInt64) {
+    DataTypeId type = std::get<0>(pks[0]);
+    if (type == DataTypeId::kInt64) {
       added_vertices_[label] = std::make_unique<IdIndexer<int64_t, vid_t>>();
-    } else if (type == PropertyType::kUInt64) {
+    } else if (type == DataTypeId::kUInt64) {
       added_vertices_[label] = std::make_unique<IdIndexer<uint64_t, vid_t>>();
-    } else if (type == PropertyType::kInt32) {
+    } else if (type == DataTypeId::kInt32) {
       added_vertices_[label] = std::make_unique<IdIndexer<int32_t, vid_t>>();
-    } else if (type == PropertyType::kUInt32) {
+    } else if (type == DataTypeId::kUInt32) {
       added_vertices_[label] = std::make_unique<IdIndexer<uint32_t, vid_t>>();
-    } else if (type == PropertyType::kStringView) {
+    } else if (type == DataTypeId::kStringView) {
       added_vertices_[label] =
           std::make_unique<IdIndexer<std::string_view, vid_t>>();
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Only (u)int64/32 and string_view types for pk are supported, but "
           "got: " +
-          type.ToString());
+          std::to_string(type));
     }
     added_vertices_base_[label] = graph_.LidNum(label);
   }

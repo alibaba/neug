@@ -31,9 +31,11 @@ namespace gs {
 Table::Table() : touched_(false) {}
 Table::~Table() { close(); }
 
-void Table::initColumns(const std::vector<std::string>& col_name,
-                        const std::vector<PropertyType>& property_types,
-                        const std::vector<StorageStrategy>& strategies_) {
+void Table::initColumns(
+    const std::vector<std::string>& col_name,
+    const std::vector<DataTypeId>& property_types,
+    const std::vector<StorageStrategy>& strategies_,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
   size_t col_num = col_name.size();
   columns_.clear();
   col_names_.clear();
@@ -41,19 +43,22 @@ void Table::initColumns(const std::vector<std::string>& col_name,
   columns_.resize(col_num, nullptr);
   auto strategies = strategies_;
   strategies.resize(col_num, StorageStrategy::kMem);
+  auto extra_infos = extra_type_infos;
+  extra_infos.resize(col_num, nullptr);
 
   for (size_t i = 0; i < col_num; ++i) {
     int col_id = col_names_.size();
     col_id_map_.insert({col_name[i], col_id});
     col_names_.emplace_back(col_name[i]);
-    columns_[col_id] = CreateColumn(property_types[i], strategies[i]);
+    columns_[col_id] =
+        CreateColumn(property_types[i], strategies[i], extra_infos[i]);
   }
   columns_.resize(col_id_map_.size());
 }
 
 void Table::init(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
-                 const std::vector<PropertyType>& property_types,
+                 const std::vector<DataTypeId>& property_types,
                  const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
   work_dir_ = work_dir;
@@ -65,14 +70,16 @@ void Table::init(const std::string& name, const std::string& work_dir,
   buildColumnPtrs();
 }
 
-void Table::open(const std::string& name, const std::string& work_dir,
-                 const std::vector<std::string>& col_name,
-                 const std::vector<PropertyType>& property_types,
-                 const std::vector<StorageStrategy>& strategies_) {
+void Table::open(
+    const std::string& name, const std::string& work_dir,
+    const std::vector<std::string>& col_name,
+    const std::vector<DataTypeId>& property_types,
+    const std::vector<StorageStrategy>& strategies_,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir_);
-  initColumns(col_name, property_types, strategies_);
+  initColumns(col_name, property_types, strategies_, extra_type_infos);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
                       tmp_dir(work_dir));
@@ -81,14 +88,16 @@ void Table::open(const std::string& name, const std::string& work_dir,
   buildColumnPtrs();
 }
 
-void Table::open_in_memory(const std::string& name, const std::string& work_dir,
-                           const std::vector<std::string>& col_name,
-                           const std::vector<PropertyType>& property_types,
-                           const std::vector<StorageStrategy>& strategies_) {
+void Table::open_in_memory(
+    const std::string& name, const std::string& work_dir,
+    const std::vector<std::string>& col_name,
+    const std::vector<DataTypeId>& property_types,
+    const std::vector<StorageStrategy>& strategies_,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir_);
-  initColumns(col_name, property_types, strategies_);
+  initColumns(col_name, property_types, strategies_, extra_type_infos);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
                                 std::to_string(i));
@@ -97,16 +106,17 @@ void Table::open_in_memory(const std::string& name, const std::string& work_dir,
   buildColumnPtrs();
 }
 
-void Table::open_with_hugepages(const std::string& name,
-                                const std::string& work_dir,
-                                const std::vector<std::string>& col_name,
-                                const std::vector<PropertyType>& property_types,
-                                const std::vector<StorageStrategy>& strategies_,
-                                bool force) {
+void Table::open_with_hugepages(
+    const std::string& name, const std::string& work_dir,
+    const std::vector<std::string>& col_name,
+    const std::vector<DataTypeId>& property_types,
+    const std::vector<StorageStrategy>& strategies_,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos,
+    bool force) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir);
-  initColumns(col_name, property_types, strategies_);
+  initColumns(col_name, property_types, strategies_, extra_type_infos);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_with_hugepages(
         snapshot_dir_ + "/" + name + ".col_" + std::to_string(i), force);
@@ -146,8 +156,7 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_map_.swap(new_col_id_map);
 }
 
-void Table::add_column(const std::string& col_name,
-                       const PropertyType& col_types,
+void Table::add_column(const std::string& col_name, const DataTypeId& col_types,
                        std::shared_ptr<ColumnBase> column) {
   int col_id = col_names_.size();
   columns_.emplace_back(column);
@@ -158,9 +167,12 @@ void Table::add_column(const std::string& col_name,
   buildColumnPtrs();
 }
 
-void Table::add_columns(const std::vector<std::string>& col_names,
-                        const std::vector<PropertyType>& col_types,
-                        int memory_level) {
+void Table::add_columns(
+    const std::vector<std::string>& col_names,
+    const std::vector<DataTypeId>& col_types,
+    const std::vector<StorageStrategy>& strategies_,
+    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos,
+    int memory_level) {
   // When add_columns are called, the table is already initialized and col_files
   // are opened.
   std::stringstream ss;
@@ -174,7 +186,10 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     int col_id = col_names_.size();
     col_id_map_.insert({col_names[i], col_id});
     col_names_.emplace_back(col_names[i]);
-    columns_[col_id] = CreateColumn(col_types[i], StorageStrategy::kMem);
+    columns_[col_id] = CreateColumn(
+        col_types[i],
+        i < strategies_.size() ? strategies_[i] : StorageStrategy::kMem,
+        i < extra_type_infos.size() ? extra_type_infos[i] : nullptr);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     if (memory_level == 0) {
@@ -244,9 +259,9 @@ int Table::get_column_id_by_name(const std::string& name) const {
   return -1;
 }
 
-std::vector<PropertyType> Table::column_types() const {
+std::vector<DataTypeId> Table::column_types() const {
   size_t col_num = col_id_map_.size();
-  std::vector<PropertyType> types(col_num);
+  std::vector<DataTypeId> types(col_num);
   for (size_t col_i = 0; col_i < col_num; ++col_i) {
     types[col_i] = columns_[col_i]->type();
   }

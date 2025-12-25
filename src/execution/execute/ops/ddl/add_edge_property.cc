@@ -25,7 +25,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   AddEdgePropertySchemaOpr(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           properties,
       bool error_on_conflict)
       : src_type_(src_type),
@@ -55,7 +55,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   std::string src_type_;
   std::string dst_type_;
   std::string edge_type_;
-  std::vector<std::tuple<PropertyType, std::string, Property>> properties_;
+  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
   bool error_on_conflict_;
 };
 

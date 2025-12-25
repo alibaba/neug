@@ -113,7 +113,8 @@ TEST_F(InsertTransactionTest, AddVertex) {
     gs::vid_t vid;
     EXPECT_TRUE(interface.AddVertex(
         person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string("Eve"), gs::Property::from_int64(28)}, vid));
+        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
+        vid));
     EXPECT_TRUE(txn.Commit());
   }
   {

@@ -29,7 +29,7 @@ std::shared_ptr<IFragmentLoader> CSVPropertyGraphLoader::Make(
 std::vector<std::shared_ptr<IRecordBatchSupplier>>
 CSVPropertyGraphLoader::createVertexRecordBatchSupplier(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
-    PropertyType pk_type, const std::string& pk_name, int pk_ind,
+    DataTypeId pk_type, const std::string& pk_name, int pk_ind,
     const LoadingConfig& loading_config, int thread_id) const {
   auto vertex_property_names = schema_.get_vertex_property_names(v_label);
   auto vertex_property_types = schema_.get_vertex_properties(v_label);

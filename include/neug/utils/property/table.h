@@ -34,24 +34,30 @@ class Table {
 
   void init(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
-            const std::vector<PropertyType>& types,
+            const std::vector<DataTypeId>& types,
             const std::vector<StorageStrategy>& strategies_);
 
-  void open(const std::string& name, const std::string& work_dir,
-            const std::vector<std::string>& col_name,
-            const std::vector<PropertyType>& property_types,
-            const std::vector<StorageStrategy>& strategies_);
+  void open(
+      const std::string& name, const std::string& work_dir,
+      const std::vector<std::string>& col_name,
+      const std::vector<DataTypeId>& property_types,
+      const std::vector<StorageStrategy>& strategies_,
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
-  void open_in_memory(const std::string& name, const std::string& work_dir,
-                      const std::vector<std::string>& col_name,
-                      const std::vector<PropertyType>& property_types,
-                      const std::vector<StorageStrategy>& strategies_);
+  void open_in_memory(
+      const std::string& name, const std::string& work_dir,
+      const std::vector<std::string>& col_name,
+      const std::vector<DataTypeId>& property_types,
+      const std::vector<StorageStrategy>& strategies_,
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
-  void open_with_hugepages(const std::string& name, const std::string& work_dir,
-                           const std::vector<std::string>& col_name,
-                           const std::vector<PropertyType>& property_types,
-                           const std::vector<StorageStrategy>& strategies_,
-                           bool force);
+  void open_with_hugepages(
+      const std::string& name, const std::string& work_dir,
+      const std::vector<std::string>& col_name,
+      const std::vector<DataTypeId>& property_types,
+      const std::vector<StorageStrategy>& strategies_,
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
+      bool force = false);
 
   void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
                    const std::string& work_dir);
@@ -60,12 +66,15 @@ class Table {
 
   void reset_header(const std::vector<std::string>& col_name);
 
-  void add_column(const std::string& col_name, const PropertyType& col_types,
+  void add_column(const std::string& col_name, const DataTypeId& col_types,
                   std::shared_ptr<ColumnBase> column);
 
-  void add_columns(const std::vector<std::string>& col_names,
-                   const std::vector<PropertyType>& col_types,
-                   int memory_level = 0);
+  void add_columns(
+      const std::vector<std::string>& col_names,
+      const std::vector<DataTypeId>& col_types,
+      const std::vector<StorageStrategy>& strategies_ = {},
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
+      int memory_level = 0);
 
   const std::vector<std::string>& column_names() const;
 
@@ -73,7 +82,7 @@ class Table {
 
   int get_column_id_by_name(const std::string& name) const;
 
-  std::vector<PropertyType> column_types() const;
+  std::vector<DataTypeId> column_types() const;
 
   std::shared_ptr<ColumnBase> get_column(const std::string& name);
 
@@ -131,9 +140,11 @@ class Table {
  private:
   void mark_column_deleted(const std::string& col_name);
   void buildColumnPtrs();
-  void initColumns(const std::vector<std::string>& col_name,
-                   const std::vector<PropertyType>& types,
-                   const std::vector<StorageStrategy>& strategies_);
+  void initColumns(
+      const std::vector<std::string>& col_name,
+      const std::vector<DataTypeId>& types,
+      const std::vector<StorageStrategy>& strategies_,
+      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;

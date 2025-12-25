@@ -47,13 +47,13 @@ class PropertyGraphTest : public ::testing::Test {
                     ->CreateVertexType(
                         "person",
                         {
-                            std::make_tuple(PropertyType::kInt64, "id",
+                            std::make_tuple(DataTypeId::kInt64, "id",
                                             Property::from_int64(0)),
-                            std::make_tuple(PropertyType::kStringView, "name",
-                                            Property::from_string("")),
-                            std::make_tuple(PropertyType::kInt32, "age",
+                            std::make_tuple(DataTypeId::kStringView, "name",
+                                            Property::from_string_view("")),
+                            std::make_tuple(DataTypeId::kInt32, "age",
                                             Property::from_int32(0)),
-                            std::make_tuple(PropertyType::kDouble, "score",
+                            std::make_tuple(DataTypeId::kDouble, "score",
                                             Property::from_double(0.0)),
                         },
                         {"id"})
@@ -62,21 +62,21 @@ class PropertyGraphTest : public ::testing::Test {
                     ->CreateVertexType(
                         "company",
                         {
-                            std::make_tuple(PropertyType::kInt64, "id",
+                            std::make_tuple(DataTypeId::kInt64, "id",
                                             Property::from_int64(0)),
-                            std::make_tuple(PropertyType::kStringView, "name",
-                                            Property::from_string("")),
+                            std::make_tuple(DataTypeId::kStringView, "name",
+                                            Property::from_string_view("")),
                         },
                         {"id"})
                     .ok());
-    EXPECT_TRUE(graph_
-                    ->CreateEdgeType(
-                        "person", "person", "knows",
-                        {
-                            std::make_tuple(PropertyType::kDouble, "weight",
-                                            Property::from_double(0.0)),
-                        })
-                    .ok());
+    EXPECT_TRUE(
+        graph_
+            ->CreateEdgeType("person", "person", "knows",
+                             {
+                                 std::make_tuple(DataTypeId::kDouble, "weight",
+                                                 Property::from_double(0.0)),
+                             })
+            .ok());
   }
 };
 
@@ -89,15 +89,15 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
   EXPECT_TRUE(
       graph_
           ->AddVertex(person_label, Property::from_int64(1),
-                      {Property::from_string("Alice"), Property::from_int32(30),
-                       Property::from_double(88.5)},
+                      {Property::from_string_view("Alice"),
+                       Property::from_int32(30), Property::from_double(88.5)},
                       vid1, 0)
           .ok());
   EXPECT_TRUE(
       graph_
           ->AddVertex(person_label, Property::from_int64(2),
-                      {Property::from_string("Bob"), Property::from_int32(25),
-                       Property::from_double(92.0)},
+                      {Property::from_string_view("Bob"),
+                       Property::from_int32(25), Property::from_double(92.0)},
                       vid2, 0)
           .ok());
   auto id_column = graph_->GetVertexPropertyColumn(person_label, "id");
@@ -109,7 +109,7 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
   for (size_t i = 3; i <= 4096; ++i) {
     vid_t vid;
     graph_->AddVertex(person_label, Property::from_int64(i),
-                      {Property::from_string("User" + std::to_string(i)),
+                      {Property::from_string_view("User" + std::to_string(i)),
                        Property::from_int32(20 + (i % 10)),
                        Property::from_double(80.0 + (i % 20))},
                       vid, 0);
@@ -119,7 +119,7 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
   EXPECT_FALSE(
       graph_
           ->AddVertex(person_label, Property::from_int64(4097),
-                      {Property::from_string("User4097"),
+                      {Property::from_string_view("User4097"),
                        Property::from_int32(27), Property::from_double(85.0)},
                       vid4097, 0)
           .ok());

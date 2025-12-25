@@ -151,7 +151,7 @@ class PropertyGraph {
   // vertex type or edge type already exists.
   Status CreateVertexType(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict = true);
@@ -159,7 +159,7 @@ class PropertyGraph {
   Status CreateEdgeType(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           properties,
       bool error_on_conflict = true,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
@@ -186,14 +186,14 @@ class PropertyGraph {
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 
   Status AddEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 

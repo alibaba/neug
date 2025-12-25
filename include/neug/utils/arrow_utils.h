@@ -253,7 +253,7 @@ struct TypeConverter;
 
 template <>
 struct TypeConverter<bool> {
-  static PropertyType property_type() { return PropertyType::kBool; }
+  static DataTypeId property_type() { return DataTypeId::kBool; }
   using ArrowType = arrow::BooleanType;
   using ArrowArrayType = arrow::BooleanArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -263,7 +263,7 @@ struct TypeConverter<bool> {
 
 template <>
 struct TypeConverter<int32_t> {
-  static PropertyType property_type() { return PropertyType::kInt32; }
+  static DataTypeId property_type() { return DataTypeId::kInt32; }
   using ArrowType = arrow::Int32Type;
   using ArrowArrayType = arrow::Int32Array;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -273,7 +273,7 @@ struct TypeConverter<int32_t> {
 
 template <>
 struct TypeConverter<uint32_t> {
-  static PropertyType property_type() { return PropertyType::kUInt32; }
+  static DataTypeId property_type() { return DataTypeId::kUInt32; }
   using ArrowType = arrow::UInt32Type;
   using ArrowArrayType = arrow::UInt32Array;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -283,7 +283,7 @@ struct TypeConverter<uint32_t> {
 
 template <>
 struct TypeConverter<int64_t> {
-  static PropertyType property_type() { return PropertyType::kInt64; }
+  static DataTypeId property_type() { return DataTypeId::kInt64; }
   using ArrowType = arrow::Int64Type;
   using ArrowArrayType = arrow::Int64Array;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -293,7 +293,7 @@ struct TypeConverter<int64_t> {
 
 template <>
 struct TypeConverter<uint64_t> {
-  static PropertyType property_type() { return PropertyType::kUInt64; }
+  static DataTypeId property_type() { return DataTypeId::kUInt64; }
   using ArrowType = arrow::UInt64Type;
   using ArrowArrayType = arrow::UInt64Array;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -303,7 +303,7 @@ struct TypeConverter<uint64_t> {
 
 template <>
 struct TypeConverter<double> {
-  static PropertyType property_type() { return PropertyType::kDouble; }
+  static DataTypeId property_type() { return DataTypeId::kDouble; }
   using ArrowType = arrow::DoubleType;
   using ArrowArrayType = arrow::DoubleArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -313,7 +313,7 @@ struct TypeConverter<double> {
 
 template <>
 struct TypeConverter<float> {
-  static PropertyType property_type() { return PropertyType::kFloat; }
+  static DataTypeId property_type() { return DataTypeId::kFloat; }
   using ArrowType = arrow::FloatType;
   using ArrowArrayType = arrow::FloatArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -322,7 +322,7 @@ struct TypeConverter<float> {
 };
 template <>
 struct TypeConverter<std::string> {
-  static PropertyType property_type() { return PropertyType::kStringView; }
+  static DataTypeId property_type() { return DataTypeId::kStringView; }
   using ArrowType = arrow::LargeStringType;
   using ArrowArrayType = arrow::LargeStringArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -332,7 +332,7 @@ struct TypeConverter<std::string> {
 
 template <>
 struct TypeConverter<std::string_view> {
-  static PropertyType property_type() { return PropertyType::kStringView; }
+  static DataTypeId property_type() { return DataTypeId::kStringView; }
   using ArrowType = arrow::LargeStringType;
   using ArrowArrayType = arrow::LargeStringArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -342,7 +342,7 @@ struct TypeConverter<std::string_view> {
 
 template <>
 struct TypeConverter<Date> {
-  static PropertyType property_type() { return PropertyType::kDate; }
+  static DataTypeId property_type() { return DataTypeId::kDate; }
   using ArrowType = arrow::TimestampType;
   using ArrowArrayType = arrow::TimestampArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -352,7 +352,7 @@ struct TypeConverter<Date> {
 
 template <>
 struct TypeConverter<DateTime> {
-  static PropertyType property_type() { return PropertyType::kDateTime; }
+  static DataTypeId property_type() { return DataTypeId::kDateTime; }
   using ArrowType = arrow::TimestampType;
   using ArrowArrayType = arrow::TimestampArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -361,7 +361,7 @@ struct TypeConverter<DateTime> {
 };
 template <>
 struct TypeConverter<Interval> {
-  static PropertyType property_type() { return PropertyType::kInterval; }
+  static DataTypeId property_type() { return DataTypeId::kInterval; }
   using ArrowType = arrow::DurationType;
   using ArrowArrayType = arrow::DurationArray;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
@@ -369,5 +369,5 @@ struct TypeConverter<Interval> {
   }
 };
 
-std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(PropertyType type);
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type);
 }  // namespace gs

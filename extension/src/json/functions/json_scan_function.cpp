@@ -18,17 +18,17 @@
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <rapidjson/document.h>
-#include <unordered_map>
 #include <algorithm>
+#include <unordered_map>
 
+#include "json/json_converter.h"
 #include "json/json_scan_function.h"
 #include "json/json_streaming_state.h"
+#include "json/json_vfs_reader.h"
+#include "neug/compiler/gopt/g_vfs_holder.h"
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
-#include "neug/compiler/gopt/g_vfs_holder.h"
-#include "json/json_vfs_reader.h"
-#include "json/json_converter.h"
 
 using namespace gs::common;
 using namespace gs::function;
@@ -36,77 +36,77 @@ using namespace gs::runtime;
 namespace gs {
 namespace extension {
 
-const uint8_t* JsonScanFunction::findNextJsonObjectEnd(const uint8_t* ptr, uint64_t size, 
-                                             uint64_t& lineCountInJson) {
-    lineCountInJson = 0;
-    auto end = ptr + size;
-    
-    // Determine processing strategy based on the first character
-    switch (*ptr) {
-    case '{':
-    case '[':
-    case '"': {
-        // Standard JSON object/array/string, need to track nesting levels
-        uint64_t parents = 0;
-        while (ptr != end) {
-            switch (*ptr++) {
-            case '{':
-            case '[':
-                parents++;
-                continue;
-            case '}':
-            case ']':
-                parents--;
-                break;
-            case '"':
-                // Handle string content, skip escaped characters
-                while (ptr != end) {
-                    auto strChar = *ptr++;
-                    if (strChar == '"') {
-                        break;
-                    } else if (strChar == '\\') {
-                        if (ptr != end) {
-                            ptr++; // Skip escaped character
-                        }
-                    } else if (strChar == '\n') {
-                        ++lineCountInJson;
-                    }
-                }
-                break;
-            case '\n':
-                ++lineCountInJson;
-                // fall through
-            default:
-                continue;
-            }
+const uint8_t* JsonScanFunction::findNextJsonObjectEnd(
+    const uint8_t* ptr, uint64_t size, uint64_t& lineCountInJson) {
+  lineCountInJson = 0;
+  auto end = ptr + size;
 
-            if (parents == 0) {
-                break;
+  // Determine processing strategy based on the first character
+  switch (*ptr) {
+  case '{':
+  case '[':
+  case '"': {
+    // Standard JSON object/array/string, need to track nesting levels
+    uint64_t parents = 0;
+    while (ptr != end) {
+      switch (*ptr++) {
+      case '{':
+      case '[':
+        parents++;
+        continue;
+      case '}':
+      case ']':
+        parents--;
+        break;
+      case '"':
+        // Handle string content, skip escaped characters
+        while (ptr != end) {
+          auto strChar = *ptr++;
+          if (strChar == '"') {
+            break;
+          } else if (strChar == '\\') {
+            if (ptr != end) {
+              ptr++;  // Skip escaped character
             }
+          } else if (strChar == '\n') {
+            ++lineCountInJson;
+          }
         }
         break;
-    }
-    default: {
-        // Special case: JSON array containing JSON values without explicit "parents"
-        // For example: [1, 2, 3] or [true, false, null]
-        while (ptr != end) {
-            switch (*ptr++) {
-            case ',':
-            case ']':
-                ptr--;
-                break;
-            case '\n':
-                ++lineCountInJson;
-                // fall through
-            default:
-                continue;
-            }
-            break;
-        }
-    }
-    }
+      case '\n':
+        ++lineCountInJson;
+        // fall through
+      default:
+        continue;
+      }
 
-    return ptr == end ? nullptr : ptr;
+      if (parents == 0) {
+        break;
+      }
+    }
+    break;
+  }
+  default: {
+    // Special case: JSON array containing JSON values without explicit
+    // "parents" For example: [1, 2, 3] or [true, false, null]
+    while (ptr != end) {
+      switch (*ptr++) {
+      case ',':
+      case ']':
+        ptr--;
+        break;
+      case '\n':
+        ++lineCountInJson;
+        // fall through
+      default:
+        continue;
+      }
+      break;
+    }
+  }
+  }
+
+  return ptr == end ? nullptr : ptr;
 }
 
 std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
@@ -134,10 +134,10 @@ std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
   }
 
   // Obtain columnTypes from MetaData
-  std::vector<PropertyType> columnTypes;
+  std::vector<DataTypeId> columnTypes;
   const auto& metadatas = physical_opr.meta_data();
   for (const auto& metadata : metadatas) {
-    PropertyType type;
+    DataTypeId type;
     if (!gs::data_type_to_property_type(metadata.type().data_type(), type)) {
       THROW_EXTENSION_EXCEPTION("Unrecognized data type: " +
                                 metadata.type().DebugString());
@@ -156,18 +156,18 @@ std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
 
   LOG(INFO) << "[JsonScan] Binding complete:";
   LOG(INFO) << "  - File: " << filePath;
-  LOG(INFO) << "  - Format: " << (detectResult.format == JsonFormat::ARRAY ? "ARRAY" : "JSONL");
+  LOG(INFO) << "  - Format: "
+            << (detectResult.format == JsonFormat::ARRAY ? "ARRAY" : "JSONL");
   LOG(INFO) << "  - Columns: " << columnTypes.size();
   LOG(INFO) << "  - Auto-detected column types:";
   for (size_t i = 0; i < detectResult.detectedColumnTypes.size(); ++i) {
-    LOG(INFO) << "    * " << detectResult.detectedColumnNames[i]
-              << " -> " << detectResult.detectedColumnTypes[i].ToString();
+    LOG(INFO) << "    * " << detectResult.detectedColumnNames[i] << " -> "
+              << std::to_string(detectResult.detectedColumnTypes[i]);
   }
 
-  return std::make_unique<JsonScanFuncInput>(filePath, columnTypes, detectResult.format);
+  return std::make_unique<JsonScanFuncInput>(filePath, columnTypes,
+                                             detectResult.format);
 }
-
-
 
 Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
   LOG(INFO) << "[JsonScan] Executing function for file: " << input.filePath;
@@ -184,8 +184,8 @@ Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
     } else {
       // JSONL: Streaming read + incremental Arrow building
       LOG(INFO) << "[JsonScan] Using streaming for JSONL format";
-      arrowArrays = parseJsonFileStreaming(input.filePath, input.columnTypes, 
-                                          vfs, input.format);
+      arrowArrays = parseJsonFileStreaming(input.filePath, input.columnTypes,
+                                           vfs, input.format);
     }
 
     // Create context and populate with arrow data
@@ -198,8 +198,8 @@ Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
     }
 
     auto num_rows = arrowArrays.empty() ? 0 : arrowArrays[0]->length();
-    LOG(INFO) << "[JsonScan] Successfully loaded: " << num_rows
-              << " rows with " << num_columns << " columns";
+    LOG(INFO) << "[JsonScan] Successfully loaded: " << num_rows << " rows with "
+              << num_columns << " columns";
 
     return ctx;
 
@@ -209,14 +209,10 @@ Context JsonScanFunction::execFunc(const JsonScanFuncInput& input) {
   }
 }
 
-
-
-std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFileStreaming(
-    const std::string& filePath,
-    const std::vector<PropertyType>& columnTypes,
-    VirtualFileSystem* vfs,
-    JsonFormat format) {
-
+std::vector<std::shared_ptr<arrow::Array>>
+JsonScanFunction::parseJsonFileStreaming(
+    const std::string& filePath, const std::vector<DataTypeId>& columnTypes,
+    VirtualFileSystem* vfs, JsonFormat format) {
   if (format != JsonFormat::NEWLINE_DELIMITED) {
     THROW_EXTENSION_EXCEPTION(
         "parseJsonFileStreaming should only be called for JSONL format");
@@ -232,34 +228,31 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFileStream
   size_t batchCount = 0;
   while (!streamingState.isFinished()) {
     size_t rowsParsed = streamingState.readNextBatch();
-    
+
     if (rowsParsed == 0) {
       break;
     }
-    
+
     batchCount++;
-    LOG(INFO) << "[JsonScan] Batch " << batchCount << ": parsed " << rowsParsed << " rows";
+    LOG(INFO) << "[JsonScan] Batch " << batchCount << ": parsed " << rowsParsed
+              << " rows";
   }
-  
-  LOG(INFO) << "[JsonScan] Streaming complete: total " 
-            << streamingState.getTotalRowsParsed() << " rows in " 
-            << batchCount << " batches";
-  
+
+  LOG(INFO) << "[JsonScan] Streaming complete: total "
+            << streamingState.getTotalRowsParsed() << " rows in " << batchCount
+            << " batches";
+
   // Finish building all Arrow Arrays
   return streamingState.finishArrays();
 }
 
-
-
 std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
-    const std::string& filePath,
-    const std::vector<PropertyType>& columnTypes,
+    const std::string& filePath, const std::vector<DataTypeId>& columnTypes,
     VirtualFileSystem* vfs) {
-  
   // Read entire file at once
   JsonVFSReader reader(vfs, filePath);
   std::string jsonContent = reader.readAll();
-  
+
   if (jsonContent.empty()) {
     THROW_EXTENSION_EXCEPTION("JSON file is empty: " + filePath);
   }
@@ -296,10 +289,10 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
   }
 
   if (fieldNames.size() != columnTypes.size()) {
-    THROW_EXTENSION_EXCEPTION(
-        "JSON object field count (" + std::to_string(fieldNames.size()) +
-        ") does not match expected column count (" +
-        std::to_string(columnTypes.size()) + ")");
+    THROW_EXTENSION_EXCEPTION("JSON object field count (" +
+                              std::to_string(fieldNames.size()) +
+                              ") does not match expected column count (" +
+                              std::to_string(columnTypes.size()) + ")");
   }
 
   // Create Arrow Builders (one per column)
@@ -321,11 +314,11 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
       }
       continue;
     }
-    
+
     // Append each field value to the corresponding Builder
     for (size_t i = 0; i < fieldNames.size(); ++i) {
       const auto& fieldName = fieldNames[i];
-      
+
       if (!obj.HasMember(fieldName.c_str())) {
         // Field missing, append null
         auto status = arrowBuilders[i]->AppendNull();
@@ -334,7 +327,7 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
         }
         continue;
       }
-      
+
       const auto& val = obj[fieldName.c_str()];
       appendJsonValueToBuilder(arrowBuilders[i].get(), val, columnTypes[i]);
     }
@@ -343,13 +336,13 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
   // Finish building all Arrow Arrays
   std::vector<std::shared_ptr<arrow::Array>> arrowArrays;
   arrowArrays.reserve(arrowBuilders.size());
-  
+
   for (auto& builder : arrowBuilders) {
     std::shared_ptr<arrow::Array> array;
     auto status = builder->Finish(&array);
     if (!status.ok()) {
-      THROW_EXTENSION_EXCEPTION("Failed to finish Arrow array: " + 
-                               status.ToString());
+      THROW_EXTENSION_EXCEPTION("Failed to finish Arrow array: " +
+                                status.ToString());
     }
     arrowArrays.push_back(std::move(array));
   }
@@ -357,238 +350,242 @@ std::vector<std::shared_ptr<arrow::Array>> JsonScanFunction::parseJsonFile(
   return arrowArrays;
 }
 
-
-
 JsonScanFunction::AutoDetectResult JsonScanFunction::autoDetect(
-    const std::string& filePath,
-    common::VirtualFileSystem* vfs,
+    const std::string& filePath, common::VirtualFileSystem* vfs,
     size_t maxRowsToDetect) {
-    
-    LOG(INFO) << "[JsonScan] Auto-detecting format and schema for: " << filePath;
-    
-    AutoDetectResult result;
+  LOG(INFO) << "[JsonScan] Auto-detecting format and schema for: " << filePath;
 
-    // --- Step 1: Detect file format (read only the first buffer) ---
-    auto reader = std::make_unique<JsonVFSReader>(vfs, filePath);
-    std::vector<uint8_t> sampleBuffer(JsonReaderConstants::BUFFER_SIZE + 
-                                      JsonReaderConstants::PADDING_SIZE);
-    uint64_t bytesRead = reader->readNextBuffer(sampleBuffer.data(), 
-                                                 JsonReaderConstants::BUFFER_SIZE);
-    
-    if (bytesRead == 0) {
-        LOG(WARNING) << "[JsonScan] File is empty, defaulting to ARRAY format.";
-        result.format = JsonFormat::ARRAY;
-        return result;
-    }
-    std::memset(sampleBuffer.data() + bytesRead, 0, JsonReaderConstants::PADDING_SIZE);
-    
-    result.format = detectFormatFromBuffer(sampleBuffer.data(), bytesRead);
-    LOG(INFO) << "[JsonScan] Detected format: " 
-              << (result.format == JsonFormat::ARRAY ? "ARRAY" : "NEWLINE_DELIMITED");
+  AutoDetectResult result;
 
-    // --- Step 2: Use streaming read to infer column types ---
-    reader = std::make_unique<JsonVFSReader>(vfs, filePath);
-    
-    std::vector<uint8_t> buffer(JsonReaderConstants::BUFFER_SIZE + 
-                                JsonReaderConstants::PADDING_SIZE);
-    uint64_t bufferSize = reader->readNextBuffer(buffer.data(), 
-                                                  JsonReaderConstants::BUFFER_SIZE);
-    
-    if (bufferSize == 0) {
-        LOG(WARNING) << "[JsonScan] File is empty after format detection";
-        return result;
-    }
-    std::memset(buffer.data() + bufferSize, 0, JsonReaderConstants::PADDING_SIZE);
-    
-    std::unordered_map<std::string, PropertyType> columnTypeMap;
-    std::vector<std::string>& columnNamesInOrder = result.detectedColumnNames;
-    size_t rowsScanned = 0;
-    
-    uint64_t bufferOffset = 0;
-    bool isArrayStarted = false;
-    
-    
-    while (rowsScanned < maxRowsToDetect && bufferOffset < bufferSize) {
-        skipWhitespace(buffer.data(), bufferOffset, bufferSize);
-        if (bufferOffset >= bufferSize) break;
-        
-        uint8_t* objStart = buffer.data() + bufferOffset;
-        uint64_t remaining = bufferSize - bufferOffset;
-        const uint8_t* objEnd = nullptr;
-        uint64_t objSize = 0;
-        
-        if (result.format == JsonFormat::ARRAY) {
-            // Handle array start
-            if (!isArrayStarted) {
-                if (*objStart == '[') {
-                    bufferOffset++;
-                    skipWhitespace(buffer.data(), bufferOffset, bufferSize);
-                    isArrayStarted = true;
-                    continue;
-                }
-            }
-            
-            // Check for array end
-            if (*objStart == ']') {
-                break;
-            }
-            
-            // Skip comma
-            if (*objStart == ',') {
-                bufferOffset++;
-                skipWhitespace(buffer.data(), bufferOffset, bufferSize);
-                continue;
-            }
-            
-            // Update pointer and remaining size
-            objStart = buffer.data() + bufferOffset;
-            remaining = bufferSize - bufferOffset;
-            
-            // Use our boundary finding function
-            uint64_t lineCountInJson = 0;
-            objEnd = findNextJsonObjectEnd(objStart, remaining, lineCountInJson);
-            
-            if (objEnd == nullptr) {
-                // Object incomplete in buffer
-                break;  // For autoDetect, stop directly
-            }
-            
-            objSize = objEnd - objStart;
-            
-        } else {  // NEWLINE_DELIMITED
-            auto* lineEnd = nextNewLine(objStart, remaining);
-            if (lineEnd == nullptr) {
-                break;
-            }
-            objSize = lineEnd - objStart;
-        }
-        
-        if (objSize == 0) {
-            bufferOffset++;
-            continue;
-        }
-        
-        // Parse the found object
-        rapidjson::Document doc;
-        doc.Parse(reinterpret_cast<char*>(objStart), objSize);
-        
-        if (doc.HasParseError()) {
-            LOG(WARNING) << "[JsonScan] Parse error: " 
-                        << doc.GetParseError()
-                        << " at offset " << doc.GetErrorOffset();
-            bufferOffset += objSize;
-            continue;
-        }
-        
-        if (!doc.IsObject()) {
-            LOG(WARNING) << "[JsonScan] Parsed value is not an object, type=" 
-                        << doc.GetType();
-            bufferOffset += objSize;
-            continue;
-        }
-        
-        // Infer types
-        for (auto m = doc.MemberBegin(); m != doc.MemberEnd(); ++m) {
-            std::string fieldName = m->name.GetString();
-            PropertyType inferredType = inferPropertyTypeFromValue(m->value);
-            
-            auto it = columnTypeMap.find(fieldName);
-            if (it == columnTypeMap.end()) {
-                columnNamesInOrder.push_back(fieldName);
-                columnTypeMap[fieldName] = inferredType;
-            } else {
-                auto mergedType = mergePropertyTypes(it->second, inferredType);
-                if (mergedType != it->second) {
-                    it->second = mergedType;
-                }
-            }
-        }
-        
-        rowsScanned++;
-        bufferOffset += objSize;
-        
-        if (result.format == JsonFormat::NEWLINE_DELIMITED) {
-            bufferOffset++;  // Skip '\n'
-        }
-    }
-    
-    // Build result
-    result.detectedColumnTypes.reserve(columnNamesInOrder.size());
-    for (const auto& name : columnNamesInOrder) {
-        result.detectedColumnTypes.push_back(columnTypeMap[name]);
-    }
+  // --- Step 1: Detect file format (read only the first buffer) ---
+  auto reader = std::make_unique<JsonVFSReader>(vfs, filePath);
+  std::vector<uint8_t> sampleBuffer(JsonReaderConstants::BUFFER_SIZE +
+                                    JsonReaderConstants::PADDING_SIZE);
+  uint64_t bytesRead = reader->readNextBuffer(sampleBuffer.data(),
+                                              JsonReaderConstants::BUFFER_SIZE);
 
+  if (bytesRead == 0) {
+    LOG(WARNING) << "[JsonScan] File is empty, defaulting to ARRAY format.";
+    result.format = JsonFormat::ARRAY;
     return result;
-}
+  }
+  std::memset(sampleBuffer.data() + bytesRead, 0,
+              JsonReaderConstants::PADDING_SIZE);
 
+  result.format = detectFormatFromBuffer(sampleBuffer.data(), bytesRead);
+  LOG(INFO) << "[JsonScan] Detected format: "
+            << (result.format == JsonFormat::ARRAY ? "ARRAY"
+                                                   : "NEWLINE_DELIMITED");
 
+  // --- Step 2: Use streaming read to infer column types ---
+  reader = std::make_unique<JsonVFSReader>(vfs, filePath);
 
-JsonFormat JsonScanFunction::detectFormatFromBuffer(uint8_t* bufferPtr, uint64_t bufferSize) {
-    uint64_t bufferOffset = 0;
-    skipWhitespace(bufferPtr, bufferOffset, bufferSize);
-    if (bufferOffset >= bufferSize) {
-        return JsonFormat::ARRAY; // empty file, default to Array
-    }
+  std::vector<uint8_t> buffer(JsonReaderConstants::BUFFER_SIZE +
+                              JsonReaderConstants::PADDING_SIZE);
+  uint64_t bufferSize =
+      reader->readNextBuffer(buffer.data(), JsonReaderConstants::BUFFER_SIZE);
 
-    // Check if the first line is a complete JSON
-    auto* lineEnd = nextNewLine(bufferPtr + bufferOffset, bufferSize - bufferOffset);
-    if (lineEnd != nullptr) {
-        uint64_t lineSize = (lineEnd - bufferPtr) - bufferOffset;
-        rapidjson::Document doc;
-        doc.Parse<rapidjson::kParseStopWhenDoneFlag>(reinterpret_cast<char*>(bufferPtr + bufferOffset), lineSize);
+  if (bufferSize == 0) {
+    LOG(WARNING) << "[JsonScan] File is empty after format detection";
+    return result;
+  }
+  std::memset(buffer.data() + bufferSize, 0, JsonReaderConstants::PADDING_SIZE);
 
-        if (!doc.HasParseError()) {
-            // If the first line is a valid JSON object, consider it JSONL
-            if (doc.IsObject()) {
-                return JsonFormat::NEWLINE_DELIMITED;
-            }
-            // If the first line is a valid JSON array and there is no other content, consider it a single-line Array
-            if (doc.IsArray()) {
-                uint64_t endOfArrayOffset = bufferOffset + doc.GetErrorOffset();
-                skipWhitespace(bufferPtr, endOfArrayOffset, bufferSize);
-                if (endOfArrayOffset >= bufferSize) {
-                    return JsonFormat::ARRAY;
-                }
-            }
+  std::unordered_map<std::string, DataTypeId> columnTypeMap;
+  std::vector<std::string>& columnNamesInOrder = result.detectedColumnNames;
+  size_t rowsScanned = 0;
+
+  uint64_t bufferOffset = 0;
+  bool isArrayStarted = false;
+
+  while (rowsScanned < maxRowsToDetect && bufferOffset < bufferSize) {
+    skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+    if (bufferOffset >= bufferSize)
+      break;
+
+    uint8_t* objStart = buffer.data() + bufferOffset;
+    uint64_t remaining = bufferSize - bufferOffset;
+    const uint8_t* objEnd = nullptr;
+    uint64_t objSize = 0;
+
+    if (result.format == JsonFormat::ARRAY) {
+      // Handle array start
+      if (!isArrayStarted) {
+        if (*objStart == '[') {
+          bufferOffset++;
+          skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+          isArrayStarted = true;
+          continue;
         }
-    }
+      }
 
-    // If the first line is not a complete JSON or cannot be determined, check the first non-whitespace character
-    bufferOffset = 0;
-    skipWhitespace(bufferPtr, bufferOffset, bufferSize);
-    if (bufferOffset >= bufferSize) {
-        return JsonFormat::ARRAY;
-    }
+      // Check for array end
+      if (*objStart == ']') {
+        break;
+      }
 
-    if (bufferPtr[bufferOffset] == '{') {
-        return JsonFormat::NEWLINE_DELIMITED;
-    }
-
-    if (bufferPtr[bufferOffset] != '[') {
-        // Neither an object nor an array start, possibly non-standard JSONL
-        return JsonFormat::NEWLINE_DELIMITED;
-    }
-
-    // Starts with '[', try to parse as array
-    rapidjson::Document doc;
-    doc.Parse<rapidjson::kParseStopWhenDoneFlag>(reinterpret_cast<char*>(bufferPtr + bufferOffset), bufferSize - bufferOffset);
-    if (!doc.HasParseError() && doc.IsArray()) {
-        return JsonFormat::ARRAY;
-    }
-
-    // Default case
-    return JsonFormat::ARRAY;
-}
-
-
-void JsonScanFunction::skipWhitespace(const uint8_t* bufferPtr, uint64_t& bufferOffset, const uint64_t& bufferSize) {
-    while (bufferOffset < bufferSize && std::isspace(bufferPtr[bufferOffset])) {
+      // Skip comma
+      if (*objStart == ',') {
         bufferOffset++;
+        skipWhitespace(buffer.data(), bufferOffset, bufferSize);
+        continue;
+      }
+
+      // Update pointer and remaining size
+      objStart = buffer.data() + bufferOffset;
+      remaining = bufferSize - bufferOffset;
+
+      // Use our boundary finding function
+      uint64_t lineCountInJson = 0;
+      objEnd = findNextJsonObjectEnd(objStart, remaining, lineCountInJson);
+
+      if (objEnd == nullptr) {
+        // Object incomplete in buffer
+        break;  // For autoDetect, stop directly
+      }
+
+      objSize = objEnd - objStart;
+
+    } else {  // NEWLINE_DELIMITED
+      auto* lineEnd = nextNewLine(objStart, remaining);
+      if (lineEnd == nullptr) {
+        break;
+      }
+      objSize = lineEnd - objStart;
     }
+
+    if (objSize == 0) {
+      bufferOffset++;
+      continue;
+    }
+
+    // Parse the found object
+    rapidjson::Document doc;
+    doc.Parse(reinterpret_cast<char*>(objStart), objSize);
+
+    if (doc.HasParseError()) {
+      LOG(WARNING) << "[JsonScan] Parse error: " << doc.GetParseError()
+                   << " at offset " << doc.GetErrorOffset();
+      bufferOffset += objSize;
+      continue;
+    }
+
+    if (!doc.IsObject()) {
+      LOG(WARNING) << "[JsonScan] Parsed value is not an object, type="
+                   << doc.GetType();
+      bufferOffset += objSize;
+      continue;
+    }
+
+    // Infer types
+    for (auto m = doc.MemberBegin(); m != doc.MemberEnd(); ++m) {
+      std::string fieldName = m->name.GetString();
+      DataTypeId inferredType = inferPropertyTypeFromValue(m->value);
+
+      auto it = columnTypeMap.find(fieldName);
+      if (it == columnTypeMap.end()) {
+        columnNamesInOrder.push_back(fieldName);
+        columnTypeMap[fieldName] = inferredType;
+      } else {
+        auto mergedType = mergePropertyTypes(it->second, inferredType);
+        if (mergedType != it->second) {
+          it->second = mergedType;
+        }
+      }
+    }
+
+    rowsScanned++;
+    bufferOffset += objSize;
+
+    if (result.format == JsonFormat::NEWLINE_DELIMITED) {
+      bufferOffset++;  // Skip '\n'
+    }
+  }
+
+  // Build result
+  result.detectedColumnTypes.reserve(columnNamesInOrder.size());
+  for (const auto& name : columnNamesInOrder) {
+    result.detectedColumnTypes.push_back(columnTypeMap[name]);
+  }
+
+  return result;
 }
 
-const uint8_t* JsonScanFunction::nextNewLine(const uint8_t* ptr, uint64_t size) {
-    return reinterpret_cast<const uint8_t*>(std::memchr(ptr, '\n', size));
+JsonFormat JsonScanFunction::detectFormatFromBuffer(uint8_t* bufferPtr,
+                                                    uint64_t bufferSize) {
+  uint64_t bufferOffset = 0;
+  skipWhitespace(bufferPtr, bufferOffset, bufferSize);
+  if (bufferOffset >= bufferSize) {
+    return JsonFormat::ARRAY;  // empty file, default to Array
+  }
+
+  // Check if the first line is a complete JSON
+  auto* lineEnd =
+      nextNewLine(bufferPtr + bufferOffset, bufferSize - bufferOffset);
+  if (lineEnd != nullptr) {
+    uint64_t lineSize = (lineEnd - bufferPtr) - bufferOffset;
+    rapidjson::Document doc;
+    doc.Parse<rapidjson::kParseStopWhenDoneFlag>(
+        reinterpret_cast<char*>(bufferPtr + bufferOffset), lineSize);
+
+    if (!doc.HasParseError()) {
+      // If the first line is a valid JSON object, consider it JSONL
+      if (doc.IsObject()) {
+        return JsonFormat::NEWLINE_DELIMITED;
+      }
+      // If the first line is a valid JSON array and there is no other content,
+      // consider it a single-line Array
+      if (doc.IsArray()) {
+        uint64_t endOfArrayOffset = bufferOffset + doc.GetErrorOffset();
+        skipWhitespace(bufferPtr, endOfArrayOffset, bufferSize);
+        if (endOfArrayOffset >= bufferSize) {
+          return JsonFormat::ARRAY;
+        }
+      }
+    }
+  }
+
+  // If the first line is not a complete JSON or cannot be determined, check the
+  // first non-whitespace character
+  bufferOffset = 0;
+  skipWhitespace(bufferPtr, bufferOffset, bufferSize);
+  if (bufferOffset >= bufferSize) {
+    return JsonFormat::ARRAY;
+  }
+
+  if (bufferPtr[bufferOffset] == '{') {
+    return JsonFormat::NEWLINE_DELIMITED;
+  }
+
+  if (bufferPtr[bufferOffset] != '[') {
+    // Neither an object nor an array start, possibly non-standard JSONL
+    return JsonFormat::NEWLINE_DELIMITED;
+  }
+
+  // Starts with '[', try to parse as array
+  rapidjson::Document doc;
+  doc.Parse<rapidjson::kParseStopWhenDoneFlag>(
+      reinterpret_cast<char*>(bufferPtr + bufferOffset),
+      bufferSize - bufferOffset);
+  if (!doc.HasParseError() && doc.IsArray()) {
+    return JsonFormat::ARRAY;
+  }
+
+  // Default case
+  return JsonFormat::ARRAY;
+}
+
+void JsonScanFunction::skipWhitespace(const uint8_t* bufferPtr,
+                                      uint64_t& bufferOffset,
+                                      const uint64_t& bufferSize) {
+  while (bufferOffset < bufferSize && std::isspace(bufferPtr[bufferOffset])) {
+    bufferOffset++;
+  }
+}
+
+const uint8_t* JsonScanFunction::nextNewLine(const uint8_t* ptr,
+                                             uint64_t size) {
+  return reinterpret_cast<const uint8_t*>(std::memchr(ptr, '\n', size));
 }
 
 }  // namespace extension

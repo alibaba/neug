@@ -24,7 +24,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
  public:
   AddVertexPropertySchemaOpr(
       const std::string& vertex_type,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           properties,
       bool error_on_conflict)
       : vertex_type_(vertex_type),
@@ -51,7 +51,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
 
  private:
   std::string vertex_type_;
-  std::vector<std::tuple<PropertyType, std::string, Property>> properties_;
+  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
   bool error_on_conflict_;
 };
 

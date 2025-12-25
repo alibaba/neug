@@ -544,8 +544,6 @@ enum class RTAnyType {
   kEmpty = 20,
 };
 
-PropertyType rt_type_to_property_type(RTAnyType type);
-
 RTAnyType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
 struct pod_string_view {

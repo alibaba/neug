@@ -184,7 +184,7 @@ gs::result<OpBuildResultT> ScanOprBuilder::Build(
     alias = plan.query_plan().plan(op_idx).opr().scan().alias().value();
   }
   ret_meta.set(alias);
-  auto scan_opr = plan.query_plan().plan(op_idx).opr().scan();
+  const auto& scan_opr = plan.query_plan().plan(op_idx).opr().scan();
   if (scan_opr.scan_opt() != physical::Scan::VERTEX) {
     LOG(ERROR) << "Currently only support scan vertex";
     return std::make_pair(nullptr, ret_meta);

@@ -19,72 +19,69 @@ namespace gs {
 namespace runtime {
 
 static void sink_any(const Property& any, common::Value* value) {
-  if (any.type() == PropertyType::Int64()) {
+  if (any.type() == DataTypeId::kInt64) {
     value->set_i64(any.as_int64());
-  } else if (any.type() == PropertyType::kStringView) {
+  } else if (any.type() == DataTypeId::kStringView) {
     auto str = any.as_string_view();
     value->set_str(str.data(), str.size());
-  } else if (any.type() == PropertyType::Date()) {
+  } else if (any.type() == DataTypeId::kDate) {
     value->set_u32(any.as_date().to_u32());
-  } else if (any.type() == PropertyType::Int32()) {
+  } else if (any.type() == DataTypeId::kInt32) {
     value->set_i32(any.as_int32());
-  } else if (any.type() == PropertyType::UInt32()) {
+  } else if (any.type() == DataTypeId::kUInt32) {
     value->set_u32(any.as_uint32());
-  } else if (any.type() == PropertyType::Double()) {
+  } else if (any.type() == DataTypeId::kDouble) {
     value->set_f64(any.as_double());
-  } else if (any.type() == PropertyType::Bool()) {
+  } else if (any.type() == DataTypeId::kBool) {
     value->set_boolean(any.as_bool());
-  } else if (any.type() == PropertyType::Empty()) {
+  } else if (any.type() == DataTypeId::kEmpty) {
     value->mutable_none();
-  } else if (any.type() == PropertyType::Date()) {
+  } else if (any.type() == DataTypeId::kDate) {
     value->mutable_date()->set_item(any.as_date().to_num_days());
-  } else if (any.type() == PropertyType::DateTime()) {
+  } else if (any.type() == DataTypeId::kDateTime) {
     value->mutable_timestamp()->set_item(any.as_datetime().milli_second);
-  } else if (any.type() == PropertyType::UInt64()) {
+  } else if (any.type() == DataTypeId::kUInt64) {
     value->set_u64(any.as_uint64());
-  } else if (any.type() == PropertyType::Interval()) {
+  } else if (any.type() == DataTypeId::kInterval) {
     auto interval_str = any.as_interval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
-  } else if (any.type() == PropertyType::Float()) {
+  } else if (any.type() == DataTypeId::kFloat) {
     value->set_f32(any.as_float());
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +
-                                  any.type().ToString() +
+                                  std::to_string(any.type()) +
                                   " value: " + any.to_string());
   }
 }
 
 static void sink_property(const Property& prop, common::Value* value) {
-  if (prop.type() == PropertyType::kInt32) {
+  if (prop.type() == DataTypeId::kInt32) {
     value->set_i32(prop.as_int32());
-  } else if (prop.type() == PropertyType::kUInt32) {
+  } else if (prop.type() == DataTypeId::kUInt32) {
     value->set_u32(prop.as_uint32());
-  } else if (prop.type().type_enum == impl::PropertyTypeImpl::kString) {
-    auto str = prop.as_string();
-    value->set_str(str.data(), str.size());
-  } else if (prop.type().type_enum == impl::PropertyTypeImpl::kStringView) {
+  } else if (prop.type() == DataTypeId::kStringView) {
     auto str = prop.as_string_view();
     value->set_str(str.data(), str.size());
-  } else if (prop.type() == PropertyType::kInt64) {
+  } else if (prop.type() == DataTypeId::kInt64) {
     value->set_i64(prop.as_int64());
-  } else if (prop.type() == PropertyType::kUInt64) {
+  } else if (prop.type() == DataTypeId::kUInt64) {
     value->set_u64(prop.as_uint64());
-  } else if (prop.type() == PropertyType::kDouble) {
+  } else if (prop.type() == DataTypeId::kDouble) {
     value->set_f64(prop.as_double());
-  } else if (prop.type() == PropertyType::kFloat) {
+  } else if (prop.type() == DataTypeId::kFloat) {
     value->set_f32(prop.as_float());
-  } else if (prop.type() == PropertyType::kDate) {
+  } else if (prop.type() == DataTypeId::kDate) {
     value->set_u32(prop.as_date().to_u32());
-  } else if (prop.type() == PropertyType::kEmpty) {
+  } else if (prop.type() == DataTypeId::kEmpty) {
     value->mutable_none();
-  } else if (prop.type() == PropertyType::kDateTime) {
+  } else if (prop.type() == DataTypeId::kDateTime) {
     value->mutable_timestamp()->set_item(prop.as_datetime().milli_second);
-  } else if (prop.type() == PropertyType::kInterval) {
+  } else if (prop.type() == DataTypeId::kInterval) {
     auto interval_str = prop.as_interval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
   } else {
     LOG(FATAL) << "property value: " << prop.to_string()
-               << ", type = " << prop.type().ToString();
+               << ", type = " << std::to_string(prop.type());
   }
 }
 

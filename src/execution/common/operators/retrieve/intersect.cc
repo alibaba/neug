@@ -39,17 +39,16 @@ namespace runtime {
 
 void get_labels(
     const EdgeExpandParams& eep, const StorageReadInterface& graph,
-    std::vector<
-        std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>&
+    std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>&
         labels) {
-  std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>> labels_i;
+  std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>> labels_i;
   for (const auto& label_triplet : eep.labels) {
-    std::vector<PropertyType> props;
+    std::vector<DataTypeId> props;
     props = graph.schema().get_edge_properties(label_triplet.src_label,
                                                label_triplet.dst_label,
                                                label_triplet.edge_label);
     if (props.empty()) {
-      labels_i.emplace_back(label_triplet, std::vector{PropertyType::kEmpty});
+      labels_i.emplace_back(label_triplet, std::vector{DataTypeId::kEmpty});
     } else {
       labels_i.emplace_back(label_triplet, props);
     }
@@ -74,7 +73,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
   size_t row_num = ctx.row_num();
   // TODO(luoxiaojian): opt with MLVertexColumnBuilderOpt
   MLVertexColumnBuilder builder;
-  std::vector<std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>
+  std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
       labels;
   labels.reserve(eeps.size());
 
@@ -238,7 +237,7 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
   MLVertexColumnBuilder builder;
   std::vector<size_t> offsets;
 
-  std::vector<std::vector<std::pair<LabelTriplet, std::vector<PropertyType>>>>
+  std::vector<std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>>>
       labels;
   std::vector<BDMLEdgeColumnBuilder> edge_builders;
   {

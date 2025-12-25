@@ -86,7 +86,7 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
 
 Status StorageAPUpdateInterface::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   return graph_.CreateVertexType(name, properties, primary_key_names,
@@ -96,7 +96,7 @@ Status StorageAPUpdateInterface::CreateVertexType(
 Status StorageAPUpdateInterface::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
@@ -107,7 +107,7 @@ Status StorageAPUpdateInterface::CreateEdgeType(
 
 Status StorageAPUpdateInterface::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return graph_.AddVertexProperties(vertex_type_name, add_properties,
@@ -117,7 +117,7 @@ Status StorageAPUpdateInterface::AddVertexProperties(
 Status StorageAPUpdateInterface::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return graph_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,

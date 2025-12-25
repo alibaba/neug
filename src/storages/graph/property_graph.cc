@@ -125,9 +125,10 @@ Status PropertyGraph::BatchAddEdges(
   return gs::Status::OK();
 }
 
+// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateVertexType(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (schema_.contains_vertex_label(vertex_type_name)) {
@@ -139,10 +140,10 @@ Status PropertyGraph::CreateVertexType(
     }
   }
   std::vector<std::string> property_names;
-  std::vector<PropertyType> property_types;
+  std::vector<DataTypeId> property_types;
   // TODO(zhanglei): Not used
   std::vector<Property> default_property_values;
-  std::vector<std::tuple<PropertyType, std::string, size_t>> primary_keys;
+  std::vector<std::tuple<DataTypeId, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
   if (primary_key_inds.size() > 1) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -172,12 +173,11 @@ Status PropertyGraph::CreateVertexType(
           StatusCode::ERR_INVALID_ARGUMENT,
           "Primary key " + primary_key_name + " is not found in properties");
     }
-    if (property_types[primary_key_inds[i]] != PropertyType::kInt64 &&
-        property_types[primary_key_inds[i]] != PropertyType::kStringView &&
-        property_types[primary_key_inds[i]] != PropertyType::kUInt64 &&
-        property_types[primary_key_inds[i]] != PropertyType::kInt32 &&
-        property_types[primary_key_inds[i]] != PropertyType::kUInt32 &&
-        !property_types[primary_key_inds[i]].IsVarchar()) {
+    if (property_types[primary_key_inds[i]] != DataTypeId::kInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kStringView &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kInt32 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt32) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
@@ -194,7 +194,7 @@ Status PropertyGraph::CreateVertexType(
   std::vector<StorageStrategy> strategies(property_types.size(),
                                           StorageStrategy::kMem);
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
-                         primary_keys, strategies, Schema::MAX_VNUM, "");
+                         primary_keys, strategies, {}, Schema::MAX_VNUM, "");
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   if (vertex_label_id < vertex_tables_.size()) {
     auto& vtable = vertex_tables_[vertex_label_id];
@@ -230,10 +230,11 @@ Status PropertyGraph::CreateVertexType(
   return gs::Status::OK();
 }
 
+// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateEdgeType(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
@@ -267,7 +268,7 @@ Status PropertyGraph::CreateEdgeType(
     }
   }
   std::vector<std::string> property_names;
-  std::vector<PropertyType> property_types;
+  std::vector<DataTypeId> property_types;
   // TODO(zhanglei): Not used
   std::vector<Property> default_property_values;
   for (size_t i = 0; i < properties.size(); i++) {
@@ -282,7 +283,7 @@ Status PropertyGraph::CreateEdgeType(
   bool cur_sort_on_compaction = false;
   std::string description;
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
-                       property_types, property_names, {}, cur_oe, cur_ie,
+                       property_types, property_names, {}, {}, cur_oe, cur_ie,
                        oe_mutable, ie_mutable, cur_sort_on_compaction,
                        description);
   edge_label_num_ = schema_.edge_label_num();
@@ -310,15 +311,16 @@ Status PropertyGraph::CreateEdgeType(
   return gs::Status::OK();
 }
 
+// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   RETURN_IF_NOT_OK_CONFLICT(vertex_label_check(vertex_type_name),
                             error_on_conflict);
   std::vector<std::string> add_property_names;
-  std::vector<PropertyType> add_property_types;
+  std::vector<DataTypeId> add_property_types;
   std::vector<StorageStrategy> add_property_storages;
   std::vector<Property> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
@@ -356,17 +358,18 @@ Status PropertyGraph::AddVertexProperties(
   return gs::Status::OK();
 }
 
+// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
-    const std::vector<std::tuple<PropertyType, std::string, Property>>&
+    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   RETURN_IF_NOT_OK_CONFLICT(
       edge_triplet_check(src_type_name, dst_type_name, edge_type_name),
       error_on_conflict);
   std::vector<std::string> add_property_names;
-  std::vector<PropertyType> add_property_types;
+  std::vector<DataTypeId> add_property_types;
   std::vector<Property> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];

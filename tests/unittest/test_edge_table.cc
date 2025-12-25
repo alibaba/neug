@@ -44,30 +44,30 @@ class EdgeTableTest : public ::testing::Test {
     std::filesystem::create_directories(WorkDirectory() / "runtime/tmp");
 
     schema_.AddVertexLabel("person", {}, {},
-                           {std::make_tuple(gs::PropertyType::kInt64, "id", 0)},
-                           {gs::StorageStrategy::kMem},
+                           {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)},
+                           {gs::StorageStrategy::kMem}, {},
                            static_cast<size_t>(1) << 32, "person vertex label");
     schema_.AddVertexLabel(
-        "comment", {}, {}, {std::make_tuple(gs::PropertyType::kInt64, "id", 0)},
-        {gs::StorageStrategy::kMem}, static_cast<size_t>(1) << 32,
+        "comment", {}, {}, {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)},
+        {gs::StorageStrategy::kMem}, {}, static_cast<size_t>(1) << 32,
         "comment vertex label");
     schema_.AddEdgeLabel(
-        "person", "comment", "create1", {gs::PropertyType::kInt32}, {"data"},
-        {gs::StorageStrategy::kMem}, gs::EdgeStrategy::kMultiple,
+        "person", "comment", "create1", {gs::DataTypeId::kInt32}, {"data"},
+        {gs::StorageStrategy::kMem}, {}, gs::EdgeStrategy::kMultiple,
         gs::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
-        "person", "comment", "create2", {gs::PropertyType::kStringView},
-        {"data"}, {gs::StorageStrategy::kMem}, gs::EdgeStrategy::kMultiple,
+        "person", "comment", "create2", {gs::DataTypeId::kStringView}, {"data"},
+        {gs::StorageStrategy::kMem}, {}, gs::EdgeStrategy::kMultiple,
         gs::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
-    schema_.AddEdgeLabel(
-        "person", "comment", "create3",
-        {gs::PropertyType::kStringView, gs::PropertyType::kInt32},
-        {"data0", "data1"},
-        {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem},
-        gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple, true, true,
-        false, "person creates comment edge with two properties");
+    schema_.AddEdgeLabel("person", "comment", "create3",
+                         {gs::DataTypeId::kStringView, gs::DataTypeId::kInt32},
+                         {"data0", "data1"},
+                         {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem},
+                         {}, gs::EdgeStrategy::kMultiple,
+                         gs::EdgeStrategy::kMultiple, true, true, false,
+                         "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_int_ = schema_.get_edge_label_id("create1");
@@ -102,10 +102,10 @@ class EdgeTableTest : public ::testing::Test {
     }
     gs::build_lf_indexer<int64_t, gs::vid_t>(
         src_input, "src_indexer", src_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), gs::PropertyType::Int64());
+        WorkDirectory().string(), gs::DataTypeId::kInt64);
     gs::build_lf_indexer<int64_t, gs::vid_t>(
         dst_input, "dst_indexer", dst_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), gs::PropertyType::Int64());
+        WorkDirectory().string(), gs::DataTypeId::kInt64);
   }
 
   void ConstructEdgeTable(gs::label_t src_label, gs::label_t dst_label,
@@ -561,7 +561,7 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
       for (auto it = es.begin(); it != es.end(); ++it) {
         if (it.get_vertex() == dst_lid) {
           auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
-              is, src_lid, it.get_data_ptr(), PropertyType::Int32());
+              is, src_lid, it.get_data_ptr(), DataTypeId::kInt32);
           auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                             reinterpret_cast<const char*>(es.start_ptr)) /
                            es.cfg.stride;
@@ -589,7 +589,7 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
       auto dst_lid = it.get_vertex();
       auto is = ie_view.get_edges(dst_lid);
       auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
-          is, src_lid, it.get_data_ptr(), PropertyType::Int32());
+          is, src_lid, it.get_data_ptr(), DataTypeId::kInt32);
       auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                         reinterpret_cast<const char*>(es.start_ptr)) /
                        es.cfg.stride;
@@ -769,7 +769,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
                          es.cfg.stride;
         auto is = ie_view.get_edges(it.get_vertex());
         auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
-            is, vid, it.get_data_ptr(), PropertyType::Int32());
+            is, vid, it.get_data_ptr(), DataTypeId::kInt32);
         edges_to_delete.emplace_back(
             std::make_tuple(vid, it.get_vertex(), oe_offset, another_offset));
         EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
@@ -825,7 +825,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
                         reinterpret_cast<const char*>(ies.start_ptr)) /
                        ies.cfg.stride;
       auto oe_offset = gs::fuzzy_search_offset_from_nbr_list(
-          oes, 1, it.get_data_ptr(), PropertyType::Int32());
+          oes, 1, it.get_data_ptr(), DataTypeId::kInt32);
       EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
       EXPECT_NE(ie_offset, std::numeric_limits<int32_t>::max());
       multi_edges_to_delete.emplace_back(
@@ -917,7 +917,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
                           reinterpret_cast<const char*>(es.start_ptr)) /
                          es.cfg.stride;
         auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
-            is, src_lids[i], it.get_data_ptr(), PropertyType::UInt64());
+            is, src_lids[i], it.get_data_ptr(), DataTypeId::kUInt64);
         this->edge_table->DeleteEdge(src_lids[i], dst_lids[i], oe_offset,
                                      another_offset, gs::MAX_TIMESTAMP);
         deleted_edge_indices.push_back(cur_index);
@@ -988,7 +988,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
                         reinterpret_cast<const char*>(oe_edges.start_ptr)) /
                        oe_edges.cfg.stride;
       auto ie_offset = gs::fuzzy_search_offset_from_nbr_list(
-          ie_edges, src_lids[i], it.get_data_ptr(), PropertyType::Int32());
+          ie_edges, src_lids[i], it.get_data_ptr(), DataTypeId::kInt32);
       if (ie_offset == std::numeric_limits<int32_t>::max()) {
         FAIL() << "Cannot find reverse edge!";
       }
@@ -1037,7 +1037,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
   std::vector<std::vector<gs::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    edge_data.push_back({gs::Property::from_string("old_data"),
+    edge_data.push_back({gs::Property::from_string_view("old_data"),
                          gs::Property::from_int32(static_cast<int>(0))});
   }
 
@@ -1059,7 +1059,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       assert(reinterpret_cast<const uint64_t*>(it.get_data_ptr()) != nullptr);
       auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
-          ie_edges, src_lids[i], it.get_data_ptr(), PropertyType::UInt64());
+          ie_edges, src_lids[i], it.get_data_ptr(), DataTypeId::kUInt64);
       auto another_iter = ie_edges.begin();
       another_iter += another_offset;
       if (another_iter.get_nbr_ptr() == nullptr) {
@@ -1115,71 +1115,71 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path;
-  std::vector<PropertyType> column_types = {PropertyType::kUInt32,
-                                            PropertyType::kUInt32};
+  std::vector<DataTypeId> column_types = {DataTypeId::kUInt32,
+                                          DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   if constexpr (std::is_same_v<EdType, int32_t>) {
     file_path = resource_path + "/edges_i32.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kInt32};
-    column_types.emplace_back(PropertyType::kInt32);
+    std::vector<DataTypeId> property_type = {DataTypeId::kInt32};
+    column_types.emplace_back(DataTypeId::kInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
     file_path = resource_path + "/edges_i64.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kInt64};
-    column_types.emplace_back(PropertyType::kInt64);
+    std::vector<DataTypeId> property_type = {DataTypeId::kInt64};
+    column_types.emplace_back(DataTypeId::kInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
     file_path = resource_path + "/edges_u32.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kUInt32};
-    column_types.emplace_back(PropertyType::kUInt32);
+    std::vector<DataTypeId> property_type = {DataTypeId::kUInt32};
+    column_types.emplace_back(DataTypeId::kUInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
     file_path = resource_path + "/edges_u64.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kUInt64};
-    column_types.emplace_back(PropertyType::kUInt64);
+    std::vector<DataTypeId> property_type = {DataTypeId::kUInt64};
+    column_types.emplace_back(DataTypeId::kUInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, float>) {
     file_path = resource_path + "/edges_float.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kFloat};
-    column_types.emplace_back(PropertyType::kFloat);
+    std::vector<DataTypeId> property_type = {DataTypeId::kFloat};
+    column_types.emplace_back(DataTypeId::kFloat);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, double>) {
     file_path = resource_path + "/edges_double.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kDouble};
-    column_types.emplace_back(PropertyType::kDouble);
+    std::vector<DataTypeId> property_type = {DataTypeId::kDouble};
+    column_types.emplace_back(DataTypeId::kDouble);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Date>) {
     file_path = resource_path + "/edges_date.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kDate};
-    column_types.emplace_back(PropertyType::kDate);
+    std::vector<DataTypeId> property_type = {DataTypeId::kDate};
+    column_types.emplace_back(DataTypeId::kDate);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
     file_path = resource_path + "/edges_datetime.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kDateTime};
-    column_types.emplace_back(PropertyType::kDateTime);
+    std::vector<DataTypeId> property_type = {DataTypeId::kDateTime};
+    column_types.emplace_back(DataTypeId::kDateTime);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Interval>) {
     file_path = resource_path + "/edges_interval.csv";
-    std::vector<PropertyType> property_type = {PropertyType::kInterval};
-    column_types.emplace_back(PropertyType::kInterval);
+    std::vector<DataTypeId> property_type = {DataTypeId::kInterval};
+    column_types.emplace_back(DataTypeId::kInterval);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = runtime::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
@@ -1189,7 +1189,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   EXPECT_EQ(suppliers.size(), 1);
 
   LFIndexer<vid_t> indexer;
-  indexer.init(PropertyType::kUInt32);
+  indexer.init(DataTypeId::kUInt32);
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1202,7 +1202,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   EXPECT_EQ(e_table.EdgeNum(), 10);
 
   std::vector<std::string> new_property_name = {"new_property"};
-  std::vector<PropertyType> new_property_type = {PropertyType::kInt32};
+  std::vector<DataTypeId> new_property_type = {DataTypeId::kInt32};
   edge_schema->add_properties(new_property_name, new_property_type);
   e_table.AddProperties(new_property_name, new_property_type);
   EXPECT_EQ(e_table.PropertyNum(), 2);
@@ -1221,8 +1221,8 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path = resource_path + "/edges_empty.csv";
-  std::vector<PropertyType> column_types = {PropertyType::kUInt32,
-                                            PropertyType::kUInt32};
+  std::vector<DataTypeId> column_types = {DataTypeId::kUInt32,
+                                          DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
@@ -1231,7 +1231,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   EXPECT_EQ(suppliers.size(), 1);
 
   LFIndexer<vid_t> indexer;
-  indexer.init(PropertyType::kUInt32);
+  indexer.init(DataTypeId::kUInt32);
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1240,28 +1240,28 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   }
 
   std::vector<std::string> new_property_name = {"new_property"};
-  std::vector<PropertyType> new_property_type;
+  std::vector<DataTypeId> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   if constexpr (std::is_same_v<EdType, int32_t>) {
-    new_property_type = {PropertyType::kInt32};
+    new_property_type = {DataTypeId::kInt32};
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
-    new_property_type = {PropertyType::kInt64};
+    new_property_type = {DataTypeId::kInt64};
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
-    new_property_type = {PropertyType::kUInt32};
+    new_property_type = {DataTypeId::kUInt32};
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
-    new_property_type = {PropertyType::kUInt64};
+    new_property_type = {DataTypeId::kUInt64};
   } else if constexpr (std::is_same_v<EdType, float>) {
-    new_property_type = {PropertyType::kFloat};
+    new_property_type = {DataTypeId::kFloat};
   } else if constexpr (std::is_same_v<EdType, double>) {
-    new_property_type = {PropertyType::kDouble};
+    new_property_type = {DataTypeId::kDouble};
   } else if constexpr (std::is_same_v<EdType, Date>) {
-    new_property_type = {PropertyType::kDate};
+    new_property_type = {DataTypeId::kDate};
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
-    new_property_type = {PropertyType::kDateTime};
+    new_property_type = {DataTypeId::kDateTime};
   } else if constexpr (std::is_same_v<EdType, Interval>) {
-    new_property_type = {PropertyType::kInterval};
+    new_property_type = {DataTypeId::kInterval};
   } else {
     FAIL();
   }

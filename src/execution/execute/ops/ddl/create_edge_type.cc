@@ -23,7 +23,7 @@ namespace ops {
 class CreateEdgeTypeOpr : public IOperator {
  public:
   using property_def_t =
-      std::vector<std::tuple<PropertyType, std::string, Property>>;
+      std::vector<std::tuple<DataTypeId, std::string, Property>>;
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t, bool,
                  EdgeStrategy, EdgeStrategy>;

@@ -85,7 +85,8 @@ class SelectIdNeOpr : public IOperator {
         auto label = *labels.begin();
         int64_t oid = std::stoll(params.at(expr_.operators(2).param().name()));
         vid_t vid;
-        if (graph_interface.GetVertexIndex(label, Property(oid), vid)) {
+        if (graph_interface.GetVertexIndex(label, Property::from_int64(oid),
+                                           vid)) {
           if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
             const SLVertexColumn& sl_vertex_col =
                 *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));

@@ -323,7 +323,7 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       label_dirs.erase(std::unique(label_dirs.begin(), label_dirs.end()),
                        label_dirs.end());
     }
-    std::vector<PropertyType> ed_types;
+    std::vector<DataTypeId> ed_types;
     for (auto& label_dir : label_dirs) {
       Direction dir = std::get<2>(label_dir);
       label_t nbr_label = std::get<0>(label_dir);
@@ -338,8 +338,8 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
       auto pt = properties[0];
-      if (pt != PropertyType::DateTime() && pt != PropertyType::Int64() &&
-          pt != PropertyType::Int32()) {
+      if (pt != DataTypeId::kDateTime && pt != DataTypeId::kInt64 &&
+          pt != DataTypeId::kInt32) {
         LOG(ERROR) << "not support edge type";
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
@@ -352,18 +352,18 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       label_t nbr_label = std::get<0>(label_dir);
       label_t edge_label = std::get<1>(label_dir);
       Direction dir = std::get<2>(label_dir);
-      PropertyType pt = ed_types[ld_idx++];
+      DataTypeId pt = ed_types[ld_idx++];
       builder.start_label(nbr_label);
-      if (pt == PropertyType::DateTime()) {
+      if (pt == DataTypeId::kDateTime) {
         expand_vertex_ep_cmp_impl<DateTime>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);
-      } else if (pt == PropertyType::Int64()) {
+      } else if (pt == DataTypeId::kInt64) {
         expand_vertex_ep_cmp_impl<int64_t>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);
       } else {
-        CHECK(pt == PropertyType::Int32());
+        CHECK(pt == DataTypeId::kInt32);
         expand_vertex_ep_cmp_impl<int32_t>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);

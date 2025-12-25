@@ -24,7 +24,7 @@ class CreateVertexTypeOpr : public IOperator {
  public:
   CreateVertexTypeOpr(
       const std::string& type_name,
-      const std::vector<std::tuple<PropertyType, std::string, Property>>&
+      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
           properties,
       const std::vector<std::string>& pks, bool error_on_conflict)
       : type_name_(type_name),
@@ -53,7 +53,7 @@ class CreateVertexTypeOpr : public IOperator {
 
  private:
   std::string type_name_;
-  std::vector<std::tuple<PropertyType, std::string, Property>> properties_;
+  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
   std::vector<std::string> pks_;
   bool error_on_conflict_;
 };
