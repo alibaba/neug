@@ -199,9 +199,6 @@ std::shared_ptr<Expression> ExpressionBinder::bindAggregateFunctionExpression(
                       functionName, childrenTypes, isDistinct,
                       entry->ptrCast<FunctionCatalogEntry>())
                       ->copy();
-  if (function.paramRewriteFunc) {
-    function.paramRewriteFunc(children);
-  }
   if (functionName == CollectFunction::name && parsedExpression.hasAlias() &&
       children[0]->getDataType().getLogicalTypeID() == LogicalTypeID::NODE) {
     auto& node = children[0]->constCast<NodeExpression>();

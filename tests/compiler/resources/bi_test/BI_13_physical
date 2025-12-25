@@ -5,998 +5,282 @@
   "plan": [
    {
     "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "name"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "string": {
-             "var_char": {
-              "max_length": 65536
-             }
-            }
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "str": "India"
-          }
-         }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 11
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "VERTEX",
-      "is_optional": false,
-      "v_tag": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 11,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 7
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 7,
-           "src_label": 1,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "START",
-      "params": {
-       "tables": [
-        {
-         "id": 1
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "creationDate"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date_time": {
-              "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-              "time_zone_format": "TZF_UTC"
-             }
-            }
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "LT"
-         },
-         {
-          "to_date": {
-           "date_str": "2012-11-09"
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date": {
-              "date_format": "DF_YYYY_MM_DD"
-             }
-            }
-           }
-          }
-         }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
+     "join": {
+      "left_keys": [
        {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
+        "tag": {
+         "id": 8
         },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
+        "property": {
+         "id": {}
         },
-        "alias": 1
+        "node_type": {
+         "data_type": {
+          "primitive_type": "DT_SIGNED_INT64"
+         }
+        }
        }
       ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
+      "right_keys": [
+       {
+        "tag": {
+         "id": 8
+        },
+        "property": {
+         "id": {}
+        },
+        "node_type": {
+         "data_type": {
+          "primitive_type": "DT_SIGNED_INT64"
          }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 0
         }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": true,
-      "v_tag": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 2,
-           "dst_label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 0,
-           "src_label": 3,
-           "dst_label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "START",
-      "params": {
-       "tables": [
-        {
-         "id": 2
-        },
-        {
-         "id": 3
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "creationDate"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date_time": {
-              "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-              "time_zone_format": "TZF_UTC"
-             }
-            }
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "LT"
-         },
-         {
-          "to_date": {
-           "date_str": "2012-11-09"
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date": {
-              "date_format": "DF_YYYY_MM_DD"
-             }
-            }
-           }
-          }
-         }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 2
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 2
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 2
-            },
-            "property": {
-             "id": {}
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "to_date": {
-            "date_str": "2012-11-09"
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date": {
-               "date_format": "DF_YYYY_MM_DD"
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 4
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "property": {
-             "key": {
-              "name": "creationDate"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "temporal": {
-               "date_time": {
-                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-                "time_zone_format": "TZF_UTC"
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 5
        }
       ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
+      "join_kind": "LEFT_OUTER",
+      "left_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
          {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date": {
-          "date_format": "DF_YYYY_MM_DD"
-         }
-        }
-       }
-      },
-      "alias": 4
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date_time": {
-          "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-          "time_zone_format": "TZF_UTC"
-         }
-        }
-       }
-      },
-      "alias": 5
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [
-       {
-        "key": {
-         "tag": {
-          "id": 0
-         },
-         "node_type": {
-          "graph_type": {
-           "element_opt": "VERTEX",
-           "graph_data_type": [
-            {
-             "label": {
-              "label": 0
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "predicate": {
+              "operators": [
+               {
+                "var": {
+                 "property": {
+                  "key": {
+                   "name": "name"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "string": {
+                    "var_char": {
+                     "max_length": 65536
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "string": {
+                   "var_char": {
+                    "max_length": 65536
+                   }
+                  }
+                 }
+                }
+               },
+               {
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_BOOL"
+                 }
+                },
+                "logical": "EQ"
+               },
+               {
+                "const": {
+                 "str": "India"
+                }
+               }
+              ]
              },
-             "props": []
-            }
-           ]
-          }
-         }
-        },
-        "alias": 0
-       },
-       {
-        "key": {
-         "tag": {
-          "id": 1
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "is_count_only": false,
+            "alias": 0
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           }
+          ]
          },
-         "node_type": {
-          "graph_type": {
-           "element_opt": "VERTEX",
-           "graph_data_type": [
-            {
-             "label": {
-              "label": 1
+         {
+          "opr": {
+           "edge": {
+            "direction": "IN",
+            "params": {
+             "tables": [
+              {
+               "id": 11
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "VERTEX",
+            "is_optional": false,
+            "v_tag": 0
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 11,
+                 "src_label": 0,
+                 "dst_label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": -1
+           }
+          ]
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "IN",
+            "params": {
+             "tables": [
+              {
+               "id": 7
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "EDGE",
+            "is_optional": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 7,
+                 "src_label": 1,
+                 "dst_label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": -1
+           }
+          ]
+         },
+         {
+          "opr": {
+           "vertex": {
+            "opt": "START",
+            "params": {
+             "tables": [
+              {
+               "id": 1
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "predicate": {
+              "operators": [
+               {
+                "var": {
+                 "property": {
+                  "key": {
+                   "name": "creationDate"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date_time": {
+                    "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                    "time_zone_format": "TZF_UTC"
+                   }
+                  }
+                 }
+                }
+               },
+               {
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_BOOL"
+                 }
+                },
+                "logical": "LT"
+               },
+               {
+                "to_date": {
+                 "date_str": "2012-11-09"
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date": {
+                    "date_format": "DF_YYYY_MM_DD"
+                   }
+                  }
+                 }
+                }
+               }
+              ]
              },
-             "props": []
-            }
-           ]
-          }
-         }
-        },
-        "alias": 1
-       },
-       {
-        "key": {
-         "tag": {
-          "id": 4
-         },
-         "node_type": {
-          "data_type": {
-           "temporal": {
-            "date": {
-             "date_format": "DF_YYYY_MM_DD"
-            }
-           }
-          }
-         }
-        },
-        "alias": 4
-       },
-       {
-        "key": {
-         "tag": {
-          "id": 5
-         },
-         "node_type": {
-          "data_type": {
-           "temporal": {
-            "date_time": {
-             "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-             "time_zone_format": "TZF_UTC"
-            }
-           }
-          }
-         }
-        },
-        "alias": 5
-       }
-      ],
-      "functions": [
-       {
-        "vars": [
-         {
-          "tag": {
-           "id": 3
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          }
-         }
-        ],
-        "aggregate": "COUNT",
-        "alias": 6
-       }
-      ]
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date": {
-          "date_format": "DF_YYYY_MM_DD"
-         }
-        }
-       }
-      },
-      "alias": 4
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date_time": {
-          "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-          "time_zone_format": "TZF_UTC"
-         }
-        }
-       }
-      },
-      "alias": 5
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 6
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
+             "sample_ratio": 0,
+             "extra": {}
             },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
+            "alias": 1
            }
-          }
-         ]
-        },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
+          },
+          "meta_data": [
+           {
+            "type": {
              "graph_type": {
               "element_opt": "VERTEX",
               "graph_data_type": [
@@ -1008,832 +292,102 @@
                }
               ]
              }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 4
             },
-            "node_type": {
-             "data_type": {
-              "temporal": {
-               "date": {
-                "date_format": "DF_YYYY_MM_DD"
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date": {
-               "date_format": "DF_YYYY_MM_DD"
-              }
-             }
-            }
+            "alias": 1
            }
-          }
-         ]
-        },
-        "alias": 4
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 5
-            },
-            "node_type": {
-             "data_type": {
-              "temporal": {
-               "date_time": {
-                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-                "time_zone_format": "TZF_UTC"
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 5
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 6
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 6
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date": {
-          "date_format": "DF_YYYY_MM_DD"
-         }
-        }
-       }
-      },
-      "alias": 4
-     },
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date_time": {
-          "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-          "time_zone_format": "TZF_UTC"
-         }
-        }
-       }
-      },
-      "alias": 5
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 6
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "brace": "LEFT_BRACE"
-          },
-          {
-           "const": {
-            "i64": "12"
-           }
-          },
-          {
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           },
-           "arith": "MUL"
-          },
-          {
-           "brace": "LEFT_BRACE"
-          },
-          {
-           "extract": {
-            "interval": "YEAR"
-           }
-          },
-          {
-           "to_date": {
-            "date_str": "2012-11-09"
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date": {
-               "date_format": "DF_YYYY_MM_DD"
-              }
-             }
-            }
-           }
-          },
-          {
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           },
-           "arith": "SUB"
-          },
-          {
-           "extract": {
-            "interval": "YEAR"
-           }
-          },
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "property": {
-             "key": {
-              "name": "creationDate"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "temporal": {
-               "date_time": {
-                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-                "time_zone_format": "TZF_UTC"
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          },
-          {
-           "brace": "RIGHT_BRACE"
-          },
-          {
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           },
-           "arith": "ADD"
-          },
-          {
-           "brace": "LEFT_BRACE"
-          },
-          {
-           "extract": {
-            "interval": "MONTH"
-           }
-          },
-          {
-           "to_date": {
-            "date_str": "2012-11-09"
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date": {
-               "date_format": "DF_YYYY_MM_DD"
-              }
-             }
-            }
-           }
-          },
-          {
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           },
-           "arith": "SUB"
-          },
-          {
-           "extract": {
-            "interval": "MONTH"
-           }
-          },
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "property": {
-             "key": {
-              "name": "creationDate"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "temporal": {
-               "date_time": {
-                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-                "time_zone_format": "TZF_UTC"
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          },
-          {
-           "brace": "RIGHT_BRACE"
-          },
-          {
-           "brace": "RIGHT_BRACE"
-          },
-          {
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           },
-           "arith": "ADD"
-          },
-          {
-           "const": {
-            "i64": "1"
-           }
-          }
-         ]
-        },
-        "alias": 7
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 6
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 6
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 7
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 6
-     }
-    ]
-   },
-   {
-    "opr": {
-     "select": {
-      "predicate": {
-       "operators": [
-        {
-         "var": {
-          "tag": {
-           "id": 6
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          }
+          ]
          },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         }
-        },
-        {
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         },
-         "arith": "DIV"
-        },
-        {
-         "brace": "LEFT_BRACE"
-        },
-        {
-         "var": {
-          "tag": {
-           "id": 7
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          }
-         },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         }
-        },
-        {
-         "brace": "RIGHT_BRACE"
-        },
-        {
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_BOOL"
-          }
-         },
-         "logical": "LT"
-        },
-        {
-         "const": {
-          "i64": "1"
-         }
-        }
-       ]
-      }
-     }
-    },
-    "meta_data": []
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 0
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
          {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [
-       {
-        "key": {
-         "tag": {
-          "id": 0
-         },
-         "node_type": {
-          "graph_type": {
-           "element_opt": "VERTEX",
-           "graph_data_type": [
-            {
-             "label": {
-              "label": 0
-             },
-             "props": []
-            }
-           ]
-          }
-         }
-        },
-        "alias": 0
-       }
-      ],
-      "functions": [
-       {
-        "vars": [
-         {
-          "tag": {
-           "id": 1
-          },
-          "node_type": {
-           "graph_type": {
-            "element_opt": "VERTEX",
-            "graph_data_type": [
+          "opr": {
+           "project": {
+            "mappings": [
              {
-              "label": {
-               "label": 1
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
               },
-              "props": []
+              "alias": 0
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 1
              }
-            ]
+            ],
+            "is_append": false
            }
-          }
-         }
-        ],
-        "aggregate": "TO_LIST",
-        "alias": 8
-       }
-      ]
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
           },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "data_type": {
-        "array": {
-         "component_type": {
-          "primitive_type": "DT_ANY"
-         },
-         "max_length": 0
-        }
-       }
-      },
-      "alias": 8
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
+          "meta_data": [
+           {
+            "type": {
              "graph_type": {
               "element_opt": "VERTEX",
               "graph_data_type": [
@@ -1845,263 +399,158 @@
                }
               ]
              }
-            }
+            },
+            "alias": 0
            },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 8
-            },
-            "node_type": {
-             "data_type": {
-              "array": {
-               "component_type": {
-                "primitive_type": "DT_ANY"
-               },
-               "max_length": 0
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "array": {
-              "component_type": {
-               "primitive_type": "DT_ANY"
-              },
-              "max_length": 0
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 8
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "data_type": {
-        "array": {
-         "component_type": {
-          "primitive_type": "DT_ANY"
-         },
-         "max_length": 0
-        }
-       }
-      },
-      "alias": 8
-     }
-    ]
-   },
-   {
-    "opr": {
-     "unfold": {
-      "input_expr": {
-       "operators": [
-        {
-         "var": {
-          "tag": {
-           "id": 8
-          },
-          "node_type": {
-           "data_type": {
-            "array": {
-             "component_type": {
-              "primitive_type": "DT_ANY"
-             },
-             "max_length": 0
-            }
-           }
-          }
-         },
-         "node_type": {
-          "data_type": {
-           "array": {
-            "component_type": {
-             "primitive_type": "DT_ANY"
-            },
-            "max_length": 0
-           }
-          }
-         }
-        }
-       ]
-      },
-      "alias": 9
-     }
-    },
-    "meta_data": []
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "VERTEX",
-      "is_optional": true,
-      "v_tag": 9,
-      "alias": 10
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 2,
-           "dst_label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 0,
-           "src_label": 3,
-           "dst_label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 10
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 9
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "VERTEX",
-      "is_optional": true,
-      "v_tag": 10,
-      "alias": 11
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 9,
-           "src_label": 1,
-           "dst_label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 9,
-           "src_label": 1,
-           "dst_label": 3
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 11
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 9
-            },
-            "node_type": {
+           {
+            "type": {
              "graph_type": {
               "element_opt": "VERTEX",
               "graph_data_type": [
                {
                 "label": {
-                 "label": 0
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           }
+          ]
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "IN",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "EDGE",
+            "is_optional": true,
+            "v_tag": 1
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0,
+                 "src_label": 2,
+                 "dst_label": 1
                 },
                 "props": []
                },
                {
                 "label": {
-                 "label": 1
+                 "label": 0,
+                 "src_label": 3,
+                 "dst_label": 1
                 },
                 "props": []
+               }
+              ]
+             }
+            },
+            "alias": -1
+           }
+          ]
+         },
+         {
+          "opr": {
+           "vertex": {
+            "opt": "START",
+            "params": {
+             "tables": [
+              {
+               "id": 2
+              },
+              {
+               "id": 3
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "predicate": {
+              "operators": [
+               {
+                "var": {
+                 "property": {
+                  "key": {
+                   "name": "creationDate"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date_time": {
+                    "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                    "time_zone_format": "TZF_UTC"
+                   }
+                  }
+                 }
+                }
                },
+               {
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_BOOL"
+                 }
+                },
+                "logical": "LT"
+               },
+               {
+                "to_date": {
+                 "date_str": "2012-11-09"
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date": {
+                    "date_format": "DF_YYYY_MM_DD"
+                   }
+                  }
+                 }
+                }
+               }
+              ]
+             },
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "alias": 2
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
                {
                 "label": {
                  "label": 2
@@ -2113,102 +562,2393 @@
                  "label": 3
                 },
                 "props": []
-               },
+               }
+              ]
+             }
+            },
+            "alias": 2
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 2
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 2
+                      },
+                      "props": []
+                     },
+                     {
+                      "label": {
+                       "label": 3
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 2
+                     },
+                     "props": []
+                    },
+                    {
+                     "label": {
+                      "label": 3
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 2
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 0
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 1
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "to_date": {
+                  "date_str": "2012-11-09"
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date": {
+                     "date_format": "DF_YYYY_MM_DD"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 3
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "property": {
+                   "key": {
+                    "name": "creationDate"
+                   }
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "temporal": {
+                     "date_time": {
+                      "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                      "time_zone_format": "TZF_UTC"
+                     }
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 4
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
                {
                 "label": {
-                 "label": 4
+                 "label": 2
                 },
                 "props": []
                },
                {
                 "label": {
-                 "label": 5
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 6
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 7
+                 "label": 3
                 },
                 "props": []
                }
               ]
              }
-            }
+            },
+            "alias": 2
            },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date": {
+                "date_format": "DF_YYYY_MM_DD"
+               }
+              }
+             }
+            },
+            "alias": 3
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date_time": {
+                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                "time_zone_format": "TZF_UTC"
+               }
+              }
+             }
+            },
+            "alias": 4
+           }
+          ]
+         },
+         {
+          "opr": {
+           "group_by": {
+            "mappings": [
+             {
+              "key": {
+               "tag": {
+                "id": 0
                },
-               "props": []
+               "node_type": {
+                "graph_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 0
+                   },
+                   "props": []
+                  }
+                 ]
+                }
+               }
+              },
+              "alias": 0
+             },
+             {
+              "key": {
+               "tag": {
+                "id": 1
+               },
+               "node_type": {
+                "graph_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 1
+                   },
+                   "props": []
+                  }
+                 ]
+                }
+               }
+              },
+              "alias": 1
+             },
+             {
+              "key": {
+               "tag": {
+                "id": 3
+               },
+               "node_type": {
+                "data_type": {
+                 "temporal": {
+                  "date": {
+                   "date_format": "DF_YYYY_MM_DD"
+                  }
+                 }
+                }
+               }
+              },
+              "alias": 3
+             },
+             {
+              "key": {
+               "tag": {
+                "id": 4
+               },
+               "node_type": {
+                "data_type": {
+                 "temporal": {
+                  "date_time": {
+                   "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                   "time_zone_format": "TZF_UTC"
+                  }
+                 }
+                }
+               }
+              },
+              "alias": 4
+             }
+            ],
+            "functions": [
+             {
+              "vars": [
+               {
+                "tag": {
+                 "id": 2
+                },
+                "node_type": {
+                 "graph_type": {
+                  "element_opt": "VERTEX",
+                  "graph_data_type": [
+                   {
+                    "label": {
+                     "label": 2
+                    },
+                    "props": []
+                   },
+                   {
+                    "label": {
+                     "label": 3
+                    },
+                    "props": []
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "aggregate": "COUNT",
+              "alias": 5
+             }
+            ]
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date": {
+                "date_format": "DF_YYYY_MM_DD"
+               }
+              }
+             }
+            },
+            "alias": 3
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date_time": {
+                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                "time_zone_format": "TZF_UTC"
+               }
+              }
+             }
+            },
+            "alias": 4
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 5
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 0
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 1
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 3
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "temporal": {
+                     "date": {
+                      "date_format": "DF_YYYY_MM_DD"
+                     }
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date": {
+                     "date_format": "DF_YYYY_MM_DD"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 3
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 4
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "temporal": {
+                     "date_time": {
+                      "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                      "time_zone_format": "TZF_UTC"
+                     }
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 4
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 5
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "primitive_type": "DT_SIGNED_INT64"
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 5
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date": {
+                "date_format": "DF_YYYY_MM_DD"
+               }
+              }
+             }
+            },
+            "alias": 3
+           },
+           {
+            "type": {
+             "data_type": {
+              "temporal": {
+               "date_time": {
+                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                "time_zone_format": "TZF_UTC"
+               }
+              }
+             }
+            },
+            "alias": 4
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 5
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 0
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 1
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "brace": "LEFT_BRACE"
+                },
+                {
+                 "const": {
+                  "i64": "12"
+                 }
+                },
+                {
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 },
+                 "arith": "MUL"
+                },
+                {
+                 "brace": "LEFT_BRACE"
+                },
+                {
+                 "extract": {
+                  "interval": "YEAR"
+                 }
+                },
+                {
+                 "to_date": {
+                  "date_str": "2012-11-09"
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date": {
+                     "date_format": "DF_YYYY_MM_DD"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 },
+                 "arith": "SUB"
+                },
+                {
+                 "extract": {
+                  "interval": "YEAR"
+                 }
+                },
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "property": {
+                   "key": {
+                    "name": "creationDate"
+                   }
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "temporal": {
+                     "date_time": {
+                      "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                      "time_zone_format": "TZF_UTC"
+                     }
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "brace": "RIGHT_BRACE"
+                },
+                {
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 },
+                 "arith": "ADD"
+                },
+                {
+                 "brace": "LEFT_BRACE"
+                },
+                {
+                 "extract": {
+                  "interval": "MONTH"
+                 }
+                },
+                {
+                 "to_date": {
+                  "date_str": "2012-11-09"
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date": {
+                     "date_format": "DF_YYYY_MM_DD"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 },
+                 "arith": "SUB"
+                },
+                {
+                 "extract": {
+                  "interval": "MONTH"
+                 }
+                },
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "property": {
+                   "key": {
+                    "name": "creationDate"
+                   }
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "temporal": {
+                     "date_time": {
+                      "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                      "time_zone_format": "TZF_UTC"
+                     }
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "brace": "RIGHT_BRACE"
+                },
+                {
+                 "brace": "RIGHT_BRACE"
+                },
+                {
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 },
+                 "arith": "ADD"
+                },
+                {
+                 "const": {
+                  "i64": "1"
+                 }
+                }
+               ]
+              },
+              "alias": 6
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 5
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "primitive_type": "DT_SIGNED_INT64"
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 5
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 6
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 5
+           }
+          ]
+         },
+         {
+          "opr": {
+           "select": {
+            "predicate": {
+             "operators": [
+              {
+               "var": {
+                "tag": {
+                 "id": 5
+                },
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_SIGNED_INT64"
+                 }
+                }
+               },
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT64"
+                }
+               }
               },
               {
-               "label": {
-                "label": 1
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT64"
+                }
                },
-               "props": []
+               "arith": "DIV"
               },
               {
-               "label": {
-                "label": 2
-               },
-               "props": []
+               "brace": "LEFT_BRACE"
               },
               {
-               "label": {
-                "label": 3
+               "var": {
+                "tag": {
+                 "id": 6
+                },
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_SIGNED_INT64"
+                 }
+                }
                },
-               "props": []
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT64"
+                }
+               }
               },
               {
-               "label": {
-                "label": 4
-               },
-               "props": []
+               "brace": "RIGHT_BRACE"
               },
               {
-               "label": {
-                "label": 5
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_BOOL"
+                }
                },
-               "props": []
+               "logical": "LT"
               },
               {
-               "label": {
-                "label": 6
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 7
-               },
-               "props": []
+               "const": {
+                "i64": "1"
+               }
               }
              ]
             }
            }
-          }
-         ]
-        },
-        "alias": 9
-       },
+          },
+          "meta_data": []
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 1
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 1
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 0
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 1
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           }
+          ]
+         },
+         {
+          "opr": {
+           "group_by": {
+            "mappings": [
+             {
+              "key": {
+               "tag": {
+                "id": 0
+               },
+               "node_type": {
+                "graph_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 0
+                   },
+                   "props": []
+                  }
+                 ]
+                }
+               }
+              },
+              "alias": 0
+             }
+            ],
+            "functions": [
+             {
+              "vars": [
+               {
+                "tag": {
+                 "id": 1
+                },
+                "node_type": {
+                 "graph_type": {
+                  "element_opt": "VERTEX",
+                  "graph_data_type": [
+                   {
+                    "label": {
+                     "label": 1
+                    },
+                    "props": []
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "aggregate": "TO_LIST",
+              "alias": 7
+             }
+            ]
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "data_type": {
+              "array": {
+               "component_type": {
+                "primitive_type": "DT_ANY"
+               },
+               "max_length": 0
+              }
+             }
+            },
+            "alias": 7
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 0
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 0
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 0
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 0
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 7
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "array": {
+                     "component_type": {
+                      "primitive_type": "DT_ANY"
+                     },
+                     "max_length": 0
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "array": {
+                    "component_type": {
+                     "primitive_type": "DT_ANY"
+                    },
+                    "max_length": 0
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 7
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 0
+           },
+           {
+            "type": {
+             "data_type": {
+              "array": {
+               "component_type": {
+                "primitive_type": "DT_ANY"
+               },
+               "max_length": 0
+              }
+             }
+            },
+            "alias": 7
+           }
+          ]
+         },
+         {
+          "opr": {
+           "unfold": {
+            "input_expr": {
+             "operators": [
+              {
+               "var": {
+                "tag": {
+                 "id": 7
+                },
+                "node_type": {
+                 "data_type": {
+                  "array": {
+                   "component_type": {
+                    "primitive_type": "DT_ANY"
+                   },
+                   "max_length": 0
+                  }
+                 }
+                }
+               },
+               "node_type": {
+                "data_type": {
+                 "array": {
+                  "component_type": {
+                   "primitive_type": "DT_ANY"
+                  },
+                  "max_length": 0
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "alias": 8
+           }
+          },
+          "meta_data": []
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "IN",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "VERTEX",
+            "is_optional": true,
+            "v_tag": 8,
+            "alias": 9
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0,
+                 "src_label": 2,
+                 "dst_label": 1
+                },
+                "props": []
+               },
+               {
+                "label": {
+                 "label": 0,
+                 "src_label": 3,
+                 "dst_label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 9
+           }
+          ]
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "IN",
+            "params": {
+             "tables": [
+              {
+               "id": 9
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "VERTEX",
+            "is_optional": true,
+            "v_tag": 9,
+            "alias": 10
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 9,
+                 "src_label": 1,
+                 "dst_label": 2
+                },
+                "props": []
+               },
+               {
+                "label": {
+                 "label": 9,
+                 "src_label": 1,
+                 "dst_label": 3
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 10
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 8
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 8
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 10
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 10
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 7
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "array": {
+                     "component_type": {
+                      "primitive_type": "DT_ANY"
+                     },
+                     "max_length": 0
+                    }
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "array": {
+                    "component_type": {
+                     "primitive_type": "DT_ANY"
+                    },
+                    "max_length": 0
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 7
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 8
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 10
+           },
+           {
+            "type": {
+             "data_type": {
+              "array": {
+               "component_type": {
+                "primitive_type": "DT_ANY"
+               },
+               "max_length": 0
+              }
+             }
+            },
+            "alias": 7
+           }
+          ]
+         },
+         {
+          "opr": {
+           "select": {
+            "predicate": {
+             "operators": [
+              {
+               "brace": "LEFT_BRACE"
+              },
+              {
+               "var": {
+                "tag": {
+                 "id": 10
+                },
+                "node_type": {
+                 "graph_type": {
+                  "element_opt": "VERTEX",
+                  "graph_data_type": [
+                   {
+                    "label": {
+                     "label": 1
+                    },
+                    "props": []
+                   }
+                  ]
+                 }
+                }
+               },
+               "node_type": {
+                "graph_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 1
+                   },
+                   "props": []
+                  }
+                 ]
+                }
+               }
+              },
+              {
+               "brace": "RIGHT_BRACE"
+              },
+              {
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_BOOL"
+                }
+               },
+               "logical": "WITHIN"
+              },
+              {
+               "brace": "LEFT_BRACE"
+              },
+              {
+               "var": {
+                "tag": {
+                 "id": 7
+                },
+                "node_type": {
+                 "data_type": {
+                  "array": {
+                   "component_type": {
+                    "primitive_type": "DT_ANY"
+                   },
+                   "max_length": 0
+                  }
+                 }
+                }
+               },
+               "node_type": {
+                "data_type": {
+                 "array": {
+                  "component_type": {
+                   "primitive_type": "DT_ANY"
+                  },
+                  "max_length": 0
+                 }
+                }
+               }
+              },
+              {
+               "brace": "RIGHT_BRACE"
+              }
+             ]
+            }
+           }
+          },
+          "meta_data": []
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 10
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 10
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 8
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 8
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 10
+           },
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 8
+           }
+          ]
+         },
+         {
+          "opr": {
+           "group_by": {
+            "mappings": [
+             {
+              "key": {
+               "tag": {
+                "id": 8
+               },
+               "node_type": {
+                "graph_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 1
+                   },
+                   "props": []
+                  }
+                 ]
+                }
+               }
+              },
+              "alias": 8
+             }
+            ],
+            "functions": [
+             {
+              "vars": [
+               {
+                "tag": {
+                 "id": 10
+                },
+                "node_type": {
+                 "graph_type": {
+                  "element_opt": "VERTEX",
+                  "graph_data_type": [
+                   {
+                    "label": {
+                     "label": 1
+                    },
+                    "props": []
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "aggregate": "COUNT",
+              "alias": 11
+             }
+            ]
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 8
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 11
+           }
+          ]
+         },
+         {
+          "opr": {
+           "project": {
+            "mappings": [
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 8
+                  },
+                  "node_type": {
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 1
+                      },
+                      "props": []
+                     }
+                    ]
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 1
+                     },
+                     "props": []
+                    }
+                   ]
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 8
+             },
+             {
+              "expr": {
+               "operators": [
+                {
+                 "var": {
+                  "tag": {
+                   "id": 11
+                  },
+                  "node_type": {
+                   "data_type": {
+                    "primitive_type": "DT_SIGNED_INT64"
+                   }
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  }
+                 }
+                }
+               ]
+              },
+              "alias": 11
+             }
+            ],
+            "is_append": false
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 8
+           },
+           {
+            "type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            },
+            "alias": 11
+           }
+          ]
+         }
+        ]
+       }
+      },
+      "right_plan": {
+       "plan_id": 0,
+       "query_plan": {
+        "mode": "READ_ONLY",
+        "plan": [
+         {
+          "opr": {
+           "scan": {
+            "scan_opt": "VERTEX",
+            "params": {
+             "tables": [
+              {
+               "id": 1
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "predicate": {
+              "operators": [
+               {
+                "var": {
+                 "property": {
+                  "key": {
+                   "name": "creationDate"
+                  }
+                 },
+                 "node_type": {
+                  "data_type": {
+                   "temporal": {
+                    "date_time": {
+                     "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                     "time_zone_format": "TZF_UTC"
+                    }
+                   }
+                  }
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date_time": {
+                    "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                    "time_zone_format": "TZF_UTC"
+                   }
+                  }
+                 }
+                }
+               },
+               {
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_BOOL"
+                 }
+                },
+                "logical": "LT"
+               },
+               {
+                "to_date": {
+                 "date_str": "2012-11-09"
+                },
+                "node_type": {
+                 "data_type": {
+                  "temporal": {
+                   "date": {
+                    "date_format": "DF_YYYY_MM_DD"
+                   }
+                  }
+                 }
+                }
+               }
+              ]
+             },
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "is_count_only": false,
+            "alias": 12
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 12
+           }
+          ]
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "OUT",
+            "params": {
+             "tables": [
+              {
+               "id": 9
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "VERTEX",
+            "is_optional": false,
+            "v_tag": 12,
+            "alias": 13
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 9,
+                 "src_label": 1,
+                 "dst_label": 2
+                },
+                "props": []
+               },
+               {
+                "label": {
+                 "label": 9,
+                 "src_label": 1,
+                 "dst_label": 3
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 13
+           }
+          ]
+         },
+         {
+          "opr": {
+           "edge": {
+            "direction": "OUT",
+            "params": {
+             "tables": [
+              {
+               "id": 0
+              }
+             ],
+             "columns": [],
+             "is_all_columns": false,
+             "sample_ratio": 0,
+             "extra": {}
+            },
+            "expand_opt": "VERTEX",
+            "is_optional": false,
+            "v_tag": 13,
+            "alias": 8
+           }
+          },
+          "meta_data": [
+           {
+            "type": {
+             "graph_type": {
+              "element_opt": "EDGE",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 0,
+                 "src_label": 2,
+                 "dst_label": 1
+                },
+                "props": []
+               },
+               {
+                "label": {
+                 "label": 0,
+                 "src_label": 3,
+                 "dst_label": 1
+                },
+                "props": []
+               }
+              ]
+             }
+            },
+            "alias": 8
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "project": {
+      "mappings": [
        {
         "expr": {
          "operators": [
           {
            "var": {
             "tag": {
-             "id": 11
+             "id": 12
             },
             "node_type": {
              "graph_type": {
@@ -2235,256 +2975,6 @@
                "props": []
               }
              ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 11
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 8
-            },
-            "node_type": {
-             "data_type": {
-              "array": {
-               "component_type": {
-                "primitive_type": "DT_ANY"
-               },
-               "max_length": 0
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "array": {
-              "component_type": {
-               "primitive_type": "DT_ANY"
-              },
-              "max_length": 0
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 8
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 9
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 11
-     },
-     {
-      "type": {
-       "data_type": {
-        "array": {
-         "component_type": {
-          "primitive_type": "DT_ANY"
-         },
-         "max_length": 0
-        }
-       }
-      },
-      "alias": 8
-     }
-    ]
-   },
-   {
-    "opr": {
-     "select": {
-      "predicate": {
-       "operators": [
-        {
-         "brace": "LEFT_BRACE"
-        },
-        {
-         "var": {
-          "tag": {
-           "id": 11
-          },
-          "node_type": {
-           "graph_type": {
-            "element_opt": "VERTEX",
-            "graph_data_type": [
-             {
-              "label": {
-               "label": 1
-              },
-              "props": []
-             }
-            ]
-           }
-          }
-         },
-         "node_type": {
-          "graph_type": {
-           "element_opt": "VERTEX",
-           "graph_data_type": [
-            {
-             "label": {
-              "label": 1
-             },
-             "props": []
-            }
-           ]
-          }
-         }
-        },
-        {
-         "brace": "RIGHT_BRACE"
-        },
-        {
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_BOOL"
-          }
-         },
-         "logical": "WITHIN"
-        },
-        {
-         "brace": "LEFT_BRACE"
-        },
-        {
-         "var": {
-          "tag": {
-           "id": 8
-          },
-          "node_type": {
-           "data_type": {
-            "array": {
-             "component_type": {
-              "primitive_type": "DT_ANY"
-             },
-             "max_length": 0
-            }
-           }
-          }
-         },
-         "node_type": {
-          "data_type": {
-           "array": {
-            "component_type": {
-             "primitive_type": "DT_ANY"
-            },
-            "max_length": 0
-           }
-          }
-         }
-        },
-        {
-         "brace": "RIGHT_BRACE"
-        }
-       ]
-      }
-     }
-    },
-    "meta_data": []
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 11
-            },
-            "property": {
-             "id": {}
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
             }
            }
           }
@@ -2498,7 +2988,7 @@
           {
            "var": {
             "tag": {
-             "id": 9
+             "id": 8
             },
             "node_type": {
              "graph_type": {
@@ -2506,49 +2996,7 @@
               "graph_data_type": [
                {
                 "label": {
-                 "label": 0
-                },
-                "props": []
-               },
-               {
-                "label": {
                  "label": 1
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 2
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 3
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 4
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 5
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 6
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 7
                 },
                 "props": []
                }
@@ -2562,49 +3010,7 @@
              "graph_data_type": [
               {
                "label": {
-                "label": 0
-               },
-               "props": []
-              },
-              {
-               "label": {
                 "label": 1
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 2
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 3
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 4
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 5
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 6
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 7
                },
                "props": []
               }
@@ -2614,7 +3020,31 @@
           }
          ]
         },
-        "alias": 9
+        "alias": 8
+       },
+       {
+        "expr": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 11
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           }
+          }
+         ]
+        },
+        "alias": 11
        }
       ],
       "is_append": false
@@ -2623,8 +3053,16 @@
     "meta_data": [
      {
       "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 1
+          },
+          "props": []
+         }
+        ]
        }
       },
       "alias": 12
@@ -2636,56 +3074,22 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
            "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
           },
           "props": []
          }
         ]
        }
       },
-      "alias": 9
+      "alias": 8
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 11
      }
     ]
    },
@@ -2696,7 +3100,7 @@
        {
         "key": {
          "tag": {
-          "id": 9
+          "id": 8
          },
          "node_type": {
           "graph_type": {
@@ -2704,49 +3108,7 @@
            "graph_data_type": [
             {
              "label": {
-              "label": 0
-             },
-             "props": []
-            },
-            {
-             "label": {
               "label": 1
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 2
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 3
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 4
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 5
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 6
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 7
              },
              "props": []
             }
@@ -2754,7 +3116,20 @@
           }
          }
         },
-        "alias": 9
+        "alias": 8
+       },
+       {
+        "key": {
+         "tag": {
+          "id": 11
+         },
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_SIGNED_INT64"
+          }
+         }
+        },
+        "alias": 11
        }
       ],
       "functions": [
@@ -2765,14 +3140,22 @@
            "id": 12
           },
           "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
+           "graph_type": {
+            "element_opt": "VERTEX",
+            "graph_data_type": [
+             {
+              "label": {
+               "label": 1
+              },
+              "props": []
+             }
+            ]
            }
           }
          }
         ],
         "aggregate": "COUNT",
-        "alias": 13
+        "alias": 14
        }
       ]
      }
@@ -2785,56 +3168,14 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
            "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
           },
           "props": []
          }
         ]
        }
       },
-      "alias": 9
+      "alias": 8
      },
      {
       "type": {
@@ -2842,279 +3183,12 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 13
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 9
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 2
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 3
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 4
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 5
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 6
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 7
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 2
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 3
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 4
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 5
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 6
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 7
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 9
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 13
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 13
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 9
+      "alias": 11
      },
      {
       "type": {
        "data_type": {
         "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 13
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "VERTEX",
-      "is_optional": true,
-      "v_tag": 9,
-      "alias": 14
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 2,
-           "dst_label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 0,
-           "src_label": 3,
-           "dst_label": 1
-          },
-          "props": []
-         }
-        ]
        }
       },
       "alias": 14
@@ -3123,147 +3197,6 @@
    },
    {
     "opr": {
-     "edge": {
-      "direction": "IN",
-      "params": {
-       "tables": [
-        {
-         "id": 9
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": true,
-      "v_tag": 14
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 9,
-           "src_label": 1,
-           "dst_label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 9,
-           "src_label": 1,
-           "dst_label": 3
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "START",
-      "params": {
-       "tables": [
-        {
-         "id": 1
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "creationDate"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date_time": {
-               "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-               "time_zone_format": "TZF_UTC"
-              }
-             }
-            }
-           }
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date_time": {
-              "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-              "time_zone_format": "TZF_UTC"
-             }
-            }
-           }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "LT"
-         },
-         {
-          "to_date": {
-           "date_str": "2012-11-09"
-          },
-          "node_type": {
-           "data_type": {
-            "temporal": {
-             "date": {
-              "date_format": "DF_YYYY_MM_DD"
-             }
-            }
-           }
-          }
-         }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 15
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 15
-     }
-    ]
-   },
-   {
-    "opr": {
      "project": {
       "mappings": [
        {
@@ -3272,34 +3205,7 @@
           {
            "var": {
             "tag": {
-             "id": 15
-            },
-            "property": {
-             "id": {}
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 16
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 9
+             "id": 8
             },
             "node_type": {
              "graph_type": {
@@ -3307,49 +3213,7 @@
               "graph_data_type": [
                {
                 "label": {
-                 "label": 0
-                },
-                "props": []
-               },
-               {
-                "label": {
                  "label": 1
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 2
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 3
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 4
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 5
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 6
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 7
                 },
                 "props": []
                }
@@ -3363,49 +3227,7 @@
              "graph_data_type": [
               {
                "label": {
-                "label": 0
-               },
-               "props": []
-              },
-              {
-               "label": {
                 "label": 1
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 2
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 3
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 4
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 5
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 6
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 7
                },
                "props": []
               }
@@ -3415,7 +3237,7 @@
           }
          ]
         },
-        "alias": 9
+        "alias": 8
        },
        {
         "expr": {
@@ -3423,7 +3245,7 @@
           {
            "var": {
             "tag": {
-             "id": 13
+             "id": 11
             },
             "node_type": {
              "data_type": {
@@ -3439,394 +3261,7 @@
           }
          ]
         },
-        "alias": 13
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 16
-     },
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 9
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 13
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [
-       {
-        "key": {
-         "tag": {
-          "id": 9
-         },
-         "node_type": {
-          "graph_type": {
-           "element_opt": "VERTEX",
-           "graph_data_type": [
-            {
-             "label": {
-              "label": 0
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 1
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 2
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 3
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 4
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 5
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 6
-             },
-             "props": []
-            },
-            {
-             "label": {
-              "label": 7
-             },
-             "props": []
-            }
-           ]
-          }
-         }
-        },
-        "alias": 9
-       },
-       {
-        "key": {
-         "tag": {
-          "id": 13
-         },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         }
-        },
-        "alias": 13
-       }
-      ],
-      "functions": [
-       {
-        "vars": [
-         {
-          "tag": {
-           "id": 16
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          }
-         }
-        ],
-        "aggregate": "COUNT",
-        "alias": 17
-       }
-      ]
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 9
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 13
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 17
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 9
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 1
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 2
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 3
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 4
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 5
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 6
-                },
-                "props": []
-               },
-               {
-                "label": {
-                 "label": 7
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 1
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 2
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 3
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 4
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 5
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 6
-               },
-               "props": []
-              },
-              {
-               "label": {
-                "label": 7
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 9
+        "alias": 11
        },
        {
         "expr": {
@@ -3834,7 +3269,7 @@
           {
            "var": {
             "tag": {
-             "id": 13
+             "id": 14
             },
             "node_type": {
              "data_type": {
@@ -3850,31 +3285,7 @@
           }
          ]
         },
-        "alias": 13
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 17
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 17
+        "alias": 14
        }
       ],
       "is_append": false
@@ -3888,56 +3299,14 @@
         "graph_data_type": [
          {
           "label": {
-           "label": 0
-          },
-          "props": []
-         },
-         {
-          "label": {
            "label": 1
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 2
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 3
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 4
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 5
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 6
-          },
-          "props": []
-         },
-         {
-          "label": {
-           "label": 7
           },
           "props": []
          }
         ]
        }
       },
-      "alias": 9
+      "alias": 8
      },
      {
       "type": {
@@ -3945,7 +3314,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 13
+      "alias": 11
      },
      {
       "type": {
@@ -3953,7 +3322,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 17
+      "alias": 14
      }
     ]
    },
@@ -3967,7 +3336,7 @@
           {
            "var": {
             "tag": {
-             "id": 9
+             "id": 8
             },
             "property": {
              "key": {
@@ -3988,7 +3357,7 @@
           }
          ]
         },
-        "alias": 18
+        "alias": 15
        },
        {
         "expr": {
@@ -3996,7 +3365,7 @@
           {
            "var": {
             "tag": {
-             "id": 13
+             "id": 11
             },
             "node_type": {
              "data_type": {
@@ -4012,7 +3381,7 @@
           }
          ]
         },
-        "alias": 13
+        "alias": 11
        },
        {
         "expr": {
@@ -4020,7 +3389,7 @@
           {
            "var": {
             "tag": {
-             "id": 17
+             "id": 14
             },
             "node_type": {
              "data_type": {
@@ -4036,7 +3405,7 @@
           }
          ]
         },
-        "alias": 17
+        "alias": 14
        },
        {
         "expr": {
@@ -4050,7 +3419,7 @@
                 {
                  "var": {
                   "tag": {
-                   "id": 17
+                   "id": 14
                   },
                   "node_type": {
                    "data_type": {
@@ -4095,7 +3464,7 @@
               {
                "var": {
                 "tag": {
-                 "id": 13
+                 "id": 11
                 },
                 "node_type": {
                  "data_type": {
@@ -4120,7 +3489,7 @@
               {
                "var": {
                 "tag": {
-                 "id": 17
+                 "id": 14
                 },
                 "node_type": {
                  "data_type": {
@@ -4140,7 +3509,7 @@
           }
          ]
         },
-        "alias": 19
+        "alias": 16
        }
       ],
       "is_append": false
@@ -4153,7 +3522,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 18
+      "alias": 15
      },
      {
       "type": {
@@ -4161,7 +3530,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 13
+      "alias": 11
      },
      {
       "type": {
@@ -4169,7 +3538,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 17
+      "alias": 14
      },
      {
       "type": {
@@ -4177,7 +3546,7 @@
         "primitive_type": "DT_DOUBLE"
        }
       },
-      "alias": 19
+      "alias": 16
      }
     ]
    },
@@ -4188,7 +3557,7 @@
        {
         "key": {
          "tag": {
-          "id": 19
+          "id": 16
          },
          "node_type": {
           "data_type": {
@@ -4201,7 +3570,7 @@
        {
         "key": {
          "tag": {
-          "id": 18
+          "id": 15
          },
          "node_type": {
           "data_type": {
@@ -4230,7 +3599,7 @@
           {
            "var": {
             "tag": {
-             "id": 18
+             "id": 15
             },
             "node_type": {
              "data_type": {
@@ -4246,7 +3615,7 @@
           }
          ]
         },
-        "alias": 18
+        "alias": 15
        },
        {
         "expr": {
@@ -4254,7 +3623,7 @@
           {
            "var": {
             "tag": {
-             "id": 13
+             "id": 11
             },
             "node_type": {
              "data_type": {
@@ -4270,7 +3639,7 @@
           }
          ]
         },
-        "alias": 13
+        "alias": 11
        },
        {
         "expr": {
@@ -4278,7 +3647,7 @@
           {
            "var": {
             "tag": {
-             "id": 17
+             "id": 14
             },
             "node_type": {
              "data_type": {
@@ -4294,7 +3663,7 @@
           }
          ]
         },
-        "alias": 17
+        "alias": 14
        },
        {
         "expr": {
@@ -4302,7 +3671,7 @@
           {
            "var": {
             "tag": {
-             "id": 19
+             "id": 16
             },
             "node_type": {
              "data_type": {
@@ -4318,7 +3687,7 @@
           }
          ]
         },
-        "alias": 19
+        "alias": 16
        }
       ],
       "is_append": false
@@ -4331,7 +3700,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 18
+      "alias": 15
      },
      {
       "type": {
@@ -4339,7 +3708,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 13
+      "alias": 11
      },
      {
       "type": {
@@ -4347,7 +3716,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 17
+      "alias": 14
      },
      {
       "type": {
@@ -4355,7 +3724,7 @@
         "primitive_type": "DT_DOUBLE"
        }
       },
-      "alias": 19
+      "alias": 16
      }
     ]
    },

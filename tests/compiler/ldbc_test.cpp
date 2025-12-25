@@ -113,5 +113,12 @@ TEST_F(LDBCTest, IC_SHORT) {
                                     getLDBCResource("IC_SHORT_logical"));
 }
 
+TEST_F(LDBCTest, IC_10) {
+  std::string query =
+      gs::gopt::Utils::readString(getLDBCResourcePath("ic_10.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_10_logical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

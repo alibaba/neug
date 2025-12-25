@@ -57,3 +57,7 @@ MATCH (a:person)-[:knows]->(b:person) WHERE a.fName='Alice' OPTIONAL MATCH (b)-[
 MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) WHERE b.fName='Farooq' RETURN a.fName, b.fName; # A_OPTIONAL_AB_30
 
 MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) OPTIONAL MATCH (b)-[:knows]->(c:person) RETURN COUNT(*); # A_OPTIONAL_AB_OPTIONAL_BC_34
+
+Match (a:person)-[:knows*2..3]->(c:person) Where NOT (a)-[:knows]->(c) Return count(a); # WHERE_SUBQUERY
+
+Match (a:person)-[:knows*2..3]->(c:person) Where (a)-[:knows]->(c) Return count(a); # WHERE_NOT_SUBQUERY

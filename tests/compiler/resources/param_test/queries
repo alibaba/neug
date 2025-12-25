@@ -1,0 +1,6 @@
+Match (n:person) Where n.prop_int32 = $_int32 OR n.prop_int64 = $_int64 OR n.prop_uint32 = $_uint32 OR n.prop_uint64 = $_uint64 OR n.prop_bool = $_bool OR n.prop_float = $_float OR n.prop_double = $_double OR n.prop_text = $_text OR n.prop_varchar = $_varchar OR n.prop_date = $_date OR n.prop_datetime = $_datetime OR n.prop_interval = $_interval Return count(n); # COMPARE
+Match (n:person) Where n.prop_date < $date Return count(n); # TEMPORAL_COMPARE
+Match (n:person) Where date_part('month', n.prop_date) = $month Return count(n); # FUNCTION_COMPARE
+Match (n:person) Where date_part('month', n.prop_date) = ($month % 12) Return count(n); # FUNCTION_COMPARE_2
+Match (n:person) Where n.prop_array = $array Return count(n); # COMPOSITE_COMPARE
+UNWIND CAST($ids, 'INT64[]') as id Create (p:person {prop_int64: id}); # CAST_PARAM

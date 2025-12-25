@@ -383,24 +383,37 @@
             "tag": {
              "id": 2
             },
-            "property": {
-             "id": {}
-            },
             "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
+             "graph_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 3
+                },
+                "props": []
+               }
+              ]
              }
             }
            },
            "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
+            "graph_type": {
+             "element_opt": "VERTEX",
+             "graph_data_type": [
+              {
+               "label": {
+                "label": 3
+               },
+               "props": []
+              }
+             ]
             }
            }
           }
          ]
         },
-        "alias": 3
+        "alias": 2
        },
        {
         "expr": {
@@ -449,11 +462,19 @@
     "meta_data": [
      {
       "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
+       "graph_type": {
+        "element_opt": "VERTEX",
+        "graph_data_type": [
+         {
+          "label": {
+           "label": 3
+          },
+          "props": []
+         }
+        ]
        }
       },
-      "alias": 3
+      "alias": 2
      },
      {
       "type": {
@@ -504,17 +525,25 @@
         "vars": [
          {
           "tag": {
-           "id": 3
+           "id": 2
           },
           "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
+           "graph_type": {
+            "element_opt": "VERTEX",
+            "graph_data_type": [
+             {
+              "label": {
+               "label": 3
+              },
+              "props": []
+             }
+            ]
            }
           }
          }
         ],
         "aggregate": "COUNT",
-        "alias": 4
+        "alias": 3
        }
       ]
      }
@@ -542,7 +571,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 4
+      "alias": 3
      }
     ]
    },
@@ -596,7 +625,7 @@
           {
            "var": {
             "tag": {
-             "id": 4
+             "id": 3
             },
             "node_type": {
              "data_type": {
@@ -612,7 +641,7 @@
           }
          ]
         },
-        "alias": 4
+        "alias": 3
        }
       ],
       "is_append": false
@@ -641,7 +670,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 4
+      "alias": 3
      }
     ]
    },
@@ -660,7 +689,7 @@
              "left_keys": [
               {
                "tag": {
-                "id": 6
+                "id": 5
                },
                "property": {
                 "id": {}
@@ -675,7 +704,7 @@
              "right_keys": [
               {
                "tag": {
-                "id": 6
+                "id": 5
                },
                "property": {
                 "id": {}
@@ -749,7 +778,7 @@
                     "sample_ratio": 0,
                     "extra": {}
                    },
-                   "alias": 5
+                   "alias": 4
                   }
                  },
                  "meta_data": [
@@ -767,7 +796,7 @@
                      ]
                     }
                    },
-                   "alias": 5
+                   "alias": 4
                   }
                  ]
                 },
@@ -788,8 +817,8 @@
                    },
                    "expand_opt": "VERTEX",
                    "is_optional": false,
-                   "v_tag": 5,
-                   "alias": 6
+                   "v_tag": 4,
+                   "alias": 5
                   }
                  },
                  "meta_data": [
@@ -809,7 +838,7 @@
                      ]
                     }
                    },
-                   "alias": 6
+                   "alias": 5
                   }
                  ]
                 },
@@ -863,7 +892,7 @@
                        {
                         "var": {
                          "tag": {
-                          "id": 4
+                          "id": 3
                          },
                          "node_type": {
                           "data_type": {
@@ -879,7 +908,7 @@
                        }
                       ]
                      },
-                     "alias": 4
+                     "alias": 3
                     },
                     {
                      "expr": {
@@ -887,7 +916,7 @@
                        {
                         "var": {
                          "tag": {
-                          "id": 5
+                          "id": 4
                          },
                          "node_type": {
                           "graph_type": {
@@ -919,7 +948,7 @@
                        }
                       ]
                      },
-                     "alias": 5
+                     "alias": 4
                     },
                     {
                      "expr": {
@@ -927,7 +956,7 @@
                        {
                         "var": {
                          "tag": {
-                          "id": 6
+                          "id": 5
                          },
                          "node_type": {
                           "graph_type": {
@@ -959,7 +988,7 @@
                        }
                       ]
                      },
-                     "alias": 6
+                     "alias": 5
                     }
                    ],
                    "is_append": false
@@ -988,7 +1017,7 @@
                      "primitive_type": "DT_SIGNED_INT64"
                     }
                    },
-                   "alias": 4
+                   "alias": 3
                   },
                   {
                    "type": {
@@ -1004,7 +1033,7 @@
                      ]
                     }
                    },
-                   "alias": 5
+                   "alias": 4
                   },
                   {
                    "type": {
@@ -1020,7 +1049,7 @@
                      ]
                     }
                    },
-                   "alias": 6
+                   "alias": 5
                   }
                  ]
                 }
@@ -1067,7 +1096,7 @@
                     ]
                    },
                    "is_count_only": false,
-                   "alias": 7
+                   "alias": 6
                   }
                  },
                  "meta_data": [
@@ -1085,7 +1114,7 @@
                      ]
                     }
                    },
-                   "alias": 7
+                   "alias": 6
                   }
                  ]
                 },
@@ -1106,8 +1135,8 @@
                    },
                    "expand_opt": "VERTEX",
                    "is_optional": false,
-                   "v_tag": 7,
-                   "alias": 6
+                   "v_tag": 6,
+                   "alias": 5
                   }
                  },
                  "meta_data": [
@@ -1127,7 +1156,7 @@
                      ]
                     }
                    },
-                   "alias": 6
+                   "alias": 5
                   }
                  ]
                 }
@@ -1148,26 +1177,39 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 5
-                   },
-                   "property": {
-                    "id": {}
+                    "id": 4
                    },
                    "node_type": {
-                    "data_type": {
-                     "primitive_type": "DT_SIGNED_INT64"
+                    "graph_type": {
+                     "element_opt": "VERTEX",
+                     "graph_data_type": [
+                      {
+                       "label": {
+                        "label": 3
+                       },
+                       "props": []
+                      }
+                     ]
                     }
                    }
                   },
                   "node_type": {
-                   "data_type": {
-                    "primitive_type": "DT_SIGNED_INT64"
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 3
+                      },
+                      "props": []
+                     }
+                    ]
                    }
                   }
                  }
                 ]
                },
-               "alias": 8
+               "alias": 4
               },
               {
                "expr": {
@@ -1215,7 +1257,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -1231,7 +1273,7 @@
                  }
                 ]
                },
-               "alias": 4
+               "alias": 3
               }
              ],
              "is_append": false
@@ -1240,11 +1282,19 @@
            "meta_data": [
             {
              "type": {
-              "data_type": {
-               "primitive_type": "DT_SIGNED_INT64"
+              "graph_type": {
+               "element_opt": "VERTEX",
+               "graph_data_type": [
+                {
+                 "label": {
+                  "label": 3
+                 },
+                 "props": []
+                }
+               ]
               }
              },
-             "alias": 8
+             "alias": 4
             },
             {
              "type": {
@@ -1268,7 +1318,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 4
+             "alias": 3
             }
            ]
           },
@@ -1300,7 +1350,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 4
+                 "id": 3
                 },
                 "node_type": {
                  "data_type": {
@@ -1308,7 +1358,7 @@
                  }
                 }
                },
-               "alias": 4
+               "alias": 3
               }
              ],
              "functions": [
@@ -1316,17 +1366,25 @@
                "vars": [
                 {
                  "tag": {
-                  "id": 8
+                  "id": 4
                  },
                  "node_type": {
-                  "data_type": {
-                   "primitive_type": "DT_SIGNED_INT64"
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 3
+                     },
+                     "props": []
+                    }
+                   ]
                   }
                  }
                 }
                ],
                "aggregate": "COUNT_DISTINCT",
-               "alias": 9
+               "alias": 7
               }
              ]
             }
@@ -1354,7 +1412,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 4
+             "alias": 3
             },
             {
              "type": {
@@ -1362,7 +1420,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 9
+             "alias": 7
             }
            ]
           },
@@ -1416,7 +1474,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -1432,7 +1490,7 @@
                  }
                 ]
                },
-               "alias": 4
+               "alias": 3
               },
               {
                "expr": {
@@ -1440,7 +1498,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 9
+                    "id": 7
                    },
                    "node_type": {
                     "data_type": {
@@ -1456,7 +1514,7 @@
                  }
                 ]
                },
-               "alias": 9
+               "alias": 7
               }
              ],
              "is_append": false
@@ -1485,7 +1543,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 4
+             "alias": 3
             },
             {
              "type": {
@@ -1493,7 +1551,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 9
+             "alias": 7
             }
            ]
           },
@@ -1547,7 +1605,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 9
+                    "id": 7
                    },
                    "node_type": {
                     "data_type": {
@@ -1575,7 +1633,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -1600,7 +1658,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 9
+                    "id": 7
                    },
                    "node_type": {
                     "data_type": {
@@ -1619,7 +1677,7 @@
                  }
                 ]
                },
-               "alias": 10
+               "alias": 8
               },
               {
                "expr": {
@@ -1648,7 +1706,7 @@
                  }
                 ]
                },
-               "alias": 11
+               "alias": 9
               }
              ],
              "is_append": false
@@ -1677,7 +1735,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 10
+             "alias": 8
             },
             {
              "type": {
@@ -1685,7 +1743,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 11
+             "alias": 9
             }
            ]
           },
@@ -1696,7 +1754,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 10
+                 "id": 8
                 },
                 "node_type": {
                  "data_type": {
@@ -1709,7 +1767,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 11
+                 "id": 9
                 },
                 "node_type": {
                  "data_type": {
@@ -1778,7 +1836,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 10
+                    "id": 8
                    },
                    "node_type": {
                     "data_type": {
@@ -1794,7 +1852,7 @@
                  }
                 ]
                },
-               "alias": 10
+               "alias": 8
               }
              ],
              "is_append": false
@@ -1823,7 +1881,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 10
+             "alias": 8
             }
            ]
           }
@@ -1885,7 +1943,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -1901,7 +1959,7 @@
                  }
                 ]
                },
-               "alias": 4
+               "alias": 3
               },
               {
                "expr": {
@@ -1930,7 +1988,7 @@
                  }
                 ]
                },
-               "alias": 11
+               "alias": 9
               }
              ],
              "is_append": false
@@ -1959,7 +2017,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 4
+             "alias": 3
             },
             {
              "type": {
@@ -1967,7 +2025,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 11
+             "alias": 9
             }
            ]
           },
@@ -1978,7 +2036,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 4
+                 "id": 3
                 },
                 "node_type": {
                  "data_type": {
@@ -1991,7 +2049,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 11
+                 "id": 9
                 },
                 "node_type": {
                  "data_type": {
@@ -2060,7 +2118,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -2076,7 +2134,7 @@
                  }
                 ]
                },
-               "alias": 4
+               "alias": 3
               }
              ],
              "is_append": false
@@ -2105,7 +2163,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 4
+             "alias": 3
             }
            ]
           },
@@ -2159,7 +2217,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 4
+                    "id": 3
                    },
                    "node_type": {
                     "data_type": {
@@ -2175,7 +2233,7 @@
                  }
                 ]
                },
-               "alias": 10
+               "alias": 8
               }
              ],
              "is_append": false
@@ -2201,7 +2259,7 @@
           {
            "var": {
             "tag": {
-             "id": 10
+             "id": 8
             },
             "node_type": {
              "data_type": {
@@ -2217,7 +2275,7 @@
           }
          ]
         },
-        "alias": 10
+        "alias": 8
        },
        {
         "expr": {
@@ -2270,7 +2328,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 10
+      "alias": 8
      },
      {
       "type": {
@@ -2321,7 +2379,7 @@
         "vars": [
          {
           "tag": {
-           "id": 10
+           "id": 8
           },
           "node_type": {
            "data_type": {
@@ -2331,7 +2389,7 @@
          }
         ],
         "aggregate": "MAX",
-        "alias": 12
+        "alias": 10
        }
       ]
      }
@@ -2359,7 +2417,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 12
+      "alias": 10
      }
     ]
    },
@@ -2413,7 +2471,7 @@
           {
            "var": {
             "tag": {
-             "id": 12
+             "id": 10
             },
             "node_type": {
              "data_type": {
@@ -2429,7 +2487,7 @@
           }
          ]
         },
-        "alias": 12
+        "alias": 10
        },
        {
         "expr": {
@@ -2458,7 +2516,7 @@
           }
          ]
         },
-        "alias": 11
+        "alias": 9
        }
       ],
       "is_append": false
@@ -2487,7 +2545,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 12
+      "alias": 10
      },
      {
       "type": {
@@ -2495,7 +2553,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 11
+      "alias": 9
      }
     ]
    },
@@ -2506,7 +2564,7 @@
        {
         "key": {
          "tag": {
-          "id": 12
+          "id": 10
          },
          "node_type": {
           "data_type": {
@@ -2519,7 +2577,7 @@
        {
         "key": {
          "tag": {
-          "id": 11
+          "id": 9
          },
          "node_type": {
           "data_type": {
@@ -2588,7 +2646,7 @@
           {
            "var": {
             "tag": {
-             "id": 12
+             "id": 10
             },
             "node_type": {
              "data_type": {
@@ -2604,7 +2662,7 @@
           }
          ]
         },
-        "alias": 12
+        "alias": 10
        }
       ],
       "is_append": false
@@ -2633,7 +2691,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 12
+      "alias": 10
      }
     ]
    },
@@ -2655,7 +2713,7 @@
       "expand_opt": "VERTEX",
       "is_optional": false,
       "v_tag": 1,
-      "alias": 13
+      "alias": 11
      }
     },
     "meta_data": [
@@ -2675,7 +2733,7 @@
         ]
        }
       },
-      "alias": 13
+      "alias": 11
      }
     ]
    },
@@ -2710,7 +2768,7 @@
           }
          ]
         },
-        "alias": 11
+        "alias": 9
        },
        {
         "expr": {
@@ -2747,7 +2805,7 @@
           }
          ]
         },
-        "alias": 14
+        "alias": 12
        },
        {
         "expr": {
@@ -2784,7 +2842,7 @@
           }
          ]
         },
-        "alias": 15
+        "alias": 13
        },
        {
         "expr": {
@@ -2792,7 +2850,7 @@
           {
            "var": {
             "tag": {
-             "id": 12
+             "id": 10
             },
             "node_type": {
              "data_type": {
@@ -2808,7 +2866,7 @@
           }
          ]
         },
-        "alias": 12
+        "alias": 10
        },
        {
         "expr": {
@@ -2845,7 +2903,7 @@
           }
          ]
         },
-        "alias": 16
+        "alias": 14
        },
        {
         "expr": {
@@ -2853,7 +2911,7 @@
           {
            "var": {
             "tag": {
-             "id": 13
+             "id": 11
             },
             "property": {
              "key": {
@@ -2882,7 +2940,7 @@
           }
          ]
         },
-        "alias": 17
+        "alias": 15
        }
       ],
       "is_append": false
@@ -2895,7 +2953,39 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 11
+      "alias": 9
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 12
+     },
+     {
+      "type": {
+       "data_type": {
+        "string": {
+         "var_char": {
+          "max_length": 65536
+         }
+        }
+       }
+      },
+      "alias": 13
+     },
+     {
+      "type": {
+       "data_type": {
+        "primitive_type": "DT_SIGNED_INT64"
+       }
+      },
+      "alias": 10
      },
      {
       "type": {
@@ -2920,38 +3010,6 @@
        }
       },
       "alias": 15
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 12
-     },
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
-       }
-      },
-      "alias": 16
-     },
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
-       }
-      },
-      "alias": 17
      }
     ]
    },

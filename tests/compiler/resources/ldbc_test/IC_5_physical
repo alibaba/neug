@@ -1141,24 +1141,37 @@
                    "tag": {
                     "id": 9
                    },
-                   "property": {
-                    "id": {}
-                   },
                    "node_type": {
-                    "data_type": {
-                     "primitive_type": "DT_SIGNED_INT64"
+                    "graph_type": {
+                     "element_opt": "VERTEX",
+                     "graph_data_type": [
+                      {
+                       "label": {
+                        "label": 3
+                       },
+                       "props": []
+                      }
+                     ]
                     }
                    }
                   },
                   "node_type": {
-                   "data_type": {
-                    "primitive_type": "DT_SIGNED_INT64"
+                   "graph_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 3
+                      },
+                      "props": []
+                     }
+                    ]
                    }
                   }
                  }
                 ]
                },
-               "alias": 11
+               "alias": 9
               },
               {
                "expr": {
@@ -1207,11 +1220,19 @@
            "meta_data": [
             {
              "type": {
-              "data_type": {
-               "primitive_type": "DT_SIGNED_INT64"
+              "graph_type": {
+               "element_opt": "VERTEX",
+               "graph_data_type": [
+                {
+                 "label": {
+                  "label": 3
+                 },
+                 "props": []
+                }
+               ]
               }
              },
-             "alias": 11
+             "alias": 9
             },
             {
              "type": {
@@ -1262,17 +1283,25 @@
                "vars": [
                 {
                  "tag": {
-                  "id": 11
+                  "id": 9
                  },
                  "node_type": {
-                  "data_type": {
-                   "primitive_type": "DT_SIGNED_INT64"
+                  "graph_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 3
+                     },
+                     "props": []
+                    }
+                   ]
                   }
                  }
                 }
                ],
                "aggregate": "COUNT",
-               "alias": 12
+               "alias": 11
               }
              ]
             }
@@ -1300,7 +1329,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 12
+             "alias": 11
             }
            ]
           },
@@ -1354,7 +1383,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 12
+                    "id": 11
                    },
                    "node_type": {
                     "data_type": {
@@ -1370,7 +1399,7 @@
                  }
                 ]
                },
-               "alias": 12
+               "alias": 11
               }
              ],
              "is_append": false
@@ -1399,7 +1428,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 12
+             "alias": 11
             }
            ]
           },
@@ -1453,7 +1482,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 12
+                    "id": 11
                    },
                    "node_type": {
                     "data_type": {
@@ -1469,7 +1498,7 @@
                  }
                 ]
                },
-               "alias": 12
+               "alias": 11
               },
               {
                "expr": {
@@ -1498,7 +1527,7 @@
                  }
                 ]
                },
-               "alias": 13
+               "alias": 12
               }
              ],
              "is_append": false
@@ -1527,7 +1556,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 12
+             "alias": 11
             },
             {
              "type": {
@@ -1535,7 +1564,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 13
+             "alias": 12
             }
            ]
           },
@@ -1546,7 +1575,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 12
+                 "id": 11
                 },
                 "node_type": {
                  "data_type": {
@@ -1559,7 +1588,7 @@
               {
                "key": {
                 "tag": {
-                 "id": 13
+                 "id": 12
                 },
                 "node_type": {
                  "data_type": {
@@ -1628,7 +1657,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 12
+                    "id": 11
                    },
                    "node_type": {
                     "data_type": {
@@ -1644,7 +1673,7 @@
                  }
                 ]
                },
-               "alias": 12
+               "alias": 11
               }
              ],
              "is_append": false
@@ -1673,7 +1702,7 @@
                "primitive_type": "DT_SIGNED_INT64"
               }
              },
-             "alias": 12
+             "alias": 11
             }
            ]
           },
@@ -1727,7 +1756,7 @@
                  {
                   "var": {
                    "tag": {
-                    "id": 12
+                    "id": 11
                    },
                    "node_type": {
                     "data_type": {
@@ -1899,7 +1928,7 @@
          }
         ],
         "aggregate": "MAX",
-        "alias": 14
+        "alias": 13
        }
       ]
      }
@@ -1927,7 +1956,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 14
+      "alias": 13
      }
     ]
    },
@@ -1981,7 +2010,7 @@
           {
            "var": {
             "tag": {
-             "id": 14
+             "id": 13
             },
             "node_type": {
              "data_type": {
@@ -1997,7 +2026,7 @@
           }
          ]
         },
-        "alias": 14
+        "alias": 13
        },
        {
         "expr": {
@@ -2055,7 +2084,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 14
+      "alias": 13
      },
      {
       "type": {
@@ -2074,7 +2103,7 @@
        {
         "key": {
          "tag": {
-          "id": 14
+          "id": 13
          },
          "node_type": {
           "data_type": {
@@ -2156,7 +2185,7 @@
           {
            "var": {
             "tag": {
-             "id": 14
+             "id": 13
             },
             "node_type": {
              "data_type": {
@@ -2172,7 +2201,7 @@
           }
          ]
         },
-        "alias": 14
+        "alias": 13
        }
       ],
       "is_append": false
@@ -2201,7 +2230,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 14
+      "alias": 13
      }
     ]
    },
@@ -2244,7 +2273,7 @@
           }
          ]
         },
-        "alias": 15
+        "alias": 14
        },
        {
         "expr": {
@@ -2252,7 +2281,7 @@
           {
            "var": {
             "tag": {
-             "id": 14
+             "id": 13
             },
             "node_type": {
              "data_type": {
@@ -2268,7 +2297,7 @@
           }
          ]
         },
-        "alias": 14
+        "alias": 13
        }
       ],
       "is_append": false
@@ -2285,7 +2314,7 @@
         }
        }
       },
-      "alias": 15
+      "alias": 14
      },
      {
       "type": {
@@ -2293,7 +2322,7 @@
         "primitive_type": "DT_SIGNED_INT64"
        }
       },
-      "alias": 14
+      "alias": 13
      }
     ]
    },
