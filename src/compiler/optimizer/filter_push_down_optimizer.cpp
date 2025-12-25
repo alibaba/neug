@@ -21,10 +21,12 @@
  */
 
 #include "neug/compiler/optimizer/filter_push_down_optimizer.h"
+#include <vector>
 
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/logical_empty_result.h"
@@ -177,10 +179,8 @@ FilterPushDownOptimizer::visitScanNodeTableReplace(
   auto nodeID = scan.getNodeID();
   auto tableIDs = scan.getTableIDs();
   std::shared_ptr<Expression> primaryKeyEqualityComparison = nullptr;
-  if (tableIDs.size() == 1) {
-    primaryKeyEqualityComparison =
-        predicateSet.popNodePKEqualityComparison(*nodeID);
-  }
+  primaryKeyEqualityComparison =
+      predicateSet.popNodePKEqualityComparison(*nodeID, tableIDs);
   if (primaryKeyEqualityComparison != nullptr) {
     auto rhs = primaryKeyEqualityComparison->getChild(1);
     if (isConstantExpression(rhs)) {
@@ -269,7 +269,8 @@ void PredicateSet::addPredicate(std::shared_ptr<Expression> predicate) {
 }
 
 static bool isNodePrimaryKey(const Expression& expression,
-                             const Expression& nodeID) {
+                             const Expression& nodeID,
+                             const std::vector<common::table_id_t>& tableIDs) {
   if (expression.expressionType != ExpressionType::PROPERTY) {
     return false;
   }
@@ -278,18 +279,25 @@ static bool isNodePrimaryKey(const Expression& expression,
       nodeID.constCast<PropertyExpression>().getVariableName()) {
     return false;
   }
-  return property.isPrimaryKey();
+  if (tableIDs.empty())
+    return false;
+  for (auto tableID : tableIDs) {
+    if (!property.isPrimaryKey(tableID)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 std::shared_ptr<Expression> PredicateSet::popNodePKEqualityComparison(
-    const Expression& nodeID) {
+    const Expression& nodeID, const std::vector<common::table_id_t>& tableIDs) {
   auto resultPredicateIdx = INVALID_IDX;
   for (auto i = 0u; i < equalityPredicates.size(); ++i) {
     auto predicate = equalityPredicates[i];
-    if (isNodePrimaryKey(*predicate->getChild(0), nodeID)) {
+    if (isNodePrimaryKey(*predicate->getChild(0), nodeID, tableIDs)) {
       resultPredicateIdx = i;
       break;
-    } else if (isNodePrimaryKey(*predicate->getChild(1), nodeID)) {
+    } else if (isNodePrimaryKey(*predicate->getChild(1), nodeID, tableIDs)) {
       auto leftChild = predicate->getChild(0);
       auto rightChild = predicate->getChild(1);
       predicate->setChild(1, leftChild);

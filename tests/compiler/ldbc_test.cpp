@@ -104,5 +104,14 @@ TEST_F(LDBCTest, IC_13) {
   ASSERT_TRUE(physical != nullptr);
 }
 
+TEST_F(LDBCTest, IC_SHORT) {
+  std::string query =
+      "Match (m:COMMENT:POST {id: $messageId})-[:REPLYOF*0..]->(p:POST) Return "
+      "count(p) ";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  VerifyFactory::verifyLogicalByStr(*logical,
+                                    getLDBCResource("IC_SHORT_logical"));
+}
+
 }  // namespace gopt
 }  // namespace gs

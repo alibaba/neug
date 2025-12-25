@@ -1,0 +1,6 @@
+PROJECTION[COUNT(p._ID)]
+AGGREGATE[Group By [], Aggregate [COUNT(p._ID), ]]
+PROJECTION[p._ID]
+GET_V[GET_V() Cardinality: 1]
+RECURSIVE_EXTEND[rel=, bound=m, nbr=p, nodePred=null, relPred=null]
+SCAN_NODE_TABLE[m._ID m.id PK_SCAN($messageId)Type: INTERNAL_ID Cardinality: 1]

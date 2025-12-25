@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <vector>
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
 namespace gs {
@@ -47,7 +49,8 @@ struct PredicateSet {
 
   void addPredicate(std::shared_ptr<binder::Expression> predicate);
   std::shared_ptr<binder::Expression> popNodePKEqualityComparison(
-      const binder::Expression& nodeID);
+      const binder::Expression& nodeID,
+      const std::vector<common::table_id_t>& tableIDs);
   binder::expression_vector getAllPredicates();
 
  private:
