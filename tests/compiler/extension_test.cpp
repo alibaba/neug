@@ -15,7 +15,6 @@
  */
 
 #include <execinfo.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -27,22 +26,8 @@
 #include "neug/compiler/function/neug_call_function.h"
 
 namespace gs {
+using namespace function;
 namespace gopt {
-
-class TestJsonFunction : public function::NeugCallFunction {
- public:
-  TestJsonFunction()
-      : NeugCallFunction("JSON_SCAN", {common::LogicalTypeID::STRING}) {}
-};
-
-struct TestJsonFunctionSet {
-  static constexpr const char* name = "JSON_SCAN";
-  static function::function_set getFunctionSet() {
-    function::function_set funcSet;
-    funcSet.emplace_back(std::make_unique<TestJsonFunction>());
-    return funcSet;
-  }
-};
 
 class TestShowExtensionsFunction : public function::NeugCallFunction {
  public:
@@ -109,51 +94,6 @@ TEST_F(ExtensionTest, LOAD) {
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
   auto physical = planPhysical(*logical, aliasManager);
   ASSERT_TRUE(physical != nullptr);
-}
-
-TEST_F(ExtensionTest, CSV_SCAN_NODE) {
-  std::string query = replaceResource(
-      "COPY person from 'DML_RESOURCE/person.csv' (HEADER=true, DELIM=' | ');");
-  auto logical = planLogical(query, schemaData, "", {});
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
-}
-
-TEST_F(ExtensionTest, CSV_SCAN_EDGE) {
-  std::string query = replaceResource(
-      "COPY knows from 'DML_RESOURCE/knows.csv' (HEADER=true, DELIM=' | ');");
-  auto logical = planLogical(query, schemaData, "", {});
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
-}
-
-TEST_F(ExtensionTest, JSON_SCAN_NODE) {
-  extension::ExtensionAPI::registerFunction<TestJsonFunctionSet>(
-      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-  std::string query = replaceResource(
-      "COPY person from 'DML_RESOURCE/person.json' (HEADER=true, DELIM=' | "
-      "');");
-  auto logical = planLogical(query, schemaData, "", {});
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical,
-      replaceResource(getExtensionResource("JSON_SCAN_NODE_physical")));
-}
-
-TEST_F(ExtensionTest, JSON_SCAN_EDGE) {
-  extension::ExtensionAPI::registerFunction<TestJsonFunctionSet>(
-      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-  std::string query = replaceResource(
-      "COPY knows from 'DML_RESOURCE/knows.json' (HEADER=true, DELIM=' | ');");
-  auto logical = planLogical(query, schemaData, "", {});
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical,
-      replaceResource(getExtensionResource("JSON_SCAN_EDGE_physical")));
 }
 
 TEST_F(ExtensionTest, SHOW_LOADED_EXTENSIONS) {

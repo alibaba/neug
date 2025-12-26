@@ -36,7 +36,10 @@
 #include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/function/read_function.h"
 #include "neug/compiler/function/table/bind_input.h"
+#include "neug/compiler/function/table/scan_file_function.h"
+#include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_ddl_converter.h"
@@ -60,6 +63,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/reader/schema.h"
 
 namespace gs {
 namespace gopt {
@@ -1006,6 +1010,34 @@ std::unique_ptr<algebra::QueryParams> GQueryConvertor::convertParams(
   return queryParams;
 }
 
+std::unique_ptr<::physical::FileSchema> GQueryConvertor::convertFileSchema(
+    const function::ScanFileBindData* scanBindData) {
+  const auto& fileInfo = scanBindData->fileScanInfo;
+  auto filePB = std::make_unique<::physical::FileSchema>();
+  for (auto& path : fileInfo.filePaths) {
+    filePB->add_paths(path);
+  }
+  filePB->set_format(fileInfo.fileTypeInfo.fileTypeStr);
+  *filePB->mutable_options() = std::move(*convertDataSourceOptions(fileInfo));
+  return filePB;
+}
+
+std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
+    const function::ScanFileBindData* scanBindData) {
+  common::alias_id_t columnId = 0;
+  auto entryPB = std::make_unique<::physical::EntrySchema>();
+  for (auto& column : scanBindData->columns) {
+    if (skipColumn(column->toString())) {
+      continue;  // skip internal columns
+    }
+    entryPB->add_column_names(column->toString());
+    auto typePB =
+        typeConverter->convertSimpleLogicalType(column->getDataType());
+    entryPB->mutable_column_types()->AddAllocated(typePB->release_data_type());
+  }
+  return entryPB;
+}
+
 void GQueryConvertor::convertDataSource(
     const planner::LogicalTableFunctionCall& funcCall,
     ::physical::QueryPlan* plan) {
@@ -1016,32 +1048,20 @@ void GQueryConvertor::convertDataSource(
         "Table function bind data is not of type ScanFileBindData.");
   }
   const auto& fileInfo = scanBindData->fileScanInfo;
-  // set extension_name from file type info
-  auto extensionName = fileInfo.fileTypeInfo.fileTypeStr;
-  if (extensionName.empty()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("File type info is not set");
-  }
+  auto extensionName = funcCall.getTableFunc().signatureName;
   auto sourcePB = std::make_unique<::physical::DataSource>();
   sourcePB->set_extension_name(extensionName);
-  sourcePB->set_file_path(fileInfo.filePaths[0]);
-  *sourcePB->mutable_options() = std::move(*convertDataSourceOptions(fileInfo));
+
+  sourcePB->set_allocated_entry_schema(
+      convertEntrySchema(scanBindData).release());
+  sourcePB->set_allocated_file_schema(
+      convertFileSchema(scanBindData).release());
+
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_source(sourcePB.release());
   physicalPB->set_allocated_opr(oprPB.release());
 
-  common::alias_id_t columnId = 0;
-  for (auto& column : scanBindData->columns) {
-    if (skipColumn(column->toString())) {
-      continue;  // skip internal columns
-    }
-    auto dataPB = std::make_unique<::physical::PhysicalOpr_MetaData>();
-    auto typePB =
-        typeConverter->convertSimpleLogicalType(column->getDataType());
-    dataPB->set_allocated_type(typePB.release());
-    dataPB->set_alias(columnId++);
-    physicalPB->mutable_meta_data()->AddAllocated(dataPB.release());
-  }
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
@@ -1074,11 +1094,8 @@ std::unique_ptr<Options> GQueryConvertor::convertExportOptions(
 void GQueryConvertor::convertTableFunc(
     const planner::LogicalTableFunctionCall& funcCall,
     ::physical::QueryPlan* plan) {
-  auto& tableFunc = funcCall.getTableFunc();
-  auto tableName = tableFunc.name;
-  std::transform(tableName.begin(), tableName.end(), tableName.begin(),
-                 [](unsigned char c) { return std::toupper(c); });
-  if (tableName == "CSV_SCAN") {
+  auto bindData = funcCall.getBindData();
+  if (dynamic_cast<const function::ScanFileBindData*>(bindData)) {
     convertDataSource(funcCall, plan);
   } else {
     convertProcedureCall(funcCall, plan);

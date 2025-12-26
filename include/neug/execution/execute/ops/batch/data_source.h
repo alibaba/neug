@@ -23,16 +23,29 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/utils/reader/reader.h"
 
 namespace gs {
+using namespace reader;
 class IRecordBatchSupplier;
 class Schema;
-
 namespace runtime {
 class Context;
 class OprTimer;
 
 namespace ops {
+
+// Build ReadSharedState from DataSource PB.
+class ReadStateBuilder {
+ public:
+  std::shared_ptr<ReadSharedState> build(
+      const ::physical::DataSource& data_source);
+
+ protected:
+  virtual std::shared_ptr<EntrySchema> buildEntrySchema(
+      const ::physical::EntrySchema& entry_schema);
+  virtual FileSchema buildFileSchema(const ::physical::FileSchema& file_schema);
+};
 
 class DataSourceOprBuilder : public IOperatorBuilder {
  public:

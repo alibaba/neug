@@ -20,6 +20,7 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
+#include <memory>
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/expression.h"
@@ -29,11 +30,14 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension_manager.h"
+#include "neug/compiler/function/read_function.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
+#include "neug/utils/reader/reader.h"
+#include "neug/utils/reader/schema.h"
 
 using namespace gs::parser;
 using namespace gs::binder;
@@ -110,6 +114,20 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindScanSource(
   }
 }
 
+std::shared_ptr<reader::EntrySchema> sniff(const FileScanInfo& fileScanInfo,
+                                           function::TableFunction* func) {
+  // Create FileSchema
+  reader::FileSchema fileSchema;
+  fileSchema.paths = fileScanInfo.filePaths;
+  fileSchema.format = fileScanInfo.fileTypeInfo.fileTypeStr;
+  auto& options = fileSchema.options;
+  for (auto& option : fileScanInfo.options) {
+    options.insert({option.first, option.second.toString()});
+  }
+  auto readFunction = func->ptrCast<function::ReadFunction>();
+  return readFunction->sniffFunc(fileSchema);
+}
+
 std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
     const BaseScanSource& scanSource, const options_t& options,
     const std::vector<std::string>& columnNames,
@@ -132,6 +150,14 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
       std::make_unique<FileScanInfo>(std::move(fileTypeInfo), filePaths);
   fileScanInfo->options = std::move(boundOptions);
   auto func = getScanFunction(fileScanInfo->fileTypeInfo, *fileScanInfo);
+
+  auto sniffSchema = sniff(*fileScanInfo, func);
+  if (sniffSchema->columnNames.size() != columnNames.size()) {
+    THROW_SCHEMA_MISMATCH(stringFormat(
+        "Sniffed schema has {} columns but {} columns were expected.",
+        sniffSchema->columnNames.size(), columnNames.size()));
+  }
+
   // Bind table function
   auto bindInput = TableFuncBindInput();
   bindInput.addLiteralParam(Value::createValue(filePaths[0]));
@@ -139,11 +165,11 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
   extraInput->fileScanInfo = fileScanInfo->copy();
   extraInput->expectedColumnNames = columnNames;
   extraInput->expectedColumnTypes = LogicalType::copy(columnTypes);
-  extraInput->tableFunction = &func;
+  extraInput->tableFunction = func;
   bindInput.extraInput = std::move(extraInput);
   bindInput.binder = this;
   auto bindData = getScanFuncBindData(&bindInput);
-  auto info = BoundTableScanInfo(func, std::move(bindData));
+  auto info = BoundTableScanInfo(*func, std::move(bindData));
   return std::make_unique<BoundTableScanSource>(ScanSourceType::FILE,
                                                 std::move(info));
 }

@@ -22,19 +22,25 @@
 
 #include "neug/compiler/binder/binder.h"
 
+#include <cstdint>
 #include <memory>
 #include "neug/compiler/binder/bound_statement_rewriter.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/catalog/catalog.h"
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/constants.h"
+#include "neug/compiler/common/copier_config/csv_reader_config.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/scan_file_function.h"
+#include "neug/compiler/function/table/table_function.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace gs::catalog;
@@ -261,12 +267,9 @@ std::unique_ptr<function::TableFuncBindData> Binder::getScanFuncBindData(
   auto scanInput = extraInput->constPtrCast<ExtraScanTableFuncBindInput>();
   auto vars = input->binder->createVariables(scanInput->expectedColumnNames,
                                              scanInput->expectedColumnTypes);
-  if (scanInput->fileScanInfo.fileTypeInfo.fileType == FileType::CSV) {
-    return std::make_unique<function::ScanFileBindData>(
-        vars, vars.size(), scanInput->fileScanInfo.copy(), clientContext);
-  }
-  return std::make_unique<function::TableFuncBindData>(vars, vars.size(),
-                                                       input->params);
+  return std::make_unique<function::ScanFileBindData>(
+      vars, vars.size(), std::move(scanInput->fileScanInfo.copy()),
+      clientContext);
 }
 
 /**
@@ -278,16 +281,13 @@ std::unique_ptr<function::TableFuncBindData> Binder::getScanFuncBindData(
  * @param fileScanInfo
  * @return function::TableFunction
  */
-function::TableFunction Binder::getScanFunction(
+function::TableFunction* Binder::getScanFunction(
     const common::FileTypeInfo& typeInfo,
     const common::FileScanInfo& fileScanInfo) const {
   auto fileTypeStr = typeInfo.fileTypeStr;
   std::transform(fileTypeStr.begin(), fileTypeStr.end(), fileTypeStr.begin(),
                  [](unsigned char c) { return std::toupper(c); });
   auto name = stringFormat("{}_SCAN", fileTypeStr);
-  if (typeInfo.fileType == FileType::CSV) {
-    return TableFunction(name, {});
-  }
   // TODO: consider about other parameters of data source except input file
   std::vector<LogicalType> inputTypes;
   inputTypes.push_back(LogicalType::STRING());
@@ -296,7 +296,7 @@ function::TableFunction Binder::getScanFunction(
   auto entry = catalog->getFunctionEntry(transaction, name);
   auto func = BuiltInFunctionsUtils::matchFunction(
       name, inputTypes, entry->ptrCast<FunctionCatalogEntry>());
-  return *func->ptrCast<function::NeugCallFunction>();
+  return func->ptrCast<function::TableFunction>();
 }
 
 std::shared_ptr<binder::NodeExpression> Binder::createChildNodeExpr(

@@ -117,8 +117,8 @@ struct CSVParseOptions {
 };
 
 struct ReadOptions {
-  Option<bool> use_threads = Option<bool>::BoolOption("use_threads", false);
-  Option<bool> batch_read = Option<bool>::BoolOption("batch_read", false);
+  Option<bool> use_threads = Option<bool>::BoolOption("parallel", true);
+  Option<bool> batch_read = Option<bool>::BoolOption("batch_read", true);
   Option<int64_t> batch_size =
       Option<int64_t>::Int64Option("batch_size", 1 << 20);  // default 1MB
   Option<bool> autogenerate_column_names =

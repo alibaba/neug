@@ -6,48 +6,37 @@
    {
     "opr": {
      "source": {
-      "read_csv": {
-       "file_path": "knows.csv",
-       "csv_options": {
-        "delimiter": "",
-        "header": false,
-        "skip_num": "0",
-        "quote_char": "",
-        "escape_char": "",
-        "ignore_errors": false,
-        "auto_detection": false,
-        "parallel": false
-       },
-       "batch_reader": false
-      }
+      "extension_name": "CSV_SCAN(STRING)",
+      "entry_schema": {
+       "column_names": [
+        "from",
+        "to",
+        "weight"
+       ],
+       "column_types": [
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        },
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        },
+        {
+         "primitive_type": "DT_DOUBLE"
+        }
+       ]
+      },
+      "file_schema": {
+       "paths": [
+        "DML_RESOURCE/knows.csv"
+       ],
+       "format": "csv",
+       "protocol": "",
+       "options": {}
+      },
+      "skip_columns": []
      }
     },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_DOUBLE"
-       }
-      },
-      "alias": 2
-     }
-    ]
+    "meta_data": []
    },
    {
     "opr": {
@@ -121,6 +110,14 @@
         }
        }
       ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
      }
     },
     "meta_data": []

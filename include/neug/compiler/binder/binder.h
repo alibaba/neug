@@ -409,7 +409,7 @@ class Binder {
                                 const std::string& newName,
                                 std::shared_ptr<Expression> expression);
 
-  function::TableFunction getScanFunction(
+  function::TableFunction* getScanFunction(
       const common::FileTypeInfo& typeInfo,
       const common::FileScanInfo& fileScanInfo) const;
 

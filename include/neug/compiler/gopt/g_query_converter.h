@@ -215,6 +215,12 @@ class GQueryConvertor {
   void convertExtraInfo(const planner::LogicalRecursiveExtend& extend,
                         ::physical::PathExpand* pathPB);
 
+  std::unique_ptr<::physical::FileSchema> convertFileSchema(
+      const function::ScanFileBindData* scanBindData);
+
+  std::unique_ptr<::physical::EntrySchema> convertEntrySchema(
+      const function::ScanFileBindData* scanBindData);
+
  private:
   std::shared_ptr<GAliasManager> aliasManager;
   std::unique_ptr<GExprConverter> exprConvertor;

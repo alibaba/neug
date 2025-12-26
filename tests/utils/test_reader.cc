@@ -29,8 +29,9 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test1.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}});
+  auto sharedState =
+      createSharedState("test1.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -52,8 +53,9 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test2.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}, {"delim", "\t"}});
+  auto sharedState = createSharedState(
+      "test2.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"delim", "\t"}, {"batch_read", "false"}});
 
   auto reader = createArrowReader(sharedState);
 
@@ -69,15 +71,17 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
 // Test 3: CSV with custom quoting
 TEST_F(ReaderTest, TestCsvWithCustomQuoting) {
   createCsvFile("test3.csv",
-                "id|'name'|score\n1|'Alice,Smith'|95.5\n2|\"Bob\"|87.0\n");
+                "id,name,score\n1,'Alice,Smith',95.5\n2,\"Bob\",87.0\n");
 
   std::vector<std::string> columnNames = {"id", "name", "score"};
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState(
-      "test3.csv", columnNames, columnTypes,
-      {{"quote", "'"}, {"quoting", "true"}, {"skip_rows", "1"}});
+  auto sharedState = createSharedState("test3.csv", columnNames, columnTypes,
+                                       {{"quote", "'"},
+                                        {"delim", ","},
+                                        {"skip_rows", "1"},
+                                        {"batch_read", "false"}});
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -97,7 +101,8 @@ TEST_F(ReaderTest, TestCsvWithNoHeader) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test4.csv", columnNames, columnTypes);
+  auto sharedState = createSharedState("test4.csv", columnNames, columnTypes,
+                                       {{"batch_read", "false"}});
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -151,8 +156,9 @@ TEST_F(ReaderTest, TestColumnPruning) {
 
   // Skip "name" column
   std::vector<std::string> skipColumns = {"name"};
-  auto sharedState = createSharedState("test6.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}}, skipColumns);
+  auto sharedState = createSharedState(
+      "test6.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, skipColumns);
 
   auto reader = createArrowReader(sharedState);
 
@@ -180,8 +186,9 @@ TEST_F(ReaderTest, TestFilterPushdown) {
   // Filter: score > 90.0
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState = createSharedState("test7.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}}, {}, filterExpr);
+  auto sharedState = createSharedState(
+      "test7.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, filterExpr);
 
   auto reader = createArrowReader(sharedState);
 
@@ -210,9 +217,9 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
   std::vector<std::string> skipColumns = {"name"};
   auto filterExpr =
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
-  auto sharedState =
-      createSharedState("test8.csv", columnNames, columnTypes,
-                        {{"skip_rows", "1"}}, skipColumns, filterExpr);
+  auto sharedState = createSharedState(
+      "test8.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, skipColumns, filterExpr);
 
   auto reader = createArrowReader(sharedState);
 
@@ -236,8 +243,9 @@ TEST_F(ReaderTest, TestMultipleFiles) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createDoubleType()};
 
-  auto sharedState = createSharedState("test9a.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}});
+  auto sharedState =
+      createSharedState("test9a.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
   // Add second file
   sharedState->schema.file.paths.push_back(std::string(ARROW_READER_TEST_DIR) +
                                            "/test9b.csv");
@@ -265,8 +273,9 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   std::vector<std::shared_ptr<::common::DataType>> columnTypes = {
       createInt32Type(), createStringType(), createInt64Type()};
 
-  auto sharedState = createSharedState("test10.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}});
+  auto sharedState =
+      createSharedState("test10.csv", columnNames, columnTypes,
+                        {{"skip_rows", "1"}, {"batch_read", "false"}});
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
@@ -315,8 +324,9 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
       createFilterExpression("score", ValueConverter::fromDouble(90.0));
   auto andExpr = createAndExpression(leftExpr, rightExpr);
 
-  auto sharedState = createSharedState("test11.csv", columnNames, columnTypes,
-                                       {{"skip_rows", "1"}}, {}, andExpr);
+  auto sharedState = createSharedState(
+      "test11.csv", columnNames, columnTypes,
+      {{"skip_rows", "1"}, {"batch_read", "false"}}, {}, andExpr);
 
   auto reader = createArrowReader(sharedState);
 

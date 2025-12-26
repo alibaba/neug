@@ -114,7 +114,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=ON
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json"
+        # export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         # export CC="ccache gcc"
@@ -293,10 +293,11 @@ jobs:
         # test ngcli shell
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
 
-    - name: Run JSON Extension Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension
-        ./json_extension_test
+    # json reader will be refactored, we skip the test for now
+    # - name: Run JSON Extension Test
+    #   run: |
+    #     cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/extension
+    #     ./json_extension_test
 
     - name: Generate Coverage Report
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')

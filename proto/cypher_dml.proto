@@ -20,12 +20,27 @@ package physical;
 import "common.proto";
 import "expr.proto";
 import "cypher_ddl.proto";
+import "basic_type.proto";
 
 // Unified abstraction of data source, used to load external data sources and encapsulate them into an internal unified row-based data structure.
 message DataSource {
     string extension_name = 1;
-    string file_path = 2;
-    map<string, string> options = 3;
+    EntrySchema entry_schema = 4;
+    FileSchema file_schema = 5;
+    repeated string skip_columns = 6;
+    common.Expression skip_rows = 7;
+}
+
+message EntrySchema {
+    repeated string column_names = 1;
+    repeated common.DataType column_types = 2;
+}
+
+message FileSchema {
+    repeated string paths = 1;
+    string format = 2;
+    string protocol = 3;
+    map<string, string> options = 4;
 }
 
 message PropertyMapping {

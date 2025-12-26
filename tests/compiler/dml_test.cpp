@@ -45,11 +45,12 @@ class DMLTest : public GOptTest {
 
 TEST_F(DMLTest, COPY_PERSON) {
   std::string query = replaceResource(
-      "COPY person from 'DML_RESOURCE/person.csv' (HEADER=true, DELIM=' | ');");
+      "COPY person from 'DML_RESOURCE/person.csv' (DELIM='|');");
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, replaceResource(getDMLResource("COPY_PERSON_physical")));
   auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
   auto returns = resultYaml["returns"];
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
@@ -61,7 +62,8 @@ TEST_F(DMLTest, COPY_KNOWS) {
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
-  ASSERT_TRUE(physical != nullptr);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, replaceResource(getDMLResource("COPY_KNOWS_physical")));
   auto resultYaml = GResultSchema::infer(*logical, aliasManager, getCatalog());
   auto returns = resultYaml["returns"];
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);

@@ -29,6 +29,7 @@
 #include "neug/compiler/function/blob/vector_blob_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/comparison/vector_comparison_functions.h"
+#include "neug/compiler/function/csv_read_function.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/hash/vector_hash_functions.h"
@@ -165,6 +166,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(ReverseFunction),
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
+      TABLE_FUNCTION(CSVReadFunction),
 
       FINAL_FUNCTION};
 
