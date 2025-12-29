@@ -40,10 +40,6 @@ namespace server {
 
 void cleanup(void* ptr);
 
-bool append_plugin_id(const physical::PhysicalPlan& physical_plan,
-                      std::string& plan_proto_str, bool& update_schema,
-                      bool& update_statistics);
-
 int32_t status_code_to_http_code(gs::StatusCode code);
 
 class HttpServiceImpl : public HttpService {
