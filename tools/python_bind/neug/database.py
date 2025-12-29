@@ -283,16 +283,11 @@ class Database(object):
             return
         self._serving = True
         logger.info(f"Starting database server on {host}:{port}.")
-        endpoint = self._database.serve(port, host, self._max_thread_num)
-        if blocking:
-            try:
-                while self._serving:
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                self.stop_serving()
-                return endpoint
-        else:
-            return endpoint
+        try:
+            endpoint = self._database.serve(port, host, self._max_thread_num, blocking)
+        except KeyboardInterrupt:
+            self.stop_serving()
+        return endpoint
 
     def stop_serving(self):
         """

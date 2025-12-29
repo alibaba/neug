@@ -66,11 +66,12 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
    * @param host The host to bind to, default is "localhost".
    * @param num_thread The number of threads to use, default is 0, which means
    * use all hardware threads.
+   * @param blocking Whether to block the function until the server shuts down.
    * @return A string containing the URL of the server.
    * @note This method will block until the server is stopped.
    */
   std::string serve(int port = 10000, const std::string& host = "localhost",
-                    int32_t num_thread = 0);
+                    int32_t num_thread = 0, bool blocking = false);
 
   /**
    * @brief Stop the database server.

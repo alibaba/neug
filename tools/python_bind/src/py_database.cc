@@ -58,6 +58,8 @@ void PyDatabase::initialize(pybind11::handle& m) {
            "    host (str): The host to bind to, default is 'localhost'.\n"
            "    num_thread (int): The number of threads to use, default is 0, "
            "which means use all hardware threads.\n"
+           "    blocking (bool): Whether to block the function until the "
+           "server shuts down.\n"
            "Returns:\n"
            "    uri (str): A string containing the URL of the server.\n")
       .def("stop_serving", &PyDatabase::stop_serving,
@@ -74,7 +76,7 @@ PyConnection PyDatabase::connect() {
 }
 
 std::string PyDatabase::serve(int port, const std::string& host,
-                              int32_t num_thread) {
+                              int32_t num_thread, bool blocking) {
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -115,6 +117,10 @@ std::string PyDatabase::serve(int port, const std::string& host,
 #endif
 
   service_ = std::make_unique<server::NeugDBService>(*database, config);
+  if (blocking) {
+    service_->run_and_wait_for_exit();
+    return "";
+  }
   return service_->Start();
 }
 
