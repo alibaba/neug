@@ -534,6 +534,8 @@ struct PropUtils<Interval> {
   }
 };
 
+Property get_default_value(const DataTypeId& type);
+
 InArchive& operator<<(InArchive& in_archive, const Property& value);
 OutArchive& operator>>(OutArchive& out_archive, Property& value);
 

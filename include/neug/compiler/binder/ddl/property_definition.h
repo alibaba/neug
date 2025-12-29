@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
@@ -45,13 +46,22 @@ struct NEUG_API ColumnDefinition {
 struct NEUG_API PropertyDefinition {
   ColumnDefinition columnDefinition;
   std::unique_ptr<parser::ParsedExpression> defaultExpr;
+  std::shared_ptr<binder::Expression> boundExpr;
 
   PropertyDefinition() = default;
-  // explicit PropertyDefinition(ColumnDefinition columnDefinition);
+
   PropertyDefinition(ColumnDefinition columnDefinition,
                      std::unique_ptr<parser::ParsedExpression> defaultExpr)
       : columnDefinition{std::move(columnDefinition)},
         defaultExpr{std::move(defaultExpr)} {}
+
+  PropertyDefinition(ColumnDefinition columnDefinition,
+                     std::unique_ptr<parser::ParsedExpression> defaultExpr,
+                     std::shared_ptr<binder::Expression> boundExpr)
+      : columnDefinition{std::move(columnDefinition)},
+        defaultExpr{std::move(defaultExpr)},
+        boundExpr{std::move(boundExpr)} {}
+
   EXPLICIT_COPY_DEFAULT_MOVE(PropertyDefinition);
 
   std::string getName() const { return columnDefinition.name; }
@@ -67,7 +77,8 @@ struct NEUG_API PropertyDefinition {
  private:
   PropertyDefinition(const PropertyDefinition& other)
       : columnDefinition{other.columnDefinition.copy()},
-        defaultExpr{other.defaultExpr->copy()} {}
+        defaultExpr{other.defaultExpr->copy()},
+        boundExpr{other.boundExpr} {}
 
  public:
   explicit PropertyDefinition(ColumnDefinition columnDefinition);

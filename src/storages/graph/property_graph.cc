@@ -190,11 +190,15 @@ Status PropertyGraph::CreateVertexType(
                               primary_key_inds[i]);
     property_names.erase(property_names.begin() + primary_key_inds[i]);
     property_types.erase(property_types.begin() + primary_key_inds[i]);
+    default_property_values.erase(default_property_values.begin() +
+                                  primary_key_inds[i]);
   }
   std::vector<StorageStrategy> strategies(property_types.size(),
                                           StorageStrategy::kMem);
+  std::string description;
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
-                         primary_keys, strategies, {}, Schema::MAX_VNUM, "");
+                         primary_keys, strategies, {}, Schema::MAX_VNUM,
+                         description, default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   if (vertex_label_id < vertex_tables_.size()) {
     auto& vtable = vertex_tables_[vertex_label_id];
@@ -285,7 +289,7 @@ Status PropertyGraph::CreateEdgeType(
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
                        property_types, property_names, {}, {}, cur_oe, cur_ie,
                        oe_mutable, ie_mutable, cur_sort_on_compaction,
-                       description);
+                       description, default_property_values);
   edge_label_num_ = schema_.edge_label_num();
 
   label_t src_label_i = schema_.get_vertex_label_id(src_vertex_type);
@@ -354,7 +358,8 @@ Status PropertyGraph::AddVertexProperties(
                               add_property_types, add_property_storages,
                               add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  vertex_tables_[v_label].AddProperties(add_property_names, add_property_types);
+  vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
+                                        add_default_property_values);
   return gs::Status::OK();
 }
 
@@ -411,7 +416,8 @@ Status PropertyGraph::AddEdgeProperties(
   }
 
   auto& edge_table = edge_tables_.at(index);
-  edge_table.AddProperties(add_property_names, add_property_types);
+  edge_table.AddProperties(add_property_names, add_property_types,
+                           add_default_property_values);
 
   return gs::Status::OK();
 }

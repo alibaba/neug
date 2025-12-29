@@ -84,11 +84,11 @@ std::vector<PropertyDefinition> Binder::bindPropertyDefinitions(
                                               tableName, def.getName());
     auto boundExpr = expressionBinder.bindExpression(*defaultExpr);
     if (boundExpr->dataType != type) {
-      expressionBinder.implicitCast(boundExpr, type);
+      boundExpr = expressionBinder.implicitCast(boundExpr, type);
     }
     auto columnDefinition = ColumnDefinition(def.getName(), std::move(type));
     definitions.emplace_back(std::move(columnDefinition),
-                             std::move(defaultExpr));
+                             std::move(defaultExpr), std::move(boundExpr));
   }
   validatePropertyName(definitions);
   return definitions;
@@ -107,8 +107,9 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
           function::NextValFunction::name, std::move(literalExpr),
           "" /* rawName */);
     } else {
+      // set system default value if query default value is not set
       return std::make_unique<ParsedLiteralExpression>(
-          Value::createNullValue(type), "NULL");
+          Value::createDefaultValue(type), "NULL");
     }
   } else {
     if (type.getLogicalTypeID() == LogicalTypeID::SERIAL) {

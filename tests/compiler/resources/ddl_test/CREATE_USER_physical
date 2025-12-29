@@ -14,18 +14,27 @@
         "max_length": 65536
        }
       }
+     },
+     "default_value": {
+      "str": ""
      }
     },
     {
      "name": "age",
      "type": {
       "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
      }
     },
     {
      "name": "reg_date",
      "type": {
       "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
      }
     }
    ],

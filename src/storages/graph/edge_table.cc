@@ -131,44 +131,51 @@ std::vector<Property> extract_bundled_edge_data_from_batches(
 template <typename EDATA_T>
 void batch_put_edges_with_default_edata_impl(const std::vector<vid_t>& src_lid,
                                              const std::vector<vid_t>& dst_lid,
+                                             const EDATA_T& default_data,
                                              CsrBase* out_csr) {
   assert(src_lid.size() == dst_lid.size());
-  std::vector<EDATA_T> default_data(src_lid.size(), EDATA_T());
+  std::vector<EDATA_T> default_datas(src_lid.size(), default_data);
   dynamic_cast<TypedCsrBase<EDATA_T>*>(out_csr)->batch_put_edges(
-      src_lid, dst_lid, default_data);
+      src_lid, dst_lid, default_datas);
 }
 
 // TODO(zhanglei): Support default value for non-empty edge data type
 void batch_put_edges_with_default_edata(const std::vector<vid_t>& src_lid,
                                         const std::vector<vid_t>& dst_lid,
                                         DataTypeId property_type,
+                                        Property default_value,
                                         CsrBase* out_csr) {
   assert(src_lid.size() == dst_lid.size());
   if (property_type == DataTypeId::kEmpty) {
     batch_put_edges_with_default_edata_impl<EmptyType>(src_lid, dst_lid,
-                                                       out_csr);
+                                                       EmptyType(), out_csr);
   } else if (property_type == DataTypeId::kInt32) {
-    batch_put_edges_with_default_edata_impl<int32_t>(src_lid, dst_lid, out_csr);
+    batch_put_edges_with_default_edata_impl<int32_t>(
+        src_lid, dst_lid, default_value.as_int32(), out_csr);
   } else if (property_type == DataTypeId::kUInt32) {
-    batch_put_edges_with_default_edata_impl<uint32_t>(src_lid, dst_lid,
-                                                      out_csr);
+    batch_put_edges_with_default_edata_impl<uint32_t>(
+        src_lid, dst_lid, default_value.as_uint32(), out_csr);
   } else if (property_type == DataTypeId::kInt64) {
-    batch_put_edges_with_default_edata_impl<int64_t>(src_lid, dst_lid, out_csr);
+    batch_put_edges_with_default_edata_impl<int64_t>(
+        src_lid, dst_lid, default_value.as_int64(), out_csr);
   } else if (property_type == DataTypeId::kUInt64) {
-    batch_put_edges_with_default_edata_impl<uint64_t>(src_lid, dst_lid,
-                                                      out_csr);
+    batch_put_edges_with_default_edata_impl<uint64_t>(
+        src_lid, dst_lid, default_value.as_uint64(), out_csr);
   } else if (property_type == DataTypeId::kFloat) {
-    batch_put_edges_with_default_edata_impl<float>(src_lid, dst_lid, out_csr);
+    batch_put_edges_with_default_edata_impl<float>(
+        src_lid, dst_lid, default_value.as_float(), out_csr);
   } else if (property_type == DataTypeId::kDouble) {
-    batch_put_edges_with_default_edata_impl<double>(src_lid, dst_lid, out_csr);
+    batch_put_edges_with_default_edata_impl<double>(
+        src_lid, dst_lid, default_value.as_double(), out_csr);
   } else if (property_type == DataTypeId::kDate) {
-    batch_put_edges_with_default_edata_impl<Date>(src_lid, dst_lid, out_csr);
+    batch_put_edges_with_default_edata_impl<Date>(
+        src_lid, dst_lid, default_value.as_date(), out_csr);
   } else if (property_type == DataTypeId::kDateTime) {
-    batch_put_edges_with_default_edata_impl<DateTime>(src_lid, dst_lid,
-                                                      out_csr);
+    batch_put_edges_with_default_edata_impl<DateTime>(
+        src_lid, dst_lid, default_value.as_datetime(), out_csr);
   } else if (property_type == DataTypeId::kInterval) {
-    batch_put_edges_with_default_edata_impl<Interval>(src_lid, dst_lid,
-                                                      out_csr);
+    batch_put_edges_with_default_edata_impl<Interval>(
+        src_lid, dst_lid, default_value.as_interval(), out_csr);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
                                   std::to_string(property_type));
@@ -541,7 +548,8 @@ void EdgeTable::Open(const std::string& work_dir) {
     table_->open(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                               meta_->edge_label_name),
                  work_dir, meta_->property_names, meta_->properties,
-                 meta_->strategies, meta_->property_extra_infos);
+                 meta_->default_property_values, meta_->strategies,
+                 meta_->property_extra_infos);
     table_idx_.store(table_->row_num());
     table_->resize(std::max(table_->row_num() + (table_->row_num() + 4) / 5,
                             static_cast<size_t>(4096)));
@@ -567,7 +575,8 @@ void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
     table_->open_in_memory(
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                      meta_->edge_label_name),
-        work_dir_, meta_->property_names, meta_->properties, meta_->strategies,
+        work_dir_, meta_->property_names, meta_->properties,
+        meta_->default_property_values, meta_->strategies,
         meta_->property_extra_infos);
     table_idx_.store(table_->row_num());
     table_->resize(
@@ -595,7 +604,8 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                      meta_->edge_label_name),
         checkpoint_dir_path, meta_->property_names, meta_->properties,
-        meta_->strategies, meta_->property_extra_infos, (memory_level_ > 2));
+        meta_->default_property_values, meta_->strategies,
+        meta_->property_extra_infos, (memory_level_ > 2));
     table_idx_.store(table_->row_num());
     table_->resize(
         std::max(table_->row_num() + (table_->row_num() + 4) / 5, 4096ul));
@@ -760,6 +770,7 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
 void EdgeTable::AddProperties(
     const std::vector<std::string>& prop_names,
     const std::vector<DataTypeId>& prop_types,
+    const std::vector<Property>& default_values,
     const std::vector<StorageStrategy>& strategies,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
   if (prop_names.empty()) {
@@ -775,10 +786,11 @@ void EdgeTable::AddProperties(
       dropAndCreateNewUnbundledCSR(false);
     }
   } else {
-    table_->add_columns(prop_names, prop_types, strategies, extra_type_infos,
-                        memory_level_);
+    table_->add_columns(prop_names, prop_types, default_values, strategies,
+                        extra_type_infos, memory_level_);
   }
 }
+
 void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
                                  const std::vector<std::string>& new_names) {
   CHECK_EQ(old_names.size(), new_names.size());
@@ -950,10 +962,12 @@ void EdgeTable::dropAndCreateNewBundledCSR() {
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
 
-  batch_put_edges_with_default_edata(std::get<0>(edges), std::get<1>(edges),
-                                     meta_->properties[0], new_out_csr.get());
-  batch_put_edges_with_default_edata(std::get<1>(edges), std::get<0>(edges),
-                                     meta_->properties[0], new_in_csr.get());
+  batch_put_edges_with_default_edata(
+      std::get<0>(edges), std::get<1>(edges), meta_->properties[0],
+      meta_->default_property_values[0], new_out_csr.get());
+  batch_put_edges_with_default_edata(
+      std::get<1>(edges), std::get<0>(edges), meta_->properties[0],
+      meta_->default_property_values[0], new_in_csr.get());
 
   out_csr_->close();
   in_csr_->close();
@@ -979,9 +993,11 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   // opened opened. In open_in_memory method, table will try to read the
   // existing table file from checkpoint_dir, but it must not exist.
   if (!delete_property) {
+    LOG(INFO) << "rebuild unbundled edge csr with edge properties: "
+              << meta_->property_names.size();
     table_->open_in_memory(next_table_prefix, work_dir_, meta_->property_names,
-                           meta_->properties, meta_->strategies,
-                           meta_->property_extra_infos);
+                           meta_->properties, meta_->default_property_values,
+                           meta_->strategies, meta_->property_extra_infos);
   }
 
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;
@@ -993,6 +1009,22 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   }
 
   auto edges = out_csr_->batch_export(prev_data_col);
+  // Set default value for other columns
+  for (size_t col_id = 1; col_id < table_->col_num(); ++col_id) {
+    auto col = table_->get_column_by_id(col_id);
+    if (col->type() == DataTypeId::kStringView) {
+      VLOG(10) << "Skip set default value for column " << col_id
+               << " of type StringView";
+      continue;
+    }
+    auto default_value = meta_->default_property_values[col_id];
+    VLOG(10) << "Set default value for column " << col_id << ": "
+             << default_value.to_string()
+             << ", type: " << std::to_string(default_value.type());
+    for (size_t row = 0; row < col->size(); ++row) {
+      col->set_any(row, default_value);
+    }
+  }
   std::vector<uint64_t> row_ids;
   for (size_t i = 0; i < std::get<0>(edges).size(); ++i) {
     row_ids.push_back(i);

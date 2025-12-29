@@ -1,6 +1,25 @@
 # DDL Clause
 
-DDL (Data Definition Language) is a set of operations specifically designed for schema management. NeuG supports operations for adding, deleting, and modifying schema nodes, edges, and properties. Please refer to the following usage examples.
+DDL (Data Definition Language) is a set of operations specifically designed for schema management. NeuG supports operations for adding, deleting, and modifying schema nodes, edges, and properties. When creating property related schema, users can optionally specify default values for properties to prevent `NULL` fields during data ingestion. If a default value is not explicitly provided, the system will automatically assign the defined default value.
+
+**Note:** For `STRING` type properties, users are not allowed to explicitly specify default values in DDL operations (e.g., `prop STRING DEFAULT ''` is not supported). This is because `STRING` is an immutable type in the implementation. However, even if users do not explicitly specify a default value for `STRING` properties in DDL, the system will automatically assign the default value `''` (empty string) internally when a `STRING` property is not provided during data ingestion. This mechanism ensures that `STRING` properties will never be `NULL`, guaranteeing data integrity.
+
+The following table lists the recommended syntax for defining default values for each supported data type, along with the system-assigned default value used when no explicit default is provided.
+
+| Data Type         | Default Value Example                     | System Default Value               |
+|-------------------|-------------------------------------------|------------------------------------|
+| `INT32`           | `prop INT32 DEFAULT 0`                    | `0`                                |
+| `INT64`           | `prop INT64 DEFAULT 0`                    | `0`                                |
+| `UINT32`          | `prop UINT32 DEFAULT 0`                   | `0`                                |
+| `UINT64`          | `prop UINT64 DEFAULT 0`                   | `0`                                |
+| `DOUBLE`          | `prop DOUBLE DEFAULT 0.0`                 | `0.0`                              |
+| `FLOAT`           | `prop FLOAT DEFAULT 0.0`                  | `0.0`                              |
+| `STRING`          | Not allowed in DDL (see note above)      | `''` (empty string)                |
+| `DATE`            | `prop DATE DEFAULT DATE('1970-01-01')`    | `DATE('1970-01-01')`               |
+| `TIMESTAMP`       | `prop TIMESTAMP DEFAULT TIMESTAMP('1970-01-01')` | `TIMESTAMP('1970-01-01')`    |
+| `INTERVAL`        | `prop INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day')` | `INTERVAL('0 year 0 month 0 day')`         |
+
+Please refer to the following examples for more usages.
 
 ## Create Node Type
 

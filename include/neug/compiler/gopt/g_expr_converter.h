@@ -61,6 +61,8 @@ class GExprConverter {
       const binder::AggregateFunctionExpression& expr,
       const planner::LogicalOperator& child);
   std::unique_ptr<::common::Variable> convertDefaultVar();
+  std::unique_ptr<::common::Value> convertDefaultValue(
+      const binder::PropertyDefinition& propertyDef);
   std::unique_ptr<::common::Property> convertPropertyExpr(
       const std::string& propName);
 
@@ -116,7 +118,7 @@ class GExprConverter {
       const std::vector<std::string>& schemaAlias);
 
   // helper functions
-  std::unique_ptr<::common::Value> convertValue(gs::common::Value value);
+  std::unique_ptr<::common::Value> convertValue(const gs::common::Value& value);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
       common::LogicalType& type);

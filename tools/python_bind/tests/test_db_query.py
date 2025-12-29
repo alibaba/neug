@@ -2174,6 +2174,23 @@ def test_delete_vertex_detach_edge():
     db.close()
 
 
+def test_default_value():
+    db_dir = "/tmp/test_default_value"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, age INT32 DEFAULT 18);"
+    )
+    conn.execute(
+        "CREATE REL TABLE Knows(FROM Person TO Person, since INT32 DEFAULT 2020);"
+    )
+    conn.execute("CREATE (p: Person {id: 111});")
+    res = conn.execute("MATCH (p: Person) RETURN p.id, p.age;")
+    records = list(res)
+    assert records == [[111, 18]], f"Expected value [[111, 18]], got {records}"
+
+
 def test_delete_vertex_detach_edge2():
     db_dir = "/tmp/test_delete_vertex_detach_edge2"
     logger.info("Starting test_delete_vertex_detach_edge2")

@@ -182,6 +182,7 @@ class VertexTable {
   void AddProperties(
       const std::vector<std::string>& property_names,
       const std::vector<DataTypeId>& property_types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& storage_strategies = {},
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 

@@ -35,12 +35,14 @@ class Table {
   void init(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataTypeId>& types,
+            const std::vector<Property>& default_property_values,
             const std::vector<StorageStrategy>& strategies_);
 
   void open(
       const std::string& name, const std::string& work_dir,
       const std::vector<std::string>& col_name,
       const std::vector<DataTypeId>& property_types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& strategies_,
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
@@ -48,6 +50,7 @@ class Table {
       const std::string& name, const std::string& work_dir,
       const std::vector<std::string>& col_name,
       const std::vector<DataTypeId>& property_types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& strategies_,
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
@@ -55,6 +58,7 @@ class Table {
       const std::string& name, const std::string& work_dir,
       const std::vector<std::string>& col_name,
       const std::vector<DataTypeId>& property_types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& strategies_,
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
       bool force = false);
@@ -67,11 +71,13 @@ class Table {
   void reset_header(const std::vector<std::string>& col_name);
 
   void add_column(const std::string& col_name, const DataTypeId& col_types,
+                  const Property& default_value,
                   std::shared_ptr<ColumnBase> column);
 
   void add_columns(
       const std::vector<std::string>& col_names,
       const std::vector<DataTypeId>& col_types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& strategies_ = {},
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
       int memory_level = 0);
@@ -143,11 +149,13 @@ class Table {
   void initColumns(
       const std::vector<std::string>& col_name,
       const std::vector<DataTypeId>& types,
+      const std::vector<Property>& default_property_values,
       const std::vector<StorageStrategy>& strategies_,
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
+  std::vector<Property> col_default_values_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
   std::vector<ColumnBase*> column_ptrs_;

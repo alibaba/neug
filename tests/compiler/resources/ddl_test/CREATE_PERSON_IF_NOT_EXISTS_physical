@@ -14,6 +14,9 @@
         "max_length": 65536
        }
       }
+     },
+     "default_value": {
+      "str": ""
      }
     }
    ],

@@ -83,8 +83,8 @@ class ColumnBase {
 template <typename T>
 class TypedColumn : public ColumnBase {
  public:
-  explicit TypedColumn(StorageStrategy strategy)
-      : size_(0), strategy_(strategy) {}
+  explicit TypedColumn(const T& default_value, StorageStrategy strategy)
+      : default_value_(default_value), size_(0), strategy_(strategy) {}
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -149,8 +149,12 @@ class TypedColumn : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
+    size_t old_size = size_;
     size_ = size;
     buffer_.resize(size_);
+    for (size_t i = old_size; i < size_; ++i) {
+      buffer_.set(i, default_value_);
+    }
   }
 
   DataTypeId type() const override { return PropUtils<T>::prop_type(); }
@@ -211,6 +215,7 @@ class TypedColumn : public ColumnBase {
   }
 
  private:
+  T default_value_;
   mmap_array<T> buffer_;
   size_t size_;
   StorageStrategy strategy_;
@@ -269,6 +274,8 @@ class TypedColumn<EmptyType> : public ColumnBase {
  private:
   StorageStrategy strategy_;
 };
+
+// No default value for StringColumn
 template <>
 class TypedColumn<std::string_view> : public ColumnBase {
  public:
@@ -460,7 +467,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
 using StringColumn = TypedColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
-    DataTypeId type, StorageStrategy strategy = StorageStrategy::kMem,
+    DataTypeId type, Property default_value,
+    StorageStrategy strategy = StorageStrategy::kMem,
     std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr,
     const std::vector<DataTypeId>& sub_types = {});
 

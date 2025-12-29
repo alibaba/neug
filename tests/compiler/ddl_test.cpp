@@ -50,6 +50,52 @@ TEST_F(GOptDDLTest, CREATE_USER) {
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 
+TEST_F(GOptDDLTest, CREATE_USER_DEFAULT_VALUE) {
+  std::string query = R"(
+  CREATE NODE TABLE User (
+    i64 INT64 DEFAULT 0,
+    u64 UINT64 DEFAULT 0,
+    i32 INT32 DEFAULT 0,
+    u32 UINT32 DEFAULT 0,
+    ft FLOAT DEFAULT 0.0,
+    db DOUBLE DEFAULT 0.0,
+    str STRING DEFAULT '',
+    date DATE DEFAULT DATE('1970-01-01'),
+    datetime TIMESTAMP DEFAULT TIMESTAMP('1970-01-01 00:00:00'),
+    interval INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day'),
+    PRIMARY KEY (str)
+);
+  )";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<gopt::GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDDLResource("CREATE_USER_DEFAULT_VALUE_physical"));
+}
+
+TEST_F(GOptDDLTest, CREATE_USER_SYSTEM_DEFAULT_VALUE) {
+  std::string query = R"(
+CREATE NODE TABLE User (
+    i64 INT64,
+    u64 UINT64,
+    i32 INT32,
+    u32 UINT32,
+    ft FLOAT,
+    db DOUBLE,
+    str STRING,
+    date DATE,
+    datetime TIMESTAMP,
+    interval INTERVAL,
+    PRIMARY KEY (str)
+);
+  )";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto aliasManager = std::make_shared<gopt::GAliasManager>(*logical);
+  auto physical = planPhysical(*logical, aliasManager);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getDDLResource("CREATE_USER_SYSTEM_DEFAULT_VALUE_physical"));
+}
+
 TEST_F(GOptDDLTest, CREATE_FOLLOWS) {
   std::string query =
       "CREATE REL TABLE Follows(FROM User TO User, since INT64);";

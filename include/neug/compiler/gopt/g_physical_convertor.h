@@ -91,7 +91,7 @@ class GPhysicalConvertor {
  private:
   std::unique_ptr<::physical::DDLPlan> convertDDL(
       const planner::LogicalPlan& plan) {
-    auto converter = std::make_unique<GDDLConverter>(catalog);
+    auto converter = std::make_unique<GDDLConverter>(aliasManager, catalog);
     return converter->convert(plan);
   }
 

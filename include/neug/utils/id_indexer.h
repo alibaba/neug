@@ -34,6 +34,7 @@ limitations under the License.
 #include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/mmap_array.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -239,29 +240,22 @@ class LFIndexer {
   void init(const DataTypeId& type,
             std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
+    auto default_value = get_default_value(type);
     if (type == DataTypeId::kInt64) {
-      keys_ = std::shared_ptr<ColumnBase>(
-          new TypedColumn<int64_t>(StorageStrategy::kMem));
+      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<int64_t>(
+          default_value.as_int64(), StorageStrategy::kMem));
     } else if (type == DataTypeId::kInt32) {
-      keys_ = std::shared_ptr<ColumnBase>(
-          new TypedColumn<int32_t>(StorageStrategy::kMem));
+      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<int32_t>(
+          default_value.as_int32(), StorageStrategy::kMem));
     } else if (type == DataTypeId::kUInt64) {
-      keys_ = std::shared_ptr<ColumnBase>(
-          new TypedColumn<uint64_t>(StorageStrategy::kMem));
+      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<uint64_t>(
+          default_value.as_uint64(), StorageStrategy::kMem));
     } else if (type == DataTypeId::kUInt32) {
-      keys_ = std::shared_ptr<ColumnBase>(
-          new TypedColumn<uint32_t>(StorageStrategy::kMem));
+      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<uint32_t>(
+          default_value.as_uint32(), StorageStrategy::kMem));
     } else if (type == DataTypeId::kStringView) {
-      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
-      if (extra_type_info) {
-        auto str_type_info =
-            std::dynamic_pointer_cast<StringTypeInfo>(extra_type_info);
-        if (str_type_info) {
-          max_length = str_type_info->max_length;
-        }
-      }
       keys_ = std::shared_ptr<ColumnBase>(
-          new StringColumn(StorageStrategy::kMem, max_length));
+          new StringColumn(StorageStrategy::kMem, STRING_DEFAULT_MAX_LENGTH));
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Only (u)int64/32 and string_view types for pk are supported, but "

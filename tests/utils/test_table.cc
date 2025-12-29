@@ -64,44 +64,46 @@ TEST(TableTest, TestTableBasic) {
   std::filesystem::create_directories(TEST_DIR);
   std::filesystem::create_directories(std::string(TEST_DIR) + "/checkpoint");
   std::filesystem::create_directories(std::string(TEST_DIR) + "/runtime/tmp");
+
   Table disk_table, mem_table, none_table;
-  std::vector<std::string> col_name;
-  std::vector<DataTypeId> property_types;
-  std::vector<StorageStrategy> disk_strategies, mem_strategies, none_strategies;
 
-  col_name.emplace_back("bool_column");
-  property_types.emplace_back(DataTypeId::kBool);
-  col_name.emplace_back("int32_column");
-  property_types.emplace_back(DataTypeId::kInt32);
-  col_name.emplace_back("uint32_column");
-  property_types.emplace_back(DataTypeId::kUInt32);
-  col_name.emplace_back("int64_column");
-  property_types.emplace_back(DataTypeId::kInt64);
-  col_name.emplace_back("uint64_column");
-  property_types.emplace_back(DataTypeId::kUInt64);
-  col_name.emplace_back("float_column");
-  property_types.emplace_back(DataTypeId::kFloat);
-  col_name.emplace_back("double_column");
-  property_types.emplace_back(DataTypeId::kDouble);
-  col_name.emplace_back("date_column");
-  property_types.emplace_back(DataTypeId::kDate);
-  col_name.emplace_back("datetime_column");
-  property_types.emplace_back(DataTypeId::kDateTime);
-  col_name.emplace_back("interval_column");
-  property_types.emplace_back(DataTypeId::kInterval);
-  col_name.emplace_back("string_column");
-  property_types.emplace_back(DataTypeId::kStringView);
+  std::vector<std::string> col_name = {
+      "bool_column",     "int32_column",    "uint32_column", "int64_column",
+      "uint64_column",   "float_column",    "double_column", "date_column",
+      "datetime_column", "interval_column", "string_column"};
 
-  disk_strategies.resize(col_name.size(), StorageStrategy::kDisk);
-  mem_strategies.resize(col_name.size(), StorageStrategy::kMem);
-  none_strategies.resize(col_name.size(), StorageStrategy::kNone);
+  std::vector<DataTypeId> property_types = {
+      DataTypeId::kBool,     DataTypeId::kInt32,     DataTypeId::kUInt32,
+      DataTypeId::kInt64,    DataTypeId::kUInt64,    DataTypeId::kFloat,
+      DataTypeId::kDouble,   DataTypeId::kDate,      DataTypeId::kDateTime,
+      DataTypeId::kInterval, DataTypeId::kStringView};
+
+  std::vector<Property> default_values = {
+      Property::from_bool(false),
+      Property::from_int32(0),
+      Property::from_uint32(0),
+      Property::from_int64(0),
+      Property::from_uint64(0),
+      Property::from_float(0.0),
+      Property::from_double(0.0),
+      Property::from_date(Date(0)),
+      Property::from_datetime(DateTime(0)),
+      Property::from_interval(Interval(std::string(""))),
+      Property::from_string_view("")};
+
+  std::vector<StorageStrategy> disk_strategies(col_name.size(),
+                                               StorageStrategy::kDisk);
+  std::vector<StorageStrategy> mem_strategies(col_name.size(),
+                                              StorageStrategy::kMem);
+  std::vector<StorageStrategy> none_strategies(col_name.size(),
+                                               StorageStrategy::kNone);
 
   disk_table.init("test_dist", TEST_DIR, col_name, property_types,
-                  disk_strategies);
+                  default_values, disk_strategies);
   mem_table.init("test_dist", TEST_DIR, col_name, property_types,
-                 mem_strategies);
+                 default_values, mem_strategies);
   none_table.init("test_dist", TEST_DIR, col_name, property_types,
-                  none_strategies);
+                  default_values, none_strategies);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -311,7 +313,7 @@ TEST(TableTest, TestTableBasic) {
   mem_table.drop();
 
   disk_table.open("disk_table", std::string(TEST_DIR), col_name, property_types,
-                  disk_strategies);
+                  default_values, disk_strategies);
   EXPECT_EQ(disk_table.col_num(), 11);
   EXPECT_EQ(disk_table.row_num(), 10);
   disk_table.reset_header(col_name);
@@ -325,7 +327,7 @@ TEST(TableTest, TestTableBasic) {
   disk_table.drop();
 
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
-                           property_types, mem_strategies);
+                           property_types, default_values, mem_strategies);
   EXPECT_EQ(mem_table.col_num(), 11);
   EXPECT_EQ(mem_table.row_num(), 10);
   const Table& mem_table_ref = mem_table;

@@ -148,7 +148,7 @@ using DoubleEmptyColumn = TypedEmptyColumn<double>;
 using StringEmptyColumn = TypedEmptyColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
-    DataTypeId type, StorageStrategy strategy,
+    DataTypeId type, Property default_value, StorageStrategy strategy,
     std::shared_ptr<ExtraTypeInfo> extra_type_info,
     const std::vector<DataTypeId>& sub_types) {
   if (strategy == StorageStrategy::kNone) {
@@ -182,21 +182,22 @@ std::shared_ptr<ColumnBase> CreateColumn(
     if (type == DataTypeId::kEmpty) {
       return std::make_shared<TypedColumn<EmptyType>>(strategy);
     } else if (type == DataTypeId::kBool) {
-      return std::make_shared<BoolColumn>(strategy);
+      return std::make_shared<BoolColumn>(default_value.as_bool(), strategy);
     } else if (type == DataTypeId::kInt32) {
-      return std::make_shared<IntColumn>(strategy);
+      return std::make_shared<IntColumn>(default_value.as_int32(), strategy);
     } else if (type == DataTypeId::kInt64) {
-      return std::make_shared<LongColumn>(strategy);
+      return std::make_shared<LongColumn>(default_value.as_int64(), strategy);
     } else if (type == DataTypeId::kUInt32) {
-      return std::make_shared<UIntColumn>(strategy);
+      return std::make_shared<UIntColumn>(default_value.as_uint32(), strategy);
     } else if (type == DataTypeId::kUInt64) {
-      return std::make_shared<ULongColumn>(strategy);
+      return std::make_shared<ULongColumn>(default_value.as_uint64(), strategy);
     } else if (type == DataTypeId::kDouble) {
-      return std::make_shared<DoubleColumn>(strategy);
+      return std::make_shared<DoubleColumn>(default_value.as_double(),
+                                            strategy);
     } else if (type == DataTypeId::kFloat) {
-      return std::make_shared<FloatColumn>(strategy);
+      return std::make_shared<FloatColumn>(default_value.as_float(), strategy);
     } else if (type == DataTypeId::kDate) {
-      return std::make_shared<DateColumn>(strategy);
+      return std::make_shared<DateColumn>(default_value.as_date(), strategy);
     } else if (type == DataTypeId::kStringView) {
       uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
       if (extra_type_info) {
@@ -208,9 +209,11 @@ std::shared_ptr<ColumnBase> CreateColumn(
       }
       return std::make_shared<StringColumn>(strategy, max_length);
     } else if (type == DataTypeId::kDateTime) {
-      return std::make_shared<DateTimeColumn>(strategy);
+      return std::make_shared<DateTimeColumn>(default_value.as_datetime(),
+                                              strategy);
     } else if (type == DataTypeId::kInterval) {
-      return std::make_shared<IntervalColumn>(strategy);
+      return std::make_shared<IntervalColumn>(default_value.as_interval(),
+                                              strategy);
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
                                     std::to_string(type));

@@ -124,7 +124,7 @@ def test_add_multiple_edge_properties():
     res = conn.execute(
         "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
     )
-    assert list(res) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    assert list(res) == [[0.5, "1970-01-01", 0], [0.8, "1970-01-01", 0]]
 
     # Then open from the directory, expect the schema and data are correct
     conn.close()
@@ -135,7 +135,7 @@ def test_add_multiple_edge_properties():
     res2 = conn2.execute(
         "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
     )
-    assert list(res2) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    assert list(res2) == [[0.5, "1970-01-01", 0], [0.8, "1970-01-01", 0]]
     conn2.close()
     db2.close()
 
@@ -177,7 +177,7 @@ def test_add_multiple_edge_properties2():
     res = conn.execute(
         "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
     )
-    assert list(res) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    assert list(res) == [[0.5, "1970-01-01", 0], [0.8, "1970-01-01", 0]]
 
     # Then open from the directory, expect the schema and data are correct
     conn.close()
@@ -188,7 +188,7 @@ def test_add_multiple_edge_properties2():
     res2 = conn2.execute(
         "MATCH (a:person)-[e]->(b:person) RETURN e.weight, e.since, e.strength;"
     )
-    assert list(res2) == [[0.5, "0-00-00", 0], [0.8, "0-00-00", 0]]
+    assert list(res2) == [[0.5, "1970-01-01", 0], [0.8, "1970-01-01", 0]]
     conn2.close()
     db2.close()
 

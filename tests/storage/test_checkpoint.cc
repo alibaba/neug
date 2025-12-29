@@ -70,9 +70,11 @@ static const std::vector<std::string> add_edge_property_result_v = {
     "<element { object { i64: 6 } }, element { object { str: \"peter\" } }, "
     "element { object { i64: 35 } }>"};
 static const std::vector<std::string> add_edge_property_result_e = {
-    "<element { object { f64: 0.5 } }, element { object { str: \"0-00-00\" } "
+    "<element { object { f64: 0.5 } }, element { object { str: \"1970-01-01\" "
+    "} "
     "}>",
-    "<element { object { f64: 1 } }, element { object { str: \"0-00-00\" } }>"};
+    "<element { object { f64: 1 } }, element { object { str: \"1970-01-01\" } "
+    "}>"};
 static const std::vector<std::string> delete_edge_property_result_v = {
     "<element { object { i64: 1 } }, element { object { str: \"marko\" } }, "
     "element { object { i64: 29 } }>",
@@ -341,6 +343,20 @@ TEST_F(CheckpointTest, test_after_add_edge_property2) {
   gs::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
+
+  {
+    std::vector<std::string> result_v, result_e;
+    {
+      auto res = conn->Query("MATCH (v:person) RETURN v.*;");
+      EXPECT_TRUE(res) << res.error().ToString();
+      auto res_val = res.value();
+      while (res_val.hasNext()) {
+        auto row = res_val.next();
+        result_v.emplace_back(row.ToString());
+      }
+      EXPECT_EQ(result_v, add_edge_property_result_v);
+    }
+  }
   {
     auto res = conn->Query("ALTER TABLE knows ADD description STRING;");
     EXPECT_TRUE(res) << res.error().ToString();
@@ -406,11 +422,11 @@ TEST_F(CheckpointTest, test_after_add_edge_property2) {
       EXPECT_EQ(
           result_e[0],
           "<element { object { f64: 0.5 } }, element { object { str: \"\" "
-          "} }, element { object { str: \"0-00-00\" } }>");
+          "} }, element { object { str: \"1970-01-01\" } }>");
       EXPECT_EQ(
           result_e[1],
           "<element { object { f64: 1 } }, element { object { str: \"\" } "
-          "}, element { object { str: \"0-00-00\" } }>");
+          "}, element { object { str: \"1970-01-01\" } }>");
     }
   }
 }

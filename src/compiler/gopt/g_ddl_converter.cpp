@@ -19,10 +19,12 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/alter_type.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_constants.h"
 #include "neug/compiler/gopt/g_query_converter.h"
 #include "neug/compiler/gopt/g_type_utils.h"
+#include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
@@ -163,6 +165,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
+    propertyDef->set_allocated_default_value(
+        exprConverter.convertDefaultValue(prop).release());
   }
 
   // Set primary key

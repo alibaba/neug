@@ -24,6 +24,7 @@
 #include <type_traits>
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
+#include "neug/utils/pb_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "neug/utils/serialization/in_archive.h"
@@ -64,12 +65,14 @@ void VertexSchema::clear() {
   property_names.clear();
   primary_keys.clear();
   storage_strategies.clear();
+  default_property_values.clear();
   vprop_soft_deleted.clear();
 }
 
 void VertexSchema::add_properties(
     const std::vector<std::string>& names, const std::vector<DataTypeId>& types,
     const std::vector<StorageStrategy>& strategies,
+    const std::vector<Property>& default_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   for (size_t i = 0; i < names.size(); i++) {
     property_names.emplace_back(names[i]);
@@ -78,17 +81,24 @@ void VertexSchema::add_properties(
     property_extra_infos.emplace_back(i < extra_infos.size() ? extra_infos[i]
                                                              : nullptr);
     vprop_soft_deleted.emplace_back(false);
+    if (default_values.size() > i)
+      default_property_values.emplace_back(default_values[i]);
+    else {
+      default_property_values.emplace_back(get_default_value(types[i]));
+    }
   }
 }
 
 void VertexSchema::set_properties(
     const std::vector<DataTypeId>& types,
     const std::vector<StorageStrategy>& strategies,
+    const std::vector<Property>& default_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   property_types = types;
   storage_strategies = strategies;
   property_extra_infos = extra_infos;
   storage_strategies.resize(types.size(), StorageStrategy::kMem);
+  default_property_values = default_values;
   vprop_soft_deleted.resize(property_types.size(), false);
   property_extra_infos.resize(property_types.size(), nullptr);
 }
@@ -128,6 +138,7 @@ void VertexSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         property_types.erase(property_types.begin() + j);
         storage_strategies.erase(storage_strategies.begin() + j);
+        default_property_values.erase(default_property_values.begin() + j);
         property_extra_infos.erase(property_extra_infos.begin() + j);
         vprop_soft_deleted.erase(vprop_soft_deleted.begin() + j);
       } else {
@@ -275,6 +286,7 @@ bool EdgeSchema::has_property(const std::string& prop) const {
 void EdgeSchema::add_properties(
     const std::vector<std::string>& names, const std::vector<DataTypeId>& types,
     const std::vector<StorageStrategy>& new_strategies,
+    const std::vector<Property>& default_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   for (size_t i = 0; i < names.size(); i++) {
     if (std::find(property_names.begin(), property_names.end(), names[i]) !=
@@ -287,6 +299,11 @@ void EdgeSchema::add_properties(
     properties.emplace_back(types[i]);
     strategies.emplace_back(new_strategies.size() > i ? new_strategies[i]
                                                       : StorageStrategy::kMem);
+    if (default_values.size() > i)
+      default_property_values.emplace_back(default_values[i]);
+    else {
+      default_property_values.emplace_back(get_default_value(types[i]));
+    }
     property_extra_infos.emplace_back(extra_infos.size() > i ? extra_infos[i]
                                                              : nullptr);
     eprop_soft_deleted.emplace_back(false);
@@ -324,6 +341,7 @@ void EdgeSchema::delete_properties(const std::vector<std::string>& names,
         property_names.erase(property_names.begin() + j);
         properties.erase(properties.begin() + j);
         strategies.erase(strategies.begin() + j);
+        default_property_values.erase(default_property_values.begin() + j);
         property_extra_infos.erase(property_extra_infos.begin() + j);
         eprop_soft_deleted.erase(eprop_soft_deleted.begin() + j);
       } else {
@@ -413,7 +431,8 @@ void Schema::AddVertexLabel(
     const std::vector<std::tuple<DataTypeId, std::string, size_t>>& primary_key,
     const std::vector<StorageStrategy>& strategies,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos,
-    size_t max_vnum, const std::string& description) {
+    size_t max_vnum, const std::string& description,
+    const std::vector<Property>& default_property_values) {
   label_t v_label_id = vertex_label_to_index(label);
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
@@ -421,7 +440,7 @@ void Schema::AddVertexLabel(
   v_schemas_.resize(v_label_id + 1);
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
       label, property_types, property_names, primary_key, strategies,
-      property_extra_infos, description, max_vnum);
+      default_property_values, property_extra_infos, description, max_vnum);
   VLOG(10) << "Add vertex label: " << label << ", id: " << (int) v_label_id
            << ", prop size: " << v_schemas_[v_label_id]->property_names.size();
 }
@@ -433,7 +452,8 @@ void Schema::AddEdgeLabel(
     const std::vector<StorageStrategy>& strategies,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos,
     EdgeStrategy oe, EdgeStrategy ie, bool oe_mutable, bool ie_mutable,
-    bool sort_on_compaction, const std::string& description) {
+    bool sort_on_compaction, const std::string& description,
+    const std::vector<Property>& default_property_values) {
   label_t src_label_id = vertex_label_to_index(src_label);
   label_t dst_label_id = vertex_label_to_index(dst_label);
   label_t edge_label_id = edge_label_to_index(edge_label);
@@ -444,13 +464,15 @@ void Schema::AddEdgeLabel(
   uint32_t label_id =
       generate_edge_label(src_label_id, dst_label_id, edge_label_id);
   e_schemas_.emplace(
-      label_id, std::make_shared<EdgeSchema>(
-                    src_label, dst_label, edge_label, sort_on_compaction,
-                    description, ie_mutable, oe_mutable, oe, ie, properties,
-                    prop_names, strategies, property_extra_infos));
+      label_id,
+      std::make_shared<EdgeSchema>(
+          src_label, dst_label, edge_label, sort_on_compaction, description,
+          ie_mutable, oe_mutable, oe, ie, properties, prop_names, strategies,
+          default_property_values, property_extra_infos));
   if (label_id >= elabel_triplet_tomb_.size()) {
     elabel_triplet_tomb_.resize(label_id + 1);
   }
+
   if (elabel_triplet_tomb_.get(label_id)) {  // Add back a deleted label
     elabel_triplet_tomb_.reset(label_id);
   }
@@ -529,9 +551,11 @@ std::vector<label_t> Schema::get_edge_label_ids() const {
 void Schema::set_vertex_properties(
     label_t label_id, const std::vector<DataTypeId>& types,
     const std::vector<StorageStrategy>& strategies,
+    const std::vector<Property>& default_property_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos) {
   ensure_vertex_label_valid(label_id);
-  v_schemas_[label_id]->set_properties(types, strategies, extra_infos);
+  v_schemas_[label_id]->set_properties(types, strategies,
+                                       default_property_values, extra_infos);
 }
 
 std::vector<DataTypeId> Schema::get_vertex_properties(
@@ -544,6 +568,11 @@ std::vector<DataTypeId> Schema::get_vertex_properties(label_t label) const {
   ensure_vertex_label_valid(label);
   return extract_with_invalid_flags(v_schemas_.at(label)->property_types,
                                     v_schemas_.at(label)->vprop_soft_deleted);
+}
+
+const std::vector<Property>& Schema::get_vertex_default_property_values(
+    label_t label_id) const {
+  return v_schemas_[label_id]->get_default_property_values();
 }
 
 std::vector<std::string> Schema::get_vertex_property_names(
@@ -622,6 +651,14 @@ std::vector<DataTypeId> Schema::get_edge_properties(label_t src_label,
   assert(e_schemas_.count(index) > 0);
   return extract_with_invalid_flags(e_schemas_.at(index)->properties,
                                     e_schemas_.at(index)->eprop_soft_deleted);
+}
+
+const std::vector<Property>& Schema::get_edge_default_property_values(
+    label_t src_label_id, label_t dst_label_id, label_t edge_label_id) const {
+  uint32_t index =
+      generate_edge_label(src_label_id, dst_label_id, edge_label_id);
+  assert(e_schemas_.count(index) > 0);
+  return e_schemas_.at(index)->get_default_property_values();
 }
 
 std::string Schema::get_edge_description(const std::string& src_label,
@@ -1758,17 +1795,16 @@ gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
 }
 
 void Schema::AddVertexProperties(
-    const std::string& label, std::vector<std::string>& properties_names,
+    const std::string& label, const std::vector<std::string>& properties_names,
     const std::vector<DataTypeId>& properties_types,
     const std::vector<StorageStrategy>& storage_strategies,
     const std::vector<Property>& properties_default_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& properties_extra_infos) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
-  v_schemas_[v_label_id]->add_properties(properties_names, properties_types,
-                                         storage_strategies,
-                                         properties_extra_infos);
-  // TODO(zhanglei): default_values are ignored
+  v_schemas_[v_label_id]->add_properties(
+      properties_names, properties_types, storage_strategies,
+      properties_default_values, properties_extra_infos);
 }
 
 bool Schema::IsVertexLabelSoftDeleted(const std::string& label) const {
@@ -1830,8 +1866,8 @@ bool Schema::IsEdgePropertySoftDeleted(label_t src_label, label_t dst_label,
 }
 
 void Schema::RenameVertexProperties(
-    const std::string& label, std::vector<std::string>& properties_names,
-    std::vector<std::string>& properties_renames) {
+    const std::string& label, const std::vector<std::string>& properties_names,
+    const std::vector<std::string>& properties_renames) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   v_schemas_[v_label_id]->rename_properties(properties_names,
@@ -1929,7 +1965,8 @@ void Schema::DeleteEdgeLabel(const label_t& src, const label_t& dst,
 
 void Schema::AddEdgeProperties(
     const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label, std::vector<std::string>& properties_names,
+    const std::string& edge_label,
+    const std::vector<std::string>& properties_names,
     const std::vector<DataTypeId>& properties_types,
     const std::vector<Property>& properties_default_values,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& properties_extra_infos) {
@@ -1940,13 +1977,14 @@ void Schema::AddEdgeProperties(
   // Check if the property name already exists
   assert(e_schemas_.count(index) > 0);
   e_schemas_.at(index)->add_properties(properties_names, properties_types, {},
-                                       properties_extra_infos);
+                                       properties_default_values);
 }
 
 void Schema::RenameEdgeProperties(
     const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label, std::vector<std::string>& properties_names,
-    std::vector<std::string>& properties_renames) {
+    const std::string& edge_label,
+    const std::vector<std::string>& properties_names,
+    const std::vector<std::string>& properties_renames) {
   label_t src = get_vertex_label_id(src_label);
   label_t dst = get_vertex_label_id(dst_label);
   label_t edge = get_edge_label_id(edge_label);
@@ -2167,17 +2205,18 @@ Schema Schema::Compact() const {
 InArchive& operator<<(InArchive& archive, const VertexSchema& v_schema) {
   archive << v_schema.label_name << v_schema.property_types
           << v_schema.property_names << v_schema.primary_keys
-          << v_schema.storage_strategies << v_schema.property_extra_infos
-          << v_schema.description << v_schema.max_num
-          << v_schema.vprop_soft_deleted;
+          << v_schema.storage_strategies << v_schema.default_property_values
+          << v_schema.property_extra_infos << v_schema.description
+          << v_schema.max_num << v_schema.vprop_soft_deleted;
   return archive;
 }
 
 OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
   archive >> v_schema.label_name >> v_schema.property_types >>
       v_schema.property_names >> v_schema.primary_keys >>
-      v_schema.storage_strategies >> v_schema.property_extra_infos >>
-      v_schema.description >> v_schema.max_num >> v_schema.vprop_soft_deleted;
+      v_schema.storage_strategies >> v_schema.default_property_values >>
+      v_schema.property_extra_infos >> v_schema.description >>
+      v_schema.max_num >> v_schema.vprop_soft_deleted;
   return archive;
 }
 
@@ -2187,8 +2226,8 @@ InArchive& operator<<(InArchive& archive, const EdgeSchema& e_schema) {
           << e_schema.description << e_schema.ie_mutable << e_schema.oe_mutable
           << e_schema.ie_strategy << e_schema.oe_strategy << e_schema.properties
           << e_schema.property_names << e_schema.strategies
-          << e_schema.property_extra_infos << e_schema.eprop_soft_deleted;
-
+          << e_schema.default_property_values << e_schema.property_extra_infos
+          << e_schema.eprop_soft_deleted;
   return archive;
 }
 
@@ -2198,7 +2237,8 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
       e_schema.description >> e_schema.ie_mutable >> e_schema.oe_mutable >>
       e_schema.ie_strategy >> e_schema.oe_strategy >> e_schema.properties >>
       e_schema.property_names >> e_schema.strategies >>
-      e_schema.property_extra_infos >> e_schema.eprop_soft_deleted;
+      e_schema.default_property_values >> e_schema.property_extra_infos >>
+      e_schema.eprop_soft_deleted;
   return archive;
 }
 

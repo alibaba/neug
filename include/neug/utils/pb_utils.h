@@ -66,8 +66,6 @@ std::string proto_to_string(const T& proto) {
   return json_str;
 }
 
-Property get_default_value(const DataTypeId& type);
-
 bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
@@ -84,7 +82,8 @@ bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
 bool data_type_to_property_type(const ::common::DataType& data_type,
                                 DataTypeId& out_type);
 
-bool common_value_to_any(const ::common::Value& value, Property& out_any);
+bool common_value_to_any(const DataTypeId& type, const ::common::Value& value,
+                         Property& out_any);
 
 gs::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
 property_defs_to_tuple(

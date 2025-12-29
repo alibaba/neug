@@ -19,6 +19,51 @@
 
 namespace gs {
 
+Property get_default_value(const DataTypeId& type) {
+  Property default_value;
+  switch (type) {
+  case DataTypeId::kEmpty:
+    break;
+  case DataTypeId::kBool:
+    default_value.set_bool(false);
+    break;
+  case DataTypeId::kInt32:
+    default_value.set_int32(0);
+    break;
+  case DataTypeId::kUInt32:
+    default_value.set_uint32(0);
+    break;
+  case DataTypeId::kInt64:
+    default_value.set_int64(0);
+    break;
+  case DataTypeId::kUInt64:
+    default_value.set_uint64(0);
+    break;
+  case DataTypeId::kFloat:
+    default_value.set_float(0.0f);
+    break;
+  case DataTypeId::kDouble:
+    default_value.set_double(0.0);
+    break;
+  case DataTypeId::kStringView:
+    default_value.set_string_view("");
+    break;
+  case DataTypeId::kDate:
+    default_value.set_date(Date((int32_t) 0));
+    break;
+  case DataTypeId::kDateTime:
+    default_value.set_datetime(DateTime((int64_t) 0));
+    break;
+  case DataTypeId::kInterval:
+    default_value.set_interval(Interval());
+    break;
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported property type for default value: " + std::to_string(type));
+  }
+  return default_value;
+}
+
 InArchive& operator<<(InArchive& in_archive, const Property& value) {
   if (value.type() == DataTypeId::kEmpty) {
     in_archive << value.type();

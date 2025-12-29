@@ -34,6 +34,7 @@ class CreateVertex {
       const auto& properties = props[i];
       auto properties_name = schema.get_vertex_property_names(label);
       auto properties_type = schema.get_vertex_properties(label);
+      const auto& v_default_values = schema.get_vertex_default_property_values(label);
       if (properties_name.size() != properties_type.size()) {
         THROW_RUNTIME_ERROR(
             "Vertex label " + std::to_string(label) +
@@ -69,7 +70,11 @@ class CreateVertex {
                                   std::to_string(label));
             }
             size_t index = std::distance(properties_name.begin(), it);
-            property_values[index] = value.to_any();
+            if (value.is_null()) {
+              property_values[index] = v_default_values[index];
+            } else {
+              property_values[index] = value.to_any();
+            }
           }
         }
         vid_t existing_vid;

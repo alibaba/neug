@@ -104,6 +104,7 @@ class EdgeTable {
   void AddProperties(
       const std::vector<std::string>& names,
       const std::vector<DataTypeId>& types,
+      const std::vector<Property>& default_values = {},
       const std::vector<StorageStrategy>& strategies = {},
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
 

@@ -39,6 +39,7 @@ using namespace gs;
 using gs::EdgeStrategy;
 using gs::NeugDB;
 using gs::NeugDBSession;
+using gs::Property;
 using gs::StorageStrategy;
 using oid_t = int64_t;
 using gs::DataTypeId;

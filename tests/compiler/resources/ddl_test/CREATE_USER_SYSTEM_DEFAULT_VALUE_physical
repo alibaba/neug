@@ -1,0 +1,121 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "create_vertex_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "properties": [
+    {
+     "name": "i64",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
+     }
+    },
+    {
+     "name": "u64",
+     "type": {
+      "primitive_type": "DT_UNSIGNED_INT64"
+     },
+     "default_value": {
+      "u64": "0"
+     }
+    },
+    {
+     "name": "i32",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT32"
+     },
+     "default_value": {
+      "i32": 0
+     }
+    },
+    {
+     "name": "u32",
+     "type": {
+      "primitive_type": "DT_UNSIGNED_INT32"
+     },
+     "default_value": {
+      "u32": 0
+     }
+    },
+    {
+     "name": "ft",
+     "type": {
+      "primitive_type": "DT_FLOAT"
+     },
+     "default_value": {
+      "f32": 0
+     }
+    },
+    {
+     "name": "db",
+     "type": {
+      "primitive_type": "DT_DOUBLE"
+     },
+     "default_value": {
+      "f64": 0
+     }
+    },
+    {
+     "name": "str",
+     "type": {
+      "string": {
+       "var_char": {
+        "max_length": 65536
+       }
+      }
+     },
+     "default_value": {
+      "str": ""
+     }
+    },
+    {
+     "name": "date",
+     "type": {
+      "temporal": {
+       "date": {
+        "date_format": "DF_YYYY_MM_DD"
+       }
+      }
+     },
+     "default_value": {
+      "str": "1970-01-01"
+     }
+    },
+    {
+     "name": "datetime",
+     "type": {
+      "temporal": {
+       "date_time": {
+        "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+        "time_zone_format": "TZF_UTC"
+       }
+      }
+     },
+     "default_value": {
+      "str": "1970-01-01 00:00:00"
+     }
+    },
+    {
+     "name": "interval",
+     "type": {
+      "temporal": {
+       "interval": {}
+      }
+     },
+     "default_value": {
+      "str": "0 year 0 month 0 day"
+     }
+    }
+   ],
+   "primary_key": [
+    "str"
+   ],
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

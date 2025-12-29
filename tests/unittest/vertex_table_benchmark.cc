@@ -56,7 +56,8 @@ class VertexTableBenchmark : public ::testing::Test {
     description = "Person vertex label";
     v_schema_ = std::make_shared<gs::VertexSchema>(
         v_label_name_, property_types_, property_names_, pk_types_,
-        storage_strategies_, property_extra_infos_, description);
+        storage_strategies_, default_prop_values_, property_extra_infos_,
+        description);
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
   }
@@ -164,6 +165,7 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<gs::DataTypeId> property_types_;
   std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
+  std::vector<gs::Property> default_prop_values_;
   std::shared_ptr<gs::VertexSchema> v_schema_;
   std::vector<std::tuple<gs::DataTypeId, std::string, size_t>> pk_types_;
   std::vector<std::shared_ptr<gs::ExtraTypeInfo>> property_extra_infos_;

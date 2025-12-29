@@ -278,13 +278,12 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
-        DataTypeId::kInt32, std::string("id"), Property::from_string_view("")));
+        DataTypeId::kInt32, std::string("id"), Property::from_int32(0)));
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
         DataTypeId::kStringView, std::string("name"),
         Property::from_string_view("")));
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
-        DataTypeId::kInt32, std::string("age"),
-        Property::from_string_view("")));
+        DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     auto status =
         graph.CreateVertexType(vertex_label_name, properties, primary_keys);
@@ -303,9 +302,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     edge_properties.emplace_back(
         std::make_tuple<DataTypeId, std::string, Property>(
             DataTypeId::kFloat, std::string("weight"),
-            Property::from_string_view("")));
-    // testCreateEdgeType(graph, src_vertex_label, dst_vertex_label,
-    //                    edge_label_name, edge_properties);
+            Property::from_float(0.0)));
     auto status = graph.CreateEdgeType(src_vertex_label, dst_vertex_label,
                                        edge_label_name, edge_properties);
     EXPECT_TRUE(status.ok());
@@ -360,8 +357,9 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
     std::vector<std::tuple<DataTypeId, std::string, Property>> add_properties;
-    add_properties.emplace_back(std::make_tuple(
-        DataTypeId::kDateTime, "creationDate", Property::from_string_view("")));
+    add_properties.emplace_back(
+        std::make_tuple(DataTypeId::kDateTime, "creationDate",
+                        Property::from_datetime(DateTime(0))));
     graph.AddEdgeProperties(src_vertex_type, dst_vertex_type, edge_type_name,
                             add_properties);
   }

@@ -4,26 +4,26 @@ This document provides a comprehensive overview of all data types supported by N
 
 ## Data Types Summary Table
 
-The following table showcases all data types supported by NeuG and their differences with Neo4j.
+The following table showcases all data types supported by NeuG and their differences with Neo4j. The `System Default Value` column indicates the value automatically assigned by the system during data import when the user does not explicitly define a default value in the schema and the corresponding data field is not given (or given as `Null` value) in the raw data. This mechanism prevents `Null` values, ensures data consistency, and provides stable defaults for subsequent queries and computations.
 
-| Category | Type | NeuG Example | Neo4j Example |
-|----------|------|--------------|---------------|
-| Primitive | INT32 | `Return CAST(42, 'INT32')` | `Return 42` |
-| Primitive | UINT32 | `Return CAST(42, 'UINT32')` | unsupported |
-| Primitive | INT64 | `Return 9223372036854775807` | `Return 9223372036854775807` |
-| Primitive | UINT64 | `Return CAST(9223372036854775807, 'UINT64')` | unsupported |
-| Primitive | FLOAT | `Return CAST(3.14, 'FLOAT')` | `Return 3.14f` |
-| Primitive | DOUBLE | `Return 3.14159265359` | `Return 3.14159265359d` |
-| Primitive | BOOL | `Return true` | `Return true` |
-| Primitive | NULL | `Return null` | `Return null` |
-| String | VARCHAR | `Return 'Hello World'` | `Return 'Hello World'` |
-| Temporal | DATE | `Return date('2022-06-06')` | `Return date('2022-06-06')` |
-| Temporal | DATETIME | `Return timestamp('2022-06-06 12:00:00')` | `Return datetime('2022-06-06T12:00:00')` |
-| Temporal | INTERVAL | `Return interval('1 year 2 days')` | `Return duration('P1Y2D')` |
-| Composite | LIST | `Return [1, 2, 3]` | `Return [1, 2, 3]` |
-| Pattern | NODE | `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}` | `(:person {name: 'Alice', age: 30})` |
-| Pattern | REL | `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:knows {weight: 1.0}]` |
-| Pattern | REPEATED PATH | `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
+| Category | Type | System Default value | NeuG Example | Neo4j Example |
+|----------|------|---------------------|--------------|---------------|
+| Primitive | INT32 | `0` | `Return CAST(42, 'INT32')` | `Return 42` |
+| Primitive | UINT32 | `0` | `Return CAST(42, 'UINT32')` | unsupported |
+| Primitive | INT64 | `0` | `Return 9223372036854775807` | `Return 9223372036854775807` |
+| Primitive | UINT64 | `0` | `Return CAST(9223372036854775807, 'UINT64')` | unsupported |
+| Primitive | FLOAT | `0.0` | `Return CAST(3.14, 'FLOAT')` | `Return 3.14f` |
+| Primitive | DOUBLE | `0.0` | `Return 3.14159265359` | `Return 3.14159265359d` |
+| Primitive | BOOL | `false` | `Return true` | `Return true` |
+| Primitive | NULL | `null` | `Return null` | `Return null` |
+| String | VARCHAR | `''` (empty string) | `Return 'Hello World'` | `Return 'Hello World'` |
+| Temporal | DATE | `1970-01-01` | `Return date('2022-06-06')` | `Return date('2022-06-06')` |
+| Temporal | DATETIME | `1970-01-01 00:00:00` | `Return timestamp('2022-06-06 12:00:00')` | `Return datetime('2022-06-06T12:00:00')` |
+| Temporal | INTERVAL | `0 year 0 month 0 day` (zero interval) | `RETURN interval('1 year 2 month 3 day')` | `Return duration('P1Y2M3D')` |
+| Composite | LIST | `[]` (empty list) | `Return [1, 2, 3]` | `Return [1, 2, 3]` |
+| Pattern | NODE | `{}` (empty node) | `{_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}` | `(:person {name: 'Alice', age: 30})` |
+| Pattern | REL | `{}` (empty edge) | `{_ID: 2, _LABEL: knows, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2, weight: 1.0}` | `[:knows {weight: 1.0}]` |
+| Pattern | REPEATED PATH | `[]` (empty path) | `{_ID: 0, _LABEL: person}, {_ID: 4294967298, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: person, _SRC_ID: 0, _DST_ID: 2}, {_ID: 2, _LABEL: person}, {_ID: 4297064449, _LABEL: created, _SRC_LABEL: person, _DST_LABEL: software, _SRC_ID: 2, _DST_ID: 72057594037927937}, {_ID: 72057594037927937, _LABEL: software}` | `(:Person {name: "Kiefer", id: 4, age: 1992})-[:FOLLOWS]->(:Person {name: "Jack", id: 3, age: 1979})-[:FOLLOWS]->(:Person {name: "Kevin", id: 5, age: 1997})` |
 
 ## Detailed Introduction
 
@@ -88,8 +88,10 @@ The following table showcases all data types supported by NeuG and their differe
 - **Query Example**: `RETURN timestamp('2022-06-06 12:00:00') AS datetime_value;`
 
 #### INTERVAL
-- **Description**: Duration or time interval type, following [kuzu's specification]().
-- **Query Example**: `RETURN interval('1 year 2 days') AS interval_value;`
+- **Description**: The INTERVAL type represents a duration or time interval and consists of the following fields: `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond`, and `microsecond` . The INTERVAL type supports two primary formats for specifying values: 
+    - Date-based components (year, month, day): Specified using a natural language format. Example: `1 year 2 month 3 day`.
+    - Time-based components (hour, minute, second, millisecond, microsecond): Specified using a natural language format. Example: `12 hour 12 minute 2 second` - represents 12 hours, 12 minutes, and 2 seconds.
+- **Query Example**: `RETURN interval('1 year 2 month 3 day 12 hour 12 minute 2 second') AS interval_value;`
 
 ### Composite Types
 

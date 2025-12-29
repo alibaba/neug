@@ -34,6 +34,7 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
                  vertex_schema_->property_names, vertex_schema_->property_types,
+                 vertex_schema_->default_property_values,
                  vertex_schema_->storage_strategies,
                  vertex_schema_->property_extra_infos);
   } else if (memory_level_ == 1) {
@@ -41,6 +42,7 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types,
+                           vertex_schema_->default_property_values,
                            vertex_schema_->storage_strategies,
                            vertex_schema_->property_extra_infos);
   } else if (memory_level_ >= 2) {
@@ -49,6 +51,7 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     table_->open_with_hugepages(
         vertex_table_prefix(label_name), work_dir_,
         vertex_schema_->property_names, vertex_schema_->property_types,
+        vertex_schema_->default_property_values,
         vertex_schema_->storage_strategies,
         vertex_schema_->property_extra_infos, (memory_level_ > 2));
   } else {
@@ -244,10 +247,11 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
 void VertexTable::AddProperties(
     const std::vector<std::string>& properties,
     const std::vector<DataTypeId>& types,
+    const std::vector<Property>& default_values,
     const std::vector<StorageStrategy>& strategies,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
-  table_->add_columns(properties, types, strategies, extra_type_infos,
-                      memory_level_);
+  table_->add_columns(properties, types, default_values, strategies,
+                      extra_type_infos, memory_level_);
 }
 
 void VertexTable::Drop() {

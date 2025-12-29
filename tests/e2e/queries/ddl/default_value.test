@@ -1,0 +1,197 @@
+-DATASET CSV tinysnb
+--
+
+-LOG DefaultValueINT32
+-STATEMENT CREATE NODE TABLE WithoutDefaultINT32 (id INT32, p_int32 INT32, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultINT32 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultINT32 {id: 0}) RETURN n.p_int32;
+---- 1
+0
+-STATEMENT CREATE (n:WithoutDefaultINT32 {id: 1, p_int32: 100});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultINT32 {id: 1}) RETURN n.p_int32;
+---- 1
+100
+
+-STATEMENT CREATE NODE TABLE WithDefaultINT32 (id INT32, p_int32 INT32 DEFAULT 1, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultINT32 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultINT32 {id: 0}) RETURN n.p_int32;
+---- 1
+1
+-STATEMENT CREATE (n:WithDefaultINT32 {id: 1, p_int32: 100});
+---- ok
+-STATEMENT MATCH (n:WithDefaultINT32 {id: 1}) RETURN n.p_int32;
+---- 1
+100
+
+
+-LOG DefaultValueINT64
+-STATEMENT CREATE NODE TABLE WithoutDefaultINT64 (id INT64, p_int64 INT64, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultINT64 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultINT64 {id: 0}) RETURN n.p_int64;
+---- 1
+0
+-STATEMENT CREATE (n:WithoutDefaultINT64 {id: 1, p_int64: 100});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultINT64 {id: 1}) RETURN n.p_int64;
+---- 1
+100
+
+-STATEMENT CREATE NODE TABLE WithDefaultINT64 (id INT64, p_int64 INT64 DEFAULT 1, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultINT64 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultINT64 {id: 0}) RETURN n.p_int64;
+---- 1
+1
+-STATEMENT CREATE (n:WithDefaultINT64 {id: 1, p_int64: 100});
+---- ok
+-STATEMENT MATCH (n:WithDefaultINT64 {id: 1}) RETURN n.p_int64;
+---- 1
+100
+
+
+-LOG DefaultValueUINT32
+-STATEMENT CREATE NODE TABLE WithoutDefaultUINT32 (id UINT32, p_uint32 UINT32, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultUINT32 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultUINT32 {id: 0}) RETURN n.p_uint32;
+---- 1
+0
+-STATEMENT CREATE (n:WithoutDefaultUINT32 {id: 1, p_uint32: 100});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultUINT32 {id: 1}) RETURN n.p_uint32;
+---- 1
+100
+
+-STATEMENT CREATE NODE TABLE WithDefaultUINT32 (id UINT32, p_uint32 UINT32 DEFAULT 1, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultUINT32 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultUINT32 {id: 0}) RETURN n.p_uint32;
+---- 1
+1
+-STATEMENT CREATE (n:WithDefaultUINT32 {id: 1, p_uint32: 100});
+---- ok
+-STATEMENT MATCH (n:WithDefaultUINT32 {id: 1}) RETURN n.p_uint32;
+---- 1
+100
+
+
+-LOG DefaultValueUINT64
+-STATEMENT CREATE NODE TABLE WithoutDefaultUINT64 (id UINT64, p_uint64 UINT64, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultUINT64 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultUINT64 {id: 0}) RETURN n.p_uint64;
+---- 1
+0
+-STATEMENT CREATE (n:WithoutDefaultUINT64 {id: 1, p_uint64: 100});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultUINT64 {id: 1}) RETURN n.p_uint64;
+---- 1
+100
+
+-STATEMENT CREATE NODE TABLE WithDefaultUINT64 (id UINT64, p_uint64 UINT64 DEFAULT 1, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultUINT64 {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultUINT64 {id: 0}) RETURN n.p_uint64;
+---- 1
+1
+-STATEMENT CREATE (n:WithDefaultUINT64 {id: 1, p_uint64: 100});
+---- ok
+-STATEMENT MATCH (n:WithDefaultUINT64 {id: 1}) RETURN n.p_uint64;
+---- 1
+100
+
+
+-LOG DefaultValueFLOAT
+-STATEMENT CREATE NODE TABLE WithoutDefaultFLOAT (id INT64, p_float FLOAT, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultFLOAT {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultFLOAT {id: 0}) RETURN n.p_float;
+---- 1
+0.0
+-STATEMENT CREATE (n:WithoutDefaultFLOAT {id: 1, p_float: 100.5});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultFLOAT {id: 1}) RETURN n.p_float;
+---- 1
+100.5
+
+-STATEMENT CREATE NODE TABLE WithDefaultFLOAT (id INT64, p_float FLOAT DEFAULT 1.0, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultFLOAT {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultFLOAT {id: 0}) RETURN n.p_float;
+---- 1
+1.0
+-STATEMENT CREATE (n:WithDefaultFLOAT {id: 1, p_float: 100.5});
+---- ok
+-STATEMENT MATCH (n:WithDefaultFLOAT {id: 1}) RETURN n.p_float;
+---- 1
+100.5
+
+
+-LOG DefaultValueDOUBLE
+-STATEMENT CREATE NODE TABLE WithoutDefaultDOUBLE (id INT64, p_double DOUBLE, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultDOUBLE {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultDOUBLE {id: 0}) RETURN n.p_double;
+---- 1
+0.0
+-STATEMENT CREATE (n:WithoutDefaultDOUBLE {id: 1, p_double: 100.5});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultDOUBLE {id: 1}) RETURN n.p_double;
+---- 1
+100.5
+
+-STATEMENT CREATE NODE TABLE WithDefaultDOUBLE (id INT64, p_double DOUBLE DEFAULT 1.0, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultDOUBLE {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultDOUBLE {id: 0}) RETURN n.p_double;
+---- 1
+1.0
+-STATEMENT CREATE (n:WithDefaultDOUBLE {id: 1, p_double: 100.5});
+---- ok
+-STATEMENT MATCH (n:WithDefaultDOUBLE {id: 1}) RETURN n.p_double;
+---- 1
+100.5
+
+
+-LOG DefaultValueSTRING
+-STATEMENT CREATE NODE TABLE WithoutDefaultSTRING (id INT64, p_string STRING, PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithoutDefaultSTRING {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultSTRING {id: 0}) RETURN n.p_string;
+---- 1
+null
+-STATEMENT CREATE (n:WithoutDefaultSTRING {id: 1, p_string: "hello"});
+---- ok
+-STATEMENT MATCH (n:WithoutDefaultSTRING {id: 1}) RETURN n.p_string;
+---- 1
+hello
+
+-STATEMENT CREATE NODE TABLE WithDefaultSTRING (id INT64, p_string STRING DEFAULT "default", PRIMARY KEY (id));
+---- ok
+-STATEMENT CREATE (n:WithDefaultSTRING {id: 0});
+---- ok
+-STATEMENT MATCH (n:WithDefaultSTRING {id: 0}) RETURN n.p_string;
+---- 1
+default
+-STATEMENT CREATE (n:WithDefaultSTRING {id: 1, p_string: "hello"});
+---- ok
+-STATEMENT MATCH (n:WithDefaultSTRING {id: 1}) RETURN n.p_string;
+---- 1
+hello

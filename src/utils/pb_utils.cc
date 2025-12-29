@@ -836,39 +836,6 @@ std::string proto_to_bolt_response(const results::CollectiveResults& result) {
   return buffer.GetString();
 }
 
-Property get_default_value(const DataTypeId& type) {
-  Property default_value;
-  switch (type) {
-  case DataTypeId::kEmpty:
-    break;
-  case DataTypeId::kBool:
-    default_value.set_bool(false);
-    break;
-  case DataTypeId::kInt32:
-    default_value.set_int32(0);
-    break;
-  case DataTypeId::kUInt32:
-    default_value.set_uint32(0);
-    break;
-  case DataTypeId::kInt64:
-    default_value.set_int64(0);
-    break;
-  case DataTypeId::kUInt64:
-    default_value.set_uint64(0);
-    break;
-  case DataTypeId::kFloat:
-    default_value.set_float(0.0f);
-    break;
-  case DataTypeId::kDouble:
-    default_value.set_double(0.0);
-    break;
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported property type for default value: " + std::to_string(type));
-  }
-  return default_value;
-}
-
 bool multiplicity_to_storage_strategy(
     const physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy) {
@@ -900,7 +867,7 @@ bool primitive_type_to_property_type(
     const common::PrimitiveType& primitive_type, DataTypeId& out_type) {
   switch (primitive_type) {
   case common::PrimitiveType::DT_ANY:
-    LOG(ERROR) << "Proptype is not supported";
+    LOG(ERROR) << "Any type is not supported";
     return false;
   case common::PrimitiveType::DT_SIGNED_INT32:
     out_type = DataTypeId::kInt32;
@@ -1022,7 +989,8 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_any(const common::Value& value, Property& out_any) {
+bool common_value_to_any(const DataTypeId& type, const common::Value& value,
+                         Property& out_any) {
   if (value.item_case() == common::Value::ITEM_NOT_SET) {
     LOG(ERROR) << "Value is not set: " << value.DebugString();
     return false;
@@ -1037,20 +1005,42 @@ bool common_value_to_any(const common::Value& value, Property& out_any) {
   case common::Value::kI64:
     out_any.set_int64(value.i64());
     break;
-  case common::Value::kF64:
-    out_any.set_double(value.f64());
-    break;
-  case common::Value::kStr:
-    out_any.set_string_view(value.str());
-    break;
-  case common::Value::kDate:
-    LOG(ERROR) << "Date type is not supported";
-    return false;
   case common::Value::kU32:
     out_any.set_uint32(value.u32());
     break;
   case common::Value::kU64:
     out_any.set_uint64(value.u64());
+    break;
+  case common::Value::kF32:
+    out_any.set_float(value.f32());
+    break;
+  case common::Value::kF64:
+    out_any.set_double(value.f64());
+    break;
+  case common::Value::kStr:
+    if (type == DataTypeId::kDate) {
+      // Special handling for date stored as string
+      Date date(value.str());
+      out_any.set_date(date);
+      break;
+    } else if (type == DataTypeId::kDateTime) {
+      // Special handling for datetime stored as string
+      DateTime datetime(value.str());
+      out_any.set_datetime(datetime);
+      break;
+    } else if (type == DataTypeId::kInterval) {
+      // Special handling for interval stored as string
+      Interval interval(value.str());
+      out_any.set_interval(interval);
+      break;
+    } else {
+      LOG(INFO) << "Setting string value: " << value.str()
+                << " for type: " << std::to_string(type);
+      out_any.set_string_view(value.str());
+    }
+    break;
+  case common::Value::kDate:
+    out_any.set_date(value.date().item());
     break;
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
@@ -1072,16 +1062,20 @@ property_defs_to_tuple(
                           "Invalid property type: " + property.DebugString()));
     }
     if (property.has_default_value()) {
-      if (!common_value_to_any(property.default_value(), std::get<2>(tuple))) {
+      if (!common_value_to_any(std::get<0>(tuple), property.default_value(),
+                               std::get<2>(tuple))) {
         RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
       } else {
-        // Use default default value if it is not set
-        VLOG(1) << "Default value specified by plan, use system default "
-                   "value";
-        std::get<2>(tuple) = get_default_value(std::get<0>(tuple));
+        VLOG(10) << "Default value convert to any success:"
+                 << property.default_value().DebugString();
       }
+    } else {
+      std::get<2>(tuple) = get_default_value(std::get<0>(tuple));
+      VLOG(1) << "No default value, use type default:"
+              << std::get<2>(tuple).to_string()
+              << " type: " << std::to_string(std::get<2>(tuple).type());
     }
     result.emplace_back(std::move(tuple));
   }
@@ -1126,6 +1120,9 @@ Property const_value_to_any(const common::Value& value) {
   case common::Value::ItemCase::kStr: {
     return Property::From(value.str());
   }
+  case common::Value::ItemCase::kNone: {
+    return Property::empty();
+  }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +
                         value.DebugString());
@@ -1158,6 +1155,9 @@ Property const_value_to_prop(const common::Value& value) {
   }
   case common::Value::ItemCase::kStr: {
     return Property::from_string_view(value.str());
+  }
+  case common::Value::ItemCase::kNone: {
+    return Property::empty();
   }
   default: {
     THROW_RUNTIME_ERROR("Unsupported constant value type: " +

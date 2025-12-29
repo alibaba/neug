@@ -18,8 +18,10 @@
 #include <cstdint>
 #include <ios>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
+#include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
@@ -28,15 +30,22 @@
 #include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/string_utils.h"
+#include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/common/types/int128_t.h"
+#include "neug/compiler/common/types/interval_t.h"
+#include "neug/compiler/common/types/timestamp_t.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
+#include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
+#include "neug/compiler/parser/expression/parsed_expression.h"
+#include "neug/compiler/parser/expression/parsed_function_expression.h"
+#include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -100,7 +109,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convert(
     return convertIsNotNull(expr);  // convert to IS NOT NULL
   }
   case common::ExpressionType::FUNCTION: {
-    return convertScalarFunc(expr, schemaAlias);  // convert to scalar function
+    return convertScalarFunc(expr,
+                             schemaAlias);  // convert to scalar function
   }
   case common::ExpressionType::CASE_ELSE: {
     return convertCaseExpression(expr.constCast<binder::CaseExpression>(),
@@ -216,8 +226,45 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   return indexPB;
 }
 
+// set default value for property definition
+std::unique_ptr<::common::Value> GExprConverter::convertDefaultValue(
+    const binder::PropertyDefinition& propertyDef) {
+  std::shared_ptr<binder::Expression> defaultExpr = propertyDef.boundExpr;
+  // the query default value of temporal type (date, datetime, interval) is
+  // set by scalar function, here we extract the default value expression from
+  // the scalar function
+  if (defaultExpr->expressionType == common::ExpressionType::FUNCTION) {
+    auto funcExpr =
+        defaultExpr->constPtrCast<binder::ScalarFunctionExpression>();
+    auto funcName = funcExpr->getFunction().name;
+    if (funcName == function::CastToDateFunction::name ||
+        funcName == function::CastToTimestampFunction::name ||
+        funcName == function::CastToIntervalFunction::name ||
+        funcName == function::DateFunction::name ||
+        funcName == function::IntervalFunctionAlias::name) {
+      if (!funcExpr->getNumChildren()) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Temporal function expression should have at least one "
+            "child");
+      }
+      defaultExpr = funcExpr->getChild(0);
+    }
+  }
+  auto valuePB = convert(*defaultExpr, {});
+  if (valuePB->operators_size() == 0) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Default value expression should not be empty");
+  }
+  auto oprPB = valuePB->operators(0);
+  if (!oprPB.has_const_()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Default value expression should be a constant");
+  }
+  return std::unique_ptr<::common::Value>(oprPB.release_const_());
+}
+
 std::unique_ptr<::common::Value> GExprConverter::convertValue(
-    gs::common::Value value) {
+    const gs::common::Value& value) {
   std::unique_ptr<::common::Value> valuePB =
       std::make_unique<::common::Value>();
   if (value.isNull()) {
@@ -248,6 +295,18 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     break;
   case common::LogicalTypeID::UINT64:
     valuePB->set_u64(value.getValue<uint64_t>());
+    break;
+  case common::LogicalTypeID::DATE:
+    valuePB->set_str(
+        gs::common::Date::toString(value.getValue<gs::common::date_t>()));
+    break;
+  case common::LogicalTypeID::TIMESTAMP:
+    valuePB->set_str(gs::common::Timestamp::toString(
+        value.getValue<gs::common::timestamp_t>()));
+    break;
+  case common::LogicalTypeID::INTERVAL:
+    valuePB->set_str(gs::common::Interval::toString(
+        value.getValue<gs::common::interval_t>()));
     break;
   case common::LogicalTypeID::ARRAY: {
     auto extraInfo = value.getDataType().getExtraTypeInfo();

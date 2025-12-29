@@ -19,6 +19,7 @@
 #include <string>
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/gopt/g_catalog.h"
+#include "neug/compiler/gopt/g_expr_converter.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
@@ -42,7 +43,9 @@ struct EdgeLabel {
 
 class GDDLConverter {
  public:
-  explicit GDDLConverter(gs::catalog::Catalog* catalog) : catalog{catalog} {}
+  explicit GDDLConverter(std::shared_ptr<GAliasManager> aliasManager,
+                         gs::catalog::Catalog* catalog)
+      : catalog{catalog}, exprConverter(aliasManager) {}
 
   virtual ~GDDLConverter() = default;
 
@@ -110,6 +113,7 @@ class GDDLConverter {
 
  private:
   gs::gopt::GTypeConverter typeConverter;
+  gs::gopt::GExprConverter exprConverter;
 };
 
 }  // namespace gopt

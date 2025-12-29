@@ -302,24 +302,19 @@ struct IntervalToStringCast {
       if (hour < 10) {
         buffer[length++] = '0';
       }
-      FormatSignedNumber(hour, buffer, length);
-      buffer[length++] = ':';
-      FormatTwoDigits(min, buffer, length);
-      buffer[length++] = ':';
-      FormatTwoDigits(sec, buffer, length);
+      FormatIntervalValue(hour, buffer, length, " hour", 5);
+      FormatIntervalValue(min, buffer, length, " minute", 7);
+      FormatIntervalValue(sec, buffer, length, " second", 7);
       if (micros != 0) {
-        buffer[length++] = '.';
-        auto trailing_zeros =
-            TimeToStringCast::FormatMicros(micros, buffer + length);
-        length += 6 - trailing_zeros;
+        FormatIntervalValue(micros, buffer, length, " microsecond", 12);
       }
     } else if (length == 0) {
-      // empty interval: default to 00:00:00
+      // empty interval: default to '0 year 0 month 0 day'
       strcpy(
           buffer,
-          "00:00:00");  // NOLINT(clang-analyzer-security.insecureAPI.strcpy):
-                        // safety guaranteed by Length().
-      return 8;
+          "0 year 0 month 0 day");  // NOLINT(clang-analyzer-security.insecureAPI.strcpy):
+                                    // safety guaranteed by Length().
+      return 20;
     }
     return length;
   }

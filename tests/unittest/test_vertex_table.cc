@@ -53,10 +53,14 @@ class VertexTableTest : public ::testing::Test {
                         gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
+    default_prop_values_ = {gs::Property::from_string_view(""),
+                            gs::Property::from_int32(0),
+                            gs::Property::from_double(0.0)};
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
                            {std::make_tuple(pk_type_, "id", 0)},
-                           storage_strategies_, {}, 4096, "");
+                           storage_strategies_, {}, 4096, "",
+                           default_prop_values_);
     v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
   }
   void TearDown() override {
@@ -99,6 +103,7 @@ class VertexTableTest : public ::testing::Test {
   std::vector<gs::DataTypeId> property_types_;
   std::vector<gs::Property> property_values_;
   std::vector<gs::StorageStrategy> storage_strategies_;
+  std::vector<gs::Property> default_prop_values_;
   std::mt19937 generator_;
   gs::Schema schema_;
   gs::label_t v_label_id_ = 0;
