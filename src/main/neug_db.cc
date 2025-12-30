@@ -32,7 +32,7 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
-#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/main/query_processor.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"

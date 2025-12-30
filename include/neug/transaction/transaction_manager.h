@@ -21,7 +21,7 @@
 #include <utility>
 
 #include "neug/config.h"
-#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"

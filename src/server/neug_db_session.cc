@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_session.h"
 
 #include <glog/logging.h>
 #include <stddef.h>

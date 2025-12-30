@@ -25,7 +25,7 @@
 #include "neug/generated/proto/http_service/http_svc.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/neug_db.h"
-#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"

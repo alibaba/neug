@@ -25,7 +25,7 @@
 #include <vector>
 #include "neug/config.h"
 #include "neug/main/neug_db.h"
-#include "neug/main/neug_db_session.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/insert_transaction.h"

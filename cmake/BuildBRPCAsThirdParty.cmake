@@ -21,6 +21,7 @@ function(build_brpc_as_third_party)
     set(BUILD_BRPC_TOOLS OFF CACHE BOOL "Build brpc tools")
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build brpc as static library" FORCE)
     set(WITH_GLOG ON CACHE BOOL "Build brpc with glog")
+    set(BUILD_UNIT_TESTS OFF CACHE BOOL "Build brpc unit tests" FORCE)
     
     # We will always apply brpc_cmake.patch to fix the issue of dlsym issue related to packing wheel. 
     # https://github.com/GraphScope/neug/issues/365
