@@ -21,6 +21,7 @@
  */
 
 #include "neug/compiler/optimizer/projection_push_down_optimizer.h"
+#include <algorithm>
 
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/function/gds/gds_function_collection.h"
@@ -118,15 +119,17 @@ void ProjectionPushDownOptimizer::visitHashJoin(LogicalOperator* op) {
     collectExpressionsInUse(probeJoinKey);
     collectExpressionsInUse(buildJoinKey);
   }
-  if (hashJoin.getJoinType() == JoinType::MARK) {
-    return;
-  }
-  auto expressionsBeforePruning = hashJoin.getExpressionsToMaterialize();
-  auto expressionsAfterPruning = pruneExpressions(expressionsBeforePruning);
-  if (expressionsBeforePruning.size() == expressionsAfterPruning.size()) {
-    return;
-  }
-  preAppendProjection(op, 1, expressionsAfterPruning);
+  // We skip column pruning applied on HashJoin now, which will influence the
+  // current test cases.
+  // if (hashJoin.getJoinType() == JoinType::MARK) {
+  //   return;
+  // }
+  // auto expressionsBeforePruning = hashJoin.getExpressionsToMaterialize();
+  // auto expressionsAfterPruning = pruneExpressions(expressionsBeforePruning);
+  // if (expressionsBeforePruning.size() == expressionsAfterPruning.size()) {
+  //   return;
+  // }
+  // preAppendProjection(op, 1, expressionsAfterPruning);
 }
 
 void ProjectionPushDownOptimizer::visitIntersect(LogicalOperator* op) {}
@@ -238,9 +241,27 @@ void ProjectionPushDownOptimizer::visitCopyFrom(LogicalOperator* op) {
 
 void ProjectionPushDownOptimizer::visitTableFunctionCall(LogicalOperator* op) {
   auto& tableFunctionCall = op->cast<LogicalTableFunctionCall>();
+  // filtering has been pushed down to the table function call
+  auto skipRows = tableFunctionCall.getBindData()->getRowSkips();
+  if (skipRows) {
+    collectExpressionsInUse(skipRows);
+  }
+  auto bindData = tableFunctionCall.getBindData();
+  auto scanBindData = dynamic_cast<function::ScanFileBindData*>(bindData);
+  // Column pruning can only be applied on DataSource operator with non-null
+  // scanBindData.
+  if (!scanBindData)
+    return;
   std::vector<bool> columnSkips;
   for (auto& column : tableFunctionCall.getBindData()->columns) {
     columnSkips.push_back(!variablesInUse.contains(column));
+  }
+  // Keep at least one column to handle the query like 'LOAD FROM "file.csv"
+  // RETURN count(*)'.
+  if (!columnSkips.empty() &&
+      std::all_of(columnSkips.begin(), columnSkips.end(),
+                  [](bool skip) { return skip; })) {
+    columnSkips[0] = false;
   }
   tableFunctionCall.setColumnSkips(std::move(columnSkips));
 }

@@ -25,9 +25,7 @@ class NEUG_API LogicalTableFunctionCall final : public LogicalOperator {
   }
 
   const function::TableFunction& getTableFunc() const { return tableFunc; }
-  const function::TableFuncBindData* getBindData() const {
-    return bindData.get();
-  }
+  function::TableFuncBindData* getBindData() const { return bindData.get(); }
 
   void setColumnSkips(std::vector<bool> columnSkips) {
     bindData->setColumnSkips(std::move(columnSkips));

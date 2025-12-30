@@ -112,7 +112,7 @@ class GDDLConverter {
       const binder::BoundCreateTableInfo& info, const std::string& edgeName);
 
  private:
-  gs::gopt::GTypeConverter typeConverter;
+  gs::gopt::GPhysicalTypeConverter typeConverter;
   gs::gopt::GExprConverter exprConverter;
 };
 

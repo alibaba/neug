@@ -43,18 +43,6 @@ void Planner::appendInsertNode(
   plan.setLastOperator(insertNode);
 }
 
-void printLabelInfo(const std::vector<catalog::TableCatalogEntry*>& entries) {
-  for (auto& entry : entries) {
-    if (entry->getTableType() == TableType::NODE) {
-      std::cout << entry->getTableID() << std::endl;
-    } else if (entry->getTableType() == TableType::REL) {
-      auto relTable = dynamic_cast<catalog::RelTableCatalogEntry*>(entry);
-      std::cout << relTable->getTableID() << ", " << relTable->getSrcTableID()
-                << ", " << relTable->getDstTableID() << std::endl;
-    }
-  }
-}
-
 std::string extend_string(ExtendDirection direction) {
   switch (direction) {
   case ExtendDirection::FWD:

@@ -23,7 +23,9 @@
 #pragma once
 
 #include <mutex>
+#include <vector>
 
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
 #include "neug/compiler/function/table/bind_data.h"

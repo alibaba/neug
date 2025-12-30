@@ -73,7 +73,7 @@ GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
     : aliasManager(aliasManager),
       catalog(catalog),
       exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
-      typeConverter(std::make_unique<GTypeConverter>()) {}
+      typeConverter(std::make_unique<GPhysicalTypeConverter>()) {}
 
 std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
     const planner::LogicalPlan& plan, bool skipSink) {
@@ -1048,6 +1048,7 @@ void GQueryConvertor::convertDataSource(
         "Table function bind data is not of type ScanFileBindData.");
   }
   const auto& fileInfo = scanBindData->fileScanInfo;
+
   auto extensionName = funcCall.getTableFunc().signatureName;
   auto sourcePB = std::make_unique<::physical::DataSource>();
   sourcePB->set_extension_name(extensionName);
@@ -1056,6 +1057,22 @@ void GQueryConvertor::convertDataSource(
       convertEntrySchema(scanBindData).release());
   sourcePB->set_allocated_file_schema(
       convertFileSchema(scanBindData).release());
+
+  auto rowSkips = scanBindData->getRowSkips();
+  if (rowSkips) {
+    sourcePB->set_allocated_skip_rows(
+        exprConvertor->convert(*rowSkips, {}).release());
+  }
+  auto columnSkips = scanBindData->getColumnSkips();
+  if (scanBindData->columns.size() != columnSkips.size()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Each column should have a skip flag");
+  }
+  for (auto idx = 0; idx < scanBindData->columns.size(); idx++) {
+    if (columnSkips[idx]) {
+      sourcePB->mutable_skip_columns()->Add(
+          scanBindData->columns[idx]->toString());
+    }
+  }
 
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();

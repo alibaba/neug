@@ -77,6 +77,8 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
       }
     } else if (ctx.get(tag)->column_type() == ContextColumnType::kValue) {
       getter_ = create_context_value_accessor(ctx, tag, type_);
+    } else if (ctx.get(tag)->column_type() == ContextColumnType::kArrowArray) {
+      getter_ = std::make_unique<ArrowArrayAccessor>(ctx, tag);
     } else if (ctx.get(tag)->column_type() == ContextColumnType::kEdge) {
       if (pb.has_property()) {
         auto& pt = pb.property();

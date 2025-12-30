@@ -182,6 +182,7 @@ jobs:
         export NEUG_QUERY='MATCH (n1:person)-[:knows]-(n2:person)-[:knows]-(n3:person), (n1)-[:knows]-(n3) RETURN n1.name, n2.name, n3.name'
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tp_service.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py
 
     - name: Run lsqb test
       run: |

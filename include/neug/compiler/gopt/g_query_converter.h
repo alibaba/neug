@@ -224,7 +224,7 @@ class GQueryConvertor {
  private:
   std::shared_ptr<GAliasManager> aliasManager;
   std::unique_ptr<GExprConverter> exprConvertor;
-  std::unique_ptr<GTypeConverter> typeConverter;
+  std::unique_ptr<GPhysicalTypeConverter> typeConverter;
   gs::catalog::Catalog* catalog;
 };
 

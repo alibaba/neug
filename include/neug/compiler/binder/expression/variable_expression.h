@@ -35,7 +35,8 @@ class VariableExpression final : public Expression {
   VariableExpression(common::LogicalType dataType, std::string uniqueName,
                      std::string variableName)
       : Expression{expressionType_, std::move(dataType), std::move(uniqueName)},
-        variableName{std::move(variableName)} {}
+        variableName{std::move(variableName)},
+        useName{false} {}
 
   std::string getVariableName() const { return variableName; }
 
@@ -48,8 +49,13 @@ class VariableExpression final : public Expression {
                                                 variableName);
   }
 
+  void setUseName(bool useName) { this->useName = useName; }
+
+  bool getUseName() const { return useName; }
+
  private:
   std::string variableName;
+  bool useName;
 };
 
 }  // namespace binder

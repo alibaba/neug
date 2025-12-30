@@ -32,6 +32,7 @@
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/function/table/bind_input.h"
+#include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
@@ -132,6 +133,12 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
     const BaseScanSource& scanSource, const options_t& options,
     const std::vector<std::string>& columnNames,
     const std::vector<LogicalType>& columnTypes) {
+  if (columnNames.size() != columnTypes.size()) {
+    THROW_BINDER_EXCEPTION("Column names size " +
+                           std::to_string(columnNames.size()) +
+                           " does not match column types size " +
+                           std::to_string(columnTypes.size()));
+  }
   auto fileSource = scanSource.constPtrCast<FileScanSource>();
   auto filePaths = bindFilePaths(fileSource->filePaths);
   auto boundOptions = bindParsingOptions(options);
@@ -151,20 +158,40 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindFileScanSource(
   fileScanInfo->options = std::move(boundOptions);
   auto func = getScanFunction(fileScanInfo->fileTypeInfo, *fileScanInfo);
 
-  auto sniffSchema = sniff(*fileScanInfo, func);
-  if (sniffSchema->columnNames.size() != columnNames.size()) {
-    THROW_SCHEMA_MISMATCH(stringFormat(
-        "Sniffed schema has {} columns but {} columns were expected.",
-        sniffSchema->columnNames.size(), columnNames.size()));
-  }
-
   // Bind table function
   auto bindInput = TableFuncBindInput();
   bindInput.addLiteralParam(Value::createValue(filePaths[0]));
   auto extraInput = std::make_unique<ExtraScanTableFuncBindInput>();
   extraInput->fileScanInfo = fileScanInfo->copy();
-  extraInput->expectedColumnNames = columnNames;
-  extraInput->expectedColumnTypes = LogicalType::copy(columnTypes);
+  auto& expectedColumnNames = extraInput->expectedColumnNames;
+  auto& expectedColumnTypes = extraInput->expectedColumnTypes;
+
+  auto sniffSchema = sniff(*fileScanInfo, func);
+  if (sniffSchema->columnNames.size() != sniffSchema->columnTypes.size()) {
+    THROW_BINDER_EXCEPTION("Sniffer Column names size " +
+                           std::to_string(sniffSchema->columnNames.size()) +
+                           " does not match column types size " +
+                           std::to_string(sniffSchema->columnTypes.size()));
+  }
+  // User does not explicitly provide column names and types in pre-defined
+  // schema, use sniffed schema instead.
+  if (columnNames.empty()) {
+    expectedColumnNames = sniffSchema->columnNames;
+    auto typeConverter = gopt::GLogicalTypeConverter();
+    for (auto& columnType : sniffSchema->columnTypes) {
+      expectedColumnTypes.push_back(typeConverter.convertDataType(*columnType));
+    }
+  } else {
+    // sniffed schema should have same column size as the pre-defined schema.
+    if (sniffSchema->columnNames.size() != columnNames.size()) {
+      THROW_SCHEMA_MISMATCH(stringFormat(
+          "Sniffed schema has {} columns but {} columns were expected.",
+          sniffSchema->columnNames.size(), columnNames.size()));
+    }
+    expectedColumnNames = columnNames;
+    expectedColumnTypes = LogicalType::copy(columnTypes);
+  }
+
   extraInput->tableFunction = func;
   bindInput.extraInput = std::move(extraInput);
   bindInput.binder = this;

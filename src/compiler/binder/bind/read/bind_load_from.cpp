@@ -24,6 +24,7 @@
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_load_from.h"
+#include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/parser/query/reading_clause/load_from.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
@@ -43,10 +44,6 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
   std::unique_ptr<BoundLoadFrom> boundLoadFrom;
   std::vector<std::string> columnNames;
   std::vector<LogicalType> columnTypes;
-  for (auto& [name, type] : loadFrom.getColumnDefinitions()) {
-    columnNames.push_back(name);
-    columnTypes.push_back(LogicalType::convertFromString(type, clientContext));
-  }
   switch (source->type) {
   case ScanSourceType::OBJECT: {
     auto objectSource = source->ptrCast<ObjectScanSource>();
@@ -59,6 +56,11 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
     auto boundScanSource = bindFileScanSource(
         *source, loadFrom.getParsingOptions(), columnNames, columnTypes);
     auto& scanInfo = boundScanSource->constCast<BoundTableScanSource>().info;
+    auto& bindData = scanInfo.bindData->cast<function::ScanFileBindData>();
+    auto& fileInfo = bindData.fileScanInfo;
+    // We support LOAD FROM by ArrowArrayContextColumn with BATCH_READ set to
+    // false.
+    fileInfo.options.insert({"BATCH_READ", common::Value::createValue(false)});
     boundLoadFrom = std::make_unique<BoundLoadFrom>(scanInfo.copy());
   } break;
   default:

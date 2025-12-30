@@ -23,6 +23,7 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/enums/expression_type.h"
 
 namespace gs {
@@ -147,6 +148,19 @@ class EqualFilteringVisitor : public ExpressionVisitor {
   }
 
   bool containsEqualFiltering() { return equalFiltering; }
+};
+
+class ResetVarUseNameVisitor final : public ExpressionVisitor {
+ public:
+  ResetVarUseNameVisitor(bool useName) : useName{useName} {}
+
+ protected:
+  void visitVariableExpr(std::shared_ptr<Expression> expr) override {
+    expr->ptrCast<binder::VariableExpression>()->setUseName(useName);
+  }
+
+ private:
+  bool useName;
 };
 
 }  // namespace binder

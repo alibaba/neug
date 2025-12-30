@@ -39,7 +39,7 @@
 namespace gs {
 namespace gopt {
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertNodeType(
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertNodeType(
     const GNodeType& nodeType) {
   auto result = std::make_unique<::common::IrDataType>();
   auto graphType = std::make_unique<::common::GraphDataType>();
@@ -53,7 +53,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertNodeType(
   return result;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertPathType(
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertPathType(
     const GRelType& relType) {
   auto result = std::make_unique<::common::IrDataType>();
   auto graphType = std::make_unique<::common::GraphDataType>();
@@ -67,7 +67,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertPathType(
   return result;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertRelType(
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertRelType(
     const GRelType& relType) {
   auto result = std::make_unique<::common::IrDataType>();
   auto graphType = std::make_unique<::common::GraphDataType>();
@@ -112,7 +112,7 @@ const binder::Expression* childFunction(const binder::Expression* curExpr,
   return nullptr;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertStructType(
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
     const common::LogicalType& type, const binder::Expression& expr) {
   auto typeInfo =
       type.getExtraTypeInfo()->constPtrCast<common::StructTypeInfo>();
@@ -135,7 +135,7 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertStructType(
   return result;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
+std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
     const common::LogicalType& type, const binder::Expression& expr) {
   auto arrayType = std::make_unique<::common::Array>();
   VLOG(1) << "Converting ARRAY child type: " << type.toString();
@@ -159,8 +159,9 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertArrayType(
   return result;
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
-    const common::LogicalType& type, const binder::Expression& expr) {
+std::unique_ptr<::common::IrDataType>
+GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type,
+                                           const binder::Expression& expr) {
   switch (type.getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
     auto nodeExpr = dynamic_cast<const binder::NodeExpression*>(&expr);
@@ -238,7 +239,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertLogicalType(
   }
 }
 
-std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
+std::unique_ptr<::common::IrDataType>
+GPhysicalTypeConverter::convertSimpleLogicalType(
     const common::LogicalType& type) {
   auto result = std::make_unique<::common::DataType>();
   switch (type.getLogicalTypeID()) {
@@ -335,7 +337,8 @@ std::unique_ptr<::common::IrDataType> GTypeConverter::convertSimpleLogicalType(
 }
 
 std::unique_ptr<::common::GraphDataType::GraphElementType>
-GTypeConverter::convertNodeTable(catalog::NodeTableCatalogEntry* nodeTable) {
+GPhysicalTypeConverter::convertNodeTable(
+    catalog::NodeTableCatalogEntry* nodeTable) {
   auto result = std::make_unique<::common::GraphDataType::GraphElementType>();
   auto labelType =
       std::make_unique<::common::GraphDataType::GraphElementLabel>();
@@ -346,7 +349,8 @@ GTypeConverter::convertNodeTable(catalog::NodeTableCatalogEntry* nodeTable) {
 }
 
 std::unique_ptr<::common::GraphDataType::GraphElementType>
-GTypeConverter::convertRelTable(catalog::GRelTableCatalogEntry* relTable) {
+GPhysicalTypeConverter::convertRelTable(
+    catalog::GRelTableCatalogEntry* relTable) {
   auto result = std::make_unique<::common::GraphDataType::GraphElementType>();
   auto labelType =
       std::make_unique<::common::GraphDataType::GraphElementLabel>();
@@ -360,6 +364,106 @@ GTypeConverter::convertRelTable(catalog::GRelTableCatalogEntry* relTable) {
   result->set_allocated_label(labelType.release());
   // todo: set properties
   return result;
+}
+
+common::LogicalType GLogicalTypeConverter::convertDataType(
+    const ::common::DataType& type) {
+  switch (type.item_case()) {
+  case ::common::DataType::kPrimitiveType: {
+    // Handle primitive types
+    switch (type.primitive_type()) {
+    case ::common::PrimitiveType::DT_ANY:
+      return common::LogicalType::ANY();
+    case ::common::PrimitiveType::DT_BOOL:
+      return common::LogicalType::BOOL();
+    case ::common::PrimitiveType::DT_SIGNED_INT32:
+      return common::LogicalType::INT32();
+    case ::common::PrimitiveType::DT_UNSIGNED_INT32:
+      return common::LogicalType::UINT32();
+    case ::common::PrimitiveType::DT_SIGNED_INT64:
+      return common::LogicalType::INT64();
+    case ::common::PrimitiveType::DT_UNSIGNED_INT64:
+      return common::LogicalType::UINT64();
+    case ::common::PrimitiveType::DT_FLOAT:
+      return common::LogicalType::FLOAT();
+    case ::common::PrimitiveType::DT_DOUBLE:
+      return common::LogicalType::DOUBLE();
+    case ::common::PrimitiveType::DT_NULL:
+      return common::LogicalType::ANY();
+    default:
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Unsupported PrimitiveType: " +
+          std::to_string(static_cast<int>(type.primitive_type())));
+    }
+  }
+  case ::common::DataType::kDecimal: {
+    // Handle decimal type
+    const auto& decimal = type.decimal();
+    return common::LogicalType::DECIMAL(decimal.precision(), decimal.scale());
+  }
+  case ::common::DataType::kString: {
+    // Handle string types - all variants map to STRING
+    return common::LogicalType::STRING();
+  }
+  case ::common::DataType::kTemporal: {
+    // Handle temporal types
+    const auto& temporal = type.temporal();
+    switch (temporal.item_case()) {
+    case ::common::Temporal::kDate:
+    case ::common::Temporal::kDate32:
+      return common::LogicalType::DATE();
+    case ::common::Temporal::kDateTime:
+    case ::common::Temporal::kTimestamp:
+      return common::LogicalType::TIMESTAMP();
+    case ::common::Temporal::kInterval:
+      return common::LogicalType::INTERVAL();
+    case ::common::Temporal::kTime:
+    case ::common::Temporal::kTime32:
+      // Time types are not directly supported, map to TIMESTAMP
+      return common::LogicalType::TIMESTAMP();
+    default:
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Unsupported Temporal type in convertDataType");
+    }
+  }
+  case ::common::DataType::kArray: {
+    // Handle array type
+    const auto& array = type.array();
+    auto childType = convertDataType(array.component_type());
+    // If max_length is set and > 0, use ARRAY, otherwise use LIST
+    if (array.max_length() > 0) {
+      return common::LogicalType::ARRAY(std::move(childType),
+                                        array.max_length());
+    } else {
+      return common::LogicalType::LIST(std::move(childType));
+    }
+  }
+  case ::common::DataType::kMap: {
+    // Handle map type
+    const auto& map = type.map();
+    auto keyType = convertDataType(map.key_type());
+    auto valueType = convertDataType(map.value_type());
+    return common::LogicalType::MAP(std::move(keyType), std::move(valueType));
+  }
+  case ::common::DataType::kTuple: {
+    // Handle tuple type - convert to STRUCT
+    const auto& tuple = type.tuple();
+    std::vector<common::StructField> fields;
+    fields.reserve(tuple.component_types_size());
+    for (int i = 0; i < tuple.component_types_size(); ++i) {
+      auto componentType = convertDataType(tuple.component_types(i));
+      // Use default field name for tuple components
+      fields.emplace_back("field_" + std::to_string(i),
+                          std::move(componentType));
+    }
+    return common::LogicalType::STRUCT(std::move(fields));
+  }
+  case ::common::DataType::ITEM_NOT_SET:
+  default:
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported DataType in convertDataType: item_case = " +
+        std::to_string(static_cast<int>(type.item_case())));
+  }
 }
 
 }  // namespace gopt

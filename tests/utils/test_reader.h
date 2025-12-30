@@ -283,7 +283,6 @@ class ReaderTest : public ::testing::Test {
         if (!batch) {
           break;  // No more batches from this supplier
         }
-        std::cout << "current batch rows is " << batch->num_rows() << std::endl;
         totalRows += batch->num_rows();
       }
     }

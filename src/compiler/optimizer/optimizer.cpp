@@ -69,9 +69,9 @@ void Optimizer::optimize(
     auto filterPushDownOptimizer = FilterPushDownOptimizer(context);
     filterPushDownOptimizer.rewrite(plan);
 
-    // auto projectionPushDownOptimizer = ProjectionPushDownOptimizer(
-    //     context->getClientConfig()->recursivePatternSemantic);
-    // projectionPushDownOptimizer.rewrite(plan);
+    auto projectionPushDownOptimizer = ProjectionPushDownOptimizer(
+        context->getClientConfig()->recursivePatternSemantic);
+    projectionPushDownOptimizer.rewrite(plan);
 
     auto limitPushDownOptimizer = LimitPushDownOptimizer();
     limitPushDownOptimizer.rewrite(plan);

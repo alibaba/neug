@@ -794,8 +794,15 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
   auto aliasId = aliasManager->getAliasId(std::move(aliasName));
   std::unique_ptr<::common::Variable> variable =
       std::make_unique<::common::Variable>();
-  if (aliasId != DEFAULT_ALIAS_ID) {
-    variable->set_allocated_tag(convertAlias(aliasId).release());
+  bool useName = expr.getUseName();
+  if (!useName) {
+    if (aliasId != DEFAULT_ALIAS_ID) {
+      variable->set_allocated_tag(convertAlias(aliasId).release());
+    }
+  } else {
+    auto namePB = std::make_unique<::common::NameOrId>();
+    namePB->set_name(expr.getVariableName());
+    variable->set_allocated_tag(namePB.release());
   }
   auto varType = typeConverter.convertLogicalType(expr.dataType, expr);
   auto exprType = std::make_unique<::common::IrDataType>();

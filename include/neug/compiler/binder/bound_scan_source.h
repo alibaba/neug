@@ -50,8 +50,20 @@ struct BoundBaseScanSource {
   virtual std::unique_ptr<BoundBaseScanSource> copy() const = 0;
 
   template <class TARGET>
+  TARGET& cast() {
+    return common::neug_dynamic_cast<TARGET&>(*this);
+  }
+  template <class TARGET>
+  TARGET* ptrCast() {
+    return common::neug_dynamic_cast<TARGET*>(this);
+  }
+  template <class TARGET>
   const TARGET& constCast() const {
     return common::neug_dynamic_cast<const TARGET&>(*this);
+  }
+  template <class TARGET>
+  const TARGET* constPtrCast() const {
+    return common::neug_dynamic_cast<const TARGET*>(this);
   }
 
  protected:

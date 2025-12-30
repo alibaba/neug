@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <memory>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
@@ -66,6 +67,12 @@ struct NEUG_API TableFuncBindData {
   }
   std::vector<bool> getColumnSkips() const;
 
+  std::shared_ptr<binder::Expression> getRowSkips() const { return rowSkips; }
+
+  void setRowSkips(std::shared_ptr<binder::Expression> skips) {
+    rowSkips = std::move(skips);
+  }
+
   virtual std::shared_ptr<binder::Expression> getNodeOutput() const {
     return nullptr;
   }
@@ -86,6 +93,7 @@ struct NEUG_API TableFuncBindData {
 
  protected:
   std::vector<bool> columnSkips;
+  std::shared_ptr<binder::Expression> rowSkips;
 };
 
 }  // namespace function

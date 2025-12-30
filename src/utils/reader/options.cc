@@ -44,13 +44,11 @@ bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
   }
 
   if (!options.scanOptions) {
-    LOG(ERROR) << "ScanOptions is null in ArrowOptions";
-    return false;
+    THROW_INVALID_ARGUMENT_EXCEPTION("ScanOptions is null in ArrowOptions");
   }
 
   if (!state->schema.entry) {
-    LOG(ERROR) << "Entry schema is null";
-    return false;
+    THROW_INVALID_ARGUMENT_EXCEPTION("Entry schema is null");
   }
 
   const EntrySchema& entrySchema = *state->schema.entry;
@@ -67,8 +65,8 @@ bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
   }
 
   if (project_columns.empty()) {
-    LOG(ERROR) << "Empty project columns after column pruning";
-    return false;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Empty project columns after column pruning");
   }
 
   // Build dataset schema from entry schema (column names and types)

@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
@@ -232,6 +233,28 @@ class ContextValueAccessor : public IAccessor {
 
  private:
   const IValueColumn<elem_t>& col_;
+};
+
+class ArrowArrayAccessor : public IAccessor {
+ public:
+  ArrowArrayAccessor(const Context& ctx, int tag)
+      : col_(
+            *std::dynamic_pointer_cast<ArrowArrayContextColumn>(ctx.get(tag))) {
+    assert(std::dynamic_pointer_cast<ArrowArrayContextColumn>(ctx.get(tag)) !=
+           nullptr);
+  }
+
+  RTAny eval_path(size_t idx) const override {
+    if (!col_.has_value(idx)) {
+      return RTAny(RTAnyType::kNull);
+    }
+    return col_.get_elem(idx);
+  }
+
+  bool is_optional() const override { return col_.is_optional(); }
+
+ private:
+  const ArrowArrayContextColumn& col_;
 };
 
 class VertexIdVertexAccessor : public IAccessor {

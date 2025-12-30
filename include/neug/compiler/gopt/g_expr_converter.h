@@ -153,7 +153,7 @@ class GExprConverter {
 
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
-  gopt::GTypeConverter typeConverter;
+  gopt::GPhysicalTypeConverter typeConverter;
   gopt::GPrecedence preced;
 };
 

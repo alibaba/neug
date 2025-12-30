@@ -3,6 +3,8 @@
 #include "neug/compiler/binder/query/reading_clause/bound_load_from.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 #include "neug/compiler/binder/query/reading_clause/bound_table_function_call.h"
+#include "neug/compiler/function/table/scan_file_function.h"
+#include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/planner.h"
 
 using namespace gs::binder;
@@ -153,18 +155,17 @@ void Planner::planTableFunctionCall(
 void Planner::planLoadFrom(const BoundReadingClause& readingClause,
                            std::vector<std::unique_ptr<LogicalPlan>>& plans) {
   auto& loadFrom = readingClause.constCast<BoundLoadFrom>();
-  auto analyzer =
-      PredicatesDependencyAnalyzer(loadFrom.getInfo()->bindData->columns);
-  analyzer.analyze(loadFrom.getConjunctivePredicates());
   for (auto& plan : plans) {
     auto op = getTableFunctionCall(*loadFrom.getInfo());
-    planReadOp(std::move(op), analyzer.predicatesDependsOnlyOnOutputColumns,
-               *plan);
-  }
-  if (!analyzer.predicatesWithOtherDependencies.empty()) {
-    for (auto& plan : plans) {
-      appendFilters(analyzer.predicatesWithOtherDependencies, *plan);
+    auto predicate = loadFrom.getPredicate();
+    if (predicate) {
+      auto funcCall = op->ptrCast<planner::LogicalTableFunctionCall>();
+      auto bindData = funcCall->getBindData();
+      ResetVarUseNameVisitor visitor(true);
+      visitor.visit(predicate);
+      bindData->setRowSkips(std::move(predicate));
     }
+    plan->setLastOperator(std::move(op));
   }
 }
 
