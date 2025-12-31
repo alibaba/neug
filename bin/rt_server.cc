@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
   options.add_options()("h,help", "Display help message")("v,version",
                                                           "Display version")(
       "s,shard-num", "Shard number of actor system",
-      cxxopts::value<uint32_t>()->default_value("4"))(
+      cxxopts::value<uint32_t>()->default_value("9"))(
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
       "d,data-path", "Data directory path", cxxopts::value<std::string>())(

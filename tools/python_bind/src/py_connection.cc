@@ -35,14 +35,18 @@ void PyConnection::initialize(pybind11::handle& m) {
            "Close the connection to the database.\n")
       .def("execute", &PyConnection::execute, pybind11::arg("query_string"),
            pybind11::arg("access_mode") = "update",
-           pybind11::arg("format") = "proto",
            "Execute a query_string on the database. Which is passed to the "
            "query "
            "processor.\n\n"
            "Args:\n"
            "    query_string (str): The query string to execute.\n"
            "    access_mode (str): The access mode of the query. It could be "
-           "    format (str): Output format of query result.\n\n"
+           "`read(r)`, "
+           "`insert(i)`, `update(u)` (include deletion). User should specify "
+           "the "
+           "correct access mode for the query to ensure the correctness of the "
+           "database. If the access mode is not specified, it will be set to "
+           "`update` by default.\n"
            "Returns:\n"
            "    PyQueryResult: The result of the query execution.\n")
       .def("get_schema", &PyConnection::get_schema,
@@ -65,19 +69,12 @@ void PyConnection::close() {
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
-    const std::string& query_string, const std::string& access_mode,
-    const std::string& format) {
+    const std::string& query_string, const std::string& access_mode) {
   auto query_result = conn_->Query(query_string, access_mode);
   if (!query_result) {
     return std::make_unique<PyQueryResult>(query_result.error());
   }
-  if (format == "json") {
-    std::string result_res =
-        proto_to_bolt_response(query_result.value().get_result());
-    return std::make_unique<PyQueryResult>(result_res, "json");
-  } else {
-    return std::make_unique<PyQueryResult>(std::move(query_result.value()));
-  }
+  return std::make_unique<PyQueryResult>(std::move(query_result.value()));
 }
 
 std::string PyConnection::get_schema() const { return conn_->GetSchema(); }

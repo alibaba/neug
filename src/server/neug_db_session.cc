@@ -49,75 +49,80 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace server {
 
 class Schema;
 
-ReadTransaction NeugDBSession::GetReadTransaction() const {
+gs::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  return ReadTransaction(graph_, *version_manager_, ts);
+  return gs::ReadTransaction(graph_, *version_manager_, ts);
 }
 
-InsertTransaction NeugDBSession::GetInsertTransaction() {
+gs::InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return InsertTransaction(graph_, alloc_, logger_, *version_manager_, ts);
+  return gs::InsertTransaction(graph_, alloc_, logger_, *version_manager_, ts);
 }
 
-UpdateTransaction NeugDBSession::GetUpdateTransaction() {
+gs::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return UpdateTransaction(graph_, alloc_, logger_, *version_manager_, ts);
+  return gs::UpdateTransaction(graph_, alloc_, logger_, *version_manager_, ts);
 }
 
-const PropertyGraph& NeugDBSession::graph() const { return graph_; }
+const gs::PropertyGraph& NeugDBSession::graph() const { return graph_; }
 
-PropertyGraph& NeugDBSession::graph() { return graph_; }
+gs::PropertyGraph& NeugDBSession::graph() { return graph_; }
 
-const Schema& NeugDBSession::schema() const { return graph_.schema(); }
+const gs::Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
-result<results::CollectiveResults> NeugDBSession::Eval(
-    const physical::PhysicalPlan& plan, AccessMode access_mode) {
+gs::result<results::CollectiveResults> NeugDBSession::Eval(
+    const physical::PhysicalPlan& plan, gs::AccessMode access_mode) {
   const auto start = std::chrono::high_resolution_clock::now();
   // Acquire different transaction on provided access_mode.;
-  std::unique_ptr<runtime::OprTimer> timer = nullptr;
+  std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;
   results::CollectiveResults ret;
-  if (access_mode == AccessMode::kRead) {
+  if (access_mode == gs::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
-    StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
-    auto ctx = runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
+    gs::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
+    auto ctx =
+        gs::runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
     if (!ctx) {
       LOG(ERROR) << "Error: " << ctx.error().ToString();
       RETURN_ERROR(ctx.error());
     }
     if (!read_txn.Commit()) {
       LOG(ERROR) << "Read transaction commit failed.";
-      RETURN_ERROR(Status::IntervalError("Read transaction commit failed."));
+      RETURN_ERROR(
+          gs::Status::IntervalError("Read transaction commit failed."));
     }
-    ret = runtime::Sink::sink(ctx.value(), gri);
-  } else if (access_mode == AccessMode::kInsert) {
+    ret = gs::runtime::Sink::sink(ctx.value(), gri);
+  } else if (access_mode == gs::AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
-    StorageTPInsertInterface gii(insert_txn);
-    auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer.get());
+    gs::StorageTPInsertInterface gii(insert_txn);
+    auto ctx =
+        gs::runtime::ParseAndExecuteQueryPipeline(gii, plan, timer.get());
     if (!ctx) {
       LOG(ERROR) << "Error: " << ctx.error().ToString();
       RETURN_ERROR(ctx.error());
     }
     if (!insert_txn.Commit()) {
       LOG(ERROR) << "Insert transaction commit failed.";
-      RETURN_ERROR(Status::IntervalError("Insert transaction commit failed."));
+      RETURN_ERROR(
+          gs::Status::IntervalError("Insert transaction commit failed."));
     }
     // TODO(zhanglei,lexiao): enable sink for insert interface
-  } else if (access_mode == AccessMode::kUpdate) {  // Update mode
+  } else if (access_mode == gs::AccessMode::kUpdate ||
+             access_mode == gs::AccessMode::kSchema) {  // Update mode
     auto update_txn = GetUpdateTransaction();
-    StorageTPUpdateInterface gui(update_txn);
-    gs::result<runtime::Context> ctx;
+    gs::StorageTPUpdateInterface gui(update_txn);
+    gs::result<gs::runtime::Context> ctx;
     if (plan.has_ddl_plan()) {  // UpdateSchema
-      ctx = runtime::ParseAndExecuteDDLPipeline(gui, plan.ddl_plan(),
-                                                timer.get());
+      ctx = gs::runtime::ParseAndExecuteDDLPipeline(gui, plan.ddl_plan(),
+                                                    timer.get());
     } else if (plan.has_admin_plan()) {  // UpdateAdmin
-      ctx = runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
-                                                  timer.get());
+      ctx = gs::runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
+                                                      timer.get());
     } else {  // UpdateData
-      ctx = runtime::ParseAndExecuteQueryPipeline(gui, plan, timer.get());
+      ctx = gs::runtime::ParseAndExecuteQueryPipeline(gui, plan, timer.get());
     }
     if (!ctx) {
       LOG(ERROR) << "Error: " << ctx.error().ToString();
@@ -125,9 +130,10 @@ result<results::CollectiveResults> NeugDBSession::Eval(
     }
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
-      RETURN_ERROR(Status::IntervalError("Update transaction commit failed."));
+      RETURN_ERROR(
+          gs::Status::IntervalError("Update transaction commit failed."));
     }
-    ret = runtime::Sink::sink(ctx.value(), gui);
+    ret = gs::runtime::Sink::sink(ctx.value(), gui);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported access mode for NeugDBSession::Eval" +
@@ -144,11 +150,11 @@ result<results::CollectiveResults> NeugDBSession::Eval(
 
 int NeugDBSession::SessionId() const { return thread_id_; }
 
-CompactTransaction NeugDBSession::GetCompactTransaction() {
-  timestamp_t ts = version_manager_->acquire_update_timestamp();
-  return CompactTransaction(graph_, logger_, *version_manager_,
-                            db_config_.compact_csr,
-                            db_config_.csr_reserve_ratio, ts);
+gs::CompactTransaction NeugDBSession::GetCompactTransaction() {
+  gs::timestamp_t ts = version_manager_->acquire_update_timestamp();
+  return gs::CompactTransaction(graph_, logger_, *version_manager_,
+                                db_config_.compact_csr,
+                                db_config_.csr_reserve_ratio, ts);
 }
 
 double NeugDBSession::eval_duration() const {
@@ -157,4 +163,4 @@ double NeugDBSession::eval_duration() const {
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
-}  // namespace gs
+}  // namespace server

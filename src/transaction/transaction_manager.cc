@@ -119,7 +119,7 @@ CompactTransaction TransactionManager::GetCompactTransaction(int thread_id) {
                             config_.csr_reserve_ratio, ts);
 }
 
-NeugDBSession& TransactionManager::GetSession(int thread_id) {
+server::NeugDBSession& TransactionManager::GetSession(int thread_id) {
   if (thread_id < 0 || thread_id >= thread_num_) {
     THROW_INTERNAL_EXCEPTION(
         "Thread id is out of range: " + std::to_string(thread_id) +
@@ -128,7 +128,8 @@ NeugDBSession& TransactionManager::GetSession(int thread_id) {
   return contexts_[thread_id].session;
 }
 
-const NeugDBSession& TransactionManager::GetSession(int thread_id) const {
+const server::NeugDBSession& TransactionManager::GetSession(
+    int thread_id) const {
   if (thread_id < 0 || thread_id >= thread_num_) {
     THROW_INTERNAL_EXCEPTION(
         "Thread id is out of range: " + std::to_string(thread_id) +

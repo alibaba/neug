@@ -143,8 +143,8 @@ class NeugDBService {
    */
   gs::CompactTransaction GetCompactTransaction(int thread_id = 0);
 
-  gs::NeugDBSession& GetSession(int thread_id);
-  const gs::NeugDBSession& GetSession(int thread_id) const;
+  NeugDBSession& GetSession(int thread_id);
+  const NeugDBSession& GetSession(int thread_id) const;
 
   /**
    * @brief Checks if the service has been initialized
@@ -208,7 +208,6 @@ class NeugDBService {
    * Creates a BrpcHttpHandlerManager and configures it with the provided
    * settings. Sets up HTTP endpoints for:
    * - /cypher (Cypher query execution)
-   * - /service_status (service health check)
    * - /schema (schema information)
    *
    * @param config Service configuration containing host, port, sharding

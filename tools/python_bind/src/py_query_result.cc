@@ -306,10 +306,10 @@ void PyQueryResult::initialize(pybind11::handle& m) {
            "other relevant information related to the query execution. "
            "If the query executed successfully, this message may indicate "
            "success or provide context about the results returned.")
-      .def("get_json_result", &PyQueryResult::get_json_result,
-           "Get the query result in json format.\n\n"
+      .def("get_bolt_response", &PyQueryResult::get_bolt_response,
+           "Get the query result in Bolt response format.\n\n"
            "Returns:\n"
-           "    str: Query result in json format.");
+           "    str: Query result in Bolt response format.");
 
   // PyDateTime_IMPORT is a macro that must be invoked before calling any
   // other cpython datetime macros. One could also invoke this in a separate
@@ -362,8 +362,8 @@ const std::string& PyQueryResult::status_message() const {
   return status_.error_message();
 }
 
-const std::string& PyQueryResult::get_json_result() const {
-  return json_result_;
+std::string PyQueryResult::get_bolt_response() const {
+  return proto_to_bolt_response(query_result_.get_result());
 }
 
 }  // namespace gs

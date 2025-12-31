@@ -25,8 +25,8 @@
 #include "neug/generated/proto/http_service/http_svc.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/neug_db.h"
-#include "neug/server/neug_db_session.h"
 #include "neug/server/neug_db_service.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/http_handler_manager.h"
@@ -146,14 +146,10 @@ class HttpServiceImpl : public HttpService {
       return false;
     }
     std::string query;
-    std::string format = "proto";
     if (document.HasMember("query") && document["query"].IsString()) {
       query = document["query"].GetString();
     }
 
-    if (document.HasMember("format") && document["format"].IsString()) {
-      format = document["format"].GetString();
-    }
     // TODO(zhanglei): support access_mode in http query
 
     gs::Status status;
@@ -174,7 +170,8 @@ class HttpServiceImpl : public HttpService {
     bool update_schema = false, update_statistics = false;
     // TODO(zhanglei): We should get access_mode from user input in the future.
     auto access_mode = gs::ParseAccessMode(physical_plan);
-    if (access_mode == gs::AccessMode::kUpdate) {
+    if (access_mode == gs::AccessMode::kUpdate ||
+        access_mode == gs::AccessMode::kSchema) {
       update_schema = true;
       update_statistics = true;
     } else if (access_mode == gs::AccessMode::kInsert) {
@@ -209,14 +206,7 @@ class HttpServiceImpl : public HttpService {
     }
     results::CollectiveResults& final_res = result.value();
     final_res.set_result_schema(plan_res.value().second);
-    if (format == "proto") {
-      final_res_str = final_res.SerializeAsString();
-    } else if (format == "json") {
-      final_res_str = gs::proto_to_bolt_response(final_res);
-    } else {
-      LOG(ERROR) << "Unknown output format: " << format;
-      return false;
-    }
+    final_res_str = final_res.SerializeAsString();
     return true;
   }
 

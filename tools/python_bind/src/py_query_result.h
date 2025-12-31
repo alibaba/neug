@@ -32,15 +32,8 @@ class PyQueryResult {
   PyQueryResult(QueryResult&& result)
       : status_(Status::OK()), query_result_(std::move(std::move(result))) {}
 
-  PyQueryResult(const std::string& result_str, std::string format = "proto")
-      : status_(Status::OK()) {
-    if (format == "json") {
-      json_result_ = result_str;
-    } else if (format == "proto") {
-      query_result_ = QueryResult::From(result_str);
-    } else {
-      LOG(ERROR) << "Unknown result format";
-    }
+  PyQueryResult(const std::string& result_str) : status_(Status::OK()) {
+    query_result_ = QueryResult::From(result_str);
   }
 
   PyQueryResult(const Status& status) : status_(status) {
@@ -65,12 +58,11 @@ class PyQueryResult {
 
   const std::string& status_message() const;
 
-  const std::string& get_json_result() const;
+  std::string get_bolt_response() const;
 
  private:
   Status status_;
   QueryResult query_result_;
-  std::string json_result_;
 };
 
 }  // namespace gs

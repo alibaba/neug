@@ -44,8 +44,7 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
    */
   std::unique_ptr<PyQueryResult> execute(
       const std::string& query_string,
-      const std::string& access_mode = "update",
-      const std::string& format = "proto");
+      const std::string& access_mode = "update");
 
   std::string get_schema() const;
 

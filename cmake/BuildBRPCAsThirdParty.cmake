@@ -58,7 +58,6 @@ function(build_brpc_as_third_party)
         target_compile_options(BUTIL_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull)
     endif()
     
-    set(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/include PARENT_SCOPE)
     set(BRPC_LIB brpc-static PARENT_SCOPE)
     set(BRPC_ALL_LIBS brpc-static BUTIL_LIB PROTO_LIB)
     foreach(lib ${BRPC_ALL_LIBS})

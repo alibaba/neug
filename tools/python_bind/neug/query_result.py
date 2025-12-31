@@ -141,3 +141,15 @@ class QueryResult(object):
             The schema of the result, which is a yaml string describing the structure of the result.
         """
         return self._result.get_result_schema()
+
+    def get_bolt_response(self) -> str:
+        """
+        Get the result in Bolt response format.
+        TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response.
+
+        Returns
+        -------
+        str
+            The result in Bolt response format.
+        """
+        return self._result.get_bolt_response()

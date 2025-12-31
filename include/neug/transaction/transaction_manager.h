@@ -59,8 +59,8 @@ struct SessionLocalContext {
   std::unique_ptr<IWalWriter> logger;
   char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
                  sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
-  NeugDBSession session;
-  char _padding2[(4096 - sizeof(NeugDBSession) % 4096) % 4096];
+  server::NeugDBSession session;
+  char _padding2[(4096 - sizeof(server::NeugDBSession) % 4096) % 4096];
 };
 
 /**
@@ -96,8 +96,8 @@ class TransactionManager {
 
   CompactTransaction GetCompactTransaction(int thread_id = 0);
 
-  NeugDBSession& GetSession(int thread_id = 0);
-  const NeugDBSession& GetSession(int thread_id = 0) const;
+  server::NeugDBSession& GetSession(int thread_id = 0);
+  const server::NeugDBSession& GetSession(int thread_id = 0) const;
 
  private:
   int thread_num_;

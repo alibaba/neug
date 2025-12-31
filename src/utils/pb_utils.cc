@@ -45,7 +45,7 @@ namespace gs {
 
 AccessMode ParseAccessMode(const physical::PhysicalPlan& plan) {
   if (plan.has_ddl_plan()) {
-    return AccessMode::kUpdate;
+    return AccessMode::kSchema;
   } else if (plan.has_query_plan()) {
     const auto& query_plan = plan.query_plan();
     if (query_plan.mode() ==

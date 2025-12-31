@@ -141,14 +141,11 @@ class Session:
         self._http_session = None
         self._http_adapter = None
 
-    def execute(self, query: str, format: str = "proto"):
+    def execute(self, query: str):
         """
         Execute a query on the NeuG server.
 
         :param query: The query string to be executed.
-        :param format: Output format of query result.
-            - 'proto': Return the query result in Protobuf format.
-            - 'json': Return the query result in a format compatible with Neo4j.
         :return: The result of the query execution.
         """
         if self._closed:
@@ -160,7 +157,7 @@ class Session:
             f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
         )
         try:
-            data = {"query": query, "format": format}
+            data = {"query": query}
             response = self._http_session.post(
                 self._query_endpoint, data=json.dumps(data), timeout=self.timeout
             )
@@ -174,22 +171,7 @@ class Session:
             logger.error(error_message)
             raise Exception(error_message)
 
-        if format == "proto":
-            return QueryResult(PyQueryResult(response._content))
-        elif format == "json":
-            # return as json string
-            try:
-                return response.json()
-            except ValueError as e:
-                error_message = (
-                    f"Failed to parse response as JSON: {e}. Response: {response.text}"
-                )
-                logger.error(error_message)
-                raise Exception(error_message)
-        else:
-            error_message = f"Failed to parse response. Unknown format: {format}"
-            logger.error(error_message)
-            raise Exception(error_message)
+        return QueryResult(PyQueryResult(response._content))
 
     def service_status(self):
         """

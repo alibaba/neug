@@ -82,11 +82,11 @@ gs::CompactTransaction NeugDBService::GetCompactTransaction(int thread_id) {
   return txn_manager_->GetCompactTransaction(thread_id);
 }
 
-gs::NeugDBSession& NeugDBService::GetSession(int thread_id) {
+NeugDBSession& NeugDBService::GetSession(int thread_id) {
   return txn_manager_->GetSession(thread_id);
 }
 
-const gs::NeugDBSession& NeugDBService::GetSession(int thread_id) const {
+const NeugDBSession& NeugDBService::GetSession(int thread_id) const {
   return txn_manager_->GetSession(thread_id);
 }
 

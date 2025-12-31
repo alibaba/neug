@@ -50,6 +50,10 @@ class RefColumnBase;
 class Schema;
 class AppManager;
 
+}  // namespace gs
+
+namespace server {
+
 /**
  * @brief Database session for executing queries and managing transactions.
  *
@@ -87,9 +91,10 @@ class AppManager;
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(PropertyGraph& graph, std::shared_ptr<IVersionManager> vm,
-                Allocator& alloc, IWalWriter& logger,
-                const NeugDBConfig& config_, int thread_id)
+  NeugDBSession(gs::PropertyGraph& graph,
+                std::shared_ptr<gs::IVersionManager> vm, gs::Allocator& alloc,
+                gs::IWalWriter& logger, const gs::NeugDBConfig& config_,
+                int thread_id)
       : graph_(graph),
         version_manager_(vm),
         alloc_(alloc),
@@ -100,21 +105,20 @@ class NeugDBSession {
         query_num_(0) {}
   ~NeugDBSession() {}
 
-  ReadTransaction GetReadTransaction() const;
+  gs::ReadTransaction GetReadTransaction() const;
 
-  InsertTransaction GetInsertTransaction();
+  gs::InsertTransaction GetInsertTransaction();
 
-  UpdateTransaction GetUpdateTransaction();
+  gs::UpdateTransaction GetUpdateTransaction();
 
-  CompactTransaction GetCompactTransaction();
+  gs::CompactTransaction GetCompactTransaction();
+  const gs::PropertyGraph& graph() const;
+  gs::PropertyGraph& graph();
 
-  const PropertyGraph& graph() const;
-  PropertyGraph& graph();
+  const gs::Schema& schema() const;
 
-  const Schema& schema() const;
-
-  result<results::CollectiveResults> Eval(
-      const physical::PhysicalPlan& physical_plan, AccessMode access_mode);
+  gs::result<results::CollectiveResults> Eval(
+      const physical::PhysicalPlan& physical_plan, gs::AccessMode access_mode);
 
   int SessionId() const;
 
@@ -123,15 +127,15 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  PropertyGraph& graph_;
-  std::shared_ptr<IVersionManager> version_manager_;
-  Allocator& alloc_;
-  IWalWriter& logger_;
-  const NeugDBConfig& db_config_;
+  gs::PropertyGraph& graph_;
+  std::shared_ptr<gs::IVersionManager> version_manager_;
+  gs::Allocator& alloc_;
+  gs::IWalWriter& logger_;
+  const gs::NeugDBConfig& db_config_;
   int thread_id_;
 
   std::atomic<int64_t> eval_duration_;
   std::atomic<int64_t> query_num_;
 };
 
-}  // namespace gs
+}  // namespace server

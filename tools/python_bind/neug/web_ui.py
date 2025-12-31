@@ -75,7 +75,7 @@ class NeugWebUI:
             query = request.get_data(as_text=True)
             logger.info(f"Received query: {query}")
             try:
-                return self.session.execute(query, format="json")
+                return self.session.execute(query).get_bolt_response()
             except Exception as e:
                 logger.error(f"Error executing query: {e}")
                 return str(e), 500
