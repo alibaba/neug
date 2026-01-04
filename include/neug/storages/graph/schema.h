@@ -101,8 +101,16 @@ struct VertexSchema {
 
   bool is_property_soft_deleted(const std::string& prop) const;
 
+  /**
+   * @brief Get the property index. If the property is a primary key, throw an
+   * exception.
+   */
   int32_t get_property_index(const std::string& prop) const;
 
+  /**
+   * @brief Get the property name by index. Primary key properties are not
+   * counted.
+   */
   std::string get_property_name(size_t index) const;
 
   bool has_property(const std::string& prop) const;

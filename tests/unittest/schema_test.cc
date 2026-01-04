@@ -549,10 +549,11 @@ TEST_F(SchemaDeleteTest, VertexSchemaPropertyIndex) {
   auto vertex_schema = schema_->get_vertex_schema(person_label);
 
   // Test getting property indices
-  EXPECT_EQ(vertex_schema->get_property_index("id"), 0);  // Primary key
-  EXPECT_EQ(vertex_schema->get_property_index("name"), 1);
-  EXPECT_EQ(vertex_schema->get_property_index("age"), 2);
-  EXPECT_EQ(vertex_schema->get_property_index("score"), 3);
+  EXPECT_THROW(vertex_schema->get_property_index("id"),
+               gs::exception::Exception);  // Primary key
+  EXPECT_EQ(vertex_schema->get_property_index("name"), 0);
+  EXPECT_EQ(vertex_schema->get_property_index("age"), 1);
+  EXPECT_EQ(vertex_schema->get_property_index("score"), 2);
   EXPECT_EQ(vertex_schema->get_property_index("nonexistent"), -1);
 
   // Soft delete "age" and check index behavior
@@ -561,8 +562,8 @@ TEST_F(SchemaDeleteTest, VertexSchemaPropertyIndex) {
 
   // Should return -1 for soft-deleted property
   EXPECT_EQ(vertex_schema->get_property_index("age"), -1);
-  EXPECT_EQ(vertex_schema->get_property_index("name"), 1);
-  EXPECT_EQ(vertex_schema->get_property_index("score"), 3);
+  EXPECT_EQ(vertex_schema->get_property_index("name"), 0);
+  EXPECT_EQ(vertex_schema->get_property_index("score"), 2);
 }
 
 // Test EdgeSchema::is_property_soft_deleted
@@ -851,4 +852,26 @@ TEST_F(SchemaDeleteTest, SchemaEdgeHasPropertyWithSoftDelete) {
 
   // edge_has_property should return true again
   EXPECT_TRUE(schema_->edge_has_property("person", "person", "knows", "since"));
+}
+
+TEST(VertexSchemaTest, TestVertexSchemaIndex) {
+  gs::VertexSchema schema("test",
+                          {
+                              gs::DataTypeId::kStringView,  // name
+                              gs::DataTypeId::kDouble       // score
+                          },
+                          {"name", "score"},
+                          VPk(gs::DataTypeId::kInt64, "id", 1),
+                          {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
+                           gs::StorageStrategy::kMem});
+  // id is at index 1
+
+  EXPECT_THROW(schema.get_property_index("id"), gs::exception::Exception);
+  EXPECT_EQ(schema.get_property_index("name"), 0);
+  EXPECT_EQ(schema.get_property_index("score"), 1);
+  EXPECT_EQ(schema.get_property_index("nonexistent"), -1);
+
+  EXPECT_EQ(schema.get_property_name(0), "name");
+  EXPECT_EQ(schema.get_property_name(1), "score");
+  EXPECT_THROW(schema.get_property_name(2), gs::exception::Exception);
 }

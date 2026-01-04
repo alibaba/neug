@@ -193,7 +193,8 @@ bool VertexSchema::has_property(const std::string& prop) const {
 int32_t VertexSchema::get_property_index(const std::string& prop) const {
   assert(primary_keys.size() == 1);
   if (std::get<1>(primary_keys[0]) == prop) {
-    return std::get<2>(primary_keys[0]);
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Primary key property does not have an index: " + prop);
   }
   auto it = std::find(property_names.begin(), property_names.end(), prop);
   if (it != property_names.end()) {
@@ -202,33 +203,17 @@ int32_t VertexSchema::get_property_index(const std::string& prop) const {
     if (vprop_soft_deleted[idx]) {
       return -1;
     }
-    auto pk_idx = std::get<2>(primary_keys[0]);
-    return static_cast<int32_t>(idx) + (idx >= pk_idx ? 1 : 0);
+    return static_cast<int32_t>(idx);
   }
   return -1;
 }
 
 std::string VertexSchema::get_property_name(size_t index) const {
-  assert(primary_keys.size() == 1);
-  size_t pk_idx = std::get<2>(primary_keys[0]);
-  if (index == pk_idx) {
-    return std::get<1>(primary_keys[0]);
-  } else if (index < pk_idx) {
-    if (index < property_names.size()) {
-      return property_names[index];
-    } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property index: " +
-                                       std::to_string(index));
-    }
-  } else {
-    size_t adj_index = index - 1;
-    if (adj_index < property_names.size()) {
-      return property_names[adj_index];
-    } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION("Invalid property index: " +
-                                       std::to_string(index));
-    }
+  if (index >= property_names.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Property index out of range: " +
+                                     std::to_string(index));
   }
+  return property_names[index];
 }
 
 bool VertexSchema::is_pk_same(const VertexSchema& lhs,
