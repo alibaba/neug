@@ -468,3 +468,289 @@ class TestLoadFrom:
         assert isinstance(min_age, int), "min_age should be integer"
         assert isinstance(max_age, int), "max_age should be integer"
         assert min_age <= max_age, "min_age should be less than or equal to max_age"
+
+
+class TestCopyFrom:
+    """Test cases for COPY FROM functionality with schema creation and data verification."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path):
+        """Setup test database."""
+        self.db_dir = str(tmp_path / "test_copy_from_db")
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+        self.db = Database(db_path=self.db_dir, mode="w")
+        self.conn = self.db.connect()
+        self.tinysnb_path = get_tinysnb_dataset_path()
+        yield
+        self.conn.close()
+        self.db.close()
+        shutil.rmtree(self.db_dir, ignore_errors=True)
+
+    def test_copy_from_node_basic(self):
+        """Test basic COPY FROM for node table."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        # Create schema
+        create_schema = """
+        CREATE NODE TABLE person (
+            ID INT64,
+            fName STRING,
+            gender INT64,
+            isStudent BOOLEAN,
+            isWorker BOOLEAN,
+            age INT64,
+            eyeSight DOUBLE,
+            birthdate DATE,
+            registerTime TIMESTAMP,
+            lastJobDuration INTERVAL,
+            workedHours STRING,
+            usedNames STRING,
+            courseScoresPerTerm STRING,
+            grades STRING,
+            height FLOAT,
+            u STRING,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_schema)
+
+        # Copy data from CSV
+        copy_query = f'COPY person FROM "{csv_path}" (header=true, delimiter=",")'
+        self.conn.execute(copy_query)
+
+        # Verify data with MATCH query
+        query = "MATCH (p:person) RETURN p.ID, p.fName, p.age ORDER BY p.ID LIMIT 5"
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) > 0, "Should have loaded at least one person"
+        # Verify first record (ID=0, Alice)
+        assert records[0][0] == 0, "First person ID should be 0"
+        assert records[0][1] == "Alice", "First person name should be Alice"
+        assert records[0][2] == 35, "Alice's age should be 35"
+
+    def test_copy_from_node_with_column_remapping(self):
+        """Test COPY FROM for node table with column remapping when CSV order differs from schema."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        # Create schema with different property order than CSV
+        # CSV order: ID, fName, gender, isStudent, isWorker, age, ...
+        # Schema order: ID, age, fName, gender, ...
+        create_schema = """
+        CREATE NODE TABLE person_remap (
+            ID INT64,
+            age INT64,
+            fName STRING,
+            gender INT64,
+            isStudent BOOLEAN,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_schema)
+
+        # Copy data with column remapping using LOAD FROM subquery
+        # CSV has: ID, fName, gender, isStudent, isWorker, age
+        # We want: ID, age, fName, gender, isStudent
+        copy_query = f"""
+        COPY person_remap FROM (
+            LOAD FROM "{csv_path}" (header=true, delimiter=",")
+            RETURN ID, age, fName, gender, isStudent
+        )
+        """
+        self.conn.execute(copy_query)
+
+        # Verify data with MATCH query
+        query = "MATCH (p:person_remap) RETURN p.ID, p.age, p.fName, p.gender ORDER BY p.ID LIMIT 3"
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) >= 3, "Should have loaded at least 3 persons"
+        # Verify first record (ID=0, Alice, age=35)
+        assert records[0][0] == 0, "First person ID should be 0"
+        assert records[0][1] == 35, "Alice's age should be 35"
+        assert records[0][2] == "Alice", "First person name should be Alice"
+        assert records[0][3] == 1, "Alice's gender should be 1"
+
+    def test_copy_from_edge_basic(self):
+        """Test basic COPY FROM for edge/relationship table."""
+        person_csv = os.path.join(self.tinysnb_path, "vPerson.csv")
+        meets_csv = os.path.join(self.tinysnb_path, "eMeets.csv")
+        if not os.path.exists(person_csv) or not os.path.exists(meets_csv):
+            pytest.skip("CSV files not found")
+
+        # Create node table schema
+        create_person_schema = """
+        CREATE NODE TABLE person (
+            ID INT64,
+            fName STRING,
+            gender INT64,
+            age INT64,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_person_schema)
+
+        # Create edge table schema for meets
+        # CSV: from, to, location, times, data
+        create_meets_schema = """
+        CREATE REL TABLE meets (
+            FROM person TO person,
+            location STRING,
+            times INT64,
+            data STRING
+        )
+        """
+        self.conn.execute(create_meets_schema)
+
+        # Copy person nodes first
+        copy_person = f"""
+        COPY person FROM (
+            LOAD FROM "{person_csv}" (header=true, delimiter=",")
+            RETURN ID, fName, gender, age
+        )
+        """
+        self.conn.execute(copy_person)
+
+        # Copy meets edges
+        copy_meets = f'COPY meets FROM "{meets_csv}" (from="person", to="person", header=true, delimiter=",")'
+        self.conn.execute(copy_meets)
+
+        # Verify data with MATCH query
+        query = """
+        MATCH (a:person)-[m:meets]->(b:person)
+        RETURN a.ID, a.fName, b.ID, b.fName, m.times, m.location
+        ORDER BY a.ID, b.ID
+        LIMIT 5
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) > 0, "Should have loaded at least one meets relationship"
+        # Verify first relationship (0->2, Alice meets Bob)
+        assert records[0][0] == 0, "Source person ID should be 0"
+        assert records[0][1] == "Alice", "Source person name should be Alice"
+        assert records[0][2] == 2, "Target person ID should be 2"
+        assert records[0][3] == "Bob", "Target person name should be Bob"
+        assert records[0][4] == 5, "Times should be 5"
+        assert records[0][5] is not None, "Location should not be None"
+
+    def test_copy_from_edge_with_column_remapping(self):
+        """Test COPY FROM for edge table with column remapping."""
+        person_csv = os.path.join(self.tinysnb_path, "vPerson.csv")
+        meets_csv = os.path.join(self.tinysnb_path, "eMeets.csv")
+        if not os.path.exists(person_csv) or not os.path.exists(meets_csv):
+            pytest.skip("CSV files not found")
+
+        # Create node table schema
+        create_person_schema = """
+        CREATE NODE TABLE person (
+            ID INT64,
+            fName STRING,
+            gender INT64,
+            age INT64,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_person_schema)
+
+        # Create edge table schema
+        # CSV order: from, to, location, times, data
+        # Schema order: from, to, times, location, data
+        create_meets_schema = """
+        CREATE REL TABLE meets (
+            FROM person TO person,
+            times INT64,
+            location STRING,
+            data STRING
+        )
+        """
+        self.conn.execute(create_meets_schema)
+
+        # Copy person nodes first
+        copy_person = f"""
+        COPY person FROM (
+            LOAD FROM "{person_csv}" (header=true, delimiter=",")
+            RETURN ID, fName, gender, age
+        )
+        """
+        self.conn.execute(copy_person)
+
+        # Copy meets edges with column remapping
+        # CSV: from, to, location, times, data
+        # We want: from, to, times, location, data
+        copy_meets = f"""
+        COPY meets FROM (
+            LOAD FROM "{meets_csv}" (header=true, delimiter=",")
+            RETURN from, to, times, location, data
+        )
+        """
+        self.conn.execute(copy_meets)
+
+        # Verify data with MATCH query
+        query = """
+        MATCH (a:person)-[m:meets]->(b:person)
+        RETURN a.ID, b.ID, m.times, m.location
+        ORDER BY a.ID, b.ID
+        LIMIT 3
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) > 0, "Should have loaded at least one meets relationship"
+        # Verify first relationship (0->2)
+        assert records[0][0] == 0, "Source person ID should be 0"
+        assert records[0][1] == 2, "Target person ID should be 2"
+        assert records[0][2] == 5, "Times should be 5"
+        assert records[0][3] is not None, "Location should not be None"
+
+    def test_copy_from_node_reordered_all_columns(self):
+        """Test COPY FROM with all columns reordered (complete remapping)."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        # Create schema with properties in different order than CSV
+        # CSV: ID, fName, gender, isStudent, isWorker, age, ...
+        # Schema: ID, age, fName, gender, isStudent, isWorker, ...
+        create_schema = """
+        CREATE NODE TABLE person_reordered (
+            ID INT64,
+            age INT64,
+            fName STRING,
+            gender INT64,
+            isStudent BOOLEAN,
+            isWorker BOOLEAN,
+            eyeSight DOUBLE,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_schema)
+
+        # Copy with complete column remapping
+        copy_query = f"""
+        COPY person_reordered FROM (
+            LOAD FROM "{csv_path}" (header=true, delimiter=",")
+            RETURN ID, age, fName, gender, isStudent, isWorker, eyeSight
+        )
+        """
+        self.conn.execute(copy_query)
+
+        # Verify data
+        query = """
+        MATCH (p:person_reordered)
+        RETURN p.ID, p.age, p.fName, p.gender, p.isStudent
+        ORDER BY p.ID
+        LIMIT 3
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) >= 3, "Should have loaded at least 3 persons"
+        # Verify data integrity
+        assert records[0][0] == 0 and records[0][2] == "Alice" and records[0][1] == 35
+        assert records[1][0] == 2 and records[1][2] == "Bob" and records[1][1] == 30
+        assert records[2][0] == 3 and records[2][2] == "Carol" and records[2][1] == 45

@@ -209,12 +209,9 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindQueryScanSource(
   auto boundStatement = bind(*querySource->statement);
   auto columns = boundStatement->getStatementResult()->getColumns();
   if (columns.size() != columnNames.size()) {
-    THROW_BINDER_EXCEPTION(
+    THROW_SCHEMA_MISMATCH(
         stringFormat("Query returns {} columns but {} columns were expected.",
                      columns.size(), columnNames.size()));
-  }
-  for (auto i = 0u; i < columns.size(); ++i) {
-    columns[i]->setAlias(columnNames[i]);
   }
   auto scanInfo = BoundQueryScanSourceInfo(bindParsingOptions(options));
   return std::make_unique<BoundQueryScanSource>(std::move(boundStatement),

@@ -1189,15 +1189,47 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
                                       ::physical::QueryPlan* plan) {
   auto info = copyFrom.getInfo();
   auto tableEntry = info->tableEntry;
+  auto columnExprs = binder::expression_vector();
+  for (auto column : info->columnExprs) {
+    if (!skipColumn(column->toString())) {
+      columnExprs.push_back(column);
+    }
+  }
+  auto columnIdMap = std::vector<common::alias_id_t>();
+  if (!copyFrom.getChildren().empty()) {
+    auto child = copyFrom.getChild(0);
+    auto expression = child->getSchema()->getExpressionsInScope();
+    if (expression.size() != columnExprs.size()) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Mismatch between number of output columns (" +
+          std::to_string(expression.size()) +
+          ") and number of input columns (" +
+          std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
+    }
+    for (auto& expr : expression) {
+      int aliasId = aliasManager->getAliasId(expr->getUniqueName());
+      if (aliasId == DEFAULT_ALIAS_ID) {
+        THROW_EXCEPTION_WITH_FILE_LINE("Invalid alias id in column: " +
+                                       expr->toString());
+      }
+      columnIdMap.push_back(aliasId);
+    }
+  } else {
+    int columnId = 0;
+    for (auto& column : columnExprs) {
+      columnIdMap.push_back(columnId++);
+    }
+  }
+
   switch (tableEntry->getTableType()) {
   case common::TableType::NODE: {
     auto nodeEntry = tableEntry->ptrCast<catalog::NodeTableCatalogEntry>();
-    convertBatchInsertVertex(nodeEntry, info->columnExprs, plan);
+    convertBatchInsertVertex(nodeEntry, columnExprs, columnIdMap, plan);
     break;
   }
   case common::TableType::REL: {
     auto relEntry = tableEntry->ptrCast<catalog::GRelTableCatalogEntry>();
-    convertBatchInsertEdge(relEntry, info->columnExprs, plan);
+    convertBatchInsertEdge(relEntry, columnExprs, columnIdMap, plan);
     break;
   }
   default: {
@@ -1210,27 +1242,32 @@ void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
 
 void GQueryConvertor::convertBatchInsertEdge(
     catalog::GRelTableCatalogEntry* relEntry,
-    const binder::expression_vector& columnExprs, ::physical::QueryPlan* plan) {
+    const binder::expression_vector& columnExprs,
+    const std::vector<common::alias_id_t>& columnIdMap,
+    ::physical::QueryPlan* plan) {
+  if (columnExprs.size() != columnIdMap.size()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Mismatch between number of output columns (" +
+        std::to_string(columnIdMap.size()) + ") and number of input columns (" +
+        std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
+  }
   gs::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
                                     relEntry->getSrcTableID(),
                                     relEntry->getDstTableID());
   auto batchEdge = std::make_unique<::physical::BatchInsertEdge>();
   batchEdge->set_allocated_edge_type(convertToEdgeType(edgeLabelId).release());
-  common::alias_id_t columnId = 0;
+  if (columnIdMap.size() < 2) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "At least two columns are required for edge insertion");
+  }
   auto srcColumn = bindPKExpr(relEntry->getSrcTableID());
-  auto srcPropMap = convertPropMapping(*srcColumn, columnId++);
+  auto srcPropMap = convertPropMapping(*srcColumn, columnIdMap[0]);
   batchEdge->mutable_property_mappings()->AddAllocated(srcPropMap.release());
   auto dstColumn = bindPKExpr(relEntry->getDstTableID());
-  auto dstPropMap = convertPropMapping(*dstColumn, columnId++);
+  auto dstPropMap = convertPropMapping(*dstColumn, columnIdMap[1]);
   batchEdge->mutable_property_mappings()->AddAllocated(dstPropMap.release());
-  for (auto& column : columnExprs) {
-    if (column->toString() == "from" || column->toString() == "to") {
-      continue;
-    }
-    if (skipColumn(column->toString())) {
-      continue;  // skip internal columns
-    }
-    auto propMap = convertPropMapping(*column, columnId++);
+  for (size_t i = 2; i < columnIdMap.size(); ++i) {
+    auto propMap = convertPropMapping(*columnExprs[i], columnIdMap[i]);
     batchEdge->mutable_property_mappings()->AddAllocated(propMap.release());
   }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -1709,19 +1746,25 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
 
 void GQueryConvertor::convertBatchInsertVertex(
     catalog::NodeTableCatalogEntry* nodeEntry,
-    const binder::expression_vector& columnExprs, ::physical::QueryPlan* plan) {
+    const binder::expression_vector& columnExprs,
+    const std::vector<common::alias_id_t>& columnIdMap,
+    ::physical::QueryPlan* plan) {
+  if (columnExprs.size() != columnIdMap.size()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Mismatch between number of output columns (" +
+        std::to_string(columnIdMap.size()) + ") and number of input columns (" +
+        std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
+  }
   auto labelId = nodeEntry->getTableID();
   auto labelPB = std::make_unique<::common::NameOrId>();
   labelPB->set_id(labelId);
   auto batchVertex = std::make_unique<::physical::BatchInsertVertex>();
   batchVertex->set_allocated_vertex_type(labelPB.release());
-  common::alias_id_t columnId = 0;
-  for (auto column : columnExprs) {
-    if (skipColumn(column->toString())) {
-      continue;  // skip internal columns
-    }
+  for (size_t i = 0; i < columnExprs.size(); ++i) {
+    auto& column = columnExprs[i];
+    auto columnId = columnIdMap[i];
     batchVertex->mutable_property_mappings()->AddAllocated(
-        convertPropMapping(*column, columnId++).release());
+        convertPropMapping(*column, columnId).release());
   }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
