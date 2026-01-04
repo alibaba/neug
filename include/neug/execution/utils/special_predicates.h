@@ -539,9 +539,6 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     if (!(op1.item_case() == common::ExprOpr::kLogical)) {
       return false;
     }
-    if (op1.logical() != common::Logical::GE) {
-      return false;
-    }
 
     const common::ExprOpr& op2 = expr.operators(2);
     if (!op2.has_param()) {
@@ -586,9 +583,6 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     if (!(op5.item_case() == common::ExprOpr::kLogical)) {
       return false;
     }
-    if (op5.logical() != common::Logical::LT) {
-      return false;
-    }
     const common::ExprOpr& op6 = expr.operators(6);
     if (!op6.has_param()) {
       return false;
@@ -598,6 +592,14 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     }
     if (!(op6.param().data_type().type_case() ==
           common::IrDataType::TypeCase::kDataType)) {
+      return false;
+    }
+    if (op1.logical() == common::Logical::LT &&
+        op5.logical() == common::Logical::GE) {
+      std::swap(config.param_names[0], config.param_names[1]);
+    } else if (op1.logical() == common::Logical::GE &&
+               op5.logical() == common::Logical::LT) {
+    } else {
       return false;
     }
     config.param_names.push_back(op6.param().name());
