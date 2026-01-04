@@ -753,6 +753,10 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
   }
   MSEdgeColumnBuilder builder;
   std::vector<size_t> offsets;
+  std::vector<bool> matched;
+  if constexpr (is_optional) {
+    matched.resize(vertices.size(), false);
+  }
   for (auto& label_dir : label_dirs) {
     label_t nbr_label = std::get<0>(label_dir);
     label_t edge_label = std::get<1>(label_dir);
@@ -772,8 +776,12 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v == std::numeric_limits<vid_t>::max()) {
-            builder.push_back_null();
-            offsets.push_back(idx);
+            if (!matched[idx]) {
+              builder.push_back_null();
+              offsets.push_back(idx);
+              matched[idx] = true;
+            }
+
             continue;
           }
           size_t old_size = offsets.size();
@@ -785,9 +793,8 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
                                   it.get_data_ptr());
             offsets.push_back(idx);
           }
-          if (offsets.size() == old_size) {
-            builder.push_back_null();
-            offsets.push_back(idx);
+          if (offsets.size() != old_size) {
+            matched[idx] = true;
           }
         } else {
           auto es = view.get_edges(v);
@@ -805,8 +812,11 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
         auto v = vertices[idx];
         if constexpr (is_optional) {
           if (v == std::numeric_limits<vid_t>::max()) {
-            builder.push_back_null();
-            offsets.push_back(idx);
+            if (!matched[idx]) {
+              builder.push_back_null();
+              offsets.push_back(idx);
+              matched[idx] = true;
+            }
             continue;
           }
           size_t old_size = offsets.size();
@@ -821,9 +831,8 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
               offsets.push_back(idx);
             }
           }
-          if (offsets.size() == old_size) {
-            builder.push_back_null();
-            offsets.push_back(idx);
+          if (offsets.size() != old_size) {
+            matched[idx] = true;
           }
         } else {
           auto es = view.get_edges(v);
@@ -841,6 +850,14 @@ expand_edge_impl(const StorageReadInterface& graph, const SLVertexColumn& input,
       }
     }
   }
+  if constexpr (is_optional) {
+    for (size_t i = 0; i < matched.size(); ++i) {
+      if (!matched[i]) {
+        builder.push_back_null();
+        offsets.push_back(i);
+      }
+    }
+  }
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
@@ -854,6 +871,10 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   MSEdgeColumnBuilder builder;
   std::vector<size_t> offsets;
+  std::vector<bool> matched;
+  if constexpr (is_optional) {
+    matched.resize(input.seg_num(), false);
+  }
   size_t input_seg_num = input.seg_num();
   size_t seg_start_idx = 0;
   for (size_t k = 0; k < input_seg_num; ++k) {
@@ -878,8 +899,11 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
         for (auto v : vertices) {
           if constexpr (is_optional) {
             if (v == std::numeric_limits<vid_t>::max()) {
-              builder.push_back_null();
-              offsets.push_back(vertex_idx);
+              if (!matched[vertex_idx]) {
+                builder.push_back_null();
+                offsets.push_back(vertex_idx);
+                matched[vertex_idx] = true;
+              }
               ++vertex_idx;
               continue;
             }
@@ -892,9 +916,8 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
                                     it.get_data_ptr());
               offsets.push_back(vertex_idx);
             }
-            if (offsets.size() == old_size) {
-              builder.push_back_null();
-              offsets.push_back(vertex_idx);
+            if (offsets.size() != old_size) {
+              matched[vertex_idx] = true;
             }
           } else {
             auto es = view.get_edges(v);
@@ -912,8 +935,11 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
         for (auto v : vertices) {
           if constexpr (is_optional) {
             if (v == std::numeric_limits<vid_t>::max()) {
-              builder.push_back_null();
-              offsets.push_back(vertex_idx);
+              if (!matched[vertex_idx]) {
+                builder.push_back_null();
+                offsets.push_back(vertex_idx);
+                matched[vertex_idx] = true;
+              }
               ++vertex_idx;
               continue;
             }
@@ -929,9 +955,8 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
                 offsets.push_back(vertex_idx);
               }
             }
-            if (offsets.size() == old_size) {
-              builder.push_back_null();
-              offsets.push_back(vertex_idx);
+            if (offsets.size() != old_size) {
+              matched[vertex_idx] = true;
             }
           } else {
             auto es = view.get_edges(v);
@@ -951,6 +976,12 @@ expand_edge_impl(const StorageReadInterface& graph, const MSVertexColumn& input,
       }
     }
     seg_start_idx += vertices.size();
+  }
+  for (size_t i = 0; i < matched.size(); ++i) {
+    if (!matched[i]) {
+      builder.push_back_null();
+      offsets.push_back(i);
+    }
   }
   return std::make_pair(builder.finish(), std::move(offsets));
 }
