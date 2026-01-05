@@ -63,6 +63,9 @@ class TestNeug(BaseTest):
         if isinstance(val, dict):
             return val
         if isinstance(val, str):
+            # if vertex is none, return an empty dict
+            if val == "":
+                return {}
             try:
                 return yaml.safe_load(val)
             except Exception:
@@ -75,11 +78,14 @@ class TestNeug(BaseTest):
             # neug edge is a dict
             return d
         if isinstance(val, str):
+            # if edge is none, return an empty dict
             # kuzu edge is a string that contains the edge part as a dict
+            if val == "":
+                return {}
             m = re.search(r"\{.*\}", val)
             if m:
                 return self._parse_possible_dict(m.group(0))
-        return {}
+        return val
 
     def _filter_vertex_props(self, d):
         # only keep _LABEL and properties for comparison
@@ -148,11 +154,14 @@ class TestNeug(BaseTest):
                     # as they represent with inner IDs, so we simplify the edge comparison.
                     d1 = self._extract_edge_dict(v1)
                     d2 = self._extract_edge_dict(v2)
-                    d1 = self._filter_edge_props(d1)
-                    d2 = self._filter_edge_props(d2)
-                    if not self._dict_equal(d1, d2, float_tol):
+                    if isinstance(d1, dict) and isinstance(d2, dict):
+                        d1 = self._filter_edge_props(d1)
+                        d2 = self._filter_edge_props(d2)
+                        if not self._dict_equal(d1, d2, float_tol):
+                            return False
+                        continue
+                    else:
                         return False
-                    continue
                 else:
                     if not self._value_equal(v1, v2, float_tol):
                         return False
