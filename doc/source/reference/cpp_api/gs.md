@@ -17290,7 +17290,6 @@ A prepared statement is a parameterized query which can avoid planning the same 
 - `set_hugepage_prefered(bool val)`
 - `open(const std::string &filename, bool sync_to_file=fa...`
 - `open_with_hugepages(const std::string &filename, size_t capacity=0)`
-- `dump_without_close(const std::string &filename)`
 - ... and 14 more methods
 
 
@@ -17311,7 +17310,6 @@ A prepared statement is a parameterized query which can avoid planning the same 
 - `open_with_hugepages(const std::string &filename)`
 - `touch(const std::string &filename)`
 - `dump(const std::string &filename)`
-- `dump_without_close(const std::string &filename)`
 - ... and 12 more methods
 
 
