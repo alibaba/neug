@@ -1918,20 +1918,18 @@ def test_shortest_path():
     db.close()
 
 
-# test properties
-# todo(engine): Error thrown
-# def test_properties():
-#     db_dir = "/tmp/ldbc"
-#     db = Database(db_path=db_dir, mode="r")
-#     conn = db.connect()
-#     submit_cypher_query(
-#         conn=conn,
-#         query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
-#         " Return properties(nodes(k), 'firstName') as n1, properties(rels(k),'creationDate') as n2 LIMIT 1;",
-#         lambda_func=ensure_result_cnt_gt_zero,
-#     )
-#     conn.close()
-#     db.close()
+def test_properties():
+    db_dir = "/tmp/ldbc"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    submit_cypher_query(
+        conn=conn,
+        query="Match (n:PERSON {id: 933})-[k:KNOWS*1..3]-(m:PERSON {id: 2199023256668})"
+        " Return properties(nodes(k), 'firstName') as n1, properties(rels(k),'creationDate') as n2 LIMIT 1;",
+        lambda_func=ensure_result_cnt_gt_zero,
+    )
+    conn.close()
+    db.close()
 
 
 def test_delete_edges():
