@@ -820,6 +820,52 @@ TEST_F(EdgeColumnTest, ForeachEdgeBDSL) {
   EXPECT_EQ(collected[0], bdsl_col->get_edge(0));
 }
 
+TEST_F(EdgeColumnTest, ForeachEdgeSDML) {
+  LabelTriplet label0 = {2, 3, 2};
+  LabelTriplet label1 = {2, 3, 3};
+  std::vector<LabelTriplet> labels = {label0, label1};
+  SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
+  builder.push_back_opt(label0, kVid0, kVid1, nullptr);
+  builder.push_back_opt(label1, kVid1, kVid2, nullptr);
+  auto col_ptr = builder.finish();
+  std::shared_ptr<SDMLEdgeColumn> sdml_col =
+      std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
+
+  std::vector<EdgeRecord> collected;
+  foreach_edge(*sdml_col,
+               [&](size_t idx, const LabelTriplet& label, Direction dir,
+                   vid_t src, vid_t dst, const void* prop) {
+                 EdgeRecord e = EdgeRecord{label, src, dst, prop, dir};
+                 collected.push_back(e);
+               });
+
+  ASSERT_EQ(collected.size(), 2);
+  EXPECT_EQ(collected[0], sdml_col->get_edge(0));
+}
+
+TEST_F(EdgeColumnTest, ForeachEdgeBDML) {
+  LabelTriplet label0 = {2, 3, 2};
+  LabelTriplet label1 = {2, 3, 3};
+  std::vector<LabelTriplet> labels = {label0, label1};
+  BDMLEdgeColumnBuilder builder(labels);
+  builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
+  builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
+  auto col_ptr = builder.finish();
+  std::shared_ptr<BDMLEdgeColumn> bdml_col =
+      std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
+
+  std::vector<EdgeRecord> collected;
+  foreach_edge(*bdml_col,
+               [&](size_t idx, const LabelTriplet& label, Direction dir,
+                   vid_t src, vid_t dst, const void* prop) {
+                 EdgeRecord e = EdgeRecord{label, src, dst, prop, dir};
+                 collected.push_back(e);
+               });
+
+  ASSERT_EQ(collected.size(), 2);
+  EXPECT_EQ(collected[0], bdml_col->get_edge(0));
+}
+
 TEST_F(EdgeColumnTest, ForeachEdgeFilterSDSL) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
@@ -871,6 +917,63 @@ TEST_F(EdgeColumnTest, ForeachEdgeFilterBDSL) {
   // Should only have out-edge
   ASSERT_EQ(collected.size(), 1);
   EXPECT_EQ(collected[0].dir, Direction::kOut);
+}
+
+TEST_F(EdgeColumnTest, ForeachEdgeFilterSDML) {
+  LabelTriplet label0 = {2, 3, 2};
+  LabelTriplet label1 = {2, 3, 3};
+  std::vector<LabelTriplet> labels = {label0, label1};
+  SDMLEdgeColumnBuilder builder(Direction::kOut, labels);
+  builder.push_back_opt(label0, kVid0, kVid1, nullptr);
+  builder.push_back_opt(label1, kVid1, kVid2, nullptr);
+  auto col_ptr = builder.finish();
+  std::shared_ptr<SDMLEdgeColumn> sdml_col =
+      std::dynamic_pointer_cast<SDMLEdgeColumn>(col_ptr);
+
+  std::vector<EdgeRecord> collected;
+  // Filter for different label -> should include all
+  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+      {label1, Direction::kOut}};
+  foreach_edge(
+      *sdml_col,
+      [&](size_t idx, const LabelTriplet& label, Direction dir, vid_t src,
+          vid_t dst, const void* prop) {
+        EdgeRecord e = EdgeRecord{label, src, dst, prop, dir};
+        collected.push_back(e);
+      },
+      filter);
+
+  ASSERT_EQ(collected.size(), 1);
+  EXPECT_EQ(collected[0], sdml_col->get_edge(0));
+}
+
+TEST_F(EdgeColumnTest, ForeachEdgeFilterBDML) {
+  LabelTriplet label0 = {2, 3, 2};
+  LabelTriplet label1 = {2, 3, 3};
+  std::vector<LabelTriplet> labels = {label0, label1};
+  BDMLEdgeColumnBuilder builder(labels);
+  builder.push_back_opt(label0, kVid0, kVid1, nullptr, Direction::kOut);
+  builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
+  auto col_ptr = builder.finish();
+  std::shared_ptr<BDMLEdgeColumn> bdml_col =
+      std::dynamic_pointer_cast<BDMLEdgeColumn>(col_ptr);
+
+  std::vector<EdgeRecord> collected;
+  // Filter to exclude in-edges
+  std::vector<std::pair<LabelTriplet, Direction>> filter = {
+      {label0, Direction::kOut}};
+  foreach_edge(
+      *bdml_col,
+      [&](size_t idx, const LabelTriplet& label, Direction dir, vid_t src,
+          vid_t dst, const void* prop) {
+        EdgeRecord e = EdgeRecord{label, src, dst, prop, dir};
+        collected.push_back(e);
+      },
+      filter);
+
+  // Should only have out-edge
+  ASSERT_EQ(collected.size(), 1);
+  EXPECT_EQ(collected[0].dir, Direction::kIn);
 }
 
 TEST_F(EdgeColumnTest, SDSLEdgeColumnDedup) {

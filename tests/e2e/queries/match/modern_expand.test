@@ -1,0 +1,73 @@
+-DATASET CSV modern_graph
+
+--
+
+-CASE ModernMatchOneHop
+
+-LOG BDirSingleLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=1 MATCH (p)-[e:knows]-(other:person) where e.weight>0 return other.name;
+---- 2
+vadas
+josh
+
+-LOG ODirSingleLabel
+-STATEMENT MATCH (v:person)-[e:knows]->(:person) RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG IDirSingleLabel
+-STATEMENT MATCH (v:person)<-[e:knows]-(:person) RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG BDirSingleLabelPredicate
+-STATEMENT MATCH (v:person)-[e:knows]-(u:person) WHERE v.id>0 and u.id>0 RETURN e.weight;
+---- 4
+0.5
+1
+0.5
+1
+
+-LOG ODirSingleLabelPredicate
+-STATEMENT MATCH (v:person)-[e:knows]->(u:person) WHERE v.id>0 and u.id>0 RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG IDirSingleLabelPredicate
+-STATEMENT MATCH (v:person)<-[e:knows]-(u:person) WHERE v.id>0 and u.id>0 RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG BDirMultiLabel
+-STATEMENT MATCH (v)-[e]-(u) RETURN count(e);
+---- 1
+12
+
+-LOG ODirMultiLabel
+-STATEMENT MATCH (v)-[e]->(u) RETURN count(e);
+---- 1
+6
+
+-LOG IDirMultiLabel
+-STATEMENT MATCH (v)<-[e]-(u) where v.id=2 RETURN count(e);
+---- 1
+1
+
+-LOG BDirMultiLabelPredicate
+-STATEMENT MATCH (v)-[e]-(u) WHERE v.id>0 and u.id>0 RETURN count(e);
+---- 1
+12
+
+-LOG ODirMultiLabelPredicate
+-STATEMENT MATCH (v)-[e]->(u) WHERE v.id>0 and u.id>0 RETURN count(e);
+---- 1
+6
+
+-LOG IDirMultiLabelPredicate
+-STATEMENT MATCH (v)<-[e]-(u) WHERE v.id>0 and u.id>0 RETURN count(e);
+---- 1
+6

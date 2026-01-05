@@ -1,0 +1,74 @@
+-DATASET CSV modern_graph
+
+--
+
+-CASE ModernOptionalMatchOneHop
+
+
+-LOG BDirSingleLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=1 OPTIONAL MATCH (p)-[e]-(other:person) where e.weight>0 return other.name;
+---- 2
+vadas
+josh
+
+-LOG ODirSingleLabel
+-SKIP: https://github.com/GraphScope/neug/issues/1324
+-STATEMENT MATCH (p:PERSON) where p.ID=1 OPTIONAL MATCH (p)-[e]->(other:person) where e.weight>10 return e.weight, other.name;
+---- 1
+|
+
+-LOG IDirSingleLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=4 OPTIONAL MATCH (p)<-[e]-(other:person) where e.weight>10 return e.weight, other.name;
+---- 1
+|
+
+-LOG BDirSingleLabelPredicate
+-STATEMENT MATCH (p:PERSON) where p.ID=1 OPTIONAL MATCH (p)-[e:knows]-(u:person) WHERE p.id>0 and u.id>0 RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG ODirSingleLabelPredicate
+-STATEMENT OPTIONAL MATCH (v:person)-[e:knows]->(u:person) WHERE v.id>0 and u.id>0 RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG IDirSingleLabelPredicate
+-STATEMENT OPTIONAL MATCH (v:person)<-[e:knows]-(u:person) WHERE v.id>0 and u.id>0 RETURN e.weight;
+---- 2
+0.5
+1
+
+-LOG BDirMultiLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=1 OPTIONAL MATCH (p)-[e]-(other) where e.weight>0 return other.name;
+---- 3
+vadas
+josh
+lop
+
+-LOG ODirMultiLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=1 OPTIONAL MATCH (p)-[e]->(other) where e.weight>10 return e.weight,other.name;
+---- 1
+|
+
+-LOG IDirMultiLabel
+-STATEMENT MATCH (p:PERSON) where p.ID=4 OPTIONAL MATCH (p)<-[e]-(other) where e.weight>10 return e.weight,other.name;
+---- 1
+|
+
+-LOG BDirMultiLabelPredicate
+-STATEMENT MATCH (p: PERSON) WHERE p.id=1 OPTIONAL MATCH (p)-[]-(other:PERSON:SOFTWARE) where other.id>2 return other.name;
+---- 2
+josh
+lop
+
+-LOG ODirMultiLabelPredicate
+-STATEMENT MATCH (p: PERSON) WHERE p.id=1 OPTIONAL MATCH (p)-[e]->(other:PERSON:SOFTWARE) where e.weight>10 and other.id>10 return other;
+---- 1
+
+
+-LOG IDirMultiLabelPredicate
+-STATEMENT MATCH (p: PERSON) WHERE p.id=1 OPTIONAL MATCH (p)<-[e]-(other:PERSON) where e.weight>10 and other.id>10 return other;
+---- 1
+
