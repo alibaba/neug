@@ -15,7 +15,7 @@ make build
 ### Test batch loading
 
 ```bash
-export FLEX_DATA_DIR="/path/to/examle_dataset/modern_graph"
+export FLEX_DATA_DIR="/path/to/example_dataset/modern_graph"
 cd tools/python_bind
 python3 -m pytest -s tests/test_batch_loading.py
 ```

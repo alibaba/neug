@@ -4,29 +4,17 @@
 
 To compile NeuG from source, certain dependencies and tools must be installed.
 
-#### Building in Development Container
-
-We provide Docker images for x86_64 and arm64 platforms, with all necessary dependencies for building NeuG from source.
-
-```bash
-docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
-docker run --it --name neug-dev registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev bash
-# Inside the container, set up the environment variables.
-source ~/.neug_env
-```
-
-#### Building Locally
 
 As nearlly all dependencies are also included as third-party libraries in the NeuG repository, you could build NeuG locally by installing only a few essential packages.
 
-##### On Ubuntu
+#### On Ubuntu
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential cmake git python3-dev python3-pip g++ make libssl-dev openssl
 ```
 
-##### On macOS
+#### On macOS
 
 ```bash
 brew update
@@ -34,7 +22,7 @@ brew install cmake git python3 openssl@3
 # No need to install g++ since Apple Clang is also supported.
 ```
 
-##### On CentOS7
+#### On CentOS7
 
 ```bash
 # Update yum repository to use vault.centos.org for CentOS 7, as the main mirrors are no longer available.
@@ -55,7 +43,7 @@ sudo yum -y install devtoolset-10
 scl enable devtoolset-10 bash
 ```
 
-##### On CentOS8/CentOS Stream 8
+#### On CentOS8/CentOS Stream 8
 
 ```bash
 sudo dnf -y install epel-release dnf-plugins-core
