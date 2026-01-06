@@ -88,29 +88,6 @@ struct DurationFunction {
   static constexpr const char* name = "DURATION";
 };
 
-struct CastToStringFunction {
-  static constexpr const char* name = "TO_STRING";
-
-  static function_set getFunctionSet();
-};
-
-struct StringFunction {
-  using alias = CastToStringFunction;
-
-  static constexpr const char* name = "STRING";
-};
-struct CastToDoubleFunction {
-  static constexpr const char* name = "TO_DOUBLE";
-
-  static function_set getFunctionSet();
-};
-
-struct CastToFloatFunction {
-  static constexpr const char* name = "TO_FLOAT";
-
-  static function_set getFunctionSet();
-};
-
 struct CastAnyFunction {
   static constexpr const char* name = "CAST";
 

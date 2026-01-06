@@ -151,6 +151,9 @@ class GExprConverter {
       const binder::Expression& expr, const GScalarType& scalarType,
       const std::vector<std::string>& schemaAlias);
 
+  std::unique_ptr<::common::Value> castLiteral(
+      const binder::Expression& castExpr);
+
  private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
   gopt::GPhysicalTypeConverter typeConverter;

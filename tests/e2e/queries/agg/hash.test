@@ -128,7 +128,7 @@ Alice|1
 2|True
 
 -LOG TwoHopDistinctTest
--STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN DISTINCT a.ID + 1
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN DISTINCT a.ID + CAST(1, 'INT32')
 ---- 4
 1
 3

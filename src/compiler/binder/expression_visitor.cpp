@@ -355,6 +355,14 @@ bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
     return false;
   }
 
+  if (funcName == function::CastAnyFunction::name) {
+    auto& scalarExpr = funcExpr.constCast<ScalarFunctionExpression>();
+    auto& func = scalarExpr.getFunction();
+    if (!func.execFunc) {
+      return false;
+    }
+  }
+
   return visitChildren(expr);
 }
 

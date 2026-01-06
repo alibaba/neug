@@ -31,6 +31,9 @@
 #include <variant>
 #include <vector>
 
+#include <charconv>
+#include "neug/execution/utils/numeric_cast.h"
+
 #include "neug/execution/common/types.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -696,9 +699,20 @@ struct TypedConverter<int32_t> {
   static RTAnyType type() { return RTAnyType::kI32Value; }
   static int32_t to_typed(const RTAny& val) { return val.as_int32(); }
   static RTAny from_typed(int val) { return RTAny::from_int32(val); }
-  static const std::string name() { return "int"; }
+  static const std::string name() { return "int32"; }
   static int32_t typed_from_string(const std::string& str) {
     return std::stoi(str);
+  }
+
+  template <typename T>
+  static bool cast(const T& input, int32_t& output) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [ptr, ec] = std::from_chars(data, data + len, output);
+      return ec == std::errc() && ptr == data + len;
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
   }
 };
 
@@ -710,6 +724,17 @@ struct TypedConverter<uint32_t> {
   static const std::string name() { return "uint"; }
   static uint32_t typed_from_string(const std::string& str) {
     return std::stoul(str);
+  }
+
+  template <typename T>
+  static bool cast(const T& input, uint32_t& output) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [ptr, ec] = std::from_chars(data, data + len, output);
+      return ec == std::errc() && ptr == data + len;
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
   }
 };
 
@@ -732,6 +757,17 @@ struct TypedConverter<uint64_t> {
   static uint64_t to_typed(const RTAny& val) { return val.as_uint64(); }
   static RTAny from_typed(uint64_t val) { return RTAny::from_uint64(val); }
   static const std::string name() { return "uint64"; }
+
+  template <typename T>
+  static bool cast(const T& input, uint64_t& output) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [ptr, ec] = std::from_chars(data, data + len, output);
+      return ec == std::errc() && ptr == data + len;
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
+  }
 };
 
 template <>
@@ -742,6 +778,25 @@ struct TypedConverter<int64_t> {
   static const std::string name() { return "int64"; }
   static int64_t typed_from_string(const std::string& str) {
     return std::stoll(str);
+  }
+  template <typename T>
+  static bool cast(const T& input, int64_t& output) {
+    if constexpr (std::is_same_v<T, DateTime>) {
+      output = input.milli_second;
+      return true;
+    } else if constexpr (std::is_same_v<T, Date>) {
+      output = input.to_timestamp();
+      return true;
+    } else if constexpr (std::is_same_v<T, Interval>) {
+      output = input.to_mill_seconds();
+      return true;
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [ptr, ec] = std::from_chars(data, data + len, output);
+      return ec == std::errc() && ptr == data + len;
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
   }
 };
 
@@ -754,6 +809,15 @@ struct TypedConverter<float> {
   static float typed_from_string(const std::string& str) {
     return std::stof(str);
   }
+
+  template <typename T>
+  static bool cast(const T& input, float& output) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return gs::runtime::tryDoubleCast(input, output);
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
+  }
 };
 
 template <>
@@ -765,6 +829,15 @@ struct TypedConverter<double> {
     return std::stod(str);
   }
   static const std::string name() { return "double"; }
+
+  template <typename T>
+  static bool cast(const T& input, double& output) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return gs::runtime::tryDoubleCast(input, output);
+    } else {
+      return gs::runtime::TryCastWithOverflowCheck(input, output);
+    }
+  }
 };
 
 template <>
@@ -777,6 +850,22 @@ struct TypedConverter<Date> {
     int64_t val = std::stoll(str);
     return Date(val);
   }
+
+  template <typename T>
+  static bool cast(const T& input, Date& output) {
+    if constexpr (std::is_same_v<T, Date>) {
+      output = input;
+      return true;
+    } else if constexpr (std::is_same_v<T, DateTime>) {
+      output = Date(input.milli_second);
+      return true;
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      output = Date(std::string(input));
+      return true;
+    } else {
+      return false;
+    }
+  }
 };
 
 template <>
@@ -788,6 +877,21 @@ struct TypedConverter<DateTime> {
   static DateTime typed_from_string(const std::string& str) {
     return DateTime(str);
   }
+  template <typename T>
+  static bool cast(const T& input, DateTime& output) {
+    if constexpr (std::is_same_v<T, DateTime>) {
+      output = input;
+      return true;
+    } else if constexpr (std::is_same_v<T, Date>) {
+      output = DateTime(input.to_timestamp());
+      return true;
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      output = DateTime(std::string(input));
+      return true;
+    } else {
+      return false;
+    }
+  }
 };
 
 template <>
@@ -797,10 +901,21 @@ struct TypedConverter<Interval> {
   static RTAny from_typed(Interval val) { return RTAny::from_interval(val); }
   static const std::string name() { return "interval"; }
   static Interval typed_from_string(const std::string& str) {
-    int64_t val = std::stoll(str);
-    Interval ret;
-    ret.from_mill_seconds(val);
+    Interval ret(str);
     return ret;
+  }
+
+  template <typename T>
+  static bool cast(const T& input, Interval& output) {
+    if constexpr (std::is_same_v<T, Interval>) {
+      output = input;
+      return true;
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      output = Interval(input);
+      return true;
+    } else {
+      return false;
+    }
   }
 };
 

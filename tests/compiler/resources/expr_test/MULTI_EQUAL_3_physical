@@ -18,21 +18,46 @@
        "predicate": {
         "operators": [
          {
-          "var": {
-           "property": {
-            "key": {
-             "name": "gender"
+          "scalar_func": {
+           "unique_name": "CAST(ANY,STRING)",
+           "parameters": [
+            {
+             "operators": [
+              {
+               "var": {
+                "property": {
+                 "key": {
+                  "name": "gender"
+                 }
+                },
+                "node_type": {
+                 "data_type": {
+                  "primitive_type": "DT_SIGNED_INT32"
+                 }
+                }
+               },
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT32"
+                }
+               }
+              }
+             ]
+            },
+            {
+             "operators": [
+              {
+               "const": {
+                "str": "DOUBLE"
+               }
+              }
+             ]
             }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT32"
-            }
-           }
+           ]
           },
           "node_type": {
            "data_type": {
-            "primitive_type": "DT_SIGNED_INT32"
+            "primitive_type": "DT_DOUBLE"
            }
           }
          },

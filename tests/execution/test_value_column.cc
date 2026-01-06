@@ -127,7 +127,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
   RTAny elem0 = col->get_elem(0);
   EXPECT_EQ(elem0.as_int32(), 10);
 
-  EXPECT_EQ(col->column_info(), "ValueColumn<int>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<int32>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_EQ(col->elem_type(), RTAnyType::kI32Value);
 
@@ -1284,7 +1284,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<int>[3]");
+  EXPECT_EQ(col->column_info(), "OptionalValueColumn<int32>[3]");
   EXPECT_EQ(col->elem_type(), RTAnyType::kI32Value);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());

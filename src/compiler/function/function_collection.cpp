@@ -111,10 +111,6 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(CastToIntervalFunction),
       SCALAR_FUNCTION_ALIAS(IntervalFunctionAlias),
       SCALAR_FUNCTION_ALIAS(DurationFunction),
-      SCALAR_FUNCTION(CastToStringFunction),
-      SCALAR_FUNCTION_ALIAS(StringFunction),
-      SCALAR_FUNCTION(CastToDoubleFunction),
-      SCALAR_FUNCTION(CastToFloatFunction),
       SCALAR_FUNCTION(CastAnyFunction),
 
       SCALAR_FUNCTION(EqualsFunction),

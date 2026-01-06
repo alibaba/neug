@@ -409,7 +409,19 @@ TEST_F(ExprTest, LIST_EXTRACT) {
   )";
   auto logical = planLogical(query, schemaData, statsData, rules);
   auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(*physical, getExprResource("LIST_EXTRACT_physical"));
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getExprResource("LIST_EXTRACT_physical"));
+}
+
+TEST_F(ExprTest, CAST_INTERVAL_TO_INT64) {
+  std::string query = R"(
+    Match (a:person)-[:knows]->(b:person)
+    Return CAST(a.registerTime - b.registerTime, 'INT64');
+  )";
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(
+      *physical, getExprResource("CAST_INTERVAL_TO_INT64_physical"));
 }
 
 }  // namespace gopt

@@ -1,5 +1,5 @@
 MATCH (country:PLACE)<-[:ISPARTOF]-(:PLACE)<-[:ISLOCATEDIN]-(person:PERSON)<-[:HASMEMBER]-(forum:FORUM)
-WHERE forum.creationDate > DATE("2010-01-07")
+WHERE forum.creationDate > $date
 WITH country, forum, count(person) AS numberOfMembers
 ORDER BY numberOfMembers DESC, forum.id ASC, country.id
 LIMIT 100

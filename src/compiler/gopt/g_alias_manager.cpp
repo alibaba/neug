@@ -141,12 +141,12 @@ void GAliasManager::extractGAliasNames(
   case planner::LogicalOperatorType::ORDER_BY:
   case planner::LogicalOperatorType::LIMIT:
   case planner::LogicalOperatorType::SET_PROPERTY:
-  case planner::LogicalOperatorType::DELETE: {
+  case planner::LogicalOperatorType::DELETE:
+  case planner::LogicalOperatorType::INSERT: {
     for (auto& child : op.getChildren()) {
       extractGAliasNames(*child, aliasNames);
     }
   }
-  case planner::LogicalOperatorType::INSERT:
   case planner::LogicalOperatorType::TABLE_FUNCTION_CALL:
   case planner::LogicalOperatorType::PROJECTION:
   case planner::LogicalOperatorType::AGGREGATE:

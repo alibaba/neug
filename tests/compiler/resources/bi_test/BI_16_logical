@@ -16,14 +16,14 @@ CHILD:
     CHILD:
         GET_V[GET_V(EQUALS(tag.name,Diosdado_Macapagal)) Cardinality: 102236]
         EXTEND[msg-HASTAG_POST_TAG,HASTAG_COMMENT_TAG,->tag Cardinality: 102236]
-        GET_V[GET_V(EQUALS(msg.creationDate,CAST(TO_DATE(2012-10-07), TIMESTAMP))) Cardinality: 286744]
+        GET_V[GET_V(EQUALS(msg.creationDate,$dateA)) Cardinality: 286744]
         EXTEND[person1<-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,-msg Cardinality: 286744]
         EXPRESSIONS_SCAN[person1._ID]
     CHILD:
         EXTEND[other_person<-KNOWS,->person1 Cardinality: 941601]
         EXTEND[o_msg-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->other_person Cardinality: 102236]
         EXTEND[o_msg-HASTAG_POST_TAG,HASTAG_FORUM_TAG,HASTAG_COMMENT_TAG,->tag Cardinality: 102236]
-        SCAN_NODE_TABLE[o_msg._ID o_msg.creationDateType: INTERNAL_ID Predicates: EQUALS(o_msg.creationDate,CAST(TO_DATE(2012-10-07), TIMESTAMP)) Cardinality: 286744]
+        SCAN_NODE_TABLE[o_msg._ID o_msg.creationDateType: INTERNAL_ID Predicates: EQUALS(o_msg.creationDate,$dateA) Cardinality: 286744]
 CHILD:
     ALIAS_MAP[]
     PROJECTION[person1,other_person,tag]
@@ -31,11 +31,11 @@ CHILD:
     CHILD:
         GET_V[GET_V(EQUALS(tag.name,Thailand)) Cardinality: 102236]
         EXTEND[msg-HASTAG_POST_TAG,HASTAG_COMMENT_TAG,->tag Cardinality: 102236]
-        GET_V[GET_V(EQUALS(msg.creationDate,CAST(TO_DATE(2012-11-21), TIMESTAMP))) Cardinality: 286744]
+        GET_V[GET_V(EQUALS(msg.creationDate,$dateB)) Cardinality: 286744]
         EXTEND[person1<-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,-msg Cardinality: 286744]
         EXPRESSIONS_SCAN[person1._ID]
     CHILD:
         EXTEND[other_person<-KNOWS,->person1 Cardinality: 941601]
         EXTEND[o_msg-HASCREATOR_COMMENT_PERSON,HASCREATOR_POST_PERSON,->other_person Cardinality: 102236]
         EXTEND[o_msg-HASTAG_POST_TAG,HASTAG_FORUM_TAG,HASTAG_COMMENT_TAG,->tag Cardinality: 102236]
-        SCAN_NODE_TABLE[o_msg._ID o_msg.creationDateType: INTERNAL_ID Predicates: EQUALS(o_msg.creationDate,CAST(TO_DATE(2012-11-21), TIMESTAMP)) Cardinality: 286744]
+        SCAN_NODE_TABLE[o_msg._ID o_msg.creationDateType: INTERNAL_ID Predicates: EQUALS(o_msg.creationDate,$dateB) Cardinality: 286744]

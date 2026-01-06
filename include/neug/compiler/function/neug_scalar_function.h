@@ -28,6 +28,10 @@ struct NeugScalarFunction : public ScalarFunction {
       : ScalarFunction{std::move(name), std::move(parameterTypeIDs),
                        returnTypeID},
         neugExecFunc{std::move(neugExecFunc)} {}
+
+  std::unique_ptr<ScalarFunction> copy() const override {
+    return std::make_unique<NeugScalarFunction>(*this);
+  }
 };
 }  // namespace function
 }  // namespace gs

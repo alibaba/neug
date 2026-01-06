@@ -21,6 +21,8 @@
  */
 
 #include "neug/compiler/function/cast/vector_cast_functions.h"
+#include <utility>
+#include <vector>
 
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
@@ -31,6 +33,8 @@
 #include "neug/compiler/function/cast/functions/cast_decimal.h"
 #include "neug/compiler/function/cast/functions/cast_from_string_functions.h"
 #include "neug/compiler/function/cast/functions/cast_functions.h"
+#include "neug/compiler/function/neug_scalar_function.h"
+#include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
@@ -954,46 +958,6 @@ function_set CastToIntervalFunction::getFunctionSet() {
   return result;
 }
 
-static std::unique_ptr<FunctionBindData> toStringBindFunc(
-    ScalarBindFuncInput input) {
-  return FunctionBindData::getSimpleBindData(input.arguments,
-                                             LogicalType::STRING());
-}
-
-function_set CastToStringFunction::getFunctionSet() {
-  function_set result;
-  result.reserve(LogicalTypeUtils::getAllValidLogicTypes().size());
-  for (auto& type : LogicalTypeUtils::getAllValidLogicTypes()) {
-    auto function =
-        CastFunction::bindCastFunction(name, type, LogicalType::STRING());
-    function->bindFunc = toStringBindFunc;
-    result.push_back(std::move(function));
-  }
-  return result;
-}
-
-function_set CastToDoubleFunction::getFunctionSet() {
-  function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
-    result.push_back(CastFunction::bindCastFunction(name, LogicalType(typeID),
-                                                    LogicalType::DOUBLE()));
-  }
-  result.push_back(CastFunction::bindCastFunction(name, LogicalType::STRING(),
-                                                  LogicalType::DOUBLE()));
-  return result;
-}
-
-function_set CastToFloatFunction::getFunctionSet() {
-  function_set result;
-  for (auto typeID : LogicalTypeUtils::getNumericalLogicalTypeIDs()) {
-    result.push_back(CastFunction::bindCastFunction(name, LogicalType(typeID),
-                                                    LogicalType::FLOAT()));
-  }
-  result.push_back(CastFunction::bindCastFunction(name, LogicalType::STRING(),
-                                                  LogicalType::FLOAT()));
-  return result;
-}
-
 static std::unique_ptr<FunctionBindData> castBindFunc(
     ScalarBindFuncInput input) {
   NEUG_ASSERT(input.arguments.size() == 2);
@@ -1005,25 +969,8 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   auto literalExpr = input.arguments[1]->constPtrCast<LiteralExpression>();
   auto targetTypeStr = literalExpr->getValue().getValue<std::string>();
   auto func = input.definition->ptrCast<ScalarFunction>();
-  func->name = "CAST_TO_" + targetTypeStr;
   auto targetType =
       LogicalType::convertFromString(targetTypeStr, input.context);
-  if (!LogicalType::isBuiltInType(targetTypeStr)) {
-    std::vector<LogicalType> typeVec;
-    typeVec.push_back(input.arguments[0]->getDataType().copy());
-    try {
-      auto entry = input.context->getCatalog()->getFunctionEntry(
-          input.context->getTransaction(), func->name);
-      auto match = BuiltInFunctionsUtils::matchFunction(
-          func->name, typeVec, entry->ptrCast<catalog::FunctionCatalogEntry>());
-      func->execFunc = match->constPtrCast<ScalarFunction>()->execFunc;
-      return std::make_unique<function::CastFunctionBindData>(
-          targetType.copy());
-    } catch (...) {  // NOLINT
-      // If there's no user defined casting function for the corresponding user
-      // defined type, we use the default casting function.
-    }
-  }
   // For STRUCT type, we will need to check its field name in later stage
   // Otherwise, there will be bug for: RETURN cast({'a': 12, 'b': 12} AS
   // struct(c int64, d int64)); being allowed.
@@ -1037,21 +984,196 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
     input.arguments[0]->cast(targetType);
     return nullptr;
   }
-  // TODO(Xiyang): Can we unify the binding of casting function with other
-  // scalar functions?
-  func->execFunc =
-      CastFunction::bindCastFunction(
-          func->name, input.arguments[0]->getDataType(), targetType)
-          ->execFunc;
-  return std::make_unique<function::CastFunctionBindData>(targetType.copy());
+  try {
+    func->execFunc = CastFunction::bindCastFunction(
+                         "CAST_TO_" + targetTypeStr,
+                         input.arguments[0]->getDataType(), targetType)
+                         ->execFunc;
+  } catch (...) {}
+  auto bindData =
+      std::make_unique<function::CastFunctionBindData>(targetType.copy());
+  auto inputTypes = ExpressionUtil::getDataTypes(input.arguments);
+  bindData->paramTypes = std::move(inputTypes);
+  return bindData;
+}
+
+template <typename T>
+runtime::RTAny performCast(const runtime::RTAny& input) {
+  T val;
+  bool ret = false;
+  if (input.type() == runtime::RTAnyType::kI32Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_int32(), val);
+  } else if (input.type() == runtime::RTAnyType::kI64Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_int64(), val);
+  } else if (input.type() == runtime::RTAnyType::kF32Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_float(), val);
+  } else if (input.type() == runtime::RTAnyType::kF64Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_double(), val);
+  } else if (input.type() == runtime::RTAnyType::kU64Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_uint64(), val);
+  } else if (input.type() == runtime::RTAnyType::kU32Value) {
+    ret = runtime::TypedConverter<T>::cast(input.as_uint32(), val);
+  } else if (input.type() == runtime::RTAnyType::kStringValue) {
+    ret = runtime::TypedConverter<T>::cast(input.as_string(), val);
+  } else {
+    if constexpr (std::is_same_v<T, int64_t>) {
+      if (input.type() == runtime::RTAnyType::kDate) {
+        ret = runtime::TypedConverter<T>::cast(input.as_date(), val);
+      } else if (input.type() == runtime::RTAnyType::kDateTime) {
+        ret = runtime::TypedConverter<T>::cast(input.as_datetime(), val);
+      } else if (input.type() == runtime::RTAnyType::kInterval) {
+        ret = runtime::TypedConverter<T>::cast(input.as_interval(), val);
+      } else {
+        THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
+      }
+    } else {
+      THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
+    }
+  }
+  if (ret) {
+    return runtime::TypedConverter<T>::from_typed(val);
+  } else {
+    LOG(ERROR) << "Failed to cast value: " << input.to_string();
+    THROW_OVERFLOW_EXCEPTION("Failed to cast value.");
+  }
+  return runtime::RTAny();
+}
+
+template <>
+runtime::RTAny performCast<gs::DateTime>(const runtime::RTAny& input) {
+  gs::DateTime val;
+  bool ret = false;
+  if (input.type() == runtime::RTAnyType::kStringValue) {
+    ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_string(), val);
+  } else if (input.type() == runtime::RTAnyType::kDate) {
+    ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_date(), val);
+  } else {
+    THROW_CONVERSION_EXCEPTION(
+        "Only string type is supported for casting to DateTime.");
+  }
+  if (ret) {
+    return runtime::TypedConverter<gs::DateTime>::from_typed(val);
+  } else {
+    THROW_CONVERSION_EXCEPTION("Failed to cast value to DateTime.");
+  }
+  return runtime::RTAny();
+}
+
+template <>
+runtime::RTAny performCast<gs::Date>(const runtime::RTAny& input) {
+  gs::Date val;
+  bool ret = false;
+  if (input.type() == runtime::RTAnyType::kStringValue) {
+    ret = runtime::TypedConverter<gs::Date>::cast(input.as_string(), val);
+  } else if (input.type() == runtime::RTAnyType::kDateTime) {
+    ret = runtime::TypedConverter<gs::Date>::cast(input.as_datetime(), val);
+  } else {
+    THROW_CONVERSION_EXCEPTION(
+        "Only string type is supported for casting to Date.");
+  }
+  if (ret) {
+    return runtime::TypedConverter<gs::Date>::from_typed(val);
+  } else {
+    THROW_CONVERSION_EXCEPTION("Failed to cast value to Date.");
+  }
+  return runtime::RTAny();
+}
+
+runtime::RTAny performCastToString(const runtime::RTAny& input,
+                                   runtime::Arena& arena) {
+  std::string ret{};
+  switch (input.type()) {
+  case runtime::RTAnyType::kI32Value: {
+    ret = std::to_string(input.as_int32());
+    break;
+  }
+  case runtime::RTAnyType::kI64Value: {
+    ret = std::to_string(input.as_int64());
+    break;
+  }
+  case runtime::RTAnyType::kF32Value: {
+    ret = std::to_string(input.as_float());
+    break;
+  }
+  case runtime::RTAnyType::kF64Value: {
+    ret = std::to_string(input.as_double());
+    break;
+  }
+  case runtime::RTAnyType::kU64Value: {
+    ret = std::to_string(input.as_uint64());
+    break;
+  }
+  case runtime::RTAnyType::kU32Value: {
+    ret = std::to_string(input.as_uint32());
+    break;
+  }
+  case runtime::RTAnyType::kStringValue: {
+    ret = input.as_string();
+    break;
+  }
+  case runtime::RTAnyType::kDateTime: {
+    ret = input.as_datetime().to_string();
+    break;
+  }
+  case runtime::RTAnyType::kDate: {
+    ret = input.as_date().to_string();
+    break;
+  }
+  case runtime::RTAnyType::kInterval: {
+    ret = input.as_interval().to_string();
+    break;
+  }
+  default: {
+    THROW_CONVERSION_EXCEPTION("Unsupported type for casting to string.");
+  }
+  }
+  auto ptr = runtime::StringImpl::make_string_impl(ret);
+  arena.push_back(std::move(ptr));
+  return runtime::RTAny::from_string(ptr->str_view());
+}
+
+static runtime::RTAny castFunc(runtime::Arena& arena,
+                               const std::vector<runtime::RTAny>& args) {
+  if (args.size() != 2) {
+    THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
+                        std::to_string(args.size()));
+  }
+  const auto& arg0 = args[0];
+  const auto& arg1 = args[1];
+  auto type = arg1.as_string();
+
+  if (type == "INT64") {
+    return performCast<int64_t>(arg0);
+  } else if (type == "INT32") {
+    return performCast<int32_t>(arg0);
+  } else if (type == "FLOAT") {
+    return performCast<float>(arg0);
+  } else if (type == "DOUBLE") {
+    return performCast<double>(arg0);
+  } else if (type == "STRING") {
+    return performCastToString(arg0, arena);
+  } else if (type == "DATE") {
+    return performCast<gs::Date>(arg0);
+  } else if (type == "TIMESTAMP") {
+    return performCast<gs::DateTime>(arg0);
+  } else if (type == "UINT32") {
+    return performCast<uint32_t>(arg0);
+  } else if (type == "UINT64") {
+    return performCast<uint64_t>(arg0);
+  } else {
+    THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
+                        std::string(type));
+  }
+  return runtime::RTAny();
 }
 
 function_set CastAnyFunction::getFunctionSet() {
   function_set result;
-  auto func = std::make_unique<ScalarFunction>(
+  // todo(engine): support cast execution function in NeugScalarFunction
+  auto func = std::make_unique<NeugScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::ANY, LogicalTypeID::STRING},
-      LogicalTypeID::ANY);
+      LogicalTypeID::ANY, std::move(castFunc));
   func->bindFunc = castBindFunc;
   result.push_back(std::move(func));
   return result;

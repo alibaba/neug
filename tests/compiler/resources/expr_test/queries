@@ -25,3 +25,4 @@ Return date('2011-02-01') - date('2011-01-01'); # DATE_DIFFER
 Match (n:person) RETURN [3, 2.0, 4, 'name']; # ARRAY_FUNC_LITERAL
 Match (n:person) RETURN [CAST(3, 'uint32'), 2.0, 4, 'name']; # ARRAY_FUNC_CAST_LITERAL
 Match (n:person) RETURN [n.gender, n.fName, n.registerTime]; # ARRAY_FUNC_VAR
+MATCH (a:person)-[e1:knows]->(b:person) WHERE (a.gender/2 <= 0.5) WITH b WHERE b.gender*3.5 = 7.0 RETURN COUNT(*); # INT32_MULTI_DOUBLE

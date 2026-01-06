@@ -1,12 +1,12 @@
 MATCH (country:PLACE {name: "India"})<-[:ISPARTOF]-(:PLACE)<-[:ISLOCATEDIN]-(zombie:PERSON)
-  WHERE zombie.creationDate < DATE("2012-11-09")
+  WHERE zombie.creationDate < $date
 WITH country, zombie
 OPTIONAL MATCH (zombie)<-[:HASCREATOR]-(message:POST:COMMENT)
-  WHERE message.creationDate < DATE("2012-11-09")
+  WHERE message.creationDate < $date
 WITH
   country,
   zombie,
-  DATE("2012-11-09") AS idate,
+  CAST($date, 'TIMESTAMP') AS idate,
   zombie.creationDate AS zdate,
   count(message) AS messageCount
 WITH
@@ -30,7 +30,7 @@ WITH
   count(likerZombie) AS zombieLikeCount
 OPTIONAL MATCH
   (zombie)<-[:HASCREATOR]-(message:POST:COMMENT)<-[:LIKES]-(likerPerson:PERSON)
-  WHERE likerPerson.creationDate < DATE("2012-11-09")
+  WHERE likerPerson.creationDate < $date
 WITH
   zombie,
   zombieLikeCount,
@@ -41,7 +41,7 @@ RETURN
   totalLikeCount,
   CASE totalLikeCount
     WHEN 0 THEN 0.0
-    ELSE zombieLikeCount / totalLikeCount
+    ELSE 1.0 * zombieLikeCount / totalLikeCount
     END AS zombieScore
   ORDER BY
   zombieScore DESC,

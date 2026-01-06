@@ -17,7 +17,7 @@
 37.250000|4.8625
 
 -LOG SimpleAvgFloatTest
--STATEMENT MATCH (a:person) RETURN AVG(a.height) + 5
+-STATEMENT MATCH (a:person) RETURN AVG(a.height) + CAST(5, 'DOUBLE')
 ---- 1
 6.364625
 
@@ -374,7 +374,7 @@ pure ascii characters
 2410
 
 -LOG AvgInt8Overflow
--STATEMENT MATCH (a:person)-[s:studyAt]->(o:organisation) RETURN AVG(3 * s.level)
+-STATEMENT MATCH (a:person)-[s:studyAt]->(o:organisation) RETURN AVG(CAST(3, 'INT32') * s.level)
 ---- 1
 127.000000
 

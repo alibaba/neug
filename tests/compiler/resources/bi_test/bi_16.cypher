@@ -2,20 +2,20 @@ MATCH (person1: PERSON)
 WITH person1
 CALL (person1) {
   MATCH (person1)<-[:HASCREATOR]-(msg:COMMENT:POST)
-  WHERE msg.creationDate = DATE("2012-10-07")
+  WHERE msg.creationDate = $dateA
   MATCH (msg) -[:HASTAG]->(tag:TAG)
   WHERE tag.name = "Diosdado_Macapagal"
   OPTIONAL MATCH (person1)-[:KNOWS]-(other_person:PERSON)<-[:HASCREATOR]-(o_msg:COMMENT:POST)-[:HASTAG]->(tag:TAG)
-  WHERE o_msg.creationDate =  DATE("2012-10-07") 
+  WHERE o_msg.creationDate =  $dateA
   RETURN person1, other_person, tag
 
   UNION ALL
   MATCH (person1)<-[:HASCREATOR]-(msg:COMMENT:POST)
-  WHERE msg.creationDate =DATE("2012-11-21") 
+  WHERE msg.creationDate = $dateB 
   MATCH (msg) -[:HASTAG]->(tag:TAG)
   WHERE tag.name = "Thailand"
   OPTIONAL MATCH (person1)-[:KNOWS]-(other_person:PERSON)<-[:HASCREATOR]-(o_msg:COMMENT:POST)-[:HASTAG]->(tag:TAG)
-  WHERE o_msg.creationDate = DATE("2012-11-21") 
+  WHERE o_msg.creationDate = $dateB 
   RETURN person1, other_person, tag
 }
 WITH

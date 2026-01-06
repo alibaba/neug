@@ -24,8 +24,10 @@
 #include "neug/compiler/binder/expression/aggregate_function_expression.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
+#include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/rewrite_function.h"
@@ -125,12 +127,23 @@ std::shared_ptr<Expression> ExpressionBinder::bindScalarFunctionExpression(
       // RETURN cast([NULL], "INT64[1][]"), cast([NULL], "INT64[1][][]")
       return children[0];
     }
-    auto childAfterCast = children[0];
-    if (children[0]->getDataType().getLogicalTypeID() == LogicalTypeID::ANY) {
-      childAfterCast =
-          implicitCastIfNecessary(children[0], LogicalType::STRING());
+    // run cast function in compiling phase for literal expression
+    if (children[0]->expressionType == ExpressionType::LITERAL &&
+        function->execFunc) {
+      auto child = children[0];
+      if (child->getDataType().getLogicalTypeID() == LogicalTypeID::ANY) {
+        child = implicitCastIfNecessary(child, LogicalType::STRING());
+      }
+      childrenAfterCast.push_back(std::move(child));
+    } else {
+      // convert to extension function
+      for (auto child : children) {
+        if (child->getDataType().getLogicalTypeID() == LogicalTypeID::ANY) {
+          child = implicitCastIfNecessary(child, LogicalType::STRING());
+        }
+        childrenAfterCast.push_back(std::move(child));
+      }
     }
-    childrenAfterCast.push_back(std::move(childAfterCast));
   } else {
     if (function->bindFunc) {
       bindData = function->bindFunc(bindInput);

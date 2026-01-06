@@ -18,35 +18,85 @@
        "predicate": {
         "operators": [
          {
-          "var": {
-           "property": {
-            "key": {
-             "name": "gender"
+          "scalar_func": {
+           "unique_name": "CAST(ANY,STRING)",
+           "parameters": [
+            {
+             "operators": [
+              {
+               "scalar_func": {
+                "unique_name": "CAST(ANY,STRING)",
+                "parameters": [
+                 {
+                  "operators": [
+                   {
+                    "var": {
+                     "property": {
+                      "key": {
+                       "name": "gender"
+                      }
+                     },
+                     "node_type": {
+                      "data_type": {
+                       "primitive_type": "DT_SIGNED_INT32"
+                      }
+                     }
+                    },
+                    "node_type": {
+                     "data_type": {
+                      "primitive_type": "DT_SIGNED_INT32"
+                     }
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "operators": [
+                   {
+                    "const": {
+                     "str": "INT64"
+                    }
+                   }
+                  ]
+                 }
+                ]
+               },
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT64"
+                }
+               }
+              },
+              {
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT64"
+                }
+               },
+               "arith": "DIV"
+              },
+              {
+               "const": {
+                "i64": "2"
+               }
+              }
+             ]
+            },
+            {
+             "operators": [
+              {
+               "const": {
+                "str": "DOUBLE"
+               }
+              }
+             ]
             }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT32"
-            }
-           }
+           ]
           },
           "node_type": {
            "data_type": {
-            "primitive_type": "DT_SIGNED_INT32"
+            "primitive_type": "DT_DOUBLE"
            }
-          }
-         },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT64"
-           }
-          },
-          "arith": "DIV"
-         },
-         {
-          "const": {
-           "i64": "2"
           }
          },
          {
@@ -242,24 +292,49 @@
       "predicate": {
        "operators": [
         {
-         "var": {
-          "tag": {
-           "id": 2
-          },
-          "property": {
-           "key": {
-            "name": "gender"
+         "scalar_func": {
+          "unique_name": "CAST(ANY,STRING)",
+          "parameters": [
+           {
+            "operators": [
+             {
+              "var": {
+               "tag": {
+                "id": 2
+               },
+               "property": {
+                "key": {
+                 "name": "gender"
+                }
+               },
+               "node_type": {
+                "data_type": {
+                 "primitive_type": "DT_SIGNED_INT32"
+                }
+               }
+              },
+              "node_type": {
+               "data_type": {
+                "primitive_type": "DT_SIGNED_INT32"
+               }
+              }
+             }
+            ]
+           },
+           {
+            "operators": [
+             {
+              "const": {
+               "str": "DOUBLE"
+              }
+             }
+            ]
            }
-          },
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_SIGNED_INT32"
-           }
-          }
+          ]
          },
          "node_type": {
           "data_type": {
-           "primitive_type": "DT_SIGNED_INT32"
+           "primitive_type": "DT_DOUBLE"
           }
          }
         },

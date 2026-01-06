@@ -254,6 +254,7 @@ RTAny::RTAny(const Path& p) {
   type_ = RTAnyType::kPath;
   value_.p = p;
 }
+
 RTAny::RTAny(const RTAny& rhs) : type_(rhs.type_) {
   if (type_ == RTAnyType::kBoolValue) {
     value_.b_val = rhs.value_.b_val;
@@ -301,6 +302,8 @@ RTAny& RTAny::operator=(const RTAny& rhs) {
     value_.b_val = rhs.value_.b_val;
   } else if (type_ == RTAnyType::kI64Value) {
     value_.i64_val = rhs.value_.i64_val;
+  } else if (type_ == RTAnyType::kU64Value) {
+    value_.u64_val = rhs.value_.u64_val;
   } else if (type_ == RTAnyType::kI32Value) {
     value_.i32_val = rhs.value_.i32_val;
   } else if (type_ == RTAnyType::kU32Value) {
@@ -876,30 +879,7 @@ bool RTAny::operator==(const RTAny& other) const {
 }
 
 RTAny RTAny::operator+(const RTAny& other) const {
-  int64_t left_i64 = 0;
-  double left_f64 = 0;
-  bool has_i64 = false;
-  bool has_f64 = false;
-  bool has_f32 = false;
-
-  if (type_ == RTAnyType::kI32Value) {
-    left_i64 = value_.i32_val;
-    left_f64 = value_.i32_val;
-  } else if (type_ == RTAnyType::kU32Value) {
-    left_i64 = value_.u32_val;
-    left_f64 = value_.u32_val;
-  } else if (type_ == RTAnyType::kI64Value) {
-    left_i64 = value_.i64_val;
-    left_f64 = value_.i64_val;
-    has_i64 = true;
-  } else if (type_ == RTAnyType::kF32Value) {
-    left_f64 = value_.f32_val;
-    left_i64 = value_.f32_val;
-    has_f32 = true;
-  } else if (type_ == RTAnyType::kF64Value) {
-    left_f64 = value_.f64_val;
-    has_f64 = true;
-  } else if (type_ == RTAnyType::kDate) {
+  if (type_ == RTAnyType::kDate) {
     if (other.type() == RTAnyType::kInterval) {
       return RTAny::from_date(value_.date_val + other.value_.interval_val);
     } else {
@@ -924,78 +904,32 @@ RTAny RTAny::operator+(const RTAny& other) const {
           std::to_string(static_cast<int>(type_)) + " and " +
           std::to_string(static_cast<int>(other.type_)));
     }
-  } else {
-    THROW_RUNTIME_ERROR("RTAny::operator+ not support for " +
-                        std::to_string(static_cast<int>(type_)) + " and " +
-                        std::to_string(static_cast<int>(other.type_)));
   }
 
-  int64_t right_i64 = 0;
-  double right_f64 = 0;
-
-  if (other.type_ == RTAnyType::kI32Value) {
-    right_i64 = other.value_.i32_val;
-    right_f64 = other.value_.i32_val;
-  } else if (other.type_ == RTAnyType::kU32Value) {
-    right_i64 = other.value_.u32_val;
-    right_f64 = other.value_.u32_val;
-  } else if (other.type_ == RTAnyType::kU64Value) {
-    right_i64 = other.value_.u64_val;
-    right_f64 = other.value_.u64_val;
-  } else if (other.type_ == RTAnyType::kI64Value) {
-    right_i64 = other.value_.i64_val;
-    right_f64 = other.value_.i64_val;
-    has_i64 = true;
-  } else if (other.type_ == RTAnyType::kF64Value) {
-    right_f64 = other.value_.f64_val;
-    has_f64 = true;
-  } else if (other.type_ == RTAnyType::kF32Value) {
-    right_f64 = other.value_.f32_val;
-    right_i64 = other.value_.f32_val;
-    has_f32 = true;
-  } else if (other.type_ == RTAnyType::kNull) {
-    THROW_RUNTIME_ERROR("RTAny::operator+ not support for null value");
-  } else {
-    THROW_RUNTIME_ERROR("RTAny::operator+ not support for " +
-                        std::to_string(static_cast<int>(other.type_)));
-  }
-  if (has_f64) {
-    return RTAny::from_double(left_f64 + right_f64);
-  } else if (has_f32) {
-    return RTAny::from_float(static_cast<float>(left_f64 + right_f64));
-  } else if (has_i64) {
-    return RTAny::from_int64(left_i64 + right_i64);
-  } else {
+  assert(type_ == other.type_);
+  switch (type_) {
+  case RTAnyType::kI32Value:
     return RTAny::from_int32(value_.i32_val + other.value_.i32_val);
+  case RTAnyType::kU32Value:
+    return RTAny::from_uint32(value_.u32_val + other.value_.u32_val);
+  case RTAnyType::kI64Value:
+    return RTAny::from_int64(value_.i64_val + other.value_.i64_val);
+  case RTAnyType::kU64Value:
+    return RTAny::from_uint64(value_.u64_val + other.value_.u64_val);
+  case RTAnyType::kF32Value:
+    return RTAny::from_float(value_.f32_val + other.value_.f32_val);
+  case RTAnyType::kF64Value:
+    return RTAny::from_double(value_.f64_val + other.value_.f64_val);
+  default:
+    LOG(FATAL) << "RTAny::operator+ not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_));
   }
 }
 
 // TODO(zhanglei): Support generate RTAny substraction.
 RTAny RTAny::operator-(const RTAny& other) const {
-  int64_t left_i64 = 0;
-  double left_f64 = 0;
-  bool has_i64 = false;
-  bool has_f64 = false;
-  bool has_f32 = false;
-
-  if (type_ == RTAnyType::kI32Value) {
-    left_i64 = value_.i32_val;
-    left_f64 = value_.i32_val;
-  } else if (type_ == RTAnyType::kU32Value) {
-    left_i64 = value_.u32_val;
-    left_f64 = value_.u32_val;
-  } else if (type_ == RTAnyType::kI64Value) {
-    left_i64 = value_.i64_val;
-    left_f64 = value_.i64_val;
-    has_i64 = true;
-  } else if (type_ == RTAnyType::kF32Value) {
-    left_f64 = value_.f32_val;
-    left_i64 = value_.f32_val;
-    has_f32 = true;
-  } else if (type_ == RTAnyType::kF64Value) {
-    left_f64 = value_.f64_val;
-    has_f64 = true;
-  } else if (type_ == RTAnyType::kDate) {
+  if (type_ == RTAnyType::kDate) {
     if (other.type_ == RTAnyType::kDate) {
       return RTAny::from_interval(value_.date_val - other.value_.date_val);
     } else if (other.type_ == RTAnyType::kInterval) {
@@ -1020,194 +954,86 @@ RTAny RTAny::operator-(const RTAny& other) const {
                         std::to_string(static_cast<int>(type_)) + " and " +
                         std::to_string(static_cast<int>(other.type_)));
   }
-  double right_f64 = 0;
-  int right_i64 = 0;
-  if (other.type_ == RTAnyType::kI64Value) {
-    right_i64 = other.value_.i64_val;
-    right_f64 = other.value_.i64_val;
-    has_i64 = true;
-  } else if (other.type_ == RTAnyType::kF32Value) {
-    right_f64 = other.value_.f32_val;
-    right_i64 = other.value_.f32_val;
-    has_f32 = true;
-  } else if (other.type_ == RTAnyType::kF64Value) {
-    right_f64 = other.value_.f64_val;
-    has_f64 = true;
-  } else if (other.type_ == RTAnyType::kI32Value) {
-    right_i64 = other.value_.i32_val;
-    right_f64 = other.value_.i32_val;
-  } else if (other.type_ == RTAnyType::kU32Value) {
-    right_i64 = other.value_.u32_val;
-    right_f64 = other.value_.u32_val;
-  } else if (other.type_ == RTAnyType::kU64Value) {
-    right_i64 = other.value_.u64_val;
-    right_f64 = other.value_.u64_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RTAny::operator- not support for " +
-        std::to_string(static_cast<int>(other.type_)));
-  }
-  if (has_f64) {
-    return RTAny::from_double(left_f64 - right_f64);
-  } else if (has_f32) {
-    return RTAny::from_float(static_cast<float>(left_f64 - right_f64));
-  } else if (has_i64) {
-    return RTAny::from_int64(left_i64 - right_i64);
-  } else {
+  assert(type_ == other.type_);
+  switch (type_) {
+  case RTAnyType::kI32Value:
     return RTAny::from_int32(value_.i32_val - other.value_.i32_val);
+  case RTAnyType::kU32Value:
+    return RTAny::from_uint32(value_.u32_val - other.value_.u32_val);
+  case RTAnyType::kI64Value:
+    return RTAny::from_int64(value_.i64_val - other.value_.i64_val);
+  case RTAnyType::kU64Value:
+    return RTAny::from_uint64(value_.u64_val - other.value_.u64_val);
+  case RTAnyType::kF32Value:
+    return RTAny::from_float(value_.f32_val - other.value_.f32_val);
+  case RTAnyType::kF64Value:
+    return RTAny::from_double(value_.f64_val - other.value_.f64_val);
+  default:
+    LOG(FATAL) << "RTAny::operator- not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_));
   }
 }
 
 RTAny RTAny::operator*(const RTAny& other) const {
-  bool has_i64 = false;
-  bool has_f64 = false;
-  bool has_f32 = false;
-  double left_f64 = 0;
-  int64_t left_i64 = 0;
-  if (type_ == RTAnyType::kI64Value) {
-    left_i64 = value_.i64_val;
-    left_f64 = value_.i64_val;
-    has_i64 = true;
-  } else if (type_ == RTAnyType::kF64Value) {
-    left_f64 = value_.f64_val;
-    has_f64 = true;
-  } else if (type_ == RTAnyType::kF32Value) {
-    left_f64 = value_.f32_val;
-    left_i64 = value_.f32_val;
-    has_f32 = true;
-  } else if (type_ == RTAnyType::kI32Value) {
-    left_i64 = value_.i32_val;
-    left_f64 = value_.i32_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator* not support for " +
-                                  std::to_string(static_cast<int>(type_)));
-  }
-
-  double right_f64 = 0;
-  int right_i64 = 0;
-  if (other.type_ == RTAnyType::kI64Value) {
-    right_i64 = other.value_.i64_val;
-    right_f64 = other.value_.i64_val;
-    has_i64 = true;
-  } else if (other.type_ == RTAnyType::kF32Value) {
-    right_f64 = other.value_.f32_val;
-    right_i64 = other.value_.f32_val;
-    has_f32 = true;
-  } else if (other.type_ == RTAnyType::kF64Value) {
-    right_f64 = other.value_.f64_val;
-    has_f64 = true;
-  } else if (other.type_ == RTAnyType::kI32Value) {
-    right_i64 = other.value_.i32_val;
-    right_f64 = other.value_.i32_val;
-  } else if (other.type_ == RTAnyType::kU32Value) {
-    right_i64 = other.value_.u32_val;
-    right_f64 = other.value_.u32_val;
-  } else if (other.type_ == RTAnyType::kU64Value) {
-    right_i64 = other.value_.u64_val;
-    right_f64 = other.value_.u64_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RTAny::operator* not support for " +
-        std::to_string(static_cast<int>(other.type_)));
-  }
-
-  if (has_f64) {
-    return RTAny::from_double(left_f64 * right_f64);
-  } else if (has_f32) {
-    return RTAny::from_float(static_cast<float>(left_f64 * right_f64));
-  } else if (has_i64) {
-    return RTAny::from_int64(left_i64 * right_i64);
-  } else {
+  assert(type_ == other.type_);
+  switch (type_) {
+  case RTAnyType::kI32Value:
     return RTAny::from_int32(value_.i32_val * other.value_.i32_val);
+  case RTAnyType::kU32Value:
+    return RTAny::from_uint32(value_.u32_val * other.value_.u32_val);
+  case RTAnyType::kI64Value:
+    return RTAny::from_int64(value_.i64_val * other.value_.i64_val);
+  case RTAnyType::kU64Value:
+    return RTAny::from_uint64(value_.u64_val * other.value_.u64_val);
+  case RTAnyType::kF32Value:
+    return RTAny::from_float(value_.f32_val * other.value_.f32_val);
+  case RTAnyType::kF64Value:
+    return RTAny::from_double(value_.f64_val * other.value_.f64_val);
+  default:
+    LOG(FATAL) << "RTAny::operator* not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_));
   }
 }
 
 RTAny RTAny::operator/(const RTAny& other) const {
-  bool has_i64 = false;
-  bool has_f64 = false;
-  bool has_f32 = false;
-  double left_f64 = 0;
-  int64_t left_i64 = 0;
-  if (type_ == RTAnyType::kI64Value) {
-    left_i64 = value_.i64_val;
-    left_f64 = value_.i64_val;
-    has_i64 = true;
-  } else if (type_ == RTAnyType::kF32Value) {
-    left_f64 = value_.f32_val;
-    left_i64 = value_.f32_val;
-    has_f32 = true;
-  } else if (type_ == RTAnyType::kF64Value) {
-    left_f64 = value_.f64_val;
-    has_f64 = true;
-  } else if (type_ == RTAnyType::kI32Value) {
-    left_i64 = value_.i32_val;
-    left_f64 = value_.i32_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator/ not support for " +
-                                  std::to_string(static_cast<int>(type_)));
-  }
-
-  double right_f64 = 0;
-  int right_i64 = 0;
-  if (other.type_ == RTAnyType::kI64Value) {
-    right_i64 = other.value_.i64_val;
-    right_f64 = other.value_.i64_val;
-    has_i64 = true;
-  } else if (other.type_ == RTAnyType::kF32Value) {
-    right_f64 = other.value_.f32_val;
-    right_i64 = other.value_.f32_val;
-    has_f32 = true;
-  } else if (other.type_ == RTAnyType::kF64Value) {
-    right_f64 = other.value_.f64_val;
-    has_f64 = true;
-  } else if (other.type_ == RTAnyType::kI32Value) {
-    right_i64 = other.value_.i32_val;
-    right_f64 = other.value_.i32_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RTAny::operator/ not support for " +
-        std::to_string(static_cast<int>(other.type_)));
-  }
-
-  if (has_f64) {
-    return RTAny::from_double(left_f64 / right_f64);
-  } else if (has_f32) {
-    return RTAny::from_float(static_cast<float>(left_f64 / right_f64));
-  } else if (has_i64) {
-    return RTAny::from_int64(left_i64 / right_i64);
-  } else {
+  assert(type_ == other.type_);
+  switch (type_) {
+  case RTAnyType::kI32Value:
     return RTAny::from_int32(value_.i32_val / other.value_.i32_val);
+  case RTAnyType::kU32Value:
+    return RTAny::from_uint32(value_.u32_val / other.value_.u32_val);
+  case RTAnyType::kI64Value:
+    return RTAny::from_int64(value_.i64_val / other.value_.i64_val);
+  case RTAnyType::kU64Value:
+    return RTAny::from_uint64(value_.u64_val / other.value_.u64_val);
+  case RTAnyType::kF32Value:
+    return RTAny::from_float(value_.f32_val / other.value_.f32_val);
+  case RTAnyType::kF64Value:
+    return RTAny::from_double(value_.f64_val / other.value_.f64_val);
+  default:
+    LOG(FATAL) << "RTAny::operator/ not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_));
   }
 }
 
 RTAny RTAny::operator%(const RTAny& other) const {
-  bool has_i64 = false;
-  int64_t left_i64 = 0;
-  if (type_ == RTAnyType::kI64Value) {
-    left_i64 = value_.i64_val;
-    has_i64 = true;
-  } else if (type_ == RTAnyType::kI32Value) {
-    left_i64 = value_.i32_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION("RTAny::operator% not support for " +
-                                  std::to_string(static_cast<int>(type_)));
-  }
-
-  int64_t right_i64 = 0;
-  if (other.type_ == RTAnyType::kI64Value) {
-    right_i64 = other.value_.i64_val;
-    has_i64 = true;
-  } else if (other.type_ == RTAnyType::kI32Value) {
-    right_i64 = other.value_.i32_val;
-  } else {
-    THROW_NOT_SUPPORTED_EXCEPTION(
-        "RTAny::operator% not support for " +
-        std::to_string(static_cast<int>(other.type_)));
-  }
-  if (has_i64) {
-    return RTAny::from_int64(left_i64 % right_i64);
-  } else {
+  assert(type_ == other.type_);
+  switch (type_) {
+  case RTAnyType::kI32Value:
     return RTAny::from_int32(value_.i32_val % other.value_.i32_val);
+  case RTAnyType::kU32Value:
+    return RTAny::from_uint32(value_.u32_val % other.value_.u32_val);
+  case RTAnyType::kI64Value:
+    return RTAny::from_int64(value_.i64_val % other.value_.i64_val);
+  case RTAnyType::kU64Value:
+    return RTAny::from_uint64(value_.u64_val % other.value_.u64_val);
+  default:
+    LOG(FATAL) << "RTAny::operator% not support for " +
+                      std::to_string(static_cast<int>(type_)) + " and " +
+                      std::to_string(static_cast<int>(other.type_));
   }
 }
 
@@ -1326,6 +1152,8 @@ std::string RTAny::to_string() const {
     return std::to_string(value_.i32_val);
   } else if (type_ == RTAnyType::kU32Value) {
     return std::to_string(value_.u32_val);
+  } else if (type_ == RTAnyType::kU64Value) {
+    return std::to_string(value_.u64_val);
   } else if (type_ == RTAnyType::kVertex) {
 #if 0
       return std::string("v") +

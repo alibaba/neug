@@ -38,6 +38,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
+#include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
@@ -224,6 +225,46 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   auto indexPB = std::make_unique<::algebra::IndexPredicate>();
   indexPB->mutable_or_predicates()->AddAllocated(andPB.release());
   return indexPB;
+}
+
+std::unique_ptr<::common::Value> GExprConverter::castLiteral(
+    const binder::Expression& castExpr) {
+  GScalarType type(castExpr);
+  if (type.getType() != ScalarType::CAST) {
+    return nullptr;
+  }
+  if (castExpr.getChildren().empty()) {
+    return nullptr;
+  }
+  if (castExpr.getChild(0)->expressionType != common::ExpressionType::LITERAL) {
+    return nullptr;
+  }
+  auto& scalarExpr = castExpr.constCast<binder::ScalarFunctionExpression>();
+  auto execFunc = scalarExpr.getFunction().execFunc;
+  if (!execFunc) {
+    return nullptr;
+  }
+  auto sourceExpr =
+      castExpr.getChild(0)->constPtrCast<binder::LiteralExpression>();
+  auto& targetType = castExpr.getDataType();
+  // construct parameters of the cast function
+  // construct input parameters
+  auto inputVec =
+      std::make_shared<common::ValueVector>(sourceExpr->getDataType().copy());
+  inputVec->copyFromValue(0, sourceExpr->getValue());
+  auto state = std::make_shared<common::DataChunkState>(1);
+  state->initOriginalAndSelectedSize(1);
+  inputVec->setState(state);
+  std::vector<std::shared_ptr<common::ValueVector>> inputParams{inputVec};
+  // construct output parameters
+  common::ValueVector outputVec(targetType.copy());
+  outputVec.setState(state);
+  // exec the cast function with parameters
+  execFunc(inputParams, common::SelectionVector::fromValueVectors(inputParams),
+           outputVec, outputVec.getSelVectorPtr(), scalarExpr.getBindData());
+  // extract casted value from the ouput vector
+  auto castValue = outputVec.getAsValue(0);
+  return convertValue(*castValue);
 }
 
 // set default value for property definition
@@ -631,6 +672,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertExtensionFunc(
     const std::vector<std::string>& schemaAlias) {
   // acquire unqiue name
   const auto& func = expr.getFunction();
+  // only neug scalar functions can be converted to extension
+  if (!dynamic_cast<const function::NeugScalarFunction*>(&func)) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        expr.toString() +
+        "' is not a NeuG scalar function, can not convert to extension");
+  }
   const auto& signature = func.signatureName;
 
   auto scalarPB = std::make_unique<::common::ScalarFunction>();
@@ -729,20 +776,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertListContainsFunc(expr, scalarType, schemaAlias);
   }
   auto& sfExpr = expr.constCast<binder::ScalarFunctionExpression>();
-  const auto& fn = sfExpr.getFunction();
-  auto signature = fn.signatureName;
-  auto gCatalog = catalog::GCatalogHolder::getGCatalog();
-  try {
-    auto func = gCatalog->getFunctionWithSignature(
-        &gs::transaction::DUMMY_TRANSACTION, signature);
-    if (!func) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Function with signature '" + signature +
-                                     "' not found in catalog");
-    }
-  } catch (const std::exception& e) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Function lookup failed for signature '" +
-                                   signature + "': " + e.what());
-  }
   return convertExtensionFunc(sfExpr, schemaAlias);
 }
 
@@ -903,33 +936,24 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
         "CAST function should have at least one children");
   }
   auto sourceExpr = children[0];
-  if (sourceExpr->expressionType != common::ExpressionType::LITERAL) {
+  switch (sourceExpr->expressionType) {
+  case common::ExpressionType::LITERAL: {
+    auto valuePB = castLiteral(expr);
+    if (valuePB) {
+      auto exprPB = std::make_unique<::common::Expression>();
+      exprPB->add_operators()->set_allocated_const_(valuePB.release());
+      return exprPB;
+    }
+  }
+  case common::ExpressionType::PARAMETER: {  // cast dynamic param by
+                                             // setting its meta data with
+                                             // target type
     return convert(*sourceExpr, schemaAlias);
   }
-  auto sourceValue =
-      sourceExpr->constCast<binder::LiteralExpression>().getValue();
-  auto execFunc = scalarExpr.getFunction().execFunc;
-  // construct parameters of the cast function
-  // construct input parameters
-  auto inputVec = std::make_shared<common::ValueVector>(
-      scalarExpr.getChild(0)->getDataType().copy());
-  inputVec->copyFromValue(0, sourceValue);
-  auto state = std::make_shared<common::DataChunkState>(1);
-  state->initOriginalAndSelectedSize(1);
-  inputVec->setState(state);
-  std::vector<std::shared_ptr<common::ValueVector>> inputParams{inputVec};
-  // construct output parameters
-  common::ValueVector outputVec(scalarExpr.getBindData()->resultType.copy());
-  outputVec.setState(state);
-  // exec the cast function with parameters
-  execFunc(inputParams, common::SelectionVector::fromValueVectors(inputParams),
-           outputVec, outputVec.getSelVectorPtr(), scalarExpr.getBindData());
-  // extract casted value from the ouput vector
-  auto castValue = outputVec.getAsValue(0);
-  auto valuePB = convertValue(*castValue);
-  auto exprPB = std::make_unique<::common::Expression>();
-  exprPB->add_operators()->set_allocated_const_(valuePB.release());
-  return exprPB;
+  default: {  // convert to cast extension function for other conditions
+    return convertExtensionFunc(scalarExpr, schemaAlias);
+  }
+  }
 }
 
 std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(

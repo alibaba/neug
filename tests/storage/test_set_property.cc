@@ -114,7 +114,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
   {
     EXPECT_TRUE(
         conn->Query("MATCH (:person)-[e:knows]->(v:person) SET "
-                    "e.weight=e.weight * 2;"));
+                    "e.weight=e.weight * 2.0;"));
     {
       auto res = conn->Query(
           "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN "
