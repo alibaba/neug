@@ -305,7 +305,7 @@ TEST(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.get_column("bool_column")->type(), DataTypeId::kBool);
     disk_table.set_name("disk_table");
     std::vector<Property> properties = disk_table.get_row(9);
-    disk_table.insert_with_resize(9, properties);
+    disk_table.insert(9, properties);
   }
 
   disk_table.dump("disk_table", std::string(TEST_DIR) + "/checkpoint");

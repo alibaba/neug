@@ -94,7 +94,6 @@ class IdIndexerBase;
  * - Commit/abort transaction semantics
  *
  * **Implementation Details:**
- * - insert_vertex_with_resize_ controls whether to resize vertex columns
  * - Uses work_dir for temporary storage during updates
  * - Destructor calls release() for cleanup
  * - Integrates with version manager for timestamp coordination
@@ -113,9 +112,6 @@ class UpdateTransaction {
    * @param logger Reference to WAL writer
    * @param vm Reference to version manager
    * @param timestamp Transaction timestamp
-   *
-   * Implementation: Stores references and initializes
-   * insert_vertex_with_resize_=false.
    *
    * @since v0.1.0
    */

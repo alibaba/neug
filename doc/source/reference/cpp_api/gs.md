@@ -1233,7 +1233,6 @@ Transaction for updating existing graph elements (vertices and edges).
 - MVCC support with timestamp management
 - Commit`/abort` transaction semantics
 **Implementation Details:**
-- `insert_vertex_with_resize_` controls whether to resize vertex columns
 - Uses work_dir for temporary storage during updates
 - Destructor calls release() for cleanup
 - Integrates with version manager for timestamp coordination
@@ -1272,19 +1271,6 @@ Construct an `UpdateTransaction`.
 Destructor that calls release().
 
 Implementation: Calls release() to clean up resources and release timestamp.
-
-- **Since:** v0.1.0
-
-### Public Methods
-
-#### `set_insert_vertex_with_resize(bool insert_vertex_with_resize)`
-
-Configure whether to resize vertex columns during property updates.
-
-By default, update transactions will not resize vertex columns when updating properties. Setting this to `true` enables column resizing if needed.
-
-- **Parameters:**
-  - `insert_vertex_with_resize`: true to enable column resizing, false to disable
 
 - **Since:** v0.1.0
 

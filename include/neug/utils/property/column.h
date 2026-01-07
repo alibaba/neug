@@ -65,8 +65,6 @@ class ColumnBase {
 
   virtual void set_any(size_t index, const Property& value) = 0;
 
-  virtual void set_any_with_resize(size_t index, const Property& value) = 0;
-
   virtual Property get_prop(size_t index) const = 0;
 
   virtual void set_prop(size_t index, const Property& prop) {
@@ -167,23 +165,8 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_value_with_check(size_t index, const T& val) {
-    if (index < size_) {
-      set_value(index, val);
-    } else {
-      // TODO(zhanglei): Revisit the size increase logic
-      size_t new_size = std::max(index, 64UL) + index / 4;
-      resize(new_size);
-      set_value(index, val);
-    }
-  }
-
   void set_any(size_t index, const Property& value) override {
     set_value(index, PropUtils<T>::to_typed(value));
-  }
-
-  void set_any_with_resize(size_t index, const Property& value) override {
-    set_value_with_check(index, PropUtils<T>::to_typed(value));
   }
 
   inline T get_view(size_t index) const {
@@ -254,8 +237,6 @@ class TypedColumn<EmptyType> : public ColumnBase {
   DataTypeId type() const override { return DataTypeId::kEmpty; }
 
   void set_any(size_t index, const Property& value) override {}
-
-  void set_any_with_resize(size_t index, const Property& value) override {}
 
   void set_value(size_t index, const EmptyType& value) {}
 
@@ -397,31 +378,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void set_any(size_t idx, const Property& value) override {
     set_value(idx, value.as_string_view());
-  }
-
-  void set_any_with_resize(size_t idx, const Property& value) override {
-    return set_value_with_resize(idx, value.as_string_view());
-  }
-
-  void set_value_with_resize(size_t idx, const std::string_view& value) {
-    if (idx >= size_) {
-      size_t new_size = std::max(idx, 64UL) + idx / 4;
-      resize(new_size);
-    }
-    set_value_with_check(idx, value);
-  }
-
-  // make sure there is enough space for the value
-  void set_value_with_check(size_t idx, const std::string_view& value) {
-    if (idx < size_) {
-      size_t offset = pos_.fetch_add(value.size());
-      if (pos_.load() > buffer_.data_size()) {
-        buffer_.resize(buffer_.size(), pos_.load());
-      }
-      buffer_.set(idx, offset, value);
-    } else {
-      LOG(FATAL) << "Index out of range";
-    }
   }
 
   void set_value_safe(size_t idx, const std::string_view& value);

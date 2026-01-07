@@ -356,16 +356,6 @@ void Table::insert(size_t index, const std::vector<Property>& values) {
   }
 }
 
-void Table::insert_with_resize(size_t index,
-                               const std::vector<Property>& values) {
-  assert(values.size() == columns_.size());
-  CHECK_EQ(values.size(), columns_.size());
-  size_t col_num = columns_.size();
-  for (size_t i = 0; i < col_num; ++i) {
-    columns_[i]->set_any_with_resize(index, values[i]);
-  }
-}
-
 // column_id_mapping is the mapping from the column id in the input table to
 // the column id in the current table
 void Table::insert(size_t index, const std::vector<Property>& values,
