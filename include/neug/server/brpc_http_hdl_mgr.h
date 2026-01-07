@@ -28,12 +28,12 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/http_handler_manager.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"
-
-#include "neug/utils/likely.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace server {
@@ -139,46 +139,8 @@ class HttpServiceImpl : public HttpService {
                       "Planner is not set");
       return false;
     }
-    rapidjson::Document document;
-    document.Parse(req.c_str(), req.size());
-    if (document.HasParseError()) {
-      LOG(ERROR) << "The format of eval request is incorrect.";
-      return false;
-    }
-    std::string query;
-    if (document.HasMember("query") && document["query"].IsString()) {
-      query = document["query"].GetString();
-    }
 
-    // TODO(zhanglei): support access_mode in http query
-
-    gs::Status status;
-    auto plan_res = planner_->compilePlan(query);
-
-    if (!plan_res) {
-      LOG(ERROR) << "Plan compilation failed: "
-                 << plan_res.error().error_message();
-      const char* error_msg = plan_res.error().error_message().c_str();
-      cntl->SetFailed(status_code_to_http_code(plan_res.error().error_code()),
-                      "%s", error_msg);
-      cntl->response_attachment().append(plan_res.error().error_message());
-      return false;
-    }
-    const auto& physical_plan = plan_res.value().first;
-
-    VLOG(10) << "got plan: " << physical_plan.DebugString();
-    bool update_schema = false, update_statistics = false;
-    // TODO(zhanglei): We should get access_mode from user input in the future.
-    auto access_mode = gs::ParseAccessMode(physical_plan);
-    if (access_mode == gs::AccessMode::kUpdate ||
-        access_mode == gs::AccessMode::kSchema) {
-      update_schema = true;
-      update_statistics = true;
-    } else if (access_mode == gs::AccessMode::kInsert) {
-      update_statistics = true;
-    }
-
-    auto result = txn_mgr_.GetSession(id).Eval(physical_plan, access_mode);
+    auto result = txn_mgr_.GetSession(id).Eval(req);
     if (!result) {
       std::string error_msg = result.error().ToString();
       LOG(ERROR) << "Eval failed: " << error_msg;
@@ -188,24 +150,7 @@ class HttpServiceImpl : public HttpService {
       return false;
     }
 
-    VLOG(10) << "Query executed successfully, updating planner's schema and "
-                "statistics";
-    auto yaml_node = graph_db_.schema().to_yaml();
-    if (!yaml_node) {
-      LOG(ERROR) << "Failed to convert schema to YAML: "
-                 << yaml_node.error().error_message();
-      // If schema updating fails, we should not proceed on.
-      THROW_RUNTIME_ERROR("Failed to convert schema to YAML: " +
-                          yaml_node.error().error_message());
-    }
-    if (update_schema) {
-      planner_->update_meta(yaml_node.value());
-    }
-    if (update_statistics) {
-      planner_->update_statistics(graph_db_.graph().get_statistics_json());
-    }
-    results::CollectiveResults& final_res = result.value();
-    final_res.set_result_schema(plan_res.value().second);
+    const results::CollectiveResults& final_res = result.value();
     final_res_str = final_res.SerializeAsString();
     return true;
   }

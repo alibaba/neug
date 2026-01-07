@@ -35,8 +35,6 @@ class Value;
 
 namespace gs {
 
-AccessMode ParseAccessMode(const physical::PhysicalPlan& physical_plan);
-
 // Helper function to set up JsonPrintOptions with compatibility across protobuf
 // versions
 inline void configure_json_print_options_for_all_fields(

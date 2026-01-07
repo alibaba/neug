@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-#include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
@@ -34,6 +34,7 @@
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/update_transaction.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/result.h"
@@ -92,10 +93,12 @@ class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
   NeugDBSession(gs::PropertyGraph& graph,
+                std::shared_ptr<gs::IGraphPlanner> planner,
                 std::shared_ptr<gs::IVersionManager> vm, gs::Allocator& alloc,
                 gs::IWalWriter& logger, const gs::NeugDBConfig& config_,
                 int thread_id)
       : graph_(graph),
+        planner_(planner),
         version_manager_(vm),
         alloc_(alloc),
         logger_(logger),
@@ -117,8 +120,15 @@ class NeugDBSession {
 
   const gs::Schema& schema() const;
 
-  gs::result<results::CollectiveResults> Eval(
-      const physical::PhysicalPlan& physical_plan, gs::AccessMode access_mode);
+  /**
+   * @brief Execute a Cypher query within the session. Expect a json format
+   * string.
+   * {
+   *  "query": "MATCH(n) return count(n)",
+   *  "access_mode": "read/insert/update/schema"
+   * }
+   */
+  gs::result<results::CollectiveResults> Eval(const std::string& query);
 
   int SessionId() const;
 
@@ -127,7 +137,10 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
+  void update_planner_meta();
+  void update_planner_stats();
   gs::PropertyGraph& graph_;
+  std::shared_ptr<gs::IGraphPlanner> planner_;
   std::shared_ptr<gs::IVersionManager> version_manager_;
   gs::Allocator& alloc_;
   gs::IWalWriter& logger_;

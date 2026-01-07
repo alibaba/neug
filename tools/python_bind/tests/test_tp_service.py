@@ -178,3 +178,81 @@ def test_start_service_and_stop():
     assert res[0][0] == "josh"
     db.stop_serving()
     db.close()
+
+
+def test_access_mode_validation():
+    from neug.utils import is_access_mode_valid
+    from neug.utils import valid_access_modes
+
+    for mode in valid_access_modes:
+        assert is_access_mode_valid(mode) is True
+
+    invalid_modes = ["readwrite", "write", "delete", "modify", "execute", "rwx", ""]
+    for mode in invalid_modes:
+        assert is_access_mode_valid(mode) is False
+
+
+def test_readable_function():
+    from neug.utils import readable
+
+    assert readable("r") == "read-only"
+    assert readable("read") == "read-only"
+    assert readable("read-only") == "read-only"
+    assert readable("read_only") == "read-only"
+
+    assert readable("w") == "read-write"
+    assert readable("rw") == "read-write"
+    assert readable("write") == "read-write"
+    assert readable("readwrite") == "read-write"
+    assert readable("read-write") == "read-write"
+    assert readable("read_write") == "read-write"
+
+    invalid_modes = ["delete", "modify", "execute", "rwx", ""]
+    for mode in invalid_modes:
+        try:
+            readable(mode)
+            assert False, f"Expected ValueError for mode: {mode}"
+        except ValueError:
+            pass
+
+
+def test_invalid_access_mode_in_session():
+    db_dir = "/tmp/test_invalid_access_mode_in_session"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.close()
+    uri = db.serve(10003, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    with pytest.raises(ValueError):
+        session.execute("MATCH (n) RETURN n;", access_mode="readwrite")
+    with pytest.raises(ValueError):
+        session.execute("MATCH (n) RETURN n;", access_mode="delete")
+    # correct access mode
+    session.execute("MATCH (n) RETURN n;", access_mode="r")
+    with pytest.raises(ValueError):
+        session.execute(
+            "CREATE (p:person {id: 1, name: 'marko', age: 29});",
+            access_mode="read-only",
+        )
+    session.execute(
+        "CREATE (p:person {id: 1, name: 'marko', age: 29});", access_mode="insert"
+    )
+    # TODO(xiaolei,zhanglei): Support insert access mode.
+    # with pytest.raises(ValueError):
+    #    session.execute("MATCH (n: person) WHERE n.id = 1 SET n.age = 30;", access_mode="insert")
+    # with pytest.raises(ValueError):
+    # session.execute("MATCH (n: person) WHERE n.id = 1 SET n.age = 30;", access_mode="read")
+    session.execute(
+        "MATCH (n: person) WHERE n.id = 1 SET n.age = 30;", access_mode="update"
+    )
+    session.close()
+
+    db.stop_serving()
+    db.close()

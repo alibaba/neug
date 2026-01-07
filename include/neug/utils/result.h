@@ -100,6 +100,25 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
     std::move(_r);                       \
   }).value()
 
+#define GS_AUTO(var, expr)                                         \
+  auto var = ({                                                    \
+               auto&& _r = (expr);                                 \
+               if (!_r) {                                          \
+                 LOG(ERROR) << "Error: " << _r.error().ToString(); \
+                 return tl::unexpected(_r.error());                \
+               }                                                   \
+               std::move(_r);                                      \
+             }).value();
+#define GS_ASSIGN(var, expr)                            \
+  do {                                                  \
+    auto&& _r = (expr);                                 \
+    if (!_r) {                                          \
+      LOG(ERROR) << "Error: " << _r.error().ToString(); \
+      return tl::unexpected(_r.error());                \
+    }                                                   \
+    var = std::move(_r).value();                        \
+  } while (0)
+
 // Concatenate the current function name and line number to form the error
 // message
 #define PREPEND_LINE_INFO(msg)                             \

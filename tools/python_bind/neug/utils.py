@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+from typing import Final
+
 
 def readable(mode: str) -> str:
     """Convert mode to a readable string."""
@@ -27,3 +29,11 @@ def readable(mode: str) -> str:
         raise ValueError(
             f"Invalid mode: {mode}. Must be one of 'r', 'read', 'w', 'rw', 'write', 'readwrite'."
         )
+
+
+valid_access_modes: Final = ["read", "r", "insert", "i", "update", "u", "schema", "s"]
+
+
+def is_access_mode_valid(mode: str) -> bool:
+    """Check if the access mode is valid."""
+    return mode in valid_access_modes

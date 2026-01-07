@@ -31,13 +31,15 @@ class AppManager;
 class PropertyGraph;
 
 TransactionManager::TransactionManager(
-    std::shared_ptr<IVersionManager> version_manager, PropertyGraph& graph,
+    PropertyGraph& graph, std::shared_ptr<IVersionManager> version_manager,
+    std::shared_ptr<IGraphPlanner> planner,
     std::vector<std::shared_ptr<Allocator>>& allocators,
     const NeugDBConfig& config, const std::string& work_dir, int32_t thread_num)
     : thread_num_(thread_num),
       work_dir_(work_dir),
-      version_manager_(version_manager),
       graph_(graph),
+      version_manager_(version_manager),
+      planner_(planner),
       config_(std::move(config)) {
   allocator_strategy_ = MemoryStrategy::kMemoryOnly;
   if (config_.memory_level == 0) {
@@ -57,7 +59,7 @@ TransactionManager::TransactionManager(
   }
   for (int i = 0; i < thread_num_; ++i) {
     new (&contexts_[i]) SessionLocalContext(
-        graph_, allocators[i], version_manager_, work_dir, i,
+        graph_, allocators[i], version_manager_, planner_, work_dir, i,
         WalWriterFactory::CreateWalWriter(wal_uri_, i), config_);
   }
 }

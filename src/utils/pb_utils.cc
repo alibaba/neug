@@ -43,23 +43,6 @@
 
 namespace gs {
 
-AccessMode ParseAccessMode(const physical::PhysicalPlan& plan) {
-  if (plan.has_ddl_plan()) {
-    return AccessMode::kSchema;
-  } else if (plan.has_query_plan()) {
-    const auto& query_plan = plan.query_plan();
-    if (query_plan.mode() ==
-        physical::QueryPlan::Mode::QueryPlan_Mode_READ_ONLY) {
-      return AccessMode::kRead;
-    } else {
-      // TODO(zhanglei): distinguish insert and update
-      return AccessMode::kUpdate;
-    }
-  } else {
-    THROW_RUNTIME_ERROR("Physical plan has neither query plan nor ddl plan");
-  }
-}
-
 std::string convert_object_to_string(const ::common::Value& value) {
   if (value.item_case() == common::Value::ItemCase::kI32) {
     return std::to_string(value.i32());

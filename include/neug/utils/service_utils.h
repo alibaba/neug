@@ -58,9 +58,6 @@
 
 namespace gs {
 
-// TODO(zhanglei): make sure the access mode covers all use cases
-enum class AccessMode { kRead, kInsert, kUpdate, kSchema };
-
 /// Util functions.
 
 inline void blockSignal(int sig) {

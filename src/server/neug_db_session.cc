@@ -35,6 +35,7 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/stored_procedure.pb.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -75,35 +76,55 @@ gs::PropertyGraph& NeugDBSession::graph() { return graph_; }
 const gs::Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
 gs::result<results::CollectiveResults> NeugDBSession::Eval(
-    const physical::PhysicalPlan& plan, gs::AccessMode access_mode) {
+    const std::string& req) {
   const auto start = std::chrono::high_resolution_clock::now();
+
+  std::string query;
+  rapidjson::Document document;
+  document.Parse(req.c_str(), req.size());
+  if (document.HasParseError()) {
+    LOG(ERROR) << "The format of eval request is incorrect.";
+    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                            "The format of eval request is incorrect."));
+  }
+  gs::AccessMode access_mode = gs::AccessMode::kUpdate;
+  if (document.HasMember("query") && document["query"].IsString()) {
+    query = document["query"].GetString();
+  }
+  if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
+    std::string access_mode_str = document["access_mode"].GetString();
+    access_mode = gs::ParseAccessMode(access_mode_str);
+  }
+
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;
   results::CollectiveResults ret;
+  std::pair<physical::PhysicalPlan, std::string> plan_and_schema;
+  bool update_meta, update_stats;
+  update_meta = update_stats = false;
   if (access_mode == gs::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
     gs::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
-    auto ctx =
-        gs::runtime::ParseAndExecuteQueryPipeline(gri, plan, timer.get());
-    if (!ctx) {
-      LOG(ERROR) << "Error: " << ctx.error().ToString();
-      RETURN_ERROR(ctx.error());
-    }
+    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
+    // TODO(zhanglei): Check whether the mode is correct for the plan.
+    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+                     gri, plan_and_schema.first, timer.get()));
     if (!read_txn.Commit()) {
       LOG(ERROR) << "Read transaction commit failed.";
       RETURN_ERROR(
           gs::Status::IntervalError("Read transaction commit failed."));
     }
-    ret = gs::runtime::Sink::sink(ctx.value(), gri);
+    ret = gs::runtime::Sink::sink(ctx, gri);
   } else if (access_mode == gs::AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     gs::StorageTPInsertInterface gii(insert_txn);
-    auto ctx =
-        gs::runtime::ParseAndExecuteQueryPipeline(gii, plan, timer.get());
-    if (!ctx) {
-      LOG(ERROR) << "Error: " << ctx.error().ToString();
-      RETURN_ERROR(ctx.error());
-    }
+    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
+    // TODO(xiaoli,zhanglei): Need to check whether the plan is insert-only
+    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+                     gii, plan_and_schema.first, timer.get()));
+    // We don't update statistics for insert mode currently, the reason is
+    // that Update statistics for each insert cause massive performance
+    // overhead.
     if (!insert_txn.Commit()) {
       LOG(ERROR) << "Insert transaction commit failed.";
       RETURN_ERROR(
@@ -112,33 +133,49 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
     // TODO(zhanglei,lexiao): enable sink for insert interface
   } else if (access_mode == gs::AccessMode::kUpdate ||
              access_mode == gs::AccessMode::kSchema) {  // Update mode
+    // TODO(zhanglei): Whether or not to add another Schema AccessMode.
     auto update_txn = GetUpdateTransaction();
     gs::StorageTPUpdateInterface gui(update_txn);
-    gs::result<gs::runtime::Context> ctx;
-    if (plan.has_ddl_plan()) {  // UpdateSchema
-      ctx = gs::runtime::ParseAndExecuteDDLPipeline(gui, plan.ddl_plan(),
-                                                    timer.get());
-    } else if (plan.has_admin_plan()) {  // UpdateAdmin
-      ctx = gs::runtime::ParseAndExecuteAdminPipeline(gui, plan.admin_plan(),
-                                                      timer.get());
+    CHECK(planner_ != nullptr);
+    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
+    gs::runtime::Context ctx;
+    // update_planner_meta() and update_planner_stats() are called inside the
+    // transaction scope to ensure concurrency safety.
+    // TODO(zhanglei): need to obtain more concrete flags from plan to decide
+    // whether need to be blocked in TP mode, and whether need to update schema
+    // and statistics.
+    if (plan_and_schema.first.has_ddl_plan()) {  // UpdateSchema
+      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteDDLPipeline(
+                         gui, plan_and_schema.first.ddl_plan(), timer.get()));
+      update_meta = update_stats = true;
+    } else if (plan_and_schema.first.has_admin_plan()) {
+      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteAdminPipeline(
+                         gui, plan_and_schema.first.admin_plan(), timer.get()));
     } else {  // UpdateData
-      ctx = gs::runtime::ParseAndExecuteQueryPipeline(gui, plan, timer.get());
-    }
-    if (!ctx) {
-      LOG(ERROR) << "Error: " << ctx.error().ToString();
-      RETURN_ERROR(ctx.error());
+      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+                         gui, plan_and_schema.first, timer.get()));
+      update_stats = true;
     }
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
       RETURN_ERROR(
           gs::Status::IntervalError("Update transaction commit failed."));
     }
-    ret = gs::runtime::Sink::sink(ctx.value(), gui);
+    ret = gs::runtime::Sink::sink(ctx, gui);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported access mode for NeugDBSession::Eval" +
+        "Access mode not supported in NeugDBSession::Eval: " +
         std::to_string(static_cast<int>(access_mode)));
   }
+  // Update planner meta and statistics after successful transaction commit.
+  // Concurrency control is done inside planner.
+  if (update_meta) {
+    update_planner_meta();
+  }
+  if (update_stats) {
+    update_planner_stats();
+  }
+  ret.set_result_schema(plan_and_schema.second);
 
   const auto end = std::chrono::high_resolution_clock::now();
   eval_duration_.fetch_add(
@@ -162,5 +199,21 @@ double NeugDBSession::eval_duration() const {
 }
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
+
+void NeugDBSession::update_planner_meta() {
+  auto schema_yaml = graph_.schema().to_yaml();
+  if (!schema_yaml) {
+    LOG(ERROR) << "Failed to serialize schema to YAML: "
+               << schema_yaml.error().ToString();
+    THROW_INTERNAL_EXCEPTION("Failed to serialize schema to YAML: " +
+                             schema_yaml.error().ToString());
+  }
+  planner_->update_meta(schema_yaml.value());
+}
+
+void NeugDBSession::update_planner_stats() {
+  auto stats = graph_.get_statistics_json();
+  planner_->update_statistics(stats);
+}
 
 }  // namespace server

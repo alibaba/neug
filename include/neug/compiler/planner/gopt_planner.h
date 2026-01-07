@@ -17,6 +17,15 @@
 
 namespace gs {
 
+/**
+ * @brief GOptPlanner is an implementation of IGraphPlanner that uses the GOpt
+ * optimization framework to compile Cypher queries into executable physical
+ * plans.
+ * @note GOptPlanner is not thread-safe. Concurrent access to its methods
+ * should be synchronized externally.
+ * compilePlan: need read-lock.
+ * update_meta/update_statistics: need write-lock.
+ */
 class GOptPlanner : public gs::IGraphPlanner {
  public:
   GOptPlanner() : IGraphPlanner() {

@@ -35,6 +35,8 @@ from neug.proto.error_pb2 import Code
 
 # This is the C++ binding for the Python interface, which provides the actual connection to the database.
 from neug.query_result import QueryResult
+from neug.utils import is_access_mode_valid
+from neug.utils import valid_access_modes
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +163,7 @@ class Connection(object):
         if access_mode.lower() not in ["read", "r", "insert", "i", "update", "u"]:
             raise ValueError(
                 f"Invalid access_mode: {access_mode}. Supported access modes are "
-                f"'read(r)', 'insert(i)', 'update(u)'."
+                f"{valid_access_modes}."
             )
         ret = QueryResult(self._py_connection.execute(query, access_mode))
         status_code = ret._result.status_code()

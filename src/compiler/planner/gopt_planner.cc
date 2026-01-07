@@ -56,6 +56,8 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
                                            database->getCatalog());
     auto physicalPlan = converter.convert(*statement->logicalPlan);
 
+    VLOG(10) << "got plan: " << physicalPlan->DebugString();
+
     // set result schema
     auto resultYaml = gopt::GResultSchema::infer(
         *statement->logicalPlan, aliasManager, database->getCatalog());

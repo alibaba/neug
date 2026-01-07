@@ -41,8 +41,8 @@ void NeugDBService::init(const ServiceConfig& config) {
       db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
 
   txn_manager_ = std::make_unique<gs::TransactionManager>(
-      version_manager_, db_.graph(), db_.allocators_, db_config_,
-      db_.work_dir(), db_config_.thread_num);
+      db_.graph(), version_manager_, db_.GetPlanner(), db_.allocators_,
+      db_config_, db_.work_dir(), db_config_.thread_num);
 
   hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, *txn_manager_);
   hdl_mgr_->Init(config);

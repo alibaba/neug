@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/file_names.h"
@@ -41,12 +42,14 @@ class PropertyGraph;
 struct SessionLocalContext {
   SessionLocalContext(PropertyGraph& graph_, std::shared_ptr<Allocator> alloc,
                       std::shared_ptr<IVersionManager> version_manager,
+                      std::shared_ptr<IGraphPlanner> planner,
                       const std::string& work_dir, int thread_id,
                       std::unique_ptr<IWalWriter> in_logger,
                       const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
-        session(graph_, version_manager, *alloc, *logger, config_, thread_id) {
+        session(graph_, planner, version_manager, *alloc, *logger, config_,
+                thread_id) {
     logger->open();
   }
   ~SessionLocalContext() {
@@ -71,8 +74,9 @@ struct SessionLocalContext {
  */
 class TransactionManager {
  public:
-  TransactionManager(std::shared_ptr<IVersionManager> version_manager,
-                     PropertyGraph& graph,
+  TransactionManager(PropertyGraph& graph,
+                     std::shared_ptr<IVersionManager> version_manager,
+                     std::shared_ptr<IGraphPlanner> planner,
                      std::vector<std::shared_ptr<Allocator>>& allocators,
                      const NeugDBConfig& config, const std::string& work_dir,
                      int32_t thread_num = 1);
@@ -104,8 +108,10 @@ class TransactionManager {
   std::string work_dir_;
   std::string wal_uri_;
 
-  std::shared_ptr<IVersionManager> version_manager_;
   PropertyGraph& graph_;
+  std::shared_ptr<IVersionManager> version_manager_;
+  std::shared_ptr<IGraphPlanner> planner_;
+
   NeugDBConfig config_;
   MemoryStrategy allocator_strategy_;
 

@@ -35,6 +35,8 @@ from neug.proto.error_pb2 import ERR_NETWORK
 from neug.proto.error_pb2 import ERR_SESSION_CLOSED
 from neug.proto.results_pb2 import CollectiveResults
 from neug.query_result import QueryResult
+from neug.utils import is_access_mode_valid
+from neug.utils import valid_access_modes
 
 logger = logging.getLogger(__name__)
 
@@ -141,11 +143,12 @@ class Session:
         self._http_session = None
         self._http_adapter = None
 
-    def execute(self, query: str):
+    def execute(self, query: str, access_mode: str = "update"):
         """
         Execute a query on the NeuG server.
 
         :param query: The query string to be executed.
+        :param access_mode: The access mode for the query.
         :return: The result of the query execution.
         """
         if self._closed:
@@ -156,8 +159,14 @@ class Session:
         logger.info(
             f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
         )
+        access_mode = access_mode.lower()
+        if not is_access_mode_valid(access_mode):
+            raise ValueError(
+                f"Invalid access_mode: {access_mode}. Supported access modes are "
+                f"{valid_access_modes}."
+            )
         try:
-            data = {"query": query}
+            data = {"query": query, "access_mode": access_mode}
             response = self._http_session.post(
                 self._query_endpoint, data=json.dumps(data), timeout=self.timeout
             )
