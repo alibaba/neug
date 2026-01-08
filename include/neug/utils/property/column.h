@@ -30,6 +30,7 @@
 
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/likely.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -260,17 +261,20 @@ class TypedColumn<EmptyType> : public ColumnBase {
 template <>
 class TypedColumn<std::string_view> : public ColumnBase {
  public:
-  TypedColumn(StorageStrategy strategy, uint16_t width)
+  TypedColumn(StorageStrategy strategy, uint16_t width,
+              std::string_view default_value = "")
       : size_(0),
         pos_(0),
         strategy_(strategy),
         width_(width),
+        default_value_(default_value),
         type_(DataTypeId::kStringView) {}
   explicit TypedColumn(StorageStrategy strategy)
       : size_(0),
         pos_(0),
         strategy_(strategy),
         width_(STRING_DEFAULT_MAX_LENGTH),
+        default_value_(""),
         type_(DataTypeId::kStringView) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
     buffer_.swap(rhs.buffer_);
@@ -278,6 +282,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     pos_ = rhs.pos_.load();
     strategy_ = rhs.strategy_;
     width_ = rhs.width_;
+    default_value_ = rhs.default_value_;
     type_ = rhs.type_;
   }
 
@@ -347,15 +352,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void resize(size_t size) override {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-
+    auto prev_size = size_;
     size_ = size;
     if (buffer_.size() != 0) {
       size_t avg_width =
           (buffer_.data_size() + buffer_.size() - 1) / buffer_.size();
-      //  extra_size_ * basic_avg_width may be smaller than pos_.load()
       buffer_.resize(size_, std::max(size_ * avg_width, pos_.load()));
     } else {
       buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
+    }
+    if (NEUG_UNLIKELY(size_ > prev_size && !default_value_.empty())) {
+      for (size_t i = prev_size; i < size_; ++i) {
+        size_t offset = pos_.fetch_add(default_value_.size());
+        buffer_.set(i, offset, default_value_);
+      }
     }
   }
 
@@ -369,6 +379,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
       copied_val = truncate_utf8(copied_val, width_);
     }
     if (idx < size_) {
+      // NOTE: Even if idx has been set before, we always append the new value
+      // to the end of buffer_. The previous value is not reclaimed, and should
+      // be handled by garbage collection or compaction.
       size_t offset = pos_.fetch_add(copied_val.size());
       buffer_.set(idx, offset, copied_val);
     } else {
@@ -417,6 +430,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   StorageStrategy strategy_;
   std::shared_mutex rw_mutex_;
   uint16_t width_;
+  std::string_view default_value_;
   DataTypeId type_;
 };
 

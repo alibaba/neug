@@ -203,7 +203,8 @@ std::shared_ptr<ColumnBase> CreateColumn(
           max_length = str_info->max_length;
         }
       }
-      return std::make_shared<StringColumn>(strategy, max_length);
+      return std::make_shared<StringColumn>(strategy, max_length,
+                                            default_value.as_string_view());
     } else if (type == DataTypeId::kDateTime) {
       return std::make_shared<DateTimeColumn>(default_value.as_datetime(),
                                               strategy);

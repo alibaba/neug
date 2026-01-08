@@ -39,6 +39,18 @@ namespace gs {
 class PropertyGraph;
 class Schema;
 
+inline void process_default_values(
+    std::vector<Property>& default_property_values,
+    std::vector<std::string>& default_property_strings) {
+  // Keep the ownership of string default property in default_property_strings
+  for (auto& prop : default_property_values) {
+    if (prop.type() == DataTypeId::kStringView && prop.as_string_view() != "") {
+      default_property_strings.emplace_back(prop.as_string_view());
+      prop.set_string_view(std::string_view(default_property_strings.back()));
+    }
+  }
+}
+
 struct VertexSchema {
   VertexSchema() = default;
   VertexSchema(const std::string& label_name_,
@@ -72,6 +84,7 @@ struct VertexSchema {
     assert(property_types.size() == property_names.size());
     assert(property_types.size() == default_property_values.size());
     property_extra_infos.resize(property_types_.size(), nullptr);
+    process_default_values(default_property_values, default_property_strings);
   }
 
   void clear();
@@ -128,6 +141,7 @@ struct VertexSchema {
   std::vector<std::tuple<DataTypeId, std::string, size_t>> primary_keys;
   std::vector<StorageStrategy> storage_strategies;
   std::vector<Property> default_property_values;
+  std::vector<std::string> default_property_strings;
   std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
   std::string description;
   size_t max_num;
@@ -182,6 +196,7 @@ struct EdgeSchema {
     assert(properties.size() == default_property_values.size());
     CHECK(properties.size() == property_names.size());
     CHECK(properties.size() == strategies.size());
+    process_default_values(default_property_values, default_property_strings);
   }
 
   bool is_bundled() const;
@@ -226,6 +241,7 @@ struct EdgeSchema {
   std::vector<std::string> property_names;
   std::vector<StorageStrategy> strategies;
   std::vector<Property> default_property_values;
+  std::vector<std::string> default_property_strings;
   std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
 
   // Mark whether the edge property is soft deleted

@@ -171,7 +171,7 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   }
 
   int32_t cur_offset, another_offset;
-  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
+  DataTypeId e_prop_type = determine_search_prop_type(props);
   cur_offset = gs::get_offset_for_edge_record(cur_nbr_list, nbr, record.prop,
                                               e_prop_type);
   assert(cur_offset != std::numeric_limits<int32_t>::max());
@@ -195,9 +195,9 @@ int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
   auto oe_nbr_it = oe_edges.begin();
   oe_nbr_it += oe_offset;
   assert(oe_nbr_it != oe_edges.end());
-  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
   return gs::fuzzy_search_offset_from_nbr_list(
-      ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(), e_prop_type);
+      ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(),
+      determine_search_prop_type(props));
 }
 
 int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
@@ -209,9 +209,9 @@ int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
   auto ie_nbr_it = ie_edges.begin();
   ie_nbr_it += ie_offset;
   assert(ie_nbr_it != ie_edges.end());
-  DataTypeId e_prop_type = props.size() == 1 ? props[0] : DataTypeId::kUInt64;
   return gs::fuzzy_search_offset_from_nbr_list(
-      oe_nbr_list, dst_lid, ie_nbr_it.get_data_ptr(), e_prop_type);
+      oe_nbr_list, dst_lid, ie_nbr_it.get_data_ptr(),
+      determine_search_prop_type(props));
 }
 
 }  // namespace gs

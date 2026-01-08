@@ -749,8 +749,7 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
                       .get_edges(dst_lid);
   auto edge_prop_types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
-  auto search_edge_prop_type =
-      edge_prop_types.size() == 1 ? edge_prop_types[0] : DataTypeId::kUInt64;
+  auto search_edge_prop_type = determine_search_prop_type(edge_prop_types);
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst_lid) {
@@ -902,8 +901,7 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   auto edge_prop_types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   assert(col_id >= 0 && static_cast<size_t>(col_id) < edge_prop_types.size());
-  auto search_prop_type =
-      edge_prop_types.size() == 1 ? edge_prop_types[0] : DataTypeId::kUInt64;
+  auto search_prop_type = determine_search_prop_type(edge_prop_types);
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst) {

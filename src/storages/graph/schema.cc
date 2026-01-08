@@ -66,6 +66,7 @@ void VertexSchema::clear() {
   primary_keys.clear();
   storage_strategies.clear();
   default_property_values.clear();
+  default_property_strings.clear();
   vprop_soft_deleted.clear();
 }
 
@@ -87,6 +88,7 @@ void VertexSchema::add_properties(
       default_property_values.emplace_back(get_default_value(types[i]));
     }
   }
+  process_default_values(default_property_values, default_property_strings);
 }
 
 void VertexSchema::set_properties(
@@ -99,6 +101,7 @@ void VertexSchema::set_properties(
   property_extra_infos = extra_infos;
   storage_strategies.resize(types.size(), StorageStrategy::kMem);
   default_property_values = default_values;
+  process_default_values(default_property_values, default_property_strings);
   vprop_soft_deleted.resize(property_types.size(), false);
   property_extra_infos.resize(property_types.size(), nullptr);
 }
@@ -293,6 +296,7 @@ void EdgeSchema::add_properties(
                                                              : nullptr);
     eprop_soft_deleted.emplace_back(false);
   }
+  process_default_values(default_property_values, default_property_strings);
 }
 
 void EdgeSchema::rename_properties(const std::vector<std::string>& names,
@@ -2202,6 +2206,8 @@ OutArchive& operator>>(OutArchive& archive, VertexSchema& v_schema) {
       v_schema.storage_strategies >> v_schema.default_property_values >>
       v_schema.property_extra_infos >> v_schema.description >>
       v_schema.max_num >> v_schema.vprop_soft_deleted;
+  process_default_values(v_schema.default_property_values,
+                         v_schema.default_property_strings);
   return archive;
 }
 
@@ -2224,6 +2230,8 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
       e_schema.property_names >> e_schema.strategies >>
       e_schema.default_property_values >> e_schema.property_extra_infos >>
       e_schema.eprop_soft_deleted;
+  process_default_values(e_schema.default_property_values,
+                         e_schema.default_property_strings);
   return archive;
 }
 

@@ -192,6 +192,69 @@ class UpdateTransactionTest : public ::testing::Test {
       }
     }
   }
+
+  std::vector<std::string> create_string_prop_relation(
+      gs::StorageTPUpdateInterface& graph, int num_edges) {
+    auto person_label = graph.schema().get_vertex_label_id("person");
+    auto software_label = graph.schema().get_vertex_label_id("software");
+    std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
+        edge_props = {
+            std::make_tuple(gs::DataTypeId::kStringView, "review",
+                            gs::Property::from_string_view("no review"))};
+    EXPECT_TRUE(graph.CreateEdgeType(
+        "person", "software", "reviewed", edge_props, true,
+        gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple));
+    gs::label_t review_label = graph.schema().get_edge_label_id("reviewed");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(graph.GetVertexIndex(person_label, gs::Property::from_int64(1),
+                                     p1_vid));
+    gs::vid_t s1_vid;
+    EXPECT_TRUE(graph.GetVertexIndex(software_label,
+                                     gs::Property::from_int64(1), s1_vid));
+    std::string review_text("Review number: ");
+    std::vector<std::string> reviews;
+    for (int i = 0; i < num_edges; i++) {
+      std::string full_review = review_text + std::to_string(i);
+      reviews.push_back(full_review);
+      EXPECT_TRUE(graph.AddEdge(person_label, p1_vid, software_label, s1_vid,
+                                review_label,
+                                {gs::Property::from_string_view(full_review)}));
+    }
+    return reviews;
+  }
+
+  // Helper function to fetch all edge string properties
+  std::vector<std::string_view> fetch_edge_string_properties(
+      gs::StorageReadInterface& gi, gs::label_t person_label,
+      gs::label_t software_label, gs::label_t review_label) {
+    auto ed_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, review_label, 0);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               review_label);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    std::vector<std::string_view> fetched_views;
+    for (gs::vid_t vid : vertex_set) {
+      auto edges = view.get_edges(vid);
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        auto prop = ed_accessor.get_data(it);
+        fetched_views.push_back(prop.as_string_view());
+      }
+    }
+    return fetched_views;
+  }
+
+  // Helper function to verify expected and fetched string views match
+  void verify_string_views(const std::vector<std::string>& expected,
+                           const std::vector<std::string_view>& fetched) {
+    auto sorted_expected = expected;
+    auto sorted_fetched = fetched;
+    std::sort(sorted_expected.begin(), sorted_expected.end());
+    std::sort(sorted_fetched.begin(), sorted_fetched.end());
+    CHECK_EQ(sorted_expected.size(), sorted_fetched.size());
+    for (size_t i = 0; i < sorted_expected.size(); ++i) {
+      EXPECT_EQ(sorted_expected[i], sorted_fetched[i]);
+    }
+  }
 };
 
 TEST_F(UpdateTransactionTest, AddVertex) {
@@ -1900,5 +1963,160 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
               gs::StatusCode::ERR_NOT_SUPPORTED);
     EXPECT_EQ(interface.BatchDeleteEdges(0, 0, 0, edges).error_code(),
               gs::StatusCode::ERR_NOT_SUPPORTED);
+  }
+}
+
+TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
+  // By default, the string property has max length: STRING_DEFAULT_MAX_LENGTH.
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+  {
+    auto txn = svc->GetUpdateTransaction();
+    gs::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid, p2_vid;
+    EXPECT_TRUE(interface.GetVertexIndex(person_label,
+                                         gs::Property::from_int64(1), p1_vid));
+    EXPECT_TRUE(interface.GetVertexIndex(person_label,
+                                         gs::Property::from_int64(2), p2_vid));
+    std::string long_name(gs::STRING_DEFAULT_MAX_LENGTH + 10, 'a');
+    interface.UpdateVertexProperty(person_label, p1_vid, 0,
+                                   gs::Property::from_string_view(long_name));
+    auto prop = interface.GetVertexProperty(person_label, p1_vid, 0);
+    EXPECT_EQ(prop.as_string_view(),
+              std::string(gs::STRING_DEFAULT_MAX_LENGTH, 'a'));  // truncated
+    std::string valid_name(gs::STRING_DEFAULT_MAX_LENGTH - 10, 'b');
+    EXPECT_NO_THROW(interface.UpdateVertexProperty(
+        person_label, p1_vid, 0, gs::Property::from_string_view(valid_name)));
+    prop = interface.GetVertexProperty(person_label, p1_vid, 0);
+    EXPECT_EQ(prop.as_string_view(), valid_name);
+    auto p2_prop = interface.GetVertexProperty(person_label, p2_vid, 0);
+    EXPECT_EQ(p2_prop.as_string_view(), "Bob");  // unchanged
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    gs::vid_t p1_vid;
+    EXPECT_TRUE(
+        gi.GetVertexIndex(person_label, gs::Property::from_int64(1), p1_vid));
+    auto vprop_accessor =
+        gi.GetVertexPropColumn<std::string_view>(person_label, "name");
+    EXPECT_EQ(vprop_accessor->get(p1_vid).as_string_view(),
+              std::string(gs::STRING_DEFAULT_MAX_LENGTH - 10, 'b'));
+    EXPECT_TRUE(txn.Commit());
+  }
+}
+
+TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
+  gs::NeugDB db;
+  gs::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  config.checkpoint_on_close = true;
+  db.Open(config);
+  auto svc = std::make_shared<server::NeugDBService>(db);
+  std::vector<std::string> reviews;
+  {
+    auto txn = svc->GetUpdateTransaction();
+    gs::StorageTPUpdateInterface interface(txn);
+    reviews = create_string_prop_relation(interface, 300);
+    EXPECT_TRUE(txn.Commit());
+  }
+  CHECK_EQ(reviews.size(), 300);
+
+  // Verify initial reviews
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto review_label = gi.schema().get_edge_label_id("reviewed");
+
+    auto fetched_views = fetch_edge_string_properties(
+        gi, person_label, software_label, review_label);
+    verify_string_views(reviews, fetched_views);
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  std::vector<std::string> updated_views;
+  {
+    // Update edge string property with suffix: "_updated"
+    auto txn = svc->GetUpdateTransaction();
+    gs::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto review_label = txn.schema().get_edge_label_id("reviewed");
+    auto oe_view = txn.GetGenericOutgoingGraphView(person_label, software_label,
+                                                   review_label);
+    auto ie_view = txn.GetGenericIncomingGraphView(software_label, person_label,
+                                                   review_label);
+    auto e_prop_types = txn.schema().get_edge_properties(
+        person_label, software_label, review_label);
+    auto ed_accessor =
+        txn.GetEdgeDataAccessor(person_label, software_label, review_label, 0);
+    auto vertex_set = interface.GetVertexSet(person_label);
+    for (gs::vid_t vid : vertex_set) {
+      auto edges = oe_view.get_edges(vid);
+      auto begin = edges.start_ptr;
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        uint32_t oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                              reinterpret_cast<const char*>(begin)) /
+                             edges.cfg.stride;
+        auto ie_offset = gs::search_ie_offset_with_oe_offset(
+            oe_view, ie_view, vid, it.get_vertex(), oe_offset, e_prop_types);
+        auto prop = ed_accessor.get_data(it).as_string_view();
+        std::string updated_review;
+        if (prop.size() % 2 == 0) {
+          updated_review = std::string(prop) + "_updated";
+        } else {
+          updated_review = "";
+        }
+        txn.UpdateEdgeProperty(person_label, vid, software_label,
+                               it.get_vertex(), review_label, oe_offset,
+                               ie_offset, 0,
+                               gs::Property::from_string_view(updated_review));
+        updated_views.push_back(updated_review);
+      }
+    }
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // Verify updated reviews
+  {
+    auto txn = svc->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto review_label = gi.schema().get_edge_label_id("reviewed");
+
+    auto fetched_views = fetch_edge_string_properties(
+        gi, person_label, software_label, review_label);
+    verify_string_views(updated_views, fetched_views);
+    EXPECT_TRUE(txn.Commit());
+  }
+
+  // When closing, the string column should be compacted when creating
+  // checkpoint.
+  db.Close();
+  gs::NeugDB db2;
+  db2.Open(config);
+
+  // Verify reviews persist after compaction
+  {
+    auto svc2 = std::make_shared<server::NeugDBService>(db2);
+    auto txn = svc2->GetReadTransaction();
+    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto review_label = gi.schema().get_edge_label_id("reviewed");
+
+    auto fetched_views = fetch_edge_string_properties(
+        gi, person_label, software_label, review_label);
+    verify_string_views(updated_views, fetched_views);
+    EXPECT_TRUE(txn.Commit());
   }
 }

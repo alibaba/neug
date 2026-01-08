@@ -2178,15 +2178,38 @@ def test_default_value():
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
     conn.execute(
-        "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, age INT32 DEFAULT 18);"
+        "CREATE NODE TABLE Person(id INT64 PRIMARY KEY, age INT32 DEFAULT 18, name STRING DEFAULT 'unknown');"
     )
     conn.execute(
-        "CREATE REL TABLE Knows(FROM Person TO Person, since INT32 DEFAULT 2020);"
+        "CREATE REL TABLE Knows(FROM Person TO Person, since INT32 DEFAULT 2020, NOTE STRING DEFAULT 'none');"
     )
     conn.execute("CREATE (p: Person {id: 111});")
-    res = conn.execute("MATCH (p: Person) RETURN p.id, p.age;")
+    res = conn.execute("MATCH (p: Person) RETURN p.id, p.age, p.name;")
     records = list(res)
-    assert records == [[111, 18]], f"Expected value [[111, 18]], got {records}"
+    assert records == [
+        [111, 18, "unknown"]
+    ], f"Expected value [[111, 18, 'unknown']], got {records}"
+    conn.execute("CREATE (p: Person {id: 222, age: 25});")
+    res = conn.execute("MATCH (p: Person {id: 222}) RETURN p.id, p.age, p.name;")
+    records = list(res)
+    assert records == [
+        [222, 25, "unknown"]
+    ], f"Expected value [[222, 25, 'unknown']], got {records}"
+    conn.execute(
+        "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows]->(p2);"
+    )
+    conn.execute(
+        "MATCH (p1: Person {id: 222}), (p2: Person {id: 111}) CREATE (p1)-[k:Knows {since: 2022, NOTE: 'updated'}]->(p2);"
+    )
+    # TODO(zhanglei): Enable this after fixing the default value bug for edge properties. #1375
+    # res = conn.execute("MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE;")
+    # records = list(res)
+    # assert records == [
+    #     [2020, "none"],
+    #     [2022, "updated"],
+    # ], f"Expected value [[2020, ''], [2022, 'updated']], got {records}"
+    logger.info("test_default_value passed")
+    conn.close()
 
 
 def test_delete_vertex_detach_edge2():

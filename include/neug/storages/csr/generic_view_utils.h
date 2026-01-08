@@ -44,4 +44,15 @@ int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
                                         vid_t dst_lid, int32_t ie_offset,
                                         const std::vector<DataTypeId>& props);
 
+// Determine the property type to be used in searching edge offsets
+// For single property edges with non-string type, use that type directly
+// For multi-property edges or single string type property, use uint64_t as the
+// search type
+inline DataTypeId determine_search_prop_type(
+    const std::vector<DataTypeId>& props) {
+  return (props.size() == 1 && props[0] != DataTypeId::kStringView)
+             ? props[0]
+             : DataTypeId::kUInt64;
+}
+
 }  // namespace gs

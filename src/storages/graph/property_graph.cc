@@ -141,7 +141,6 @@ Status PropertyGraph::CreateVertexType(
   }
   std::vector<std::string> property_names;
   std::vector<DataTypeId> property_types;
-  // TODO(zhanglei): Not used
   std::vector<Property> default_property_values;
   std::vector<std::tuple<DataTypeId, std::string, size_t>> primary_keys;
   std::vector<int> primary_key_inds(primary_key_names.size(), -1);
@@ -273,7 +272,6 @@ Status PropertyGraph::CreateEdgeType(
   }
   std::vector<std::string> property_names;
   std::vector<DataTypeId> property_types;
-  // TODO(zhanglei): Not used
   std::vector<Property> default_property_values;
   for (size_t i = 0; i < properties.size(); i++) {
     auto [type, name, default_value] = properties[i];

@@ -505,6 +505,8 @@ class mmap_array<std::string_view> {
   }
 
   void dump(const std::string& filename) {
+    // Compact before dumping to reclaim unused space
+    compact();
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
   }
@@ -547,6 +549,45 @@ class mmap_array<std::string_view> {
     items_.ensure_writable(work_dir);
     data_.ensure_writable(work_dir);
     is_writable_ = true;
+  }
+
+  // Compact the data buffer by removing unused space and updating offsets
+  // This is an in-place operation that shifts valid string data forward
+  // Returns the compacted data size
+  size_t compact() {
+    if (items_.size() == 0) {
+      return 0;
+    }
+    size_t size_before_compact = data_.size();
+
+    size_t total_size_need = 0;
+    for (size_t i = 0; i < items_.size(); ++i) {
+      const string_item& item = items_.get(i);
+      total_size_need += item.length;
+    }
+    if (total_size_need == size_before_compact) {
+      return size_before_compact;
+    }
+    // from back to front to avoid overlap
+    size_t write_offset = total_size_need;
+    for (size_t i = items_.size(); i > 0; --i) {
+      const string_item& item = items_.get(i - 1);
+      assert(write_offset >= item.length);
+      write_offset -= item.length;
+      if (item.offset != write_offset) {
+        // Move data to the new offset
+        memmove(data_.data() + write_offset, data_.data() + item.offset,
+                item.length);
+        // Update offset in items_
+        items_.set(i - 1, {static_cast<uint64_t>(write_offset), item.length});
+      }
+    }
+    assert(write_offset == 0);
+
+    data_.resize(total_size_need);
+    VLOG(1) << "Compaction completed. New data size: " << total_size_need
+            << ", old data size: " << size_before_compact;
+    return total_size_need;
   }
 
  private:
