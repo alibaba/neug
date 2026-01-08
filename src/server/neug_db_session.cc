@@ -100,8 +100,8 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;
   results::CollectiveResults ret;
   std::pair<physical::PhysicalPlan, std::string> plan_and_schema;
-  bool update_meta, update_stats;
-  update_meta = update_stats = false;
+  std::string stats;
+  YAML::Node schema_yaml_node;
   if (access_mode == gs::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
     gs::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
@@ -139,22 +139,23 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
     CHECK(planner_ != nullptr);
     GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
     gs::runtime::Context ctx;
-    // update_planner_meta() and update_planner_stats() are called inside the
-    // transaction scope to ensure concurrency safety.
+    // new schema and new stats are obtained inside transaction but updated
+    // outside.
     // TODO(zhanglei): need to obtain more concrete flags from plan to decide
     // whether need to be blocked in TP mode, and whether need to update schema
     // and statistics.
     if (plan_and_schema.first.has_ddl_plan()) {  // UpdateSchema
       GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteDDLPipeline(
                          gui, plan_and_schema.first.ddl_plan(), timer.get()));
-      update_meta = update_stats = true;
+      stats = graph_.get_statistics_json();
+      schema_yaml_node = graph_.schema().to_yaml().value_or(YAML::Node());
     } else if (plan_and_schema.first.has_admin_plan()) {
       GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteAdminPipeline(
                          gui, plan_and_schema.first.admin_plan(), timer.get()));
     } else {  // UpdateData
       GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
                          gui, plan_and_schema.first, timer.get()));
-      update_stats = true;
+      stats = graph_.get_statistics_json();
     }
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
@@ -169,11 +170,11 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   }
   // Update planner meta and statistics after successful transaction commit.
   // Concurrency control is done inside planner.
-  if (update_meta) {
-    update_planner_meta();
+  if (!schema_yaml_node.IsNull()) {
+    planner_->update_meta(schema_yaml_node);
   }
-  if (update_stats) {
-    update_planner_stats();
+  if (!stats.empty()) {
+    planner_->update_statistics(stats);
   }
   ret.set_result_schema(plan_and_schema.second);
 
@@ -199,21 +200,5 @@ double NeugDBSession::eval_duration() const {
 }
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
-
-void NeugDBSession::update_planner_meta() {
-  auto schema_yaml = graph_.schema().to_yaml();
-  if (!schema_yaml) {
-    LOG(ERROR) << "Failed to serialize schema to YAML: "
-               << schema_yaml.error().ToString();
-    THROW_INTERNAL_EXCEPTION("Failed to serialize schema to YAML: " +
-                             schema_yaml.error().ToString());
-  }
-  planner_->update_meta(schema_yaml.value());
-}
-
-void NeugDBSession::update_planner_stats() {
-  auto stats = graph_.get_statistics_json();
-  planner_->update_statistics(stats);
-}
 
 }  // namespace server

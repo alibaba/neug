@@ -137,8 +137,6 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  void update_planner_meta();
-  void update_planner_stats();
   gs::PropertyGraph& graph_;
   std::shared_ptr<gs::IGraphPlanner> planner_;
   std::shared_ptr<gs::IVersionManager> version_manager_;
