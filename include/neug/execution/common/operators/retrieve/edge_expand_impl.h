@@ -163,6 +163,10 @@ expand_vertex_impl(const StorageReadInterface& graph,
   MSVertexColumnBuilder builder(std::get<0>(label_dirs[0]));
   std::vector<size_t> offsets;
   auto& vertices = input.vertices();
+  std::vector<bool> matched;
+  if constexpr (is_optional) {
+    matched.resize(vertices.size(), false);
+  }
   for (auto& label_dir : label_dirs) {
     label_t nbr_label = std::get<0>(label_dir);
     label_t edge_label = std::get<1>(label_dir);
@@ -181,13 +185,15 @@ expand_vertex_impl(const StorageReadInterface& graph,
           if (v != std::numeric_limits<vid_t>::max()) {
             size_t old_size = builder.cur_size();
             expand_sv_np_ms(v, idx, view, builder, offsets);
-            if (builder.cur_size() == old_size) {
-              builder.push_back_null();
-              offsets.push_back(idx);
+            if (builder.cur_size() != old_size) {
+              matched[idx] = true;
             }
           } else {
-            builder.push_back_null();
-            offsets.push_back(idx);
+            if (!matched[idx]) {
+              builder.push_back_null();
+              offsets.push_back(idx);
+              matched[idx] = true;
+            }
           }
         } else {
           expand_sv_np_ms(v, idx, view, builder, offsets);
@@ -201,18 +207,28 @@ expand_vertex_impl(const StorageReadInterface& graph,
             size_t old_size = builder.cur_size();
             expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                            view, gpred, builder, offsets);
-            if (builder.cur_size() == old_size) {
-              builder.push_back_null();
-              offsets.push_back(idx);
+            if (builder.cur_size() != old_size) {
+              matched[idx] = true;
             }
           } else {
-            builder.push_back_null();
-            offsets.push_back(idx);
+            if (!matched[idx]) {
+              builder.push_back_null();
+              offsets.push_back(idx);
+              matched[idx] = true;
+            }
           }
         } else {
           expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir, view,
                          gpred, builder, offsets);
         }
+      }
+    }
+  }
+  if constexpr (is_optional) {
+    for (size_t idx = 0; idx < vertices.size(); ++idx) {
+      if (!matched[idx]) {
+        builder.push_back_null();
+        offsets.push_back(idx);
       }
     }
   }
@@ -245,6 +261,10 @@ expand_vertex_impl(const StorageReadInterface& graph,
     return std::make_pair(builder.finish(), std::vector<size_t>());
   }
   if (input_labels.size() == 1) {
+    std::vector<bool> matched;
+    if constexpr (is_optional) {
+      matched.resize(input.size(), false);
+    }
     label_t input_label = *input_labels.begin();
     MSVertexColumnBuilder builder(std::get<0>(label_dirs[input_label][0]));
     std::vector<size_t> offsets;
@@ -266,13 +286,15 @@ expand_vertex_impl(const StorageReadInterface& graph,
             if (v != std::numeric_limits<vid_t>::max()) {
               size_t old_size = builder.cur_size();
               expand_sv_np_ms(v, idx, view, builder, offsets);
-              if (builder.cur_size() == old_size) {
-                builder.push_back_null();
-                offsets.push_back(idx);
+              if (builder.cur_size() != old_size) {
+                matched[idx] = true;
               }
             } else {
-              builder.push_back_null();
-              offsets.push_back(idx);
+              if (!matched[idx]) {
+                builder.push_back_null();
+                offsets.push_back(idx);
+                matched[idx] = true;
+              }
             }
           } else {
             expand_sv_np_ms(v, idx, view, builder, offsets);
@@ -285,19 +307,29 @@ expand_vertex_impl(const StorageReadInterface& graph,
               size_t old_size = builder.cur_size();
               expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                              view, gpred, builder, offsets);
-              if (builder.cur_size() == old_size) {
-                builder.push_back_null();
-                offsets.push_back(idx);
+              if (builder.cur_size() != old_size) {
+                matched[idx] = true;
               }
             } else {
-              builder.push_back_null();
-              offsets.push_back(idx);
+              if (!matched[idx]) {
+                builder.push_back_null();
+                offsets.push_back(idx);
+                matched[idx] = true;
+              }
             }
           } else {
             expand_sv_p_ms(input_label, v, idx, nbr_label, edge_label, dir,
                            view, gpred, builder, offsets);
           }
         });
+      }
+    }
+    if constexpr (is_optional) {
+      for (size_t idx = 0; idx < matched.size(); ++idx) {
+        if (!matched[idx]) {
+          builder.push_back_null();
+          offsets.push_back(idx);
+        }
       }
     }
     return std::make_pair(builder.finish(), std::move(offsets));
