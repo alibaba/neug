@@ -846,10 +846,7 @@ struct TypedConverter<Date> {
   static Date to_typed(const RTAny& val) { return val.as_date(); }
   static RTAny from_typed(Date val) { return RTAny::from_date(val); }
   static const std::string name() { return "date"; }
-  static Date typed_from_string(const std::string& str) {
-    int64_t val = std::stoll(str);
-    return Date(val);
-  }
+  static Date typed_from_string(const std::string& str) { return Date(str); }
 
   template <typename T>
   static bool cast(const T& input, Date& output) {
