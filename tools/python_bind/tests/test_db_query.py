@@ -2201,13 +2201,12 @@ def test_default_value():
     conn.execute(
         "MATCH (p1: Person {id: 222}), (p2: Person {id: 111}) CREATE (p1)-[k:Knows {since: 2022, NOTE: 'updated'}]->(p2);"
     )
-    # TODO(zhanglei): Enable this after fixing the default value bug for edge properties. #1375
-    # res = conn.execute("MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE;")
-    # records = list(res)
-    # assert records == [
-    #     [2020, "none"],
-    #     [2022, "updated"],
-    # ], f"Expected value [[2020, ''], [2022, 'updated']], got {records}"
+    res = conn.execute("MATCH ()-[e: Knows]->() RETURN e.since, e.NOTE;")
+    records = list(res)
+    assert records == [
+        [2020, "none"],
+        [2022, "updated"],
+    ], f"Expected value [[2020, ''], [2022, 'updated']], got {records}"
     logger.info("test_default_value passed")
     conn.close()
 

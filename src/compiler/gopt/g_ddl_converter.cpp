@@ -259,6 +259,8 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
+    propertyDef->set_allocated_default_value(
+        exprConverter.convertDefaultValue(prop).release());
   }
 
   // Set conflict action
@@ -301,6 +303,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
     propertyDef->set_name(prop.getName());
     auto irType = typeConverter.convertSimpleLogicalType(prop.getType());
     *propertyDef->mutable_type() = std::move(*irType->mutable_data_type());
+    propertyDef->set_allocated_default_value(
+        exprConverter.convertDefaultValue(prop).release());
   }
 
   // Set conflict action

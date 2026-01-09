@@ -23,6 +23,9 @@
      "name": "since",
      "type": {
       "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
      }
     }
    ],

@@ -23,6 +23,9 @@
      "name": "weight",
      "type": {
       "primitive_type": "DT_DOUBLE"
+     },
+     "default_value": {
+      "f64": 0
      }
     }
    ],
