@@ -594,6 +594,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
           common::IrDataType::TypeCase::kDataType)) {
       return false;
     }
+    config.param_names.push_back(op6.param().name());
     if (op1.logical() == common::Logical::LT &&
         op5.logical() == common::Logical::GE) {
       std::swap(config.param_names[0], config.param_names[1]);
@@ -602,7 +603,6 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     } else {
       return false;
     }
-    config.param_names.push_back(op6.param().name());
     auto type = parse_from_ir_data_type(op2.param().data_type());
     auto type1 = parse_from_ir_data_type(op6.param().data_type());
     if (type != type1) {
