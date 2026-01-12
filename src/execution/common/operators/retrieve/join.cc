@@ -430,6 +430,11 @@ static Context single_vertex_column_left_outer_join(Context&& ctx,
   }
   ctx.reshuffle(left_offsets);
   ctx2.remove(params.right_columns[0]);
+  for (size_t i = 0; i < ctx2.col_num(); ++i) {
+    if (ctx2.get(i) != nullptr && i < ctx.col_num() && ctx.get(i) != nullptr) {
+      ctx2.remove(i);
+    }
+  }
   ctx2.optional_reshuffle(right_offsets);
   for (size_t i = 0; i < ctx2.col_num(); ++i) {
     if (ctx2.get(i) != nullptr &&

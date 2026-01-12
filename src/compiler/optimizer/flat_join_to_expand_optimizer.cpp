@@ -19,6 +19,7 @@
 #include <memory>
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
+#include "neug/compiler/planner/operator/logical_get_v.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
@@ -88,6 +89,19 @@ bool FlatJoinToExpandOptimizer::checkOperatorType(
   return true;
 }
 
+int edgeNum(std::shared_ptr<planner::LogicalOperator> op) {
+  int total = 0;
+  while (op) {
+    if (op->getOperatorType() == planner::LogicalOperatorType::EXTEND) {
+      total++;
+    }
+    if (!op->getNumChildren())
+      break;
+    op = op->getChild(0);
+  }
+  return total;
+}
+
 std::shared_ptr<planner::LogicalOperator>
 FlatJoinToExpandOptimizer::visitHashJoinReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
@@ -103,6 +117,21 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
   }
   auto joinID = joinIDs[0];
   auto rightChild = join->getChild(1);
+
+  if (joinOp->getJoinType() == common::JoinType::LEFT) {
+    // there should be only one edge in the right branch
+    if (edgeNum(rightChild) > 1) {
+      return op;
+    }
+    // the getV operator should not have predicates, otherwise it cannot be
+    // flattened
+    if (rightChild->getOperatorType() == planner::LogicalOperatorType::GET_V) {
+      auto getV = rightChild->ptrCast<planner::LogicalGetV>();
+      if (getV->getPredicates()) {
+        return op;
+      }
+    }
+  }
 
   std::vector<planner::LogicalOperatorType> includeOps;
   if (joinOp->getJoinType() == common::JoinType::INNER) {

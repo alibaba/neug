@@ -2287,3 +2287,65 @@ def test_weight_shortest_path():
     records = list(res)
     assert records == [["marko", "josh", 0.8]]
     db.close()
+
+
+def test_optional_match_person_software():
+    """Test OPTIONAL MATCH with multi-label pattern on modern graph.
+
+    Query: MATCH (p: PERSON) WHERE p.id=1
+           OPTIONAL MATCH (p)-[]-(other:PERSON:SOFTWARE)
+           WHERE other.id>0
+           RETURN other;
+    """
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        MATCH (p: PERSON) WHERE p.id=1
+        OPTIONAL MATCH (p)-[]-(other:PERSON:SOFTWARE)
+        WHERE other.id>0
+        RETURN other;
+        """
+    )
+    records = list(res)
+    assert records == [
+        [{"_ID": 1, "_LABEL": "person", "id": 2, "name": "vadas", "age": 27}],
+        [{"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32}],
+        [
+            {
+                "_ID": 72057594037927936,
+                "_LABEL": "software",
+                "id": 3,
+                "name": "lop",
+                "lang": "java",
+            }
+        ],
+    ]
+    conn.close()
+    db.close()
+
+
+def test_optional_match_person_software_with_edge_weight():
+    """Test OPTIONAL MATCH with multi-label pattern and edge weight condition on modern graph.
+
+    Query: MATCH (p: PERSON) WHERE p.id=1
+           OPTIONAL MATCH (p)-[e]->(other:PERSON:Software)
+           WHERE e.weight>10 and other.id>10
+           RETURN other;
+    """
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    res = conn.execute(
+        """
+        MATCH (p: PERSON) WHERE p.id=1
+        OPTIONAL MATCH (p)-[e]->(other:PERSON:Software)
+        WHERE e.weight>10 and other.id>10
+        RETURN other;
+        """
+    )
+    records = list(res)
+    assert records == [[None]]
+    conn.close()
+    db.close()

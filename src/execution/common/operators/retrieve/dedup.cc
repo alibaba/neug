@@ -93,8 +93,12 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
       }
     }
   }
-  ctx.reshuffle(offsets);
-  return ctx;
+  Context ret;
+  for (size_t i = 0; i < cols.size(); i++) {
+    ret.set(cols[i], ctx.get(cols[i]));
+  }
+  ret.reshuffle(offsets);
+  return ret;
 }
 
 gs::result<Context> Dedup::dedup(

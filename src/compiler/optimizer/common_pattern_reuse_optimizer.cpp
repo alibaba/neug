@@ -15,6 +15,7 @@
  */
 
 #include "neug/compiler/optimizer/common_pattern_reuse_optimizer.h"
+#include <algorithm>
 #include <memory>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/expression_util.h"
@@ -22,6 +23,7 @@
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/compiler/optimizer/flat_join_to_expand_optimizer.h"
 #include "neug/compiler/planner/operator/logical_distinct.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
@@ -77,11 +79,20 @@ CommonPatternReuseOptimizer::visitHashJoinReplace(
   }
   auto join = op->ptrCast<planner::LogicalHashJoin>();
   auto joinIDs = join->getJoinNodeIDs();
-  if (joinIDs.size() != 2) {
+
+  if (joinIDs.size() > 2) {
     return op;
   }
 
   auto rightChild = join->getChild(1);
+  FlatJoinToExpandOptimizer flatOpt;
+  auto includeOps = {planner::LogicalOperatorType::SCAN_NODE_TABLE,
+                     planner::LogicalOperatorType::EXTEND,
+                     planner::LogicalOperatorType::GET_V};
+  if (!flatOpt.checkOperatorType(rightChild, includeOps)) {
+    return op;
+  }
+
   auto rightScanParent = getScanParent(rightChild);
   if (!rightScanParent || rightScanParent->getNumChildren() == 0) {
     return op;
@@ -92,8 +103,10 @@ CommonPatternReuseOptimizer::visitHashJoinReplace(
     return op;
   }
   auto rightScanNodeID = rightScan->getNodeID();
-  if (rightScanNodeID->getUniqueName() != joinIDs[0]->getUniqueName() &&
-      rightScanNodeID->getUniqueName() != joinIDs[1]->getUniqueName()) {
+  if (std::all_of(
+          joinIDs.begin(), joinIDs.end(), [rightScanNodeID](auto joinID) {
+            return joinID->getUniqueName() != rightScanNodeID->getUniqueName();
+          })) {
     return op;
   }
   joinOp->setPreQuery(true);
