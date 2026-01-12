@@ -30,65 +30,46 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 4. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Phase 1: Update agent context by running the agent script
-   - Phase 2: Upload plan files to GitHub.
-   - Re-evaluate Constitution Check post-design
-
-5. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+   - Phase 1: Plan the project structure.
+   - Phase 2: Plan the data model.
+   - Phase 3: Plan the algorithm model.
 
 ## Phases
 
-### Phase 0: Outline & Research
+### Phase 1: Plan the project structure
 
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
+1. **Review the current repository structure**:
+   - Focus on source files
+   - Analyze the tree view and control the depth
 
-2. **Generate and dispatch research agents**:
+2. **Plan the feature position**:
+   - Concentrate modifications to the least number of files
+   - All modules must be considered
 
-   ```text
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
+### Phase 2: Plan the data model
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
+1. **Extract data model from feature spec**:
+   - Extract all data models specialized for this feature (even a single variable)
+   - For each data model, plan its structure, access, and update. Use a small example to illustrate.
+   - . Avoid code implementation.
 
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+2. **Plan each data model**:
+   - For each data model, plan its structure, access, and update. Fill the content in the plan template
+   - Use simple examples to illustrate all operations.
+   - Do not use complex code implementation. Use simple APIs instead.
 
-### Phase 1: Design & Contracts
+### Phase 3: Plan the algorithm model
 
-**Prerequisites:** `research.md` complete
+1. **Extract algorithm model from feature spec**:
+   - Extract all algorithm models specialized for this feature that are not already provided by some packages.
+   - Summarize the algorithm target.
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+2. **Plan each algorithm model**:
+   - For each algorithm model, fill the detail of the algorithm in the plan template.
+   - The structure is not fixed. But each algorithm should have clear results.
+   - Focus on the algorithm description, not the implementation. Some small examples are required.
 
-2. **Generate API contracts** from functional requirements:
-   - For each user action → endpoint
-   - Use standard REST/GraphQL patterns
-   - Output OpenAPI/GraphQL schema to `/contracts/`
-
-3. **Agent context update**:
-   - Run `.specify/scripts/bash/update-agent-context.sh cursor-agent`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
-
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
-
-### Phase 2: Upload to GitHub
+## Upload to GitHub
 
 **Prerequisites:** Tell the user the following actions that these plan files will be push to the remote repository. Ask for permission to execute and wait for response.
 
