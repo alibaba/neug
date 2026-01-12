@@ -50,9 +50,9 @@ int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
 // search type
 inline DataTypeId determine_search_prop_type(
     const std::vector<DataTypeId>& props) {
-  return (props.size() == 1 && props[0] != DataTypeId::kStringView)
+  return (props.size() == 1 && props[0] != DataTypeId::VARCHAR)
              ? props[0]
-             : DataTypeId::kUInt64;
+             : DataTypeId::UBIGINT;
 }
 
 }  // namespace gs

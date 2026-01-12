@@ -22,39 +22,39 @@ namespace gs {
 Property get_default_value(const DataTypeId& type) {
   Property default_value;
   switch (type) {
-  case DataTypeId::kEmpty:
+  case DataTypeId::EMPTY:
     break;
-  case DataTypeId::kBool:
+  case DataTypeId::BOOLEAN:
     default_value.set_bool(false);
     break;
-  case DataTypeId::kInt32:
+  case DataTypeId::INTEGER:
     default_value.set_int32(0);
     break;
-  case DataTypeId::kUInt32:
+  case DataTypeId::UINTEGER:
     default_value.set_uint32(0);
     break;
-  case DataTypeId::kInt64:
+  case DataTypeId::BIGINT:
     default_value.set_int64(0);
     break;
-  case DataTypeId::kUInt64:
+  case DataTypeId::UBIGINT:
     default_value.set_uint64(0);
     break;
-  case DataTypeId::kFloat:
+  case DataTypeId::FLOAT:
     default_value.set_float(0.0f);
     break;
-  case DataTypeId::kDouble:
+  case DataTypeId::DOUBLE:
     default_value.set_double(0.0);
     break;
-  case DataTypeId::kStringView:
+  case DataTypeId::VARCHAR:
     default_value.set_string_view("");
     break;
-  case DataTypeId::kDate:
+  case DataTypeId::DATE:
     default_value.set_date(Date((int32_t) 0));
     break;
-  case DataTypeId::kDateTime:
+  case DataTypeId::TIMESTAMP_MS:
     default_value.set_datetime(DateTime((int64_t) 0));
     break;
-  case DataTypeId::kInterval:
+  case DataTypeId::INTERVAL:
     default_value.set_interval(Interval());
     break;
   default:
@@ -65,29 +65,29 @@ Property get_default_value(const DataTypeId& type) {
 }
 
 InArchive& operator<<(InArchive& in_archive, const Property& value) {
-  if (value.type() == DataTypeId::kEmpty) {
+  if (value.type() == DataTypeId::EMPTY) {
     in_archive << value.type();
-  } else if (value.type() == DataTypeId::kBool) {
+  } else if (value.type() == DataTypeId::BOOLEAN) {
     in_archive << value.type() << value.as_bool();
-  } else if (value.type() == DataTypeId::kInt32) {
+  } else if (value.type() == DataTypeId::INTEGER) {
     in_archive << value.type() << value.as_int32();
-  } else if (value.type() == DataTypeId::kUInt32) {
+  } else if (value.type() == DataTypeId::UINTEGER) {
     in_archive << value.type() << value.as_uint32();
-  } else if (value.type() == DataTypeId::kInt64) {
+  } else if (value.type() == DataTypeId::BIGINT) {
     in_archive << value.type() << value.as_int64();
-  } else if (value.type() == DataTypeId::kUInt64) {
+  } else if (value.type() == DataTypeId::UBIGINT) {
     in_archive << value.type() << value.as_uint64();
-  } else if (value.type() == DataTypeId::kFloat) {
+  } else if (value.type() == DataTypeId::FLOAT) {
     in_archive << value.type() << value.as_float();
-  } else if (value.type() == DataTypeId::kDouble) {
+  } else if (value.type() == DataTypeId::DOUBLE) {
     in_archive << value.type() << value.as_double();
-  } else if (value.type() == DataTypeId::kStringView) {
+  } else if (value.type() == DataTypeId::VARCHAR) {
     in_archive << value.type() << value.as_string_view();
-  } else if (value.type() == DataTypeId::kDate) {
+  } else if (value.type() == DataTypeId::DATE) {
     in_archive << value.type() << value.as_date().to_u32();
-  } else if (value.type() == DataTypeId::kDateTime) {
+  } else if (value.type() == DataTypeId::TIMESTAMP_MS) {
     in_archive << value.type() << value.as_datetime().milli_second;
-  } else if (value.type() == DataTypeId::kInterval) {
+  } else if (value.type() == DataTypeId::INTERVAL) {
     in_archive << value.type() << value.as_interval().months
                << value.as_interval().days << value.as_interval().micros;
   } else {
@@ -101,48 +101,48 @@ InArchive& operator<<(InArchive& in_archive, const Property& value) {
 OutArchive& operator>>(OutArchive& out_archive, Property& value) {
   DataTypeId pt;
   out_archive >> pt;
-  if (pt == DataTypeId::kEmpty) {
-  } else if (pt == DataTypeId::kBool) {
+  if (pt == DataTypeId::EMPTY) {
+  } else if (pt == DataTypeId::BOOLEAN) {
     bool tmp;
     out_archive >> tmp;
     value.set_bool(tmp);
-  } else if (pt == DataTypeId::kInt32) {
+  } else if (pt == DataTypeId::INTEGER) {
     int32_t tmp;
     out_archive >> tmp;
     value.set_int32(tmp);
-  } else if (pt == DataTypeId::kUInt32) {
+  } else if (pt == DataTypeId::UINTEGER) {
     uint32_t tmp;
     out_archive >> tmp;
     value.set_uint32(tmp);
-  } else if (pt == DataTypeId::kFloat) {
+  } else if (pt == DataTypeId::FLOAT) {
     float tmp;
     out_archive >> tmp;
     value.set_float(tmp);
-  } else if (pt == DataTypeId::kInt64) {
+  } else if (pt == DataTypeId::BIGINT) {
     int64_t tmp;
     out_archive >> tmp;
     value.set_int64(tmp);
-  } else if (pt == DataTypeId::kUInt64) {
+  } else if (pt == DataTypeId::UBIGINT) {
     uint64_t tmp;
     out_archive >> tmp;
     value.set_uint64(tmp);
-  } else if (pt == DataTypeId::kDouble) {
+  } else if (pt == DataTypeId::DOUBLE) {
     double tmp;
     out_archive >> tmp;
     value.set_double(tmp);
-  } else if (pt == DataTypeId::kStringView) {
+  } else if (pt == DataTypeId::VARCHAR) {
     std::string_view tmp;
     out_archive >> tmp;
     value.set_string_view(tmp);
-  } else if (pt == DataTypeId::kDate) {
+  } else if (pt == DataTypeId::DATE) {
     uint32_t date_val;
     out_archive >> date_val;
     value.set_date(date_val);
-  } else if (pt == DataTypeId::kDateTime) {
+  } else if (pt == DataTypeId::TIMESTAMP_MS) {
     int64_t date_time_val;
     out_archive >> date_time_val;
     value.set_datetime(date_time_val);
-  } else if (pt == DataTypeId::kInterval) {
+  } else if (pt == DataTypeId::INTERVAL) {
     Interval interval_val;
     out_archive >> interval_val.months >> interval_val.days >>
         interval_val.micros;
@@ -167,23 +167,23 @@ bool Property::operator==(const Property& other) const {
   if (type_ != other.type_) {
     return false;
   } else {
-    if (type() == DataTypeId::kInt32) {
+    if (type() == DataTypeId::INTEGER) {
       return value_.i == other.value_.i;
-    } else if (type() == DataTypeId::kUInt32) {
+    } else if (type() == DataTypeId::UINTEGER) {
       return value_.ui == other.value_.ui;
-    } else if (type() == DataTypeId::kStringView) {
+    } else if (type() == DataTypeId::VARCHAR) {
       return value_.s == other.as_string_view();
-    } else if (type() == DataTypeId::kEmpty) {
+    } else if (type() == DataTypeId::EMPTY) {
       return true;
-    } else if (type() == DataTypeId::kDouble) {
+    } else if (type() == DataTypeId::DOUBLE) {
       return value_.db == other.value_.db;
-    } else if (type() == DataTypeId::kInt64) {
+    } else if (type() == DataTypeId::BIGINT) {
       return value_.l == other.value_.l;
-    } else if (type() == DataTypeId::kUInt64) {
+    } else if (type() == DataTypeId::UBIGINT) {
       return value_.ul == other.value_.ul;
-    } else if (type() == DataTypeId::kBool) {
+    } else if (type() == DataTypeId::BOOLEAN) {
       return value_.b == other.value_.b;
-    } else if (type() == DataTypeId::kFloat) {
+    } else if (type() == DataTypeId::FLOAT) {
       return value_.f == other.value_.f;
     } else {
       return false;
@@ -193,29 +193,29 @@ bool Property::operator==(const Property& other) const {
 
 bool Property::operator<(const Property& other) const {
   if (type_ == other.type_) {
-    if (type() == DataTypeId::kInt32) {
+    if (type() == DataTypeId::INTEGER) {
       return value_.i < other.value_.i;
-    } else if (type() == DataTypeId::kInt64) {
+    } else if (type() == DataTypeId::BIGINT) {
       return value_.l < other.value_.l;
-    } else if (type() == DataTypeId::kStringView) {
+    } else if (type() == DataTypeId::VARCHAR) {
       return value_.s < other.value_.s;
-    } else if (type() == DataTypeId::kEmpty) {
+    } else if (type() == DataTypeId::EMPTY) {
       return false;
-    } else if (type() == DataTypeId::kDouble) {
+    } else if (type() == DataTypeId::DOUBLE) {
       return value_.db < other.value_.db;
-    } else if (type() == DataTypeId::kUInt32) {
+    } else if (type() == DataTypeId::UINTEGER) {
       return value_.ui < other.value_.ui;
-    } else if (type() == DataTypeId::kUInt64) {
+    } else if (type() == DataTypeId::UBIGINT) {
       return value_.ul < other.value_.ul;
-    } else if (type() == DataTypeId::kBool) {
+    } else if (type() == DataTypeId::BOOLEAN) {
       return value_.b < other.value_.b;
-    } else if (type() == DataTypeId::kFloat) {
+    } else if (type() == DataTypeId::FLOAT) {
       return value_.f < other.value_.f;
-    } else if (type() == DataTypeId::kDate) {
+    } else if (type() == DataTypeId::DATE) {
       return value_.d.to_u32() < other.value_.d.to_u32();
-    } else if (type() == DataTypeId::kDateTime) {
+    } else if (type() == DataTypeId::TIMESTAMP_MS) {
       return value_.dt.milli_second < other.value_.dt.milli_second;
-    } else if (type() == DataTypeId::kInterval) {
+    } else if (type() == DataTypeId::INTERVAL) {
       return value_.itv < other.value_.itv;
     } else {
       THROW_NOT_SUPPORTED_EXCEPTION(

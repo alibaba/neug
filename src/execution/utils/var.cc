@@ -32,7 +32,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
          const common::Variable& pb, VarType var_type)
     : getter_(nullptr) {
   int tag = -1;
-  type_ = RTAnyType::kUnknown;
+  type_ = DataType(DataTypeId::UNKNOWN);
   if (pb.has_node_type()) {
     type_ = parse_from_ir_data_type(pb.node_type());
   }
@@ -40,7 +40,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
     tag = pb.tag().id();
   }
 
-  if (type_ == RTAnyType::kUnknown) {
+  if (type_.id() == DataTypeId::UNKNOWN) {
     if (pb.has_tag()) {
       tag = pb.tag().id();
       assert(ctx.get(tag) != nullptr);
@@ -163,14 +163,10 @@ RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
   return getter_->eval_edge(label, src, dst, data_ptr);
 }
 
-RTAnyType Var::type() const { return type_; }
+const DataType& Var::type() const { return type_; }
 
 bool Var::graph_related_var(const common::Variable& pb) {
   return pb.has_property();
-}
-
-std::shared_ptr<IContextColumnBuilder> Var::builder() const {
-  return getter_->builder();
 }
 
 }  // namespace runtime

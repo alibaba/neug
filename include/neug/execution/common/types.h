@@ -101,21 +101,4 @@ struct LabelTriplet {
 
 }  // namespace gs
 
-namespace std {
-
-inline ostream& operator<<(ostream& os, gs::runtime::JoinKind k) {
-  if (k == gs::runtime::JoinKind::kSemiJoin) {
-    os << "semi_join";
-  } else if (k == gs::runtime::JoinKind::kInnerJoin) {
-    os << "inner_join";
-  } else if (k == gs::runtime::JoinKind::kAntiJoin) {
-    os << "anti_join";
-  } else if (k == gs::runtime::JoinKind::kLeftOuterJoin) {
-    os << "left_outer_join";
-  } else {
-    os << "unknown join";
-  }
-  return os;
-}
-
-}  // namespace std
+namespace std {}  // namespace std

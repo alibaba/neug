@@ -53,10 +53,7 @@ class Expr {
   RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr, Arena&) const;
 
-  RTAnyType type() const;
-
-  // for container such as list, set etc.
-  RTAnyType elem_type() const { return expr_->elem_type(); }
+  const DataType& type() const;
 
   bool is_optional() const { return expr_->is_optional(); }
 

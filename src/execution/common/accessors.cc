@@ -27,88 +27,40 @@ namespace runtime {
 
 std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
                                                          int tag,
-                                                         RTAnyType type) {
+                                                         const DataType& type) {
   auto col = ctx.get(tag);
-  switch (type) {
-  case RTAnyType::kBoolValue:
-    return std::make_shared<ContextValueAccessor<bool>>(ctx, tag);
-  case RTAnyType::kI64Value:
-    return std::make_shared<ContextValueAccessor<int64_t>>(ctx, tag);
-  case RTAnyType::kI32Value:
-    return std::make_shared<ContextValueAccessor<int>>(ctx, tag);
-  case RTAnyType::kU32Value:
-    return std::make_shared<ContextValueAccessor<uint32_t>>(ctx, tag);
-  case RTAnyType::kU64Value:
-    return std::make_shared<ContextValueAccessor<uint64_t>>(ctx, tag);
-  case RTAnyType::kStringValue:
-    return std::make_shared<ContextValueAccessor<std::string_view>>(ctx, tag);
-  case RTAnyType::kDateTime:
-    return std::make_shared<ContextValueAccessor<DateTime>>(ctx, tag);
-  case RTAnyType::kDate:
-    return std::make_shared<ContextValueAccessor<Date>>(ctx, tag);
-  case RTAnyType::kTuple:
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return std::make_shared<ContextValueAccessor<type>>(ctx, tag);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataTypeId::STRUCT:
     return std::make_shared<ContextValueAccessor<Tuple>>(ctx, tag);
-  case RTAnyType::kList:
+  case DataTypeId::LIST:
     return std::make_shared<ContextValueAccessor<List>>(ctx, tag);
-  case RTAnyType::kPath:
+  case DataTypeId::PATH:
     return std::make_shared<ContextValueAccessor<Path>>(ctx, tag);
-  case RTAnyType::kF32Value:
-    return std::make_shared<ContextValueAccessor<float>>(ctx, tag);
-  case RTAnyType::kF64Value:
-    return std::make_shared<ContextValueAccessor<double>>(ctx, tag);
-  case RTAnyType::kSet:
-    return std::make_shared<ContextValueAccessor<Set>>(ctx, tag);
-  case RTAnyType::kInterval:
-    return std::make_shared<ContextValueAccessor<Interval>>(ctx, tag);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
-                                  std::to_string(static_cast<int>(type)));
+                                  std::to_string(static_cast<int>(type.id())));
   }
   return nullptr;
 }
 
 std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
     const StorageReadInterface& graph, const Context& ctx, int tag,
-    RTAnyType type, const std::string& prop_name) {
-  switch (type) {
-  case RTAnyType::kBoolValue:
-    return std::make_shared<VertexPropertyPathAccessor<bool>>(graph, ctx, tag,
+    const DataType& type, const std::string& prop_name) {
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                        \
+  case DataTypeId::enum_val:                                                   \
+    return std::make_shared<VertexPropertyPathAccessor<type>>(graph, ctx, tag, \
                                                               prop_name);
-  case RTAnyType::kI64Value:
-    return std::make_shared<VertexPropertyPathAccessor<int64_t>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kI32Value:
-    return std::make_shared<VertexPropertyPathAccessor<int32_t>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kU32Value:
-    return std::make_shared<VertexPropertyPathAccessor<uint32_t>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kU64Value:
-    return std::make_shared<VertexPropertyPathAccessor<uint64_t>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kStringValue:
-    return std::make_shared<VertexPropertyPathAccessor<std::string_view>>(
-        graph, ctx, tag, prop_name);
-  case RTAnyType::kDate:
-    return std::make_shared<VertexPropertyPathAccessor<Date>>(graph, ctx, tag,
-                                                              prop_name);
-  case RTAnyType::kDateTime:
-    return std::make_shared<VertexPropertyPathAccessor<DateTime>>(
-        graph, ctx, tag, prop_name);
-
-  case RTAnyType::kInterval:
-    return std::make_shared<VertexPropertyPathAccessor<Interval>>(
-        graph, ctx, tag, prop_name);
-
-  case RTAnyType::kF32Value:
-    return std::make_shared<VertexPropertyPathAccessor<float>>(graph, ctx, tag,
-                                                               prop_name);
-  case RTAnyType::kF64Value:
-    return std::make_shared<VertexPropertyPathAccessor<double>>(graph, ctx, tag,
-                                                                prop_name);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
-                                  std::to_string(static_cast<int>(type)));
+                                  std::to_string(static_cast<int>(type.id())));
   }
   return nullptr;
 }
@@ -119,111 +71,50 @@ std::shared_ptr<IAccessor> create_vertex_label_path_accessor(
 }
 
 std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
-    const StorageReadInterface& graph, RTAnyType type,
+    const StorageReadInterface& graph, const DataType& type,
     const std::string& prop_name) {
-  switch (type) {
-  case RTAnyType::kBoolValue:
-    return std::make_shared<VertexPropertyVertexAccessor<bool>>(graph,
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                \
+  case DataTypeId::enum_val:                                           \
+    return std::make_shared<VertexPropertyVertexAccessor<type>>(graph, \
                                                                 prop_name);
-  case RTAnyType::kI64Value:
-    return std::make_shared<VertexPropertyVertexAccessor<int64_t>>(graph,
-                                                                   prop_name);
-  case RTAnyType::kI32Value:
-    return std::make_shared<VertexPropertyVertexAccessor<int32_t>>(graph,
-                                                                   prop_name);
-  case RTAnyType::kU32Value:
-    return std::make_shared<VertexPropertyVertexAccessor<uint32_t>>(graph,
-                                                                    prop_name);
-  case RTAnyType::kU64Value:
-    return std::make_shared<VertexPropertyVertexAccessor<uint64_t>>(graph,
-                                                                    prop_name);
-  case RTAnyType::kStringValue:
-    return std::make_shared<VertexPropertyVertexAccessor<std::string_view>>(
-        graph, prop_name);
-  case RTAnyType::kDate:
-    return std::make_shared<VertexPropertyVertexAccessor<Date>>(graph,
-                                                                prop_name);
-  case RTAnyType::kDateTime:
-    return std::make_shared<VertexPropertyVertexAccessor<DateTime>>(graph,
-                                                                    prop_name);
-  case RTAnyType::kInterval:
-    return std::make_shared<VertexPropertyVertexAccessor<Interval>>(graph,
-                                                                    prop_name);
-  case RTAnyType::kF32Value:
-    return std::make_shared<VertexPropertyVertexAccessor<float>>(graph,
-                                                                 prop_name);
-  case RTAnyType::kF64Value:
-    return std::make_shared<VertexPropertyVertexAccessor<double>>(graph,
-                                                                  prop_name);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
-                                  std::to_string(static_cast<int>(type)));
+                                  std::to_string(static_cast<int>(type.id())));
   }
   return nullptr;
 }
 
 std::shared_ptr<IAccessor> create_edge_property_path_accessor(
     const StorageReadInterface& graph, const std::string& name,
-    const Context& ctx, int tag, RTAnyType type) {
+    const Context& ctx, int tag, const DataType& type) {
   auto col = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(tag));
   auto labels = col->get_labels();
   if (labels.size() == 1) {
-    switch (type) {
-    case RTAnyType::kI32Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<int32_t>>(graph, name,
-                                                                   ctx, tag);
-    case RTAnyType::kU32Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<uint32_t>>(graph, name,
-                                                                    ctx, tag);
-    case RTAnyType::kI64Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<int64_t>>(graph, name,
-                                                                   ctx, tag);
-    case RTAnyType::kU64Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<uint64_t>>(graph, name,
-                                                                    ctx, tag);
-    case RTAnyType::kStringValue:
-      return std::make_shared<SLEdgePropertyPathAccessor<std::string_view>>(
-          graph, name, ctx, tag);
-    case RTAnyType::kDate:
-      return std::make_shared<SLEdgePropertyPathAccessor<Date>>(graph, name,
-                                                                ctx, tag);
-    case RTAnyType::kDateTime:
-      return std::make_shared<SLEdgePropertyPathAccessor<DateTime>>(graph, name,
-                                                                    ctx, tag);
-    case RTAnyType::kF64Value:
-      return std::make_shared<SLEdgePropertyPathAccessor<double>>(graph, name,
-                                                                  ctx, tag);
+    switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                    \
+  case DataTypeId::enum_val:                                               \
+    return std::make_shared<SLEdgePropertyPathAccessor<type>>(graph, name, \
+                                                              ctx, tag);
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "Not implemented accessor for type: " +
+          std::to_string(static_cast<int>(type.id())));
     }
   } else {
-    switch (type) {
-    case RTAnyType::kI32Value:
-      return std::make_shared<EdgePropertyPathAccessor<int32_t>>(graph, name,
-                                                                 ctx, tag);
-    case RTAnyType::kU32Value:
-      return std::make_shared<EdgePropertyPathAccessor<uint32_t>>(graph, name,
-                                                                  ctx, tag);
-    case RTAnyType::kI64Value:
-      return std::make_shared<EdgePropertyPathAccessor<int64_t>>(graph, name,
-                                                                 ctx, tag);
-    case RTAnyType::kU64Value:
-      return std::make_shared<EdgePropertyPathAccessor<uint64_t>>(graph, name,
-                                                                  ctx, tag);
-    case RTAnyType::kStringValue:
-      return std::make_shared<EdgePropertyPathAccessor<std::string_view>>(
-          graph, name, ctx, tag);
-    case RTAnyType::kDate:
-      return std::make_shared<EdgePropertyPathAccessor<Date>>(graph, name, ctx,
-                                                              tag);
-    case RTAnyType::kDateTime:
-      return std::make_shared<EdgePropertyPathAccessor<DateTime>>(graph, name,
-                                                                  ctx, tag);
-    case RTAnyType::kF64Value:
-      return std::make_shared<EdgePropertyPathAccessor<double>>(graph, name,
-                                                                ctx, tag);
+    switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                       \
+  case DataTypeId::enum_val:                                                  \
+    return std::make_shared<EdgePropertyPathAccessor<type>>(graph, name, ctx, \
+                                                            tag);
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
     default:
-      LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+      LOG(FATAL) << "not implemented - " << static_cast<int>(type.id());
     }
   }
   return nullptr;
@@ -258,32 +149,15 @@ std::shared_ptr<IAccessor> create_edge_label_path_accessor(const Schema& schema,
 
 std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
     const StorageReadInterface& graph, const std::string& prop_name,
-    RTAnyType type) {
-  switch (type) {
-  case RTAnyType::kI64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<int64_t>>(graph,
-                                                               prop_name);
-  case RTAnyType::kI32Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<int32_t>>(graph,
-                                                               prop_name);
-  case RTAnyType::kU32Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<uint32_t>>(graph,
-                                                                prop_name);
-  case RTAnyType::kU64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<uint64_t>>(graph,
-                                                                prop_name);
-  case RTAnyType::kStringValue:
-    return std::make_shared<EdgePropertyEdgeAccessor<std::string_view>>(
-        graph, prop_name);
-  case RTAnyType::kDate:
-    return std::make_shared<EdgePropertyEdgeAccessor<Date>>(graph, prop_name);
-  case RTAnyType::kDateTime:
-    return std::make_shared<EdgePropertyEdgeAccessor<DateTime>>(graph,
-                                                                prop_name);
-  case RTAnyType::kF64Value:
-    return std::make_shared<EdgePropertyEdgeAccessor<double>>(graph, prop_name);
+    const DataType& type) {
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return std::make_shared<EdgePropertyEdgeAccessor<type>>(graph, prop_name);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
   default:
-    LOG(FATAL) << "not implemented - " << static_cast<int>(type);
+    LOG(FATAL) << "not implemented - " << static_cast<int>(type.id());
   }
 }
 

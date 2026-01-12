@@ -652,9 +652,6 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     if (props[col_i].type() != types[col_i]) {
-      if (props[col_i].type() == DataTypeId::kStringView) {
-        continue;
-      }
       return false;
     }
   }

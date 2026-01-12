@@ -17,6 +17,7 @@
 #include <glog/logging.h>
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/runtime/rt_any.h"
 
 using namespace gs::common;
 using namespace gs::function;
@@ -40,7 +41,7 @@ RTAny JsonDummyFunction::Exec(Arena& arena, const std::vector<RTAny>& args) {
         std::to_string(args.size()));
   }
   const auto& val = args[0];
-  if (val.type() != RTAnyType::kStringValue) {
+  if (val.type().id() != DataTypeId::VARCHAR) {
     THROW_EXCEPTION_WITH_FILE_LINE("JSON_DUMMY: input value is not a string");
   }
 

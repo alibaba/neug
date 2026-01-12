@@ -63,12 +63,12 @@ void parse_ids_from_idx_predicate(
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
-    if (param_type == RTAnyType::kI32Value) {
+    if (param_type.id() == DataTypeId::INTEGER) {
       ids = [triplet](ParamsType params) {
         return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoi(params.at(triplet.param().name()))))};
       };
-    } else if (param_type == RTAnyType::kI64Value) {
+    } else if (param_type.id() == DataTypeId::BIGINT) {
       ids = [triplet](ParamsType params) {
         return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoll(params.at(triplet.param().name()))))};
@@ -104,7 +104,7 @@ void parse_ids_from_idx_predicate(
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
-    if (param_type == RTAnyType::kStringValue) {
+    if (param_type.id() == DataTypeId::VARCHAR) {
       ids = [triplet](ParamsType params) {
         return std::vector<Property>{
             Property::from_string_view(params.at(triplet.param().name()))};
@@ -122,13 +122,13 @@ ScanUtils::parse_ids_with_type(DataTypeId type,
       const std::map<std::string, std::string>&)>
       ids;
   switch (type) {
-  case DataTypeId::kInt64: {
+  case DataTypeId::BIGINT: {
     parse_ids_from_idx_predicate<int64_t>(triplet, ids);
   } break;
-  case DataTypeId::kInt32: {
+  case DataTypeId::INTEGER: {
     parse_ids_from_idx_predicate<int32_t>(triplet, ids);
   } break;
-  case DataTypeId::kStringView: {
+  case DataTypeId::VARCHAR: {
     parse_ids_from_idx_predicate(triplet, ids);
   } break;
   default:

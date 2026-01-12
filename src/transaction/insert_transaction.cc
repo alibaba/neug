@@ -246,15 +246,15 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   if (added_vertices_[label] == nullptr) {
     const auto& pks = graph_.schema().get_vertex_primary_key(label);
     DataTypeId type = std::get<0>(pks[0]);
-    if (type == DataTypeId::kInt64) {
+    if (type == DataTypeId::BIGINT) {
       added_vertices_[label] = std::make_unique<IdIndexer<int64_t, vid_t>>();
-    } else if (type == DataTypeId::kUInt64) {
+    } else if (type == DataTypeId::UBIGINT) {
       added_vertices_[label] = std::make_unique<IdIndexer<uint64_t, vid_t>>();
-    } else if (type == DataTypeId::kInt32) {
+    } else if (type == DataTypeId::INTEGER) {
       added_vertices_[label] = std::make_unique<IdIndexer<int32_t, vid_t>>();
-    } else if (type == DataTypeId::kUInt32) {
+    } else if (type == DataTypeId::UINTEGER) {
       added_vertices_[label] = std::make_unique<IdIndexer<uint32_t, vid_t>>();
-    } else if (type == DataTypeId::kStringView) {
+    } else if (type == DataTypeId::VARCHAR) {
       added_vertices_[label] =
           std::make_unique<IdIndexer<std::string_view, vid_t>>();
     } else {

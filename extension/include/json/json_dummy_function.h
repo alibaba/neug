@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <string>
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace extension {

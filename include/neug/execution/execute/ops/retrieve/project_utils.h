@@ -460,8 +460,9 @@ struct ListCollector {
   };
   using EXPR = ListExprWrapper;
   ListCollector(const Context& ctx, const EXPR& expr)
-      : builder_(
-            std::make_shared<ListValueColumnBuilder>(expr.expr.elem_type())),
+      : builder_(std::make_shared<ListValueColumnBuilder>(
+            dynamic_cast<const ListTypeInfo*>(expr.expr.type().AuxInfo())
+                ->child_type)),
         arena_(expr.arena) {}
 
   void collect(const EXPR& expr, size_t idx) {
@@ -553,32 +554,13 @@ make_project_expr_without_data_type(
   }
   Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
 
-  switch (e.type()) {
-  case RTAnyType::kI64Value: {
-    return _make_project_expr<int64_t>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kI32Value: {
-    return _make_project_expr<int32_t>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kU64Value: {
-    return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kU32Value: {
-    return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kStringValue: {
-    return _make_project_expr<std::string_view>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kDate: {
-    return _make_project_expr<Date>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kDateTime: {
-    return _make_project_expr<DateTime>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kInterval: {
-    return _make_project_expr<Interval>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kVertex: {
+  switch (e.type().id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return _make_project_expr<type>(std::move(e), alias, ctx);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataType::VERTEX: {
     MLVertexCollector collector;
     collector.builder.reserve(ctx.row_num());
     return std::make_unique<
@@ -586,25 +568,16 @@ make_project_expr_without_data_type(
         MLVertexCollector::EXPR(std::move(e)), collector, alias);
   } break;
 
-  case RTAnyType::kBoolValue: {
-    return _make_project_expr<bool>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kF32Value: {
-    return _make_project_expr<float>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kF64Value: {
-    return _make_project_expr<double>(std::move(e), alias, ctx);
-  } break;
-  case RTAnyType::kEdge: {
+  case DataTypeId::EDGE: {
     EdgeCollector collector;
     return std::make_unique<
         ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
         EdgeCollector::EXPR(std::move(e)), collector, alias);
   } break;
-  case RTAnyType::kTuple: {
+  case DataTypeId::STRUCT: {
     return _make_project_expr<Tuple>(std::move(e), alias, ctx);
   } break;
-  case RTAnyType::kList: {
+  case DataTypeId::LIST: {
     ListCollector::EXPR expr(std::move(e));
     ListCollector collector(ctx, expr);
     return std::make_unique<
@@ -613,7 +586,7 @@ make_project_expr_without_data_type(
   } break;
 
   default:
-    LOG(FATAL) << "not support - " << static_cast<int>(e.type());
+    LOG(FATAL) << "not support - " << static_cast<int>(e.type().id());
     break;
   }
   return nullptr;
@@ -632,47 +605,19 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
   case common::IrDataType::kDataType: {
     auto type = parse_from_ir_data_type(data_type);
     Expr e(graph_ptr, ctx, params, expr, VarType::kPathVar);
-    switch (type) {
-    case RTAnyType::kI64Value: {
-      return _make_project_expr<int64_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kI32Value: {
-      return _make_project_expr<int32_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kU32Value: {
-      return _make_project_expr<uint32_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kF32Value: {
-      return _make_project_expr<float>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kF64Value: {
-      return _make_project_expr<double>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kBoolValue: {
-      return _make_project_expr<bool>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kStringValue: {
-      return _make_project_expr<std::string_view>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kDateTime: {
-      return _make_project_expr<DateTime>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kDate: {
-      return _make_project_expr<Date>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kInterval: {
-      return _make_project_expr<Interval>(std::move(e), alias, ctx);
-    } break;
+    switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return _make_project_expr<type>(std::move(e), alias, ctx);
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
 
     // compiler bug here
-    case RTAnyType::kUnknown: {
+    case DataTypeId::UNKNOWN: {
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
                                                  params);
     } break;
-    case RTAnyType::kU64Value: {
-      return _make_project_expr<uint64_t>(std::move(e), alias, ctx);
-    } break;
-    case RTAnyType::kList: {
+    case DataTypeId::LIST: {
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
                                                  params);
     }
@@ -709,7 +654,6 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
             MLVertexCollector::EXPR(std::move(e)), collector, alias);
 
       } else {
-        LOG(INFO) << "unexpected type";
       }
     } else if (elem_opt == common::GraphDataType_GraphElementOpt::
                                GraphDataType_GraphElementOpt_EDGE) {

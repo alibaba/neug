@@ -853,28 +853,28 @@ bool primitive_type_to_property_type(
     LOG(ERROR) << "Any type is not supported";
     return false;
   case common::PrimitiveType::DT_SIGNED_INT32:
-    out_type = DataTypeId::kInt32;
+    out_type = DataTypeId::INTEGER;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT32:
-    out_type = DataTypeId::kUInt32;
+    out_type = DataTypeId::UINTEGER;
     break;
   case common::PrimitiveType::DT_SIGNED_INT64:
-    out_type = DataTypeId::kInt64;
+    out_type = DataTypeId::BIGINT;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT64:
-    out_type = DataTypeId::kUInt64;
+    out_type = DataTypeId::UBIGINT;
     break;
   case common::PrimitiveType::DT_BOOL:
-    out_type = DataTypeId::kBool;
+    out_type = DataTypeId::BOOLEAN;
     break;
   case common::PrimitiveType::DT_FLOAT:
-    out_type = DataTypeId::kFloat;
+    out_type = DataTypeId::FLOAT;
     break;
   case common::PrimitiveType::DT_DOUBLE:
-    out_type = DataTypeId::kDouble;
+    out_type = DataTypeId::DOUBLE;
     break;
   case common::PrimitiveType::DT_NULL:
-    out_type = DataTypeId::kEmpty;
+    out_type = DataTypeId::EMPTY;
     break;
   default:
     LOG(ERROR) << "Unknown primitive type: " << primitive_type;
@@ -887,11 +887,11 @@ bool string_type_to_property_type(const common::String& string_type,
                                   DataTypeId& out_type) {
   switch (string_type.item_case()) {
   case common::String::kVarChar: {
-    out_type = DataTypeId::kStringView;
+    out_type = DataTypeId::VARCHAR;
     break;
   }
   case common::String::kLongText: {
-    out_type = DataTypeId::kStringView;
+    out_type = DataTypeId::VARCHAR;
     break;
   }
   case common::String::kChar: {
@@ -913,22 +913,21 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
                                     DataTypeId& out_type) {
   switch (temporal_type.item_case()) {
   case common::Temporal::kDate32:
-    out_type = DataTypeId::kDate;
+    out_type = DataTypeId::DATE;
     ;
     break;
   case common::Temporal::kDateTime:
-    out_type = DataTypeId::kDateTime;
+    out_type = DataTypeId::TIMESTAMP_MS;
     break;
   case common::Temporal::kTimestamp:
-    out_type = DataTypeId::kDateTime;
+    out_type = DataTypeId::TIMESTAMP_MS;
     break;
   case common::Temporal::kDate:
     // TODO(zhanglei): Parse format
-    out_type = DataTypeId::kDate;
-    ;
+    out_type = DataTypeId::DATE;
     break;
   case common::Temporal::kInterval:
-    out_type = DataTypeId::kInterval;
+    out_type = DataTypeId::INTERVAL;
     break;
   default:
     LOG(ERROR) << "Unknown temporal type: " << temporal_type.DebugString();
@@ -1001,17 +1000,17 @@ bool common_value_to_any(const DataTypeId& type, const common::Value& value,
     out_any.set_double(value.f64());
     break;
   case common::Value::kStr:
-    if (type == DataTypeId::kDate) {
+    if (type == DataTypeId::DATE) {
       // Special handling for date stored as string
       Date date(value.str());
       out_any.set_date(date);
       break;
-    } else if (type == DataTypeId::kDateTime) {
+    } else if (type == DataTypeId::TIMESTAMP_MS) {
       // Special handling for datetime stored as string
       DateTime datetime(value.str());
       out_any.set_datetime(datetime);
       break;
-    } else if (type == DataTypeId::kInterval) {
+    } else if (type == DataTypeId::INTERVAL) {
       // Special handling for interval stored as string
       Interval interval(value.str());
       out_any.set_interval(interval);

@@ -41,7 +41,7 @@ enum class VertexColumnType {
 
 class IVertexColumn : public IContextColumn {
  public:
-  IVertexColumn() = default;
+  IVertexColumn() : type_(DataType(DataTypeId::VERTEX)) {}
   virtual ~IVertexColumn() = default;
 
   __attribute__((always_inline)) ContextColumnType
@@ -56,11 +56,14 @@ class IVertexColumn : public IContextColumn {
     return RTAny::from_vertex(this->get_vertex(idx));
   }
 
-  __attribute__((always_inline)) RTAnyType elem_type() const override {
-    return RTAnyType::kVertex;
+  __attribute__((always_inline)) const DataType& elem_type() const override {
+    return type_;
   }
 
   virtual std::set<label_t> get_labels_set() const = 0;
+
+ private:
+  DataType type_;
 };
 
 class IVertexColumnBuilder : public IContextColumnBuilder {

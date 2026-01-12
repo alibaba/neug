@@ -15,6 +15,7 @@ endif()
 add_subdirectory(utils)
 add_subdirectory(storages)
 add_subdirectory(transaction)
+add_subdirectory(common)
 
 if (BUILD_COMPILER)
     add_subdirectory(compiler)

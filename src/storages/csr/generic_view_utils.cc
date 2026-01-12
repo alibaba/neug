@@ -22,36 +22,18 @@ namespace gs {
 
 bool nbr_data_eq(const char* data_ptr, const char* expected_ptr,
                  const DataTypeId& type) {
-  if (type == DataTypeId::kBool) {
-    return *reinterpret_cast<const bool*>(data_ptr) ==
-           *reinterpret_cast<const bool*>(expected_ptr);
-  } else if (type == DataTypeId::kInt32) {
-    return *reinterpret_cast<const int32_t*>(data_ptr) ==
-           *reinterpret_cast<const int32_t*>(expected_ptr);
-  } else if (type == DataTypeId::kUInt32) {
-    return *reinterpret_cast<const uint32_t*>(data_ptr) ==
-           *reinterpret_cast<const uint32_t*>(expected_ptr);
-  } else if (type == DataTypeId::kInt64) {
-    return *reinterpret_cast<const int64_t*>(data_ptr) ==
-           *reinterpret_cast<const int64_t*>(expected_ptr);
-  } else if (type == DataTypeId::kUInt64) {
-    return *reinterpret_cast<const uint64_t*>(data_ptr) ==
-           *reinterpret_cast<const uint64_t*>(expected_ptr);
-  } else if (type == DataTypeId::kFloat) {
-    return *reinterpret_cast<const float*>(data_ptr) ==
-           *reinterpret_cast<const float*>(expected_ptr);
-  } else if (type == DataTypeId::kDouble) {
-    return *reinterpret_cast<const double*>(data_ptr) ==
-           *reinterpret_cast<const double*>(expected_ptr);
-  } else if (type == DataTypeId::kDate) {
-    return *reinterpret_cast<const Date*>(data_ptr) ==
-           *reinterpret_cast<const Date*>(expected_ptr);
-  } else if (type == DataTypeId::kDateTime) {
-    return *reinterpret_cast<const DateTime*>(data_ptr) ==
-           *reinterpret_cast<const DateTime*>(expected_ptr);
-  } else {
+  switch (type) {
+#define TYPE_DISPATCHER(enum_val, type)                  \
+  case DataTypeId::enum_val: {                           \
+    return *reinterpret_cast<const type*>(data_ptr) ==   \
+           *reinterpret_cast<const type*>(expected_ptr); \
+  }
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default: {
     THROW_NOT_IMPLEMENTED_EXCEPTION("Unsupported property type in nbr_data_eq" +
                                     std::to_string(type));
+  }
   }
   return false;
 }

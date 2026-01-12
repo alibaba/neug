@@ -769,6 +769,7 @@ template class MutableCsr<double>;
 template class MutableCsr<float>;
 template class MutableCsr<DateTime>;
 template class MutableCsr<Interval>;
+template class MutableCsr<bool>;
 
 template class SingleMutableCsr<float>;
 template class SingleMutableCsr<double>;
@@ -780,5 +781,6 @@ template class SingleMutableCsr<int32_t>;
 template class SingleMutableCsr<EmptyType>;
 template class SingleMutableCsr<DateTime>;
 template class SingleMutableCsr<Interval>;
+template class SingleMutableCsr<bool>;
 
 }  // namespace gs

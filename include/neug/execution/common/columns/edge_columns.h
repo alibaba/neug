@@ -46,7 +46,7 @@ enum class EdgeColumnType { kSDSL, kSDML, kBDSL, kBDML, kMS, kUnKnown };
 
 class IEdgeColumn : public IContextColumn {
  public:
-  IEdgeColumn() = default;
+  IEdgeColumn() : type_(DataType(DataTypeId::EDGE)) {}
   virtual ~IEdgeColumn() = default;
 
   ContextColumnType column_type() const override {
@@ -62,9 +62,12 @@ class IEdgeColumn : public IContextColumn {
 
   virtual Direction dir() const { return Direction::kBoth; }
 
-  inline RTAnyType elem_type() const override { return RTAnyType::kEdge; }
+  inline const DataType& elem_type() const override { return type_; }
   virtual std::vector<LabelTriplet> get_labels() const = 0;
   virtual EdgeColumnType edge_column_type() const = 0;
+
+ private:
+  DataType type_;
 };
 
 class SDSLEdgeColumnBuilder;

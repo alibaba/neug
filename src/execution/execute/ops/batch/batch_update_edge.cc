@@ -102,19 +102,19 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       }
       Property prop;
       auto val_type = value.type();
-      LOG(INFO) << "value type: " << static_cast<int>(val_type);
-      if (val_type == RTAnyType::kNull || val_type == RTAnyType::kEmpty) {
-      } else if (val_type == RTAnyType::kI32Value) {
+      LOG(INFO) << "value type: " << static_cast<int>(val_type.id());
+      if (val_type.id() == DataTypeId::EMPTY) {
+      } else if (val_type.id() == DataTypeId::INTEGER) {
         prop.set_int32(value.as_int32());
-      } else if (val_type == RTAnyType::kI64Value) {
+      } else if (val_type.id() == DataTypeId::BIGINT) {
         prop.set_int64(value.as_int64());
-      } else if (val_type == RTAnyType::kStringValue) {
+      } else if (val_type.id() == DataTypeId::VARCHAR) {
         prop.set_string_view(value.as_string());
-      } else if (val_type == RTAnyType::kF64Value) {
+      } else if (val_type.id() == DataTypeId::DOUBLE) {
         prop.set_double(value.as_double());
       } else {
         THROW_RUNTIME_ERROR("Unsupported property type: " +
-                            std::to_string(static_cast<int>(val_type)));
+                            std::to_string(static_cast<int>(val_type.id())));
       }
       auto oe_view =
           graph.GetGenericOutgoingGraphView(src_label, dst_label, label_id);

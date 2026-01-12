@@ -53,7 +53,7 @@ class IValueColumn : public IContextColumn {
 template <typename T>
 class ValueColumn : public IValueColumn<T> {
  public:
-  ValueColumn() {}
+  ValueColumn() : type_(TypedConverter<T>::type()) {}
   ~ValueColumn() = default;
 
   inline size_t size() const override { return data_.size(); }
@@ -72,9 +72,7 @@ class ValueColumn : public IValueColumn<T> {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  inline RTAnyType elem_type() const override {
-    return TypedConverter<T>::type();
-  }
+  inline const DataType& elem_type() const override { return type_; }
   inline RTAny get_elem(size_t idx) const override {
     return TypedConverter<T>::from_typed(data_[idx]);
   }
@@ -116,6 +114,7 @@ class ValueColumn : public IValueColumn<T> {
   friend class ValueColumnBuilder;
   std::vector<T> data_;
   std::shared_ptr<Arena> arena_;
+  DataType type_;
 };
 
 template <typename T>
@@ -157,7 +156,11 @@ class ListValueColumnBase : public IValueColumn<List> {
 
 class ListValueColumn : public ListValueColumnBase {
  public:
-  explicit ListValueColumn(RTAnyType type) : elem_type_(type) {}
+  explicit ListValueColumn(DataType type) : elem_type_(type) {
+    std::shared_ptr<ExtraTypeInfo> elem_type_info =
+        std::make_shared<ListTypeInfo>(elem_type_);
+    type_ = DataType(DataTypeId::LIST, elem_type_info);
+  }
   ~ListValueColumn() = default;
 
   size_t size() const override { return data_.size(); }
@@ -171,10 +174,7 @@ class ListValueColumn : public ListValueColumnBase {
 
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
-  RTAnyType elem_type() const override {
-    auto type = RTAnyType::kList;
-    return type;
-  }
+  const DataType& elem_type() const override { return type_; }
   RTAny get_elem(size_t idx) const override {
     return RTAny::from_list(data_[idx]);
   }
@@ -217,31 +217,33 @@ class ListValueColumn : public ListValueColumnBase {
 
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold()
       const override {
-    if (elem_type_ == RTAnyType::kBoolValue) {
-      return unfold_impl<bool>();
-    } else if (elem_type_ == RTAnyType::kI64Value) {
-      return unfold_impl<int64_t>();
-    } else if (elem_type_ == RTAnyType::kI32Value) {
-      return unfold_impl<int32_t>();
-    } else if (elem_type_ == RTAnyType::kU32Value) {
-      return unfold_impl<uint32_t>();
-    } else if (elem_type_ == RTAnyType::kU64Value) {
-      return unfold_impl<uint64_t>();
-    } else if (elem_type_ == RTAnyType::kDate) {
-      return unfold_impl<Date>();
-    } else if (elem_type_ == RTAnyType::kDateTime) {
-      return unfold_impl<DateTime>();
-    } else if (elem_type_ == RTAnyType::kInterval) {
-      return unfold_impl<Interval>();
-    } else if (elem_type_ == RTAnyType::kF32Value) {
-      return unfold_impl<float>();
-    } else if (elem_type_ == RTAnyType::kF64Value) {
-      return unfold_impl<double>();
-    } else if (elem_type_ == RTAnyType::kStringValue) {
-      return unfold_impl<std::string_view>();
-    } else if (elem_type_ == RTAnyType::kTuple) {
+    switch (elem_type_.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return unfold_impl<type>();
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+    case DataTypeId::STRUCT: {
       return unfold_impl<Tuple>();
-    } else if (elem_type_ == RTAnyType::kEdge) {
+    }
+    case DataTypeId::LIST: {
+      return unfold_impl<List>();
+    }
+    case DataTypeId::VERTEX: {
+      std::vector<size_t> offsets;
+      MLVertexColumnBuilder builder;
+      size_t i = 0;
+      for (const auto& list : data_) {
+        for (size_t j = 0; j < list.size(); ++j) {
+          auto elem = list.get(j);
+          builder.push_back_elem(elem);
+          offsets.push_back(i);
+        }
+        ++i;
+      }
+      return {builder.finish(), offsets};
+    }
+    case DataTypeId::EDGE: {
       std::vector<size_t> offsets;
       std::vector<LabelTriplet> labels;
       BDMLEdgeColumnBuilder builder(labels);
@@ -258,24 +260,10 @@ class ListValueColumn : public ListValueColumnBase {
         ++i;
       }
       return {builder.finish(), offsets};
-    } else if (elem_type_ == RTAnyType::kVertex) {
-      std::vector<size_t> offsets;
-      MLVertexColumnBuilder builder;
-      size_t i = 0;
-      for (const auto& list : data_) {
-        for (size_t j = 0; j < list.size(); ++j) {
-          auto elem = list.get(j);
-          builder.push_back_elem(elem);
-          offsets.push_back(i);
-        }
-        ++i;
-      }
-      return {builder.finish(), offsets};
-    } else if (elem_type_ == RTAnyType::kList) {
-      return unfold_impl<List>();
-    } else {
+    }
+    default:
       LOG(FATAL) << "not implemented for " << this->column_info() << " "
-                 << static_cast<int>(elem_type_);
+                 << static_cast<int>(elem_type_.id());
       return {nullptr, std::vector<size_t>()};
     }
   }
@@ -288,7 +276,8 @@ class ListValueColumn : public ListValueColumnBase {
 
  private:
   friend class ListValueColumnBuilder;
-  RTAnyType elem_type_;
+  DataType elem_type_;
+  DataType type_;
   std::vector<List> data_;
 
   std::shared_ptr<Arena> arena_;
@@ -296,12 +285,12 @@ class ListValueColumn : public ListValueColumnBase {
 
 class ListValueColumnBuilder : public IContextColumnBuilder {
  public:
-  explicit ListValueColumnBuilder(RTAnyType type) : type_(type) {}
+  explicit ListValueColumnBuilder(DataType type) : type_(type) {}
   ~ListValueColumnBuilder() = default;
 
   void reserve(size_t size) override { data_.reserve(size); }
   void push_back_elem(const RTAny& val) override {
-    assert(val.type() == RTAnyType::kList);
+    assert(val.type().id() == DataTypeId::LIST);
     data_.emplace_back(val.as_list());
   }
 
@@ -317,7 +306,7 @@ class ListValueColumnBuilder : public IContextColumnBuilder {
   }
 
  private:
-  RTAnyType type_;
+  DataType type_;
   std::vector<List> data_;
   std::shared_ptr<Arena> arena_;
 };
@@ -325,7 +314,7 @@ class ListValueColumnBuilder : public IContextColumnBuilder {
 template <typename T>
 class OptionalValueColumn : public IValueColumn<T> {
  public:
-  OptionalValueColumn() = default;
+  OptionalValueColumn() : type_(TypedConverter<T>::type()) {}
   ~OptionalValueColumn() = default;
 
   inline size_t size() const override { return data_.size(); }
@@ -349,13 +338,10 @@ class OptionalValueColumn : public IValueColumn<T> {
     return builder.finish();
   }
 
-  inline RTAnyType elem_type() const override {
-    auto type = TypedConverter<T>::type();
-    return type;
-  }
+  inline const DataType& elem_type() const override { return type_; }
   inline RTAny get_elem(size_t idx) const override {
     if (!valid_[idx]) {
-      return RTAny(RTAnyType::kNull);
+      return RTAny(DataType(DataTypeId::SQLNULL));
     }
     return TypedConverter<T>::from_typed(data_[idx]);
   }
@@ -393,6 +379,7 @@ class OptionalValueColumn : public IValueColumn<T> {
   std::vector<T> data_;
   std::vector<bool> valid_;
   std::shared_ptr<Arena> arena_;
+  DataType type_;
 };
 
 template <typename T>

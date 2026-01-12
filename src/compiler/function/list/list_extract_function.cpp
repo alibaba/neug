@@ -33,20 +33,20 @@ namespace gs {
 namespace function {
 
 static int checkAndGetIndex(const runtime::RTAny& value) {
-  switch (value.type()) {
-  case gs::runtime::RTAnyType::kU32Value:
+  switch (value.type().id()) {
+  case gs::DataTypeId::UINTEGER:
     return value.as_uint32();
-  case gs::runtime::RTAnyType::kI32Value:
+  case gs::DataTypeId::INTEGER:
     return value.as_int32();
-  case gs::runtime::RTAnyType::kU64Value:
+  case gs::DataTypeId::UBIGINT:
     return value.as_uint64();
-  case gs::runtime::RTAnyType::kI64Value:
+  case gs::DataTypeId::BIGINT:
     return value.as_int64();
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the second element should be a integer, "
         "but is " +
-        std::to_string(static_cast<int>(value.type())));
+        std::to_string(static_cast<int>(value.type().id())));
   }
 }
 
@@ -59,17 +59,17 @@ static runtime::RTAny execFunc(runtime::Arena& arena,
   }
   int index = checkAndGetIndex(args[1]);
   const auto& arg0 = args[0];
-  switch (arg0.type()) {
-  case gs::runtime::RTAnyType::kTuple:
+  switch (arg0.type().id()) {
+  case gs::DataTypeId::STRUCT:
     return arg0.as_tuple().get(index);
-  case gs::runtime::RTAnyType::kList:
+  case gs::DataTypeId::LIST:
     return arg0.as_list().get(index);
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the first element should be a tuple or a "
         "list, "
         "but is " +
-        std::to_string(static_cast<int>(arg0.type())));
+        std::to_string(static_cast<int>(arg0.type().id())));
   }
 }
 

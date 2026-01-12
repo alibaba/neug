@@ -40,29 +40,29 @@ namespace gs {
 namespace config_parsing {
 
 std::string PrimitivePropertyTypeToString(DataTypeId type) {
-  if (type == DataTypeId::kEmpty) {
+  if (type == DataTypeId::EMPTY) {
     return "Empty";
-  } else if (type == DataTypeId::kBool) {
+  } else if (type == DataTypeId::BOOLEAN) {
     return DT_BOOL;
-  } else if (type == DataTypeId::kInt32) {
+  } else if (type == DataTypeId::INTEGER) {
     return DT_SIGNED_INT32;
-  } else if (type == DataTypeId::kUInt32) {
+  } else if (type == DataTypeId::UINTEGER) {
     return DT_UNSIGNED_INT32;
-  } else if (type == DataTypeId::kInt64) {
+  } else if (type == DataTypeId::BIGINT) {
     return DT_SIGNED_INT64;
-  } else if (type == DataTypeId::kUInt64) {
+  } else if (type == DataTypeId::UBIGINT) {
     return DT_UNSIGNED_INT64;
-  } else if (type == DataTypeId::kFloat) {
+  } else if (type == DataTypeId::FLOAT) {
     return DT_FLOAT;
-  } else if (type == DataTypeId::kDouble) {
+  } else if (type == DataTypeId::DOUBLE) {
     return DT_DOUBLE;
-  } else if (type == DataTypeId::kStringView) {
+  } else if (type == DataTypeId::VARCHAR) {
     return DT_STRING;
-  } else if (type == DataTypeId::kDate) {
+  } else if (type == DataTypeId::DATE) {
     return DT_DATE;
-  } else if (type == DataTypeId::kDateTime) {
+  } else if (type == DataTypeId::TIMESTAMP_MS) {
     return DT_DATETIME;
-  } else if (type == DataTypeId::kInterval) {
+  } else if (type == DataTypeId::INTERVAL) {
     return DT_INTERVAL;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown property type: " +
@@ -72,43 +72,43 @@ std::string PrimitivePropertyTypeToString(DataTypeId type) {
 
 DataTypeId StringToPrimitivePropertyType(const std::string& str) {
   if (str == "int32" || str == "INT" || str == DT_SIGNED_INT32) {
-    return DataTypeId::kInt32;
+    return DataTypeId::INTEGER;
   } else if (str == "uint32" || str == DT_UNSIGNED_INT32) {
-    return DataTypeId::kUInt32;
+    return DataTypeId::UINTEGER;
   } else if (str == "bool" || str == "BOOL" || str == DT_BOOL) {
-    return DataTypeId::kBool;
+    return DataTypeId::BOOLEAN;
   } else if (str == "Date" || str == DT_DATE) {
-    return DataTypeId::kDate;
+    return DataTypeId::DATE;
   } else if (str == "DateTime" || str == DT_DATETIME) {
-    return DataTypeId::kDateTime;
+    return DataTypeId::TIMESTAMP_MS;
   } else if (str == "Interval" || str == DT_INTERVAL) {
-    return DataTypeId::kInterval;
+    return DataTypeId::INTERVAL;
   } else if (str == "Timestamp" || str == DT_TIMESTAMP) {
-    return DataTypeId::kDateTime;
+    return DataTypeId::TIMESTAMP_MS;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
-    return DataTypeId::kStringView;
+    return DataTypeId::VARCHAR;
   } else if (str == "Empty") {
-    return DataTypeId::kEmpty;
+    return DataTypeId::EMPTY;
   } else if (str == "int64" || str == "LONG" || str == DT_SIGNED_INT64) {
-    return DataTypeId::kInt64;
+    return DataTypeId::BIGINT;
   } else if (str == "uint64" || str == DT_UNSIGNED_INT64) {
-    return DataTypeId::kUInt64;
+    return DataTypeId::UBIGINT;
   } else if (str == "float" || str == "FLOAT" || str == DT_FLOAT) {
-    return DataTypeId::kFloat;
+    return DataTypeId::FLOAT;
   } else if (str == "double" || str == "DOUBLE" || str == DT_DOUBLE) {
-    return DataTypeId::kDouble;
+    return DataTypeId::DOUBLE;
   } else {
-    return DataTypeId::kEmpty;
+    return DataTypeId::EMPTY;
   }
 }
 
 YAML::Node TemporalTypeToYAML(DataTypeId type) {
   YAML::Node node;
-  if (type == DataTypeId::kDate) {
+  if (type == DataTypeId::DATE) {
     node["date"] = "";
-  } else if (type == DataTypeId::kDateTime) {
+  } else if (type == DataTypeId::TIMESTAMP_MS) {
     node["datetime"] = "";
-  } else if (type == DataTypeId::kInterval) {
+  } else if (type == DataTypeId::INTERVAL) {
     node["interval"] = "";
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -122,12 +122,12 @@ YAML::Node TemporalTypeToYAML(DataTypeId type) {
 InArchive& operator<<(InArchive& arc,
                       const std::shared_ptr<const ExtraTypeInfo>& type_info) {
   if (!type_info) {
-    arc << ExtraTypeInfoType::kUnSet;
+    arc << ExtraTypeInfoType::GENERIC_TYPE_INFO;
     return arc;
   } else {
     arc << type_info->type;
   }
-  if (type_info->type == ExtraTypeInfoType::kStringTypeInfo) {
+  if (type_info->type == ExtraTypeInfoType::STRING_TYPE_INFO) {
     std::shared_ptr<const StringTypeInfo> string_type_info =
         std::dynamic_pointer_cast<const StringTypeInfo>(type_info);
     arc << string_type_info->max_length;
@@ -139,8 +139,8 @@ OutArchive& operator>>(OutArchive& arc,
   assert(type_info == nullptr);
   ExtraTypeInfoType type;
   arc >> type;
-  if (type == ExtraTypeInfoType::kStringTypeInfo) {
-    type_info = std::make_shared<StringTypeInfo>();
+  if (type == ExtraTypeInfoType::STRING_TYPE_INFO) {
+    type_info = std::make_shared<StringTypeInfo>(STRING_DEFAULT_MAX_LENGTH);
     StringTypeInfo& string_type_info =
         dynamic_cast<StringTypeInfo&>(*type_info);
     arc >> string_type_info.max_length;
@@ -641,40 +641,40 @@ namespace std {
 
 std::string to_string(gs::DataTypeId type) {
   switch (type) {
-  case gs::DataTypeId::kEmpty: {
+  case gs::DataTypeId::EMPTY: {
     return "Empty";
   }
-  case gs::DataTypeId::kBool: {
+  case gs::DataTypeId::BOOLEAN: {
     return "Bool";
   }
-  case gs::DataTypeId::kInt32: {
+  case gs::DataTypeId::INTEGER: {
     return "Int32";
   }
-  case gs::DataTypeId::kUInt32: {
+  case gs::DataTypeId::UINTEGER: {
     return "UInt32";
   }
-  case gs::DataTypeId::kInt64: {
+  case gs::DataTypeId::BIGINT: {
     return "Int64";
   }
-  case gs::DataTypeId::kUInt64: {
+  case gs::DataTypeId::UBIGINT: {
     return "UInt64";
   }
-  case gs::DataTypeId::kFloat: {
+  case gs::DataTypeId::FLOAT: {
     return "Float";
   }
-  case gs::DataTypeId::kDouble: {
+  case gs::DataTypeId::DOUBLE: {
     return "Double";
   }
-  case gs::DataTypeId::kStringView: {
+  case gs::DataTypeId::VARCHAR: {
     return "StringView";
   }
-  case gs::DataTypeId::kDate: {
+  case gs::DataTypeId::DATE: {
     return "Date";
   }
-  case gs::DataTypeId::kDateTime: {
+  case gs::DataTypeId::TIMESTAMP_MS: {
     return "DateTime";
   }
-  case gs::DataTypeId::kInterval: {
+  case gs::DataTypeId::INTERVAL: {
     return "Interval";
   }
   default: {

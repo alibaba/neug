@@ -8,7 +8,7 @@ add_subdirectory(types)
 add_subdirectory(vector)
 add_subdirectory(file_system)
 
-add_library(neug_common
+add_library(compiler_common
         OBJECT
         case_insensitive_map.cpp
         constants.cpp
@@ -25,8 +25,8 @@ add_library(neug_common
         type_utils.cpp
         utils.cpp
         windows_utils.cpp)
-add_dependencies(neug_common neug_plan_proto)
+add_dependencies(compiler_common neug_plan_proto)
 
 set(ALL_OBJECT_FILES
-        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_common>
+        ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:compiler_common>
         PARENT_SCOPE)

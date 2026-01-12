@@ -19,13 +19,16 @@
 #include <vector>
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
-#include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/storages/graph/schema.h"
 
 namespace gs {
-namespace function {
+class Schema;
+namespace runtime {
+class ContextMeta;
+class Context;
+}  // namespace runtime
 
+namespace function {
 struct CallFuncInputBase {
   virtual ~CallFuncInputBase() = default;
 };

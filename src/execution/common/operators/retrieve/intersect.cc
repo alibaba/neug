@@ -48,7 +48,7 @@ void get_labels(
                                                label_triplet.dst_label,
                                                label_triplet.edge_label);
     if (props.empty()) {
-      labels_i.emplace_back(label_triplet, std::vector{DataTypeId::kEmpty});
+      labels_i.emplace_back(label_triplet, std::vector{DataTypeId::EMPTY});
     } else {
       labels_i.emplace_back(label_triplet, props);
     }

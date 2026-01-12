@@ -278,12 +278,12 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
-        DataTypeId::kInt32, std::string("id"), Property::from_int32(0)));
+        DataTypeId::INTEGER, std::string("id"), Property::from_int32(0)));
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
-        DataTypeId::kStringView, std::string("name"),
+        DataTypeId::VARCHAR, std::string("name"),
         Property::from_string_view("")));
     properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
-        DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
+        DataTypeId::INTEGER, std::string("age"), Property::from_int32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     auto status =
         graph.CreateVertexType(vertex_label_name, properties, primary_keys);
@@ -301,7 +301,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::vector<std::tuple<DataTypeId, std::string, Property>> edge_properties;
     edge_properties.emplace_back(
         std::make_tuple<DataTypeId, std::string, Property>(
-            DataTypeId::kFloat, std::string("weight"),
+            DataTypeId::FLOAT, std::string("weight"),
             Property::from_float(0.0)));
     auto status = graph.CreateEdgeType(src_vertex_label, dst_vertex_label,
                                        edge_label_name, edge_properties);
@@ -358,7 +358,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string edge_type_name = "KNOWS";
     std::vector<std::tuple<DataTypeId, std::string, Property>> add_properties;
     add_properties.emplace_back(
-        std::make_tuple(DataTypeId::kDateTime, "creationDate",
+        std::make_tuple(DataTypeId::TIMESTAMP_MS, "creationDate",
                         Property::from_datetime(DateTime(0))));
     graph.AddEdgeProperties(src_vertex_type, dst_vertex_type, edge_type_name,
                             add_properties);

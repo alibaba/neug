@@ -37,6 +37,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/runtime/rt_any.h"
 
 using namespace gs::common;
 using namespace gs::binder;
@@ -94,14 +95,14 @@ static void resolveNestedVector(std::shared_ptr<ValueVector> inputVector,
           stringFormat("Unsupported casting function from {} to {}.",
                        inputType->toString(), resultType->toString());
       // Check if two structs have the same number of fields
-      if (StructType::getNumFields(*inputType) !=
-          StructType::getNumFields(*resultType)) {
+      if (::StructType::getNumFields(*inputType) !=
+          ::StructType::getNumFields(*resultType)) {
         THROW_CONVERSION_EXCEPTION(errorMsg);
       }
 
       // Check if two structs have the same field names
-      auto inputTypeNames = StructType::getFieldNames(*inputType);
-      auto resultTypeNames = StructType::getFieldNames(*resultType);
+      auto inputTypeNames = ::StructType::getFieldNames(*inputType);
+      auto resultTypeNames = ::StructType::getFieldNames(*resultType);
 
       for (auto i = 0u; i < inputTypeNames.size(); i++) {
         if (inputTypeNames[i] != resultTypeNames[i]) {
@@ -203,8 +204,8 @@ static bool hasImplicitCastListToArray(const LogicalType& srcType,
 
 static bool hasImplicitCastStruct(const LogicalType& srcType,
                                   const LogicalType& dstType) {
-  const auto& srcFields = StructType::getFields(srcType);
-  const auto& dstFields = StructType::getFields(dstType);
+  const auto& srcFields = ::StructType::getFields(srcType);
+  const auto& dstFields = ::StructType::getFields(dstType);
   if (srcFields.size() != dstFields.size()) {
     return false;
   }
@@ -995,141 +996,6 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   auto inputTypes = ExpressionUtil::getDataTypes(input.arguments);
   bindData->paramTypes = std::move(inputTypes);
   return bindData;
-}
-
-template <typename T>
-runtime::RTAny performCast(const runtime::RTAny& input) {
-  T val;
-  bool ret = false;
-  if (input.type() == runtime::RTAnyType::kI32Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_int32(), val);
-  } else if (input.type() == runtime::RTAnyType::kI64Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_int64(), val);
-  } else if (input.type() == runtime::RTAnyType::kF32Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_float(), val);
-  } else if (input.type() == runtime::RTAnyType::kF64Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_double(), val);
-  } else if (input.type() == runtime::RTAnyType::kU64Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_uint64(), val);
-  } else if (input.type() == runtime::RTAnyType::kU32Value) {
-    ret = runtime::TypedConverter<T>::cast(input.as_uint32(), val);
-  } else if (input.type() == runtime::RTAnyType::kStringValue) {
-    ret = runtime::TypedConverter<T>::cast(input.as_string(), val);
-  } else {
-    if constexpr (std::is_same_v<T, int64_t>) {
-      if (input.type() == runtime::RTAnyType::kDate) {
-        ret = runtime::TypedConverter<T>::cast(input.as_date(), val);
-      } else if (input.type() == runtime::RTAnyType::kDateTime) {
-        ret = runtime::TypedConverter<T>::cast(input.as_datetime(), val);
-      } else if (input.type() == runtime::RTAnyType::kInterval) {
-        ret = runtime::TypedConverter<T>::cast(input.as_interval(), val);
-      } else {
-        THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
-      }
-    } else {
-      THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
-    }
-  }
-  if (ret) {
-    return runtime::TypedConverter<T>::from_typed(val);
-  } else {
-    LOG(ERROR) << "Failed to cast value: " << input.to_string();
-    THROW_OVERFLOW_EXCEPTION("Failed to cast value.");
-  }
-  return runtime::RTAny();
-}
-
-template <>
-runtime::RTAny performCast<gs::DateTime>(const runtime::RTAny& input) {
-  gs::DateTime val;
-  bool ret = false;
-  if (input.type() == runtime::RTAnyType::kStringValue) {
-    ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_string(), val);
-  } else if (input.type() == runtime::RTAnyType::kDate) {
-    ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_date(), val);
-  } else {
-    THROW_CONVERSION_EXCEPTION(
-        "Only string type is supported for casting to DateTime.");
-  }
-  if (ret) {
-    return runtime::TypedConverter<gs::DateTime>::from_typed(val);
-  } else {
-    THROW_CONVERSION_EXCEPTION("Failed to cast value to DateTime.");
-  }
-  return runtime::RTAny();
-}
-
-template <>
-runtime::RTAny performCast<gs::Date>(const runtime::RTAny& input) {
-  gs::Date val;
-  bool ret = false;
-  if (input.type() == runtime::RTAnyType::kStringValue) {
-    ret = runtime::TypedConverter<gs::Date>::cast(input.as_string(), val);
-  } else if (input.type() == runtime::RTAnyType::kDateTime) {
-    ret = runtime::TypedConverter<gs::Date>::cast(input.as_datetime(), val);
-  } else {
-    THROW_CONVERSION_EXCEPTION(
-        "Only string type is supported for casting to Date.");
-  }
-  if (ret) {
-    return runtime::TypedConverter<gs::Date>::from_typed(val);
-  } else {
-    THROW_CONVERSION_EXCEPTION("Failed to cast value to Date.");
-  }
-  return runtime::RTAny();
-}
-
-runtime::RTAny performCastToString(const runtime::RTAny& input,
-                                   runtime::Arena& arena) {
-  std::string ret{};
-  switch (input.type()) {
-  case runtime::RTAnyType::kI32Value: {
-    ret = std::to_string(input.as_int32());
-    break;
-  }
-  case runtime::RTAnyType::kI64Value: {
-    ret = std::to_string(input.as_int64());
-    break;
-  }
-  case runtime::RTAnyType::kF32Value: {
-    ret = std::to_string(input.as_float());
-    break;
-  }
-  case runtime::RTAnyType::kF64Value: {
-    ret = std::to_string(input.as_double());
-    break;
-  }
-  case runtime::RTAnyType::kU64Value: {
-    ret = std::to_string(input.as_uint64());
-    break;
-  }
-  case runtime::RTAnyType::kU32Value: {
-    ret = std::to_string(input.as_uint32());
-    break;
-  }
-  case runtime::RTAnyType::kStringValue: {
-    ret = input.as_string();
-    break;
-  }
-  case runtime::RTAnyType::kDateTime: {
-    ret = input.as_datetime().to_string();
-    break;
-  }
-  case runtime::RTAnyType::kDate: {
-    ret = input.as_date().to_string();
-    break;
-  }
-  case runtime::RTAnyType::kInterval: {
-    ret = input.as_interval().to_string();
-    break;
-  }
-  default: {
-    THROW_CONVERSION_EXCEPTION("Unsupported type for casting to string.");
-  }
-  }
-  auto ptr = runtime::StringImpl::make_string_impl(ret);
-  arena.push_back(std::move(ptr));
-  return runtime::RTAny::from_string(ptr->str_view());
 }
 
 static runtime::RTAny castFunc(runtime::Arena& arena,

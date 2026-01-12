@@ -186,13 +186,13 @@ gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
-  if (config.param_type == RTAnyType::kI32Value) {
+  if (config.param_type == DataTypeId::INTEGER) {
     return expand_edge_with_special_edge_predicate_impl0<int>(
         graph, std::move(ctx), params, config, target_val_str);
-  } else if (config.param_type == RTAnyType::kI64Value) {
+  } else if (config.param_type == DataTypeId::BIGINT) {
     return expand_edge_with_special_edge_predicate_impl0<int64_t>(
         graph, std::move(ctx), params, config, target_val_str);
-  } else if (config.param_type == RTAnyType::kDateTime) {
+  } else if (config.param_type == DataTypeId::TIMESTAMP_MS) {
     return expand_edge_with_special_edge_predicate_impl0<DateTime>(
         graph, std::move(ctx), params, config, target_val_str);
   } else {
@@ -338,8 +338,8 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
       auto pt = properties[0];
-      if (pt != DataTypeId::kDateTime && pt != DataTypeId::kInt64 &&
-          pt != DataTypeId::kInt32) {
+      if (pt != DataTypeId::TIMESTAMP_MS && pt != DataTypeId::BIGINT &&
+          pt != DataTypeId::INTEGER) {
         LOG(ERROR) << "not support edge type";
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
@@ -354,16 +354,16 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
       Direction dir = std::get<2>(label_dir);
       DataTypeId pt = ed_types[ld_idx++];
       builder.start_label(nbr_label);
-      if (pt == DataTypeId::kDateTime) {
+      if (pt == DataTypeId::TIMESTAMP_MS) {
         expand_vertex_ep_cmp_impl<DateTime>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);
-      } else if (pt == DataTypeId::kInt64) {
+      } else if (pt == DataTypeId::BIGINT) {
         expand_vertex_ep_cmp_impl<int64_t>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);
       } else {
-        CHECK(pt == DataTypeId::kInt32);
+        CHECK(pt == DataTypeId::INTEGER);
         expand_vertex_ep_cmp_impl<int32_t>(
             graph, *casted_input_vertex_list, builder, offsets, input_label,
             nbr_label, edge_label, dir, ep_val, tp);

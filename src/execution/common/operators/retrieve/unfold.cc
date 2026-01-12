@@ -31,7 +31,7 @@ namespace runtime {
 
 gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto col = ctxs.get(key);
-  if (col->elem_type() != RTAnyType::kList) {
+  if (col->elem_type().id() != DataTypeId::LIST) {
     LOG(ERROR) << "Unfold column type is not list";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list");
   }
@@ -84,30 +84,19 @@ Context unfold_impl<List>(Context&& ctx, int alias, const Expr& key,
 gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
   std::shared_ptr<Arena> arena = std::make_shared<Arena>();
   auto type = key.eval_path(0, *arena).as_list().elem_type();
-  if (type == RTAnyType::kI64Value) {
-    return unfold_impl<int64_t>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kF64Value) {
-    return unfold_impl<double>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kBoolValue) {
-    return unfold_impl<bool>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kStringValue) {
-    return unfold_impl<std::string_view>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kI32Value) {
-    return unfold_impl<int32_t>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kF32Value) {
-    return unfold_impl<float>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kU32Value) {
-    return unfold_impl<uint32_t>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kU64Value) {
-    return unfold_impl<uint64_t>(std::move(ctxs), alias, key, arena);
-  } else if (type == RTAnyType::kList) {
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return unfold_impl<type>(std::move(ctxs), alias, key, arena);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataTypeId::LIST:
     return unfold_impl<List>(std::move(ctxs), alias, key, arena);
-  } else {
+  default:
     LOG(ERROR) << "Unfold column type is not supported: "
-               << static_cast<int>(type);
+               << static_cast<int>(type.id());
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not supported");
   }
-
   return ctxs;
 }
 

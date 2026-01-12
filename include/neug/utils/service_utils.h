@@ -101,20 +101,20 @@ inline std::string toUpper(const std::string str) {
 // by json.get<DataTypeId>() and operator <</operator =;
 // These two functions are inlined to avoid linking library in codegen.
 inline bool to_json(rapidjson::Document& j, const DataTypeId& p) {
-  if (p == DataTypeId::kEmpty) {
+  if (p == DataTypeId::EMPTY) {
     j.AddMember("empty", "empty", j.GetAllocator());
-  } else if (p == DataTypeId::kBool || p == DataTypeId::kInt32 ||
-             p == DataTypeId::kUInt32 || p == DataTypeId::kFloat ||
-             p == DataTypeId::kInt64 || p == DataTypeId::kUInt64 ||
-             p == DataTypeId::kDouble) {
+  } else if (p == DataTypeId::BOOLEAN || p == DataTypeId::INTEGER ||
+             p == DataTypeId::UINTEGER || p == DataTypeId::FLOAT ||
+             p == DataTypeId::BIGINT || p == DataTypeId::UBIGINT ||
+             p == DataTypeId::DOUBLE) {
     j.AddMember("primitive_type",
                 gs::config_parsing::PrimitivePropertyTypeToString(p),
                 j.GetAllocator());
-  } else if (p == DataTypeId::kDate) {
+  } else if (p == DataTypeId::DATE) {
     rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
     temporal.AddMember("timestamp", "", j.GetAllocator());
     j.AddMember("temporal", temporal, j.GetAllocator());
-  } else if (p == DataTypeId::kStringView) {
+  } else if (p == DataTypeId::VARCHAR) {
     rapidjson::Document long_text(rapidjson::kObjectType, &j.GetAllocator());
     long_text.AddMember("long_text", "", j.GetAllocator());
     j.AddMember("string", long_text, j.GetAllocator());
@@ -146,7 +146,7 @@ inline bool from_json(const rapidjson::Value& j, DataTypeId& p) {
         j["primitive_type"].GetString());
   } else if (j.HasMember("string")) {
     if (j["string"].HasMember("long_text")) {
-      p = DataTypeId::kStringView;
+      p = DataTypeId::VARCHAR;
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unknown string type: " +
                                        rapidjson_stringify(j));
@@ -154,14 +154,14 @@ inline bool from_json(const rapidjson::Value& j, DataTypeId& p) {
   } else if (j.HasMember("temporal")) {
     if (j["temporal"].HasMember("timestamp") ||
         j["temporal"].HasMember("datetime")) {
-      p = DataTypeId::kDateTime;
+      p = DataTypeId::TIMESTAMP_MS;
     } else if (j["temporal"].HasMember("date")) {
-      p = DataTypeId::kDate;
+      p = DataTypeId::DATE;
       ;
     } else if (j["temporal"].HasMember("interval")) {
-      p = DataTypeId::kInterval;
+      p = DataTypeId::INTERVAL;
     } else if (j["temporal"].HasMember("timestamp")) {
-      p = DataTypeId::kDateTime;
+      p = DataTypeId::TIMESTAMP_MS;
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unknown temporal type: " +
                                        rapidjson_stringify(j));

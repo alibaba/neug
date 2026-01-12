@@ -251,7 +251,7 @@ bool is_check_property_cmp(const common::Expression& expr, int& tag,
 }
 
 bool is_property_extract(const common::Expression& expr, int& tag,
-                         std::string& name, RTAnyType& type) {
+                         std::string& name, DataType& type) {
   if (expr.operators_size() == 1 &&
       expr.operators(0).item_case() == common::ExprOpr::kVar) {
     auto var = expr.operators(0).var();
@@ -273,14 +273,16 @@ bool is_property_extract(const common::Expression& expr, int& tag,
       } else {
         return false;
       }
-      if (type == RTAnyType::kUnknown) {
+      if (type.id() == DataTypeId::UNKNOWN) {
         return false;
       }
       // only support pod type
-      if (type == RTAnyType::kDateTime || type == RTAnyType::kDate ||
-          type == RTAnyType::kI64Value || type == RTAnyType::kI32Value ||
-          type == RTAnyType::kF64Value || type == RTAnyType::kU32Value ||
-          type == RTAnyType::kU64Value || type == RTAnyType::kF32Value) {
+      if (type.id() == DataTypeId::TIMESTAMP_MS ||
+          type.id() == DataTypeId::DATE || type.id() == DataTypeId::BIGINT ||
+          type.id() == DataTypeId::INTEGER || type.id() == DataTypeId::FLOAT ||
+          type.id() == DataTypeId::UBIGINT ||
+          type.id() == DataTypeId::UINTEGER ||
+          type.id() == DataTypeId::DOUBLE) {
         return true;
       }
     }
@@ -291,78 +293,25 @@ bool is_property_extract(const common::Expression& expr, int& tag,
 std::unique_ptr<ProjectExprBase> create_sl_property_expr(
     const Context& ctx, const IStorageInterface& graph,
     const SLVertexColumn& column, const std::string& property_name,
-    RTAnyType type, int alias) {
-  switch (type) {
-  case RTAnyType::kI32Value: {
-    auto expr =
-        SLPropertyExpr<SLVertexColumn, int32_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, int32_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
+    DataType type, int alias) {
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                       \
+  case DataTypeId::enum_val: {                                                \
+    auto expr =                                                               \
+        SLPropertyExpr<SLVertexColumn, type>(graph, column, property_name);   \
+    if (expr.is_optional()) {                                                 \
+      return nullptr;                                                         \
+    }                                                                         \
+    PropertyValueCollector<decltype(expr)> collector(ctx);                    \
+    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, type>, \
+                                        decltype(collector)>>(                \
+        std::move(expr), collector, alias);                                   \
   }
-  case RTAnyType::kI64Value: {
-    auto expr =
-        SLPropertyExpr<SLVertexColumn, int64_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, int64_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kF64Value: {
-    auto expr =
-        SLPropertyExpr<SLVertexColumn, double>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, double>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kStringValue: {
-    auto expr = SLPropertyExpr<SLVertexColumn, std::string_view>(graph, column,
-                                                                 property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-
-    return std::make_unique<ProjectExpr<
-        SLPropertyExpr<SLVertexColumn, std::string_view>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kDate: {
-    auto expr =
-        SLPropertyExpr<SLVertexColumn, Date>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<SLPropertyExpr<SLVertexColumn, Date>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kDateTime: {
-    auto expr =
-        SLPropertyExpr<SLVertexColumn, DateTime>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<
-        SLPropertyExpr<SLVertexColumn, DateTime>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
   default:
     LOG(ERROR) << "create_sl_property_expr: not implemented for type: "
-               << static_cast<int>(type);
+               << static_cast<int>(type.id());
   }
   return nullptr;
 }
@@ -370,134 +319,26 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
 template <typename VertexColumn>
 std::unique_ptr<ProjectExprBase> create_ml_property_expr(
     const Context& ctx, const IStorageInterface& graph,
-    const VertexColumn& column, const std::string& property_name,
-    RTAnyType type, int alias) {
-  switch (type) {
-  case RTAnyType::kBoolValue: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, bool>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<MLPropertyExpr<VertexColumn, bool>, decltype(collector)>>(
-        std::move(expr), collector, alias);
+    const VertexColumn& column, const std::string& property_name, DataType type,
+    int alias) {
+  switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                        \
+  case DataTypeId::enum_val: {                                                 \
+    auto expr =                                                                \
+        MLPropertyExpr<VertexColumn, type>(graph, column, property_name);      \
+    if (expr.is_optional()) {                                                  \
+      return nullptr;                                                          \
+    }                                                                          \
+    PropertyValueCollector<decltype(expr)> collector(ctx);                     \
+    return std::make_unique<                                                   \
+        ProjectExpr<MLPropertyExpr<VertexColumn, type>, decltype(collector)>>( \
+        std::move(expr), collector, alias);                                    \
   }
-  case RTAnyType::kI32Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, int32_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, int32_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kU32Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, uint32_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, uint32_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kI64Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, int64_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, int64_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kU64Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, uint64_t>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, uint64_t>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kF32Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, float>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<MLPropertyExpr<VertexColumn, float>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kF64Value: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, double>(graph, column, property_name);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    return std::make_unique<
-        ProjectExpr<MLPropertyExpr<VertexColumn, double>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kStringValue: {
-    auto expr = MLPropertyExpr<VertexColumn, std::string_view>(graph, column,
-                                                               property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<
-        MLPropertyExpr<VertexColumn, std::string_view>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-
-  case RTAnyType::kDate: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, Date>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<
-        ProjectExpr<MLPropertyExpr<VertexColumn, Date>, decltype(collector)>>(
-        std::move(expr), collector, alias);
-  }
-  case RTAnyType::kDateTime: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, DateTime>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, DateTime>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
-  case RTAnyType::kInterval: {
-    auto expr =
-        MLPropertyExpr<VertexColumn, Interval>(graph, column, property_name);
-    PropertyValueCollector<decltype(expr)> collector(ctx);
-    if (expr.is_optional()) {
-      return nullptr;
-    }
-    return std::make_unique<ProjectExpr<MLPropertyExpr<VertexColumn, Interval>,
-                                        decltype(collector)>>(std::move(expr),
-                                                              collector, alias);
-  }
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
   default:
     LOG(ERROR) << "create_ml_property_expr: not implemented for type: "
-               << static_cast<int>(type);
+               << static_cast<int>(type.id());
   }
   return nullptr;
 }
@@ -653,7 +494,7 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
     {
       int tag;
       std::string name;
-      RTAnyType type;
+      DataType type;
       if (is_property_extract(expr, tag, name, type)) {
         auto col = ctx.get(tag);
         std::unique_ptr<ProjectExprBase> result;
@@ -709,15 +550,15 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
                                                      params);
         }
 
-        if (type_ == RTAnyType::kI32Value) {
+        if (type_.id() == DataTypeId::INTEGER) {
           return parse_special_expr_between_impl<int32_t>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_ == RTAnyType::kI64Value) {
+        } else if (type_.id() == DataTypeId::BIGINT) {
           return parse_special_expr_between_impl<int64_t>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_ == RTAnyType::kDateTime) {
+        } else if (type_.id() == DataTypeId::TIMESTAMP_MS) {
           return parse_special_expr_between_impl<DateTime>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
@@ -741,41 +582,31 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
                         .data_type();
         auto type_ = parse_from_ir_data_type(type);
 
-        if (type_ == RTAnyType::kI32Value) {
-          auto ptr = create_sp_pred_case_when<int32_t>(
-              ctx, graph, params, vertex_col, ptype, name, target, then_value,
-              else_value, alias);
-          if (ptr) {
-            return ptr;
-          }
-        } else if (type_ == RTAnyType::kI64Value) {
-          auto ptr = create_sp_pred_case_when<int64_t>(
-              ctx, graph, params, vertex_col, ptype, name, target, then_value,
-              else_value, alias);
-          if (ptr) {
-            return ptr;
-          }
-        } else if (type_ == RTAnyType::kDateTime) {
-          auto ptr = create_sp_pred_case_when<DateTime>(
-              ctx, graph, params, vertex_col, ptype, name, target, then_value,
-              else_value, alias);
-          if (ptr) {
-            return ptr;
-          }
-        } else if (type_ == RTAnyType::kStringValue) {
-          auto ptr = create_sp_pred_case_when<std::string_view>(
-              ctx, graph, params, vertex_col, ptype, name, target, then_value,
-              else_value, alias);
-          if (ptr) {
-            return ptr;
-          }
+        switch (type_.id()) {
+#define TYPE_DISPATCHER(enum_val, T)                                        \
+  case DataTypeId::enum_val: {                                              \
+    auto ptr = create_sp_pred_case_when<T>(ctx, graph, params, vertex_col,  \
+                                           ptype, name, target, then_value, \
+                                           else_value, alias);              \
+    if (ptr) {                                                              \
+      return ptr;                                                           \
+    }                                                                       \
+    break;                                                                  \
+  }
+          TYPE_DISPATCHER(VARCHAR, std::string_view)
+          TYPE_DISPATCHER(INTEGER, int32_t)
+          TYPE_DISPATCHER(BIGINT, int64_t)
+          TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+#undef TYPE_DISPATCHER
+        default: {
+          return make_project_expr_without_data_type(expr, alias, graph, ctx,
+                                                     params);
+        }
         }
       }
-      return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                 params);
     }
+    return nullptr;
   }
-  return nullptr;
 }
 
 std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
@@ -791,38 +622,16 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
     const common::Expression& expr, int alias) {
   int tag;
   std::string name;
-  RTAnyType type;
+  DataType type;
   if (is_property_extract(expr, tag, name, type)) {
-    if (type == RTAnyType::kI32Value) {
-      return std::make_unique<VertexPropertyExprBuilder<int32_t>>(tag, name,
-                                                                  alias);
-    } else if (type == RTAnyType::kU32Value) {
-      return std::make_unique<VertexPropertyExprBuilder<uint32_t>>(tag, name,
-                                                                   alias);
-    } else if (type == RTAnyType::kI64Value) {
-      return std::make_unique<VertexPropertyExprBuilder<int64_t>>(tag, name,
-                                                                  alias);
-    } else if (type == RTAnyType::kU64Value) {
-      return std::make_unique<VertexPropertyExprBuilder<uint64_t>>(tag, name,
-                                                                   alias);
-    } else if (type == RTAnyType::kF32Value) {
-      return std::make_unique<VertexPropertyExprBuilder<float>>(tag, name,
-                                                                alias);
-    } else if (type == RTAnyType::kF64Value) {
-      return std::make_unique<VertexPropertyExprBuilder<double>>(tag, name,
-                                                                 alias);
-    } else if (type == RTAnyType::kStringValue) {
-      return std::make_unique<VertexPropertyExprBuilder<std::string_view>>(
-          tag, name, alias);
-    } else if (type == RTAnyType::kDateTime) {
-      return std::make_unique<VertexPropertyExprBuilder<DateTime>>(tag, name,
-                                                                   alias);
-    } else if (type == RTAnyType::kDate) {
-      return std::make_unique<VertexPropertyExprBuilder<Date>>(tag, name,
-                                                               alias);
-    } else if (type == RTAnyType::kInterval) {
-      return std::make_unique<VertexPropertyExprBuilder<Interval>>(tag, name,
-                                                                   alias);
+    switch (type.id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return std::make_unique<VertexPropertyExprBuilder<type>>(tag, name, alias);
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+    default:
+      return nullptr;
     }
   }
   return nullptr;
@@ -830,22 +639,22 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
 
 template <typename CMP_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
-    RTAnyType then_type, const std::vector<std::string>& param_names,
+    DataType then_type, const std::vector<std::string>& param_names,
     const common::Value& then_value, const common::Value& else_value, int tag,
     const std::string& property_name, int alias) {
-  if (then_type == RTAnyType::kI64Value) {
+  if (then_type.id() == DataTypeId::BIGINT) {
     return std::make_unique<CaseWhenExprBuilder<CMP_T, int64_t>>(
         param_names, then_value.i64(), else_value.i64(), tag, property_name,
         alias);
   } else {
-    LOG(ERROR) << "unsupported then type " << static_cast<int>(then_type);
+    LOG(ERROR) << "unsupported then type " << static_cast<int>(then_type.id());
     return nullptr;
   }
 }
 
 template <typename WHEN_T>
 std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl0(
-    SPPredicateType ptype, RTAnyType then_type,
+    SPPredicateType ptype, DataType then_type,
     const std::vector<std::string>& param_names,
     const common::Value& then_value, const common::Value& else_value, int tag,
     const std::string& property_name, int alias) {
@@ -897,7 +706,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
   common::Value then_value, else_value;
 
   SPPredicateType ptype = SPPredicateType::kUnknown;
-  RTAnyType when_type, then_type;
+  DataType when_type, then_type;
   std::vector<std::string> param_names;
 
   if (is_check_property_in_range(expr, tag, name, lower, upper, then_value,
@@ -919,7 +728,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
       return nullptr;
     }
     if (then_value.item_case() == common::Value::kI64) {
-      then_type = RTAnyType::kI64Value;
+      then_type = DataType(DataTypeId::BIGINT);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
@@ -940,7 +749,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
       return nullptr;
     }
     if (then_value.item_case() == common::Value::kI64) {
-      then_type = RTAnyType::kI64Value;
+      then_type = DataType(DataTypeId::BIGINT);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
@@ -948,33 +757,20 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
   } else {
     return nullptr;
   }
-
-  if (when_type == RTAnyType::kI32Value) {
-    return create_case_when_builder_impl0<int32_t>(
-        ptype, then_type, param_names, then_value, else_value, tag, name,
-        alias);
-  } else if (when_type == RTAnyType::kI64Value) {
-    return create_case_when_builder_impl0<int64_t>(
-        ptype, then_type, param_names, then_value, else_value, tag, name,
-        alias);
-  } else if (when_type == RTAnyType::kF64Value) {
-    return create_case_when_builder_impl0<double>(ptype, then_type, param_names,
-                                                  then_value, else_value, tag,
-                                                  name, alias);
-  } else if (when_type == RTAnyType::kStringValue) {
-    return create_case_when_builder_impl0<std::string_view>(
-        ptype, then_type, param_names, then_value, else_value, tag, name,
-        alias);
-  } else if (when_type == RTAnyType::kDate) {
-    return create_case_when_builder_impl0<Date>(ptype, then_type, param_names,
-                                                then_value, else_value, tag,
-                                                name, alias);
-  } else if (when_type == RTAnyType::kDateTime) {
-    return create_case_when_builder_impl0<DateTime>(
-        ptype, then_type, param_names, then_value, else_value, tag, name,
-        alias);
-  } else {
-    LOG(ERROR) << "unsupported when type " << static_cast<int>(when_type);
+  switch (when_type.id()) {
+#define TYPE_DISPATCHER(enum_val, T)                                        \
+  case DataTypeId::enum_val:                                                \
+    return create_case_when_builder_impl0<T>(ptype, then_type, param_names, \
+                                             then_value, else_value, tag,   \
+                                             name, alias);
+    TYPE_DISPATCHER(INTEGER, int32_t)
+    TYPE_DISPATCHER(BIGINT, int64_t)
+    TYPE_DISPATCHER(DOUBLE, double)
+    TYPE_DISPATCHER(VARCHAR, std::string_view)
+    TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+#undef TYPE_DISPATCHER
+  default:
+    LOG(ERROR) << "unsupported when type " << static_cast<int>(when_type.id());
     return nullptr;
   }
 }

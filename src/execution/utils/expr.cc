@@ -32,7 +32,7 @@ RTAny Expr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
   return expr_->eval_edge(label, src, dst, data_ptr, arena);
 }
 
-RTAnyType Expr::type() const { return expr_->type(); }
+const DataType& Expr::type() const { return expr_->type(); }
 
 }  // namespace runtime
 

@@ -42,7 +42,7 @@ class GeneralPathColumnBuilder;
 
 class GeneralPathColumn : public IPathColumn {
  public:
-  GeneralPathColumn() = default;
+  GeneralPathColumn() : type_(DataType(DataTypeId::PATH)) {}
   ~GeneralPathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
@@ -56,7 +56,7 @@ class GeneralPathColumn : public IPathColumn {
 
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
-  inline RTAnyType elem_type() const override { return RTAnyType::kPath; }
+  inline const DataType& elem_type() const override { return type_; }
   inline RTAny get_elem(size_t idx) const override { return RTAny(data_[idx]); }
   inline const Path& get_path(size_t idx) const override { return data_[idx]; }
   ISigColumn* generate_signature() const override {
@@ -85,6 +85,7 @@ class GeneralPathColumn : public IPathColumn {
   friend class GeneralPathColumnBuilder;
   std::vector<Path> data_;
   std::shared_ptr<Arena> arena_;
+  DataType type_;
 };
 
 class GeneralPathColumnBuilder : public IContextColumnBuilder {
@@ -114,7 +115,7 @@ class GeneralPathColumnBuilder : public IContextColumnBuilder {
 
 class OptionalGeneralPathColumn : public IPathColumn {
  public:
-  OptionalGeneralPathColumn() = default;
+  OptionalGeneralPathColumn() : type_(DataType(DataTypeId::PATH)) {}
   ~OptionalGeneralPathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
@@ -126,11 +127,11 @@ class OptionalGeneralPathColumn : public IPathColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
   inline bool is_optional() const override { return true; }
-  inline RTAnyType elem_type() const override { return RTAnyType::kPath; }
+  inline const DataType& elem_type() const override { return type_; }
   inline bool has_value(size_t idx) const override { return valids_[idx]; }
   inline RTAny get_elem(size_t idx) const override {
     if (!valids_[idx]) {
-      return RTAny(RTAnyType::kNull);
+      return RTAny(DataType(DataTypeId::SQLNULL));
     }
     return RTAny(data_[idx]);
   }
@@ -163,6 +164,7 @@ class OptionalGeneralPathColumn : public IPathColumn {
   std::vector<Path> data_;
   std::vector<bool> valids_;
   std::shared_ptr<Arena> arena_;
+  DataType type_;
 };
 
 class OptionalGeneralPathColumnBuilder : public IContextColumnBuilder {

@@ -641,7 +641,7 @@ gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
   } else if (params.join_type == JoinKind::kTimesJoin) {
     return default_times_join(std::move(ctx), std::move(ctx2), params);
   }
-  LOG(FATAL) << "Unsupported join type" << params.join_type;
+  LOG(FATAL) << "Unsupported join type" << static_cast<int>(params.join_type);
   return ctx;
 }
 

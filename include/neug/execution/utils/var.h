@@ -66,13 +66,12 @@ class Var {
   RTAny get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                  const void* data_ptr) const;
 
-  RTAnyType type() const;
+  const DataType& type() const;
   bool is_optional() const { return getter_->is_optional(); }
-  std::shared_ptr<IContextColumnBuilder> builder() const;
 
  private:
   std::shared_ptr<IAccessor> getter_;
-  RTAnyType type_;
+  DataType type_;
 };
 
 }  // namespace runtime

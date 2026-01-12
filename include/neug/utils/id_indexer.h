@@ -166,20 +166,22 @@ struct GHash<int64_t> {
 template <>
 struct GHash<Property> {
   size_t operator()(const Property& val) const {
-    if (val.type() == DataTypeId::kInt64) {
-      return GHash<int64_t>()(val.as_int64());
-    } else if (val.type() == DataTypeId::kInt32) {
-      return GHash<int32_t>()(val.as_int32());
-    } else if (val.type() == DataTypeId::kUInt64) {
-      return GHash<uint64_t>()(val.as_uint64());
-    } else if (val.type() == DataTypeId::kUInt32) {
-      return GHash<uint32_t>()(val.as_uint32());
-    } else if (val.type() == DataTypeId::kStringView) {
-      return GHash<std::string_view>()(val.as_string_view());
-    } else {
+    switch (val.type()) {
+#define TYPE_DISPATCHER(enum_val, type)                   \
+  case DataTypeId::enum_val: {                            \
+    return GHash<type>()(PropUtils<type>::to_typed(val)); \
+  }
+      TYPE_DISPATCHER(BIGINT, int64_t)
+      TYPE_DISPATCHER(INTEGER, int32_t)
+      TYPE_DISPATCHER(UBIGINT, uint64_t)
+      TYPE_DISPATCHER(UINTEGER, uint32_t)
+      TYPE_DISPATCHER(VARCHAR, std::string_view)
+#undef TYPE_DISPATCHER
+    default: {
       THROW_NOT_IMPLEMENTED_EXCEPTION(
           "Hash function not implemented for type: " +
           std::to_string(val.type()));
+    }
     }
   }
 };
@@ -241,26 +243,36 @@ class LFIndexer {
             std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
     auto default_value = get_default_value(type);
-    if (type == DataTypeId::kInt64) {
-      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<int64_t>(
-          default_value.as_int64(), StorageStrategy::kMem));
-    } else if (type == DataTypeId::kInt32) {
-      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<int32_t>(
-          default_value.as_int32(), StorageStrategy::kMem));
-    } else if (type == DataTypeId::kUInt64) {
-      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<uint64_t>(
-          default_value.as_uint64(), StorageStrategy::kMem));
-    } else if (type == DataTypeId::kUInt32) {
-      keys_ = std::shared_ptr<ColumnBase>(new TypedColumn<uint32_t>(
-          default_value.as_uint32(), StorageStrategy::kMem));
-    } else if (type == DataTypeId::kStringView) {
-      keys_ = std::shared_ptr<ColumnBase>(
-          new StringColumn(StorageStrategy::kMem, STRING_DEFAULT_MAX_LENGTH));
-    } else {
+    switch (type) {
+#define TYPE_DISPATCHER(enum_val, T)                                   \
+  case DataTypeId::enum_val: {                                         \
+    keys_ = std::make_shared<TypedColumn<T>>(                          \
+        PropUtils<T>::to_typed(default_value), StorageStrategy::kMem); \
+    break;                                                             \
+  }
+      TYPE_DISPATCHER(BIGINT, int64_t)
+      TYPE_DISPATCHER(INTEGER, int32_t)
+      TYPE_DISPATCHER(UBIGINT, uint64_t)
+      TYPE_DISPATCHER(UINTEGER, uint32_t)
+#undef TYPE_DISPATCHER
+    case DataTypeId::VARCHAR: {
+      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+      if (extra_type_info) {
+        auto str_type_info =
+            std::dynamic_pointer_cast<StringTypeInfo>(extra_type_info);
+        if (str_type_info) {
+          max_length = str_type_info->max_length;
+        }
+      }
+      keys_ = std::make_shared<StringColumn>(StorageStrategy::kMem, max_length);
+      break;
+    }
+    default: {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Only (u)int64/32 and string_view types for pk are supported, but "
           "got: " +
           std::to_string(type));
+    }
     }
   }
 

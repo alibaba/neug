@@ -38,6 +38,8 @@
 #include "neug/compiler/function/string/functions/starts_with_function.h"
 #include "neug/compiler/function/string/functions/substr_function.h"
 
+#include "neug/utils/runtime/rt_any.h"
+
 using namespace gs::common;
 
 namespace gs {
@@ -179,7 +181,7 @@ runtime::RTAny UpperFunction::Exec(runtime::Arena& arena,
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
-  if (val.type() != runtime::RTAnyType::kStringValue) {
+  if (val.type().id() != DataTypeId::VARCHAR) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
   std::string str(val.as_string());
@@ -205,7 +207,7 @@ runtime::RTAny LowerFunction::Exec(runtime::Arena& arena,
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
-  if (val.type() != runtime::RTAnyType::kStringValue) {
+  if (val.type().id() != DataTypeId::VARCHAR) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
   std::string str(val.as_string());
@@ -231,7 +233,7 @@ runtime::RTAny ReverseFunction::Exec(runtime::Arena& arena,
                         std::to_string(args.size()));
   }
   const auto& val = args[0];
-  if (val.type() != runtime::RTAnyType::kStringValue) {
+  if (val.type().id() != DataTypeId::VARCHAR) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }
   std::string str(val.as_string());

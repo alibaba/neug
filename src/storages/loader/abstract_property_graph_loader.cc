@@ -47,9 +47,9 @@ void AbstractPropertyGraphLoader::addVertices(
   auto pk_type = std::get<0>(primary_key);
   auto pk_name = std::get<1>(primary_key);
   auto pk_ind = std::get<2>(primary_key);
-  if (pk_type != DataTypeId::kInt64 && pk_type != DataTypeId::kStringView &&
-      pk_type != DataTypeId::kInt32 && pk_type != DataTypeId::kUInt32 &&
-      pk_type != DataTypeId::kUInt64) {
+  if (pk_type != DataTypeId::BIGINT && pk_type != DataTypeId::VARCHAR &&
+      pk_type != DataTypeId::INTEGER && pk_type != DataTypeId::UINTEGER &&
+      pk_type != DataTypeId::UINTEGER) {
     LOG(FATAL)
         << "Only support int64_t, uint64_t, int32_t, uint32_t and string "
            "primary key for vertex.";

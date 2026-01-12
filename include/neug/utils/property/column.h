@@ -235,7 +235,7 @@ class TypedColumn<EmptyType> : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  DataTypeId type() const override { return DataTypeId::kEmpty; }
+  DataTypeId type() const override { return DataTypeId::EMPTY; }
 
   void set_any(size_t index, const Property& value) override {}
 
@@ -268,14 +268,14 @@ class TypedColumn<std::string_view> : public ColumnBase {
         strategy_(strategy),
         width_(width),
         default_value_(default_value),
-        type_(DataTypeId::kStringView) {}
+        type_(DataTypeId::VARCHAR) {}
   explicit TypedColumn(StorageStrategy strategy)
       : size_(0),
         pos_(0),
         strategy_(strategy),
         width_(STRING_DEFAULT_MAX_LENGTH),
         default_value_(""),
-        type_(DataTypeId::kStringView) {}
+        type_(DataTypeId::VARCHAR) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
     buffer_.swap(rhs.buffer_);
     size_ = rhs.size_;
@@ -439,8 +439,7 @@ using StringColumn = TypedColumn<std::string_view>;
 std::shared_ptr<ColumnBase> CreateColumn(
     DataTypeId type, Property default_value,
     StorageStrategy strategy = StorageStrategy::kMem,
-    std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr,
-    const std::vector<DataTypeId>& sub_types = {});
+    std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr);
 
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {

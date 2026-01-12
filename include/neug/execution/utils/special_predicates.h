@@ -55,7 +55,7 @@ inline bool is_pk_oid_exact_check(
     auto name = p.name();
     // todo: check data type
     auto type_ = parse_from_ir_data_type(p.data_type());
-    if (type_ != RTAnyType::kI64Value && type_ != RTAnyType::kI32Value) {
+    if (type_.id() != DataTypeId::BIGINT && type_.id() != DataTypeId::INTEGER) {
       return false;
     }
     value = [name](const std::map<std::string, std::string>& params) {
@@ -391,7 +391,7 @@ struct SpecialEdgePredicateConfig {
   std::string property_name;
   SPPredicateType ptype;
   std::string param_name;
-  RTAnyType param_type;
+  DataTypeId param_type;
 };
 
 inline bool is_special_edge_predicate(const common::Expression& expr,
@@ -448,7 +448,7 @@ inline bool is_special_edge_predicate(const common::Expression& expr,
       return false;
     }
     config.param_name = op2.param().name();
-    config.param_type = parse_from_ir_data_type(op2.param().data_type());
+    config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
     return true;
   }
   return false;
@@ -458,7 +458,7 @@ struct SpecialVertexPredicateConfig {
   std::string property_name;
   SPPredicateType ptype;
   std::vector<std::string> param_names;
-  RTAnyType param_type;
+  DataTypeId param_type;
 };
 
 inline bool is_special_vertex_predicate(const common::Expression& expr,
@@ -515,7 +515,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
       return false;
     }
     config.param_names.push_back(op2.param().name());
-    config.param_type = parse_from_ir_data_type(op2.param().data_type());
+    config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
     return true;
   } else if (expr.operators_size() == 7) {
     // between
@@ -609,7 +609,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
       return false;
     }
     config.ptype = SPPredicateType::kPropertyBetween;
-    config.param_type = type;
+    config.param_type = type.id();
     return true;
   }
   return false;
@@ -710,24 +710,18 @@ gs::result<Context> dispatch_vertex_predicate(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
-  if (config.param_type == RTAnyType::kI64Value) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, int64_t>(
+  switch (config.param_type) {
+#define TYPE_DISPATCHER(enum_val, type)                      \
+  case DataTypeId::enum_val:                                 \
+    return dispatch_vertex_predicate_impl_typed<OP_T, type>( \
         graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kStringValue) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, std::string_view>(
-        graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kDate) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, Date>(
-        graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kDateTime) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, DateTime>(
-        graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kI32Value) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, int32_t>(
-        graph, expected_labels, config, params, std::forward<Args>(args)...);
-  } else if (config.param_type == RTAnyType::kF64Value) {
-    return dispatch_vertex_predicate_impl_typed<OP_T, double>(
-        graph, expected_labels, config, params, std::forward<Args>(args)...);
+    TYPE_DISPATCHER(INTEGER, int32_t)
+    TYPE_DISPATCHER(BIGINT, int64_t)
+    TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+    TYPE_DISPATCHER(VARCHAR, std::string_view)
+#undef TYPE_DISPATCHER
+  default:
+    break;
   }
   LOG(ERROR) << "Unsupported param type for special vertex predicate: "
              << static_cast<int>(config.param_type);

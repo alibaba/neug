@@ -33,6 +33,8 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "neug/common/extra_type_info.h"
+#include "neug/common/types.h"
 #include "neug/config.h"
 #include "neug/utils/exception/exception.h"
 
@@ -95,47 +97,6 @@ enum class EdgeStrategy {
   kNone,
   kSingle,
   kMultiple,
-};
-
-enum class DataTypeId : uint8_t {
-  // Numeric types
-  kEmpty,
-  kBool,
-  kInt32,
-  kUInt32,
-  kInt64,
-  kUInt64,
-  kFloat,
-  kDouble,
-
-  // String type
-  kStringView,
-
-  // temporal types
-  kDate,
-  kDateTime,
-  kInterval,
-};
-
-enum class ExtraTypeInfoType {
-  kUnSet,
-  kStringTypeInfo,
-};
-
-struct ExtraTypeInfo {
-  ExtraTypeInfoType type;
-  ExtraTypeInfo() : type(ExtraTypeInfoType::kUnSet) {}
-  virtual ~ExtraTypeInfo() = default;
-  explicit ExtraTypeInfo(ExtraTypeInfoType t) : type(t) {}
-};
-
-struct StringTypeInfo : public ExtraTypeInfo {
-  size_t max_length;
-  StringTypeInfo()
-      : ExtraTypeInfo(ExtraTypeInfoType::kStringTypeInfo),
-        max_length(STRING_DEFAULT_MAX_LENGTH) {}
-  explicit StringTypeInfo(size_t length)
-      : ExtraTypeInfo(ExtraTypeInfoType::kStringTypeInfo), max_length(length) {}
 };
 
 namespace config_parsing {
@@ -559,7 +520,7 @@ template <>
 struct convert<std::shared_ptr<gs::ExtraTypeInfo>> {
   static Node encode(const std::shared_ptr<gs::ExtraTypeInfo>& type) {
     YAML::Node node;
-    if (type->type == gs::ExtraTypeInfoType::kStringTypeInfo) {
+    if (type->type == gs::ExtraTypeInfoType::STRING_TYPE_INFO) {
       auto string_type_info =
           std::dynamic_pointer_cast<gs::StringTypeInfo>(type);
       if (!string_type_info) {
@@ -600,10 +561,10 @@ struct convert<gs::DataTypeId> {
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["long_text"]) {
-          property_type = gs::DataTypeId::kStringView;
+          property_type = gs::DataTypeId::VARCHAR;
         } else if (config["string"]["var_char"]) {
           LOG(WARNING) << "var_char is deprecated, use long_text instead.";
-          property_type = gs::DataTypeId::kStringView;
+          property_type = gs::DataTypeId::VARCHAR;
         } else {
           LOG(ERROR) << "Unrecognized string type";
         }
@@ -613,19 +574,19 @@ struct convert<gs::DataTypeId> {
     } else if (config["temporal"]) {
       auto temporal = config["temporal"];
       if (temporal["date"]) {
-        property_type = gs::DataTypeId::kDate;
+        property_type = gs::DataTypeId::DATE;
       } else if (temporal["datetime"]) {
-        property_type = gs::DataTypeId::kDateTime;
+        property_type = gs::DataTypeId::TIMESTAMP_MS;
       } else if (temporal["interval"]) {
-        property_type = gs::DataTypeId::kInterval;
+        property_type = gs::DataTypeId::INTERVAL;
       } else if (temporal["timestamp"]) {
-        property_type = gs::DataTypeId::kDateTime;
+        property_type = gs::DataTypeId::TIMESTAMP_MS;
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
     } else if (config["date"]) {
-      property_type = gs::DataTypeId::kDate;
+      property_type = gs::DataTypeId::DATE;
     } else {
       LOG(ERROR) << "Unrecognized property type: " << config;
       return false;
@@ -635,15 +596,15 @@ struct convert<gs::DataTypeId> {
 
   static Node encode(const gs::DataTypeId& type) {
     YAML::Node node;
-    if (type == gs::DataTypeId::kBool || type == gs::DataTypeId::kInt32 ||
-        type == gs::DataTypeId::kUInt32 || type == gs::DataTypeId::kFloat ||
-        type == gs::DataTypeId::kInt64 || type == gs::DataTypeId::kUInt64 ||
-        type == gs::DataTypeId::kDouble) {
+    if (type == gs::DataTypeId::BOOLEAN || type == gs::DataTypeId::INTEGER ||
+        type == gs::DataTypeId::UINTEGER || type == gs::DataTypeId::FLOAT ||
+        type == gs::DataTypeId::BIGINT || type == gs::DataTypeId::UBIGINT ||
+        type == gs::DataTypeId::DOUBLE) {
       node["primitive_type"] =
           gs::config_parsing::PrimitivePropertyTypeToString(type);
-    } else if (type == gs::DataTypeId::kStringView) {
+    } else if (type == gs::DataTypeId::VARCHAR) {
       node["string"]["long_text"] = "";
-    } else if (type == gs::DataTypeId::kDate) {
+    } else if (type == gs::DataTypeId::DATE) {
       node["temporal"]["datetime"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;

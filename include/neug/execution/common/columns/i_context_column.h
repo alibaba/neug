@@ -155,7 +155,7 @@ class IContextColumn {
   virtual std::string column_info() const = 0;
   virtual ContextColumnType column_type() const = 0;
 
-  virtual RTAnyType elem_type() const = 0;
+  virtual const DataType& elem_type() const = 0;
 
   virtual std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const {

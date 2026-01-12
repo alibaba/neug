@@ -41,7 +41,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<bool>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kBoolValue);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::BOOLEAN);
 
   // shuffle
   {
@@ -129,7 +129,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<int32>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kI32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::INTEGER);
 
   // shuffle
   {
@@ -216,7 +216,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<int64>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kI64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::BIGINT);
 
   // shuffle
   {
@@ -303,7 +303,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<uint>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kU32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::UINTEGER);
 
   // shuffle
   {
@@ -390,7 +390,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<uint64>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kU64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::UBIGINT);
 
   // shuffle
   {
@@ -477,7 +477,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<float>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kF32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::FLOAT);
 
   // shuffle
   {
@@ -564,7 +564,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<double>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kF64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::DOUBLE);
 
   // shuffle
   {
@@ -655,7 +655,7 @@ TEST_F(ValueColumnTest, ValueColumnStringViewBasic) {
   EXPECT_EQ(elem0.as_string(), "hello");
   EXPECT_EQ(col->column_info(), "ValueColumn<string_view>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kStringValue);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::VARCHAR);
 
   // shuffle
   {
@@ -743,7 +743,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<date>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kDate);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::DATE);
 
   // shuffle
   {
@@ -830,7 +830,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<datetime>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kDateTime);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::TIMESTAMP_MS);
 
   // shuffle
   {
@@ -918,7 +918,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<interval>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kInterval);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::INTERVAL);
 
   // shuffle
   {
@@ -993,105 +993,6 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
   }
 }
 
-TEST_F(ValueColumnTest, SetValueColumnBasic) {
-  std::set<int32_t> values1 = {10, 20, 30};
-  std::set<int32_t> values2 = {20, 30, 40};
-  std::set<int32_t> values3 = {30, 40, 50};
-
-  auto set_impl1 = SetImpl<int32_t>::make_set_impl(std::move(values1));
-  auto set_impl2 = SetImpl<int32_t>::make_set_impl(std::move(values2));
-  auto set_impl3 = SetImpl<int32_t>::make_set_impl(std::move(values3));
-
-  Set set1(set_impl1.get()), set2(set_impl2.get()), set3(set_impl3.get());
-
-  ValueColumnBuilder<Set> builder;
-  builder.push_back_opt(set1);
-  builder.push_back_opt(set2);
-  builder.push_back_elem(RTAny::from_set(set3));
-  auto col = std::dynamic_pointer_cast<ValueColumn<Set>>(builder.finish());
-
-  ASSERT_NE(col, nullptr);
-  EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->get_value(0), set1);
-  EXPECT_EQ(col->get_value(1), set2);
-  EXPECT_EQ(col->get_value(2), set3);
-
-  RTAny elem0 = col->get_elem(0);
-  EXPECT_EQ(elem0.as_set(), set1);
-
-  EXPECT_EQ(col->column_info(), "ValueColumn<set>[3]");
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kSet);
-
-  // shuffle
-  {
-    std::vector<size_t> offsets = {2, 0, 1};
-    auto shuffled = col->shuffle(offsets);
-    ASSERT_EQ(shuffled->size(), 3);
-
-    EXPECT_EQ(shuffled->get_elem(0).as_set(), set3);
-    EXPECT_EQ(shuffled->get_elem(1).as_set(), set1);
-    EXPECT_EQ(shuffled->get_elem(2).as_set(), set2);
-  }
-
-  // optional shuffle
-  {
-    std::vector<size_t> offsets = {1, std::numeric_limits<size_t>::max(), 0};
-    auto shuffled = col->optional_shuffle(offsets);
-    ASSERT_EQ(shuffled->size(), 3);
-
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Set>>(shuffled);
-    ASSERT_NE(opt_col, nullptr);
-    EXPECT_TRUE(opt_col->has_value(0));
-    EXPECT_FALSE(opt_col->has_value(1));
-    EXPECT_TRUE(opt_col->has_value(2));
-
-    EXPECT_EQ(opt_col->get_value(0), set2);
-    EXPECT_EQ(opt_col->get_value(2), set1);
-  }
-
-  // union
-  {
-    std::set<int32_t> values4 = {30, 40, 50};
-    auto set_impl4 = SetImpl<int32_t>::make_set_impl(std::move(values4));
-    Set set4(set_impl4.get());
-    ValueColumnBuilder<Set> builder2;
-    builder2.push_back_opt(set4);
-    auto col2 = builder2.finish();
-
-    auto unioned = col->union_col(col2);
-    ASSERT_EQ(unioned->size(), 4);
-
-    EXPECT_EQ(unioned->get_elem(0).as_set(), set1);
-    EXPECT_EQ(unioned->get_elem(3).as_set(), set4);
-  }
-
-  // order_by_limit
-  {
-    std::vector<size_t> offsets;
-    bool success = col->order_by_limit(true, 2, offsets);
-    ASSERT_TRUE(success);
-    ASSERT_EQ(offsets.size(), 2);
-    EXPECT_EQ(col->get_value(offsets[0]), set2);
-    EXPECT_EQ(col->get_value(offsets[1]), set1);
-
-    offsets.clear();
-    success = col->order_by_limit(false, 2, offsets);
-    ASSERT_TRUE(success);
-    ASSERT_EQ(offsets.size(), 2);
-    EXPECT_EQ(col->get_value(offsets[0]), set2);
-    EXPECT_EQ(col->get_value(offsets[1]), set3);
-  }
-
-  // dedup
-  {
-    std::vector<size_t> offsets;
-    col->generate_dedup_offset(offsets);
-    EXPECT_EQ(offsets.size(), 3);
-  }
-}
-
 TEST_F(ValueColumnTest, TupleValueColumnBasic) {
   std::tuple<int32_t, int64_t, double> values1 = std::make_tuple(1, 2, -3.0);
   std::tuple<int32_t, int64_t, double> values2 = std::make_tuple(10, 3, 2.1);
@@ -1119,7 +1020,7 @@ TEST_F(ValueColumnTest, TupleValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<tuple>[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kTuple);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::STRUCT);
 
   // shuffle
   {
@@ -1214,7 +1115,7 @@ TEST_F(ValueColumnTest, ListValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ValueColumn<list>[2]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kList);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::LIST);
 
   // // shuffle
   // {
@@ -1242,7 +1143,7 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<bool>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kBoolValue);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::BOOLEAN);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1285,7 +1186,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<int32>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kI32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::INTEGER);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1328,7 +1229,7 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<int64>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kI64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::BIGINT);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1371,7 +1272,7 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<uint>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kU32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::UINTEGER);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1414,7 +1315,7 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<uint64>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kU64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::UBIGINT);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1457,7 +1358,7 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<float>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kF32Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::FLOAT);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1500,7 +1401,7 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<double>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kF64Value);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::DOUBLE);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1546,7 +1447,7 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<string_view>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kStringValue);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::VARCHAR);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1590,7 +1491,7 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<date>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kDate);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::DATE);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1633,7 +1534,7 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<datetime>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kDateTime);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::TIMESTAMP_MS);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1677,7 +1578,7 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<interval>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kInterval);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::INTERVAL);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1709,50 +1610,6 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
   }
 }
 
-TEST_F(OptionalValueColumnTest, SetOptionalValueColumnBasic) {
-  std::set<int32_t> values1 = {10, 20, 30};
-  std::set<int32_t> values2 = {10, 20, 30};
-
-  auto set_impl1 = SetImpl<int32_t>::make_set_impl(std::move(values1));
-  auto set_impl2 = SetImpl<int32_t>::make_set_impl(std::move(values2));
-
-  Set set1(set_impl1.get()), set2(set_impl2.get());
-
-  OptionalValueColumnBuilder<Set> builder;
-  builder.push_back_opt(set1, true);
-  builder.push_back_null();
-  builder.push_back_elem(RTAny::from_set(set2));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<Set>>(builder.finish());
-
-  ASSERT_NE(col, nullptr);
-  EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<set>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kSet);
-  EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_TRUE(col->is_optional());
-
-  EXPECT_TRUE(col->has_value(0));
-  EXPECT_FALSE(col->has_value(1));
-  EXPECT_TRUE(col->has_value(2));
-
-  EXPECT_EQ(col->get_elem(0).as_set(), set1);
-  EXPECT_TRUE(col->get_elem(1).is_null());
-  EXPECT_EQ(col->get_elem(2).as_set(), set2);
-
-  // shuffle
-  {
-    std::vector<size_t> offsets = {1, 0};
-    auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Set>>(shuffled);
-
-    ASSERT_NE(opt_col, nullptr);
-    EXPECT_FALSE(opt_col->has_value(0));
-    EXPECT_TRUE(opt_col->has_value(1));
-  }
-}
-
 TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   std::tuple<int32_t, int64_t, double> values1 = std::make_tuple(1, 2, -3.0);
   std::tuple<int32_t, int64_t, double> values2 = std::make_tuple(10, 3, 2.1);
@@ -1770,7 +1627,7 @@ TEST_F(OptionalValueColumnTest, TupleOptionalValueColumnBasic) {
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalValueColumn<tuple>[3]");
-  EXPECT_EQ(col->elem_type(), RTAnyType::kTuple);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::STRUCT);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
 
@@ -1806,7 +1663,7 @@ TEST_F(ListValueColumnTest, ListValueColumnBasic) {
   auto impl2 = ListImpl<int32_t>::make_list_impl(std::move(list_content2));
   List list2(impl2.get());
 
-  ListValueColumnBuilder builder(RTAnyType::kI32Value);
+  ListValueColumnBuilder builder(DataTypeId::INTEGER);
   builder.push_back_opt(list1);
   builder.push_back_elem(RTAny::from_list(list2));
   auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1818,7 +1675,7 @@ TEST_F(ListValueColumnTest, ListValueColumnBasic) {
 
   EXPECT_EQ(col->column_info(), "ListValueColumn[2]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
-  EXPECT_EQ(col->elem_type(), RTAnyType::kList);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::LIST);
 
   EXPECT_EQ(col->get_elem(0).as_list().size(), 2);
   EXPECT_EQ(col->get_elem(0).as_list().to_string(), "[10, 20]");
@@ -1847,7 +1704,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<int32_t>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kI32Value);
+    ListValueColumnBuilder builder(DataTypeId::INTEGER);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1873,7 +1730,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<int64_t>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kI64Value);
+    ListValueColumnBuilder builder(DataType(DataTypeId::BIGINT));
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1899,7 +1756,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<uint32_t>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kU32Value);
+    ListValueColumnBuilder builder(DataTypeId::UINTEGER);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1925,7 +1782,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<uint64_t>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kU64Value);
+    ListValueColumnBuilder builder(DataTypeId::UBIGINT);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1951,7 +1808,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<float>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kF32Value);
+    ListValueColumnBuilder builder(DataTypeId::FLOAT);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1977,7 +1834,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<double>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kF64Value);
+    ListValueColumnBuilder builder(DataTypeId::DOUBLE);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -2008,7 +1865,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
         ListImpl<std::string_view>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kStringValue);
+    ListValueColumnBuilder builder(DataType(DataTypeId::VARCHAR));
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -2034,7 +1891,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<Date>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kDate);
+    ListValueColumnBuilder builder(DataTypeId::DATE);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -2060,7 +1917,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<DateTime>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kDateTime);
+    ListValueColumnBuilder builder(DataTypeId::TIMESTAMP_MS);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -2086,7 +1943,7 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<Interval>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(RTAnyType::kInterval);
+    ListValueColumnBuilder builder(DataTypeId::INTERVAL);
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());

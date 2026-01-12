@@ -133,7 +133,7 @@ struct _KeyBuilder {
         }
 
       } else if (col->column_type() == ContextColumnType::kValue) {
-        if (col->elem_type() == RTAnyType::kI64Value) {
+        if (col->elem_type().id() == DataTypeId::BIGINT) {
           ValueWrapper<int64_t> wrapper(
               *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
           auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
@@ -141,7 +141,7 @@ struct _KeyBuilder {
           return _KeyBuilder<I - 1, ValueWrapper<int64_t>,
                              EXPR...>::make_sp_key(ctx, tag_alias,
                                                    std::move(new_exprs));
-        } else if (col->elem_type() == RTAnyType::kI32Value) {
+        } else if (col->elem_type().id() == DataTypeId::INTEGER) {
           ValueWrapper<int32_t> wrapper(
               *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
           auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
@@ -175,14 +175,14 @@ struct KeyBuilder {
             ctx, tag_alias, std::move(new_exprs));
       }
     } else if (col->column_type() == ContextColumnType::kValue) {
-      if (col->elem_type() == RTAnyType::kI64Value) {
+      if (col->elem_type().id() == DataTypeId::BIGINT) {
         ValueWrapper<int64_t> wrapper(
             *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
         auto new_exprs =
             std::make_tuple<ValueWrapper<int64_t>>(std::move(wrapper));
         return _KeyBuilder<I - 1, ValueWrapper<int64_t>>::make_sp_key(
             ctx, tag_alias, std::move(new_exprs));
-      } else if (col->elem_type() == RTAnyType::kI32Value) {
+      } else if (col->elem_type().id() == DataTypeId::INTEGER) {
         ValueWrapper<int32_t> wrapper(
             *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
         auto new_exprs =
@@ -826,61 +826,41 @@ inline std::unique_ptr<ReducerBase> make_reducer(
               ctx, std::move(wrapper), kind, alias);
         }
       } else if (col->column_type() == ContextColumnType::kValue) {
-        if (col->elem_type() == RTAnyType::kI64Value) {
-          ValueWrapper<int64_t> wrapper(
-              *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
-        } else if (col->elem_type() == RTAnyType::kI32Value) {
-          ValueWrapper<int32_t> wrapper(
-              *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
-        } else if (col->elem_type() == RTAnyType::kStringValue) {
-          ValueWrapper<std::string_view> wrapper(
-              *dynamic_cast<const ValueColumn<std::string_view>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
-        } else if (col->elem_type() == RTAnyType::kDateTime) {
-          ValueWrapper<DateTime> wrapper(
-              *dynamic_cast<const ValueColumn<DateTime>*>(col.get()));
-          return _make_reducer<decltype(wrapper), false>(
-              ctx, std::move(wrapper), kind, alias);
+#define TYPE_DISPATCHER(enum_val, type)                                     \
+  case DataTypeId::enum_val: {                                              \
+    ValueWrapper<type> wrapper(                                             \
+        *dynamic_cast<const ValueColumn<type>*>(col.get()));                \
+    return _make_reducer<decltype(wrapper), false>(ctx, std::move(wrapper), \
+                                                   kind, alias);            \
+  }
+        switch (col->elem_type().id()) {
+          TYPE_DISPATCHER(BIGINT, int64_t)
+          TYPE_DISPATCHER(INTEGER, int32_t)
+          TYPE_DISPATCHER(VARCHAR, std::string_view)
+          TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+#undef TYPE_DISPATCHER
+
+        default:
+          break;
         }
       }
     }
   }
   Var var_(&graph, ctx, var, VarType::kPathVar);
-  if (var_.type() == RTAnyType::kI32Value) {
-    return make_reducer<int32_t>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kU32Value) {
-    return make_reducer<uint32_t>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kI64Value) {
-    return make_reducer<int64_t>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kU64Value) {
-    return make_reducer<uint64_t>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kF32Value) {
-    return make_reducer<float>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kF64Value) {
-    return make_reducer<double>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kStringValue) {
-    return make_reducer<std::string_view>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kVertex) {
+  switch (var_.type().id()) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return make_reducer<type>(ctx, std::move(var_), kind, alias);
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataTypeId::VERTEX:
     return make_reducer<VertexRecord>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kTuple) {
+  case DataTypeId::STRUCT:
     return make_reducer<Tuple>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kBoolValue) {
-    return make_reducer<bool>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kDate) {
-    return make_reducer<Date>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kDateTime) {
-    return make_reducer<DateTime>(ctx, std::move(var_), kind, alias);
-  } else if (var_.type() == RTAnyType::kInterval) {
-    return make_reducer<Interval>(ctx, std::move(var_), kind, alias);
-  } else {
+  default:
     return make_general_reducer(ctx, std::move(var_), kind, alias);
   }
-}
+}  // namespace ops
 
 inline std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
     const std::vector<std::pair<common::Variable, int>>& vars,
@@ -892,77 +872,23 @@ inline std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
     }
 
     Var var_(&graph, ctx, var, VarType::kPathVar);
-    if (var_.type() == RTAnyType::kStringValue) {
-      TypedKeyCollector<std::string_view>::TypedKeyWrapper wrapper(
-          std::move(var_));
-      TypedKeyCollector<std::string_view> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kI64Value) {
-      TypedKeyCollector<int64_t>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<int64_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kI32Value) {
-      TypedKeyCollector<int32_t>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<int32_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kU64Value) {
-      TypedKeyCollector<uint64_t>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<uint64_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kU32Value) {
-      TypedKeyCollector<uint32_t>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<uint32_t> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kF32Value) {
-      TypedKeyCollector<float>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<float> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kF64Value) {
-      TypedKeyCollector<double>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<double> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kBoolValue) {
-      TypedKeyCollector<bool>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<bool> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kDate) {
-      TypedKeyCollector<Date>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<Date> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kDateTime) {
-      TypedKeyCollector<DateTime>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<DateTime> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else if (var_.type() == RTAnyType::kInterval) {
-      TypedKeyCollector<Interval>::TypedKeyWrapper wrapper(std::move(var_));
-      TypedKeyCollector<Interval> collector;
-      exprs.emplace_back(
-          std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>(
-              std::move(wrapper), std::move(collector), alias));
-    } else {
+    switch (var_.type().id()) {
+#define TYPE_DISPATCHER(enum_val, type)                                        \
+  case DataTypeId::enum_val: {                                                 \
+    TypedKeyCollector<type>::TypedKeyWrapper wrapper(std::move(var_));         \
+    TypedKeyCollector<type> collector;                                         \
+    exprs.emplace_back(                                                        \
+        std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>( \
+            std::move(wrapper), std::move(collector), alias));                 \
+    break;                                                                     \
+  }
+      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+    default: {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "not support property type " +
-          std::to_string(static_cast<int>(var_.type())));
+          std::to_string(static_cast<int>(var_.type().id())));
+    }
     }
   }
   return exprs;

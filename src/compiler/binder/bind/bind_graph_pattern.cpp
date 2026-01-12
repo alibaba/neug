@@ -108,7 +108,7 @@ static void extraFieldFromStructType(const LogicalType& structType,
                                      std::unordered_set<std::string>& nameSet,
                                      std::vector<std::string>& names,
                                      std::vector<LogicalType>& types) {
-  for (auto& field : StructType::getFields(structType)) {
+  for (auto& field : ::StructType::getFields(structType)) {
     if (!nameSet.contains(field.getName())) {
       nameSet.insert(field.getName());
       names.push_back(field.getName());

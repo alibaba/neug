@@ -17,11 +17,14 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <vector>
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
+class RTAny;
+class CObject;
+using Arena = std::vector<std::unique_ptr<CObject>>;
 
 using neug_func_exec_t = RTAny (*)(Arena&, const std::vector<RTAny>&);
 

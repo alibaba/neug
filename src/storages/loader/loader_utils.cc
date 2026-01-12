@@ -803,29 +803,26 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
   auto col_type = col->type();
 
   // TODO(zhanglei): reduce the dummy code here with a template function.
-  if (col_type == DataTypeId::kBool) {
-    set_column<bool>(col, array, vids);
-  } else if (col_type == DataTypeId::kInt64) {
-    set_column<int64_t>(col, array, vids);
-  } else if (col_type == DataTypeId::kInt32) {
-    set_column<int32_t>(col, array, vids);
-  } else if (col_type == DataTypeId::kUInt64) {
-    set_column<uint64_t>(col, array, vids);
-  } else if (col_type == DataTypeId::kUInt32) {
-    set_column<uint32_t>(col, array, vids);
-  } else if (col_type == DataTypeId::kDouble) {
-    set_column<double>(col, array, vids);
-  } else if (col_type == DataTypeId::kFloat) {
-    set_column<float>(col, array, vids);
-  } else if (col_type == DataTypeId::kDateTime) {
+  switch (col_type) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    set_column<type>(col, array, vids); \
+    break;
+    FOR_EACH_DATA_TYPE_PRIMITIVE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataTypeId::TIMESTAMP_MS:
     set_column_from_timestamp_array<DateTime>(col, array, vids);
-  } else if (col_type == DataTypeId::kDate) {
+    break;
+  case DataTypeId::DATE:
     set_column_from_date_array(col, array, vids);
-  } else if (col_type == DataTypeId::kInterval) {
+    break;
+  case DataTypeId::INTERVAL:
     set_interval_column_from_string_array(col, array, vids);
-  } else if (col_type == DataTypeId::kStringView) {
+    break;
+  case DataTypeId::VARCHAR:
     set_column_from_string_array(col, array, vids, true);
-  } else {
+    break;
+  default:
     LOG(FATAL) << "Not support type: " << type->ToString();
   }
 }

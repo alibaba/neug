@@ -47,13 +47,13 @@ class PropertyGraphTest : public ::testing::Test {
                     ->CreateVertexType(
                         "person",
                         {
-                            std::make_tuple(DataTypeId::kInt64, "id",
+                            std::make_tuple(DataTypeId::BIGINT, "id",
                                             Property::from_int64(0)),
-                            std::make_tuple(DataTypeId::kStringView, "name",
+                            std::make_tuple(DataTypeId::VARCHAR, "name",
                                             Property::from_string_view("")),
-                            std::make_tuple(DataTypeId::kInt32, "age",
+                            std::make_tuple(DataTypeId::INTEGER, "age",
                                             Property::from_int32(0)),
-                            std::make_tuple(DataTypeId::kDouble, "score",
+                            std::make_tuple(DataTypeId::DOUBLE, "score",
                                             Property::from_double(0.0)),
                         },
                         {"id"})
@@ -62,9 +62,9 @@ class PropertyGraphTest : public ::testing::Test {
                     ->CreateVertexType(
                         "company",
                         {
-                            std::make_tuple(DataTypeId::kInt64, "id",
+                            std::make_tuple(DataTypeId::BIGINT, "id",
                                             Property::from_int64(0)),
-                            std::make_tuple(DataTypeId::kStringView, "name",
+                            std::make_tuple(DataTypeId::VARCHAR, "name",
                                             Property::from_string_view("")),
                         },
                         {"id"})
@@ -73,7 +73,7 @@ class PropertyGraphTest : public ::testing::Test {
         graph_
             ->CreateEdgeType("person", "person", "knows",
                              {
-                                 std::make_tuple(DataTypeId::kDouble, "weight",
+                                 std::make_tuple(DataTypeId::DOUBLE, "weight",
                                                  Property::from_double(0.0)),
                              })
             .ok());

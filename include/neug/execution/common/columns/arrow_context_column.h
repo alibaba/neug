@@ -56,7 +56,7 @@ class ArrowArrayContextColumn : public IContextColumn {
     for (const auto& column : columns_) {
       size_ += column->length();
     }
-    type_ = RTAnyType::kEmpty;
+    type_ = DataType(DataTypeId::UNKNOWN);
     if (columns_.size() > 0) {
       type_ = arrow_type_to_rt_type(columns_[0]->type());
     }
@@ -68,7 +68,7 @@ class ArrowArrayContextColumn : public IContextColumn {
 
   size_t size() const override { return size_; }
 
-  RTAnyType elem_type() const override { return type_; }
+  const DataType& elem_type() const override { return type_; }
 
   ContextColumnType column_type() const override {
     return ContextColumnType::kArrowArray;
@@ -99,7 +99,7 @@ class ArrowArrayContextColumn : public IContextColumn {
 
   std::vector<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
-  RTAnyType type_;
+  DataType type_;
 };
 
 class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
@@ -141,7 +141,7 @@ class ArrowStreamContextColumn : public IContextColumn {
 
   size_t size() const override { return suppliers_.size(); }
 
-  RTAnyType elem_type() const override { return type_; }
+  const DataType& elem_type() const override { return type_; }
 
   ContextColumnType column_type() const override {
     return ContextColumnType::kArrowStream;
@@ -154,7 +154,7 @@ class ArrowStreamContextColumn : public IContextColumn {
  private:
   std::shared_ptr<arrow::RecordBatch> first_batch_;
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
-  RTAnyType type_;
+  DataType type_;
 };
 
 /**

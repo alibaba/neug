@@ -248,8 +248,7 @@ bool VertexSchema::has_property_internal(const std::string& prop) const {
 bool EdgeSchema::is_bundled() const {
   if (properties.empty()) {
     return true;
-  } else if (properties.size() == 1 &&
-             properties[0] == DataTypeId::kStringView) {
+  } else if (properties.size() == 1 && properties[0] == DataTypeId::VARCHAR) {
     return false;
   } else if (properties.size() > 1) {
     return false;
@@ -1216,11 +1215,11 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
           StatusCode::ERR_INVALID_SCHEMA,
           "Primary key " + primary_key_name + " is not found in properties");
     }
-    if (property_types[primary_key_inds[i]] != DataTypeId::kInt64 &&
-        property_types[primary_key_inds[i]] != DataTypeId::kStringView &&
-        property_types[primary_key_inds[i]] != DataTypeId::kUInt64 &&
-        property_types[primary_key_inds[i]] != DataTypeId::kInt32 &&
-        property_types[primary_key_inds[i]] != DataTypeId::kUInt32) {
+    if (property_types[primary_key_inds[i]] != DataTypeId::BIGINT &&
+        property_types[primary_key_inds[i]] != DataTypeId::VARCHAR &&
+        property_types[primary_key_inds[i]] != DataTypeId::UBIGINT &&
+        property_types[primary_key_inds[i]] != DataTypeId::INTEGER &&
+        property_types[primary_key_inds[i]] != DataTypeId::UINTEGER) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
       return Status(StatusCode::ERR_INVALID_SCHEMA,

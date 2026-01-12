@@ -54,9 +54,9 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   gs::Schema schema;
 
   // 1) Add a vertex label "Person" with 2 props and a single primary key
-  auto v_types = VProps({DataTypeId::kStringView});
+  auto v_types = VProps({DataTypeId::VARCHAR});
   auto v_names = VNames({"name"});
-  auto v_pk = VPk(DataTypeId::kInt64, "id", /*idx in props*/ 0);
+  auto v_pk = VPk(DataTypeId::BIGINT, "id", /*idx in props*/ 0);
   auto v_strats = VStrats(v_types.size(), StorageStrategy::kMem);
 
   schema.AddVertexLabel("Person", v_types,
@@ -72,7 +72,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   EXPECT_EQ(schema.get_vertex_description("Person"), "person vertex");
   // Only non-PK properties are stored in vproperties_/vprop_names_
   ASSERT_EQ(schema.get_vertex_properties("Person").size(), 1);
-  EXPECT_EQ(schema.get_vertex_properties("Person")[0], DataTypeId::kStringView);
+  EXPECT_EQ(schema.get_vertex_properties("Person")[0], DataTypeId::VARCHAR);
   ASSERT_EQ(schema.get_vertex_property_names("Person").size(), 1);
   EXPECT_EQ(schema.get_vertex_property_names("Person")[0], "name");
   EXPECT_EQ(schema.get_vertex_primary_key_name(vid), "id");
@@ -80,7 +80,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
 
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
-  std::vector<DataTypeId> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
+  std::vector<DataTypeId> add_types = {DataTypeId::INTEGER, DataTypeId::DOUBLE};
   std::vector<StorageStrategy> add_strats = {StorageStrategy::kMem,
                                              StorageStrategy::kMem};
   std::vector<gs::Property> add_defaults;  // not used currently
@@ -119,9 +119,9 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
 
   // Prepare two vertex labels first
   {
-    auto t = VProps({DataTypeId::kStringView});
+    auto t = VProps({DataTypeId::VARCHAR});
     auto n = VNames({"name"});
-    auto pk = VPk(DataTypeId::kInt64, "id", 0);
+    auto pk = VPk(DataTypeId::BIGINT, "id", 0);
     auto s = VStrats(t.size(), StorageStrategy::kMem);
     schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
                           {s.begin(), s.end()}, {}, 1024, "");
@@ -130,7 +130,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   }
 
   // 1) Add an edge label Person -[WorksAt]-> Company
-  std::vector<DataTypeId> e_types = {DataTypeId::kInt32};
+  std::vector<DataTypeId> e_types = {DataTypeId::INTEGER};
   std::vector<std::string> e_names = {"since"};
   schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {}, {},
                       /*oe*/ EdgeStrategy::kMultiple,
@@ -142,7 +142,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   EXPECT_TRUE(schema.exist("Person", "Company", "WorksAt"));
   auto props = schema.get_edge_properties("Person", "Company", "WorksAt");
   ASSERT_EQ(props.size(), 1);
-  EXPECT_EQ(props[0], DataTypeId::kInt32);
+  EXPECT_EQ(props[0], DataTypeId::INTEGER);
   auto names = schema.get_edge_property_names("Person", "Company", "WorksAt");
   ASSERT_EQ(names.size(), 1);
   EXPECT_EQ(names[0], "since");
@@ -156,8 +156,8 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
 
   // 2) Add edge properties
   std::vector<std::string> add_e_names = {"role", "salary"};
-  std::vector<DataTypeId> add_e_types = {DataTypeId::kStringView,
-                                         DataTypeId::kInt64};
+  std::vector<DataTypeId> add_e_types = {DataTypeId::VARCHAR,
+                                         DataTypeId::BIGINT};
   std::vector<gs::Property> dummy_defaults;
   schema.AddEdgeProperties("Person", "Company", "WorksAt", add_e_names,
                            add_e_types, dummy_defaults);
@@ -195,9 +195,9 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
 TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   gs::Schema schema;
   // Add vertex
-  auto t = VProps({DataTypeId::kStringView});
+  auto t = VProps({DataTypeId::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, {}, 100, "");
@@ -206,8 +206,8 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   schema.DeleteVertexLabel("City", true);
   EXPECT_FALSE(schema.contains_vertex_label("City"));
 
-  schema.AddVertexLabel("City", {DataTypeId::kStringView}, {"name"},
-                        VPk(DataTypeId::kStringView, "name", 0),
+  schema.AddVertexLabel("City", {DataTypeId::VARCHAR}, {"name"},
+                        VPk(DataTypeId::VARCHAR, "name", 0),
                         /*strategies*/ {}, {}, /*max_vnum*/ 100, "");
   EXPECT_TRUE(schema.contains_vertex_label("City"));
   EXPECT_EQ(schema.get_vertex_property_names("City")[0], "name");
@@ -215,9 +215,9 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
 
 TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   gs::Schema schema;
-  auto t = VProps({DataTypeId::kStringView});
+  auto t = VProps({DataTypeId::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("Project", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, {}, 100, "");
@@ -226,18 +226,17 @@ TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   schema.DeleteVertexLabel("Project");
   EXPECT_FALSE(schema.contains_vertex_label("Project"));
 
-  schema.AddVertexLabel("Project", {DataTypeId::kStringView}, {"name"},
-                        VPk(DataTypeId::kStringView, "name", 0), {}, {}, 100,
-                        "");
+  schema.AddVertexLabel("Project", {DataTypeId::VARCHAR}, {"name"},
+                        VPk(DataTypeId::VARCHAR, "name", 0), {}, {}, 100, "");
   EXPECT_TRUE(schema.contains_vertex_label("Project"));
 }
 
 TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
   gs::Schema schema;
   {
-    auto t = VProps({DataTypeId::kInt64, DataTypeId::kStringView});
+    auto t = VProps({DataTypeId::BIGINT, DataTypeId::VARCHAR});
     auto n = VNames({"id", "name"});
-    auto pk = VPk(DataTypeId::kInt64, "id", 0);
+    auto pk = VPk(DataTypeId::BIGINT, "id", 0);
     auto s = VStrats(t.size(), StorageStrategy::kMem);
     schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk,
                           {s.begin(), s.end()}, {}, 100, "");
@@ -245,7 +244,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
                           {s.begin(), s.end()}, {}, 100, "");
   }
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::INTEGER}, {"w"}, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
 
@@ -258,7 +257,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
   EXPECT_FALSE(schema.exist(src, dst, el));
   EXPECT_FALSE(schema.exist(src, dst, el));
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::INTEGER}, {"w"}, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
@@ -266,7 +265,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
   schema.DeleteEdgeLabel(src, dst, el);
   EXPECT_FALSE(schema.exist(src, dst, el));
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::INTEGER}, {"w"}, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   EXPECT_TRUE(schema.exist(src, dst, el));
@@ -279,9 +278,9 @@ TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
   gs::Schema schema;
 
   // Person(id PK, name, age)
-  auto types = VProps({DataTypeId::kStringView, DataTypeId::kInt32});
+  auto types = VProps({DataTypeId::VARCHAR, DataTypeId::INTEGER});
   auto names = VNames({"name", "age"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto strats = VStrats(types.size(), StorageStrategy::kMem);
   // Only non-PK properties go into vproperties_/vprop_names_
   schema.AddVertexLabel("Person", types, {names.begin(), names.end()}, pk,
@@ -303,17 +302,16 @@ TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
 TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   gs::Schema schema;
 
-  auto vt = VProps({DataTypeId::kStringView});
+  auto vt = VProps({DataTypeId::VARCHAR});
   auto vn = VNames({"name"});
-  auto vpk = VPk(DataTypeId::kInt64, "id", 0);
+  auto vpk = VPk(DataTypeId::BIGINT, "id", 0);
   auto vs = VStrats(vt.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", vt, {vn.begin(), vn.end()}, vpk,
                         {vs.begin(), vs.end()}, {}, 100, "");
   schema.AddVertexLabel("B", vt, {vn.begin(), vn.end()}, vpk,
                         {vs.begin(), vs.end()}, {}, 100, "");
 
-  std::vector<DataTypeId> e_types = {DataTypeId::kInt32,
-                                     DataTypeId::kStringView};
+  std::vector<DataTypeId> e_types = {DataTypeId::INTEGER, DataTypeId::VARCHAR};
   std::vector<std::string> e_names = {"w", "tag"};
   schema.AddEdgeLabel("A", "B", "Link", e_types, e_names, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
@@ -333,9 +331,9 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
 
 TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
   gs::Schema schema;
-  auto t = VProps({DataTypeId::kStringView});
+  auto t = VProps({DataTypeId::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, {}, 100, "");
@@ -351,16 +349,16 @@ TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
 
 TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
   gs::Schema schema;
-  auto t = VProps({DataTypeId::kStringView});
+  auto t = VProps({DataTypeId::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         {}, 100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         {}, 100, "");
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::INTEGER}, {"w"}, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   ASSERT_TRUE(schema.contains_edge_label("Link"));
@@ -375,16 +373,16 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
 
 TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
   gs::Schema schema;
-  auto t = VProps({DataTypeId::kStringView});
+  auto t = VProps({DataTypeId::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataTypeId::BIGINT, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         {}, 100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         {}, 100, "");
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::INTEGER}, {"w"}, {}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   auto src = schema.get_vertex_label_id("A");
@@ -403,10 +401,10 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
   gs::Schema schema;
 
   // Add vertex label "person"
-  auto person_property_types_ = VProps(
-      {DataTypeId::kStringView, DataTypeId::kInt32, DataTypeId::kDouble});
+  auto person_property_types_ =
+      VProps({DataTypeId::VARCHAR, DataTypeId::INTEGER, DataTypeId::DOUBLE});
   auto person_property_names_ = VNames({"name", "age", "score"});
-  auto person_pk_ = VPk(DataTypeId::kInt64, "id", 0);
+  auto person_pk_ = VPk(DataTypeId::BIGINT, "id", 0);
   auto person_strategies_ =
       VStrats(person_property_types_.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("person", person_property_types_,
@@ -415,9 +413,9 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
 
   // Add vertex label "company"
   auto company_property_types_ =
-      VProps({DataTypeId::kStringView, DataTypeId::kInt32});
+      VProps({DataTypeId::VARCHAR, DataTypeId::INTEGER});
   auto company_property_names_ = VNames({"company_name", "employee_count"});
-  auto company_pk_ = VPk(DataTypeId::kInt64, "id", 0);
+  auto company_pk_ = VPk(DataTypeId::BIGINT, "id", 0);
   auto company_strategies_ =
       VStrats(company_property_types_.size(), StorageStrategy::kMem);
 
@@ -426,7 +424,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
                         company_strategies_, {}, 2048, "company vertex");
 
   // Add edge label "knows"
-  auto edge_property_types_ = VProps({DataTypeId::kInt64});
+  auto edge_property_types_ = VProps({DataTypeId::BIGINT});
   auto edge_property_names_ = VNames({"since"});
   auto edge_strategies_ =
       VStrats(edge_property_types_.size(), StorageStrategy::kMem);
@@ -455,10 +453,10 @@ class SchemaDeleteTest : public ::testing::Test {
     schema_ = std::make_unique<gs::Schema>();
 
     // Add vertex label "person"
-    person_property_types_ = {gs::DataTypeId::kStringView,
-                              gs::DataTypeId::kInt32, gs::DataTypeId::kDouble};
+    person_property_types_ = {gs::DataTypeId::VARCHAR, gs::DataTypeId::INTEGER,
+                              gs::DataTypeId::DOUBLE};
     person_property_names_ = {"name", "age", "score"};
-    person_pk_ = {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)};
+    person_pk_ = {std::make_tuple(gs::DataTypeId::BIGINT, "id", 0)};
     person_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                           gs::StorageStrategy::kMem};
 
@@ -467,10 +465,10 @@ class SchemaDeleteTest : public ::testing::Test {
                             person_strategies_, {}, 4096, "person vertex");
 
     // Add vertex label "company"
-    company_property_types_ = {gs::DataTypeId::kStringView,
-                               gs::DataTypeId::kInt32};
+    company_property_types_ = {gs::DataTypeId::VARCHAR,
+                               gs::DataTypeId::INTEGER};
     company_property_names_ = {"company_name", "employee_count"};
-    company_pk_ = {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)};
+    company_pk_ = {std::make_tuple(gs::DataTypeId::BIGINT, "id", 0)};
     company_strategies_ = {gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
 
@@ -479,7 +477,7 @@ class SchemaDeleteTest : public ::testing::Test {
                             company_strategies_, {}, 2048, "company vertex");
 
     // Add edge label "knows"
-    edge_property_types_ = {gs::DataTypeId::kInt64};
+    edge_property_types_ = {gs::DataTypeId::BIGINT};
     edge_property_names_ = {"since"};
     edge_strategies_ = {gs::StorageStrategy::kMem};
 
@@ -857,11 +855,11 @@ TEST_F(SchemaDeleteTest, SchemaEdgeHasPropertyWithSoftDelete) {
 TEST(VertexSchemaTest, TestVertexSchemaIndex) {
   gs::VertexSchema schema("test",
                           {
-                              gs::DataTypeId::kStringView,  // name
-                              gs::DataTypeId::kDouble       // score
+                              gs::DataTypeId::VARCHAR,  // name
+                              gs::DataTypeId::DOUBLE    // score
                           },
                           {"name", "score"},
-                          VPk(gs::DataTypeId::kInt64, "id", 1),
+                          VPk(gs::DataTypeId::BIGINT, "id", 1),
                           {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem});
   // id is at index 1

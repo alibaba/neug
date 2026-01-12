@@ -576,6 +576,7 @@ template class ImmutableCsr<EmptyType>;
 template class ImmutableCsr<Date>;
 template class ImmutableCsr<DateTime>;
 template class ImmutableCsr<Interval>;
+template class ImmutableCsr<bool>;
 
 template class SingleImmutableCsr<int32_t>;
 template class SingleImmutableCsr<uint32_t>;
@@ -587,5 +588,6 @@ template class SingleImmutableCsr<EmptyType>;
 template class SingleImmutableCsr<Date>;
 template class SingleImmutableCsr<DateTime>;
 template class SingleImmutableCsr<Interval>;
+template class SingleImmutableCsr<bool>;
 
 }  // namespace gs

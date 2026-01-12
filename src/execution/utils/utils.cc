@@ -207,23 +207,15 @@ bool vertex_property_topN(bool asc, size_t limit,
       return false;
     }
   }
-  if (prop_types[0] == DataTypeId::kDate) {
-    return vertex_property_topN_impl<Date>(asc, limit, col, graph, prop_name,
+  switch (prop_types[0]) {
+#define TYPE_DISPATCHER(enum_val, type)                                       \
+  case DataTypeId::enum_val:                                                  \
+    return vertex_property_topN_impl<type>(asc, limit, col, graph, prop_name, \
                                            offsets);
-  } else if (prop_types[0] == DataTypeId::kInt32) {
-    return vertex_property_topN_impl<int>(asc, limit, col, graph, prop_name,
-                                          offsets);
-  } else if (prop_types[0] == DataTypeId::kInt64) {
-    return vertex_property_topN_impl<int64_t>(asc, limit, col, graph, prop_name,
-                                              offsets);
-  } else if (prop_types[0] == DataTypeId::kStringView) {
-    return vertex_property_topN_impl<std::string_view>(asc, limit, col, graph,
-                                                       prop_name, offsets);
-  } else if (prop_types[0] == DataTypeId::kDateTime) {
-    return vertex_property_topN_impl<DateTime>(asc, limit, col, graph,
-                                               prop_name, offsets);
-  } else {
-    LOG(INFO) << "prop type not support..." << prop_types[0];
+    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  default:
+    LOG(INFO) << "prop type not support..." << static_cast<int>(prop_types[0]);
     return false;
   }
 }

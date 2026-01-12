@@ -73,10 +73,10 @@ TEST(TableTest, TestTableBasic) {
       "datetime_column", "interval_column", "string_column"};
 
   std::vector<DataTypeId> property_types = {
-      DataTypeId::kBool,     DataTypeId::kInt32,     DataTypeId::kUInt32,
-      DataTypeId::kInt64,    DataTypeId::kUInt64,    DataTypeId::kFloat,
-      DataTypeId::kDouble,   DataTypeId::kDate,      DataTypeId::kDateTime,
-      DataTypeId::kInterval, DataTypeId::kStringView};
+      DataTypeId::BOOLEAN,  DataTypeId::INTEGER, DataTypeId::UINTEGER,
+      DataTypeId::BIGINT,   DataTypeId::UBIGINT, DataTypeId::FLOAT,
+      DataTypeId::DOUBLE,   DataTypeId::DATE,    DataTypeId::TIMESTAMP_MS,
+      DataTypeId::INTERVAL, DataTypeId::VARCHAR};
 
   std::vector<Property> default_values = {
       Property::from_bool(false),
@@ -177,122 +177,122 @@ TEST(TableTest, TestTableBasic) {
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("bool_column"))
             ->type(),
-        DataTypeId::kBool);
+        DataTypeId::BOOLEAN);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("bool_column"))
             ->type(),
-        DataTypeId::kBool);
+        DataTypeId::BOOLEAN);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("int32_column"))
             ->type(),
-        DataTypeId::kInt32);
+        DataTypeId::INTEGER);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("int32_column"))
             ->type(),
-        DataTypeId::kInt32);
+        DataTypeId::INTEGER);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("uint32_column"))
             ->type(),
-        DataTypeId::kUInt32);
+        DataTypeId::UINTEGER);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("uint32_column"))
             ->type(),
-        DataTypeId::kUInt32);
+        DataTypeId::UINTEGER);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("int64_column"))
             ->type(),
-        DataTypeId::kInt64);
+        DataTypeId::BIGINT);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("int64_column"))
             ->type(),
-        DataTypeId::kInt64);
+        DataTypeId::BIGINT);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("uint64_column"))
             ->type(),
-        DataTypeId::kUInt64);
+        DataTypeId::UBIGINT);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("uint64_column"))
             ->type(),
-        DataTypeId::kUInt64);
+        DataTypeId::UBIGINT);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("float_column"))
             ->type(),
-        DataTypeId::kFloat);
+        DataTypeId::FLOAT);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("float_column"))
             ->type(),
-        DataTypeId::kFloat);
+        DataTypeId::FLOAT);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("double_column"))
             ->type(),
-        DataTypeId::kDouble);
+        DataTypeId::DOUBLE);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("double_column"))
             ->type(),
-        DataTypeId::kDouble);
+        DataTypeId::DOUBLE);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("date_column"))
             ->type(),
-        DataTypeId::kDate);
+        DataTypeId::DATE);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("date_column"))
             ->type(),
-        DataTypeId::kDate);
+        DataTypeId::DATE);
 
     EXPECT_EQ(disk_table
                   .get_column_by_id(
                       disk_table.get_column_id_by_name("datetime_column"))
                   ->type(),
-              DataTypeId::kDateTime);
+              DataTypeId::TIMESTAMP_MS);
     EXPECT_EQ(mem_table
                   .get_column_by_id(
                       disk_table.get_column_id_by_name("datetime_column"))
                   ->type(),
-              DataTypeId::kDateTime);
+              DataTypeId::TIMESTAMP_MS);
 
     EXPECT_EQ(disk_table
                   .get_column_by_id(
                       disk_table.get_column_id_by_name("interval_column"))
                   ->type(),
-              DataTypeId::kInterval);
+              DataTypeId::INTERVAL);
     EXPECT_EQ(mem_table
                   .get_column_by_id(
                       disk_table.get_column_id_by_name("interval_column"))
                   ->type(),
-              DataTypeId::kInterval);
+              DataTypeId::INTERVAL);
 
     EXPECT_EQ(
         disk_table
             .get_column_by_id(disk_table.get_column_id_by_name("string_column"))
             ->type(),
-        DataTypeId::kStringView);
+        DataTypeId::VARCHAR);
     EXPECT_EQ(
         mem_table
             .get_column_by_id(disk_table.get_column_id_by_name("string_column"))
             ->type(),
-        DataTypeId::kStringView);
+        DataTypeId::VARCHAR);
   }
 
   {
@@ -302,7 +302,8 @@ TEST(TableTest, TestTableBasic) {
     EXPECT_EQ(disk_table.column_ptrs().size(), 11);
     EXPECT_EQ(disk_table.column_name(0), "bool_column");
     EXPECT_EQ(disk_table.get_row(0).size(), 11);
-    EXPECT_EQ(disk_table.get_column("bool_column")->type(), DataTypeId::kBool);
+    EXPECT_EQ(disk_table.get_column("bool_column")->type(),
+              DataTypeId::BOOLEAN);
     disk_table.set_name("disk_table");
     std::vector<Property> properties = disk_table.get_row(9);
     disk_table.insert(9, properties);
@@ -331,8 +332,9 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(mem_table.col_num(), 11);
   EXPECT_EQ(mem_table.row_num(), 10);
   const Table& mem_table_ref = mem_table;
-  EXPECT_EQ(mem_table_ref.get_column("bool_column")->type(), DataTypeId::kBool);
-  EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::kBool);
+  EXPECT_EQ(mem_table_ref.get_column("bool_column")->type(),
+            DataTypeId::BOOLEAN);
+  EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::BOOLEAN);
 }
 
 }  // namespace test
