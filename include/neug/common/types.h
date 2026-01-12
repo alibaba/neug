@@ -77,7 +77,6 @@ enum class DataTypeId : uint8_t {
   // LAMBDA = 106,
   // UNION = 107,
   // ARRAY = 108,
-  SET = 109,
 
   VERTEX = 200,
   EDGE = 201,

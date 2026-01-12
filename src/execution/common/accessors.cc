@@ -181,7 +181,6 @@ template class ContextValueAccessor<Date>;
 template class ContextValueAccessor<bool>;
 template class ContextValueAccessor<Tuple>;
 template class ContextValueAccessor<List>;
-template class ContextValueAccessor<Set>;
 template class ContextValueAccessor<Interval>;
 
 template class VertexPropertyVertexAccessor<int64_t>;

@@ -29,14 +29,11 @@ namespace gs {
 
 namespace runtime {
 class Context;
-class RTAny;
 
 class Dedup {
  public:
   static gs::result<Context> dedup(Context&& ctx,
                                    const std::vector<size_t>& cols);
-  static gs::result<Context> dedup(
-      Context&& ctx, const std::vector<std::function<RTAny(size_t)>>& vars);
 };
 
 }  // namespace runtime

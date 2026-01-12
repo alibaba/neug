@@ -101,29 +101,6 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
   return ret;
 }
 
-gs::result<Context> Dedup::dedup(
-    Context&& ctx, const std::vector<std::function<RTAny(size_t)>>& vars) {
-  std::set<std::string> set;
-  size_t row_num = ctx.row_num();
-  std::vector<size_t> offsets;
-  for (size_t r_i = 0; r_i < row_num; ++r_i) {
-    std::vector<char> bytes;
-    Encoder encoder(bytes);
-    for (auto& var : vars) {
-      auto val = var(r_i);
-      val.encode_sig(val.type(), encoder);
-      encoder.put_byte('#');
-    }
-    std::string cur(bytes.begin(), bytes.end());
-    if (set.find(cur) == set.end()) {
-      offsets.push_back(r_i);
-      set.insert(cur);
-    }
-  }
-  ctx.reshuffle(offsets);
-  return ctx;
-}
-
 }  // namespace runtime
 
 }  // namespace gs

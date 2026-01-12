@@ -569,21 +569,29 @@ struct AvgReducer<
 
 template <typename T>
 struct SetCollector {
-  SetCollector() : arena(std::make_shared<Arena>()) {}
-  void init(size_t size) { builder.reserve(size); }
+  SetCollector()
+      : arena(std::make_shared<Arena>()),
+        builder(std::make_shared<ListValueColumnBuilder>(
+            TypedConverter<T>::type())) {}
+  void init(size_t size) { builder->reserve(size); }
 
   void collect(std::set<T>&& val) {
-    auto set = SetImpl<T>::make_set_impl(std::move(val));
-    Set st(set.get());
-    arena->emplace_back(std::move(set));
-    builder.push_back_opt(st);
+    std::vector<T> vec_val;
+    vec_val.reserve(val.size());
+    for (auto& v : val) {
+      vec_val.push_back(std::move(v));
+    }
+    auto impl = ListImpl<T>::make_list_impl(std::move(vec_val));
+    List list(impl.get());
+    arena->emplace_back(std::move(impl));
+    builder->push_back_opt(list);
   }
   auto get() {
-    builder.set_arena(arena);
-    return builder.finish();
+    builder->set_arena(arena);
+    return builder->finish();
   }
   std::shared_ptr<Arena> arena;
-  ValueColumnBuilder<Set> builder;
+  std::shared_ptr<ListValueColumnBuilder> builder;
 };
 
 template <typename T>

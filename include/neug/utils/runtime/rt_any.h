@@ -392,34 +392,6 @@ class List {
   ListImplBase* impl_;
 };
 
-class SetImplBase : public CObject {
- public:
-  virtual ~SetImplBase() = default;
-  virtual bool operator<(const SetImplBase& p) const = 0;
-  virtual bool operator==(const SetImplBase& p) const = 0;
-  virtual size_t size() const = 0;
-  virtual std::vector<RTAny> values() const = 0;
-  virtual void insert(const RTAny& val) = 0;
-  virtual bool exists(const RTAny& val) const = 0;
-  virtual DataType type() const = 0;
-};
-
-class Set {
- public:
-  Set() = default;
-  explicit Set(SetImplBase* impl) : impl_(impl) {}
-  void insert(const RTAny& val);
-  bool operator<(const Set& p) const;
-  bool operator==(const Set& p) const;
-  bool exists(const RTAny& val) const;
-  std::vector<RTAny> values() const;
-  std::string to_string() const;
-
-  DataType elem_type() const;
-  size_t size() const;
-  SetImplBase* impl_;
-};
-
 class TupleImplBase : public CObject {
  public:
   virtual ~TupleImplBase() = default;
@@ -565,7 +537,6 @@ union RTAnyValue {
   Path p;
   Tuple t;
   List list;
-  Set set;
   bool b_val;
 };
 
@@ -603,7 +574,6 @@ class RTAny {
   static RTAny from_list(const List& list);
   static RTAny from_float(float v);
   static RTAny from_double(double v);
-  static RTAny from_set(const Set& s);
   static RTAny from_interval(const Interval& v);
 
   bool as_bool() const;
@@ -622,7 +592,6 @@ class RTAny {
   Path as_path() const;
   Tuple as_tuple() const;
   List as_list() const;
-  Set as_set() const;
 
   bool operator<(const RTAny& other) const;
   bool operator==(const RTAny& other) const;
@@ -909,14 +878,6 @@ struct TypedConverter<Tuple> {
 };
 
 template <>
-struct TypedConverter<Set> {
-  static DataType type() { return DataType(DataTypeId::SET); }
-  static Set to_typed(const RTAny& val) { return val.as_set(); }
-  static RTAny from_typed(Set val) { return RTAny::from_set(val); }
-  static const std::string name() { return "set"; }
-};
-
-template <>
 struct TypedConverter<VertexRecord> {
   static DataType type() { return DataType(DataTypeId::VERTEX); }
   static VertexRecord to_typed(const RTAny& val) { return val.as_vertex(); }
@@ -1021,106 +982,9 @@ class ListImpl : ListImplBase {
 };
 
 template <typename T>
-class SetImpl : public SetImplBase {
- public:
-  SetImpl() = default;
-  ~SetImpl() {}
-  static std::unique_ptr<SetImplBase> make_set_impl(std::set<T>&& vals) {
-    auto new_set = new SetImpl<T>();
-    new_set->set_ = std::move(vals);
-    return std::unique_ptr<SetImplBase>(static_cast<SetImplBase*>(new_set));
-  }
-
-  DataType type() const override { return TypedConverter<T>::type(); }
-
-  bool exists(const RTAny& val) const override {
-    return set_.find(TypedConverter<T>::to_typed(val)) != set_.end();
-  }
-  bool exists(const T& val) const { return set_.find(val) != set_.end(); }
-
-  bool operator<(const SetImplBase& p) const override {
-    return set_ < (dynamic_cast<const SetImpl<T>&>(p)).set_;
-  }
-
-  bool operator==(const SetImplBase& p) const override {
-    return set_ == (dynamic_cast<const SetImpl<T>&>(p)).set_;
-  }
-
-  void insert(const RTAny& val) override {
-    set_.insert(TypedConverter<T>::to_typed(val));
-  }
-  void insert(const T& val) { set_.insert(val); }
-  size_t size() const override { return set_.size(); }
-
-  std::vector<RTAny> values() const override {
-    std::vector<RTAny> res;
-    for (const auto& v : set_) {
-      res.push_back(TypedConverter<T>::from_typed(v));
-    }
-    return res;
-  }
-  std::set<T> set_;
-};
-
-template <>
-class SetImpl<VertexRecord> : public SetImplBase {
- public:
-  SetImpl() = default;
-  ~SetImpl() {}
-
-  static std::unique_ptr<SetImplBase> make_set_impl(
-      std::set<VertexRecord>&& vals) {
-    auto new_set = new SetImpl<VertexRecord>();
-    for (auto& v : vals) {
-      new_set->set_.insert((1ll * v.vid_) << 8 | v.label_);
-    }
-    return std::unique_ptr<SetImplBase>(static_cast<SetImplBase*>(new_set));
-  }
-
-  std::vector<RTAny> values() const override {
-    std::vector<RTAny> res;
-    for (auto& v : set_) {
-      res.push_back(RTAny::from_vertex(VertexRecord{
-          static_cast<label_t>(v & 0xff), static_cast<vid_t>(v >> 8)}));
-    }
-    return res;
-  }
-
-  DataType type() const override { return DataType(DataTypeId::VERTEX); }
-
-  bool exists(const RTAny& val) const override {
-    auto v = TypedConverter<VertexRecord>::to_typed(val);
-    return set_.find((1ll * v.vid_) << 8 | v.label_) != set_.end();
-  }
-  bool exists(VertexRecord val) const {
-    return set_.find((1ll * val.vid_) << 8 | val.label_) != set_.end();
-  }
-
-  bool operator<(const SetImplBase& p) const override {
-    LOG(ERROR) << "not support for set of pair";
-    return set_.size() <
-           (dynamic_cast<const SetImpl<VertexRecord>&>(p)).set_.size();
-  }
-
-  bool operator==(const SetImplBase& p) const override {
-    return set_ == (dynamic_cast<const SetImpl<VertexRecord>&>(p)).set_;
-  }
-
-  void insert(const RTAny& val) override {
-    insert(TypedConverter<VertexRecord>::to_typed(val));
-  }
-  void insert(VertexRecord val) {
-    set_.insert((1ll * val.vid_) << 8 | val.label_);
-  }
-  size_t size() const override { return set_.size(); }
-  std::unordered_set<int64_t> set_;
-};
-
-template <typename T>
 using is_view_type =
     std::disjunction<std::is_same<T, List>, std::is_same<T, Tuple>,
-                     std::is_same<T, Set>, std::is_same<T, std::string_view>,
-                     std::is_same<T, Path>>;
+                     std::is_same<T, std::string_view>, std::is_same<T, Path>>;
 
 template <typename T>
 runtime::RTAny performCast(const runtime::RTAny& input) {
@@ -1257,11 +1121,6 @@ inline ostream& operator<<(ostream& os, const gs::runtime::Tuple& tuple) {
 
 inline ostream& operator<<(ostream& os, const gs::runtime::List& list) {
   os << list.to_string();
-  return os;
-}
-
-inline ostream& operator<<(ostream& os, const gs::runtime::Set& set) {
-  os << set.to_string();
   return os;
 }
 

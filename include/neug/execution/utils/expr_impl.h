@@ -105,47 +105,6 @@ class WithInListExpr : public ExprBase {
   DataType type_;
 };
 
-class VertexWithInSetExpr : public ExprBase {
- public:
-  VertexWithInSetExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
-                      std::unique_ptr<ExprBase>&& val_set);
-  RTAny eval_path(size_t idx, Arena& arena) const override;
-
-  RTAny eval_vertex(label_t label, vid_t v, Arena& arena) const override;
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const void* data_ptr, Arena& arena) const override;
-
-  const DataType& type() const override { return type_; }
-
-  bool is_optional() const override { return key_->is_optional(); }
-
- private:
-  std::unique_ptr<ExprBase> key_;
-  std::unique_ptr<ExprBase> val_set_;
-  DataType type_;
-};
-class VertexWithInListExpr : public ExprBase {
- public:
-  VertexWithInListExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
-                       std::unique_ptr<ExprBase>&& val_list);
-
-  RTAny eval_path(size_t idx, Arena& arena) const override;
-
-  RTAny eval_vertex(label_t label, vid_t v, Arena& arena) const override;
-
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const void* data_ptr, Arena& arena) const override;
-
-  const DataType& type() const override { return type_; }
-
-  bool is_optional() const override { return key_->is_optional(); }
-
-  std::unique_ptr<ExprBase> key_;
-  std::unique_ptr<ExprBase> val_list_;
-  DataType type_;
-};
-
 #define PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(dst_vector_name, array_name) \
   size_t len = array_name.item_size();                                   \
   for (size_t idx = 0; idx < len; ++idx) {                               \
@@ -271,6 +230,7 @@ class UnaryLogicalExpr : public ExprBase {
   ::common::Logical logic_;
   DataType type_;
 };
+
 class LogicalExpr : public ExprBase {
  public:
   LogicalExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs,
@@ -466,24 +426,6 @@ class ArithExpr : public ExprBase {
   std::unique_ptr<ExprBase> rhs_;
   std::function<RTAny(RTAny, RTAny)> op_;
   ::common::Arithmetic arith_;
-  DataType type_;
-};
-
-class DateMinusExpr : public ExprBase {
- public:
-  DateMinusExpr(std::unique_ptr<ExprBase>&& lhs,
-                std::unique_ptr<ExprBase>&& rhs);
-
-  RTAny eval_path(size_t idx, Arena&) const override;
-  RTAny eval_vertex(label_t label, vid_t v, Arena&) const override;
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const void* data_ptr, Arena&) const override;
-
-  const DataType& type() const override { return type_; }
-
- private:
-  std::unique_ptr<ExprBase> lhs_;
-  std::unique_ptr<ExprBase> rhs_;
   DataType type_;
 };
 

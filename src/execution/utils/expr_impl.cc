@@ -31,88 +31,6 @@ namespace runtime {
 class Context;
 struct LabelTriplet;
 
-VertexWithInSetExpr::VertexWithInSetExpr(const Context& ctx,
-                                         std::unique_ptr<ExprBase>&& key,
-                                         std::unique_ptr<ExprBase>&& val_set)
-    : key_(std::move(key)),
-      val_set_(std::move(val_set)),
-      type_(DataType(DataTypeId::BOOLEAN)) {
-  assert(key_->type().id() == DataTypeId::VERTEX);
-  assert(val_set_->type().id() == DataTypeId::SET);
-}
-
-RTAny VertexWithInSetExpr::eval_path(size_t idx, Arena& arena) const {
-  auto key = key_->eval_path(idx, arena).as_vertex();
-  auto set = val_set_->eval_path(idx, arena).as_set();
-  assert(set.impl_ != nullptr);
-  auto ptr = dynamic_cast<SetImpl<VertexRecord>*>(set.impl_);
-  assert(ptr != nullptr);
-  return RTAny::from_bool(ptr->exists(key));
-}
-
-RTAny VertexWithInSetExpr::eval_vertex(label_t label, vid_t v,
-                                       Arena& arena) const {
-  auto key = key_->eval_vertex(label, v, arena).as_vertex();
-  auto set = val_set_->eval_vertex(label, v, arena).as_set();
-  return RTAny::from_bool(
-      dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
-}
-
-RTAny VertexWithInSetExpr::eval_edge(const LabelTriplet& label, vid_t src,
-                                     vid_t dst, const void* data_ptr,
-                                     Arena& arena) const {
-  auto key = key_->eval_edge(label, src, dst, data_ptr, arena).as_vertex();
-  auto set = val_set_->eval_edge(label, src, dst, data_ptr, arena).as_set();
-  return RTAny::from_bool(
-      dynamic_cast<SetImpl<VertexRecord>*>(set.impl_)->exists(key));
-}
-
-VertexWithInListExpr::VertexWithInListExpr(const Context& ctx,
-                                           std::unique_ptr<ExprBase>&& key,
-                                           std::unique_ptr<ExprBase>&& val_list)
-    : key_(std::move(key)),
-      val_list_(std::move(val_list)),
-      type_(DataType(DataTypeId::BOOLEAN)) {
-  assert(key_->type().id() == DataTypeId::VERTEX);
-  assert(val_list_->type().id() == DataTypeId::LIST);
-}
-
-RTAny VertexWithInListExpr::eval_path(size_t idx, Arena& arena) const {
-  auto key = key_->eval_path(idx, arena).as_vertex();
-  auto list = val_list_->eval_path(idx, arena).as_list();
-  for (size_t i = 0; i < list.size(); i++) {
-    if (list.get(i).as_vertex() == key) {
-      return RTAny::from_bool(true);
-    }
-  }
-  return RTAny::from_bool(false);
-}
-
-RTAny VertexWithInListExpr::eval_vertex(label_t label, vid_t v,
-                                        Arena& arena) const {
-  auto key = key_->eval_vertex(label, v, arena).as_vertex();
-  auto list = val_list_->eval_vertex(label, v, arena).as_list();
-  for (size_t i = 0; i < list.size(); i++) {
-    if (list.get(i).as_vertex() == key) {
-      return RTAny::from_bool(true);
-    }
-  }
-  return RTAny::from_bool(false);
-}
-
-RTAny VertexWithInListExpr::eval_edge(const LabelTriplet& label, vid_t src,
-                                      vid_t dst, const void* data_ptr,
-                                      Arena& arena) const {
-  auto key = key_->eval_edge(label, src, dst, data_ptr, arena).as_vertex();
-  auto list = val_list_->eval_edge(label, src, dst, data_ptr, arena).as_list();
-  for (size_t i = 0; i < list.size(); i++) {
-    if (list.get(i).as_vertex() == key) {
-      return RTAny::from_bool(true);
-    }
-  }
-  return RTAny::from_bool(false);
-}
-
 RTAny VariableExpr::eval_path(size_t idx, Arena&) const {
   return var_.get(idx);
 }
@@ -309,31 +227,6 @@ RTAny ArithExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                            const void* data_ptr, Arena& arena) const {
   return op_(lhs_->eval_edge(label, src, dst, data_ptr, arena),
              rhs_->eval_edge(label, src, dst, data_ptr, arena));
-}
-
-DateMinusExpr::DateMinusExpr(std::unique_ptr<ExprBase>&& lhs,
-                             std::unique_ptr<ExprBase>&& rhs)
-    : lhs_(std::move(lhs)),
-      rhs_(std::move(rhs)),
-      type_(DataType(DataTypeId::BIGINT)) {}
-
-RTAny DateMinusExpr::eval_path(size_t idx, Arena& arena) const {
-  auto lhs = lhs_->eval_path(idx, arena).as_datetime();
-  auto rhs = rhs_->eval_path(idx, arena).as_datetime();
-  return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
-}
-
-RTAny DateMinusExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
-  auto lhs = lhs_->eval_vertex(label, v, arena).as_datetime();
-  auto rhs = rhs_->eval_vertex(label, v, arena).as_datetime();
-  return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
-}
-
-RTAny DateMinusExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                               const void* data_ptr, Arena& arena) const {
-  auto lhs = lhs_->eval_edge(label, src, dst, data_ptr, arena).as_datetime();
-  auto rhs = rhs_->eval_edge(label, src, dst, data_ptr, arena).as_datetime();
-  return RTAny::from_int64(lhs.milli_second - rhs.milli_second);
 }
 
 ConstExpr::ConstExpr(const RTAny& val, std::shared_ptr<Arena> ptr)
@@ -838,8 +731,6 @@ static inline int get_proiority(const ::common::ExprOpr& opr) {
       return 16;
     }
   }
-  case ::common::ExprOpr::kDateTimeMinus:
-    return 4;
   default:
     return 16;
   }
@@ -900,19 +791,10 @@ static std::unique_ptr<ExprBase> build_expr(
         } else if (rhs.has_var()) {
           auto key =
               std::make_unique<VariableExpr>(graph, ctx, lhs.var(), var_type);
-          if (key->type().id() == DataTypeId::VERTEX) {
-            auto val =
-                std::make_unique<VariableExpr>(graph, ctx, rhs.var(), var_type);
-            if (val->type().id() == DataTypeId::LIST) {
-              return std::make_unique<VertexWithInListExpr>(ctx, std::move(key),
-                                                            std::move(val));
-            } else if (val->type().id() == DataTypeId::SET) {
-              return std::make_unique<VertexWithInSetExpr>(ctx, std::move(key),
-                                                           std::move(val));
-            } else {
-              LOG(FATAL) << "not support" << static_cast<int>(val->type().id());
-            }
-          }
+          auto val =
+              std::make_unique<VariableExpr>(graph, ctx, rhs.var(), var_type);
+          return std::make_unique<WithInListExpr>(ctx, std::move(key),
+                                                  std::move(val));
 
         } else if (rhs.has_param()) {
           auto key =
@@ -1096,11 +978,6 @@ static std::unique_ptr<ExprBase> build_expr(
       } else {
         LOG(FATAL) << "not support udf" << opr.DebugString();
       }
-    }
-    case ::common::ExprOpr::kDateTimeMinus: {
-      auto lhs = build_expr(graph, ctx, params, opr_stack, var_type);
-      auto rhs = build_expr(graph, ctx, params, opr_stack, var_type);
-      return std::make_unique<DateMinusExpr>(std::move(lhs), std::move(rhs));
     }
     case ::common::ExprOpr::kPathFunc: {
       auto opt = opr.path_func().opt();

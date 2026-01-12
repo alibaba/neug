@@ -134,28 +134,6 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
 
 RTAny List::get(size_t idx) const { return impl_->get(idx); }
 
-DataType Set::elem_type() const { return impl_->type(); }
-
-void Set::insert(const RTAny& val) { impl_->insert(val); }
-bool Set::operator<(const Set& p) const { return *impl_ < *(p.impl_); }
-bool Set::operator==(const Set& p) const { return *(impl_) == *(p.impl_); }
-bool Set::exists(const RTAny& val) const { return impl_->exists(val); }
-std::vector<RTAny> Set::values() const { return impl_->values(); }
-size_t Set::size() const { return impl_->size(); }
-std::string Set::to_string() const {
-  auto vals = impl_->values();
-  std::stringstream ss;
-  ss << "{";
-  for (size_t i = 0; i < vals.size(); i++) {
-    if (i != 0) {
-      ss << ", ";
-    }
-    ss << vals[i].to_string();
-  }
-  ss << "}";
-  return ss.str();
-}
-
 DataType List::elem_type() const { return impl_->type(); }
 std::string List::to_string() const {
   std::stringstream ss;
@@ -493,13 +471,6 @@ RTAny RTAny::from_double(double v) {
   return ret;
 }
 
-RTAny RTAny::from_set(const Set& s) {
-  RTAny ret;
-  ret.type_ = DataType(DataTypeId::SET);
-  ret.value_.set = s;
-  return ret;
-}
-
 RTAny RTAny::from_interval(const Interval& i) {
   RTAny ret;
   ret.type_ = DataType(DataTypeId::INTERVAL);
@@ -565,11 +536,6 @@ VertexRecord RTAny::as_vertex() const {
 const EdgeRecord& RTAny::as_edge() const {
   assert(type_.id() == DataTypeId::EDGE);
   return value_.edge;
-}
-
-Set RTAny::as_set() const {
-  assert(type_.id() == DataTypeId::SET);
-  return value_.set;
 }
 
 std::string_view RTAny::as_string() const {
@@ -1174,14 +1140,6 @@ std::string RTAny::to_string() const {
 #else
     return std::to_string(value_.vertex.vid_);
 #endif
-  } else if (type_.id() == DataTypeId::SET) {
-    std::string ret = "{";
-    for (auto& val : value_.set.values()) {
-      ret += val.to_string();
-      ret += ", ";
-    }
-    ret += "}";
-    return ret;
   } else if (type_.id() == DataTypeId::EDGE) {
     auto [label, src, dst, prop, dir] = value_.edge;
     return std::to_string(src) + " -> " + std::to_string(dst);

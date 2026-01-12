@@ -160,11 +160,6 @@ static void sink_entry(const RTAny& rt_val, const StorageReadInterface& graph,
       auto val = rt_val.value().t.get(i);
       sink_entry(val, graph, collection->add_collection());
     }
-  } else if (type_.id() == DataTypeId::SET) {
-    auto collection = entry->mutable_collection();
-    for (auto& val : rt_val.value().set.values()) {
-      sink_entry(val, graph, collection->add_collection());
-    }
   } else if (type_.id() == DataTypeId::VERTEX) {
     auto ele = entry->mutable_element();
     if (!sink_vertex(graph, rt_val.value().vertex, ele->mutable_vertex())) {
@@ -261,12 +256,6 @@ static void sink_rt_any(const RTAny& val, const StorageReadInterface& graph,
   } else if (type_.id() == DataTypeId::BOOLEAN) {
     encoder.put_byte(val.value().b_val ? static_cast<uint8_t>(1)
                                        : static_cast<uint8_t>(0));
-  } else if (type_.id() == DataTypeId::SET) {
-    encoder.put_int(val.value().set.size());
-    auto value = val.value().set.values();
-    for (const auto& val : value) {
-      sink_rt_any(val, graph, encoder);
-    }
   } else if (type_.id() == DataTypeId::VERTEX) {
     encoder.put_byte(val.value().vertex.label_);
     encoder.put_int(val.value().vertex.vid_);
