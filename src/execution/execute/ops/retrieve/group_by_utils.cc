@@ -43,13 +43,11 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
   }
 }
 
-bool BuildGroupByUtils(
-    const physical::GroupBy& group_by,
-    std::vector<std::pair<common::Variable, int>>& project_vars,
-    std::vector<common::Variable>& key_vars,
-    std::vector<std::pair<int, int>>& mappings,
-    std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
-    std::vector<std::pair<int, int>>& dependencies) {
+bool BuildGroupByUtils(const physical::GroupBy& group_by,
+                       std::vector<common::Variable>& key_vars,
+                       std::vector<std::pair<int, int>>& mappings,
+                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
+                       std::vector<std::pair<int, int>>& dependencies) {
   int mappings_num = group_by.mappings_size();
   int func_num = group_by.functions_size();
   for (int i = 0; i < mappings_num; ++i) {
@@ -66,11 +64,6 @@ bool BuildGroupByUtils(
       mappings.emplace_back(tag, alias);
     }
     key_vars.emplace_back(key.key());
-  }
-  for (size_t i = 0; i < key_vars.size(); ++i) {
-    if (key_vars[i].has_property()) {
-      project_vars.emplace_back(key_vars[i], mappings[i].second);
-    }
   }
   for (int i = 0; i < func_num; ++i) {
     reduce_funcs.emplace_back(group_by.functions(i));

@@ -39,26 +39,6 @@ namespace runtime {
 namespace ops {
 
 AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v);
-template <typename T>
-struct TypedKeyCollector {
-  struct TypedKeyWrapper {
-    using V = T;
-    explicit TypedKeyWrapper(Var&& expr) : expr(std::move(expr)) {}
-    V operator()(size_t idx) const {
-      return TypedConverter<T>::to_typed(expr.get(idx));
-    }
-    Var expr;
-  };
-
-  TypedKeyCollector() {}
-  void init(size_t size) { builder.reserve(size); }
-  void collect(const TypedKeyWrapper& expr, size_t idx) {
-    builder.push_back_opt(expr(idx));
-  }
-  auto get() { return builder.finish(); }
-
-  ValueColumnBuilder<T> builder;
-};
 
 struct SLVertexWrapper {
   using V = vid_t;
@@ -870,38 +850,6 @@ inline std::unique_ptr<ReducerBase> make_reducer(
   }
 }  // namespace ops
 
-inline std::vector<std::unique_ptr<ProjectExprBase>> create_project_funcs(
-    const std::vector<std::pair<common::Variable, int>>& vars,
-    const StorageReadInterface& graph, const Context& ctx) {
-  std::vector<std::unique_ptr<ProjectExprBase>> exprs;
-  for (const auto& [var, alias] : vars) {
-    if (!var.has_property()) {
-      continue;
-    }
-
-    Var var_(&graph, ctx, var, VarType::kPathVar);
-    switch (var_.type().id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                        \
-  case DataTypeId::enum_val: {                                                 \
-    TypedKeyCollector<type>::TypedKeyWrapper wrapper(std::move(var_));         \
-    TypedKeyCollector<type> collector;                                         \
-    exprs.emplace_back(                                                        \
-        std::make_unique<ProjectExpr<decltype(wrapper), decltype(collector)>>( \
-            std::move(wrapper), std::move(collector), alias));                 \
-    break;                                                                     \
-  }
-      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-    default: {
-      THROW_NOT_SUPPORTED_EXCEPTION(
-          "not support property type " +
-          std::to_string(static_cast<int>(var_.type().id())));
-    }
-    }
-  }
-  return exprs;
-}
-
 inline std::unique_ptr<KeyBase> create_key_func(
     const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
@@ -954,13 +902,11 @@ inline std::unique_ptr<ReducerBase> create_reducer(
   }
 }
 
-bool BuildGroupByUtils(
-    const physical::GroupBy& group_by,
-    std::vector<std::pair<common::Variable, int>>& project_vars,
-    std::vector<common::Variable>& key_vars,
-    std::vector<std::pair<int, int>>& mappings,
-    std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
-    std::vector<std::pair<int, int>>& dependencies);
+bool BuildGroupByUtils(const physical::GroupBy& group_by,
+                       std::vector<common::Variable>& key_vars,
+                       std::vector<std::pair<int, int>>& mappings,
+                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
+                       std::vector<std::pair<int, int>>& dependencies);
 
 inline gs::result<gs::runtime::Context> GroupByEvalImpl(
     const StorageReadInterface& graph,
@@ -1002,60 +948,6 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
   return ret;
 }
 
-inline gs::result<gs::runtime::Context> GroupByBetaEvalImpl(
-    const StorageReadInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    const std::vector<std::pair<common::Variable, int>>& project_var_alias,
-    const std::vector<common::Variable>& vars,
-    const std::vector<std::pair<int, int>>& mappings,
-    const std::vector<physical::GroupBy_AggFunc>& aggrs,
-    const std::vector<std::pair<int, int>>& dependencies) {
-  std::vector<std::shared_ptr<Arena>> arenas;
-  if (!dependencies.empty()) {
-    arenas.resize(ctx.col_num(), nullptr);
-    for (size_t i = 0; i < ctx.col_num(); ++i) {
-      if (ctx.get(i)) {
-        arenas[i] = ctx.get(i)->get_arena();
-      }
-    }
-  }
-  auto key_project = create_project_funcs(project_var_alias, graph, ctx);
-  auto tmp = ctx;
-
-  auto ret_res = Project::project(std::move(tmp), std::move(key_project));
-  if (!ret_res) {
-    return ret_res;
-  }
-  auto& ret = ret_res.value();
-  for (size_t i = 0; i < ret.col_num(); ++i) {
-    if (ret.get(i) != nullptr) {
-      ctx.set(i, ret.get(i));
-    }
-  }
-
-  auto key = create_key_func(vars, mappings, graph, ctx);
-  std::vector<std::unique_ptr<ReducerBase>> reducers;
-  for (auto& aggr : aggrs) {
-    reducers.push_back(create_reducer(aggr, graph, ctx));
-  }
-  auto ret_ctx =
-      GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
-  if (!ret_ctx) {
-    return ret_ctx;
-  }
-  for (auto& [idx, deps] : dependencies) {
-    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-    auto arena1 = ret_ctx.value().get(idx)->get_arena();
-    if (arena1) {
-      arena->emplace_back(std::make_unique<ArenaRef>(arena1));
-    }
-    if (arenas[deps]) {
-      arena->emplace_back(std::make_unique<ArenaRef>(arenas[deps]));
-    }
-    ret_ctx.value().get(idx)->set_arena(arena);
-  }
-  return ret_ctx;
-}
 }  // namespace ops
 
 }  // namespace runtime

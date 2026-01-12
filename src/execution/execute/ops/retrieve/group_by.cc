@@ -84,41 +84,6 @@ class GroupByOpr : public IOperator {
   std::vector<std::pair<int, int>> dependencies_;
 };
 
-class GroupByOprBeta : public IOperator {
- public:
-  GroupByOprBeta(
-      std::vector<std::pair<common::Variable, int>>&& project_var_alias,
-      std::vector<common::Variable>&& vars,
-      std::vector<std::pair<int, int>>&& mappings,
-      std::vector<physical::GroupBy_AggFunc>&& aggrs,
-      std::vector<std::pair<int, int>> dependencies)
-      : project_var_alias_(std::move(project_var_alias)),
-        vars_(std::move(vars)),
-        mappings_(std::move(mappings)),
-        aggrs_(std::move(aggrs)),
-        dependencies_(dependencies) {}
-
-  std::string get_operator_name() const override { return "GroupByOpr"; }
-
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return GroupByBetaEvalImpl(graph, params, std::move(ctx),
-                               project_var_alias_, vars_, mappings_, aggrs_,
-                               dependencies_);
-  }
-
- private:
-  std::vector<std::pair<common::Variable, int>> project_var_alias_;
-  std::vector<common::Variable> vars_;
-  std::vector<std::pair<int, int>> mappings_;
-  std::vector<physical::GroupBy_AggFunc> aggrs_;
-  std::vector<std::pair<int, int>> dependencies_;
-};
-
 gs::result<OpBuildResultT> GroupByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
@@ -147,29 +112,19 @@ gs::result<OpBuildResultT> GroupByOprBuilder::Build(
   auto opr = plan.query_plan().plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
   std::vector<common::Variable> vars;
-  std::vector<std::pair<common::Variable, int>> project_var_alias;
   std::vector<physical::GroupBy_AggFunc> reduce_funcs;
   std::vector<std::pair<int, int>> dependencies;
 
-  if (!BuildGroupByUtils(opr, project_var_alias, vars, mappings, reduce_funcs,
-                         dependencies)) {
+  if (!BuildGroupByUtils(opr, vars, mappings, reduce_funcs, dependencies)) {
     return std::make_pair(nullptr, ContextMeta());
   }
-  if (project_var_alias.empty()) {
-    return std::make_pair(
-        std::make_unique<GroupByOpr>(std::move(vars), std::move(mappings),
 
-                                     std::move(reduce_funcs), dependencies),
+  return std::make_pair(
+      std::make_unique<GroupByOpr>(std::move(vars), std::move(mappings),
 
-        meta);
-  } else {
-    return std::make_pair(
-        std::make_unique<GroupByOprBeta>(std::move(project_var_alias),
-                                         std::move(vars), std::move(mappings),
-                                         std::move(reduce_funcs), dependencies),
+                                   std::move(reduce_funcs), dependencies),
 
-        meta);
-  }
+      meta);
 }
 
 }  // namespace ops
