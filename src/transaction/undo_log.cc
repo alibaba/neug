@@ -68,7 +68,8 @@ void RemoveEdgeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 
 void AddVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   if (!graph.schema().vertex_label_valid(label)) {
-    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
+                             std::to_string(label));
   }
   auto label_name = graph.schema().get_vertex_label_name(label);
   auto status = graph.DeleteVertexProperties(label_name, prop_names);
@@ -98,7 +99,8 @@ void AddEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 
 void RenameVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   if (!graph.schema().vertex_label_valid(label)) {
-    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
+                             std::to_string(label));
   }
   auto label_name = graph.schema().get_vertex_label_name(label);
   std::vector<std::pair<std::string, std::string>> new_names_to_old_names;
@@ -137,7 +139,8 @@ void RenameEdgePropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
 
 void DeleteVertexPropUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   if (!graph.schema().vertex_label_valid(label)) {
-    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " + label);
+    THROW_INTERNAL_EXCEPTION("Vertex label  not found in schema: " +
+                             std::to_string(label));
   }
   auto label_name = graph.schema().get_vertex_label_name(label);
   graph.mutable_schema().RevertDeleteVertexProperties(label_name, prop_names);

@@ -274,7 +274,7 @@ static void sink_rt_any(const RTAny& val, const StorageReadInterface& graph,
     encoder.put_string_view("");
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink not support for " +
-                                  static_cast<int>(type_.id()));
+                                  std::to_string(static_cast<int>(type_.id())));
   }
 }
 

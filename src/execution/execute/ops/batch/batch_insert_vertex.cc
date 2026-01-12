@@ -37,11 +37,9 @@ namespace ops {
 class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
-      const label_t& vertex_label_id, const DataTypeId& pk_type,
+      const label_t& vertex_label_id,
       const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
-      : vertex_label_id_(vertex_label_id),
-        pk_type_(pk_type),
-        prop_mappings_(prop_mappings) {}
+      : vertex_label_id_(vertex_label_id), prop_mappings_(prop_mappings) {}
 
   std::string get_operator_name() const override {
     return "BatchInsertVertexOpr";
@@ -53,7 +51,6 @@ class BatchInsertVertexOpr : public IOperator {
 
  private:
   label_t vertex_label_id_;
-  DataTypeId pk_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
@@ -101,9 +98,7 @@ gs::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   parse_property_mappings(opr.property_mappings(), prop_mappings);
 
   return std::make_pair(
-      std::make_unique<BatchInsertVertexOpr>(
-          vertex_label_id, get_the_pk_type_from_schema(schema, vertex_label_id),
-          prop_mappings),
+      std::make_unique<BatchInsertVertexOpr>(vertex_label_id, prop_mappings),
       ret_meta);
 }
 

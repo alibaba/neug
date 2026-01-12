@@ -55,7 +55,7 @@ class ColumnsUtils {
     row_indices.resize(row_num);
     std::iota(row_indices.begin(), row_indices.end(), 0);
     std::sort(row_indices.begin(), row_indices.end(),
-              [&vec, &valid](size_t a, size_t b) {
+              [&vec, &valid](size_t a, size_t b) -> bool {
                 auto a_val = vec[a];
                 auto b_val = vec[b];
                 if (valid[a] ^ valid[b]) {

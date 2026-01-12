@@ -60,7 +60,6 @@ class UnfoldOpr : public IOperator {
 
  private:
   ::common::Expression expr_;
-  int tag_;
   int alias_;
 };
 

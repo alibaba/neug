@@ -186,10 +186,11 @@ class StorageUpdateInterface : public StorageReadInterface,
                                   const Property& value) = 0;
 
   virtual bool AddVertex(label_t label, const Property& id,
-                         const std::vector<Property>& props, vid_t& vid) = 0;
+                         const std::vector<Property>& props,
+                         vid_t& vid) override = 0;
   virtual bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
                        vid_t dst, label_t edge_label,
-                       const std::vector<Property>& properties) = 0;
+                       const std::vector<Property>& properties) override = 0;
 
   virtual Status BatchDeleteVertices(label_t v_label_id,
                                      const std::vector<vid_t>& vids) = 0;

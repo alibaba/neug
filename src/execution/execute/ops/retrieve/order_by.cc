@@ -124,7 +124,7 @@ gs::result<OpBuildResultT> OrderByOprBuilder::Build(
   const auto key = keys[0].first;
   const auto order = keys[0].second;
 
-  auto func = [key, order, upper, &schema](const Context& ctx)
+  auto func = [key, order, upper](const Context& ctx)
       -> std::optional<std::function<std::optional<std::vector<size_t>>(
           const StorageReadInterface& graph, const Context& ctx)>> {
     if (key.has_tag() &&

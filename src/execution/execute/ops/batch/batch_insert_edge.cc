@@ -41,7 +41,6 @@ class BatchInsertEdgeOpr : public IOperator {
   BatchInsertEdgeOpr(
       const label_t& edge_label_id, const label_t& src_label_id,
       const label_t& dst_label_id, const std::vector<DataTypeId>& e_prop,
-      const DataTypeId& src_pk_prop, const DataTypeId& dst_pk_prop,
       const std::vector<std::pair<int32_t, std::string>>& prop_mappings,
       const std::vector<std::pair<int32_t, std::string>>& src_vertex_bindings,
       const std::vector<std::pair<int32_t, std::string>>& dst_vertex_bindings)
@@ -49,8 +48,6 @@ class BatchInsertEdgeOpr : public IOperator {
         src_label_id_(src_label_id),
         dst_label_id_(dst_label_id),
         e_prop_(e_prop),
-        src_pk_prop_(src_pk_prop),
-        dst_pk_prop_(dst_pk_prop),
         prop_mappings_(prop_mappings),
         src_vertex_bindings_(src_vertex_bindings),
         dst_vertex_bindings_(dst_vertex_bindings) {}
@@ -66,7 +63,6 @@ class BatchInsertEdgeOpr : public IOperator {
  private:
   label_t edge_label_id_, src_label_id_, dst_label_id_;
   std::vector<DataTypeId> e_prop_;
-  DataTypeId src_pk_prop_, dst_pk_prop_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_,
       src_vertex_bindings_, dst_vertex_bindings_;
 };
@@ -168,7 +164,6 @@ gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
   parse_property_mappings(opr.source_vertex_binding(), src_vertex_bindings);
   parse_property_mappings(opr.destination_vertex_binding(), dst_vertex_binds);
 
-  DataTypeId src_pk_type, dst_pk_type;
   std::vector<DataTypeId> edge_prop_types;
   auto edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
   if (edge_props.empty()) {
@@ -178,16 +173,14 @@ gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
       edge_prop_types.emplace_back(prop);
     }
   }
-  src_pk_type = get_the_pk_type_from_schema(schema, src_type);
-  dst_pk_type = get_the_pk_type_from_schema(schema, dst_type);
 
   std::vector<std::tuple<DataTypeId, std::string, size_t>> src_primary_key,
       dst_primary_key;
 
   return std::make_pair(
       std::make_unique<BatchInsertEdgeOpr>(
-          edge_type, src_type, dst_type, edge_prop_types, src_pk_type,
-          dst_pk_type, prop_mappings, src_vertex_bindings, dst_vertex_binds),
+          edge_type, src_type, dst_type, edge_prop_types, prop_mappings,
+          src_vertex_bindings, dst_vertex_binds),
       ret_meta);
 }
 

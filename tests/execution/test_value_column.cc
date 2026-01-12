@@ -1730,7 +1730,8 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
     auto impl2 = ListImpl<int64_t>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(DataType(DataTypeId::BIGINT));
+    ListValueColumnBuilder builder(
+        (DataType(DataTypeId::BIGINT)));  // -Wvexing-parse
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());
@@ -1865,7 +1866,8 @@ TEST_F(ValueColumnTest, ListValueColumnUnfold) {
         ListImpl<std::string_view>::make_list_impl(std::move(list_content2));
     List list2(impl2.get());
 
-    ListValueColumnBuilder builder(DataType(DataTypeId::VARCHAR));
+    ListValueColumnBuilder builder(
+        (DataType(DataTypeId::VARCHAR)));  // -Wvexing-parse
     builder.push_back_opt(list1);
     builder.push_back_opt(list2);
     auto col = std::dynamic_pointer_cast<ListValueColumn>(builder.finish());

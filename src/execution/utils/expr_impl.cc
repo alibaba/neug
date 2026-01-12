@@ -1016,8 +1016,8 @@ static std::unique_ptr<ExprBase> build_expr(
       std::vector<std::unique_ptr<ExprBase>> exprs_vec;
       bool has_optional = false;
       for (int i = 0; i < compisite_fields.size(); ++i) {
-        exprs_vec.push_back(std::move(parse_expression_impl(
-            graph, ctx, params, compisite_fields[i], var_type)));
+        exprs_vec.emplace_back(parse_expression_impl(
+            graph, ctx, params, compisite_fields[i], var_type));
         if (exprs_vec.back()->is_optional()) {
           has_optional = true;
         }

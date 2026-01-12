@@ -190,17 +190,18 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   ~StorageTPInsertInterface() {}
 
   inline bool AddVertex(label_t label, const Property& id,
-                        const std::vector<Property>& props, vid_t& vid) {
+                        const std::vector<Property>& props,
+                        vid_t& vid) override {
     return txn_.AddVertex(label, id, props, vid);
   }
 
   inline bool AddEdge(label_t src_label, vid_t src, label_t dst_label,
                       vid_t dst, label_t edge_label,
-                      const std::vector<Property>& properties) {
+                      const std::vector<Property>& properties) override {
     return txn_.AddEdge(src_label, src, dst_label, dst, edge_label, properties);
   }
 
-  inline const Schema& schema() const { return txn_.schema(); }
+  inline const Schema& schema() const override { return txn_.schema(); }
 
   bool GetVertexIndex(label_t label, const Property& id,
                       vid_t& index) const override {

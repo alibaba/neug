@@ -178,6 +178,7 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
                        std::shared_ptr<arrow::fs::FileSystem> fileSystem)
       : Reader(std::move(sharedState), std::move(fileSystem)),
         optionsBuilder(std::move(optionsBuilder)) {}
+  virtual ~ArrowReader() override = default;
 
   void read(std::shared_ptr<ReadLocalState> localState,
             runtime::Context& ctx) override;
