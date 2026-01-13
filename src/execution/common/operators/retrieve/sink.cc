@@ -19,33 +19,33 @@ namespace gs {
 namespace runtime {
 
 static void sink_any(const Property& any, common::Value* value) {
-  if (any.type() == DataTypeId::BIGINT) {
+  if (any.type() == DataTypeId::kInt64) {
     value->set_i64(any.as_int64());
-  } else if (any.type() == DataTypeId::VARCHAR) {
+  } else if (any.type() == DataTypeId::kVarchar) {
     auto str = any.as_string_view();
     value->set_str(str.data(), str.size());
-  } else if (any.type() == DataTypeId::DATE) {
+  } else if (any.type() == DataTypeId::kDate) {
     value->set_u32(any.as_date().to_u32());
-  } else if (any.type() == DataTypeId::INTEGER) {
+  } else if (any.type() == DataTypeId::kInt32) {
     value->set_i32(any.as_int32());
-  } else if (any.type() == DataTypeId::UINTEGER) {
+  } else if (any.type() == DataTypeId::kUInt32) {
     value->set_u32(any.as_uint32());
-  } else if (any.type() == DataTypeId::DOUBLE) {
+  } else if (any.type() == DataTypeId::kDouble) {
     value->set_f64(any.as_double());
-  } else if (any.type() == DataTypeId::BOOLEAN) {
+  } else if (any.type() == DataTypeId::kBoolean) {
     value->set_boolean(any.as_bool());
-  } else if (any.type() == DataTypeId::EMPTY) {
+  } else if (any.type() == DataTypeId::kEmpty) {
     value->mutable_none();
-  } else if (any.type() == DataTypeId::DATE) {
+  } else if (any.type() == DataTypeId::kDate) {
     value->mutable_date()->set_item(any.as_date().to_num_days());
-  } else if (any.type() == DataTypeId::TIMESTAMP_MS) {
+  } else if (any.type() == DataTypeId::kTimestampMs) {
     value->mutable_timestamp()->set_item(any.as_datetime().milli_second);
-  } else if (any.type() == DataTypeId::UBIGINT) {
+  } else if (any.type() == DataTypeId::kUInt64) {
     value->set_u64(any.as_uint64());
-  } else if (any.type() == DataTypeId::INTERVAL) {
+  } else if (any.type() == DataTypeId::kInterval) {
     auto interval_str = any.as_interval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
-  } else if (any.type() == DataTypeId::FLOAT) {
+  } else if (any.type() == DataTypeId::kFloat) {
     value->set_f32(any.as_float());
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink_any not support for " +
@@ -55,28 +55,28 @@ static void sink_any(const Property& any, common::Value* value) {
 }
 
 static void sink_property(const Property& prop, common::Value* value) {
-  if (prop.type() == DataTypeId::INTEGER) {
+  if (prop.type() == DataTypeId::kInt32) {
     value->set_i32(prop.as_int32());
-  } else if (prop.type() == DataTypeId::UINTEGER) {
+  } else if (prop.type() == DataTypeId::kUInt32) {
     value->set_u32(prop.as_uint32());
-  } else if (prop.type() == DataTypeId::VARCHAR) {
+  } else if (prop.type() == DataTypeId::kVarchar) {
     auto str = prop.as_string_view();
     value->set_str(str.data(), str.size());
-  } else if (prop.type() == DataTypeId::BIGINT) {
+  } else if (prop.type() == DataTypeId::kInt64) {
     value->set_i64(prop.as_int64());
-  } else if (prop.type() == DataTypeId::UBIGINT) {
+  } else if (prop.type() == DataTypeId::kUInt64) {
     value->set_u64(prop.as_uint64());
-  } else if (prop.type() == DataTypeId::DOUBLE) {
+  } else if (prop.type() == DataTypeId::kDouble) {
     value->set_f64(prop.as_double());
-  } else if (prop.type() == DataTypeId::FLOAT) {
+  } else if (prop.type() == DataTypeId::kFloat) {
     value->set_f32(prop.as_float());
-  } else if (prop.type() == DataTypeId::DATE) {
+  } else if (prop.type() == DataTypeId::kDate) {
     value->set_u32(prop.as_date().to_u32());
-  } else if (prop.type() == DataTypeId::EMPTY) {
+  } else if (prop.type() == DataTypeId::kEmpty) {
     value->mutable_none();
-  } else if (prop.type() == DataTypeId::TIMESTAMP_MS) {
+  } else if (prop.type() == DataTypeId::kTimestampMs) {
     value->mutable_timestamp()->set_item(prop.as_datetime().milli_second);
-  } else if (prop.type() == DataTypeId::INTERVAL) {
+  } else if (prop.type() == DataTypeId::kInterval) {
     auto interval_str = prop.as_interval().to_string();
     value->set_str(interval_str.data(), interval_str.size());
   } else {
@@ -146,7 +146,7 @@ static bool sink_edge(const StorageReadInterface& graph, const EdgeRecord& edge,
 static void sink_entry(const RTAny& rt_val, const StorageReadInterface& graph,
                        results::Entry* entry) {
   auto type_ = rt_val.type();
-  if (type_.id() == DataTypeId::LIST) {
+  if (type_.id() == DataTypeId::kList) {
     auto collection = entry->mutable_collection();
     for (size_t i = 0; i < rt_val.value().list.size(); ++i) {
       auto val = rt_val.value().list.get(i);
@@ -154,21 +154,21 @@ static void sink_entry(const RTAny& rt_val, const StorageReadInterface& graph,
       // invocation
       sink_entry(val, graph, collection->add_collection());
     }
-  } else if (type_.id() == DataTypeId::STRUCT) {
+  } else if (type_.id() == DataTypeId::kStruct) {
     auto collection = entry->mutable_collection();
     for (size_t i = 0; i < rt_val.value().t.size(); ++i) {
       auto val = rt_val.value().t.get(i);
       sink_entry(val, graph, collection->add_collection());
     }
-  } else if (type_.id() == DataTypeId::VERTEX) {
+  } else if (type_.id() == DataTypeId::kVertex) {
     auto ele = entry->mutable_element();
     if (!sink_vertex(graph, rt_val.value().vertex, ele->mutable_vertex())) {
       ele->mutable_object()->mutable_none();
     }
-  } else if (type_.id() == DataTypeId::EDGE) {
+  } else if (type_.id() == DataTypeId::kEdge) {
     sink_edge(graph, rt_val.value().edge,
               entry->mutable_element()->mutable_edge());
-  } else if (type_.id() == DataTypeId::PATH) {
+  } else if (type_.id() == DataTypeId::kPath) {
     auto mutable_path = entry->mutable_element()->mutable_graph_path();
     auto path_nodes = rt_val.as_path().nodes();
     auto edge_labels = rt_val.as_path().edge_labels();
@@ -224,42 +224,42 @@ static void sink_rt_any(const RTAny& val, const StorageReadInterface& graph,
 static void sink_rt_any(const RTAny& val, const StorageReadInterface& graph,
                         Encoder& encoder) {
   auto type_ = val.type();
-  if (type_.id() == DataTypeId::LIST) {
+  if (type_.id() == DataTypeId::kList) {
     encoder.put_int(val.value().list.size());
     for (size_t i = 0; i < val.value().list.size(); ++i) {
       sink_rt_any(val.value().list.get(i), graph, encoder);
     }
-  } else if (type_.id() == DataTypeId::STRUCT) {
+  } else if (type_.id() == DataTypeId::kStruct) {
     for (size_t i = 0; i < val.value().t.size(); ++i) {
       sink_rt_any(val.value().t.get(i), graph, encoder);
     }
-  } else if (type_.id() == DataTypeId::VARCHAR) {
+  } else if (type_.id() == DataTypeId::kVarchar) {
     encoder.put_string_view(val.value().str_val);
-  } else if (type_.id() == DataTypeId::DATE) {
+  } else if (type_.id() == DataTypeId::kDate) {
     encoder.put_long(val.value().date_val.to_timestamp());
-  } else if (type_.id() == DataTypeId::TIMESTAMP_MS) {
+  } else if (type_.id() == DataTypeId::kTimestampMs) {
     encoder.put_long(val.value().dt_val.milli_second);
-  } else if (type_.id() == DataTypeId::INTERVAL) {
+  } else if (type_.id() == DataTypeId::kInterval) {
     encoder.put_long(val.value().interval_val.millisecond());
-  } else if (type_.id() == DataTypeId::BIGINT) {
+  } else if (type_.id() == DataTypeId::kInt64) {
     encoder.put_long(val.value().i64_val);
-  } else if (type_.id() == DataTypeId::INTEGER) {
+  } else if (type_.id() == DataTypeId::kInt32) {
     encoder.put_int(val.value().i32_val);
-  } else if (type_.id() == DataTypeId::UINTEGER) {
+  } else if (type_.id() == DataTypeId::kUInt32) {
     encoder.put_uint(val.value().u32_val);
-  } else if (type_.id() == DataTypeId::FLOAT) {
+  } else if (type_.id() == DataTypeId::kFloat) {
     encoder.put_float(static_cast<float>(val.value().f32_val));
-  } else if (type_.id() == DataTypeId::DOUBLE) {
+  } else if (type_.id() == DataTypeId::kDouble) {
     int64_t long_value;
     std::memcpy(&long_value, &val.value().f64_val, sizeof(long_value));
     encoder.put_long(long_value);
-  } else if (type_.id() == DataTypeId::BOOLEAN) {
+  } else if (type_.id() == DataTypeId::kBoolean) {
     encoder.put_byte(val.value().b_val ? static_cast<uint8_t>(1)
                                        : static_cast<uint8_t>(0));
-  } else if (type_.id() == DataTypeId::VERTEX) {
+  } else if (type_.id() == DataTypeId::kVertex) {
     encoder.put_byte(val.value().vertex.label_);
     encoder.put_int(val.value().vertex.vid_);
-  } else if (type_.id() == DataTypeId::SQLNULL) {
+  } else if (type_.id() == DataTypeId::kNull) {
     encoder.put_string_view("");
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("sink not support for " +

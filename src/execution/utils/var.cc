@@ -32,7 +32,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
          const common::Variable& pb, VarType var_type)
     : getter_(nullptr) {
   int tag = -1;
-  type_ = DataType(DataTypeId::UNKNOWN);
+  type_ = DataType(DataTypeId::kUnknown);
   if (pb.has_node_type()) {
     type_ = parse_from_ir_data_type(pb.node_type());
   }
@@ -40,7 +40,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
     tag = pb.tag().id();
   }
 
-  if (type_.id() == DataTypeId::UNKNOWN) {
+  if (type_.id() == DataTypeId::kUnknown) {
     if (pb.has_tag()) {
       tag = pb.tag().id();
       assert(ctx.get(tag) != nullptr);

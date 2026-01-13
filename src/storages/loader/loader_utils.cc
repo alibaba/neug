@@ -810,16 +810,16 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
     break;
     FOR_EACH_DATA_TYPE_PRIMITIVE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::TIMESTAMP_MS:
+  case DataTypeId::kTimestampMs:
     set_column_from_timestamp_array<DateTime>(col, array, vids);
     break;
-  case DataTypeId::DATE:
+  case DataTypeId::kDate:
     set_column_from_date_array(col, array, vids);
     break;
-  case DataTypeId::INTERVAL:
+  case DataTypeId::kInterval:
     set_interval_column_from_string_array(col, array, vids);
     break;
-  case DataTypeId::VARCHAR:
+  case DataTypeId::kVarchar:
     set_column_from_string_array(col, array, vids, true);
     break;
   default:

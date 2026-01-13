@@ -479,7 +479,7 @@ std::tuple<std::string, std::string, std::string> G0Check(
 
   CHECK(iter != end);
   Property k_version_history_field = ed_accessor.get_data(iter);
-  CHECK(k_version_history_field.type() == gs::DataTypeId::VARCHAR);
+  CHECK(k_version_history_field.type() == gs::DataTypeId::kVarchar);
   std::string k_version_history(k_version_history_field.as_string_view());
 
   return std::make_tuple(p1_version_history, p2_version_history,

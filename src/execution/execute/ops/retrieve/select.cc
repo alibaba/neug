@@ -170,7 +170,7 @@ gs::result<OpBuildResultT> SelectOprBuilder::Build(
       auto name = var.property().key().name();
       auto type = parse_from_ir_data_type(
           opr.predicate().operators(2).param().data_type());
-      if (name == "id" && type.id() == DataTypeId::BIGINT) {
+      if (name == "id" && type.id() == DataTypeId::kInt64) {
         ContextMeta ret_meta = ctx_meta;
         return std::make_pair(std::make_unique<SelectIdNeOpr>(opr.predicate()),
                               ret_meta);

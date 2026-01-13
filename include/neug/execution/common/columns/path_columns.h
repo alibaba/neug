@@ -42,7 +42,7 @@ class GeneralPathColumnBuilder;
 
 class GeneralPathColumn : public IPathColumn {
  public:
-  GeneralPathColumn() : type_(DataType(DataTypeId::PATH)) {}
+  GeneralPathColumn() : type_(DataType(DataTypeId::kPath)) {}
   ~GeneralPathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
@@ -115,7 +115,7 @@ class GeneralPathColumnBuilder : public IContextColumnBuilder {
 
 class OptionalGeneralPathColumn : public IPathColumn {
  public:
-  OptionalGeneralPathColumn() : type_(DataType(DataTypeId::PATH)) {}
+  OptionalGeneralPathColumn() : type_(DataType(DataTypeId::kPath)) {}
   ~OptionalGeneralPathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
@@ -131,7 +131,7 @@ class OptionalGeneralPathColumn : public IPathColumn {
   inline bool has_value(size_t idx) const override { return valids_[idx]; }
   inline RTAny get_elem(size_t idx) const override {
     if (!valids_[idx]) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny(data_[idx]);
   }

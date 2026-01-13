@@ -44,7 +44,7 @@ inline void process_default_values(
     std::vector<std::string>& default_property_strings) {
   // Keep the ownership of string default property in default_property_strings
   for (auto& prop : default_property_values) {
-    if (prop.type() == DataTypeId::VARCHAR && prop.as_string_view() != "") {
+    if (prop.type() == DataTypeId::kVarchar && prop.as_string_view() != "") {
       default_property_strings.emplace_back(prop.as_string_view());
       prop.set_string_view(std::string_view(default_property_strings.back()));
     }

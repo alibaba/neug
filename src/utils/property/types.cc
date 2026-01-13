@@ -40,29 +40,29 @@ namespace gs {
 namespace config_parsing {
 
 std::string PrimitivePropertyTypeToString(DataTypeId type) {
-  if (type == DataTypeId::EMPTY) {
+  if (type == DataTypeId::kEmpty) {
     return "Empty";
-  } else if (type == DataTypeId::BOOLEAN) {
+  } else if (type == DataTypeId::kBoolean) {
     return DT_BOOL;
-  } else if (type == DataTypeId::INTEGER) {
+  } else if (type == DataTypeId::kInt32) {
     return DT_SIGNED_INT32;
-  } else if (type == DataTypeId::UINTEGER) {
+  } else if (type == DataTypeId::kUInt32) {
     return DT_UNSIGNED_INT32;
-  } else if (type == DataTypeId::BIGINT) {
+  } else if (type == DataTypeId::kInt64) {
     return DT_SIGNED_INT64;
-  } else if (type == DataTypeId::UBIGINT) {
+  } else if (type == DataTypeId::kUInt64) {
     return DT_UNSIGNED_INT64;
-  } else if (type == DataTypeId::FLOAT) {
+  } else if (type == DataTypeId::kFloat) {
     return DT_FLOAT;
-  } else if (type == DataTypeId::DOUBLE) {
+  } else if (type == DataTypeId::kDouble) {
     return DT_DOUBLE;
-  } else if (type == DataTypeId::VARCHAR) {
+  } else if (type == DataTypeId::kVarchar) {
     return DT_STRING;
-  } else if (type == DataTypeId::DATE) {
+  } else if (type == DataTypeId::kDate) {
     return DT_DATE;
-  } else if (type == DataTypeId::TIMESTAMP_MS) {
+  } else if (type == DataTypeId::kTimestampMs) {
     return DT_DATETIME;
-  } else if (type == DataTypeId::INTERVAL) {
+  } else if (type == DataTypeId::kInterval) {
     return DT_INTERVAL;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown property type: " +
@@ -72,43 +72,43 @@ std::string PrimitivePropertyTypeToString(DataTypeId type) {
 
 DataTypeId StringToPrimitivePropertyType(const std::string& str) {
   if (str == "int32" || str == "INT" || str == DT_SIGNED_INT32) {
-    return DataTypeId::INTEGER;
+    return DataTypeId::kInt32;
   } else if (str == "uint32" || str == DT_UNSIGNED_INT32) {
-    return DataTypeId::UINTEGER;
+    return DataTypeId::kUInt32;
   } else if (str == "bool" || str == "BOOL" || str == DT_BOOL) {
-    return DataTypeId::BOOLEAN;
+    return DataTypeId::kBoolean;
   } else if (str == "Date" || str == DT_DATE) {
-    return DataTypeId::DATE;
+    return DataTypeId::kDate;
   } else if (str == "DateTime" || str == DT_DATETIME) {
-    return DataTypeId::TIMESTAMP_MS;
+    return DataTypeId::kTimestampMs;
   } else if (str == "Interval" || str == DT_INTERVAL) {
-    return DataTypeId::INTERVAL;
+    return DataTypeId::kInterval;
   } else if (str == "Timestamp" || str == DT_TIMESTAMP) {
-    return DataTypeId::TIMESTAMP_MS;
+    return DataTypeId::kTimestampMs;
   } else if (str == "String" || str == "STRING" || str == DT_STRING) {
-    return DataTypeId::VARCHAR;
+    return DataTypeId::kVarchar;
   } else if (str == "Empty") {
-    return DataTypeId::EMPTY;
+    return DataTypeId::kEmpty;
   } else if (str == "int64" || str == "LONG" || str == DT_SIGNED_INT64) {
-    return DataTypeId::BIGINT;
+    return DataTypeId::kInt64;
   } else if (str == "uint64" || str == DT_UNSIGNED_INT64) {
-    return DataTypeId::UBIGINT;
+    return DataTypeId::kUInt64;
   } else if (str == "float" || str == "FLOAT" || str == DT_FLOAT) {
-    return DataTypeId::FLOAT;
+    return DataTypeId::kFloat;
   } else if (str == "double" || str == "DOUBLE" || str == DT_DOUBLE) {
-    return DataTypeId::DOUBLE;
+    return DataTypeId::kDouble;
   } else {
-    return DataTypeId::EMPTY;
+    return DataTypeId::kEmpty;
   }
 }
 
 YAML::Node TemporalTypeToYAML(DataTypeId type) {
   YAML::Node node;
-  if (type == DataTypeId::DATE) {
+  if (type == DataTypeId::kDate) {
     node["date"] = "";
-  } else if (type == DataTypeId::TIMESTAMP_MS) {
+  } else if (type == DataTypeId::kTimestampMs) {
     node["datetime"] = "";
-  } else if (type == DataTypeId::INTERVAL) {
+  } else if (type == DataTypeId::kInterval) {
     node["interval"] = "";
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -641,40 +641,40 @@ namespace std {
 
 std::string to_string(gs::DataTypeId type) {
   switch (type) {
-  case gs::DataTypeId::EMPTY: {
+  case gs::DataTypeId::kEmpty: {
     return "Empty";
   }
-  case gs::DataTypeId::BOOLEAN: {
+  case gs::DataTypeId::kBoolean: {
     return "Bool";
   }
-  case gs::DataTypeId::INTEGER: {
+  case gs::DataTypeId::kInt32: {
     return "Int32";
   }
-  case gs::DataTypeId::UINTEGER: {
+  case gs::DataTypeId::kUInt32: {
     return "UInt32";
   }
-  case gs::DataTypeId::BIGINT: {
+  case gs::DataTypeId::kInt64: {
     return "Int64";
   }
-  case gs::DataTypeId::UBIGINT: {
+  case gs::DataTypeId::kUInt64: {
     return "UInt64";
   }
-  case gs::DataTypeId::FLOAT: {
+  case gs::DataTypeId::kFloat: {
     return "Float";
   }
-  case gs::DataTypeId::DOUBLE: {
+  case gs::DataTypeId::kDouble: {
     return "Double";
   }
-  case gs::DataTypeId::VARCHAR: {
+  case gs::DataTypeId::kVarchar: {
     return "StringView";
   }
-  case gs::DataTypeId::DATE: {
+  case gs::DataTypeId::kDate: {
     return "Date";
   }
-  case gs::DataTypeId::TIMESTAMP_MS: {
+  case gs::DataTypeId::kTimestampMs: {
     return "DateTime";
   }
-  case gs::DataTypeId::INTERVAL: {
+  case gs::DataTypeId::kInterval: {
     return "Interval";
   }
   default: {

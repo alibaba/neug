@@ -80,7 +80,7 @@ TEST_F(VertexColumnTest, SLVertexColumnBasic) {
   EXPECT_EQ(sl_col->size(), 2);
   EXPECT_EQ(sl_col->column_type(), ContextColumnType::kVertex);
   EXPECT_EQ(sl_col->column_info(), "SLVertexColumn(0)[2]");
-  EXPECT_EQ(sl_col->elem_type().id(), DataTypeId::VERTEX);
+  EXPECT_EQ(sl_col->elem_type().id(), DataTypeId::kVertex);
 
   EXPECT_EQ(sl_col->vertex_column_type(), VertexColumnType::kSingle);
   EXPECT_EQ(sl_col->label(), kLabel0);
@@ -236,7 +236,7 @@ TEST_F(VertexColumnTest, MSVertexColumnBasic) {
   EXPECT_EQ(ms_col->size(), 4);
   EXPECT_EQ(ms_col->vertex_column_type(), VertexColumnType::kMultiSegment);
   EXPECT_EQ(ms_col->column_info(), "MSVertexColumn(0, 1)[4]");
-  EXPECT_EQ(ms_col->elem_type().id(), DataTypeId::VERTEX);
+  EXPECT_EQ(ms_col->elem_type().id(), DataTypeId::kVertex);
 
   EXPECT_EQ(ms_col->get_vertex(0), (VertexRecord{kLabel0, kVid0}));
   EXPECT_EQ(ms_col->get_vertex(1), (VertexRecord{kLabel0, kVid1}));
@@ -293,7 +293,7 @@ TEST_F(VertexColumnTest, MLVertexColumnBasic) {
   EXPECT_EQ(ml_col->size(), 4);
   EXPECT_EQ(ml_col->vertex_column_type(), VertexColumnType::kMultiple);
   EXPECT_EQ(ml_col->column_info(), "Optional MLVertexColumn(0, 1)[4]");
-  EXPECT_EQ(ml_col->elem_type().id(), DataTypeId::VERTEX);
+  EXPECT_EQ(ml_col->elem_type().id(), DataTypeId::kVertex);
 
   EXPECT_EQ(ml_col->get_vertex(0), (VertexRecord{kLabel0, kVid0}));
   EXPECT_EQ(ml_col->get_vertex(1), (VertexRecord{kLabel0, kVid1}));
@@ -365,7 +365,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnBasic) {
   ASSERT_NE(sl_col, nullptr);
   ASSERT_EQ(sl_col->size(), 2);
   EXPECT_EQ(sl_col->edge_column_type(), EdgeColumnType::kSDSL);
-  EXPECT_EQ(sl_col->elem_type().id(), DataTypeId::EDGE);
+  EXPECT_EQ(sl_col->elem_type().id(), DataTypeId::kEdge);
   EXPECT_EQ(sl_col->column_info(),
             "SDSLEdgeColumn: label = (2-2-3), dir = 0, size = 2");
 
@@ -1025,7 +1025,7 @@ TEST_F(PathColumnTest, GeneralPathColumnBasic) {
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->column_info(), "GeneralPathColumn[2]");
-  EXPECT_EQ(col->elem_type().id(), DataTypeId::PATH);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_EQ(col->size(), 2);
   EXPECT_EQ(col->get_path(0), p1);
   EXPECT_EQ(col->get_path(1), p2);
@@ -1186,7 +1186,7 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnBasic) {
   EXPECT_EQ(col->size(), 3);
   EXPECT_EQ(col->column_info(), "OptionalGeneralPathColumn[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kPath);
-  EXPECT_EQ(col->elem_type().id(), DataTypeId::PATH);
+  EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_TRUE(col->is_optional());
   EXPECT_TRUE(col->has_value(0));
   EXPECT_FALSE(col->has_value(1));
@@ -1355,9 +1355,9 @@ TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
   std::string resource_path = test_path + "/execution/resources";
   std::string file_path = resource_path + "/test.csv";
   std::vector<DataTypeId> column_types;
-  column_types.emplace_back(DataTypeId::INTEGER);
-  column_types.emplace_back(DataTypeId::VARCHAR);
-  column_types.emplace_back(DataTypeId::INTEGER);
+  column_types.emplace_back(DataTypeId::kInt32);
+  column_types.emplace_back(DataTypeId::kVarchar);
+  column_types.emplace_back(DataTypeId::kInt32);
   std::unordered_map<std::string, std::string> options;
   options.insert({"HEADER", "TRUE"});
   options.insert({"DELIM", "|"});

@@ -56,7 +56,7 @@ class ArrowArrayContextColumn : public IContextColumn {
     for (const auto& column : columns_) {
       size_ += column->length();
     }
-    type_ = DataType(DataTypeId::UNKNOWN);
+    type_ = DataType(DataTypeId::kUnknown);
     if (columns_.size() > 0) {
       type_ = arrow_type_to_rt_type(columns_[0]->type());
     }

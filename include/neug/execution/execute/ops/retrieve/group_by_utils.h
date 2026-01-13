@@ -113,7 +113,7 @@ struct _KeyBuilder {
         }
 
       } else if (col->column_type() == ContextColumnType::kValue) {
-        if (col->elem_type().id() == DataTypeId::BIGINT) {
+        if (col->elem_type().id() == DataTypeId::kInt64) {
           ValueWrapper<int64_t> wrapper(
               *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
           auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
@@ -121,7 +121,7 @@ struct _KeyBuilder {
           return _KeyBuilder<I - 1, ValueWrapper<int64_t>,
                              EXPR...>::make_sp_key(ctx, tag_alias,
                                                    std::move(new_exprs));
-        } else if (col->elem_type().id() == DataTypeId::INTEGER) {
+        } else if (col->elem_type().id() == DataTypeId::kInt32) {
           ValueWrapper<int32_t> wrapper(
               *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
           auto new_exprs = std::tuple_cat(std::make_tuple(std::move(wrapper)),
@@ -155,14 +155,14 @@ struct KeyBuilder {
             ctx, tag_alias, std::move(new_exprs));
       }
     } else if (col->column_type() == ContextColumnType::kValue) {
-      if (col->elem_type().id() == DataTypeId::BIGINT) {
+      if (col->elem_type().id() == DataTypeId::kInt64) {
         ValueWrapper<int64_t> wrapper(
             *dynamic_cast<const ValueColumn<int64_t>*>(col.get()));
         auto new_exprs =
             std::make_tuple<ValueWrapper<int64_t>>(std::move(wrapper));
         return _KeyBuilder<I - 1, ValueWrapper<int64_t>>::make_sp_key(
             ctx, tag_alias, std::move(new_exprs));
-      } else if (col->elem_type().id() == DataTypeId::INTEGER) {
+      } else if (col->elem_type().id() == DataTypeId::kInt32) {
         ValueWrapper<int32_t> wrapper(
             *dynamic_cast<const ValueColumn<int32_t>*>(col.get()));
         auto new_exprs =
@@ -822,10 +822,10 @@ inline std::unique_ptr<ReducerBase> make_reducer(
                                                    kind, alias);            \
   }
         switch (col->elem_type().id()) {
-          TYPE_DISPATCHER(BIGINT, int64_t)
-          TYPE_DISPATCHER(INTEGER, int32_t)
-          TYPE_DISPATCHER(VARCHAR, std::string_view)
-          TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+          TYPE_DISPATCHER(kInt64, int64_t)
+          TYPE_DISPATCHER(kInt32, int32_t)
+          TYPE_DISPATCHER(kVarchar, std::string_view)
+          TYPE_DISPATCHER(kTimestampMs, DateTime)
 #undef TYPE_DISPATCHER
 
         default:
@@ -841,9 +841,9 @@ inline std::unique_ptr<ReducerBase> make_reducer(
     return make_reducer<type>(ctx, std::move(var_), kind, alias);
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::VERTEX:
+  case DataTypeId::kVertex:
     return make_reducer<VertexRecord>(ctx, std::move(var_), kind, alias);
-  case DataTypeId::STRUCT:
+  case DataTypeId::kStruct:
     return make_reducer<Tuple>(ctx, std::move(var_), kind, alias);
   default:
     return make_general_reducer(ctx, std::move(var_), kind, alias);

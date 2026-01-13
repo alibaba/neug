@@ -21,29 +21,29 @@
 namespace gs {
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
-  if (type == DataTypeId::BOOLEAN) {
+  if (type == DataTypeId::kBoolean) {
     return arrow::boolean();
-  } else if (type == DataTypeId::INTEGER) {
+  } else if (type == DataTypeId::kInt32) {
     return arrow::int32();
-  } else if (type == DataTypeId::BIGINT) {
+  } else if (type == DataTypeId::kInt64) {
     return arrow::int64();
-  } else if (type == DataTypeId::UINTEGER) {
+  } else if (type == DataTypeId::kUInt32) {
     return arrow::uint32();
-  } else if (type == DataTypeId::UBIGINT) {
+  } else if (type == DataTypeId::kUInt64) {
     return arrow::uint64();
-  } else if (type == DataTypeId::DOUBLE) {
+  } else if (type == DataTypeId::kDouble) {
     return arrow::float64();
-  } else if (type == DataTypeId::FLOAT) {
+  } else if (type == DataTypeId::kFloat) {
     return arrow::float32();
-  } else if (type == DataTypeId::DATE) {
+  } else if (type == DataTypeId::kDate) {
     return arrow::date32();
-  } else if (type == DataTypeId::VARCHAR) {
+  } else if (type == DataTypeId::kVarchar) {
     return arrow::large_utf8();
-  } else if (type == DataTypeId::EMPTY) {
+  } else if (type == DataTypeId::kEmpty) {
     return arrow::null();
-  } else if (type == DataTypeId::TIMESTAMP_MS) {
+  } else if (type == DataTypeId::kTimestampMs) {
     return arrow::timestamp(arrow::TimeUnit::MILLI);
-  } else if (type == DataTypeId::INTERVAL) {
+  } else if (type == DataTypeId::kInterval) {
     return arrow::large_utf8();  // Use large_utf8 for interval, use
                                  // PropUtils to handle it
   } else {

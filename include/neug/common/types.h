@@ -28,81 +28,64 @@
 
 namespace gs {
 enum class DataTypeId : uint8_t {
-  INVALID = 0,
-  SQLNULL = 1,
-  UNKNOWN = 2,
-  // ANY = 3,
-  // USER = 4,
-  BOOLEAN = 10,
-  TINYINT = 11,
-  SMALLINT = 12,
-  INTEGER = 13,
-  BIGINT = 14,
-  DATE = 15,
-  // TIME = 16,
-  // TIMESTAMP_SEC = 17,
-  TIMESTAMP_MS = 18,
-  // TIMESTAMP = 19,
-  // TIMESTAMP_NS = 20,
-  // DECIMAL = 21,
-  FLOAT = 22,
-  DOUBLE = 23,
-  // CHAR = 24,
-  VARCHAR = 25,
-  // BLOB = 26,
-  INTERVAL = 27,
-  UTINYINT = 28,
-  USMALLINT = 29,
-  UINTEGER = 30,
-  UBIGINT = 31,
-  // TIMESTAMP_TZ = 32,
-  // TIME_TZ = 34,
-  // TIME_NS = 35,
-  // BIT = 36,
-  // STRING_LITERAL = 37,
-  // INTEGER_LITERAL = 38,
-  // VARINT = 39,
-  // UHUGEINT = 49,
-  // HUGEINT = 50,
-  // POINTER = 51,
-  // VALIDITY = 53,
-  // UUID = 54,
+  kInvalid = 0,
+  kNull = 1,
+  kUnknown = 2,
 
-  STRUCT = 100,
-  LIST = 101,
-  // MAP = 102,
-  // TABLE = 103,
-  // ENUM = 104,
-  // AGGREGATE_STATE = 105,
-  // LAMBDA = 106,
-  // UNION = 107,
-  // ARRAY = 108,
+  kBoolean = 10,
+  kInt8 = 11,
+  kInt16 = 12,
+  kInt32 = 13,
+  kInt64 = 14,
+  kDate = 15,
 
-  VERTEX = 200,
-  EDGE = 201,
-  PATH = 202,
-  EMPTY = 203
+  kTimestampMs = 18,
+ 
+  kFloat = 22,
+  kDouble = 23,
+
+  kVarchar = 25,
+  // kBlob = 26,
+  kInterval = 27,
+  kUInt8 = 28,
+  kUInt16 = 29,
+  kUInt32 = 30,
+  kUInt64 = 31,
+  // kTimestampTZ = 32,
+  
+  // kStringLiteral = 37,
+  
+  kStruct = 100,
+  kList = 101,
+  // kMap = 102,
+
+  // kArray = 108,
+  
+  kVertex = 200,
+  kEdge = 201,
+  kPath = 202,
+  kEmpty = 203
 };
 
 // types_mapping.h
 #define NUMERIC_DATA_TYPES(M) \
-  M(INTEGER, int32_t)         \
-  M(BIGINT, int64_t)          \
-  M(UINTEGER, uint32_t)       \
-  M(UBIGINT, uint64_t)        \
-  M(FLOAT, float)             \
-  M(DOUBLE, double)
+  M(kInt32, int32_t)         \
+  M(kInt64, int64_t)          \
+  M(kUInt32, uint32_t)       \
+  M(kUInt64, uint64_t)        \
+  M(kFloat, float)             \
+  M(kDouble, double)
 
 #define DATA_TYPES_DATETIME(M) \
-  M(TIMESTAMP_MS, DateTime)    \
-  M(DATE, Date)                \
-  M(INTERVAL, Interval)
+  M(kTimestampMs, DateTime)    \
+  M(kDate, Date)                \
+  M(kInterval, Interval)
 
 #define FOR_EACH_NUMERIC_DATA_TYPE(M) NUMERIC_DATA_TYPES(M)
 
 #define FOR_EACH_DATA_TYPE_PRIMITIVE(M) \
   NUMERIC_DATA_TYPES(M)                 \
-  M(BOOLEAN, bool)
+  M(kBoolean, bool)
 
 #define FOR_EACH_DATA_TYPE_NO_STRING(M) \
   FOR_EACH_DATA_TYPE_PRIMITIVE(M)       \
@@ -111,7 +94,7 @@ enum class DataTypeId : uint8_t {
 #define FOR_EACH_DATA_TYPE(M)     \
   FOR_EACH_DATA_TYPE_PRIMITIVE(M) \
   DATA_TYPES_DATETIME(M)          \
-  M(VARCHAR, std::string_view)
+  M(kVarchar, std::string_view)
 
 struct ExtraTypeInfo;
 
@@ -156,34 +139,34 @@ struct DataType {
     return !(*this == other);
   }
 
-  bool is_vertex() const { return id_ == DataTypeId::VERTEX; }
+  bool is_vertex() const { return id_ == DataTypeId::kVertex; }
 
-  bool is_edge() const { return id_ == DataTypeId::EDGE; }
+  bool is_edge() const { return id_ == DataTypeId::kEdge; }
 
  private:
   DataTypeId id_;
   std::shared_ptr<ExtraTypeInfo> type_info_;
 
  public:
-  static constexpr const DataTypeId SQLNULL = DataTypeId::SQLNULL;
-  static constexpr const DataTypeId UNKNOWN = DataTypeId::UNKNOWN;
-  static constexpr const DataTypeId BOOLEAN = DataTypeId::BOOLEAN;
-  static constexpr const DataTypeId TINYINT = DataTypeId::TINYINT;
-  static constexpr const DataTypeId SMALLINT = DataTypeId::SMALLINT;
-  static constexpr const DataTypeId INTEGER = DataTypeId::INTEGER;
-  static constexpr const DataTypeId BIGINT = DataTypeId::BIGINT;
-  static constexpr const DataTypeId TIMESTAMP_MS = DataTypeId::TIMESTAMP_MS;
-  static constexpr const DataTypeId FLOAT = DataTypeId::FLOAT;
-  static constexpr const DataTypeId DOUBLE = DataTypeId::DOUBLE;
-  static constexpr const DataTypeId VARCHAR = DataTypeId::VARCHAR;
-  static constexpr const DataTypeId INTERVAL = DataTypeId::INTERVAL;
-  static constexpr const DataTypeId UTINYINT = DataTypeId::UTINYINT;
-  static constexpr const DataTypeId USMALLINT = DataTypeId::USMALLINT;
-  static constexpr const DataTypeId UINTEGER = DataTypeId::UINTEGER;
-  static constexpr const DataTypeId UBIGINT = DataTypeId::UBIGINT;
-  static constexpr const DataTypeId VERTEX = DataTypeId::VERTEX;
-  static constexpr const DataTypeId EDGE = DataTypeId::EDGE;
-  static constexpr const DataTypeId PATH = DataTypeId::PATH;
+  static constexpr const DataTypeId SQLNULL = DataTypeId::kNull;
+  static constexpr const DataTypeId UNKNOWN = DataTypeId::kUnknown;
+  static constexpr const DataTypeId BOOLEAN = DataTypeId::kBoolean;
+  static constexpr const DataTypeId TINYINT = DataTypeId::kInt8;
+  static constexpr const DataTypeId SMALLINT = DataTypeId::kInt16;
+  static constexpr const DataTypeId INTEGER = DataTypeId::kInt32;
+  static constexpr const DataTypeId BIGINT = DataTypeId::kInt64;
+  static constexpr const DataTypeId TIMESTAMP_MS = DataTypeId::kTimestampMs;
+  static constexpr const DataTypeId FLOAT = DataTypeId::kFloat;
+  static constexpr const DataTypeId DOUBLE = DataTypeId::kDouble;
+  static constexpr const DataTypeId VARCHAR = DataTypeId::kVarchar;
+  static constexpr const DataTypeId INTERVAL = DataTypeId::kInterval;
+  static constexpr const DataTypeId UTINYINT = DataTypeId::kUInt8;
+  static constexpr const DataTypeId USMALLINT = DataTypeId::kUInt16;
+  static constexpr const DataTypeId UINTEGER = DataTypeId::kUInt32;
+  static constexpr const DataTypeId UBIGINT = DataTypeId::kUInt64;
+  static constexpr const DataTypeId VERTEX = DataTypeId::kVertex;
+  static constexpr const DataTypeId EDGE = DataTypeId::kEdge;
+  static constexpr const DataTypeId PATH = DataTypeId::kPath;
 };
 
 struct StructType {

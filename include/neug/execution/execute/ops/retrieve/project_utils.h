@@ -568,16 +568,16 @@ make_project_expr_without_data_type(
         MLVertexCollector::EXPR(std::move(e)), collector, alias);
   } break;
 
-  case DataTypeId::EDGE: {
+  case DataTypeId::kEdge: {
     EdgeCollector collector;
     return std::make_unique<
         ProjectExpr<typename EdgeCollector::EXPR, EdgeCollector>>(
         EdgeCollector::EXPR(std::move(e)), collector, alias);
   } break;
-  case DataTypeId::STRUCT: {
+  case DataTypeId::kStruct: {
     return _make_project_expr<Tuple>(std::move(e), alias, ctx);
   } break;
-  case DataTypeId::LIST: {
+  case DataTypeId::kList: {
     ListCollector::EXPR expr(std::move(e));
     ListCollector collector(ctx, expr);
     return std::make_unique<
@@ -613,11 +613,11 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
 #undef TYPE_DISPATCHER
 
     // compiler bug here
-    case DataTypeId::UNKNOWN: {
+    case DataTypeId::kUnknown: {
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
                                                  params);
     } break;
-    case DataTypeId::LIST: {
+    case DataTypeId::kList: {
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
                                                  params);
     }

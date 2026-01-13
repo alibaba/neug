@@ -41,7 +41,7 @@ RTAny JsonDummyFunction::Exec(Arena& arena, const std::vector<RTAny>& args) {
         std::to_string(args.size()));
   }
   const auto& val = args[0];
-  if (val.type().id() != DataTypeId::VARCHAR) {
+  if (val.type().id() != DataTypeId::kVarchar) {
     THROW_EXCEPTION_WITH_FILE_LINE("JSON_DUMMY: input value is not a string");
   }
 

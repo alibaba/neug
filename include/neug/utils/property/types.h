@@ -561,10 +561,10 @@ struct convert<gs::DataTypeId> {
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["long_text"]) {
-          property_type = gs::DataTypeId::VARCHAR;
+          property_type = gs::DataTypeId::kVarchar;
         } else if (config["string"]["var_char"]) {
           LOG(WARNING) << "var_char is deprecated, use long_text instead.";
-          property_type = gs::DataTypeId::VARCHAR;
+          property_type = gs::DataTypeId::kVarchar;
         } else {
           LOG(ERROR) << "Unrecognized string type";
         }
@@ -574,19 +574,19 @@ struct convert<gs::DataTypeId> {
     } else if (config["temporal"]) {
       auto temporal = config["temporal"];
       if (temporal["date"]) {
-        property_type = gs::DataTypeId::DATE;
+        property_type = gs::DataTypeId::kDate;
       } else if (temporal["datetime"]) {
-        property_type = gs::DataTypeId::TIMESTAMP_MS;
+        property_type = gs::DataTypeId::kTimestampMs;
       } else if (temporal["interval"]) {
-        property_type = gs::DataTypeId::INTERVAL;
+        property_type = gs::DataTypeId::kInterval;
       } else if (temporal["timestamp"]) {
-        property_type = gs::DataTypeId::TIMESTAMP_MS;
+        property_type = gs::DataTypeId::kTimestampMs;
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
     } else if (config["date"]) {
-      property_type = gs::DataTypeId::DATE;
+      property_type = gs::DataTypeId::kDate;
     } else {
       LOG(ERROR) << "Unrecognized property type: " << config;
       return false;
@@ -596,15 +596,15 @@ struct convert<gs::DataTypeId> {
 
   static Node encode(const gs::DataTypeId& type) {
     YAML::Node node;
-    if (type == gs::DataTypeId::BOOLEAN || type == gs::DataTypeId::INTEGER ||
-        type == gs::DataTypeId::UINTEGER || type == gs::DataTypeId::FLOAT ||
-        type == gs::DataTypeId::BIGINT || type == gs::DataTypeId::UBIGINT ||
-        type == gs::DataTypeId::DOUBLE) {
+    if (type == gs::DataTypeId::kBoolean || type == gs::DataTypeId::kInt32 ||
+        type == gs::DataTypeId::kUInt32 || type == gs::DataTypeId::kFloat ||
+        type == gs::DataTypeId::kInt64 || type == gs::DataTypeId::kUInt64 ||
+        type == gs::DataTypeId::kDouble) {
       node["primitive_type"] =
           gs::config_parsing::PrimitivePropertyTypeToString(type);
-    } else if (type == gs::DataTypeId::VARCHAR) {
+    } else if (type == gs::DataTypeId::kVarchar) {
       node["string"]["long_text"] = "";
-    } else if (type == gs::DataTypeId::DATE) {
+    } else if (type == gs::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;

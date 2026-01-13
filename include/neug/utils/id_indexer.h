@@ -171,11 +171,11 @@ struct GHash<Property> {
   case DataTypeId::enum_val: {                            \
     return GHash<type>()(PropUtils<type>::to_typed(val)); \
   }
-      TYPE_DISPATCHER(BIGINT, int64_t)
-      TYPE_DISPATCHER(INTEGER, int32_t)
-      TYPE_DISPATCHER(UBIGINT, uint64_t)
-      TYPE_DISPATCHER(UINTEGER, uint32_t)
-      TYPE_DISPATCHER(VARCHAR, std::string_view)
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
     default: {
       THROW_NOT_IMPLEMENTED_EXCEPTION(
@@ -250,12 +250,12 @@ class LFIndexer {
         PropUtils<T>::to_typed(default_value), StorageStrategy::kMem); \
     break;                                                             \
   }
-      TYPE_DISPATCHER(BIGINT, int64_t)
-      TYPE_DISPATCHER(INTEGER, int32_t)
-      TYPE_DISPATCHER(UBIGINT, uint64_t)
-      TYPE_DISPATCHER(UINTEGER, uint32_t)
+      TYPE_DISPATCHER(kInt64, int64_t)
+      TYPE_DISPATCHER(kInt32, int32_t)
+      TYPE_DISPATCHER(kUInt64, uint64_t)
+      TYPE_DISPATCHER(kUInt32, uint32_t)
 #undef TYPE_DISPATCHER
-    case DataTypeId::VARCHAR: {
+    case DataTypeId::kVarchar: {
       uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
       if (extra_type_info) {
         auto str_type_info =

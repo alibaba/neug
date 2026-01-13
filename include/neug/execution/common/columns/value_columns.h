@@ -159,7 +159,7 @@ class ListValueColumn : public ListValueColumnBase {
   explicit ListValueColumn(DataType type) : elem_type_(type) {
     std::shared_ptr<ExtraTypeInfo> elem_type_info =
         std::make_shared<ListTypeInfo>(elem_type_);
-    type_ = DataType(DataTypeId::LIST, elem_type_info);
+    type_ = DataType(DataTypeId::kList, elem_type_info);
   }
   ~ListValueColumn() = default;
 
@@ -223,13 +223,13 @@ class ListValueColumn : public ListValueColumnBase {
     return unfold_impl<type>();
       FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-    case DataTypeId::STRUCT: {
+    case DataTypeId::kStruct: {
       return unfold_impl<Tuple>();
     }
-    case DataTypeId::LIST: {
+    case DataTypeId::kList: {
       return unfold_impl<List>();
     }
-    case DataTypeId::VERTEX: {
+    case DataTypeId::kVertex: {
       std::vector<size_t> offsets;
       MLVertexColumnBuilder builder;
       size_t i = 0;
@@ -243,7 +243,7 @@ class ListValueColumn : public ListValueColumnBase {
       }
       return {builder.finish(), offsets};
     }
-    case DataTypeId::EDGE: {
+    case DataTypeId::kEdge: {
       std::vector<size_t> offsets;
       std::vector<LabelTriplet> labels;
       BDMLEdgeColumnBuilder builder(labels);
@@ -290,7 +290,7 @@ class ListValueColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { data_.reserve(size); }
   void push_back_elem(const RTAny& val) override {
-    assert(val.type().id() == DataTypeId::LIST);
+    assert(val.type().id() == DataTypeId::kList);
     data_.emplace_back(val.as_list());
   }
 
@@ -341,7 +341,7 @@ class OptionalValueColumn : public IValueColumn<T> {
   inline const DataType& elem_type() const override { return type_; }
   inline RTAny get_elem(size_t idx) const override {
     if (!valid_[idx]) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return TypedConverter<T>::from_typed(data_[idx]);
   }

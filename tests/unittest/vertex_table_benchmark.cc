@@ -41,17 +41,17 @@ class VertexTableBenchmark : public ::testing::Test {
 
     // Setup vertex table with three properties
     v_label_name_ = "person";
-    pk_type_ = gs::DataTypeId::BIGINT;
+    pk_type_ = gs::DataTypeId::kInt64;
 
     property_names_ = {"name", "age", "score"};
-    property_types_ = {gs::DataTypeId::VARCHAR, gs::DataTypeId::INTEGER,
-                       gs::DataTypeId::DOUBLE};
+    property_types_ = {gs::DataTypeId::kVarchar, gs::DataTypeId::kInt32,
+                       gs::DataTypeId::kDouble};
     property_values_ = {gs::Property::from_string_view("Alice"),
                         gs::Property::from_int32(30),
                         gs::Property::from_double(88.5)};
     storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
                            gs::StorageStrategy::kMem};
-    pk_types_ = {{gs::DataTypeId::VARCHAR, "name", 0}};
+    pk_types_ = {{gs::DataTypeId::kVarchar, "name", 0}};
     property_extra_infos_ = {};
     description = "Person vertex label";
     v_schema_ = std::make_shared<gs::VertexSchema>(

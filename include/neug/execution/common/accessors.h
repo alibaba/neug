@@ -84,7 +84,7 @@ class VertexPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!vertex_col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_vertex(typed_eval_path(idx));
   }
@@ -108,7 +108,7 @@ class VertexGIdPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!vertex_col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_int64(typed_eval_path(idx));
   }
@@ -146,14 +146,14 @@ class VertexPropertyPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!vertex_col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     const auto& v = vertex_col_.get_vertex(idx);
     auto col = property_columns_[v.label_];
     if (!(col == nullptr)) {
       return TypedConverter<T>::from_typed(col->get_view(v.vid_));
     } else {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
   }
 
@@ -179,7 +179,7 @@ class VertexLabelPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!vertex_col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto label_id = vertex_col_.get_vertex(idx).label_;
     return RTAny::from_string(schema_.get_vertex_label_name(label_id));
@@ -220,7 +220,7 @@ class ContextValueAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return col_.get_elem(idx);
   }
@@ -242,7 +242,7 @@ class ArrowArrayAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return col_.get_elem(idx);
   }
@@ -264,7 +264,7 @@ class VertexIdVertexAccessor : public IAccessor {
 
   RTAny eval_vertex(label_t label, vid_t v) const override {
     if (v == std::numeric_limits<vid_t>::max()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_vertex(typed_eval_vertex(label, v));
   }
@@ -282,7 +282,7 @@ class VertexGIdVertexAccessor : public IAccessor {
   RTAny eval_vertex(label_t label, vid_t v) const override {
     if (label == std::numeric_limits<label_t>::max() ||
         v == std::numeric_limits<vid_t>::max()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto ret = typed_eval_vertex(label, v);
     return RTAny::from_int64(ret);
@@ -312,7 +312,7 @@ class VertexPropertyVertexAccessor : public IAccessor {
 
   RTAny eval_vertex(label_t label, vid_t v) const override {
     if (property_columns_[label] == nullptr) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return TypedConverter<T>::from_typed(property_columns_[label]->get_view(v));
   }
@@ -344,7 +344,7 @@ class EdgeIdPathAccessor : public IAccessor {
     auto e = edge_col_.get_edge(idx);
     if (e.src == std::numeric_limits<vid_t>::max() ||
         e.dst == std::numeric_limits<vid_t>::max()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_edge(e);
   }
@@ -371,7 +371,7 @@ class EdgeGIdPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!edge_col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_int64(typed_eval_path(idx));
   }
@@ -408,7 +408,7 @@ class SLEdgePropertyPathAccessor : public IAccessor {
     auto e = col_.get_edge(idx);
     if (e.src == std::numeric_limits<vid_t>::max() ||
         e.dst == std::numeric_limits<vid_t>::max()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     T elem = ed_accessor_.get_typed_data_from_ptr<T>(e.prop);
     return TypedConverter<T>::from_typed(elem);
@@ -452,11 +452,11 @@ class EdgePropertyPathAccessor : public IAccessor {
     auto e = col_.get_edge(idx);
     if (e.src == std::numeric_limits<vid_t>::max() ||
         e.dst == std::numeric_limits<vid_t>::max()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto it = ed_accessor_.find(e.label);
     if (it == ed_accessor_.end()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     } else {
       T elem = it->second.template get_typed_data_from_ptr<T>(e.prop);
       return TypedConverter<T>::from_typed(elem);
@@ -483,7 +483,7 @@ class EdgeLabelPathAccessor : public IAccessor {
 
   RTAny eval_path(size_t idx) const override {
     if (!col_.has_value(idx)) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     const auto& e = col_.get_edge(idx);
     return RTAny::from_string(schema_.get_edge_label_name(e.label.edge_label));

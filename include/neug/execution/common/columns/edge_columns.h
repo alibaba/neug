@@ -46,7 +46,7 @@ enum class EdgeColumnType { kSDSL, kSDML, kBDSL, kBDML, kMS, kUnKnown };
 
 class IEdgeColumn : public IContextColumn {
  public:
-  IEdgeColumn() : type_(DataType(DataTypeId::EDGE)) {}
+  IEdgeColumn() : type_(DataType(DataTypeId::kEdge)) {}
   virtual ~IEdgeColumn() = default;
 
   ContextColumnType column_type() const override {

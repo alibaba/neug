@@ -55,7 +55,7 @@ inline bool is_pk_oid_exact_check(
     auto name = p.name();
     // todo: check data type
     auto type_ = parse_from_ir_data_type(p.data_type());
-    if (type_.id() != DataTypeId::BIGINT && type_.id() != DataTypeId::INTEGER) {
+    if (type_.id() != DataTypeId::kInt64 && type_.id() != DataTypeId::kInt32) {
       return false;
     }
     value = [name](const std::map<std::string, std::string>& params) {
@@ -715,10 +715,10 @@ gs::result<Context> dispatch_vertex_predicate(
   case DataTypeId::enum_val:                                 \
     return dispatch_vertex_predicate_impl_typed<OP_T, type>( \
         graph, expected_labels, config, params, std::forward<Args>(args)...);
-    TYPE_DISPATCHER(INTEGER, int32_t)
-    TYPE_DISPATCHER(BIGINT, int64_t)
-    TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
-    TYPE_DISPATCHER(VARCHAR, std::string_view)
+    TYPE_DISPATCHER(kInt32, int32_t)
+    TYPE_DISPATCHER(kInt64, int64_t)
+    TYPE_DISPATCHER(kTimestampMs, DateTime)
+    TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
   default:
     break;

@@ -27,7 +27,7 @@
 
 namespace gs {
 
-DataType::DataType() : DataType(DataTypeId::INVALID) {}
+DataType::DataType() : DataType(DataTypeId::kInvalid) {}
 
 DataType::DataType(DataTypeId id) : id_(id) {}
 
@@ -61,7 +61,7 @@ bool DataType::operator==(const DataType& rhs) const {
 }
 
 const std::vector<DataType>& StructType::GetChildTypes(const DataType& type) {
-  assert(type.id() == DataTypeId::STRUCT);
+  assert(type.id() == DataTypeId::kStruct);
   auto info = type.AuxInfo();
   assert(info);
   return info->Cast<StructTypeInfo>().child_types;

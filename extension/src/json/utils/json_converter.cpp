@@ -21,20 +21,20 @@ namespace gs {
 namespace extension {
 
 std::unique_ptr<arrow::ArrayBuilder> createArrowBuilder(DataTypeId type) {
-  if (type == DataTypeId::INTEGER) {
+  if (type == DataTypeId::kInt32) {
     return std::make_unique<arrow::Int32Builder>();
-  } else if (type == DataTypeId::BIGINT) {
+  } else if (type == DataTypeId::kInt64) {
     return std::make_unique<arrow::Int64Builder>();
-  } else if (type == DataTypeId::DOUBLE) {
+  } else if (type == DataTypeId::kDouble) {
     return std::make_unique<arrow::DoubleBuilder>();
-  } else if (type == DataTypeId::BOOLEAN) {
+  } else if (type == DataTypeId::kBoolean) {
     return std::make_unique<arrow::BooleanBuilder>();
-  } else if (type == DataTypeId::DATE) {
+  } else if (type == DataTypeId::kDate) {
     return std::make_unique<arrow::Date32Builder>();
-  } else if (type == DataTypeId::TIMESTAMP_MS) {
+  } else if (type == DataTypeId::kTimestampMs) {
     return std::make_unique<arrow::TimestampBuilder>(
         arrow::timestamp(arrow::TimeUnit::MILLI), arrow::default_memory_pool());
-  } else if (type == DataTypeId::INTERVAL) {
+  } else if (type == DataTypeId::kInterval) {
     return std::make_unique<arrow::DurationBuilder>(
         arrow::duration(arrow::TimeUnit::MILLI), arrow::default_memory_pool());
   } else {  // String
@@ -49,32 +49,32 @@ bool appendJsonValueToBuilder(arrow::ArrayBuilder* builder,
 
     if (val.IsNull()) {
       status = builder->AppendNull();
-    } else if (type == DataTypeId::INTEGER) {
+    } else if (type == DataTypeId::kInt32) {
       auto* int32Builder = static_cast<arrow::Int32Builder*>(builder);
       status = int32Builder->Append(val.IsInt() ? val.GetInt()
                                                 : std::stoi(val.GetString()));
-    } else if (type == DataTypeId::BIGINT) {
+    } else if (type == DataTypeId::kInt64) {
       auto* int64Builder = static_cast<arrow::Int64Builder*>(builder);
       status = int64Builder->Append(
           val.IsInt64() ? val.GetInt64() : std::stoll(val.GetString()));
-    } else if (type == DataTypeId::DOUBLE) {
+    } else if (type == DataTypeId::kDouble) {
       auto* doubleBuilder = static_cast<arrow::DoubleBuilder*>(builder);
       status = doubleBuilder->Append(
           val.IsDouble() ? val.GetDouble() : std::stod(val.GetString()));
-    } else if (type == DataTypeId::BOOLEAN) {
+    } else if (type == DataTypeId::kBoolean) {
       auto* boolBuilder = static_cast<arrow::BooleanBuilder*>(builder);
       status = boolBuilder->Append(
           val.IsBool() ? val.GetBool()
                        : (val.GetString() == std::string("true")));
-    } else if (type == DataTypeId::DATE) {
+    } else if (type == DataTypeId::kDate) {
       auto* dateBuilder = static_cast<arrow::Date32Builder*>(builder);
       Date date(val.GetString());
       status = dateBuilder->Append(date.to_num_days());
-    } else if (type == DataTypeId::TIMESTAMP_MS) {
+    } else if (type == DataTypeId::kTimestampMs) {
       auto* timestampBuilder = static_cast<arrow::TimestampBuilder*>(builder);
       DateTime datetime(val.GetString());
       status = timestampBuilder->Append(datetime.milli_second);
-    } else if (type == DataTypeId::INTERVAL) {
+    } else if (type == DataTypeId::kInterval) {
       auto* durationBuilder = static_cast<arrow::DurationBuilder*>(builder);
       Interval interval(std::string(val.GetString()));
       status = durationBuilder->Append(interval.to_mill_seconds());
@@ -106,28 +106,28 @@ bool appendJsonValueToBuilder(arrow::ArrayBuilder* builder,
 
 DataTypeId inferPropertyTypeFromValue(const rapidjson::Value& val) {
   if (val.IsNull()) {
-    return DataTypeId::VARCHAR;
+    return DataTypeId::kVarchar;
   } else if (val.IsBool()) {
-    return DataTypeId::BOOLEAN;
+    return DataTypeId::kBoolean;
   } else if (val.IsInt()) {
-    return DataTypeId::INTEGER;
+    return DataTypeId::kInt32;
   } else if (val.IsInt64()) {
-    return DataTypeId::BIGINT;
+    return DataTypeId::kInt64;
   } else if (val.IsDouble()) {
-    return DataTypeId::DOUBLE;
+    return DataTypeId::kDouble;
   } else if (val.IsString()) {
     std::string str = val.GetString();
     // Detect date format (YYYY-MM-DD)
     if (str.size() == 10 && str[4] == '-' && str[7] == '-') {
-      return DataTypeId::DATE;
+      return DataTypeId::kDate;
     }
     // Detect datetime format
     if (str.size() >= 19 && (str[10] == ' ' || str[10] == 'T')) {
-      return DataTypeId::TIMESTAMP_MS;
+      return DataTypeId::kTimestampMs;
     }
-    return DataTypeId::VARCHAR;
+    return DataTypeId::kVarchar;
   }
-  return DataTypeId::VARCHAR;
+  return DataTypeId::kVarchar;
 }
 
 DataTypeId mergePropertyTypes(DataTypeId a, DataTypeId b) {
@@ -135,34 +135,34 @@ DataTypeId mergePropertyTypes(DataTypeId a, DataTypeId b) {
     return a;
 
   // String can accommodate any type
-  if (a == DataTypeId::VARCHAR || b == DataTypeId::VARCHAR) {
-    return DataTypeId::VARCHAR;
+  if (a == DataTypeId::kVarchar || b == DataTypeId::kVarchar) {
+    return DataTypeId::kVarchar;
   }
 
   // Int32 and Int64 -> Int64
-  if ((a == DataTypeId::INTEGER && b == DataTypeId::BIGINT) ||
-      (a == DataTypeId::BIGINT && b == DataTypeId::INTEGER)) {
-    return DataTypeId::BIGINT;
+  if ((a == DataTypeId::kInt32 && b == DataTypeId::kInt64) ||
+      (a == DataTypeId::kInt64 && b == DataTypeId::kInt32)) {
+    return DataTypeId::kInt64;
   }
 
   // Int and Double -> Double
-  if ((a == DataTypeId::INTEGER || a == DataTypeId::BIGINT) &&
-      b == DataTypeId::DOUBLE) {
-    return DataTypeId::DOUBLE;
+  if ((a == DataTypeId::kInt32 || a == DataTypeId::kInt64) &&
+      b == DataTypeId::kDouble) {
+    return DataTypeId::kDouble;
   }
-  if ((b == DataTypeId::INTEGER || b == DataTypeId::BIGINT) &&
-      a == DataTypeId::DOUBLE) {
-    return DataTypeId::DOUBLE;
+  if ((b == DataTypeId::kInt32 || b == DataTypeId::kInt64) &&
+      a == DataTypeId::kDouble) {
+    return DataTypeId::kDouble;
   }
 
   // Date and DateTime -> DateTime
-  if ((a == DataTypeId::DATE && b == DataTypeId::TIMESTAMP_MS) ||
-      (a == DataTypeId::TIMESTAMP_MS && b == DataTypeId::DATE)) {
-    return DataTypeId::TIMESTAMP_MS;
+  if ((a == DataTypeId::kDate && b == DataTypeId::kTimestampMs) ||
+      (a == DataTypeId::kTimestampMs && b == DataTypeId::kDate)) {
+    return DataTypeId::kTimestampMs;
   }
 
   // Other cases default to String
-  return DataTypeId::VARCHAR;
+  return DataTypeId::kVarchar;
 }
 
 }  // namespace extension

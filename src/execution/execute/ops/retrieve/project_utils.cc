@@ -273,16 +273,16 @@ bool is_property_extract(const common::Expression& expr, int& tag,
       } else {
         return false;
       }
-      if (type.id() == DataTypeId::UNKNOWN) {
+      if (type.id() == DataTypeId::kUnknown) {
         return false;
       }
       // only support pod type
-      if (type.id() == DataTypeId::TIMESTAMP_MS ||
-          type.id() == DataTypeId::DATE || type.id() == DataTypeId::BIGINT ||
-          type.id() == DataTypeId::INTEGER || type.id() == DataTypeId::FLOAT ||
-          type.id() == DataTypeId::UBIGINT ||
-          type.id() == DataTypeId::UINTEGER ||
-          type.id() == DataTypeId::DOUBLE) {
+      if (type.id() == DataTypeId::kTimestampMs ||
+          type.id() == DataTypeId::kDate || type.id() == DataTypeId::kInt64 ||
+          type.id() == DataTypeId::kInt32 || type.id() == DataTypeId::kFloat ||
+          type.id() == DataTypeId::kUInt64 ||
+          type.id() == DataTypeId::kUInt32 ||
+          type.id() == DataTypeId::kDouble) {
         return true;
       }
     }
@@ -550,15 +550,15 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
                                                      params);
         }
 
-        if (type_.id() == DataTypeId::INTEGER) {
+        if (type_.id() == DataTypeId::kInt32) {
           return parse_special_expr_between_impl<int32_t>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_.id() == DataTypeId::BIGINT) {
+        } else if (type_.id() == DataTypeId::kInt64) {
           return parse_special_expr_between_impl<int64_t>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_.id() == DataTypeId::TIMESTAMP_MS) {
+        } else if (type_.id() == DataTypeId::kTimestampMs) {
           return parse_special_expr_between_impl<DateTime>(
               graph, ctx, alias, vertex_col, name, params.at(lower),
               params.at(upper), then_value.i32(), else_value.i32());
@@ -593,10 +593,10 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
     }                                                                       \
     break;                                                                  \
   }
-          TYPE_DISPATCHER(VARCHAR, std::string_view)
-          TYPE_DISPATCHER(INTEGER, int32_t)
-          TYPE_DISPATCHER(BIGINT, int64_t)
-          TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+          TYPE_DISPATCHER(kVarchar, std::string_view)
+          TYPE_DISPATCHER(kInt32, int32_t)
+          TYPE_DISPATCHER(kInt64, int64_t)
+          TYPE_DISPATCHER(kTimestampMs, DateTime)
 #undef TYPE_DISPATCHER
         default: {
           return make_project_expr_without_data_type(expr, alias, graph, ctx,
@@ -642,7 +642,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder_impl1(
     DataType then_type, const std::vector<std::string>& param_names,
     const common::Value& then_value, const common::Value& else_value, int tag,
     const std::string& property_name, int alias) {
-  if (then_type.id() == DataTypeId::BIGINT) {
+  if (then_type.id() == DataTypeId::kInt64) {
     return std::make_unique<CaseWhenExprBuilder<CMP_T, int64_t>>(
         param_names, then_value.i64(), else_value.i64(), tag, property_name,
         alias);
@@ -728,7 +728,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
       return nullptr;
     }
     if (then_value.item_case() == common::Value::kI64) {
-      then_type = DataType(DataTypeId::BIGINT);
+      then_type = DataType(DataTypeId::kInt64);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
@@ -749,7 +749,7 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
       return nullptr;
     }
     if (then_value.item_case() == common::Value::kI64) {
-      then_type = DataType(DataTypeId::BIGINT);
+      then_type = DataType(DataTypeId::kInt64);
     } else {
       LOG(ERROR) << "unexpected then value type" << then_value.DebugString();
       return nullptr;
@@ -763,11 +763,11 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
     return create_case_when_builder_impl0<T>(ptype, then_type, param_names, \
                                              then_value, else_value, tag,   \
                                              name, alias);
-    TYPE_DISPATCHER(INTEGER, int32_t)
-    TYPE_DISPATCHER(BIGINT, int64_t)
-    TYPE_DISPATCHER(DOUBLE, double)
-    TYPE_DISPATCHER(VARCHAR, std::string_view)
-    TYPE_DISPATCHER(TIMESTAMP_MS, DateTime)
+    TYPE_DISPATCHER(kInt32, int32_t)
+    TYPE_DISPATCHER(kInt64, int64_t)
+    TYPE_DISPATCHER(kDouble, double)
+    TYPE_DISPATCHER(kVarchar, std::string_view)
+    TYPE_DISPATCHER(kTimestampMs, DateTime)
 #undef TYPE_DISPATCHER
   default:
     LOG(ERROR) << "unsupported when type " << static_cast<int>(when_type.id());

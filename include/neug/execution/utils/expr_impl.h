@@ -66,7 +66,7 @@ class WithInListExpr : public ExprBase {
                  std::unique_ptr<ExprBase>&& val_list)
       : key_(std::move(key)),
         val_list_(std::move(val_list)),
-        type_(DataType(DataTypeId::BOOLEAN)) {}
+        type_(DataType(DataTypeId::kBoolean)) {}
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
     RTAny key_val = key_->eval_path(idx, arena);
@@ -116,7 +116,7 @@ class WithInExpr : public ExprBase {
  public:
   WithInExpr(const Context& ctx, std::unique_ptr<ExprBase>&& key,
              const ::common::Value& array)
-      : key_(std::move(key)), type_(DataType(DataTypeId::BOOLEAN)) {
+      : key_(std::move(key)), type_(DataType(DataTypeId::kBoolean)) {
     if constexpr (std::is_same_v<T, int64_t>) {
       if (array.item_case() == ::common::Value::kI64Array) {
         PARSER_COMMON_VALUE_ARRAY_TO_VECTOR(container_, array.i64_array());
@@ -327,7 +327,7 @@ class ExtractExpr : public ExprBase {
               const ::common::Extract& extract)
       : expr_(std::move(expr)),
         extract_(extract),
-        type_(DataType(DataTypeId::INTEGER)) {}
+        type_(DataType(DataTypeId::kInt32)) {}
   int64_t eval_impl(const RTAny& val) const {
     if constexpr (std::is_same_v<T, int64_t>) {
       return extract_time_from_milli_second(val.as_int64(), extract_);
@@ -382,14 +382,14 @@ class ExtractExpr : public ExprBase {
   RTAny eval_path(size_t idx, Arena& arena) const override {
     auto any_val = expr_->eval_path(idx, arena);
     if (any_val.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_int64(eval_impl(any_val));
   }
   RTAny eval_vertex(label_t label, vid_t v, Arena& arena) const override {
     auto any_val = expr_->eval_vertex(label, v, arena);
     if (any_val.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_int64(eval_impl(any_val));
   }
@@ -397,7 +397,7 @@ class ExtractExpr : public ExprBase {
                   const void* data_ptr, Arena& arena) const override {
     auto any_val = expr_->eval_edge(label, src, dst, data_ptr, arena);
     if (any_val.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     return RTAny::from_int64(eval_impl(any_val));
   }
@@ -556,7 +556,7 @@ class TypedTupleExpr : public ExprBase {
     }
     auto extra_type_info =
         std::make_shared<StructTypeInfo>(std::move(sub_types));
-    type_ = DataType(DataTypeId::STRUCT, std::move(extra_type_info));
+    type_ = DataType(DataTypeId::kStruct, std::move(extra_type_info));
   }
 
   template <std::size_t... Is>
@@ -633,7 +633,7 @@ class PathVertexPropsExpr : public ListExprBase {
         prop_(prop),
         prop_type_(prop_type) {
     auto chd_type = std::make_shared<ListTypeInfo>(prop_type_);
-    type_ = DataType(DataTypeId::LIST, std::move(chd_type));
+    type_ = DataType(DataTypeId::kList, std::move(chd_type));
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override;
@@ -668,7 +668,7 @@ class PathEdgePropsExpr : public ListExprBase {
         prop_(prop),
         prop_type_(prop_type) {
     auto chd_type = std::make_shared<ListTypeInfo>(prop_type_);
-    type_ = DataType(DataTypeId::LIST, std::move(chd_type));
+    type_ = DataType(DataTypeId::kList, std::move(chd_type));
   }
   RTAny eval_path(size_t idx, Arena& arena) const override;
 
@@ -696,14 +696,14 @@ class RelationshipsExpr : public ListExprBase {
  public:
   explicit RelationshipsExpr(std::unique_ptr<ExprBase>&& args)
       : args(std::move(args)) {
-    auto chd_type = std::make_shared<ListTypeInfo>(DataType(DataTypeId::EDGE));
-    type_ = DataType(DataTypeId::LIST, std::move(chd_type));
+    auto chd_type = std::make_shared<ListTypeInfo>(DataType(DataTypeId::kEdge));
+    type_ = DataType(DataTypeId::kList, std::move(chd_type));
   }
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type().id() == DataTypeId::PATH);
+    assert(args->type().id() == DataTypeId::kPath);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto path = path_any.as_path();
     auto rels = path.relationships();
@@ -737,15 +737,15 @@ class NodesExpr : public ListExprBase {
  public:
   explicit NodesExpr(std::unique_ptr<ExprBase>&& args) : args(std::move(args)) {
     auto chd_type =
-        std::make_shared<ListTypeInfo>(DataType(DataTypeId::VERTEX));
-    type_ = DataType(DataTypeId::LIST, std::move(chd_type));
+        std::make_shared<ListTypeInfo>(DataType(DataTypeId::kVertex));
+    type_ = DataType(DataTypeId::kList, std::move(chd_type));
   }
 
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type().id() == DataTypeId::PATH);
+    assert(args->type().id() == DataTypeId::kPath);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto path = path_any.as_path();
     auto nodes = path.nodes();
@@ -778,12 +778,12 @@ class NodesExpr : public ListExprBase {
 class StartNodeExpr : public ExprBase {
  public:
   explicit StartNodeExpr(std::unique_ptr<ExprBase>&& args)
-      : args(std::move(args)), type_(DataType(DataTypeId::VERTEX)) {}
+      : args(std::move(args)), type_(DataType(DataTypeId::kVertex)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type().id() == DataTypeId::EDGE);
+    assert(args->type().id() == DataTypeId::kEdge);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto edge = path_any.as_edge();
     auto node = edge.start_node();
@@ -813,12 +813,12 @@ class StartNodeExpr : public ExprBase {
 class EndNodeExpr : public ExprBase {
  public:
   explicit EndNodeExpr(std::unique_ptr<ExprBase>&& args)
-      : args(std::move(args)), type_(DataType(DataTypeId::VERTEX)) {}
+      : args(std::move(args)), type_(DataType(DataTypeId::kVertex)) {}
   RTAny eval_path(size_t idx, Arena& arena) const override {
-    assert(args->type().id() == DataTypeId::EDGE);
+    assert(args->type().id() == DataTypeId::kEdge);
     auto path_any = args->eval_path(idx, arena);
     if (path_any.is_null()) {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
     auto path = path_any.as_edge();
     auto node = path.end_node();
@@ -847,13 +847,13 @@ class EndNodeExpr : public ExprBase {
 class ToDateTimeExpr : public ExprBase {
  public:
   ToDateTimeExpr(std::unique_ptr<ExprBase>&& args)
-      : args(std::move(args)), type_(DataType(DataTypeId::TIMESTAMP_MS)) {}
+      : args(std::move(args)), type_(DataType(DataTypeId::kTimestampMs)) {}
 
   RTAny to_date_time(const RTAny& val) const {
     int64_t ts = 0;
-    if (val.type().id() == DataTypeId::DATE) {
+    if (val.type().id() == DataTypeId::kDate) {
       ts = val.as_date().to_timestamp();
-    } else if (val.type().id() == DataTypeId::TIMESTAMP_MS) {
+    } else if (val.type().id() == DataTypeId::kTimestampMs) {
       ts = val.as_datetime().milli_second;
     } else {
       THROW_RUNTIME_ERROR("ToDateTime: input value is not date/timestamp");
@@ -886,14 +886,14 @@ class ToDateTimeExpr : public ExprBase {
 class ToDate32Expr : public ExprBase {
  public:
   ToDate32Expr(std::unique_ptr<ExprBase>&& args)
-      : args(std::move(args)), type_(DataType(DataTypeId::DATE)) {}
+      : args(std::move(args)), type_(DataType(DataTypeId::kDate)) {}
 
   RTAny to_date_32(const RTAny& val) const {
     constexpr int64_t kMilliSecondsOfDay = 24 * 60 * 60 * 1000;
     int64_t ts = 0;
-    if (val.type().id() == DataTypeId::DATE) {
+    if (val.type().id() == DataTypeId::kDate) {
       ts = val.as_date().to_timestamp();
-    } else if (val.type().id() == DataTypeId::TIMESTAMP_MS) {
+    } else if (val.type().id() == DataTypeId::kTimestampMs) {
       ts = (val.as_datetime().milli_second / kMilliSecondsOfDay) *
            kMilliSecondsOfDay;
     } else {
@@ -932,13 +932,13 @@ class AbsExpr : public ExprBase {
 
   RTAny abs_impl(const RTAny& val) const {
     switch (val.type().id()) {
-    case DataTypeId::INTEGER:
+    case DataTypeId::kInt32:
       return RTAny::from_int32(std::abs(val.as_int32()));
-    case DataTypeId::BIGINT:
+    case DataTypeId::kInt64:
       return RTAny::from_int64(std::abs(val.as_int64()));
-    case DataTypeId::FLOAT:
+    case DataTypeId::kFloat:
       return RTAny::from_float(std::fabs(val.as_float()));
-    case DataTypeId::DOUBLE:
+    case DataTypeId::kDouble:
       return RTAny::from_double(std::fabs(val.as_double()));
     default:
       break;

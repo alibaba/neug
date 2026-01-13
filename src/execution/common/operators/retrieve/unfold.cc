@@ -31,7 +31,7 @@ namespace runtime {
 
 gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto col = ctxs.get(key);
-  if (col->elem_type().id() != DataTypeId::LIST) {
+  if (col->elem_type().id() != DataTypeId::kList) {
     LOG(ERROR) << "Unfold column type is not list";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list");
   }
@@ -90,7 +90,7 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
     return unfold_impl<type>(std::move(ctxs), alias, key, arena);
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::LIST:
+  case DataTypeId::kList:
     return unfold_impl<List>(std::move(ctxs), alias, key, arena);
   default:
     LOG(ERROR) << "Unfold column type is not supported: "

@@ -108,7 +108,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
 
-  DataTypeId type() const override { return DataTypeId::VARCHAR; }
+  DataTypeId type() const override { return DataTypeId::kVarchar; }
 
   void set_value(size_t index, const std::string_view& val) {}
 
@@ -152,7 +152,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
         PropUtils<type>::to_typed(default_value), strategy);
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-    case DataTypeId::VARCHAR: {
+    case DataTypeId::kVarchar: {
       uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
       if (extra_type_info) {
         auto str_info =
@@ -164,7 +164,7 @@ std::shared_ptr<ColumnBase> CreateColumn(
       return std::make_shared<StringColumn>(strategy, max_length,
                                             default_value.as_string_view());
     }
-    case DataTypeId::EMPTY: {
+    case DataTypeId::kEmpty: {
       return std::make_shared<TypedColumn<EmptyType>>(strategy);
     }
     default: {

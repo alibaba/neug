@@ -123,7 +123,7 @@ struct NbrList {
 static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
 
 struct EdgeDataAccessor {
-  EdgeDataAccessor() : data_type_(DataTypeId::EMPTY), data_column_(nullptr) {}
+  EdgeDataAccessor() : data_type_(DataTypeId::kEmpty), data_column_(nullptr) {}
   EdgeDataAccessor(DataTypeId data_type, ColumnBase* data_column)
       : data_type_(data_type), data_column_(data_column) {}
   EdgeDataAccessor(const EdgeDataAccessor& other)
@@ -179,7 +179,7 @@ struct EdgeDataAccessor {
       size_t idx = get_bundled_data_from_ptr<size_t>(it.get_data_ptr());
       data_column_->set_prop(idx, prop);
     } else {
-      if (data_type_ == DataTypeId::EMPTY) {
+      if (data_type_ == DataTypeId::kEmpty) {
         return;
       }
       switch (data_type_) {
@@ -211,7 +211,7 @@ struct EdgeDataAccessor {
 
   inline Property get_generic_bundled_data_from_ptr(
       const void* data_ptr) const {
-    if (data_type_ == DataTypeId::EMPTY) {
+    if (data_type_ == DataTypeId::kEmpty) {
       return Property::empty();
     }
     switch (data_type_) {

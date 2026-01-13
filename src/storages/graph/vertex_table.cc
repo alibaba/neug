@@ -63,15 +63,15 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IRecordBatchSupplier> supplier) {
-  if (pk_type_ == DataTypeId::BIGINT) {
+  if (pk_type_ == DataTypeId::kInt64) {
     insert_vertices_impl<int64_t>(supplier);
-  } else if (pk_type_ == DataTypeId::INTEGER) {
+  } else if (pk_type_ == DataTypeId::kInt32) {
     insert_vertices_impl<int32_t>(supplier);
-  } else if (pk_type_ == DataTypeId::UINTEGER) {
+  } else if (pk_type_ == DataTypeId::kUInt32) {
     insert_vertices_impl<uint32_t>(supplier);
-  } else if (pk_type_ == DataTypeId::UBIGINT) {
+  } else if (pk_type_ == DataTypeId::kUInt64) {
     insert_vertices_impl<uint64_t>(supplier);
-  } else if (pk_type_ == DataTypeId::VARCHAR) {
+  } else if (pk_type_ == DataTypeId::kVarchar) {
     insert_vertices_impl<std::string_view>(supplier);
   } else {
     LOG(FATAL) << "Unsupported primary key type for vertex, type: " << pk_type_

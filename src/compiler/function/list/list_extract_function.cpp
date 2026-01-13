@@ -34,13 +34,13 @@ namespace function {
 
 static int checkAndGetIndex(const runtime::RTAny& value) {
   switch (value.type().id()) {
-  case gs::DataTypeId::UINTEGER:
+  case gs::DataTypeId::kUInt32:
     return value.as_uint32();
-  case gs::DataTypeId::INTEGER:
+  case gs::DataTypeId::kInt32:
     return value.as_int32();
-  case gs::DataTypeId::UBIGINT:
+  case gs::DataTypeId::kUInt64:
     return value.as_uint64();
-  case gs::DataTypeId::BIGINT:
+  case gs::DataTypeId::kInt64:
     return value.as_int64();
   default:
     THROW_RUNTIME_ERROR(
@@ -60,9 +60,9 @@ static runtime::RTAny execFunc(runtime::Arena& arena,
   int index = checkAndGetIndex(args[1]);
   const auto& arg0 = args[0];
   switch (arg0.type().id()) {
-  case gs::DataTypeId::STRUCT:
+  case gs::DataTypeId::kStruct:
     return arg0.as_tuple().get(index);
-  case gs::DataTypeId::LIST:
+  case gs::DataTypeId::kList:
     return arg0.as_list().get(index);
   default:
     THROW_RUNTIME_ERROR(

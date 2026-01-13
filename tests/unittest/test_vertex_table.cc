@@ -44,10 +44,10 @@ class VertexTableTest : public ::testing::Test {
     std::filesystem::create_directories(dir_);
 
     v_label_name_ = "person";
-    pk_type_ = gs::DataTypeId::BIGINT;
+    pk_type_ = gs::DataTypeId::kInt64;
     property_names_ = {"name", "age", "score"};
-    property_types_ = {gs::DataTypeId::VARCHAR, gs::DataTypeId::INTEGER,
-                       gs::DataTypeId::DOUBLE};
+    property_types_ = {gs::DataTypeId::kVarchar, gs::DataTypeId::kInt32,
+                       gs::DataTypeId::kDouble};
     property_values_ = {gs::Property::from_string_view("Alice"),
                         gs::Property::from_int32(30),
                         gs::Property::from_double(88.5)};

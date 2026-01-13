@@ -35,11 +35,11 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     return std::make_shared<ContextValueAccessor<type>>(ctx, tag);
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::STRUCT:
+  case DataTypeId::kStruct:
     return std::make_shared<ContextValueAccessor<Tuple>>(ctx, tag);
-  case DataTypeId::LIST:
+  case DataTypeId::kList:
     return std::make_shared<ContextValueAccessor<List>>(ctx, tag);
-  case DataTypeId::PATH:
+  case DataTypeId::kPath:
     return std::make_shared<ContextValueAccessor<Path>>(ctx, tag);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +

@@ -111,45 +111,45 @@ bool check_csv_export_options(
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
                 const std::string& key, Property value) {
-  if (value.type() == DataTypeId::BOOLEAN) {
+  if (value.type() == DataTypeId::kBoolean) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_bool(), allocator);
-  } else if (value.type() == DataTypeId::INTEGER) {
+  } else if (value.type() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int32(), allocator);
-  } else if (value.type() == DataTypeId::UINTEGER) {
+  } else if (value.type() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint32(), allocator);
-  } else if (value.type() == DataTypeId::BIGINT) {
+  } else if (value.type() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int64(), allocator);
-  } else if (value.type() == DataTypeId::UBIGINT) {
+  } else if (value.type() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint64(), allocator);
-  } else if (value.type() == DataTypeId::FLOAT) {
+  } else if (value.type() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_float(), allocator);
-  } else if (value.type() == DataTypeId::DOUBLE) {
+  } else if (value.type() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_double(), allocator);
-  } else if (value.type() == DataTypeId::DATE) {
+  } else if (value.type() == DataTypeId::kDate) {
     std::string date = value.as_date().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::TIMESTAMP_MS) {
+  } else if (value.type() == DataTypeId::kTimestampMs) {
     std::string date_time = value.as_datetime().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date_time.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::VARCHAR) {
+  } else if (value.type() == DataTypeId::kVarchar) {
     rapidjson::Value valueVal;
     auto str_value = value.as_string_view();
     LOG(INFO) << "String view value: " << std::string(str_value);
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
-  } else if (value.type() == DataTypeId::INTERVAL) {
+  } else if (value.type() == DataTypeId::kInterval) {
     std::string interval_str = value.as_interval().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
@@ -162,38 +162,38 @@ void add_member(rapidjson::Value& object,
 void add_prop_member(rapidjson::Value& object,
                      rapidjson::Document::AllocatorType& allocator,
                      const std::string& key, Property value) {
-  if (value.type() == DataTypeId::INTEGER) {
+  if (value.type() == DataTypeId::kInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int32(), allocator);
-  } else if (value.type() == DataTypeId::UINTEGER) {
+  } else if (value.type() == DataTypeId::kUInt32) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint32(), allocator);
-  } else if (value.type() == DataTypeId::BIGINT) {
+  } else if (value.type() == DataTypeId::kInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_int64(), allocator);
-  } else if (value.type() == DataTypeId::UBIGINT) {
+  } else if (value.type() == DataTypeId::kUInt64) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_uint64(), allocator);
-  } else if (value.type() == DataTypeId::FLOAT) {
+  } else if (value.type() == DataTypeId::kFloat) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_float(), allocator);
-  } else if (value.type() == DataTypeId::DOUBLE) {
+  } else if (value.type() == DataTypeId::kDouble) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_double(), allocator);
-  } else if (value.type() == DataTypeId::DATE) {
+  } else if (value.type() == DataTypeId::kDate) {
     std::string date = value.as_date().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(date.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::TIMESTAMP_MS) {
+  } else if (value.type() == DataTypeId::kTimestampMs) {
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      value.as_datetime().milli_second, allocator);
-  } else if (value.type() == DataTypeId::INTERVAL) {
+  } else if (value.type() == DataTypeId::kInterval) {
     std::string interval_str = value.as_interval().to_string();
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(),
                      rapidjson::Value(interval_str.c_str(), allocator).Move(),
                      allocator);
-  } else if (value.type() == DataTypeId::VARCHAR) {
+  } else if (value.type() == DataTypeId::kVarchar) {
     rapidjson::Value valueVal;
     auto str_value = value.as_string_view();
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
@@ -347,7 +347,7 @@ DataTypeId get_the_pk_type_from_schema(const Schema& schema, label_t label_id) {
     LOG(FATAL) << "Multiple primary keys found for label id: " << label_id;
   }
   auto pk = pks[0];
-  if (std::get<0>(pk) == DataTypeId::EMPTY) {
+  if (std::get<0>(pk) == DataTypeId::kEmpty) {
     LOG(FATAL) << "Invalid primary key type for label id: " << label_id;
   }
   return std::get<0>(pk);

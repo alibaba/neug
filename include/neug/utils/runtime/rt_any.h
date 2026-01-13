@@ -549,7 +549,7 @@ class RTAny {
   RTAny(const RTAny& rhs);
   explicit RTAny(const Path& p);
   ~RTAny() = default;
-  bool is_null() const { return type_.id() == DataTypeId::SQLNULL; }
+  bool is_null() const { return type_.id() == DataTypeId::kNull; }
 
   int numerical_cmp(const RTAny& other) const;
 
@@ -623,7 +623,7 @@ struct TypedConverter {};
 
 template <>
 struct TypedConverter<bool> {
-  static DataType type() { return DataType(DataTypeId::BOOLEAN); }
+  static DataType type() { return DataType(DataTypeId::kBoolean); }
   static bool to_typed(const RTAny& val) { return val.as_bool(); }
   static RTAny from_typed(bool val) { return RTAny::from_bool(val); }
   static const std::string name() { return "bool"; }
@@ -640,7 +640,7 @@ struct TypedConverter<bool> {
 };
 template <>
 struct TypedConverter<int32_t> {
-  static DataType type() { return DataType(DataTypeId::INTEGER); }
+  static DataType type() { return DataType(DataTypeId::kInt32); }
   static int32_t to_typed(const RTAny& val) { return val.as_int32(); }
   static RTAny from_typed(int val) { return RTAny::from_int32(val); }
   static const std::string name() { return "int32"; }
@@ -662,7 +662,7 @@ struct TypedConverter<int32_t> {
 
 template <>
 struct TypedConverter<uint32_t> {
-  static DataType type() { return DataType(DataTypeId::UINTEGER); }
+  static DataType type() { return DataType(DataTypeId::kUInt32); }
   static uint32_t to_typed(const RTAny& val) { return val.as_uint32(); }
   static RTAny from_typed(uint32_t val) { return RTAny::from_uint32(val); }
   static const std::string name() { return "uint"; }
@@ -684,7 +684,7 @@ struct TypedConverter<uint32_t> {
 
 template <>
 struct TypedConverter<std::string_view> {
-  static DataType type() { return DataType(DataTypeId::VARCHAR); }
+  static DataType type() { return DataType(DataTypeId::kVarchar); }
   static std::string_view to_typed(const RTAny& val) { return val.as_string(); }
   static RTAny from_typed(const std::string_view& val) {
     return RTAny::from_string(val);
@@ -697,7 +697,7 @@ struct TypedConverter<std::string_view> {
 
 template <>
 struct TypedConverter<uint64_t> {
-  static DataType type() { return DataType(DataTypeId::UBIGINT); }
+  static DataType type() { return DataType(DataTypeId::kUInt64); }
   static uint64_t to_typed(const RTAny& val) { return val.as_uint64(); }
   static RTAny from_typed(uint64_t val) { return RTAny::from_uint64(val); }
   static const std::string name() { return "uint64"; }
@@ -716,7 +716,7 @@ struct TypedConverter<uint64_t> {
 
 template <>
 struct TypedConverter<int64_t> {
-  static DataType type() { return DataType(DataTypeId::BIGINT); }
+  static DataType type() { return DataType(DataTypeId::kInt64); }
   static int64_t to_typed(const RTAny& val) { return val.as_int64(); }
   static RTAny from_typed(int64_t val) { return RTAny::from_int64(val); }
   static const std::string name() { return "int64"; }
@@ -746,7 +746,7 @@ struct TypedConverter<int64_t> {
 
 template <>
 struct TypedConverter<float> {
-  static DataType type() { return DataType(DataTypeId::FLOAT); }
+  static DataType type() { return DataType(DataTypeId::kFloat); }
   static float to_typed(const RTAny& val) { return val.as_float(); }
   static RTAny from_typed(float val) { return RTAny::from_float(val); }
   static const std::string name() { return "float"; }
@@ -766,7 +766,7 @@ struct TypedConverter<float> {
 
 template <>
 struct TypedConverter<double> {
-  static DataType type() { return DataType(DataTypeId::DOUBLE); }
+  static DataType type() { return DataType(DataTypeId::kDouble); }
   static double to_typed(const RTAny& val) { return val.as_double(); }
   static RTAny from_typed(double val) { return RTAny::from_double(val); }
   static double typed_from_string(const std::string& str) {
@@ -786,7 +786,7 @@ struct TypedConverter<double> {
 
 template <>
 struct TypedConverter<Date> {
-  static DataType type() { return DataType(DataTypeId::DATE); }
+  static DataType type() { return DataType(DataTypeId::kDate); }
   static Date to_typed(const RTAny& val) { return val.as_date(); }
   static RTAny from_typed(Date val) { return RTAny::from_date(val); }
   static const std::string name() { return "date"; }
@@ -811,7 +811,7 @@ struct TypedConverter<Date> {
 
 template <>
 struct TypedConverter<DateTime> {
-  static DataType type() { return DataType(DataTypeId::TIMESTAMP_MS); }
+  static DataType type() { return DataType(DataTypeId::kTimestampMs); }
   static DateTime to_typed(const RTAny& val) { return val.as_datetime(); }
   static RTAny from_typed(DateTime val) { return RTAny::from_datetime(val); }
   static const std::string name() { return "datetime"; }
@@ -837,7 +837,7 @@ struct TypedConverter<DateTime> {
 
 template <>
 struct TypedConverter<Interval> {
-  static DataType type() { return DataType(DataTypeId::INTERVAL); }
+  static DataType type() { return DataType(DataTypeId::kInterval); }
   static Interval to_typed(const RTAny& val) { return val.as_interval(); }
   static RTAny from_typed(Interval val) { return RTAny::from_interval(val); }
   static const std::string name() { return "interval"; }
@@ -862,14 +862,14 @@ struct TypedConverter<Interval> {
 
 template <>
 struct TypedConverter<List> {
-  static DataType type() { return DataType(DataTypeId::LIST); }
+  static DataType type() { return DataType(DataTypeId::kList); }
   static List to_typed(const RTAny& val) { return val.as_list(); }
   static RTAny from_typed(List val) { return RTAny::from_list(std::move(val)); }
   static const std::string name() { return "list"; }
 };
 template <>
 struct TypedConverter<Tuple> {
-  static DataType type() { return DataType(DataTypeId::STRUCT); }
+  static DataType type() { return DataType(DataTypeId::kStruct); }
   static Tuple to_typed(const RTAny& val) { return val.as_tuple(); }
   static RTAny from_typed(Tuple val) {
     return RTAny::from_tuple(std::move(val));
@@ -879,7 +879,7 @@ struct TypedConverter<Tuple> {
 
 template <>
 struct TypedConverter<VertexRecord> {
-  static DataType type() { return DataType(DataTypeId::VERTEX); }
+  static DataType type() { return DataType(DataTypeId::kVertex); }
   static VertexRecord to_typed(const RTAny& val) { return val.as_vertex(); }
   static RTAny from_typed(VertexRecord val) { return RTAny::from_vertex(val); }
   static const std::string name() { return "vertex"; }
@@ -887,7 +887,7 @@ struct TypedConverter<VertexRecord> {
 
 template <>
 struct TypedConverter<EdgeRecord> {
-  static DataType type() { return DataType(DataTypeId::EDGE); }
+  static DataType type() { return DataType(DataTypeId::kEdge); }
   static EdgeRecord to_typed(const RTAny& val) { return val.as_edge(); }
   static RTAny from_typed(EdgeRecord val) { return RTAny::from_edge(val); }
   static const std::string name() { return "edge"; }
@@ -973,7 +973,7 @@ class ListImpl : ListImplBase {
     if (is_valid_[idx]) {
       return TypedConverter<T>::from_typed(list_[idx]);
     } else {
-      return RTAny(DataType(DataTypeId::SQLNULL));
+      return RTAny(DataType(DataTypeId::kNull));
     }
   }
 
@@ -998,16 +998,16 @@ runtime::RTAny performCast(const runtime::RTAny& input) {
   }
     FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::VARCHAR:
+  case DataTypeId::kVarchar:
     ret = runtime::TypedConverter<T>::cast(input.as_string(), val);
     break;
   default: {
     if constexpr (std::is_same_v<T, int64_t>) {
-      if (input.type().id() == DataTypeId::DATE) {
+      if (input.type().id() == DataTypeId::kDate) {
         ret = runtime::TypedConverter<T>::cast(input.as_date(), val);
-      } else if (input.type().id() == DataTypeId::TIMESTAMP_MS) {
+      } else if (input.type().id() == DataTypeId::kTimestampMs) {
         ret = runtime::TypedConverter<T>::cast(input.as_datetime(), val);
-      } else if (input.type().id() == DataTypeId::INTERVAL) {
+      } else if (input.type().id() == DataTypeId::kInterval) {
         ret = runtime::TypedConverter<T>::cast(input.as_interval(), val);
       } else {
         THROW_CONVERSION_EXCEPTION("Unsupported type for casting.");
@@ -1031,9 +1031,9 @@ template <>
 inline runtime::RTAny performCast<gs::DateTime>(const runtime::RTAny& input) {
   gs::DateTime val;
   bool ret = false;
-  if (input.type().id() == DataTypeId::VARCHAR) {
+  if (input.type().id() == DataTypeId::kVarchar) {
     ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_string(), val);
-  } else if (input.type().id() == DataTypeId::DATE) {
+  } else if (input.type().id() == DataTypeId::kDate) {
     ret = runtime::TypedConverter<gs::DateTime>::cast(input.as_date(), val);
   } else {
     THROW_CONVERSION_EXCEPTION(
@@ -1051,9 +1051,9 @@ template <>
 inline runtime::RTAny performCast<gs::Date>(const runtime::RTAny& input) {
   gs::Date val;
   bool ret = false;
-  if (input.type().id() == DataTypeId::VARCHAR) {
+  if (input.type().id() == DataTypeId::kVarchar) {
     ret = runtime::TypedConverter<gs::Date>::cast(input.as_string(), val);
-  } else if (input.type().id() == DataTypeId::DATE) {
+  } else if (input.type().id() == DataTypeId::kDate) {
     ret = runtime::TypedConverter<gs::Date>::cast(input.as_datetime(), val);
   } else {
     THROW_CONVERSION_EXCEPTION(
@@ -1078,19 +1078,19 @@ inline RTAny performCastToString(const runtime::RTAny& input,
   }
     FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataTypeId::VARCHAR: {
+  case DataTypeId::kVarchar: {
     ret = input.as_string();
     break;
   }
-  case DataTypeId::TIMESTAMP_MS: {
+  case DataTypeId::kTimestampMs: {
     ret = input.as_datetime().to_string();
     break;
   }
-  case DataTypeId::DATE: {
+  case DataTypeId::kDate: {
     ret = input.as_date().to_string();
     break;
   }
-  case DataTypeId::INTERVAL: {
+  case DataTypeId::kInterval: {
     ret = input.as_interval().to_string();
     break;
   }

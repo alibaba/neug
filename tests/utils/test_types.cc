@@ -136,74 +136,74 @@ TEST(TestType, TestDateTime) {
 }
 
 TEST(TestType, TestPropertyType) {
-  EXPECT_EQ(std::to_string(DataTypeId::EMPTY), "Empty");
-  EXPECT_EQ(std::to_string(DataTypeId::BOOLEAN), "Bool");
-  EXPECT_EQ(std::to_string(DataTypeId::INTEGER), "Int32");
-  EXPECT_EQ(std::to_string(DataTypeId::UINTEGER), "UInt32");
-  EXPECT_EQ(std::to_string(DataTypeId::BIGINT), "Int64");
-  EXPECT_EQ(std::to_string(DataTypeId::UBIGINT), "UInt64");
-  EXPECT_EQ(std::to_string(DataTypeId::FLOAT), "Float");
-  EXPECT_EQ(std::to_string(DataTypeId::DOUBLE), "Double");
-  EXPECT_EQ(std::to_string(DataTypeId::VARCHAR), "StringView");
-  EXPECT_EQ(std::to_string(DataTypeId::DATE), "Date");
-  EXPECT_EQ(std::to_string(DataTypeId::TIMESTAMP_MS), "DateTime");
-  EXPECT_EQ(std::to_string(DataTypeId::INTERVAL), "Interval");
+  EXPECT_EQ(std::to_string(DataTypeId::kEmpty), "Empty");
+  EXPECT_EQ(std::to_string(DataTypeId::kBoolean), "Bool");
+  EXPECT_EQ(std::to_string(DataTypeId::kInt32), "Int32");
+  EXPECT_EQ(std::to_string(DataTypeId::kUInt32), "UInt32");
+  EXPECT_EQ(std::to_string(DataTypeId::kInt64), "Int64");
+  EXPECT_EQ(std::to_string(DataTypeId::kUInt64), "UInt64");
+  EXPECT_EQ(std::to_string(DataTypeId::kFloat), "Float");
+  EXPECT_EQ(std::to_string(DataTypeId::kDouble), "Double");
+  EXPECT_EQ(std::to_string(DataTypeId::kVarchar), "StringView");
+  EXPECT_EQ(std::to_string(DataTypeId::kDate), "Date");
+  EXPECT_EQ(std::to_string(DataTypeId::kTimestampMs), "DateTime");
+  EXPECT_EQ(std::to_string(DataTypeId::kInterval), "Interval");
 
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("int32")),
-            DataTypeId::INTEGER);
+            DataTypeId::kInt32);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("uint32")),
-      DataTypeId::UINTEGER);
+      DataTypeId::kUInt32);
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("bool")),
-            DataTypeId::BOOLEAN);
+            DataTypeId::kBoolean);
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("Date")),
-            DataTypeId::DATE);
+            DataTypeId::kDate);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("DateTime")),
-      DataTypeId::TIMESTAMP_MS);
+      DataTypeId::kTimestampMs);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("Interval")),
-      DataTypeId::INTERVAL);
+      DataTypeId::kInterval);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("Timestamp")),
-      DataTypeId::TIMESTAMP_MS);
+      DataTypeId::kTimestampMs);
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("Empty")),
-            DataTypeId::EMPTY);
+            DataTypeId::kEmpty);
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("int64")),
-            DataTypeId::BIGINT);
+            DataTypeId::kInt64);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("uint64")),
-      DataTypeId::UBIGINT);
+      DataTypeId::kUInt64);
   EXPECT_EQ(config_parsing::StringToPrimitivePropertyType(std::string("float")),
-            DataTypeId::FLOAT);
+            DataTypeId::kFloat);
   EXPECT_EQ(
       config_parsing::StringToPrimitivePropertyType(std::string("double")),
-      DataTypeId::DOUBLE);
+      DataTypeId::kDouble);
 
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::EMPTY),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kEmpty),
             "Empty");
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::BOOLEAN),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kBoolean),
             DT_BOOL);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::INTEGER),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kInt32),
             DT_SIGNED_INT32);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::UINTEGER),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kUInt32),
             DT_UNSIGNED_INT32);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::BIGINT),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kInt64),
             DT_SIGNED_INT64);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::UBIGINT),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kUInt64),
             DT_UNSIGNED_INT64);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::FLOAT),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kFloat),
             DT_FLOAT);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::DOUBLE),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kDouble),
             DT_DOUBLE);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::VARCHAR),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kVarchar),
             DT_STRING);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::DATE),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kDate),
             DT_DATE);
   EXPECT_EQ(
-      config_parsing::PrimitivePropertyTypeToString(DataTypeId::TIMESTAMP_MS),
+      config_parsing::PrimitivePropertyTypeToString(DataTypeId::kTimestampMs),
       DT_DATETIME);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::INTERVAL),
+  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kInterval),
             DT_INTERVAL);
 }
 
@@ -218,7 +218,7 @@ TEST(TestType, TestGlobalId) {
 
 TEST(TestType, TestArchive) {
   std::string string_value("test_value");
-  DataTypeId property_type_value = DataTypeId::EMPTY;
+  DataTypeId property_type_value = DataTypeId::kEmpty;
   std::string_view string_view_value(string_value);
   GlobalId global_id_value = GlobalId(2, 438);
   Interval interval_value = Interval(std::string("2years"));
@@ -248,12 +248,12 @@ class PropertyTest : public ::testing::Test {
 
 TEST_F(PropertyTest, DefaultConstructor) {
   Property p;
-  EXPECT_EQ(p.type(), DataTypeId::EMPTY);
+  EXPECT_EQ(p.type(), DataTypeId::kEmpty);
 }
 
 TEST_F(PropertyTest, BoolProperty) {
   auto p1 = Property::from_bool(true);
-  EXPECT_EQ(p1.type(), DataTypeId::BOOLEAN);
+  EXPECT_EQ(p1.type(), DataTypeId::kBoolean);
   EXPECT_TRUE(p1.as_bool());
 
   Property p2;
@@ -264,22 +264,22 @@ TEST_F(PropertyTest, BoolProperty) {
 TEST_F(PropertyTest, IntegerProperties) {
   {
     auto p = Property::from_int32(42);
-    EXPECT_EQ(p.type(), DataTypeId::INTEGER);
+    EXPECT_EQ(p.type(), DataTypeId::kInt32);
     EXPECT_EQ(p.as_int32(), 42);
   }
   {
     auto p = Property::from_uint32(100U);
-    EXPECT_EQ(p.type(), DataTypeId::UINTEGER);
+    EXPECT_EQ(p.type(), DataTypeId::kUInt32);
     EXPECT_EQ(p.as_uint32(), 100U);
   }
   {
     auto p = Property::from_int64(-1234567890123LL);
-    EXPECT_EQ(p.type(), DataTypeId::BIGINT);
+    EXPECT_EQ(p.type(), DataTypeId::kInt64);
     EXPECT_EQ(p.as_int64(), -1234567890123LL);
   }
   {
     auto p = Property::from_uint64(9876543210ULL);
-    EXPECT_EQ(p.type(), DataTypeId::UBIGINT);
+    EXPECT_EQ(p.type(), DataTypeId::kUInt64);
     EXPECT_EQ(p.as_uint64(), 9876543210ULL);
   }
 }
@@ -287,12 +287,12 @@ TEST_F(PropertyTest, IntegerProperties) {
 TEST_F(PropertyTest, FloatProperties) {
   {
     auto p = Property::from_float(3.14f);
-    EXPECT_EQ(p.type(), DataTypeId::FLOAT);
+    EXPECT_EQ(p.type(), DataTypeId::kFloat);
     EXPECT_FLOAT_EQ(p.as_float(), 3.14f);
   }
   {
     auto p = Property::from_double(2.718281828);
-    EXPECT_EQ(p.type(), DataTypeId::DOUBLE);
+    EXPECT_EQ(p.type(), DataTypeId::kDouble);
     EXPECT_DOUBLE_EQ(p.as_double(), 2.718281828);
   }
 }
@@ -302,7 +302,7 @@ TEST_F(PropertyTest, StringViewProperty) {
   std::string_view sv = str;
 
   auto p = Property::from_string_view(sv);
-  EXPECT_EQ(p.type(), DataTypeId::VARCHAR);
+  EXPECT_EQ(p.type(), DataTypeId::kVarchar);
   EXPECT_EQ(p.as_string_view(), sv);
   EXPECT_EQ(p.to_string(), "hello world");
 }
@@ -397,44 +397,44 @@ TEST_F(PropertyTest, TestArchive) {
 
 TEST_F(PropertyTest, ParsePropertyFromString) {
   // bool
-  EXPECT_EQ(parse_property_from_string(DataTypeId::BOOLEAN, "true").as_bool(),
+  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "true").as_bool(),
             true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::BOOLEAN, "1").as_bool(),
+  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "1").as_bool(),
             true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::BOOLEAN, "TRUE").as_bool(),
+  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "TRUE").as_bool(),
             true);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::BOOLEAN, "false").as_bool(),
+  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "false").as_bool(),
             false);
-  EXPECT_EQ(parse_property_from_string(DataTypeId::BOOLEAN, "0").as_bool(),
+  EXPECT_EQ(parse_property_from_string(DataTypeId::kBoolean, "0").as_bool(),
             false);
 
   // int32
-  auto p_int32 = parse_property_from_string(DataTypeId::INTEGER, "-42");
-  EXPECT_EQ(p_int32.type(), DataTypeId::INTEGER);
+  auto p_int32 = parse_property_from_string(DataTypeId::kInt32, "-42");
+  EXPECT_EQ(p_int32.type(), DataTypeId::kInt32);
   EXPECT_EQ(p_int32.as_int32(), -42);
 
   // uint64
   auto p_uint64 =
-      parse_property_from_string(DataTypeId::UBIGINT, "18446744073709551615");
-  EXPECT_EQ(p_uint64.type(), DataTypeId::UBIGINT);
+      parse_property_from_string(DataTypeId::kUInt64, "18446744073709551615");
+  EXPECT_EQ(p_uint64.type(), DataTypeId::kUInt64);
   EXPECT_EQ(p_uint64.as_uint64(), UINT64_MAX);
 
   // string_view
-  auto p_sv = parse_property_from_string(DataTypeId{DataTypeId::VARCHAR},
+  auto p_sv = parse_property_from_string(DataTypeId{DataTypeId::kVarchar},
                                          "hello world");
-  EXPECT_EQ(p_sv.type(), DataTypeId::VARCHAR);
+  EXPECT_EQ(p_sv.type(), DataTypeId::kVarchar);
   EXPECT_EQ(p_sv.as_string_view(), "hello world");
 
   // float/double
-  auto p_f = parse_property_from_string(DataTypeId::FLOAT, "3.14");
+  auto p_f = parse_property_from_string(DataTypeId::kFloat, "3.14");
   EXPECT_FLOAT_EQ(p_f.as_float(), 3.14f);
 
-  auto p_d = parse_property_from_string(DataTypeId::DOUBLE, "2.71828");
+  auto p_d = parse_property_from_string(DataTypeId::kDouble, "2.71828");
   EXPECT_DOUBLE_EQ(p_d.as_double(), 2.71828);
 
   // empty
-  auto p_empty = parse_property_from_string(DataTypeId::EMPTY, "");
-  EXPECT_EQ(p_empty.type(), DataTypeId::EMPTY);
+  auto p_empty = parse_property_from_string(DataTypeId::kEmpty, "");
+  EXPECT_EQ(p_empty.type(), DataTypeId::kEmpty);
 }
 
 Property round_trip_property(const Property& input, InArchive& arc) {
@@ -476,7 +476,7 @@ TEST_F(PropertyTest, SerializeDeserializePropertyRoundTrip) {
   {
     auto p = Property::from_string_view("view only");
     auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(restored.type(), DataTypeId::VARCHAR);
+    EXPECT_EQ(restored.type(), DataTypeId::kVarchar);
     EXPECT_EQ(restored.as_string_view(), p.as_string_view());
   }
 
@@ -511,8 +511,8 @@ TEST_F(PropertyTest, SerializeDeserializePropertyRoundTrip) {
   {
     auto p = Property::empty();
     auto restored = round_trip_property(p, arc);
-    EXPECT_EQ(p.type(), DataTypeId::EMPTY);
-    EXPECT_EQ(restored.type(), DataTypeId::EMPTY);
+    EXPECT_EQ(p.type(), DataTypeId::kEmpty);
+    EXPECT_EQ(restored.type(), DataTypeId::kEmpty);
   }
 }
 

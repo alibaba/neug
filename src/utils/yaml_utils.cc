@@ -51,26 +51,26 @@ namespace gs {
 YAML::Node property_type_to_yaml(const DataTypeId& type) {
   YAML::Node node;
   switch (type) {
-  case DataTypeId::BOOLEAN:
-  case DataTypeId::INTEGER:
-  case DataTypeId::UINTEGER:
-  case DataTypeId::BIGINT:
-  case DataTypeId::UBIGINT:
-  case DataTypeId::FLOAT:
-  case DataTypeId::DOUBLE:
+  case DataTypeId::kBoolean:
+  case DataTypeId::kInt32:
+  case DataTypeId::kUInt32:
+  case DataTypeId::kInt64:
+  case DataTypeId::kUInt64:
+  case DataTypeId::kFloat:
+  case DataTypeId::kDouble:
     node["primitive_type"] =
         config_parsing::PrimitivePropertyTypeToString(type);
     break;
-  case DataTypeId::VARCHAR:
+  case DataTypeId::kVarchar:
     node["string"]["long_text"] = "";
     break;
-  case DataTypeId::DATE:
+  case DataTypeId::kDate:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
-  case DataTypeId::TIMESTAMP_MS:
+  case DataTypeId::kTimestampMs:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
-  case DataTypeId::INTERVAL:
+  case DataTypeId::kInterval:
     node["temporal"] = config_parsing::TemporalTypeToYAML(type);
     break;
   default:

@@ -41,7 +41,7 @@ enum class VertexColumnType {
 
 class IVertexColumn : public IContextColumn {
  public:
-  IVertexColumn() : type_(DataType(DataTypeId::VERTEX)) {}
+  IVertexColumn() : type_(DataType(DataTypeId::kVertex)) {}
   virtual ~IVertexColumn() = default;
 
   __attribute__((always_inline)) ContextColumnType

@@ -167,7 +167,7 @@ gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
   std::vector<DataTypeId> edge_prop_types;
   auto edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
   if (edge_props.empty()) {
-    edge_prop_types.emplace_back(DataTypeId::EMPTY);
+    edge_prop_types.emplace_back(DataTypeId::kEmpty);
   } else {
     for (const auto& prop : edge_props) {
       edge_prop_types.emplace_back(prop);

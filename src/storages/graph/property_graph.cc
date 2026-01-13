@@ -172,11 +172,11 @@ Status PropertyGraph::CreateVertexType(
           StatusCode::ERR_INVALID_ARGUMENT,
           "Primary key " + primary_key_name + " is not found in properties");
     }
-    if (property_types[primary_key_inds[i]] != DataTypeId::BIGINT &&
-        property_types[primary_key_inds[i]] != DataTypeId::VARCHAR &&
-        property_types[primary_key_inds[i]] != DataTypeId::UBIGINT &&
-        property_types[primary_key_inds[i]] != DataTypeId::INTEGER &&
-        property_types[primary_key_inds[i]] != DataTypeId::UINTEGER) {
+    if (property_types[primary_key_inds[i]] != DataTypeId::kInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kVarchar &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt64 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kInt32 &&
+        property_types[primary_key_inds[i]] != DataTypeId::kUInt32) {
       LOG(ERROR) << "Primary key " << primary_key_name
                  << " should be int64/int32/uint64/uint32 or string/varchar";
       return Status(StatusCode::ERR_INVALID_ARGUMENT,
