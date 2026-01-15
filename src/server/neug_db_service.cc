@@ -15,7 +15,7 @@
 #include "neug/server/neug_db_service.h"
 
 #include <glog/logging.h>
-#include "neug/server/brpc_http_hdl_mgr.h"
+#include "neug/server/brpc_service_mgr.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -40,11 +40,11 @@ void NeugDBService::init(const ServiceConfig& config) {
   version_manager_->init_ts(
       db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
 
-  txn_manager_ = std::make_unique<gs::TransactionManager>(
-      db_.graph(), version_manager_, db_.GetPlanner(), db_.allocators_,
-      db_config_, db_.work_dir(), db_config_.thread_num);
+  session_pool_ = std::make_unique<server::SessionPool>(
+      db_.graph(), db_.GetPlanner(), version_manager_, db_.allocators_,
+      db_config_, db_.work_dir());
 
-  hdl_mgr_ = std::make_unique<BrpcHttpHandlerManager>(db_, *txn_manager_);
+  hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
   hdl_mgr_->Init(config);
 
   initialized_.store(true);
@@ -66,28 +66,8 @@ const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
 }
 
-gs::ReadTransaction NeugDBService::GetReadTransaction(int thread_id) {
-  return txn_manager_->GetReadTransaction(thread_id);
-}
-
-gs::InsertTransaction NeugDBService::GetInsertTransaction(int thread_id) {
-  return txn_manager_->GetInsertTransaction(thread_id);
-}
-
-gs::UpdateTransaction NeugDBService::GetUpdateTransaction(int thread_id) {
-  return txn_manager_->GetUpdateTransaction(thread_id);
-}
-
-gs::CompactTransaction NeugDBService::GetCompactTransaction(int thread_id) {
-  return txn_manager_->GetCompactTransaction(thread_id);
-}
-
-NeugDBSession& NeugDBService::GetSession(int thread_id) {
-  return txn_manager_->GetSession(thread_id);
-}
-
-const NeugDBSession& NeugDBService::GetSession(int thread_id) const {
-  return txn_manager_->GetSession(thread_id);
+server::SessionGuard NeugDBService::AcquireSession() {
+  return session_pool_->AcquireSession();
 }
 
 bool NeugDBService::IsInitialized() const {
@@ -157,7 +137,7 @@ std::string NeugDBService::Start() {
 }
 
 size_t NeugDBService::getExecutedQueryNum() const {
-  return txn_manager_->getExecutedQueryNum();
+  return session_pool_->getExecutedQueryNum();
 }
 
 void NeugDBService::startCompactThreadIfNeeded() {
@@ -180,7 +160,8 @@ void NeugDBService::startCompactThreadIfNeeded() {
             (query_num_after > (last_compaction_at + 100000))) {
           VLOG(10) << "Trigger auto compaction";
           last_compaction_at = query_num_after;
-          auto txn = txn_manager_->GetCompactTransaction(0);
+          auto session_guard = AcquireSession();
+          auto txn = session_guard->GetCompactTransaction();
           txn.Commit();
           VLOG(10) << "Finish compaction";
         }

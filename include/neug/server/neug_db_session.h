@@ -115,9 +115,9 @@ class NeugDBSession {
   gs::UpdateTransaction GetUpdateTransaction();
 
   gs::CompactTransaction GetCompactTransaction();
+
   const gs::PropertyGraph& graph() const;
   gs::PropertyGraph& graph();
-
   const gs::Schema& schema() const;
 
   /**

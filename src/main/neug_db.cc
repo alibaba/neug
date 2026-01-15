@@ -32,8 +32,8 @@
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
-#include "neug/server/neug_db_session.h"
 #include "neug/main/query_processor.h"
+#include "neug/server/neug_db_session.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
@@ -158,7 +158,7 @@ void NeugDB::Close() {
   if (query_processor_) {
     query_processor_.reset();
   }
-  // -----------Clear graph_db----------------
+  // -----------Create checkpoint if needed----------------
   if (config_.checkpoint_on_close) {
     createCheckpoint();
   }
@@ -243,6 +243,7 @@ void NeugDB::openGraphAndSchema() {
 
 void NeugDB::ingestWals() {
   auto wal_uri = parse_wal_uri(config_.wal_uri, work_dir_);
+  gs::WalParserFactory::Init();
   auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
   ingestWals(*wal_parser, work_dir_);
 }

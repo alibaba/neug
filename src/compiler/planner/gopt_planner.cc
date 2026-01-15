@@ -40,8 +40,8 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
       RETURN_ERROR(Status(StatusCode::ERR_QUERY_SYNTAX, statement->errMsg));
     }
 
-    std::cout << "Logical Plan: " << std::endl
-              << statement->logicalPlan->toString() << std::endl;
+    VLOG(1) << "Logical Plan: " << std::endl
+            << statement->logicalPlan->toString() << std::endl;
 
     if (statement->logicalPlan->emptyResult(
             statement->logicalPlan->getLastOperator())) {

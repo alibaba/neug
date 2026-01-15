@@ -521,7 +521,8 @@ TEST_F(CheckpointTest, test_compact) {
     conn->Close();
     auto svc = std::make_shared<server::NeugDBService>(db);
 
-    auto compact_txn = svc->GetCompactTransaction(0);
+    auto sess = svc->AcquireSession();
+    auto compact_txn = sess->GetCompactTransaction();
     compact_txn.Commit();
 
     db.Close();
@@ -548,7 +549,8 @@ TEST_F(CheckpointTest, test_compact) {
     EXPECT_TRUE(res) << res.error().ToString();
   }
 
-  auto compact_txn2 = svc->GetCompactTransaction(0);
+  auto sess2 = svc->AcquireSession();
+  auto compact_txn2 = sess2->GetCompactTransaction();
   compact_txn2.Commit();
 
   {

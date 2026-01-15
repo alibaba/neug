@@ -206,7 +206,8 @@ int main(int argc, char** argv) {
   std::string benchmark_config_path = vm["benchmark-config"].as<std::string>();
   BenchmarkConfig benchmark_config(benchmark_config_path);
 
-  auto txn = svc->GetReadTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetReadTransaction();
   gs::StorageReadInterface graph(txn.graph(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {

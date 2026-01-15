@@ -20,9 +20,17 @@
 #include <memory>
 #include <string>
 
+#include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 
-namespace gs {}
+namespace gs {
+class Status;
+}  // namespace gs
+
+namespace results {
+class CollectiveResults;
+}  // namespace results
+
 namespace server {
 
 struct ServiceConfig {
@@ -42,9 +50,9 @@ struct ServiceConfig {
         host_str("127.0.0.1") {}
 };
 
-class IHttpHandlerManager {
+class IServiceManager {
  public:
-  virtual ~IHttpHandlerManager() = default;
+  virtual ~IServiceManager() = default;
   virtual void Init(const ServiceConfig& config) = 0;
   virtual std::string Start() = 0;
   virtual void Stop() = 0;

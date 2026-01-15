@@ -38,7 +38,6 @@ namespace fs = std::filesystem;
 using namespace gs;
 using gs::EdgeStrategy;
 using gs::NeugDB;
-using gs::Property;
 using gs::StorageStrategy;
 using server::NeugDBSession;
 using oid_t = int64_t;
@@ -99,7 +98,8 @@ void neug_parallel_transaction(std::shared_ptr<server::NeugDBService> svc,
   for (int i = 0; i < thread_num; ++i) {
     threads.emplace_back(
         [&](int tid) {
-          server::NeugDBSession& session = svc->GetSession(tid);
+          auto guard = svc->AcquireSession();
+          server::NeugDBSession& session = *guard.get();
           while (true) {
             int txn_id = txn_counter.fetch_add(1);
             if (txn_id >= txn_num)
@@ -121,7 +121,8 @@ void neug_parallel_client(std::shared_ptr<server::NeugDBService> svc,
   for (int i = 0; i < thread_num; ++i) {
     threads.emplace_back(
         [&](int tid) {
-          server::NeugDBSession& session = svc->GetSession(tid);
+          auto guard = svc->AcquireSession();
+          server::NeugDBSession& session = *guard.get();
           func(session, tid);
         },
         i);
@@ -211,7 +212,8 @@ std::shared_ptr<server::NeugDBService> neug_AtomicityInit(
   const auto& schema = db.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto txn = service->GetInsertTransaction();
+  auto sess = service->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t id1 = 1;
   std::string name1 = "Alice";
@@ -302,7 +304,8 @@ int64_t neug_count_email_num(const std::string_view& sv) {
 
 std::pair<int64_t, int64_t> neug_AtomicityCheck(
     std::shared_ptr<server::NeugDBService> svc) {
-  auto txn = svc->GetReadTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetReadTransaction();
   const auto& db = svc->db();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   int64_t num_persons = 0, num_emails = 0;
@@ -339,7 +342,8 @@ std::shared_ptr<server::NeugDBService> G0Init(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
 
   std::string value = "0";
@@ -433,7 +437,8 @@ void G0(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
 std::tuple<std::string, std::string, std::string> G0Check(
     NeugDB& db, std::shared_ptr<server::NeugDBService> svc, int64_t person1_id,
     int64_t person2_id) {
-  auto txn = svc->GetReadTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetReadTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   StorageReadInterface gi(txn.graph(), txn.timestamp());
@@ -502,7 +507,8 @@ std::shared_ptr<server::NeugDBService> G1BInit(NeugDB& db,
   const auto& schema = db.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t value = 99;
   for (int i = 0; i < 100; ++i) {
@@ -556,7 +562,8 @@ std::shared_ptr<server::NeugDBService> G1CInit(NeugDB& db,
   const auto& schema = db.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
 
   StorageTPInsertInterface gii(txn);
 
@@ -627,7 +634,8 @@ std::shared_ptr<server::NeugDBService> G1AInit(NeugDB& db,
   const auto& schema = db.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t vertex_data = 1;
   for (int i = 0; i < 100; ++i) {
@@ -685,7 +693,8 @@ std::shared_ptr<server::NeugDBService> IMPInit(NeugDB& db,
   const auto& schema = db.schema();
 
   auto person_label_id = schema.get_vertex_label_id("PERSON");
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   int64_t version_property = 1;
   for (int i = 0; i < 100; ++i) {
     int64_t id_property = i + 1;
@@ -771,7 +780,8 @@ std::shared_ptr<server::NeugDBService> PMPInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto post_label_id = schema.get_vertex_label_id("POST");
 
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   for (int i = 0; i < 100; ++i) {
     int64_t value = i + 1;
@@ -888,7 +898,8 @@ std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t value = 0;
   std::vector<std::string> string_props;
@@ -1089,7 +1100,8 @@ std::shared_ptr<server::NeugDBService> LUInit(NeugDB& db,
   const auto& schema = db.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);
   int64_t num_property = 0;
   for (int i = 0; i < 100; ++i) {
@@ -1167,7 +1179,8 @@ std::shared_ptr<server::NeugDBService> WSInit(NeugDB& db,
   const auto& schema = db.schema();
   auto person_label_id = schema.get_vertex_label_id("PERSON");
 
-  auto txn = svc->GetInsertTransaction();
+  auto sess = svc->AcquireSession();
+  auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gi(txn);
 
   for (int i = 1; i <= 100; i++) {
@@ -1567,7 +1580,8 @@ TEST_F(NeugDBACIDTest, LU) {
     for (auto& pair : localExpNumFriends)
       expNumFriends[pair.first] += pair.second;
   });
-  std::map<int64_t, int64_t> numFriends = LU2(svc->GetSession(0));
+  auto sess = svc->AcquireSession();
+  std::map<int64_t, int64_t> numFriends = LU2(*sess.get());
   ASSERT_EQ(numFriends, expNumFriends);
 }
 
@@ -1586,6 +1600,7 @@ TEST_F(NeugDBACIDTest, WS) {
       WS1(session, person1_id, person2_id, gen);
     }
   });
-  auto results = WS2(svc->GetSession(0));
+  auto sess = svc->AcquireSession();
+  auto results = WS2(*sess.get());
   ASSERT_TRUE(results.empty());
 }

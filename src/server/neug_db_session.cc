@@ -52,8 +52,6 @@
 
 namespace server {
 
-class Schema;
-
 gs::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
   return gs::ReadTransaction(graph_, *version_manager_, ts);

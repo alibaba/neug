@@ -24,14 +24,14 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/config.h"
 #include "neug/main/neug_db.h"
+#include "neug/server/session_pool.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/transaction_manager.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
-#include "neug/utils/http_handler_manager.h"
 #include "neug/utils/result.h"
+#include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
 
 namespace server {
@@ -117,34 +117,7 @@ class NeugDBService {
    */
   const ServiceConfig& GetServiceConfig() const;
 
-  /** @brief Create a transaction to read vertices and edges.
-   *
-   * @return graph_dir The directory of graph data.
-   */
-  gs::ReadTransaction GetReadTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to insert vertices and edges with a default
-   * allocator.
-   *
-   * @return InsertTransaction
-   */
-  gs::InsertTransaction GetInsertTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to update vertices and edges.
-   *
-   * @param alloc Allocator to allocate memory for graph.
-   * @return UpdateTransaction
-   */
-  gs::UpdateTransaction GetUpdateTransaction(int thread_id = 0);
-
-  /** @brief Create a transaction to compact the graph.
-   *
-   * @return CompactTransaction
-   */
-  gs::CompactTransaction GetCompactTransaction(int thread_id = 0);
-
-  NeugDBSession& GetSession(int thread_id);
-  const NeugDBSession& GetSession(int thread_id) const;
+  server::SessionGuard AcquireSession();
 
   /**
    * @brief Checks if the service has been initialized
@@ -196,7 +169,7 @@ class NeugDBService {
 
   size_t getExecutedQueryNum() const;
 
-  size_t SessionNum() const { return txn_manager_->SessionNum(); }
+  size_t SessionNum() const { return session_pool_->SessionNum(); }
 
  private:
   NeugDBService() = delete;
@@ -205,7 +178,7 @@ class NeugDBService {
   /**
    * @brief Initializes the service with configuration settings
    *
-   * Creates a BrpcHttpHandlerManager and configures it with the provided
+   * Creates a BrpcServiceManager and configures it with the provided
    * settings. Sets up HTTP endpoints for:
    * - /cypher (Cypher query execution)
    * - /schema (schema information)
@@ -221,8 +194,8 @@ class NeugDBService {
   gs::NeugDB& db_;
   gs::NeugDBConfig db_config_;
   std::shared_ptr<gs::IVersionManager> version_manager_;
-  std::unique_ptr<gs::TransactionManager> txn_manager_;
-  std::unique_ptr<IHttpHandlerManager> hdl_mgr_;
+  std::unique_ptr<server::SessionPool> session_pool_;
+  std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;
   bool compact_thread_running_ = false;

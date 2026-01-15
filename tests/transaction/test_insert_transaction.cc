@@ -94,7 +94,8 @@ TEST_F(InsertTransactionTest, InsertTransactionBasic) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetInsertTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetInsertTransaction();
     EXPECT_EQ(txn.timestamp(), 1);
     EXPECT_TRUE(txn.schema().contains_vertex_label("person"));
   }
@@ -107,7 +108,8 @@ TEST_F(InsertTransactionTest, AddVertex) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetInsertTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetInsertTransaction();
     gs::StorageTPInsertInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     gs::vid_t vid;
@@ -118,7 +120,8 @@ TEST_F(InsertTransactionTest, AddVertex) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -133,7 +136,8 @@ TEST_F(InsertTransactionTest, AddEdge) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetInsertTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetInsertTransaction();
     gs::StorageTPInsertInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -150,7 +154,8 @@ TEST_F(InsertTransactionTest, AddEdge) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -182,7 +187,8 @@ TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetInsertTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetInsertTransaction();
     gs::StorageTPInsertInterface interface(txn);
     std::vector<gs::vid_t> vids;
     std::vector<std::tuple<gs::vid_t, gs::vid_t>> edges;

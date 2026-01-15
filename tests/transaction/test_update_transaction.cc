@@ -264,7 +264,8 @@ TEST_F(UpdateTransactionTest, AddVertex) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -274,7 +275,8 @@ TEST_F(UpdateTransactionTest, AddVertex) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -291,7 +293,8 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     for (int i = 4; i <= 10000; i++) {
       gs::vid_t vid;
@@ -303,7 +306,8 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 9999);
@@ -318,7 +322,8 @@ TEST_F(UpdateTransactionTest, AddEdge) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -334,7 +339,8 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -365,7 +371,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -395,7 +402,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -430,7 +438,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -449,7 +458,8 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -478,7 +488,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -489,7 +500,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
@@ -510,7 +522,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -529,7 +542,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -559,7 +573,8 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(person_label, gs::Property::from_int64(4),
@@ -569,7 +584,8 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -590,7 +606,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -605,7 +622,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -635,7 +653,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -645,7 +664,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
@@ -677,7 +697,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -700,7 +721,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -747,7 +769,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t vertex_id;
@@ -766,7 +789,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -807,7 +831,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -835,7 +860,8 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -874,7 +900,8 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
     CHECK(txn.GetVertexIndex(person_label, gs::Property::from_int64(2),
@@ -883,7 +910,8 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -899,7 +927,8 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
   }
   {
     // Delete person label and then delete vertex should throw
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(txn.DeleteVertexType("person"));
     gs::vid_t vertex_id;
@@ -918,7 +947,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -932,7 +962,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t vid1, vid2;
@@ -945,7 +976,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t vid1, vid2;
@@ -978,7 +1010,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     // Check edge count
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto p_label_id = gi.schema().get_vertex_label_id("person");
@@ -1008,7 +1041,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     gs::vid_t vertex_id;
@@ -1023,7 +1057,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 2);
@@ -1035,7 +1070,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   }
   {
     // Add again
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
     EXPECT_TRUE(txn.AddVertex(
@@ -1045,7 +1081,8 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -1066,13 +1103,15 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
 
   gs::label_t dev_label, employ_label, cmp_label;
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     create_new_edge_type(txn, interface, cmp_label, dev_label, employ_label);
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1104,13 +1143,15 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
 
   gs::label_t dev_label, employ_label, cmp_label;
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     create_new_edge_type(txn, interface, cmp_label, dev_label, employ_label);
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1132,7 +1173,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto created_label = txn.schema().get_edge_label_id("created");
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -1142,7 +1184,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1162,7 +1205,8 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::DataTypeId::kVarchar, "email",
@@ -1179,7 +1223,8 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
@@ -1194,7 +1239,8 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(person_label, "address"),
@@ -1221,7 +1267,8 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::DataTypeId::kInt64, "version",
@@ -1233,7 +1280,8 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
         new_props = {std::make_tuple(gs::DataTypeId::kDouble, "contributions",
@@ -1243,7 +1291,8 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     auto gi = gs::StorageReadInterface(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1280,14 +1329,16 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(interface.RenameVertexProperties(
         "person", {std::make_pair("age", "years")}, true));
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("lang", "language")};
@@ -1296,7 +1347,8 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1319,7 +1371,8 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(interface.RenameEdgeProperties(
         "person", "software", "created",
@@ -1327,7 +1380,8 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     std::vector<std::pair<std::string, std::string>> rename_props = {
         std::make_pair("weight", "importance")};
@@ -1336,7 +1390,8 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1370,7 +1425,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
 
   {
     LOG(INFO) << "Starting delete edge properties transaction.";
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
                                          {"since"}, true));
@@ -1385,7 +1441,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     LOG(INFO) << "Committed delete edge properties transaction.";
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(interface.DeleteEdgeProperties("person", "software", "created",
                                                {"weight"}, true));
@@ -1393,7 +1450,8 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     LOG(INFO) << "Aborted delete edge properties transaction.";
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto created_label = gi.schema().get_edge_label_id("created");
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1437,7 +1495,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     // auto person_label = txn.schema().get_vertex_label_id("person");
     // auto software_label = txn.schema().get_vertex_label_id("software");
@@ -1450,7 +1509,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     // auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexProperties("person", {"name"}, true));
@@ -1459,7 +1519,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1486,7 +1547,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     gs::NeugDB db;
     db.Open(config);
     auto svc = std::make_shared<server::NeugDBService>(db);
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t vid;
@@ -1525,7 +1587,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     gs::NeugDB db;
     db.Open(config);
     auto svc = std::make_shared<server::NeugDBService>(db);
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
@@ -1562,7 +1625,8 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
     gs::NeugDB db;
     db.Open(config);
     auto svc = std::make_shared<server::NeugDBService>(db);
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
 
     auto person_label = gi.schema().get_vertex_label_id("person");
@@ -1593,7 +1657,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexType("person"));
@@ -1618,7 +1683,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
     txn.Abort();
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     EXPECT_TRUE(interface.DeleteVertexProperties("person", {"age"}, true));
@@ -1651,7 +1717,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto knows_label = interface.schema().get_edge_label_id("knows");
@@ -1679,7 +1746,8 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   }
   {
     // Delete Edge Properties
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "person", "knows",
@@ -1709,7 +1777,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid;
     EXPECT_TRUE(
@@ -1718,7 +1787,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1745,7 +1815,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto knows_label = txn.schema().get_edge_label_id("knows");
     gs::vid_t p1_vid, p2_vid;
@@ -1758,7 +1829,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -1766,7 +1838,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
               2);
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid;
     EXPECT_TRUE(
@@ -1776,7 +1849,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   }
 
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto knows_label = gi.schema().get_edge_label_id("knows");
@@ -1797,7 +1871,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   auto svc = std::make_shared<server::NeugDBService>(db);
   size_t initial_created_count, initial_knows_count;
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
@@ -1830,7 +1905,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1842,7 +1918,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
         count_edges(gi, person_label, person_label, knows_label, true);
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid;
     EXPECT_TRUE(
@@ -1852,7 +1929,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   }
   {
     // Verify person 1 and all edges are restored
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1880,7 +1958,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     std::vector<std::tuple<gs::DataTypeId, std::string, gs::Property>>
         edge_props = {std::make_tuple(gs::DataTypeId::kInt64, "since",
@@ -1900,7 +1979,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid;
     EXPECT_TRUE(
@@ -1910,7 +1990,8 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   }
   {
     // Verify all edge types are deleted
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -1936,7 +2017,8 @@ TEST_F(UpdateTransactionTest, TestCheckpoint) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     interface.CreateCheckpoint();
   }
@@ -1950,7 +2032,8 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
   auto svc = std::make_shared<server::NeugDBService>(db);
 
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     std::vector<gs::vid_t> vids;
     std::vector<std::tuple<gs::vid_t, gs::vid_t>> edges;
@@ -1974,7 +2057,8 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
   db.Open(config);
   auto svc = std::make_shared<server::NeugDBService>(db);
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid, p2_vid;
@@ -1998,7 +2082,8 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
     EXPECT_TRUE(txn.Commit());
   }
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     gs::vid_t p1_vid;
@@ -2021,7 +2106,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   auto svc = std::make_shared<server::NeugDBService>(db);
   std::vector<std::string> reviews;
   {
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     reviews = create_string_prop_relation(interface, 300);
     EXPECT_TRUE(txn.Commit());
@@ -2030,7 +2116,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
 
   // Verify initial reviews
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2045,7 +2132,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   std::vector<std::string> updated_views;
   {
     // Update edge string property with suffix: "_updated"
-    auto txn = svc->GetUpdateTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
     gs::StorageTPUpdateInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
@@ -2087,7 +2175,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
 
   // Verify updated reviews
   {
-    auto txn = svc->GetReadTransaction();
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
@@ -2108,7 +2197,8 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   // Verify reviews persist after compaction
   {
     auto svc2 = std::make_shared<server::NeugDBService>(db2);
-    auto txn = svc2->GetReadTransaction();
+    auto sess = svc2->AcquireSession();
+    auto txn = sess->GetReadTransaction();
     gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
