@@ -27,6 +27,10 @@ class LogicalProjection : public LogicalOperator {
     return expressions;
   }
 
+  inline binder::expression_vector& getExpressionsToProjectRef() {
+    return expressions;
+  }
+
   std::unordered_set<uint32_t> getDiscardedGroupsPos() const;
 
   std::unique_ptr<LogicalOperator> copy() override {

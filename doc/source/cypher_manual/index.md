@@ -105,8 +105,8 @@ In addition to DQL and DDL, NeuG also supports data update functionality, which 
 
 **Bulk import example:**
 ```cypher
-COPY person FROM `person.csv`;
-COPY knows FROM `knows.csv`;
+COPY person FROM "person.csv" (delim=',');
+COPY knows FROM "knows.csv" (delim=',');
 ```
 
 The above two Statements first bulk load node data with label `person` from person.csv, then bulk load edge data with label `person-[knows]->person` from knows.csv.
@@ -133,3 +133,48 @@ DELETE p;
 ```
 
 We will introduce these DML operations in detail in the [DML section](dml_clause.md).
+
+### Temporary Loading
+
+NeuG provides **temporary loading** capabilities that allow users to query external data sources—such as CSV, JSON, and Parquet files—**without importing the data into persistent graph storage**. External data can be loaded on demand and queried directly, making this feature well suited for fast exploration, transformation, and ad-hoc analysis.
+
+Depending on the query intent, NeuG supports two complementary loading models:
+
+* **LOAD FROM**
+  Loads external data as **temporary tables**, enabling SQL-like operations such as projection, filtering, sorting, and aggregation.
+
+* **LOAD AS**
+  Loads external data as **temporary graphs**, enabling graph pattern matching and traversal using `MATCH` queries.
+
+**Query Examples**
+
+You can use `LOAD FROM` to perform relational operations directly on external files.
+For example, the following query loads a CSV file and returns the top 10 records ordered by age (ascending) and name (descending):
+
+```cypher
+LOAD FROM "person.csv" (delim=',')
+RETURN name, age
+ORDER BY age ASC, name DESC
+LIMIT 10;
+```
+
+For more complex graph-oriented analysis, external data can be loaded as a temporary graph and queried using graph patterns.
+
+```cypher
+LOAD FROM "person.csv" (delim=',')
+AS person;
+
+LOAD FROM "knows.csv" (delim=',')
+AS knows;
+
+MATCH (p1:person)-[:knows*1..2]->(p2:person)
+RETURN p1, p2;
+```
+
+This allows users to explore multi-hop relationships without materializing the graph into persistent storage.
+
+**Current Status**
+
+At present, NeuG fully supports loading external data as **temporary tables** via `LOAD FROM`.
+You can refer to the [Load From](load_from.md) for detailed usage and supported operations.
+Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidelines will be released in upcoming versions.

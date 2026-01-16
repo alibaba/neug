@@ -24,8 +24,10 @@
 #include <algorithm>
 
 #include "neug/compiler/binder/expression_visitor.h"
+#include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/function/gds/gds_function_collection.h"
 #include "neug/compiler/function/gds/rec_joins.h"
+#include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_accumulate.h"
@@ -135,12 +137,31 @@ void ProjectionPushDownOptimizer::visitHashJoin(LogicalOperator* op) {
 void ProjectionPushDownOptimizer::visitIntersect(LogicalOperator* op) {}
 
 void ProjectionPushDownOptimizer::visitProjection(LogicalOperator* op) {
-  ProjectionPushDownOptimizer optimizer(this->semantic);
-  auto& projection = op->constCast<LogicalProjection>();
+  ProjectionPushDownOptimizer optimizer(this->semantic, ctx);
+  auto& projection = op->cast<LogicalProjection>();
   for (auto& expression : projection.getExpressionsToProject()) {
     optimizer.collectExpressionsInUse(expression);
+    // Collect type info from CAST expressions.
+    optimizer.collectVariableTypes(expression);
   }
   optimizer.visitOperator(op->getChild(0).get());
+  // Check if CAST is unnecessary and remove it.
+  for (auto& expression : projection.getExpressionsToProjectRef()) {
+    if (expression->expressionType != common::ExpressionType::FUNCTION) {
+      continue;
+    }
+    gopt::GScalarType scalarType{*expression};
+    if (scalarType.getType() != gopt::ScalarType::CAST ||
+        expression->getChildren().empty()) {
+      continue;
+    }
+    auto child = expression->getChild(0);
+    // CAST is unnecessary if the child type is the same as the cast expression
+    // type
+    if (child->getDataType() == expression->getDataType()) {
+      expression = child;
+    }
+  }
 }
 
 void ProjectionPushDownOptimizer::visitOrderBy(LogicalOperator* op) {
@@ -252,8 +273,17 @@ void ProjectionPushDownOptimizer::visitTableFunctionCall(LogicalOperator* op) {
   // scanBindData.
   if (!scanBindData)
     return;
+  // Set column types using type info collected from CAST expressions.
+  for (auto& column : scanBindData->columns) {
+    if (column->expressionType == common::ExpressionType::VARIABLE) {
+      auto it = variableTypes.find(column->getUniqueName());
+      if (it != variableTypes.end() && column->dataType != it->second) {
+        column->dataType = it->second.copy();
+      }
+    }
+  }
   std::vector<bool> columnSkips;
-  for (auto& column : tableFunctionCall.getBindData()->columns) {
+  for (auto& column : scanBindData->columns) {
     columnSkips.push_back(!variablesInUse.contains(column));
   }
   // Keep at least one column to handle the query like 'LOAD FROM "file.csv"
@@ -302,6 +332,12 @@ void ProjectionPushDownOptimizer::visitInsertInfo(
     }
     collectExpressionsInUse(info.columnDataExprs[i]);
   }
+}
+
+void ProjectionPushDownOptimizer::collectVariableTypes(
+    std::shared_ptr<binder::Expression> expression) {
+  VariableCastTypeCollector collector(variableTypes, ctx);
+  collector.visit(expression);
 }
 
 void ProjectionPushDownOptimizer::collectExpressionsInUse(

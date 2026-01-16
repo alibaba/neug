@@ -21,6 +21,7 @@
 #include <stack>
 #include <string>
 
+#include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {
@@ -188,6 +189,14 @@ arrow::compute::Expression ArrowExpressionConverter::convert(
       }
       op_stack.push(opr);  // Push current operator to stack (not applied yet)
       break;
+    }
+    case ::common::ExprOpr::kScalarFunc: {
+      auto& scalar_func = opr.scalar_func();
+      auto funcName = scalar_func.unique_name();
+      if (funcName.starts_with("CAST") && scalar_func.parameters_size() > 0) {
+        value_stack.push(convert(scalar_func.parameters(0)));
+        break;
+      }
     }
     default:
       THROW_CONVERSION_EXCEPTION(

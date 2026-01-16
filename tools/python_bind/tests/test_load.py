@@ -469,6 +469,101 @@ class TestLoadFrom:
         assert isinstance(max_age, int), "max_age should be integer"
         assert min_age <= max_age, "min_age should be less than or equal to max_age"
 
+    def test_load_from_with_cast_int_to_double(self):
+        """Test LOAD FROM with CAST to convert integer to double."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN fName, CAST(age, 'DOUBLE') as age_double
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Verify type conversion
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], float), "age_double should be float"
+        assert first_record[1] == 35.0, "Age should be converted to 35.0"
+
+    def test_load_from_with_cast_double_to_string(self):
+        """Test LOAD FROM with CAST to convert double to string."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN fName, CAST(eyeSight, 'STRING') as eyeSight_str
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Verify type conversion
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], str), "eyeSight_str should be string"
+        assert first_record[1] == "5.0", "eyeSight should be converted to '5.0'"
+
+    def test_load_from_with_cast_multiple_columns(self):
+        """Test LOAD FROM with CAST on multiple columns."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN
+            CAST(ID, 'INT64') as id_int,
+            fName,
+            CAST(age, 'DOUBLE') as age_double,
+            CAST(eyeSight, 'STRING') as eyeSight_str
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Verify type conversions
+        first_record = records[0]
+        assert len(first_record) == 4, "Should return 4 columns"
+        assert isinstance(first_record[0], int), "id_int should be integer"
+        assert isinstance(first_record[1], str), "fName should be string"
+        assert isinstance(first_record[2], float), "age_double should be float"
+        assert isinstance(first_record[3], str), "eyeSight_str should be string"
+        assert first_record[0] == 0, "ID should be 0"
+        assert first_record[2] == 35.0, "Age should be 35.0"
+        assert first_record[3] == "5.0", "eyeSight should be converted to '5.0'"
+
+    def test_load_from_with_cast_and_where(self):
+        """Test LOAD FROM with CAST and WHERE clause."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        WHERE age > 30.0
+        RETURN fName, CAST(age, 'DOUBLE') as age_double
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) > 0, "Should return at least one record"
+
+        # Verify filtering and type conversion
+        for record in records:
+            assert isinstance(record[1], float), "age_double should be float"
+            assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
@@ -543,7 +638,7 @@ class TestCopyFrom:
         create_schema = """
         CREATE NODE TABLE person_remap (
             ID INT64,
-            age INT64,
+            age INT32,
             fName STRING,
             gender INT64,
             isStudent BOOLEAN,
@@ -558,7 +653,7 @@ class TestCopyFrom:
         copy_query = f"""
         COPY person_remap FROM (
             LOAD FROM "{csv_path}" (header=true, delimiter=",")
-            RETURN ID, age, fName, gender, isStudent
+            RETURN ID, CAST(age, 'INT32') as age, fName, gender, isStudent
         )
         """
         self.conn.execute(copy_query)

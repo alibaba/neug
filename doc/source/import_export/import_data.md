@@ -124,27 +124,61 @@ COPY knows from "person_knows_person.csv" (from="person", to="person", header=tr
 
 
 ### CSV configurations
-The following configuration parameters are supported:
-|Parameter|Description|Default|
-|---|---|---|
-|`HEADER`|Whether the first line of the CSV file is the header. Can be true or false.|`false`|
-|`DELIM` or `DELIMITER`|Character that separates different columns in a lines.|`\|`|
-|`QUOTE`|Character to start a string quote.|`"`|
-|`ESCAPE`|Character within string quotes to escape QUOTE and other characters, e.g., a line break.|`\`|
-|`SKIP`|Number of rows to skip from the input file.|`0`|
-|`PARALLEL`|Read CSV files in parallel or not.|`true`|
-|`NULL_STRINGS`|The strings that should be treated as nulls in the CSV file.|`""`(empty string)|
-|`FROM`|Name of source vertex label, only used in edge importing|`-`|
-|`TO`|Name of destination vertex label, only used in edge importing|`-`|
 
-**Note**
-- Parameters should be specified as comma-separated key-value pairs, such as: `param1=value1, param2=value2, ...`
-- Parameters are case-insensitive, meaning `Header`, `HEADER`, and `header` are all valid and will be recognized correctly in the parameter list.
-- For boolean-typed parameters (e.g., `header`)：
-  1. Use `True`, `true`, or `1` to indicate enabled.
-  2. Use `False`, `false`, or `0` to indicate disabled.
-  3. The value part can be omitted if it is a `true` value, e.g. `header=true` can be written as `header` for short.
-- `FROM` and `TO` are a special pair of parameters. Only effective when importing edges from a CSV file. When multiple label combinations exist for the source and target vertices of an edge (e.g., Comment-replyOf->Post, Comment-replyOf->Comment), `FROM` and `TO` must be specified. Using these parameters in other scenarios will throw an exception.
+The following options control how CSV files are parsed:
+
+| Option     | Type | Default | Description                                                                                  |
+| ---------- | ---- | ------- | -------------------------------------------------------------------------------------------- |
+| `delim`    | char | `\|`    | Field delimiter. Can be a single character (e.g. `','`) or an escape character (e.g. `'\t'`) |
+| `header`   | bool | `true`  | Whether the first row contains column names                                                  |
+| `quote`    | char | `"`     | Quote character used to enclose field values                                                 |
+| `escape`   | char | `\`     | Escape character for special characters                                                      |
+| `quoting`  | bool | `true`  | Whether to enable quote processing                                                           |
+| `escaping` | bool | `true`  | Whether to enable escape character processing                                                |
+
+### Loading with Column Remapping
+
+By combining `COPY FROM` with `LOAD FROM`, NeuG allows users to **remap columns from external files to target properties** during data loading.
+This mechanism enables flexible alignment between file schemas and graph schemas without requiring changes to the source files.
+
+Assume that we already have the following two external files: `person_remap.csv` and `knows_remap.csv`.
+
+**person_remap.csv:**
+
+```
+age,name
+39,marko
+27,vadas
+32,josh
+35,peter
+```
+
+**knows_remap.csv:**
+
+```
+dst_name,src_name,weight
+josh,marko,1.0
+vadas,marko,0.5
+peter,josh,0.8
+```
+
+The following example remaps file columns to node properties:
+
+```cypher
+COPY person FROM (
+    LOAD FROM "person_remap.csv"
+    RETURN name, age
+);
+```
+
+Similarly, column aliases can be used to remap relationship endpoints and properties:
+
+```cypher
+COPY knows FROM (
+    LOAD FROM "knows_remap.csv"
+    RETURN src_name AS src, dst_name AS dst, weight
+);
+```
 
 ## 🛠️ Troubleshooting
 
@@ -208,6 +242,12 @@ COPY WORKS_FOR FROM "works_for.csv" (header=true);
 -- Enable parallel processing for faster imports
 COPY User FROM "large_users.csv" (header=true, parallel=true);
 ```
+
+| Option       | Type  | Default   | Description                                      |
+| ------------ | ----- | --------- | ------------------------------------------------ |
+| `batch_read` | bool  | `false`   | Read data incrementally in batches. If disabled, all data will be loaded into memory at once. |
+| `batch_size` | int64 | `1048576`(1MB) | Batch size in bytes when `batch_read` is enabled |
+| `parallel`   | bool  | `false`   | Enable parallel reading using multiple threads, maximum available CPU cores on the machine is utilized by default. |
 
 #### 3. Batch Processing for Very Large Datasets
 For files larger than 1GB, consider splitting them:

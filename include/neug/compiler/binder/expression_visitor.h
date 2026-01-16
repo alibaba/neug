@@ -23,8 +23,14 @@
 #pragma once
 
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/binder/expression/expression_util.h"
+#include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression/variable_expression.h"
 #include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/gopt/g_scalar_type.h"
+#include "neug/compiler/main/client_context.h"
 
 namespace gs {
 namespace binder {
@@ -163,5 +169,50 @@ class ResetVarUseNameVisitor final : public ExpressionVisitor {
   bool useName;
 };
 
+class VariableCastTypeCollector final : public ExpressionVisitor {
+ public:
+  VariableCastTypeCollector(
+      std::unordered_map<std::string, common::LogicalType>& variableTypes,
+      main::ClientContext* ctx)
+      : variableTypes{variableTypes}, ctx{ctx} {}
+
+ protected:
+  void visitFunctionExpr(std::shared_ptr<Expression> expr) override {
+    if (expr->expressionType != common::ExpressionType::FUNCTION)
+      return;
+    auto functionExpr = expr->ptrCast<binder::ScalarFunctionExpression>();
+    gopt::GScalarType scalarType{*functionExpr};
+    if (scalarType.getType() != gopt::ScalarType::CAST) {
+      return;
+    }
+    if (functionExpr->getNumChildren() == 2) {
+      auto child0 = functionExpr->getChild(0);
+      auto child1 = functionExpr->getChild(1);
+      if (child0->expressionType == common::ExpressionType::VARIABLE &&
+          child1->expressionType == common::ExpressionType::LITERAL) {
+        auto literalExpr = child1->ptrCast<binder::LiteralExpression>();
+        auto type = common::LogicalType::convertFromString(
+            literalExpr->toString(), ctx);
+        variableTypes[child0->getUniqueName()] = type.copy();
+      }
+    } else if (functionExpr->getNumChildren() == 1) {
+      auto child0 = functionExpr->getChild(0);
+      if (child0->expressionType == common::ExpressionType::VARIABLE) {
+        auto functionName = functionExpr->getFunction().name;
+        auto CAST_TO_PREFIX = "CAST_TO_";
+        int prefixPos = functionName.find_first_of(CAST_TO_PREFIX);
+        if (prefixPos != std::string::npos) {
+          auto type = common::LogicalType::convertFromString(
+              functionName.substr(prefixPos + strlen(CAST_TO_PREFIX)), ctx);
+          variableTypes[child0->getUniqueName()] = type.copy();
+        }
+      }
+    }
+  }
+
+ private:
+  std::unordered_map<std::string, common::LogicalType>& variableTypes;
+  main::ClientContext* ctx;
+};
 }  // namespace binder
 }  // namespace gs

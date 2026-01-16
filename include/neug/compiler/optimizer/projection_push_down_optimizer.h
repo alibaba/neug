@@ -22,8 +22,10 @@
 
 #pragma once
 
+#include <unordered_map>
 #include "logical_operator_visitor.h"
 #include "neug/compiler/common/enums/path_semantic.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
 namespace gs {
@@ -48,8 +50,9 @@ namespace optimizer {
 class ProjectionPushDownOptimizer : public LogicalOperatorVisitor {
  public:
   void rewrite(planner::LogicalPlan* plan);
-  explicit ProjectionPushDownOptimizer(common::PathSemantic semantic)
-      : semantic(semantic) {};
+  explicit ProjectionPushDownOptimizer(common::PathSemantic semantic,
+                                       main::ClientContext* ctx)
+      : semantic(semantic), ctx{ctx} {};
 
  private:
   void visitOperator(planner::LogicalOperator* op);
@@ -82,11 +85,16 @@ class ProjectionPushDownOptimizer : public LogicalOperatorVisitor {
   void preAppendProjection(planner::LogicalOperator* op, common::idx_t childIdx,
                            binder::expression_vector expressions);
 
+  void collectVariableTypes(std::shared_ptr<binder::Expression> expression);
+
  private:
   binder::expression_set propertiesInUse;
   binder::expression_set variablesInUse;
   binder::expression_set nodeOrRelInUse;
   common::PathSemantic semantic;
+  // To store the type info of variables in use.
+  std::unordered_map<std::string, common::LogicalType> variableTypes;
+  main::ClientContext* ctx;
 };
 
 }  // namespace optimizer

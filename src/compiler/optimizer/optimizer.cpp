@@ -70,7 +70,7 @@ void Optimizer::optimize(
     filterPushDownOptimizer.rewrite(plan);
 
     auto projectionPushDownOptimizer = ProjectionPushDownOptimizer(
-        context->getClientConfig()->recursivePatternSemantic);
+        context->getClientConfig()->recursivePatternSemantic, context);
     projectionPushDownOptimizer.rewrite(plan);
 
     auto limitPushDownOptimizer = LimitPushDownOptimizer();

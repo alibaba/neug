@@ -75,6 +75,8 @@
 - [ ] F001-T404 [M4] 实现 ORDER BY 子句进行排序输出
 - [ ] F001-T405 [M4] 实现 LIMIT 子句限制返回行数
 - [ ] F001-T406 [M4] 强制执行关系型查询数据不进入图存储的限制
+- [ ] F001-T407 [M4] 通过LOAD RETURN支持COPY FROM的Column Mapping功能
+- [ ] F001-T408 [M4] 实现 RETURN 子句中 CAST 函数支持，允许在数据导入时显式指定列的数据类型转换（如 `RETURN CAST(col1, 'INT32'), CAST(col2, 'STRING')`）
 
 ---
 
