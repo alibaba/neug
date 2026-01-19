@@ -138,8 +138,8 @@ TEST_F(ConnectionTest, TestReadWriteConnection) {
   auto conn1 = db.Connect();
   EXPECT_NE(conn1, nullptr);
 
-  EXPECT_THROW({ auto conn2 = db.Connect(); },
-               gs::exception::TxStateConflictException);
+  EXPECT_THROW(
+      { auto conn2 = db.Connect(); }, gs::exception::TxStateConflictException);
 }
 
 TEST_F(ConnectionTest, TestReadOnlyConnections) {

@@ -28,9 +28,11 @@
 #include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
+#include "neug/utils/reader/expression_converter.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
+#include "neug/utils/reader/type_converter.h"
 
 namespace gs {
 namespace test {

@@ -70,6 +70,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   auto vid = schema.get_vertex_label_id("Person");
   EXPECT_EQ(schema.get_vertex_label_name(vid), "Person");
   EXPECT_EQ(schema.get_vertex_description("Person"), "person vertex");
+  EXPECT_EQ(schema.get_max_vnum("Person"), 1024);
   // Only non-PK properties are stored in vproperties_/vprop_names_
   ASSERT_EQ(schema.get_vertex_properties("Person").size(), 1);
   EXPECT_EQ(schema.get_vertex_properties("Person")[0], DataTypeId::kVarchar);
@@ -146,6 +147,13 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
   auto names = schema.get_edge_property_names("Person", "Company", "WorksAt");
   ASSERT_EQ(names.size(), 1);
   EXPECT_EQ(names[0], "since");
+  EXPECT_EQ(schema.get_edge_description("Person", "Company", "WorksAt"),
+            "employment");
+  gs::label_t src_label = schema.get_vertex_label_id("Person");
+  gs::label_t dst_label = schema.get_vertex_label_id("Company");
+  gs::label_t edge_label = schema.get_edge_label_id("WorksAt");
+  EXPECT_EQ(schema.get_edge_description(src_label, dst_label, edge_label),
+            "employment");
   EXPECT_EQ(schema.get_outgoing_edge_strategy("Person", "Company", "WorksAt"),
             EdgeStrategy::kMultiple);
   EXPECT_EQ(schema.get_incoming_edge_strategy("Person", "Company", "WorksAt"),
@@ -872,4 +880,31 @@ TEST(VertexSchemaTest, TestVertexSchemaIndex) {
   EXPECT_EQ(schema.get_property_name(0), "name");
   EXPECT_EQ(schema.get_property_name(1), "score");
   EXPECT_THROW(schema.get_property_name(2), gs::exception::Exception);
+}
+
+TEST(SchemaTest, TestSchemaEqual) {
+  gs::Schema schema;
+
+  // Prepare two vertex labels first
+  auto t = VProps({DataTypeId::kVarchar});
+  auto n = VNames({"name"});
+  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
+                        {s.begin(), s.end()}, {}, 1024, "");
+  schema.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk,
+                        {s.begin(), s.end()}, {}, 1024, "");
+
+  // 1) Add an edge label Person -[WorksAt]-> Company
+  std::vector<DataTypeId> e_types = {DataTypeId::kInt32};
+  std::vector<std::string> e_names = {"since"};
+  schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {}, {},
+                      /*oe*/ EdgeStrategy::kMultiple,
+                      /*ie*/ EdgeStrategy::kSingle,
+                      /*oe_mutable*/ true, /*ie_mutable*/ false,
+                      /*sort_on_compaction*/ true, /*desc*/ "employment");
+
+  // 2) Copy schema and test equal
+  gs::Schema other_schema = schema;
+  EXPECT_TRUE(schema.Equals(other_schema));
 }

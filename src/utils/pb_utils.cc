@@ -529,7 +529,7 @@ rapidjson::Value process_collection(
   rapidjson::Value collection_json(rapidjson::kArrayType);
   for (const auto& item : collection.collection()) {
     results::Entry item_entry;
-    item_entry.mutable_element()->CopyFrom(item);
+    item_entry.CopyFrom(item);
     rapidjson::Value processed_item = process_entry_recursive(
         item_entry, nodes, edges, node_ids, edge_ids, allocator);
     collection_json.PushBack(processed_item, allocator);
@@ -1022,7 +1022,7 @@ bool common_value_to_any(const DataTypeId& type, const common::Value& value,
     }
     break;
   case common::Value::kDate:
-    out_any.set_date(value.date().item());
+    out_any.set_date(Date(value.date().item()));
     break;
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
@@ -1073,173 +1073,6 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   } else {
     LOG(FATAL) << "invalid action: " << action;
     return false;  // to suppress warning
-  }
-}
-
-Property const_value_to_any(const common::Value& value) {
-  switch (value.item_case()) {
-  case common::Value::ItemCase::kI32: {
-    return Property::From(value.i32());
-  }
-  case common::Value::ItemCase::kI64: {
-    return Property::From(value.i64());
-  }
-  case common::Value::ItemCase::kU32: {
-    return Property::From(value.u32());
-  }
-  case common::Value::ItemCase::kU64: {
-    return Property::From(value.u64());
-  }
-  case common::Value::ItemCase::kF64: {
-    return Property::From(value.f64());
-  }
-  case common::Value::ItemCase::kF32: {
-    return Property::From(value.f32());
-  }
-  case common::Value::ItemCase::kBoolean: {
-    return Property::From(value.boolean());
-  }
-  case common::Value::ItemCase::kStr: {
-    return Property::From(value.str());
-  }
-  case common::Value::ItemCase::kNone: {
-    return Property::empty();
-  }
-  default: {
-    THROW_RUNTIME_ERROR("Unsupported constant value type: " +
-                        value.DebugString());
-  }
-  }
-}
-
-Property const_value_to_prop(const common::Value& value) {
-  switch (value.item_case()) {
-  case common::Value::ItemCase::kBoolean: {
-    return Property::from_bool(value.boolean());
-  }
-  case common::Value::ItemCase::kI32: {
-    return Property::from_int32(value.i32());
-  }
-  case common::Value::ItemCase::kI64: {
-    return Property::from_int64(value.i64());
-  }
-  case common::Value::ItemCase::kU32: {
-    return Property::from_uint32(value.u32());
-  }
-  case common::Value::ItemCase::kU64: {
-    return Property::from_uint64(value.u64());
-  }
-  case common::Value::ItemCase::kF64: {
-    return Property::from_double(value.f64());
-  }
-  case common::Value::ItemCase::kF32: {
-    return Property::from_float(value.f32());
-  }
-  case common::Value::ItemCase::kStr: {
-    return Property::from_string_view(value.str());
-  }
-  case common::Value::ItemCase::kNone: {
-    return Property::empty();
-  }
-  default: {
-    THROW_RUNTIME_ERROR("Unsupported constant value type: " +
-                        value.DebugString());
-  }
-  }
-}
-
-Property expr_opr_value_to_any(const common::ExprOpr& value) {
-  switch (value.item_case()) {
-  case common::ExprOpr::ItemCase::kConst: {
-    return const_value_to_any(value.const_());
-  }
-  case common::ExprOpr::ItemCase::kToDate: {
-    return Property::From(Date(value.to_date().date_str()));
-  }
-  case common::ExprOpr::ItemCase::kToDatetime: {
-    return Property::From(DateTime(value.to_datetime().datetime_str()));
-  }
-  case common::ExprOpr::ItemCase::kToInterval: {
-    return Property::From(Interval(value.to_interval().interval_str()));
-  }
-  default: {
-    THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
-                        value.DebugString());
-  }
-  }
-}
-
-Property expr_opr_value_to_prop(const common::ExprOpr& value) {
-  switch (value.item_case()) {
-  case common::ExprOpr::ItemCase::kConst: {
-    return const_value_to_prop(value.const_());
-  }
-  case common::ExprOpr::ItemCase::kToDate: {
-    return Property::from_date(Date(value.to_date().date_str()));
-  }
-  case common::ExprOpr::ItemCase::kToDatetime: {
-    return Property::from_datetime(
-        DateTime(value.to_datetime().datetime_str()));
-  }
-  case common::ExprOpr::ItemCase::kToInterval: {
-    return Property::from_interval(
-        Interval(value.to_interval().interval_str()));
-  }
-  default: {
-    THROW_RUNTIME_ERROR("Unsupported ExprOpr value type: " +
-                        value.DebugString());
-  }
-  }
-}
-
-std::string const_value_to_string(const common::Value& value) {
-  switch (value.item_case()) {
-  case common::Value::ItemCase::kI32: {
-    return std::to_string(value.i32());
-  }
-  case common::Value::ItemCase::kI64: {
-    return std::to_string(value.i64());
-  }
-  case common::Value::ItemCase::kU32: {
-    return std::to_string(value.u32());
-  }
-  case common::Value::ItemCase::kU64: {
-    return std::to_string(value.u64());
-  }
-  case common::Value::ItemCase::kF64: {
-    return std::to_string(value.f64());
-  }
-  case common::Value::ItemCase::kBoolean: {
-    return std::to_string(value.boolean());
-  }
-  case common::Value::ItemCase::kStr: {
-    return value.str();
-  }
-  default: {
-    throw std::runtime_error("Unsupported constant value type: " +
-                             value.DebugString());
-  }
-  }
-}
-
-std::string expr_opr_to_string(const common::ExprOpr& opr) {
-  switch (opr.item_case()) {
-  case common::ExprOpr::ItemCase::kConst: {
-    return const_value_to_string(opr.const_());
-  }
-  case common::ExprOpr::ItemCase::kToDate: {
-    return opr.to_date().date_str();
-  }
-  case common::ExprOpr::ItemCase::kToDatetime: {
-    return opr.to_datetime().datetime_str();
-  }
-  case common::ExprOpr::ItemCase::kToInterval: {
-    return opr.to_interval().interval_str();
-  }
-  default: {
-    throw std::runtime_error("Unsupported ExprOpr value type: " +
-                             opr.DebugString());
-  }
   }
 }
 

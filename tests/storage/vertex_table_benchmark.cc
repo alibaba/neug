@@ -26,7 +26,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
-#include "utils.h"
+#include "unittest/utils.h"
 
 class VertexTableBenchmark : public ::testing::Test {
  protected:

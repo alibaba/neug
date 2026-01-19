@@ -21,7 +21,7 @@
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/allocators.h"
-#include "utils.h"
+#include "unittest/utils.h"
 
 namespace gs {
 namespace test {

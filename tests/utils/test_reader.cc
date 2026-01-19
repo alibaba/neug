@@ -342,5 +342,516 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   EXPECT_EQ(ctx.row_num(), 2);
 }
 
+// =============== Type Converter ===============
+class ArrowTypeConverterTest : public ::testing::Test {
+ public:
+  reader::ArrowTypeConverter converter_;
+};
+
+::common::DataType MakePrimitiveType(::common::PrimitiveType type) {
+  ::common::DataType dt;
+  dt.set_primitive_type(type);
+  return dt;
+}
+
+::common::DataType MakeStringType() {
+  ::common::DataType dt;
+  dt.mutable_string()->mutable_var_char();
+  return dt;
+}
+
+::common::DataType MakeDateType() {
+  ::common::DataType dt;
+  dt.mutable_temporal()->mutable_date();
+  return dt;
+}
+
+::common::DataType MakeTimestampType() {
+  ::common::DataType dt;
+  dt.mutable_temporal()->mutable_timestamp();
+  return dt;
+}
+
+::common::DataType MakeIntervalType() {
+  ::common::DataType dt;
+  dt.mutable_temporal()->mutable_interval();
+  return dt;
+}
+
+::common::DataType MakeArrayType(const ::common::DataType& component,
+                                 int64_t max_length = -1) {
+  ::common::DataType dt;
+  auto* array = dt.mutable_array();
+  *array->mutable_component_type() = component;
+  if (max_length > 0) {
+    array->set_max_length(max_length);
+  }
+  return dt;
+}
+
+::common::DataType MakeMapType(const ::common::DataType& key,
+                               const ::common::DataType& value) {
+  ::common::DataType dt;
+  auto* map = dt.mutable_map();
+  *map->mutable_key_type() = key;
+  *map->mutable_value_type() = value;
+  return dt;
+}
+
+TEST_F(ArrowTypeConverterTest, Convert_PrimitiveTypes) {
+  struct TestCase {
+    ::common::PrimitiveType input;
+    std::shared_ptr<arrow::DataType> expected;
+  };
+
+  std::vector<TestCase> cases = {
+      {::common::PrimitiveType::DT_BOOL, arrow::boolean()},
+      {::common::PrimitiveType::DT_SIGNED_INT32, arrow::int32()},
+      {::common::PrimitiveType::DT_UNSIGNED_INT32, arrow::uint32()},
+      {::common::PrimitiveType::DT_SIGNED_INT64, arrow::int64()},
+      {::common::PrimitiveType::DT_UNSIGNED_INT64, arrow::uint64()},
+      {::common::PrimitiveType::DT_FLOAT, arrow::float32()},
+      {::common::PrimitiveType::DT_DOUBLE, arrow::float64()},
+  };
+
+  for (const auto& tc : cases) {
+    auto input = MakePrimitiveType(tc.input);
+    auto result = converter_.convert(input);  // ← 使用实例方法
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(tc.expected))
+        << "Failed for " << static_cast<int>(tc.input);
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, Convert_StringType) {
+  auto input = MakeStringType();
+  auto result = converter_.convert(input);
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(result->Equals(arrow::large_utf8()));
+}
+
+TEST_F(ArrowTypeConverterTest, Convert_TemporalTypes) {
+  {
+    auto input = MakeDateType();
+    auto result = converter_.convert(input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(arrow::date32()));
+  }
+
+  {
+    auto input = MakeTimestampType();
+    auto result = converter_.convert(input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(arrow::timestamp(arrow::TimeUnit::MILLI)));
+  }
+
+  {
+    auto input = MakeIntervalType();
+    auto result = converter_.convert(input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(arrow::large_utf8()));
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, Convert_ArrayTypes) {
+  {
+    auto component =
+        MakePrimitiveType(::common::PrimitiveType::DT_SIGNED_INT32);
+    auto input = MakeArrayType(component);
+    auto result = converter_.convert(input);
+    auto expected = arrow::list(arrow::int32());
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(expected));
+  }
+
+  {
+    auto component = MakePrimitiveType(::common::PrimitiveType::DT_BOOL);
+    auto input = MakeArrayType(component, 10);
+    auto result = converter_.convert(input);
+    auto expected = arrow::fixed_size_list(arrow::boolean(), 10);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->Equals(expected));
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, Convert_MapType) {
+  auto key = MakeStringType();
+  auto value = MakePrimitiveType(::common::PrimitiveType::DT_SIGNED_INT64);
+  auto input = MakeMapType(key, value);
+  auto result = converter_.convert(input);
+  auto expected = arrow::map(arrow::large_utf8(), arrow::int64());
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(result->Equals(expected));
+}
+
+TEST_F(ArrowTypeConverterTest, ReverseConvert_PrimitiveTypes) {
+  struct TestCase {
+    std::shared_ptr<arrow::DataType> input;
+    ::common::PrimitiveType expected;
+  };
+
+  std::vector<TestCase> cases = {
+      {arrow::boolean(), ::common::PrimitiveType::DT_BOOL},
+      {arrow::int8(), ::common::PrimitiveType::DT_SIGNED_INT32},
+      {arrow::int16(), ::common::PrimitiveType::DT_SIGNED_INT32},
+      {arrow::int32(), ::common::PrimitiveType::DT_SIGNED_INT32},
+      {arrow::uint8(), ::common::PrimitiveType::DT_UNSIGNED_INT32},
+      {arrow::uint16(), ::common::PrimitiveType::DT_UNSIGNED_INT32},
+      {arrow::uint32(), ::common::PrimitiveType::DT_UNSIGNED_INT32},
+      {arrow::int64(), ::common::PrimitiveType::DT_SIGNED_INT64},
+      {arrow::uint64(), ::common::PrimitiveType::DT_UNSIGNED_INT64},
+      {arrow::float32(), ::common::PrimitiveType::DT_FLOAT},
+      {arrow::float64(), ::common::PrimitiveType::DT_DOUBLE},
+  };
+
+  for (const auto& tc : cases) {
+    auto result = converter_.convert(*tc.input);
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(result->has_primitive_type());
+    EXPECT_EQ(result->primitive_type(), tc.expected);
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, ReverseConvert_StringTypes) {
+  std::vector<std::shared_ptr<arrow::DataType>> cases = {
+      arrow::utf8(),
+      arrow::large_utf8(),
+  };
+
+  for (const auto& input : cases) {
+    auto result = converter_.convert(*input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_string());
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, ReverseConvert_TemporalTypes) {
+  {
+    auto result = converter_.convert(*arrow::date32());
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_temporal());
+    EXPECT_TRUE(result->temporal().has_date());
+  }
+
+  {
+    auto result = converter_.convert(*arrow::date64());
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_temporal());
+    EXPECT_TRUE(result->temporal().has_date());
+  }
+
+  {
+    auto result =
+        converter_.convert(*arrow::timestamp(arrow::TimeUnit::SECOND));
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_temporal());
+    EXPECT_TRUE(result->temporal().has_timestamp());
+  }
+
+  {
+    auto result = converter_.convert(*arrow::duration(arrow::TimeUnit::MILLI));
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_temporal());
+    EXPECT_TRUE(result->temporal().has_interval());
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, ReverseConvert_ListTypes) {
+  {
+    auto input = arrow::list(arrow::int32());
+    auto result = converter_.convert(*input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_array());
+    EXPECT_EQ(result->array().max_length(), 0);
+    EXPECT_EQ(result->array().component_type().primitive_type(),
+              ::common::PrimitiveType::DT_SIGNED_INT32);
+  }
+
+  {
+    auto input = arrow::fixed_size_list(arrow::float64(), 5);
+    auto result = converter_.convert(*input);
+    ASSERT_NE(result, nullptr);
+    EXPECT_TRUE(result->has_array());
+    EXPECT_EQ(result->array().max_length(), 5);
+    EXPECT_EQ(result->array().component_type().primitive_type(),
+              ::common::PrimitiveType::DT_DOUBLE);
+  }
+}
+
+TEST_F(ArrowTypeConverterTest, ReverseConvert_MapType) {
+  auto input = arrow::map(arrow::utf8(), arrow::int64());
+  auto result = converter_.convert(*input);
+  ASSERT_NE(result, nullptr);
+
+  EXPECT_TRUE(result->has_map());
+  EXPECT_EQ(result->map().key_type().item_case(), ::common::DataType::kString);
+  EXPECT_EQ(result->map().value_type().primitive_type(),
+            ::common::PrimitiveType::DT_SIGNED_INT64);
+}
+
+TEST_F(ArrowTypeConverterTest,
+       ReverseConvert_UnsupportedType_DefaultsToString) {
+  auto input = arrow::binary();  // unsupported
+  auto result = converter_.convert(*input);
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(result->has_string());  // fallback to string
+}
+
+class ArrowExpressionConverterTest : public ::testing::Test {
+ public:
+  reader::ArrowExpressionConverter converter_;
+
+  // Helper: Create constant value
+  ::common::ExprOpr MakeConstBool(bool value) {
+    ::common::ExprOpr opr;
+    opr.mutable_const_()->set_boolean(value);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeConstInt(int64_t value) {
+    ::common::ExprOpr opr;
+    opr.mutable_const_()->set_i64(value);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeConstFloat(double value) {
+    ::common::ExprOpr opr;
+    opr.mutable_const_()->set_f64(value);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeConstString(const std::string& value) {
+    ::common::ExprOpr opr;
+    opr.mutable_const_()->set_str(value);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeVar(const std::string& name) {
+    ::common::ExprOpr opr;
+    auto* var = opr.mutable_var();
+    var->mutable_tag()->set_name(name);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeLogical(::common::Logical op) {
+    ::common::ExprOpr opr;
+    opr.set_logical(op);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeArith(::common::Arithmetic op) {
+    ::common::ExprOpr opr;
+    opr.set_arith(op);
+    return opr;
+  }
+
+  ::common::ExprOpr MakeBrace(::common::ExprOpr::Brace brace) {
+    ::common::ExprOpr opr;
+    opr.set_brace(brace);
+    return opr;
+  }
+
+  ::common::Expression MakeExpression(
+      const std::vector<::common::ExprOpr>& ops) {
+    ::common::Expression expr;
+    for (const auto& op : ops) {
+      *expr.add_operators() = op;
+    }
+    return expr;
+  }
+
+  void ExpectEqual(const arrow::compute::Expression& actual,
+                   const arrow::compute::Expression& expected) {
+    EXPECT_EQ(actual.ToString(), expected.ToString());
+  }
+};
+
+TEST_F(ArrowExpressionConverterTest, Convert_ConstBool) {
+  auto expr = MakeExpression({MakeConstBool(true)});
+  auto result = converter_.convert(expr);
+  ExpectEqual(result, arrow::compute::literal(true));
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_ConstInt) {
+  auto expr = MakeExpression({MakeConstInt(42)});
+  auto result = converter_.convert(expr);
+  ExpectEqual(result, arrow::compute::literal(int64_t{42}));
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_ConstFloat) {
+  auto expr = MakeExpression({MakeConstFloat(3.14)});
+  auto result = converter_.convert(expr);
+  ExpectEqual(result, arrow::compute::literal(3.14));
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_ConstString) {
+  auto expr = MakeExpression({MakeConstString("hello")});
+  auto result = converter_.convert(expr);
+  ExpectEqual(result, arrow::compute::literal("hello"));
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_Variable) {
+  auto expr = MakeExpression({MakeVar("age")});
+  auto result = converter_.convert(expr);
+  ExpectEqual(result, arrow::compute::field_ref("age"));
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_VariableWithProperty_Throws) {
+  ::common::ExprOpr opr;
+  auto* var = opr.mutable_var();
+  var->mutable_tag()->set_name("person");
+  var->mutable_property()->mutable_key()->set_name("name");
+
+  auto expr = MakeExpression({opr});
+  EXPECT_THROW(converter_.convert(expr), exception::ConversionException);
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_Addition) {
+  auto expr = MakeExpression(
+      {MakeVar("a"), MakeVar("b"), MakeArith(::common::Arithmetic::ADD)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "add", {arrow::compute::field_ref("a"), arrow::compute::field_ref("b")});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_Multiplication) {
+  auto expr = MakeExpression(
+      {MakeVar("x"), MakeVar("y"), MakeArith(::common::Arithmetic::MUL)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "multiply",
+      {arrow::compute::field_ref("x"), arrow::compute::field_ref("y")});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_Equality) {
+  auto expr = MakeExpression(
+      {MakeVar("a"), MakeConstInt(10), MakeLogical(::common::Logical::EQ)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::equal(arrow::compute::field_ref("a"),
+                                        arrow::compute::literal(int64_t{10}));
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_AND) {
+  auto expr = MakeExpression(
+      {MakeVar("a"), MakeLogical(::common::Logical::GT), MakeConstInt(5),
+       MakeLogical(::common::Logical::AND), MakeVar("b"),
+       MakeLogical(::common::Logical::LT), MakeConstInt(10)
+
+      });
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "and_kleene",
+      {arrow::compute::greater(arrow::compute::field_ref("a"),
+                               arrow::compute::literal(int64_t{5})),
+       arrow::compute::less(arrow::compute::field_ref("b"),
+                            arrow::compute::literal(int64_t{10}))});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Convert_NOT) {
+  auto expr = MakeExpression(
+      {MakeLogical(::common::Logical::NOT),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE),
+       MakeVar("flag"), MakeLogical(::common::Logical::EQ), MakeConstBool(true),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "invert", {arrow::compute::equal(arrow::compute::field_ref("flag"),
+                                       arrow::compute::literal(true))});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Precedence_Arithmetic) {
+  auto expr = MakeExpression({MakeVar("a"), MakeVar("b"), MakeVar("c"),
+                              MakeArith(::common::Arithmetic::MUL),
+                              MakeArith(::common::Arithmetic::ADD)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "add",
+      {arrow::compute::field_ref("a"),
+       arrow::compute::call("multiply", {arrow::compute::field_ref("b"),
+                                         arrow::compute::field_ref("c")})});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Precedence_Mixed) {
+  auto expr = MakeExpression(
+      {MakeVar("a"), MakeArith(::common::Arithmetic::MUL), MakeVar("b"),
+       MakeArith(::common::Arithmetic::ADD), MakeVar("c"),
+       MakeArith(::common::Arithmetic::MUL), MakeVar("d")});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "add",
+      {arrow::compute::call("multiply", {arrow::compute::field_ref("a"),
+                                         arrow::compute::field_ref("b")}),
+       arrow::compute::call("multiply", {arrow::compute::field_ref("c"),
+                                         arrow::compute::field_ref("d")})});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Parentheses_Simple) {
+  auto expr = MakeExpression(
+      {MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE),
+       MakeVar("a"), MakeVar("b"), MakeArith(::common::Arithmetic::ADD),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE),
+       MakeVar("c"), MakeArith(::common::Arithmetic::MUL)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "multiply",
+      {arrow::compute::call("add", {arrow::compute::field_ref("a"),
+                                    arrow::compute::field_ref("b")}),
+       arrow::compute::field_ref("c")});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Parentheses_Nested) {
+  auto expr = MakeExpression(
+      {MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE),
+       MakeVar("a"), MakeVar("b"), MakeArith(::common::Arithmetic::ADD),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE),
+       MakeVar("c"), MakeArith(::common::Arithmetic::MUL),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE),
+       MakeVar("d"), MakeArith(::common::Arithmetic::ADD)});
+  auto result = converter_.convert(expr);
+  auto expected = arrow::compute::call(
+      "add", {arrow::compute::call(
+                  "multiply", {arrow::compute::call(
+                                   "add", {arrow::compute::field_ref("a"),
+                                           arrow::compute::field_ref("b")}),
+                               arrow::compute::field_ref("c")}),
+              arrow::compute::field_ref("d")});
+  ExpectEqual(result, expected);
+}
+
+TEST_F(ArrowExpressionConverterTest, Invalid_UnmatchedLeftParen) {
+  auto expr = MakeExpression(
+      {MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE),
+       MakeVar("a"), MakeVar("b"), MakeArith(::common::Arithmetic::ADD)});
+  EXPECT_THROW(converter_.convert(expr), exception::ConversionException);
+}
+
+TEST_F(ArrowExpressionConverterTest, Invalid_UnmatchedRightParen) {
+  auto expr = MakeExpression(
+      {MakeVar("a"), MakeVar("b"), MakeArith(::common::Arithmetic::ADD),
+       MakeBrace(::common::ExprOpr::Brace::ExprOpr_Brace_RIGHT_BRACE)});
+  EXPECT_THROW(converter_.convert(expr), exception::ConversionException);
+}
+
+TEST_F(ArrowExpressionConverterTest, Invalid_NotEnoughOperands) {
+  auto expr = MakeExpression({MakeArith(::common::Arithmetic::ADD)});
+  EXPECT_THROW(converter_.convert(expr), exception::ConversionException);
+}
+
+TEST_F(ArrowExpressionConverterTest, Invalid_TooManyValues) {
+  auto expr =
+      MakeExpression({MakeVar("a"), MakeVar("b"),
+                      MakeArith(::common::Arithmetic::ADD), MakeVar("c")});
+  EXPECT_THROW(converter_.convert(expr), exception::ConversionException);
+}
+
 }  // namespace test
 }  // namespace gs

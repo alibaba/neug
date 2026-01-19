@@ -3,7 +3,7 @@
 
 #include "neug/storages/csr/immutable_csr.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "utils.h"
+#include "unittest/utils.h"
 
 using CsrTypes = ::testing::Types<
     gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,

@@ -177,7 +177,7 @@ class Bitset {
     memset(&data_[size_in_words_], 0,
            (new_size_in_words - size_in_words_) * sizeof(uint64_t));
 
-    if (size_in_words_) {
+    if (size_in_words_ && BIT_OFFSET(size_) != 0) {
       uint64_t mask = ((1ul << BIT_OFFSET(size_)) - 1);
       data_[size_in_words_ - 1] &= mask;
     }

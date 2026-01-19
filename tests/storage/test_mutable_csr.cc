@@ -360,10 +360,12 @@ TYPED_TEST(MutableCsrTest, TestBasicFunction) {
   this->load_csr_data(mutable_csr, 1);
   EXPECT_EQ(mutable_csr.size(), src_v_num);
   EXPECT_EQ(mutable_csr.edge_num(), edge_num);
+  mutable_csr.compact();
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, 1);
   EXPECT_EQ(single_mutable_csr.size(), single_src_v_num);
   EXPECT_EQ(single_mutable_csr.edge_num(), edge_num);
+  single_mutable_csr.compact();
   EmptyCsr<TypeParam> empty_csr;
   EXPECT_EQ(empty_csr.size(), 0);
   EXPECT_EQ(empty_csr.edge_num(), 0);
@@ -516,6 +518,42 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
   empty_csr.batch_delete_edges(edges_to_delete);
 }
 
+TYPED_TEST(MutableCsrTest, TestBatchDeleteEdgesById) {
+  MutableCsr<TypeParam> mutable_csr;
+  this->load_csr_data(mutable_csr, 1);
+  std::vector<vid_t> src_ids, dst_ids;
+  auto view = mutable_csr.get_generic_view(1);
+  for (vid_t i = 0; i < mutable_csr.size(); i++) {
+    auto edges = view.get_edges(i);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      src_ids.emplace_back(i);
+      dst_ids.emplace_back(it.get_vertex());
+    }
+    if (src_ids.size() > 4) {
+      break;
+    }
+  }
+  mutable_csr.batch_delete_edges(src_ids, dst_ids);
+  EXPECT_EQ(mutable_csr.edge_num(), 10 - src_ids.size());
+
+  SingleMutableCsr<TypeParam> single_mutable_csr;
+  this->load_single_csr_data(single_mutable_csr, 1);
+  src_ids.clear();
+  dst_ids.clear();
+  view = single_mutable_csr.get_generic_view(1);
+  for (size_t i = 0; i < 4; ++i) {
+    auto edges = view.get_edges(i);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      src_ids.emplace_back(i);
+      dst_ids.emplace_back(it.get_vertex());
+      break;
+    }
+  }
+
+  single_mutable_csr.batch_delete_edges(src_ids, dst_ids);
+  EXPECT_EQ(single_mutable_csr.edge_num(), 6);
+}
+
 TYPED_TEST(MutableCsrTest, TestPutEdge) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, 1);
@@ -613,6 +651,34 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
   EXPECT_EQ(this->count_edge_num(mutable_csr), edge_num + 50 * src_vid.size());
 
   mutable_csr.close();
+
+  SingleMutableCsr<TypeParam> single_mutable_csr;
+  this->load_single_csr_data(single_mutable_csr, 1);
+  size_t edge_num = single_mutable_csr.edge_num();
+  edges_to_delete.clear();
+  oe_view = single_mutable_csr.get_generic_view(0);
+  for (vid_t i = 0; i < 5; i++) {
+    auto edges = oe_view.get_edges(i);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                     reinterpret_cast<const char*>(edges.start_ptr)) /
+                    it.cfg.stride;
+      edges_to_delete.emplace_back(i, it.get_vertex(),
+                                   static_cast<int32_t>(offset));
+    }
+  }
+  for (const auto& edge : edges_to_delete) {
+    single_mutable_csr.delete_edge(std::get<0>(edge), std::get<2>(edge), 0);
+  }
+  EXPECT_EQ(single_mutable_csr.edge_num(), edge_num - edges_to_delete.size());
+  for (const auto& edge : edges_to_delete) {
+    single_mutable_csr.revert_delete_edge(std::get<0>(edge), std::get<1>(edge),
+                                          std::get<2>(edge), 0);
+  }
+
+  EmptyCsr<TypeParam> empty_csr;
+  empty_csr.delete_edge(0, 0, 0);
+  empty_csr.revert_delete_edge(0, 0, 0, 0);
 }
 }  // namespace test
 }  // namespace gs

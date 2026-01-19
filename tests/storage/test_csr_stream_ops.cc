@@ -19,7 +19,7 @@
 
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/utils/allocators.h"
-#include "utils.h"
+#include "unittest/utils.h"
 
 using StreamCsrTypes = ::testing::Types<
     gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,

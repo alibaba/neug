@@ -105,6 +105,19 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(str);
     }
     return data;
+  } else if constexpr (std::is_same<EDATA_T, gs::Interval>::value) {
+    std::vector<EDATA_T> data;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int64_t> dis(
+        std::numeric_limits<int64_t>::min(),
+        std::numeric_limits<int64_t>::max());
+    for (size_t i = 0; i < len; ++i) {
+      gs::Interval interval;
+      interval.from_mill_seconds(dis(gen));
+      data.push_back(interval);
+    }
+    return data;
   } else {
     LOG(FATAL) << "Unsupported data type";
     return {};
