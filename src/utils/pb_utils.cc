@@ -37,6 +37,7 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
+#include "neug/utils/bolt_utils.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -600,102 +601,6 @@ rapidjson::Value process_entry_recursive(
   rapidjson::Value null_val;
   null_val.SetNull();
   return null_val;
-}
-
-// Helper function to create Neo4j-style summary
-rapidjson::Value create_bolt_summary(
-    const std::string& query_text,
-    rapidjson::Document::AllocatorType& allocator) {
-  rapidjson::Value summary(rapidjson::kObjectType);
-
-  // Query object
-  rapidjson::Value query(rapidjson::kObjectType);
-  query.AddMember("text", rapidjson::Value(query_text.c_str(), allocator),
-                  allocator);
-  query.AddMember("parameters", rapidjson::Value(rapidjson::kObjectType),
-                  allocator);
-  summary.AddMember("query", query, allocator);
-
-  summary.AddMember("queryType", rapidjson::Value("r", allocator), allocator);
-
-  // Add counters (all zeros for read queries)
-  rapidjson::Value counters(rapidjson::kObjectType);
-  rapidjson::Value stats(rapidjson::kObjectType);
-  stats.AddMember("nodesCreated", rapidjson::Value(0), allocator);
-  stats.AddMember("nodesDeleted", rapidjson::Value(0), allocator);
-  stats.AddMember("relationshipsCreated", rapidjson::Value(0), allocator);
-  stats.AddMember("relationshipsDeleted", rapidjson::Value(0), allocator);
-  stats.AddMember("propertiesSet", rapidjson::Value(0), allocator);
-  stats.AddMember("labelsAdded", rapidjson::Value(0), allocator);
-  stats.AddMember("labelsRemoved", rapidjson::Value(0), allocator);
-  stats.AddMember("indexesAdded", rapidjson::Value(0), allocator);
-  stats.AddMember("indexesRemoved", rapidjson::Value(0), allocator);
-  stats.AddMember("constraintsAdded", rapidjson::Value(0), allocator);
-  stats.AddMember("constraintsRemoved", rapidjson::Value(0), allocator);
-  counters.AddMember("_stats", stats, allocator);
-  counters.AddMember("_systemUpdates", rapidjson::Value(0), allocator);
-
-  summary.AddMember("counters", counters, allocator);
-  summary.AddMember("updateStatistics", rapidjson::Value(counters, allocator),
-                    allocator);
-  summary.AddMember("plan", rapidjson::Value(false), allocator);
-  summary.AddMember("profile", rapidjson::Value(false), allocator);
-  summary.AddMember("notifications", rapidjson::Value(rapidjson::kArrayType),
-                    allocator);
-
-  // Add status information
-  rapidjson::Value status(rapidjson::kObjectType);
-  status.AddMember("gqlStatus", rapidjson::Value("00000", allocator),
-                   allocator);
-  status.AddMember("statusDescription",
-                   rapidjson::Value("note: successful completion", allocator),
-                   allocator);
-
-  rapidjson::Value diagnostic(rapidjson::kObjectType);
-  diagnostic.AddMember("OPERATION", rapidjson::Value("", allocator), allocator);
-  diagnostic.AddMember("OPERATION_CODE", rapidjson::Value("0", allocator),
-                       allocator);
-  diagnostic.AddMember("CURRENT_SCHEMA", rapidjson::Value("/", allocator),
-                       allocator);
-  status.AddMember("diagnosticRecord", diagnostic, allocator);
-
-  status.AddMember("severity", rapidjson::Value("UNKNOWN", allocator),
-                   allocator);
-  status.AddMember("classification", rapidjson::Value("UNKNOWN", allocator),
-                   allocator);
-  status.AddMember("isNotification", rapidjson::Value(false), allocator);
-
-  rapidjson::Value gql_status_objects(rapidjson::kArrayType);
-  gql_status_objects.PushBack(status, allocator);
-  summary.AddMember("gqlStatusObjects", gql_status_objects, allocator);
-
-  // Add server info
-  rapidjson::Value server(rapidjson::kObjectType);
-  server.AddMember("address", rapidjson::Value("127.0.0.1:7687", allocator),
-                   allocator);
-  server.AddMember("agent", rapidjson::Value("GraphScope/1.0.0", allocator),
-                   allocator);
-  server.AddMember("protocolVersion", rapidjson::Value(4.4), allocator);
-  summary.AddMember("server", server, allocator);
-
-  // Add timing info
-  rapidjson::Value result_consumed(rapidjson::kObjectType);
-  result_consumed.AddMember("low", rapidjson::Value(27), allocator);
-  result_consumed.AddMember("high", rapidjson::Value(0), allocator);
-  summary.AddMember("resultConsumedAfter", result_consumed, allocator);
-
-  rapidjson::Value result_available(rapidjson::kObjectType);
-  result_available.AddMember("low", rapidjson::Value(70), allocator);
-  result_available.AddMember("high", rapidjson::Value(0), allocator);
-  summary.AddMember("resultAvailableAfter", result_available, allocator);
-
-  // Add database info
-  rapidjson::Value database(rapidjson::kObjectType);
-  database.AddMember("name", rapidjson::Value("graphscope", allocator),
-                     allocator);
-  summary.AddMember("database", database, allocator);
-
-  return summary;
 }
 
 // Helper function to parse result schema and extract column names

@@ -40,7 +40,7 @@ enum class DataTypeId : uint8_t {
   kDate = 15,
 
   kTimestampMs = 18,
- 
+
   kFloat = 22,
   kDouble = 23,
 
@@ -52,15 +52,15 @@ enum class DataTypeId : uint8_t {
   kUInt32 = 30,
   kUInt64 = 31,
   // kTimestampTZ = 32,
-  
+
   // kStringLiteral = 37,
-  
+
   kStruct = 100,
   kList = 101,
   // kMap = 102,
 
   // kArray = 108,
-  
+
   kVertex = 200,
   kEdge = 201,
   kPath = 202,
@@ -69,16 +69,16 @@ enum class DataTypeId : uint8_t {
 
 // types_mapping.h
 #define NUMERIC_DATA_TYPES(M) \
-  M(kInt32, int32_t)         \
+  M(kInt32, int32_t)          \
   M(kInt64, int64_t)          \
-  M(kUInt32, uint32_t)       \
+  M(kUInt32, uint32_t)        \
   M(kUInt64, uint64_t)        \
-  M(kFloat, float)             \
+  M(kFloat, float)            \
   M(kDouble, double)
 
 #define DATA_TYPES_DATETIME(M) \
   M(kTimestampMs, DateTime)    \
-  M(kDate, Date)                \
+  M(kDate, Date)               \
   M(kInterval, Interval)
 
 #define FOR_EACH_NUMERIC_DATA_TYPE(M) NUMERIC_DATA_TYPES(M)
@@ -155,6 +155,7 @@ struct DataType {
   static constexpr const DataTypeId SMALLINT = DataTypeId::kInt16;
   static constexpr const DataTypeId INTEGER = DataTypeId::kInt32;
   static constexpr const DataTypeId BIGINT = DataTypeId::kInt64;
+  static constexpr const DataTypeId DATE = DataTypeId::kDate;
   static constexpr const DataTypeId TIMESTAMP_MS = DataTypeId::kTimestampMs;
   static constexpr const DataTypeId FLOAT = DataTypeId::kFloat;
   static constexpr const DataTypeId DOUBLE = DataTypeId::kDouble;
