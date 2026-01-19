@@ -72,10 +72,8 @@ gs::result<OpBuildResultT> UnionOprBuilder::Build(
   std::vector<Pipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
   ContextMeta ret_meta;
-  for (int i = 0;
-       i < plan.query_plan().plan(op_idx).opr().union_().sub_plans_size();
-       ++i) {
-    auto& sub_plan = plan.query_plan().plan(op_idx).opr().union_().sub_plans(i);
+  for (int i = 0; i < plan.plan(op_idx).opr().union_().sub_plans_size(); ++i) {
+    auto& sub_plan = plan.plan(op_idx).opr().union_().sub_plans(i);
     auto pair_res = PlanParser::get().parse_execute_pipeline_with_meta(
         schema, ctx_meta, sub_plan);
     if (!pair_res) {

@@ -24,16 +24,18 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class AddVertexPropertySchemaOprBuilder : public ISchemaOperatorBuilder {
+class AddVertexPropertySchemaOprBuilder : public IOperatorBuilder {
  public:
   AddVertexPropertySchemaOprBuilder() = default;
   ~AddVertexPropertySchemaOprBuilder() = default;
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::DDLPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_id) override;
-  physical::DDLPlan::PlanCase GetOpKind() const override {
-    return physical::DDLPlan::PlanCase::kAddVertexPropertySchema;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {
+        physical::PhysicalOpr_Operator::OpKindCase::kAddVertexPropertySchema};
   }
 };
 }  // namespace ops

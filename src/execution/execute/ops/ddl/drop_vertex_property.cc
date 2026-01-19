@@ -56,8 +56,9 @@ class DropVertexPropertySchemaOpr : public IOperator {
 
 gs::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& drop_vertex_property = plan.drop_vertex_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& drop_vertex_property =
+      plan.plan(op_id).opr().drop_vertex_property_schema();
   std::vector<std::string> property_names;
   for (const auto& prop : drop_vertex_property.properties()) {
     property_names.push_back(prop);

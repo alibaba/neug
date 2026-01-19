@@ -22,16 +22,17 @@
 namespace gs {
 namespace runtime {
 namespace ops {
-class DropVertexTypeOprBuilder : public ISchemaOperatorBuilder {
+class DropVertexTypeOprBuilder : public IOperatorBuilder {
  public:
   DropVertexTypeOprBuilder() = default;
   ~DropVertexTypeOprBuilder() = default;
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::DDLPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_id) override;
-  physical::DDLPlan::PlanCase GetOpKind() const override {
-    return physical::DDLPlan::PlanCase::kDropVertexSchema;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kDropVertexSchema};
   }
 };
 }  // namespace ops

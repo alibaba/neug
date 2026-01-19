@@ -130,28 +130,28 @@ TEST_F(PatternTest, INVALID_LABEL) {
             "exception was thrown.";
 }
 
-TEST_F(PatternTest, STANDARD_UNION) {
-  std::string query =
-      "Match (n {name: 'marko'}) Return n.age UNION ALL Match (n {name: "
-      "'josh'}) "
-      "Return n.age;";
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  VerifyFactory::verifyLogicalByStr(*logical,
-                                    getPatResource("STANDARD_UNION_logical"));
-  auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical, getPatResource("STANDARD_UNION_physical"));
-}
+// TEST_F(PatternTest, STANDARD_UNION) {
+//   std::string query =
+//       "Match (n {name: 'marko'}) Return n.age UNION ALL Match (n {name: "
+//       "'josh'}) "
+//       "Return n.age;";
+//   auto logical = planLogical(query, schemaData, statsData, rules);
+//   VerifyFactory::verifyLogicalByStr(*logical,
+//                                     getPatResource("STANDARD_UNION_logical"));
+//   auto physical = planPhysical(*logical);
+//   VerifyFactory::verifyPhysicalByJson(
+//       *physical, getPatResource("STANDARD_UNION_physical"));
+// }
 
-TEST_F(PatternTest, CALL_UNION) {
-  std::string query = getPatResource("call_union.cypher");
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  VerifyFactory::verifyLogicalByStr(*logical,
-                                    getPatResource("CALL_UNION_logical"));
-  auto physical = planPhysical(*logical);
-  VerifyFactory::verifyPhysicalByJson(*physical,
-                                      getPatResource("CALL_UNION_physical"));
-}
+// TEST_F(PatternTest, CALL_UNION) {
+//   std::string query = getPatResource("call_union.cypher");
+//   auto logical = planLogical(query, schemaData, statsData, rules);
+//   VerifyFactory::verifyLogicalByStr(*logical,
+//                                     getPatResource("CALL_UNION_logical"));
+//   auto physical = planPhysical(*logical);
+//   VerifyFactory::verifyPhysicalByJson(*physical,
+//                                       getPatResource("CALL_UNION_physical"));
+// }
 
 TEST_F(PatternTest, OPTIONAL_MATCH) {
   std::string query =

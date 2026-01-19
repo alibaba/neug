@@ -16,7 +16,6 @@
 #pragma once
 
 #include <memory>
-#include "neug/compiler/gopt/g_admin_convertor.h"
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/gopt/g_query_converter.h"
@@ -35,49 +34,35 @@ class GPhysicalConvertor {
 
   std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
     auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
-    auto queryPlan = std::make_unique<::physical::QueryPlan>();
-    queryPlan->set_mode(::physical::QueryPlan::READ_ONLY);
-    physicalPlan->set_allocated_query_plan(queryPlan.release());
+    // Set default read flag
+    physicalPlan->mutable_flag()->set_read(true);
     return physicalPlan;
   }
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink = false) {
     GPhysicalAnalyzer analyzer;
-    auto mode = analyzer.analyze(plan);
-    switch (mode) {
-    case PhysicalMode::DDL: {
-      auto ddlPlan = convertDDL(plan);
-      auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
-      physicalPlan->set_allocated_ddl_plan(ddlPlan.release());
-      return physicalPlan;
-    }
-    case PhysicalMode::READ_ONLY: {
-      auto queryPlan = convertQuery(plan, skipSink);
-      queryPlan->set_mode(::physical::QueryPlan::READ_ONLY);
-      auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
-      physicalPlan->set_allocated_query_plan(queryPlan.release());
-      return physicalPlan;
-    }
-    case PhysicalMode::READ_WRITE: {
-      // remove tailing sink operator is last operator is update clause
-      skipSink |= updateClause(plan.getLastOperator());
-      auto queryPlan = convertQuery(plan, skipSink);
-      queryPlan->set_mode(::physical::QueryPlan::READ_WRITE);
-      auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
-      physicalPlan->set_allocated_query_plan(queryPlan.release());
-      return physicalPlan;
-    }
-    case PhysicalMode::ADMIN: {
-      auto adminPlan = convertAdmin(plan);
-      auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
-      physicalPlan->set_allocated_admin_plan(adminPlan.release());
-      return physicalPlan;
-    }
-    default:
-      THROW_EXCEPTION_WITH_FILE_LINE("Unknown physical mode " +
-                                     std::to_string(static_cast<int>(mode)));
-    }
+    auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
+    skipSink |= updateClause(plan.getLastOperator());
+    skipSink |= ddlClause(plan.getLastOperator());
+    auto queryPlan = convertQuery(plan, skipSink);
+    queryPlan->set_allocated_flag(flagPB.release());
+    return queryPlan;
+  }
+
+ private:
+  std::unique_ptr<::physical::ExecutionFlag> convertExecutionFlag(
+      const ExecutionFlag& flag) {
+    auto flagPB = std::make_unique<::physical::ExecutionFlag>();
+    flagPB->set_read(flag.read);
+    flagPB->set_insert(flag.insert);
+    flagPB->set_update(flag.update);
+    flagPB->set_schema(flag.schema);
+    flagPB->set_batch(flag.batch);
+    flagPB->set_create_temp_table(flag.create_temp_table);
+    flagPB->set_checkpoint(flag.transaction);
+    flagPB->set_procedure_call(flag.procedure_call);
+    return flagPB;
   }
 
   bool updateClause(std::shared_ptr<planner::LogicalOperator> op) {
@@ -88,23 +73,18 @@ class GPhysicalConvertor {
            op->getOperatorType() == planner::LogicalOperatorType::DELETE;
   }
 
- private:
-  std::unique_ptr<::physical::DDLPlan> convertDDL(
-      const planner::LogicalPlan& plan) {
-    auto converter = std::make_unique<GDDLConverter>(aliasManager, catalog);
-    return converter->convert(plan);
+  bool ddlClause(std::shared_ptr<planner::LogicalOperator> op) {
+    return op->getOperatorType() ==
+               planner::LogicalOperatorType::CREATE_TABLE ||
+           op->getOperatorType() == planner::LogicalOperatorType::ALTER ||
+           op->getOperatorType() == planner::LogicalOperatorType::DROP;
   }
 
-  std::unique_ptr<::physical::QueryPlan> convertQuery(
+ private:
+  std::unique_ptr<::physical::PhysicalPlan> convertQuery(
       const planner::LogicalPlan& plan, bool skipSink) {
     auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
     return converter->convert(plan, skipSink);
-  }
-
-  std::unique_ptr<::physical::AdminPlan> convertAdmin(
-      const planner::LogicalPlan& plan) {
-    auto converter = std::make_unique<GAdminConvertor>();
-    return converter->convert(plan);
   }
 
  private:

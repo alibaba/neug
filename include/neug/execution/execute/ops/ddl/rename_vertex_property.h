@@ -25,16 +25,18 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class RenameVertexPropertyOprBuilder : public ISchemaOperatorBuilder {
+class RenameVertexPropertyOprBuilder : public IOperatorBuilder {
  public:
   RenameVertexPropertyOprBuilder() = default;
   ~RenameVertexPropertyOprBuilder() = default;
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::DDLPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_id) override;
-  physical::DDLPlan::PlanCase GetOpKind() const override {
-    return physical::DDLPlan::PlanCase::kRenameVertexPropertySchema;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::
+                kRenameVertexPropertySchema};
   }
 };
 

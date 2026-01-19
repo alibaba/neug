@@ -44,6 +44,7 @@
 #include "neug/transaction/read_transaction.h"
 #include "neug/transaction/update_transaction.h"
 #include "neug/transaction/version_manager.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/app_utils.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
@@ -51,6 +52,46 @@
 #include "neug/utils/result.h"
 
 namespace server {
+
+inline bool is_read_only(const physical::ExecutionFlag flags) {
+  // Implementation to determine if the flags indicate a non-read-only operation
+  return flags.read() && !(flags.insert() || flags.update() || flags.schema() ||
+                           flags.checkpoint() || flags.procedure_call());
+}
+
+inline bool is_insert_only(const physical::ExecutionFlag flags) {
+  // Implementation to determine if the flags indicate a non-insert-only
+  // operation
+  return flags.insert() && !(flags.read() || flags.update() || flags.schema() ||
+                             flags.checkpoint() || flags.procedure_call());
+}
+
+gs::result<std::pair<physical::PhysicalPlan, std::string>>
+compile_plan_and_check_consistency(std::shared_ptr<gs::IGraphPlanner> planner,
+                                   const std::string& query,
+                                   gs::AccessMode mode) {
+  GS_AUTO(plan_and_resschema, planner->compilePlan(query));
+  const auto& flags = plan_and_resschema.first.flag();
+  if (flags.batch() || flags.create_temp_table()) {
+    RETURN_ERROR(gs::Status(
+        gs::StatusCode::ERR_INVALID_ARGUMENT,
+        "Batch or temporary table creation is not supported in TP service"));
+  }
+  if (mode == gs::AccessMode::kRead) {
+    if (!is_read_only(flags)) {
+      RETURN_ERROR(
+          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                     "Read-only mode does not support write operations."));
+    }
+  } else if (mode == gs::AccessMode::kInsert) {
+    if (!is_insert_only(flags)) {
+      RETURN_ERROR(gs::Status(
+          gs::StatusCode::ERR_INVALID_ARGUMENT,
+          "Insert-only mode does not support read or update operations."));
+    }
+  }
+  return plan_and_resschema;
+}
 
 gs::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
@@ -85,14 +126,17 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                             "The format of eval request is incorrect."));
   }
-  gs::AccessMode access_mode = gs::AccessMode::kUpdate;
   if (document.HasMember("query") && document["query"].IsString()) {
     query = document["query"].GetString();
   }
+  std::string access_mode_str;
   if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
-    std::string access_mode_str = document["access_mode"].GetString();
-    access_mode = gs::ParseAccessMode(access_mode_str);
+    access_mode_str = document["access_mode"].GetString();
   }
+  if (access_mode_str.empty()) {
+    access_mode_str = planner_->analyzeMode(query);
+  }
+  gs::AccessMode access_mode = gs::ParseAccessMode(access_mode_str);
 
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;
@@ -103,7 +147,8 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   if (access_mode == gs::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
     gs::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
-    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
+    GS_ASSIGN(plan_and_schema,
+              compile_plan_and_check_consistency(planner_, query, access_mode));
     // TODO(zhanglei): Check whether the mode is correct for the plan.
     GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
                      gri, plan_and_schema.first, timer.get()));
@@ -116,7 +161,8 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   } else if (access_mode == gs::AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     gs::StorageTPInsertInterface gii(insert_txn);
-    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
+    GS_ASSIGN(plan_and_schema,
+              compile_plan_and_check_consistency(planner_, query, access_mode));
     // TODO(xiaoli,zhanglei): Need to check whether the plan is insert-only
     GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
                      gii, plan_and_schema.first, timer.get()));
@@ -131,30 +177,15 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
     // TODO(zhanglei,lexiao): enable sink for insert interface
   } else if (access_mode == gs::AccessMode::kUpdate ||
              access_mode == gs::AccessMode::kSchema) {  // Update mode
-    // TODO(zhanglei): Whether or not to add another Schema AccessMode.
     auto update_txn = GetUpdateTransaction();
     gs::StorageTPUpdateInterface gui(update_txn);
     CHECK(planner_ != nullptr);
-    GS_ASSIGN(plan_and_schema, planner_->compilePlan(query));
-    gs::runtime::Context ctx;
-    // new schema and new stats are obtained inside transaction but updated
-    // outside.
-    // TODO(zhanglei): need to obtain more concrete flags from plan to decide
-    // whether need to be blocked in TP mode, and whether need to update schema
-    // and statistics.
-    if (plan_and_schema.first.has_ddl_plan()) {  // UpdateSchema
-      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteDDLPipeline(
-                         gui, plan_and_schema.first.ddl_plan(), timer.get()));
-      stats = graph_.get_statistics_json();
-      schema_yaml_node = graph_.schema().to_yaml().value_or(YAML::Node());
-    } else if (plan_and_schema.first.has_admin_plan()) {
-      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteAdminPipeline(
-                         gui, plan_and_schema.first.admin_plan(), timer.get()));
-    } else {  // UpdateData
-      GS_ASSIGN(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
-                         gui, plan_and_schema.first, timer.get()));
-      stats = graph_.get_statistics_json();
-    }
+    GS_ASSIGN(plan_and_schema,
+              compile_plan_and_check_consistency(planner_, query, access_mode));
+    // update_planner_meta() and update_planner_stats() are called inside the
+    // transaction scope to ensure concurrency safety.
+    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+                     gui, plan_and_schema.first, timer.get()));
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
       RETURN_ERROR(
@@ -168,12 +199,15 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   }
   // Update planner meta and statistics after successful transaction commit.
   // Concurrency control is done inside planner.
+  const auto& flags = plan_and_schema.first.flag();
+  if (flags.schema() || flags.procedure_call()) {  // create_temp_table should
+                                                   // be rejected earlier
+    schema_yaml_node = graph_.schema().to_yaml().value_or(YAML::Node());
+  }
   if (!schema_yaml_node.IsNull()) {
     planner_->update_meta(schema_yaml_node);
   }
-  if (!stats.empty()) {
-    planner_->update_statistics(stats);
-  }
+  // Only update schema, statistics will not changed.
   ret.set_result_schema(plan_and_schema.second);
 
   const auto end = std::chrono::high_resolution_clock::now();

@@ -26,7 +26,6 @@ import "type.proto";
 import "algebra.proto";
 import "stored_procedure.proto";
 import "google/protobuf/wrappers.proto";
-import "cypher_write.proto";
 import "cypher_dml.proto";
 import "cypher_ddl.proto";
 
@@ -344,11 +343,6 @@ message PhysicalOpr {
       PathExpand path = 32;
       ProcedureCall procedure_call = 33;
 
-      // write operators
-      cypher.Set set = 34;
-      cypher.Load load = 35;
-      cypher.Delete delete = 36;
-
       // DML operators
       DataSource source = 37; // tag, 0(id),1(name),2(age)
       BatchInsertVertex load_vertex = 38; // 0->id, 1->name, 2->age
@@ -360,6 +354,27 @@ message PhysicalOpr {
       DeleteVertex delete_vertex = 44;
       DeleteEdge delete_edge = 45;
       DataExport data_export = 46;
+
+      // DDL operators
+      // A single Cypher query can perform only one DDL operation.
+      CreateVertexSchema create_vertex_schema = 51;
+      CreateEdgeSchema  create_edge_schema = 52;
+      DropVertexSchema drop_vertex_schema = 53;
+      DropEdgeSchema drop_edge_schema = 54;
+      AddVertexPropertySchema add_vertex_property_schema = 55;
+      AddEdgePropertySchema add_edge_property_schema = 56;
+      DropVertexPropertySchema drop_vertex_property_schema = 57;
+      DropEdgePropertySchema drop_edge_property_schema = 58;
+      RenameVertexPropertySchema rename_vertex_property_schema = 59;
+      RenameEdgePropertySchema rename_edge_property_schema = 60;
+      RenameVertexTypeSchema rename_vertex_type_schema = 61;
+      RenameEdgeTypeSchema rename_edge_type_schema = 62;
+
+      // Admin operators
+      Checkpoint checkpoint = 71;
+      ExtensionInstall ext_install = 72;
+      ExtensionLoad ext_load = 73;
+      ExtensionUninstall ext_uninstall = 74;
     }
   }
   message MetaData {
@@ -372,38 +387,23 @@ message PhysicalOpr {
   repeated MetaData meta_data = 2;
 }
 
-message QueryPlan {
-  enum Mode {
-    READ_ONLY = 0;
-    WRITE_ONLY = 1;
-    READ_WRITE = 2;
-  }
-
-  Mode mode = 1;
-  repeated PhysicalOpr plan = 2;
-}
-
-message AdminPlan {
-  message Operator {
-    oneof kind {
-      Checkpoint checkpoint = 1;
-      ExtensionInstall ext_install = 2;
-      ExtensionLoad ext_load = 3;
-      ExtensionUninstall ext_uninstall = 4;
-    }
-  }
-
-  repeated Operator plan = 1;
+message ExecutionFlag {
+  bool read = 1;
+  bool insert = 2;
+  bool update = 3;
+  bool schema = 4;
+  bool batch = 5; // batch insert
+  bool create_temp_table = 6; // create temporary table
+  bool checkpoint = 7;
+  bool procedure_call = 8;
 }
 
 // A single Cypher query ending with a semicolon (;)
 message PhysicalPlan {
   int32 plan_id = 1;
-  oneof plan {
-    DDLPlan ddl_plan = 2;
-    QueryPlan query_plan = 3;
-    AdminPlan admin_plan = 4;
-  }
+  // to be deprecated
+  repeated PhysicalOpr plan = 3;
+  ExecutionFlag flag = 4;
 }
 
 

@@ -47,8 +47,8 @@ class DropVertexTypeOpr : public IOperator {
 
 gs::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& drop_vertex = plan.drop_vertex_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& drop_vertex = plan.plan(op_id).opr().drop_vertex_schema();
   auto vertex_type_name = drop_vertex.vertex_type().name();
   bool error_on_conflict =
       conflict_action_to_bool(drop_vertex.conflict_action());

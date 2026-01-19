@@ -8,6 +8,7 @@
 #include <string>
 
 #include <yaml-cpp/yaml.h>
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_physical_convertor.h"
@@ -42,10 +43,15 @@ class GOptPlanner : public gs::IGraphPlanner {
 
   void update_statistics(const std::string& graph_statistic_json) override;
 
+  std::string analyzeMode(const std::string& query) const override;
+
  private:
   std::unique_ptr<gs::main::MetadataManager> database;
   std::unique_ptr<gs::main::ClientContext> ctx;
   std::shared_mutex planner_mutex;  // Protects access to the planner
+ private:
+  // return string pattern of update operators
+  const common::case_insensitve_set_t& getUpdateOpTokens() const;
 };
 
 }  // namespace gs

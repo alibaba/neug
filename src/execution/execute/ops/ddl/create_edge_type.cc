@@ -82,8 +82,8 @@ class CreateEdgeTypeOpr : public IOperator {
 
 gs::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& create_edges = plan.create_edge_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
   auto tuple_res = property_defs_to_tuple(create_edges.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());

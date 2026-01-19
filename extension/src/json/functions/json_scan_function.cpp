@@ -114,7 +114,7 @@ std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
     const ::physical::PhysicalPlan& plan, int op_idx) {
   LOG(INFO) << "[JsonScan] Binding function from PhysicalPlan";
 
-  const auto& physical_opr = plan.query_plan().plan(op_idx);
+  const auto& physical_opr = plan.plan(op_idx);
   if (!physical_opr.opr().has_procedure_call()) {
     THROW_EXTENSION_EXCEPTION("Expected ProcedureCall operator");
   }

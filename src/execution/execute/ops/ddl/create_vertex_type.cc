@@ -60,9 +60,9 @@ class CreateVertexTypeOpr : public IOperator {
 
 gs::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
+    const physical::PhysicalPlan& plan, int op_id) {
   ContextMeta meta = ctx_meta;
-  const auto& create_vertex = plan.create_vertex_schema();
+  const auto& create_vertex = plan.plan(op_id).opr().create_vertex_schema();
   auto vertex_type_name = create_vertex.vertex_type().name();
   auto tuple_res = property_defs_to_tuple(create_vertex.properties());
   if (!tuple_res) {

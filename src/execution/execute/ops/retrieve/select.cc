@@ -161,7 +161,7 @@ class SelectOpr : public IOperator {
 gs::result<OpBuildResultT> SelectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  auto opr = plan.query_plan().plan(op_idx).opr().select();
+  auto opr = plan.plan(op_idx).opr().select();
   auto type = parse_sp_pred(opr.predicate());
   const auto& op2 = opr.predicate().operators(2);
   if (type == SPPredicateType::kPropertyNE && op2.has_param()) {

@@ -132,35 +132,30 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::ProcedureCallOprBuilder>());
 
   // ---------------------- DDL Operators ----------------------
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::CreateVertexTypeOprBuilder>());
-  register_schema_operator_builder(
-      std::make_unique<ops::CreateEdgeTypeOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(std::make_unique<ops::CreateEdgeTypeOprBuilder>());
+  register_operator_builder(
       std::make_unique<ops::AddVertexPropertySchemaOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::AddEdgePropertySchemaOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::DropVertexPropertySchemaOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::DropEdgePropertySchemaOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::RenameVertexPropertyOprBuilder>());
-  register_schema_operator_builder(
+  register_operator_builder(
       std::make_unique<ops::RenameEdgePropertyOprBuilder>());
-  register_schema_operator_builder(
-      std::make_unique<ops::DropVertexTypeOprBuilder>());
-  register_schema_operator_builder(
-      std::make_unique<ops::DropEdgeTypeOprBuilder>());
+  register_operator_builder(std::make_unique<ops::DropVertexTypeOprBuilder>());
+  register_operator_builder(std::make_unique<ops::DropEdgeTypeOprBuilder>());
 
   // ---------------------- Admin Operators ----------------------
-  register_admin_operator_builder(
-      std::make_unique<ops::CheckpointOprBuilder>());
-  register_admin_operator_builder(
+  register_operator_builder(std::make_unique<ops::CheckpointOprBuilder>());
+  register_operator_builder(
       std::make_unique<ops::ExtensionInstallOprBuilder>());
-  register_admin_operator_builder(
-      std::make_unique<ops::ExtensionLoadOprBuilder>());
-  register_admin_operator_builder(
+  register_operator_builder(std::make_unique<ops::ExtensionLoadOprBuilder>());
+  register_operator_builder(
       std::make_unique<ops::ExtensionUninstallOprBuilder>());
 }
 
@@ -172,19 +167,7 @@ PlanParser& PlanParser::get() {
 void PlanParser::register_operator_builder(
     std::unique_ptr<IOperatorBuilder>&& builder) {
   auto ops = builder->GetOpKinds();
-  read_op_builders_[*ops.begin()].emplace_back(ops, std::move(builder));
-}
-
-void PlanParser::register_admin_operator_builder(
-    std::unique_ptr<IAdminOperatorBuilder>&& builder) {
-  auto op = builder->GetOpKind();
-  admin_op_builders_[op] = std::move(builder);
-}
-
-void PlanParser::register_schema_operator_builder(
-    std::unique_ptr<ISchemaOperatorBuilder>&& builder) {
-  auto op = builder->GetOpKind();
-  schema_op_builders_[op] = std::move(builder);
+  op_builders_[*ops.begin()].emplace_back(ops, std::move(builder));
 }
 
 #if 1
@@ -266,24 +249,16 @@ static std::string get_opr_name(
   case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
     return "procedure_call";
   }
-  default:
-    return "unknown";
-  }
-}
-
-static std::string get_opr_name(
-    physical::AdminPlan_Operator::KindCase op_kind) {
-  switch (op_kind) {
-  case physical::AdminPlan_Operator::KindCase::kCheckpoint: {
+  case physical::PhysicalOpr_Operator::OpKindCase::kCheckpoint: {
     return "checkpoint";
   }
-  case physical::AdminPlan_Operator::KindCase::kExtInstall: {
+  case physical::PhysicalOpr_Operator::OpKindCase::kExtInstall: {
     return "extension_install";
   }
-  case physical::AdminPlan_Operator::KindCase::kExtLoad: {
+  case physical::PhysicalOpr_Operator::OpKindCase::kExtLoad: {
     return "extension_load";
   }
-  case physical::AdminPlan_Operator::KindCase::kExtUninstall: {
+  case physical::PhysicalOpr_Operator::OpKindCase::kExtUninstall: {
     return "extension_uninstall";
   }
   default:
@@ -297,17 +272,17 @@ gs::result<std::pair<Pipeline, ContextMeta>>
 PlanParser::parse_execute_pipeline_with_meta(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan) {
-  int opr_num = plan.query_plan().plan_size();
+  int opr_num = plan.plan_size();
   std::vector<std::unique_ptr<IOperator>> operators;
   ContextMeta cur_ctx_meta = ctx_meta;
   for (int i = 0; i < opr_num;) {
     physical::PhysicalOpr_Operator::OpKindCase cur_op_kind =
-        plan.query_plan().plan(i).opr().op_kind_case();
+        plan.plan(i).opr().op_kind_case();
     if (cur_op_kind == physical::PhysicalOpr_Operator::OpKindCase::kSink) {
       // break;
     }
 
-    auto& builders = read_op_builders_[cur_op_kind];
+    auto& builders = op_builders_[cur_op_kind];
     int old_i = i;
     gs::Status status = gs::Status::OK();
     for (auto& pair : builders) {
@@ -318,7 +293,7 @@ PlanParser::parse_execute_pipeline_with_meta(
       }
       bool match = true;
       for (size_t j = 1; j < pattern.size(); ++j) {
-        if (plan.query_plan().plan(i + j).opr().op_kind_case() != pattern[j]) {
+        if (plan.plan(i + j).opr().op_kind_case() != pattern[j]) {
           match = false;
         }
       }
@@ -358,7 +333,7 @@ PlanParser::parse_execute_pipeline_with_meta(
       std::stringstream ss;
       ss << "[Pipeline Parse Failed] " << get_opr_name(cur_op_kind)
          << " failed to parse plan at index " << i << " "
-         << plan.query_plan().plan(i).DebugString() << ": "
+         << plan.plan(i).DebugString() << ": "
          << ", last match error: " << status.ToString();
       auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
@@ -378,67 +353,6 @@ gs::result<Pipeline> PlanParser::parse_execute_pipeline(
   return std::move(ret.value().first);
 }
 
-gs::result<Pipeline> PlanParser::parse_admin_pipeline(
-    const gs::Schema& schema, const physical::AdminPlan& admin_plan) {
-  std::vector<std::unique_ptr<IOperator>> operators;
-  ContextMeta ctx_meta;
-  for (int i = 0; i < admin_plan.plan_size(); ++i) {
-    auto op_kind = admin_plan.plan(i).kind_case();
-    if (admin_op_builders_.find(op_kind) == admin_op_builders_.end()) {
-      std::stringstream ss;
-      ss << "[Admin Pipeline Parse Failed] " << get_opr_name(op_kind)
-         << " failed to parse admin plan at index " << i;
-      RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str()));
-    }
-
-    auto op =
-        admin_op_builders_.at(op_kind)->Build(schema, ctx_meta, admin_plan, i);
-    if (!op) {
-      std::stringstream ss;
-      ss << "[Admin Pipeline Parse Failed] " << get_opr_name(op_kind)
-         << " failed to parse admin plan at index " << i;
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-      LOG(ERROR) << err.ToString();
-      RETURN_ERROR(err);
-    }
-
-    operators.emplace_back(std::move(op.value().first));
-    ctx_meta = op.value().second;
-  }
-  return Pipeline(std::move(operators));
-}
-
-gs::result<Pipeline> PlanParser::parse_ddl_pipeline(
-    const gs::Schema& schema, const physical::DDLPlan& ddl_plan) {
-  std::vector<std::unique_ptr<IOperator>> operators;
-  ContextMeta ctx_meta;
-  // DDLPlan only has one operator each time
-
-  auto op_kind = ddl_plan.plan_case();
-  if (schema_op_builders_.find(op_kind) == schema_op_builders_.end()) {
-    std::stringstream ss;
-    ss << "[DDL Pipeline Parse Failed] " << static_cast<int>(op_kind)
-       << " failed to parse ddl plan";
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str()));
-  }
-
-  auto op =
-      schema_op_builders_.at(op_kind)->Build(schema, ctx_meta, ddl_plan, 0);
-  if (!op) {
-    std::stringstream ss;
-    ss << "[DDL Pipeline Parse Failed] " << static_cast<int>(op_kind)
-       << " failed to parse ddl plan";
-    auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
-    LOG(ERROR) << err.ToString();
-    RETURN_ERROR(err);
-  }
-
-  operators.emplace_back(std::move(op.value().first));
-  ctx_meta = op.value().second;
-
-  return Pipeline(std::move(operators));
-}
-
 gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
@@ -452,54 +366,6 @@ gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
             .parse_execute_pipeline(graph.schema(), ContextMeta(), plan)
             .and_then([&](Pipeline&& rp) {
               return rp.Execute(graph, runtime::Context(), {}, timer);
-            });
-      },
-      [&](const auto& _status) { status = _status; },
-      [&](gs::result<runtime::Context>&& res) {
-        ctx = std::move(res.value());
-      });
-  if (!status.ok()) {
-    RETURN_ERROR(status);
-  }
-  return std::move(ctx);
-}
-
-gs::result<runtime::Context> ParseAndExecuteAdminPipeline(
-    StorageUpdateInterface& graph, const physical::AdminPlan& admin_plan,
-    OprTimer* timer) {
-  runtime::Context ctx;
-  gs::Status status = Status::OK();
-  TRY_HANDLE_ALL_WITH_EXCEPTION(
-      gs::result<runtime::Context>,
-      [&]() {
-        return runtime::PlanParser::get()
-            .parse_admin_pipeline(graph.schema(), admin_plan)
-            .and_then([&](Pipeline&& ap) {
-              return ap.Execute(graph, runtime::Context(), {}, timer);
-            });
-      },
-      [&](const auto& _status) { status = _status; },
-      [&](gs::result<runtime::Context>&& res) {
-        ctx = std::move(res.value());
-      });
-  if (!status.ok()) {
-    RETURN_ERROR(status);
-  }
-  return std::move(ctx);
-}
-
-gs::result<runtime::Context> ParseAndExecuteDDLPipeline(
-    StorageUpdateInterface& graph, const physical::DDLPlan& ddl_plan,
-    OprTimer* timer) {
-  runtime::Context ctx;
-  gs::Status status = Status::OK();
-  TRY_HANDLE_ALL_WITH_EXCEPTION(
-      gs::result<runtime::Context>,
-      [&]() {
-        return runtime::PlanParser::get()
-            .parse_ddl_pipeline(graph.schema(), ddl_plan)
-            .and_then([&](Pipeline&& dp) {
-              return dp.Execute(graph, runtime::Context(), {}, timer);
             });
       },
       [&](const auto& _status) { status = _status; },

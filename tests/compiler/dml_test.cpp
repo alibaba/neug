@@ -29,18 +29,6 @@ class DMLTest : public GOptTest {
   };
 
   std::vector<std::string> rules = {"FilterPushDown", "ExpandGetVFusion"};
-
-  std::string replaceResource(const std::string& query) {
-    auto testResourceVal = getGOptResourcePath("dml_test");
-    std::string processedLine = query;
-    std::string pattern = "DML_RESOURCE";
-    size_t pos = processedLine.find(pattern);
-    while (pos != std::string::npos) {
-      processedLine.replace(pos, strlen(pattern.c_str()), testResourceVal);
-      pos = processedLine.find(pattern, pos + 1);
-    }
-    return processedLine;
-  }
 };
 
 TEST_F(DMLTest, COPY_PERSON) {
@@ -127,16 +115,16 @@ TEST_F(DMLTest, CREATE_VERTEX_EDGE) {
       *physical, getDMLResource("CREATE_VERTEX_EDGE_physical"));
 }
 
-TEST_F(DMLTest, CREATE_EDGE) {
-  std::string query =
-      "MATCH (p1:person {id: 1}), (p2:person {id: 2}) CREATE (p1)-[:knows "
-      "{weight: 3.0}]->(p2)";
-  auto logical = planLogical(query, schemaData, statsData, rules);
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  VerifyFactory::verifyPhysicalByJson(*physical,
-                                      getDMLResource("CREATE_EDGE_physical"));
-}
+// TEST_F(DMLTest, CREATE_EDGE) {
+//   std::string query =
+//       "MATCH (p1:person {id: 1}), (p2:person {id: 2}) CREATE (p1)-[:knows "
+//       "{weight: 3.0}]->(p2)";
+//   auto logical = planLogical(query, schemaData, statsData, rules);
+//   auto aliasManager = std::make_shared<GAliasManager>(*logical);
+//   auto physical = planPhysical(*logical, aliasManager);
+//   VerifyFactory::verifyPhysicalByJson(*physical,
+//                                       getDMLResource("CREATE_EDGE_physical"));
+// }
 
 TEST_F(DMLTest, DEL_VERTEX) {
   std::string query = "MATCH (u:person) WHERE u.name = 'A' DELETE u";

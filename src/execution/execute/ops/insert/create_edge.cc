@@ -68,7 +68,7 @@ class CreateEdgeOpr : public IOperator {
 gs::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.query_plan().plan(op_idx).opr().create_edge();
+  const auto& opr = plan.plan(op_idx).opr().create_edge();
   std::vector<LabelTriplet> labels;
   std::vector<int32_t> alias;
   std::vector<std::pair<int32_t, int32_t>> src_dst_tags;

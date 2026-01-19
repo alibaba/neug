@@ -65,7 +65,7 @@ class CreateVertexOpr : public IOperator {
 gs::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& opr = plan.query_plan().plan(op_idx).opr().create_vertex();
+  const auto& opr = plan.plan(op_idx).opr().create_vertex();
   std::vector<label_t> labels;
   std::vector<int32_t> alias;
   std::vector<std::vector<std::pair<std::string, common::Expression>>>

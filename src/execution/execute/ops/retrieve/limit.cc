@@ -63,8 +63,7 @@ gs::result<OpBuildResultT> LimitOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(
-      std::make_unique<LimitOpr>(plan.query_plan().plan(op_idx).opr().limit()),
-      ctx_meta);
+      std::make_unique<LimitOpr>(plan.plan(op_idx).opr().limit()), ctx_meta);
 }
 
 }  // namespace ops

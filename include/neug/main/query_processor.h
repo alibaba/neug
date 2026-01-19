@@ -48,14 +48,9 @@ class QueryProcessor {
  private:
   result<results::CollectiveResults> execute_internal(
       const std::string& query_string, int32_t num_threads = 0);
-  result<results::CollectiveResults> execute_admin(
-      const physical::AdminPlan& admin_plan, int32_t num_threads);
 
   result<results::CollectiveResults> execute_query(
       const physical::PhysicalPlan& plan, int32_t num_threads);
-
-  result<results::CollectiveResults> execute_ddl(
-      const physical::DDLPlan& ddl_plan, int32_t num_threads);
 
   bool need_exclusive_lock(const std::string& access_mode);
 

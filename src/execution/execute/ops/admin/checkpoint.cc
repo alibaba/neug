@@ -31,7 +31,7 @@ gs::result<Context> CheckpointOpr::Eval(
 
 gs::result<OpBuildResultT> CheckpointOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::AdminPlan& plan, int op_id) {
+    const physical::PhysicalPlan& plan, int op_id) {
   return std::make_pair(std::make_unique<CheckpointOpr>(), ctx_meta);
 }
 

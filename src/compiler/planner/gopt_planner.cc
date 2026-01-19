@@ -15,6 +15,8 @@ limitations under the License.
 
 #include "neug/compiler/planner/gopt_planner.h"
 #include <yaml-cpp/node/emit.h>
+#include <cctype>
+#include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_result_schema.h"
@@ -118,5 +120,65 @@ void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {
     return;
   }
   database->updateStats(graph_statistic_json);
+}
+
+bool isTokenEnd(char ch) {
+  return ch == ' ' || ch == ';' || ch == '\n' || ch == '\t' || ch == '{' ||
+         ch == '(';
+}
+
+std::string GOptPlanner::analyzeMode(const std::string& query) const {
+  size_t i = 0;
+  const size_t n = query.size();
+
+  while (i < n) {
+    while (i < n && isTokenEnd(query[i]))
+      ++i;
+    if (i >= n)
+      break;
+
+    // mark the start pos of current token
+    size_t token_start = i;
+    bool invalid_token = false;
+
+    // scan the token until a non-alphabetic character or an end character
+    while (i < n) {
+      char c = query[i];
+      if (std::isalpha(static_cast<unsigned char>(c))) {
+        ++i;
+      } else if (isTokenEnd(c)) {
+        break;
+      } else {
+        invalid_token = true;  // non-alphabetic character found, we need to
+                               // skip the current token
+        break;
+      }
+    }
+
+    // if the token is invalid, skip to the next valid token
+    if (invalid_token) {
+      while (i < n && !isTokenEnd(query[i]))
+        ++i;
+      ++i;
+      continue;
+    }
+
+    std::string token(query.data() + token_start, i - token_start);
+
+    if (getUpdateOpTokens().contains(token)) {
+      return "update";
+    }
+
+    ++i;
+  }
+
+  return "read";
+}
+
+const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
+  static common::case_insensitve_set_t updateOps = {
+      "create",     "delete", "set",     "drop",      "alter", "copy",
+      "checkpoint", "load",   "install", "uninstall", "call"};
+  return updateOps;
 }
 }  // namespace gs

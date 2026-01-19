@@ -67,11 +67,11 @@ gs::result<OpBuildResultT> UnfoldOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
-  int alias = plan.query_plan().plan(op_idx).opr().unfold().alias().value();
+  int alias = plan.plan(op_idx).opr().unfold().alias().value();
   ret_meta.set(alias);
   return std::make_pair(
-      std::make_unique<UnfoldOpr>(
-          plan.query_plan().plan(op_idx).opr().unfold().input_expr(), alias),
+      std::make_unique<UnfoldOpr>(plan.plan(op_idx).opr().unfold().input_expr(),
+                                  alias),
       ret_meta);
 }
 

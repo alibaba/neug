@@ -98,7 +98,7 @@ class Connection(object):
             self._py_connection.close()
             self._is_open = False
 
-    def execute(self, query: str, access_mode="update") -> QueryResult:
+    def execute(self, query: str, access_mode="") -> QueryResult:
         """
         Execute a cypher query on the database. User could specify multiple queries in a single string,
         separated by semicolons. The query will be executed in the order they are specified.
@@ -160,7 +160,14 @@ class Connection(object):
                 f"Connection is closed. Please open the connection before executing queries."
                 f"Error code: {ERR_CONNECTION_CLOSED}"
             )
-        if access_mode.lower() not in ["read", "r", "insert", "i", "update", "u"]:
+        if access_mode != "" and access_mode.lower() not in [
+            "read",
+            "r",
+            "insert",
+            "i",
+            "update",
+            "u",
+        ]:
             raise ValueError(
                 f"Invalid access_mode: {access_mode}. Supported access modes are "
                 f"{valid_access_modes}."

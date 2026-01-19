@@ -60,8 +60,9 @@ class RenameEdgePropertySchemaOpr : public IOperator {
 
 gs::result<OpBuildResultT> RenameEdgePropertyOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& rename_edge_property = plan.rename_edge_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& rename_edge_property =
+      plan.plan(op_id).opr().rename_edge_property_schema();
   std::string src_type =
       rename_edge_property.edge_type().src_type_name().name();
   std::string dst_type =

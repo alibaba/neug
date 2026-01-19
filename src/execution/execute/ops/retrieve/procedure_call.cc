@@ -49,7 +49,7 @@ gs::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto gCatalog = catalog::GCatalogHolder::getGCatalog();
-  auto procedurePB = plan.query_plan().plan(op_idx).opr().procedure_call();
+  auto procedurePB = plan.plan(op_idx).opr().procedure_call();
   auto signatureName = procedurePB.query().query_name().name();
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto callFunc = func->ptrCast<function::NeugCallFunction>();

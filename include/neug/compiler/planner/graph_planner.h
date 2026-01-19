@@ -56,6 +56,13 @@ class IGraphPlanner {
    * @param graph_statistic_json The JSON string of the graph statistics.
    */
   virtual void update_statistics(const std::string& graph_statistic_json) = 0;
+
+  // Attempts to infer the execution access mode from the given query.
+  // The current implementation relies on static analysis of the query string
+  // and can only distinguish between "update" and "read" modes.
+  // Inferring an "insert" mode would require more complex operator
+  // combination analysis, which is not supported at the moment.
+  virtual std::string analyzeMode(const std::string& query) const = 0;
 };
 
 }  // namespace gs

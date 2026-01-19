@@ -74,48 +74,51 @@ class ExtensionUninstallOpr : public IOperator {
 };
 
 // Builders
-class ExtensionInstallOprBuilder : public IAdminOperatorBuilder {
+class ExtensionInstallOprBuilder : public IOperatorBuilder {
  public:
   ExtensionInstallOprBuilder() = default;
   ~ExtensionInstallOprBuilder() override = default;
 
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::AdminPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_idx) override;
 
-  physical::AdminPlan_Operator::KindCase GetOpKind() const override {
-    return physical::AdminPlan_Operator::KindCase::kExtInstall;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kExtInstall};
   }
 };
 
-class ExtensionLoadOprBuilder : public IAdminOperatorBuilder {
+class ExtensionLoadOprBuilder : public IOperatorBuilder {
  public:
   ExtensionLoadOprBuilder() = default;
   ~ExtensionLoadOprBuilder() override = default;
 
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::AdminPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_idx) override;
 
-  physical::AdminPlan_Operator::KindCase GetOpKind() const override {
-    return physical::AdminPlan_Operator::KindCase::kExtLoad;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kExtLoad};
   }
 };
 
-class ExtensionUninstallOprBuilder : public IAdminOperatorBuilder {
+class ExtensionUninstallOprBuilder : public IOperatorBuilder {
  public:
   ExtensionUninstallOprBuilder() = default;
   ~ExtensionUninstallOprBuilder() override = default;
 
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::AdminPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_idx) override;
 
-  physical::AdminPlan_Operator::KindCase GetOpKind() const override {
-    return physical::AdminPlan_Operator::KindCase::kExtUninstall;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kExtUninstall};
   }
 };
 

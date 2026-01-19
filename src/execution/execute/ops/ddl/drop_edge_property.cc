@@ -59,8 +59,9 @@ class DropEdgePropertySchemaOpr : public IOperator {
 
 gs::result<OpBuildResultT> DropEdgePropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& drop_edge_property = plan.drop_edge_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& drop_edge_property =
+      plan.plan(op_id).opr().drop_edge_property_schema();
   std::vector<std::string> property_names;
   for (const auto& prop_name : drop_edge_property.properties()) {
     property_names.push_back(prop_name);

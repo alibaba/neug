@@ -27,6 +27,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace gs {
 namespace gopt {
@@ -49,20 +50,17 @@ class GDDLConverter {
 
   virtual ~GDDLConverter() = default;
 
-  // Convert LogicalCreateTable to DDLPlan
-  std::unique_ptr<::physical::DDLPlan> convertCreateTable(
-      const planner::LogicalCreateTable& op);
+  // Convert LogicalCreateTable to PhysicalPlan
+  void convertCreateTable(const planner::LogicalCreateTable& op,
+                          ::physical::PhysicalPlan* plan);
 
-  // Convert LogicalDrop to DDLPlan
-  std::unique_ptr<::physical::DDLPlan> convertDropTable(
-      const planner::LogicalDrop& op);
+  // Convert LogicalDrop to PhysicalPlan
+  void convertDropTable(const planner::LogicalDrop& op,
+                        ::physical::PhysicalPlan* plan);
 
-  // Convert LogicalAlter to DDLPlan
-  std::unique_ptr<::physical::DDLPlan> convertAlterTable(
-      const planner::LogicalAlter& op);
-
-  std::unique_ptr<::physical::DDLPlan> convert(
-      const planner::LogicalPlan& plan);
+  // Convert LogicalAlter to PhysicalPlan
+  void convertAlterTable(const planner::LogicalAlter& op,
+                         ::physical::PhysicalPlan* plan);
 
  private:
   gs::catalog::Catalog* catalog;
@@ -74,31 +72,31 @@ class GDDLConverter {
   }
 
   // Convert to specific DDL operations
-  std::unique_ptr<::physical::DDLPlan> convertToCreateVertexSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToCreateVertexSchema(
       const planner::LogicalCreateTable& op);
-  std::unique_ptr<::physical::DDLPlan> convertToCreateEdgeSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToCreateEdgeSchema(
       const planner::LogicalCreateTable& op);
-  std::unique_ptr<::physical::DDLPlan> convertToCreateEdgeGroupSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToCreateEdgeGroupSchema(
       const planner::LogicalCreateTable& op);
-  std::unique_ptr<::physical::DDLPlan> convertToDropVertexSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToDropVertexSchema(
       const planner::LogicalDrop& op);
-  std::unique_ptr<::physical::DDLPlan> convertToDropEdgeSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToDropEdgeSchema(
       const planner::LogicalDrop& op);
-  std::unique_ptr<::physical::DDLPlan> convertToAddVertexPropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToAddVertexPropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToAddEdgePropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToAddEdgePropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToDropVertexPropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToDropVertexPropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToDropEdgePropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToDropEdgePropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToRenameVertexPropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToRenameVertexPropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToRenameEdgePropertySchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToRenameEdgePropertySchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToRenameVertexTypeSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToRenameVertexTypeSchema(
       const planner::LogicalAlter& op);
-  std::unique_ptr<::physical::DDLPlan> convertToRenameEdgeTypeSchema(
+  std::unique_ptr<::physical::PhysicalOpr> convertToRenameEdgeTypeSchema(
       const planner::LogicalAlter& op);
 
   void getEdgeLabels(const std::string& labelName,

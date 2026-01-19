@@ -87,7 +87,7 @@ gs::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
-  const auto& opr = plan.query_plan().plan(op_idx).opr().delete_vertex();
+  const auto& opr = plan.plan(op_idx).opr().delete_vertex();
   std::vector<std::vector<label_t>> vertex_types;
   std::vector<int32_t> vertex_bindings;
   for (auto& entry : opr.entries()) {

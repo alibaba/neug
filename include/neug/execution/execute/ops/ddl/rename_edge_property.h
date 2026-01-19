@@ -25,16 +25,18 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class RenameEdgePropertyOprBuilder : public ISchemaOperatorBuilder {
+class RenameEdgePropertyOprBuilder : public IOperatorBuilder {
  public:
   RenameEdgePropertyOprBuilder() = default;
   ~RenameEdgePropertyOprBuilder() = default;
   gs::result<OpBuildResultT> Build(const Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::DDLPlan& plan,
+                                   const physical::PhysicalPlan& plan,
                                    int op_id) override;
-  physical::DDLPlan::PlanCase GetOpKind() const override {
-    return physical::DDLPlan::PlanCase::kRenameEdgePropertySchema;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {
+        physical::PhysicalOpr_Operator::OpKindCase::kRenameEdgePropertySchema};
   }
 };
 

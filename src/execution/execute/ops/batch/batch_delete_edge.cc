@@ -126,7 +126,7 @@ gs::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta meta = ctx_meta;
-  const auto& opr = plan.query_plan().plan(op_idx).opr().delete_edge();
+  const auto& opr = plan.plan(op_idx).opr().delete_edge();
   std::vector<std::vector<std::tuple<label_t, label_t, label_t>>> edge_types;
   std::vector<int32_t> edge_bindings;
   for (auto& edge_binding : opr.edge_binding()) {

@@ -344,32 +344,32 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
            std::optional<common::Expression>& epred) {
   vpred = std::nullopt;
   epred = std::nullopt;
-  if (plan.query_plan().plan_size() > 2 || plan.query_plan().plan_size() < 1) {
+  if (plan.plan_size() > 2 || plan.plan_size() < 1) {
     THROW_RUNTIME_ERROR(
         "sub-plan of intersect operator should have 1 or 2 plans");
   }
-  if (plan.query_plan().plan_size() >= 1) {
-    if (plan.query_plan().plan(0).opr().op_kind_case() !=
+  if (plan.plan_size() >= 1) {
+    if (plan.plan(0).opr().op_kind_case() !=
         physical::PhysicalOpr_Operator::OpKindCase::kEdge) {
       THROW_RUNTIME_ERROR(
           "the first operator in sub-plan of intersect operator should be "
           "edge expand");
     }
-    const auto& edge = plan.query_plan().plan(0).opr().edge();
-    params = parse_edge_params(edge, plan.query_plan().plan(0).meta_data(0));
+    const auto& edge = plan.plan(0).opr().edge();
+    params = parse_edge_params(edge, plan.plan(0).meta_data(0));
     if (edge.has_params() && edge.params().has_predicate()) {
       epred = edge.params().predicate();
       LOG(INFO) << "Edge predicate found in sub-plan";
     }
   }
-  if (plan.query_plan().plan_size() == 2) {
-    if (plan.query_plan().plan(1).opr().op_kind_case() !=
+  if (plan.plan_size() == 2) {
+    if (plan.plan(1).opr().op_kind_case() !=
         physical::PhysicalOpr_Operator::OpKindCase::kVertex) {
       THROW_RUNTIME_ERROR(
           "the second operator in sub-plan of intersect operator should be "
           "vertex");
     }
-    const auto& vertex = plan.query_plan().plan(1).opr().vertex();
+    const auto& vertex = plan.plan(1).opr().vertex();
     if (vertex.has_params() && vertex.params().has_predicate()) {
       vpred = vertex.params().predicate();
       LOG(INFO) << "Vertex predicate found in sub-plan";
@@ -379,7 +379,7 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
 gs::result<OpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& intersect_opr = plan.query_plan().plan(op_idx).opr().intersect();
+  const auto& intersect_opr = plan.plan(op_idx).opr().intersect();
   std::vector<EdgeExpandParams> eeps_(intersect_opr.sub_plans_size());
   std::vector<std::optional<common::Expression>> vertex_preds_(
       intersect_opr.sub_plans_size());
@@ -395,8 +395,8 @@ gs::result<OpBuildResultT> IntersectOprBuilder::Build(
   // There are two different cases for Intersect
   // 1. The subplans are composed of EdgeExpand + GetV.
   // 2. The subplans only contains EdgeExpandV.
-  if (sub_left.query_plan().plan_size() == 1) {
-    const auto& edge = sub_left.query_plan().plan(0).opr().edge();
+  if (sub_left.plan_size() == 1) {
+    const auto& edge = sub_left.plan(0).opr().edge();
     if (edge.expand_opt() ==
         physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX) {
       alias = edge.alias().value();
@@ -404,9 +404,9 @@ gs::result<OpBuildResultT> IntersectOprBuilder::Build(
       THROW_INTERNAL_EXCEPTION(
           "If there is only one plan, it must be an EdgeExpand + GetV.");
     }
-  } else if (sub_left.query_plan().plan_size() == 2) {
-    if (sub_left.query_plan().plan(1).opr().has_vertex()) {
-      alias = sub_left.query_plan().plan(1).opr().vertex().alias().value();
+  } else if (sub_left.plan_size() == 2) {
+    if (sub_left.plan(1).opr().has_vertex()) {
+      alias = sub_left.plan(1).opr().vertex().alias().value();
     } else {
       THROW_INTERNAL_EXCEPTION(
           "If there are two plans, the second plan must be a GetV.");
@@ -416,15 +416,14 @@ gs::result<OpBuildResultT> IntersectOprBuilder::Build(
   bool keep_edge_alias = false;
   for (int i = 0; i < intersect_opr.sub_plans_size(); ++i) {
     const auto& sub_plan = intersect_opr.sub_plans(i);
-    if (sub_plan.query_plan().plan_size() == 2) {
-      if (!sub_plan.query_plan().plan(1).opr().has_vertex()) {
+    if (sub_plan.plan_size() == 2) {
+      if (!sub_plan.plan(1).opr().has_vertex()) {
         THROW_INTERNAL_EXCEPTION(
             "If there are two plans, the second plan must be a GetV.");
       }
-      int edge_alias =
-          sub_plan.query_plan().plan(0).opr().edge().has_alias()
-              ? sub_plan.query_plan().plan(0).opr().edge().alias().value()
-              : -1;
+      int edge_alias = sub_plan.plan(0).opr().edge().has_alias()
+                           ? sub_plan.plan(0).opr().edge().alias().value()
+                           : -1;
       edge_aliases.push_back(edge_alias);
       if (edge_alias != -1) {
         keep_edge_alias = true;
@@ -433,7 +432,7 @@ gs::result<OpBuildResultT> IntersectOprBuilder::Build(
   }
 
   ContextMeta meta = ctx_meta;
-  meta.set(plan.query_plan().plan(op_idx).opr().intersect().key());
+  meta.set(plan.plan(op_idx).opr().intersect().key());
   if (keep_edge_alias) {
     for (const auto& ea : edge_aliases) {
       if (ea != -1) {

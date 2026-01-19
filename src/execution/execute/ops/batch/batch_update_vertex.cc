@@ -128,7 +128,7 @@ gs::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
-  const auto& opr = plan.query_plan().plan(op_idx).opr().set_vertex();
+  const auto& opr = plan.plan(op_idx).opr().set_vertex();
   typename UpdateVertexOpr::vertex_prop_vec_t vertex_data;
   for (auto& entry : opr.entries()) {
     auto& vertex_binding = entry.vertex_binding();

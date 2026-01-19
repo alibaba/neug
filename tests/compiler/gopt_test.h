@@ -25,6 +25,7 @@
 
 #include <google/protobuf/util/json_util.h>
 #include <gtest/gtest.h>
+#include <rapidjson/document.h>
 #include <yaml-cpp/node/emit.h>
 #include <yaml-cpp/node/node.h>
 #include <ranges>
@@ -46,6 +47,7 @@
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/storage/wal/wal.h"
 #include "neug/compiler/transaction/transaction.h"
+#include "neug/utils/service_utils.h"
 
 namespace gs {
 namespace gopt {
@@ -204,6 +206,19 @@ class GOptTest : public ::testing::Test {
   std::string getGOptResourcePath(const std::string& resourceName) {
     return Utils::getTestResourcePath("resources/" + resourceName);
   }
+
+  std::string replaceResource(const std::string& query) {
+    auto testResourceVal = getGOptResourcePath("dataset");
+    std::string processedLine = query;
+    std::string pattern = "DML_RESOURCE";
+    size_t pos = processedLine.find(pattern);
+    while (pos != std::string::npos) {
+      processedLine.replace(pos, strlen(pattern.c_str()), testResourceVal);
+      pos = processedLine.find(pattern, pos + 1);
+    }
+    return processedLine;
+  }
+
   std::unique_ptr<planner::LogicalPlan> planLogical(
       const std::string& query, const std::string& schemaData,
       const std::string& statsData, std::vector<std::string> rules) {
@@ -393,9 +408,33 @@ class VerifyFactory {
  public:
   static void verifyPhysicalByJson(const ::physical::PhysicalPlan& plan,
                                    const std::string& expectedStr) {
+    rapidjson::Document document;
+    document.Parse(expectedStr.c_str());
+    if (document.HasParseError()) {
+      THROW_RUNTIME_ERROR("Failed to parse expected JSON: " + expectedStr);
+    }
+    std::string planExpectedStr = expectedStr;
+    if (document.HasMember("query_plan")) {
+      const rapidjson::Value& queryPlan = document["query_plan"];
+      if (queryPlan.IsObject() && queryPlan.HasMember("plan")) {
+        const rapidjson::Value& plan = queryPlan["plan"];
+        planExpectedStr = rapidjson_stringify(plan);
+      }
+    } else if (document.HasMember("plan")) {
+      const rapidjson::Value& plan = document["plan"];
+      planExpectedStr = rapidjson_stringify(plan);
+    }
     auto actualStr = Utils::getPhysicalJson(plan);
-    ASSERT_EQ(actualStr, expectedStr)
-        << "Expected: " << expectedStr << "\nActual: " << actualStr;
+    document.Parse(actualStr.c_str());
+    if (document.HasParseError()) {
+      THROW_RUNTIME_ERROR("Failed to parse actual JSON: " + actualStr);
+    }
+    if (document.HasMember("plan")) {
+      const rapidjson::Value& plan = document["plan"];
+      actualStr = rapidjson_stringify(plan);
+    }
+    ASSERT_EQ(actualStr, planExpectedStr)
+        << "Expected: " << planExpectedStr << "\nActual: " << actualStr;
   }
 
   static void verifyLogicalByStr(const planner::LogicalPlan& plan,

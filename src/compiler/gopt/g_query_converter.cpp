@@ -15,6 +15,7 @@
 
 #include "neug/compiler/gopt/g_query_converter.h"
 
+#include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/map.h>
 #include <google/protobuf/wrappers.pb.h>
 #include <cstdlib>
@@ -52,10 +53,12 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
+#include "neug/compiler/planner/operator/logical_transaction.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
@@ -70,14 +73,15 @@ namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
                                  gs::catalog::Catalog* catalog)
-    : aliasManager(aliasManager),
+    : ddlConverter(aliasManager, catalog),
+      aliasManager(aliasManager),
       catalog(catalog),
       exprConvertor(std::make_unique<GExprConverter>(aliasManager)),
       typeConverter(std::make_unique<GPhysicalTypeConverter>()) {}
 
-std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
+std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
     const planner::LogicalPlan& plan, bool skipSink) {
-  auto planPB = std::make_unique<::physical::QueryPlan>();
+  auto planPB = std::make_unique<::physical::PhysicalPlan>();
   convertOperator(*plan.getLastOperator(), planPB.get());
   if (!skipSink) {
     auto sink = std::make_unique<::physical::Sink>();
@@ -91,7 +95,7 @@ std::unique_ptr<::physical::QueryPlan> GQueryConvertor::convert(
 }
 
 void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
-                                      ::physical::QueryPlan* plan,
+                                      ::physical::PhysicalPlan* plan,
                                       bool skipScan) {
   if (op.getOperatorType() == planner::LogicalOperatorType::INTERSECT) {
     auto intersect = op.constPtrCast<planner::LogicalIntersect>();
@@ -226,11 +230,85 @@ void GQueryConvertor::convertOperator(const planner::LogicalOperator& op,
   case planner::LogicalOperatorType::FLATTEN:
   case planner::LogicalOperatorType::ACCUMULATE:
     break;
+  case planner::LogicalOperatorType::TRANSACTION: {
+    auto transaction = op.constPtrCast<planner::LogicalTransaction>();
+    convertCheckpoint(*transaction, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::EXTENSION: {
+    auto extension = op.constPtrCast<planner::LogicalExtension>();
+    convertExtension(*extension, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::CREATE_TABLE: {
+    auto createTable = op.constPtrCast<planner::LogicalCreateTable>();
+    ddlConverter.convertCreateTable(*createTable, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::DROP: {
+    auto dropTable = op.constPtrCast<planner::LogicalDrop>();
+    ddlConverter.convertDropTable(*dropTable, plan);
+    break;
+  }
+  case planner::LogicalOperatorType::ALTER: {
+    auto alterTable = op.constPtrCast<planner::LogicalAlter>();
+    ddlConverter.convertAlterTable(*alterTable, plan);
+    break;
+  }
   default:
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported operator type in logical plan: " +
         std::to_string(static_cast<int>(op.getOperatorType())));
   }
+}
+
+void GQueryConvertor::convertCheckpoint(
+    const planner::LogicalTransaction& transaction,
+    ::physical::PhysicalPlan* plan) {
+  auto action = transaction.getTransactionAction();
+  if (action != transaction::TransactionAction::CHECKPOINT) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Cannot convert transaction action " +
+                                   std::to_string(static_cast<int>(action)) +
+                                   " to admin operator");
+  }
+  auto checkpointPB = std::make_unique<::physical::Checkpoint>();
+  auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
+  auto opr = physicalOpr->mutable_opr();
+  opr->set_allocated_checkpoint(checkpointPB.release());
+  plan->mutable_plan()->AddAllocated(physicalOpr.release());
+}
+
+void GQueryConvertor::convertExtension(const planner::LogicalExtension& ext,
+                                       ::physical::PhysicalPlan* plan) {
+  const auto& aux = ext.getAuxInfo();
+
+  auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
+  auto opr = physicalOpr->mutable_opr();
+
+  switch (aux.action) {
+  case planner::ExtensionAction::INSTALL: {
+    auto install = std::make_unique<::physical::ExtensionInstall>();
+    install->set_extension_name(aux.path);
+    opr->set_allocated_ext_install(install.release());
+    break;
+  }
+  case planner::ExtensionAction::LOAD: {
+    auto load = std::make_unique<::physical::ExtensionLoad>();
+    load->set_extension_name(aux.path);
+    opr->set_allocated_ext_load(load.release());
+    break;
+  }
+  case planner::ExtensionAction::UNINSTALL: {
+    auto uninst = std::make_unique<::physical::ExtensionUninstall>();
+    uninst->set_extension_name(aux.path);
+    opr->set_allocated_ext_uninstall(uninst.release());
+    break;
+  }
+  default:
+    THROW_EXCEPTION_WITH_FILE_LINE("Unknown extension action");
+  }
+
+  plan->mutable_plan()->AddAllocated(physicalOpr.release());
 }
 
 std::unique_ptr<::physical::EdgeType> GQueryConvertor::convertToEdgeType(
@@ -249,7 +327,7 @@ std::unique_ptr<::physical::EdgeType> GQueryConvertor::convertToEdgeType(
 }
 
 void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
-                                  ::physical::QueryPlan* plan) {
+                                  ::physical::PhysicalPlan* plan) {
   auto scanPB = std::make_unique<::physical::Scan>();
   scanPB->set_scan_opt(::physical::Scan_ScanOpt::Scan_ScanOpt_VERTEX);
   scanPB->set_allocated_params(
@@ -535,7 +613,7 @@ void GQueryConvertor::convertExtraInfo(
 
 void GQueryConvertor::convertRecursiveExtend(
     const planner::LogicalRecursiveExtend& extend,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   auto pathPB = std::make_unique<::physical::PathExpand>();
   // set expand base
   pathPB->set_allocated_base(convertPathBase(extend).release());
@@ -591,7 +669,7 @@ void GQueryConvertor::convertRecursiveExtend(
 }
 
 void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,
-                                    ::physical::QueryPlan* plan) {
+                                    ::physical::PhysicalPlan* plan) {
   auto extendPB = std::make_unique<::physical::EdgeExpand>();
   // set expand options
   extendPB->set_expand_opt(convertExpandOpt(extend.getExtendOpt()));
@@ -643,7 +721,7 @@ void GQueryConvertor::convertExtend(const planner::LogicalExtend& extend,
 }
 
 void GQueryConvertor::convertGetV(const planner::LogicalGetV& getV,
-                                  ::physical::QueryPlan* plan) {
+                                  ::physical::PhysicalPlan* plan) {
   auto getVPB = std::make_unique<::physical::GetV>();
   // set opt
   getVPB->set_opt(convertGetVOpt(getV.getGetVOpt()));
@@ -682,8 +760,8 @@ void GQueryConvertor::convertGetV(const planner::LogicalGetV& getV,
 }
 
 void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
-                                    ::physical::QueryPlan* plan) {
-  // check the queryPlan is empty, if empty, throw exception
+                                    ::physical::PhysicalPlan* plan) {
+  // check the PhysicalPlan is empty, if empty, throw exception
   if (plan->plan_size() == 0) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Query plan is empty, cannot convert filter.");
@@ -712,7 +790,7 @@ void GQueryConvertor::convertFilter(const planner::LogicalFilter& filter,
 }
 
 void GQueryConvertor::convertUnwind(const planner::LogicalUnwind& unwind,
-                                    ::physical::QueryPlan* plan) {
+                                    ::physical::PhysicalPlan* plan) {
   if (!unwind.getInExpr() || !unwind.getOutExpr()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "unwind input and output expr should not be null");
@@ -742,7 +820,7 @@ void GQueryConvertor::convertUnwind(const planner::LogicalUnwind& unwind,
 }
 
 void GQueryConvertor::convertDistinct(const planner::LogicalDistinct& distinct,
-                                      ::physical::QueryPlan* plan) {
+                                      ::physical::PhysicalPlan* plan) {
   size_t exprSize = distinct.getKeys().size();
 
   auto dedupPB = std::make_unique<::algebra::Dedup>();
@@ -791,7 +869,8 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
 }
 
 void GQueryConvertor::convertIntersect(
-    const planner::LogicalIntersect& intersect, ::physical::QueryPlan* plan) {
+    const planner::LogicalIntersect& intersect,
+    ::physical::PhysicalPlan* plan) {
   auto children = intersect.getChildren();
   if (children.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("intersect should have at least one child");
@@ -816,9 +895,9 @@ void GQueryConvertor::convertIntersect(
   intersectPB->set_key(aliasID);
   // set intersect sub plans
   for (size_t childIdx = 1; childIdx < children.size(); ++childIdx) {
-    auto childPlan = std::make_unique<::physical::QueryPlan>();
+    auto childPlan = std::make_unique<::physical::PhysicalPlan>();
     convertOperator(*children[childIdx], childPlan.get(), true);
-    intersectPB->add_sub_plans()->set_allocated_query_plan(childPlan.release());
+    intersectPB->mutable_sub_plans()->AddAllocated(childPlan.release());
   }
   // set intersect opr as physical opr
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -830,7 +909,7 @@ void GQueryConvertor::convertIntersect(
 }
 
 void GQueryConvertor::convertLimit(const planner::LogicalLimit& limit,
-                                   ::physical::QueryPlan* plan) {
+                                   ::physical::PhysicalPlan* plan) {
   auto limitPB = std::make_unique<::algebra::Limit>();
   auto rangePB = convertRange(limit.getSkipNum(), limit.getLimitNum());
   limitPB->set_allocated_range(rangePB.release());
@@ -843,7 +922,7 @@ void GQueryConvertor::convertLimit(const planner::LogicalLimit& limit,
 }
 
 void GQueryConvertor::convertOrder(const planner::LogicalOrderBy& order,
-                                   ::physical::QueryPlan* plan) {
+                                   ::physical::PhysicalPlan* plan) {
   auto exprVec = order.getExpressionsToOrderBy();
   auto orderVec = order.getIsAscOrders();
   if (exprVec.empty()) {
@@ -884,7 +963,8 @@ void GQueryConvertor::convertOrder(const planner::LogicalOrderBy& order,
 }
 
 void GQueryConvertor::convertAggregate(
-    const planner::LogicalAggregate& aggregate, ::physical::QueryPlan* plan) {
+    const planner::LogicalAggregate& aggregate,
+    ::physical::PhysicalPlan* plan) {
   std::vector<common::alias_id_t> aliasIds;
   auto groupPB = std::make_unique<::physical::GroupBy>();
   auto child = aggregate.getChild(0);
@@ -946,7 +1026,7 @@ void GQueryConvertor::convertAggregate(
 }
 
 void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
-                                     ::physical::QueryPlan* plan) {
+                                     ::physical::PhysicalPlan* plan) {
   auto exprs = project.getExpressionsToProject();
   // todo: hack ways to handle the case, Match (n) Return count(*) will add a
   // empty projection before the aggregate, it's better to implement a
@@ -1040,7 +1120,7 @@ std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
 
 void GQueryConvertor::convertDataSource(
     const planner::LogicalTableFunctionCall& funcCall,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   auto bindData = funcCall.getBindData();
   auto scanBindData = bindData->constPtrCast<function::ScanFileBindData>();
   if (!scanBindData) {
@@ -1110,7 +1190,7 @@ std::unique_ptr<Options> GQueryConvertor::convertExportOptions(
 
 void GQueryConvertor::convertTableFunc(
     const planner::LogicalTableFunctionCall& funcCall,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   auto bindData = funcCall.getBindData();
   if (dynamic_cast<const function::ScanFileBindData*>(bindData)) {
     convertDataSource(funcCall, plan);
@@ -1121,7 +1201,7 @@ void GQueryConvertor::convertTableFunc(
 
 void GQueryConvertor::convertProcedureCall(
     const planner::LogicalTableFunctionCall& funcCall,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   auto callFunc = funcCall.getTableFunc();
   auto queryPB = std::make_unique<::procedure::Query>();
   // set procedure query name
@@ -1186,7 +1266,7 @@ bool GQueryConvertor::skipColumn(const std::string& columnName) {
 }
 
 void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
-                                      ::physical::QueryPlan* plan) {
+                                      ::physical::PhysicalPlan* plan) {
   auto info = copyFrom.getInfo();
   auto tableEntry = info->tableEntry;
   auto columnExprs = binder::expression_vector();
@@ -1244,7 +1324,7 @@ void GQueryConvertor::convertBatchInsertEdge(
     catalog::GRelTableCatalogEntry* relEntry,
     const binder::expression_vector& columnExprs,
     const std::vector<common::alias_id_t>& columnIdMap,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   if (columnExprs.size() != columnIdMap.size()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Mismatch between number of output columns (" +
@@ -1278,7 +1358,7 @@ void GQueryConvertor::convertBatchInsertEdge(
 }
 
 void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
-                                    ::physical::QueryPlan* plan) {
+                                    ::physical::PhysicalPlan* plan) {
   auto& infos = insert.getInfos();
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Insert info should not be empty");
@@ -1302,7 +1382,7 @@ void GQueryConvertor::convertInsert(const planner::LogicalInsert& insert,
 }
 
 void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
-                                          ::physical::QueryPlan* plan) {
+                                          ::physical::PhysicalPlan* plan) {
   auto& infos = insert.getInfos();
   auto insertPB = std::make_unique<::physical::InsertVertex>();
   for (auto& info : infos) {
@@ -1361,7 +1441,7 @@ void GQueryConvertor::convertInsertVertex(const planner::LogicalInsert& insert,
 }
 
 void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
-                                        ::physical::QueryPlan* plan) {
+                                        ::physical::PhysicalPlan* plan) {
   auto& infos = insert.getInfos();
   auto insertPB = std::make_unique<::physical::InsertEdge>();
   for (auto& info : infos) {
@@ -1439,7 +1519,7 @@ void GQueryConvertor::convertInsertEdge(const planner::LogicalInsert& insert,
 }
 
 void GQueryConvertor::convertSetVertexProperty(
-    const planner::LogicalSetProperty& set, ::physical::QueryPlan* plan) {
+    const planner::LogicalSetProperty& set, ::physical::PhysicalPlan* plan) {
   auto& infos = set.getInfos();
   auto setPB = std::make_unique<::physical::SetVertexProperty>();
   if (set.getNumChildren() == 0) {
@@ -1478,7 +1558,7 @@ void GQueryConvertor::convertSetVertexProperty(
 }
 
 void GQueryConvertor::convertSetEdgeProperty(
-    const planner::LogicalSetProperty& set, ::physical::QueryPlan* plan) {
+    const planner::LogicalSetProperty& set, ::physical::PhysicalPlan* plan) {
   auto& infos = set.getInfos();
   auto setPB = std::make_unique<::physical::SetEdgeProperty>();
   for (const auto& info : infos) {
@@ -1512,7 +1592,7 @@ void GQueryConvertor::convertSetEdgeProperty(
 }
 
 void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
-                                         ::physical::QueryPlan* plan) {
+                                         ::physical::PhysicalPlan* plan) {
   auto& infos = set.getInfos();
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("SetProperty info should not be empty");
@@ -1537,7 +1617,7 @@ void GQueryConvertor::convertSetProperty(const planner::LogicalSetProperty& set,
 }
 
 void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
-                                    ::physical::QueryPlan* plan) {
+                                    ::physical::PhysicalPlan* plan) {
   auto& infos = deleteOp.getInfos();
   if (infos.empty()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Delete info should not be empty");
@@ -1560,7 +1640,7 @@ void GQueryConvertor::convertDelete(const planner::LogicalDelete& deleteOp,
   }
 }
 void GQueryConvertor::convertDeleteVertex(
-    const planner::LogicalDelete& deleteOp, ::physical::QueryPlan* plan) {
+    const planner::LogicalDelete& deleteOp, ::physical::PhysicalPlan* plan) {
   auto& infos = deleteOp.getInfos();
   auto deletePB = std::make_unique<::physical::DeleteVertex>();
   for (const auto& info : infos) {
@@ -1580,7 +1660,7 @@ void GQueryConvertor::convertDeleteVertex(
 }
 
 void GQueryConvertor::convertDeleteEdge(const planner::LogicalDelete& deleteOp,
-                                        ::physical::QueryPlan* plan) {
+                                        ::physical::PhysicalPlan* plan) {
   auto& infos = deleteOp.getInfos();
   auto deletePB = std::make_unique<::physical::DeleteEdge>();
   for (const auto& info : infos) {
@@ -1611,7 +1691,7 @@ common::TableType GQueryConvertor::getTableType(
 }
 
 void GQueryConvertor::convertCrossProduct(
-    const planner::LogicalCrossProduct& cross, ::physical::QueryPlan* plan) {
+    const planner::LogicalCrossProduct& cross, ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
   GPhysicalConvertor convertor(aliasManager, catalog);
   // convert left plan
@@ -1666,7 +1746,7 @@ void GQueryConvertor::extractJoinKeys(
 }
 
 void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
-                                      ::physical::QueryPlan* plan) {
+                                      ::physical::PhysicalPlan* plan) {
   auto joinPB = std::make_unique<::physical::Join>();
   GPhysicalConvertor convertor(aliasManager, catalog);
   auto leftOp = join.getChild(0);
@@ -1748,7 +1828,7 @@ void GQueryConvertor::convertBatchInsertVertex(
     catalog::NodeTableCatalogEntry* nodeEntry,
     const binder::expression_vector& columnExprs,
     const std::vector<common::alias_id_t>& columnIdMap,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   if (columnExprs.size() != columnIdMap.size()) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Mismatch between number of output columns (" +
@@ -1785,7 +1865,8 @@ std::string GQueryConvertor::getExtensionName(
 }
 
 void GQueryConvertor::convertDummyScan(
-    const planner::LogicalDummyScan& dummyScan, ::physical::QueryPlan* plan) {
+    const planner::LogicalDummyScan& dummyScan,
+    ::physical::PhysicalPlan* plan) {
   auto dummyPB = std::make_unique<::physical::Root>();
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
@@ -1796,12 +1877,12 @@ void GQueryConvertor::convertDummyScan(
 
 void GQueryConvertor::convertExpressionScan(
     const planner::LogicalExpressionsScan& expressionScan,
-    ::physical::QueryPlan* plan) {
+    ::physical::PhysicalPlan* plan) {
   // todo: convert expression scan to projection
 }
 
 void GQueryConvertor::convertAliasMap(const planner::LogicalAliasMap& aliasMap,
-                                      ::physical::QueryPlan* plan) {
+                                      ::physical::PhysicalPlan* plan) {
   auto srcExprs = aliasMap.getSrcExprs();
   auto dstExprs = aliasMap.getDstExprs();
   if (srcExprs.size() != dstExprs.size()) {
@@ -1840,7 +1921,7 @@ void GQueryConvertor::convertAliasMap(const planner::LogicalAliasMap& aliasMap,
 }
 
 void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
-                                   ::physical::QueryPlan* plan) {
+                                   ::physical::PhysicalPlan* plan) {
   if (unionOp.getNumChildren() == 0) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Union operator should have at least one sub query");
@@ -1858,10 +1939,8 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
   auto unionPB = std::make_unique<::physical::Union>();
   for (auto pos = subQueryOffset; pos < unionOp.getNumChildren(); ++pos) {
     auto subquery = unionOp.getChild(pos);
-    auto subQueryPlan = std::make_unique<::physical::QueryPlan>();
-    convertOperator(*subquery, subQueryPlan.get());
     auto subPhysicalPlan = std::make_unique<::physical::PhysicalPlan>();
-    subPhysicalPlan->set_allocated_query_plan(subQueryPlan.release());
+    convertOperator(*subquery, subPhysicalPlan.get());
     unionPB->mutable_sub_plans()->AddAllocated(subPhysicalPlan.release());
   }
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
@@ -1872,7 +1951,7 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
 }
 
 void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
-                                    ::physical::QueryPlan* plan) {
+                                    ::physical::PhysicalPlan* plan) {
   auto exportFunc = copyTo.getExportFunc();
   if (exportFunc.name == gs::function::ExportCSVFunction::name) {
     convertDataExport(copyTo, plan);
@@ -1925,7 +2004,7 @@ std::unique_ptr<::common::Value> GQueryConvertor::convertCopyToHeader(
 
 // convert CopyTo as ProcedureCall
 void GQueryConvertor::convertProcedureCall(const planner::LogicalCopyTo& copyTo,
-                                           ::physical::QueryPlan* plan) {
+                                           ::physical::PhysicalPlan* plan) {
   auto callFunc = copyTo.getExportFunc();
   // set function name of CopyTo
   auto queryPB = std::make_unique<::procedure::Query>();
@@ -1960,7 +2039,7 @@ void GQueryConvertor::convertProcedureCall(const planner::LogicalCopyTo& copyTo,
 
 // convert CopyTo as DataExport
 void GQueryConvertor::convertDataExport(const planner::LogicalCopyTo& copyTo,
-                                        ::physical::QueryPlan* plan) {
+                                        ::physical::PhysicalPlan* plan) {
   auto exportPB = std::make_unique<::physical::DataExport>();
   auto extensionName = getExtensionName(copyTo);
   exportPB->set_extension_name(extensionName);

@@ -28,6 +28,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
 
 #include <memory>
@@ -39,24 +40,8 @@
 namespace gs {
 namespace gopt {
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convert(
-    const planner::LogicalPlan& plan) {
-  auto& op = plan.getLastOperatorRef();
-  switch (op.getOperatorType()) {
-  case planner::LogicalOperatorType::CREATE_TABLE:
-    return convertCreateTable(
-        static_cast<const planner::LogicalCreateTable&>(op));
-  case planner::LogicalOperatorType::DROP:
-    return convertDropTable(static_cast<const planner::LogicalDrop&>(op));
-  case planner::LogicalOperatorType::ALTER:
-    return convertAlterTable(static_cast<const planner::LogicalAlter&>(op));
-  default:
-    THROW_RUNTIME_ERROR("Invalid logical operator type for DDL conversion");
-  }
-}
-
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
-    const planner::LogicalCreateTable& op) {
+void GDDLConverter::convertCreateTable(const planner::LogicalCreateTable& op,
+                                       ::physical::PhysicalPlan* plan) {
   const auto* info = op.getInfo();
   if (!info) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid operation info");
@@ -64,19 +49,24 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertCreateTable(
 
   switch (info->type) {
   case catalog::CatalogEntryType::NODE_TABLE_ENTRY:
-    return convertToCreateVertexSchema(op);
+    plan->mutable_plan()->AddAllocated(
+        convertToCreateVertexSchema(op).release());
+    break;
   case catalog::CatalogEntryType::REL_TABLE_ENTRY:
-    return convertToCreateEdgeSchema(op);
+    plan->mutable_plan()->AddAllocated(convertToCreateEdgeSchema(op).release());
+    break;
   case catalog::CatalogEntryType::REL_GROUP_ENTRY:
-    return convertToCreateEdgeGroupSchema(op);
+    plan->mutable_plan()->AddAllocated(
+        convertToCreateEdgeGroupSchema(op).release());
+    break;
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported catalog entry type for create");
   }
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
-    const planner::LogicalDrop& op) {
+void GDDLConverter::convertDropTable(const planner::LogicalDrop& op,
+                                     ::physical::PhysicalPlan* plan) {
   auto& info = op.getDropInfo();
   if (info.dropType != gs::common::DropType::TABLE) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Expected DROP TABLE type");
@@ -84,17 +74,17 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertDropTable(
 
   if (checkEntryType(info.name,
                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
-    return convertToDropVertexSchema(op);
+    plan->mutable_plan()->AddAllocated(convertToDropVertexSchema(op).release());
   } else if (checkEntryType(info.name,
                             gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
-    return convertToDropEdgeSchema(op);
+    plan->mutable_plan()->AddAllocated(convertToDropEdgeSchema(op).release());
+  } else {
+    THROW_RUNTIME_ERROR("Invalid table type for drop table");
   }
-
-  THROW_RUNTIME_ERROR("Invalid table type for drop table");
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
-    const planner::LogicalAlter& op) {
+void GDDLConverter::convertAlterTable(const planner::LogicalAlter& op,
+                                      ::physical::PhysicalPlan* plan) {
   const auto* info = op.getInfo();
 
   // Check table type
@@ -102,13 +92,21 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     switch (info->alterType) {
     case gs::common::AlterType::ADD_PROPERTY:
-      return convertToAddVertexPropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToAddVertexPropertySchema(op).release());
+      break;
     case gs::common::AlterType::DROP_PROPERTY:
-      return convertToDropVertexPropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToDropVertexPropertySchema(op).release());
+      break;
     case gs::common::AlterType::RENAME_PROPERTY:
-      return convertToRenameVertexPropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToRenameVertexPropertySchema(op).release());
+      break;
     case gs::common::AlterType::RENAME:
-      return convertToRenameVertexTypeSchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToRenameVertexTypeSchema(op).release());
+      break;
     default:
       THROW_RUNTIME_ERROR("Invalid alter type for vertex schema");
     }
@@ -116,22 +114,31 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertAlterTable(
                             gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     switch (info->alterType) {
     case gs::common::AlterType::ADD_PROPERTY:
-      return convertToAddEdgePropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToAddEdgePropertySchema(op).release());
+      break;
     case gs::common::AlterType::DROP_PROPERTY:
-      return convertToDropEdgePropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToDropEdgePropertySchema(op).release());
+      break;
     case gs::common::AlterType::RENAME_PROPERTY:
-      return convertToRenameEdgePropertySchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToRenameEdgePropertySchema(op).release());
+      break;
     case gs::common::AlterType::RENAME:
-      return convertToRenameEdgeTypeSchema(op);
+      plan->mutable_plan()->AddAllocated(
+          convertToRenameEdgeTypeSchema(op).release());
+      break;
     default:
       THROW_RUNTIME_ERROR("Invalid alter type for edge schema");
     }
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid table type for alter table");
   }
-
-  THROW_INVALID_ARGUMENT_EXCEPTION("Invalid table type for alter table");
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
+std::unique_ptr<::physical::PhysicalOpr>
+GDDLConverter::convertToCreateVertexSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
@@ -149,8 +156,9 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid node table info");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* create_vertex = ddl_plan->mutable_create_vertex_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* create_vertex =
+      physical_opr->mutable_opr()->mutable_create_vertex_schema();
 
   // Set vertex type
   auto* vertex_type = create_vertex->mutable_vertex_type();
@@ -178,7 +186,7 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateVertexSchema(
   create_vertex->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
 std::unique_ptr<::physical::CreateEdgeSchema::TypeInfo>
@@ -214,7 +222,7 @@ GDDLConverter::convertToEdgeTypeInfo(const binder::BoundCreateTableInfo& info,
   return typeInfoPB;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToCreateEdgeGroupSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
@@ -237,8 +245,8 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
     THROW_RUNTIME_ERROR("Relation group table info should not be empty");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto create_edge = ddl_plan->mutable_create_edge_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto create_edge = physical_opr->mutable_opr()->mutable_create_edge_schema();
 
   // set edge type with multiplicity
   for (auto& relInfo : relGroupInfo->infos) {
@@ -267,10 +275,11 @@ GDDLConverter::convertToCreateEdgeGroupSchema(
   create_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
+std::unique_ptr<::physical::PhysicalOpr>
+GDDLConverter::convertToCreateEdgeSchema(
     const planner::LogicalCreateTable& op) {
   const auto* info = op.getInfo();
   if (!info) {
@@ -288,8 +297,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
     THROW_RUNTIME_ERROR("Invalid relation table info");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto create_edge = ddl_plan->mutable_create_edge_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto create_edge = physical_opr->mutable_opr()->mutable_create_edge_schema();
   // set edge type with multiplicity
   *create_edge->add_type_info() =
       std::move(*convertToEdgeTypeInfo(*info, info->tableName));
@@ -311,11 +320,11 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToCreateEdgeSchema(
   create_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
-    const planner::LogicalDrop& op) {
+std::unique_ptr<::physical::PhysicalOpr>
+GDDLConverter::convertToDropVertexSchema(const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
   if (info.dropType != gs::common::DropType::TABLE ||
       !checkEntryType(info.name,
@@ -323,8 +332,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
     THROW_RUNTIME_ERROR("Expected DROP TABLE type for vertex schema");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* drop_vertex = ddl_plan->mutable_drop_vertex_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_vertex = physical_opr->mutable_opr()->mutable_drop_vertex_schema();
 
   // Set vertex type name
   auto typeName = std::make_unique<::common::NameOrId>();
@@ -335,10 +344,10 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropVertexSchema(
   drop_vertex->set_conflict_action(
       static_cast<::physical::ConflictAction>(info.conflictAction));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
+std::unique_ptr<::physical::PhysicalOpr> GDDLConverter::convertToDropEdgeSchema(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
   if (info.dropType != gs::common::DropType::TABLE ||
@@ -346,8 +355,8 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
                       gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected DROP TABLE type for edge schema");
   }
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* drop_edge = ddl_plan->mutable_drop_edge_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_edge = physical_opr->mutable_opr()->mutable_drop_edge_schema();
 
   // Check edge labels count
   std::vector<EdgeLabel> edgeLabels;
@@ -364,10 +373,10 @@ std::unique_ptr<::physical::DDLPlan> GDDLConverter::convertToDropEdgeSchema(
   drop_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info.conflictAction));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToAddVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -378,8 +387,9 @@ GDDLConverter::convertToAddVertexPropertySchema(
   }
 
   // Get alter info from operator
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* add_property = ddl_plan->mutable_add_vertex_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* add_property =
+      physical_opr->mutable_opr()->mutable_add_vertex_property_schema();
 
   // Set vertex type name
   auto typeName = std::make_unique<::common::NameOrId>();
@@ -401,10 +411,10 @@ GDDLConverter::convertToAddVertexPropertySchema(
   add_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
   if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
@@ -414,8 +424,9 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   }
 
   // Get alter info from operator
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* add_property = ddl_plan->mutable_add_edge_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* add_property =
+      physical_opr->mutable_opr()->mutable_add_edge_property_schema();
 
   // Check edge labels count and set edge type
   std::vector<EdgeLabel> edgeLabels;
@@ -441,10 +452,10 @@ GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   add_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToDropVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -455,8 +466,9 @@ GDDLConverter::convertToDropVertexPropertySchema(
   }
 
   // Get alter info from operator
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* drop_property = ddl_plan->mutable_drop_vertex_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_property =
+      physical_opr->mutable_opr()->mutable_drop_vertex_property_schema();
 
   // Set vertex type
   auto* vertex_type = drop_property->mutable_vertex_type();
@@ -471,10 +483,10 @@ GDDLConverter::convertToDropVertexPropertySchema(
   drop_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToDropEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -485,8 +497,9 @@ GDDLConverter::convertToDropEdgePropertySchema(
   }
 
   // Get alter info from operator
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* drop_property = ddl_plan->mutable_drop_edge_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* drop_property =
+      physical_opr->mutable_opr()->mutable_drop_edge_property_schema();
 
   // Get edge type
   std::vector<EdgeLabel> edgeLabels;
@@ -505,10 +518,10 @@ GDDLConverter::convertToDropEdgePropertySchema(
   drop_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -519,8 +532,9 @@ GDDLConverter::convertToRenameVertexPropertySchema(
         "Expected RENAME_PROPERTY alter type for vertex schema");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* rename_property = ddl_plan->mutable_rename_vertex_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* rename_property =
+      physical_opr->mutable_opr()->mutable_rename_vertex_property_schema();
 
   // Set vertex type
   auto* vertex_type = rename_property->mutable_vertex_type();
@@ -536,10 +550,10 @@ GDDLConverter::convertToRenameVertexPropertySchema(
   rename_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -549,8 +563,9 @@ GDDLConverter::convertToRenameEdgePropertySchema(
     THROW_RUNTIME_ERROR("Expected RENAME_PROPERTY alter type for edge schema");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* rename_property = ddl_plan->mutable_rename_edge_property_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* rename_property =
+      physical_opr->mutable_opr()->mutable_rename_edge_property_schema();
 
   // Get edge type
   std::vector<EdgeLabel> edgeLabels;
@@ -571,10 +586,10 @@ GDDLConverter::convertToRenameEdgePropertySchema(
   rename_property->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameVertexTypeSchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
@@ -584,8 +599,9 @@ GDDLConverter::convertToRenameVertexTypeSchema(
     THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for vertex schema");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* rename_vertex = ddl_plan->mutable_rename_vertex_type_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* rename_vertex =
+      physical_opr->mutable_opr()->mutable_rename_vertex_type_schema();
 
   // Set old vertex type name
   auto oldTypeName = std::make_unique<::common::NameOrId>();
@@ -603,10 +619,10 @@ GDDLConverter::convertToRenameVertexTypeSchema(
   rename_vertex->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
-std::unique_ptr<::physical::DDLPlan>
+std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
   if (info->alterType != gs::common::AlterType::RENAME ||
@@ -615,8 +631,9 @@ GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
     THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for edge schema");
   }
 
-  auto ddl_plan = std::make_unique<::physical::DDLPlan>();
-  auto* rename_edge = ddl_plan->mutable_rename_edge_type_schema();
+  auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
+  auto* rename_edge =
+      physical_opr->mutable_opr()->mutable_rename_edge_type_schema();
 
   // Get old edge type
   std::vector<EdgeLabel> edgeLabels;
@@ -646,7 +663,7 @@ GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   rename_edge->set_conflict_action(
       static_cast<::physical::ConflictAction>(info->onConflict));
 
-  return ddl_plan;
+  return physical_opr;
 }
 
 std::unique_ptr<::physical::EdgeType> GDDLConverter::convertToEdgeType(

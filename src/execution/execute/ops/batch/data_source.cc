@@ -118,7 +118,7 @@ FileSchema ReadStateBuilder::buildFileSchema(
 gs::result<OpBuildResultT> DataSourceOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  auto sourcePB = plan.query_plan().plan(op_idx).opr().source();
+  auto sourcePB = plan.plan(op_idx).opr().source();
   auto stateBuilder = ReadStateBuilder();
   // build read shared state from PB
   auto state = stateBuilder.build(sourcePB);

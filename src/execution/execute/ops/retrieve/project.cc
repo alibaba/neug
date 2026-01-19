@@ -198,23 +198,21 @@ gs::result<OpBuildResultT> ProjectOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
-  int mappings_size =
-      plan.query_plan().plan(op_idx).opr().project().mappings_size();
+  int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
   std::vector<
       std::tuple<common::Expression, int, std::optional<common::IrDataType>>>
       expr_infos;
   ContextMeta ret_meta;
-  bool is_append = plan.query_plan().plan(op_idx).opr().project().is_append();
+  bool is_append = plan.plan(op_idx).opr().project().is_append();
   if (is_append) {
     ret_meta = ctx_meta;
   }
 
   std::vector<std::pair<int, std::set<int>>> dependencies;
-  if (plan.query_plan().plan(op_idx).meta_data_size() == mappings_size) {
-    for (int i = 0; i < plan.query_plan().plan(op_idx).meta_data_size(); ++i) {
-      data_types.push_back(plan.query_plan().plan(op_idx).meta_data(i).type());
-      const auto& m =
-          plan.query_plan().plan(op_idx).opr().project().mappings(i);
+  if (plan.plan(op_idx).meta_data_size() == mappings_size) {
+    for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
+      data_types.push_back(plan.plan(op_idx).meta_data(i).type());
+      const auto& m = plan.plan(op_idx).opr().project().mappings(i);
       int alias = m.has_alias() ? m.alias().value() : -1;
       ret_meta.set(alias);
       if (!m.has_expr()) {
@@ -231,7 +229,7 @@ gs::result<OpBuildResultT> ProjectOprBuilder::Build(
     }
   } else {
     for (int i = 0; i < mappings_size; ++i) {
-      auto& m = plan.query_plan().plan(op_idx).opr().project().mappings(i);
+      auto& m = plan.plan(op_idx).opr().project().mappings(i);
 
       int alias = m.has_alias() ? m.alias().value() : -1;
 
@@ -436,35 +434,27 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
-  int mappings_size =
-      plan.query_plan().plan(op_idx).opr().project().mappings_size();
-  if (plan.query_plan().plan(op_idx).meta_data_size() == mappings_size) {
-    for (int i = 0; i < plan.query_plan().plan(op_idx).meta_data_size(); ++i) {
-      data_types.push_back(plan.query_plan().plan(op_idx).meta_data(i).type());
+  int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
+  if (plan.plan(op_idx).meta_data_size() == mappings_size) {
+    for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
+      data_types.push_back(plan.plan(op_idx).meta_data(i).type());
     }
   }
   std::set<int> order_by_keys;
-  if (project_order_by_fusable_beta(
-          plan.query_plan().plan(op_idx).opr().project(),
-          plan.query_plan().plan(op_idx + 1).opr().order_by(), ctx_meta,
-          data_types, order_by_keys)) {
+  if (project_order_by_fusable_beta(plan.plan(op_idx).opr().project(),
+                                    plan.plan(op_idx + 1).opr().order_by(),
+                                    ctx_meta, data_types, order_by_keys)) {
     ContextMeta ret_meta;
     std::vector<
         std::tuple<common::Expression, int, std::optional<common::IrDataType>>>
         expr_infos;
     std::set<int> index_set;
-    int first_key = plan.query_plan()
-                        .plan(op_idx + 1)
-                        .opr()
-                        .order_by()
-                        .pairs(0)
-                        .key()
-                        .tag()
-                        .id();
+    int first_key =
+        plan.plan(op_idx + 1).opr().order_by().pairs(0).key().tag().id();
     int first_idx = -1;
     std::vector<std::pair<int, std::set<int>>> dependencies;
     for (int i = 0; i < mappings_size; ++i) {
-      auto& m = plan.query_plan().plan(op_idx).opr().project().mappings(i);
+      auto& m = plan.plan(op_idx).opr().project().mappings(i);
       int alias = -1;
       if (m.has_alias()) {
         alias = m.alias().value();
@@ -489,7 +479,7 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
       }
     }
 
-    auto order_by_opr = plan.query_plan().plan(op_idx + 1).opr().order_by();
+    auto order_by_opr = plan.plan(op_idx + 1).opr().order_by();
     int pair_size = order_by_opr.pairs_size();
     std::vector<std::pair<common::Variable, bool>> order_by_pairs;
     std::pair<int, bool> first_tuple;

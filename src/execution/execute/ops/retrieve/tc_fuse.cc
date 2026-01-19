@@ -108,7 +108,7 @@ class TCOpr : public IOperator {
 
 bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   // ee_opr0
-  const auto& ee_opr0 = plan.query_plan().plan(op_idx).opr().edge();
+  const auto& ee_opr0 = plan.plan(op_idx).opr().edge();
   if (ee_opr0.is_optional() || (!ee_opr0.has_v_tag()) ||
       (!ee_opr0.has_alias())) {
     return false;
@@ -134,11 +134,10 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   }
 
   // vertex_opr
-  const auto& vertex = plan.query_plan().plan(op_idx + 1).opr().vertex();
+  const auto& vertex = plan.plan(op_idx + 1).opr().vertex();
   int alias1 = vertex.has_alias() ? vertex.alias().value() : -1;
   // group_by_opr
-  const auto& group_by_opr =
-      plan.query_plan().plan(op_idx + 3).opr().group_by();
+  const auto& group_by_opr = plan.plan(op_idx + 3).opr().group_by();
   if (group_by_opr.mappings_size() != 1 || group_by_opr.functions_size() != 1) {
     return false;
   }
@@ -157,7 +156,7 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   }
   int alias4 = func.alias().value();
 
-  const auto& ee_opr1 = plan.query_plan().plan(op_idx + 5).opr().edge();
+  const auto& ee_opr1 = plan.plan(op_idx + 5).opr().edge();
 
   // ee_opr1 and v_opr1
   if (ee_opr1.is_optional() || (!ee_opr1.has_v_tag()) ||
@@ -172,12 +171,12 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
     return false;
   }
   // tag -1
-  auto v_opr1 = plan.query_plan().plan(op_idx + 6).opr().vertex();
+  auto v_opr1 = plan.plan(op_idx + 6).opr().vertex();
   if (v_opr1.has_tag() || (!v_opr1.has_alias())) {
     return false;
   }
 
-  const auto& ee_opr2 = plan.query_plan().plan(op_idx + 7).opr().edge();
+  const auto& ee_opr2 = plan.plan(op_idx + 7).opr().edge();
   // ee_opr2, tag -1
   if (ee_opr2.is_optional() || (!ee_opr2.has_v_tag()) ||
       (!ee_opr2.has_alias())) {
@@ -193,7 +192,7 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
 
   int alias7 = ee_opr2.alias().value();
   // select_opr
-  const auto& select_opr = plan.query_plan().plan(op_idx + 8).opr().select();
+  const auto& select_opr = plan.plan(op_idx + 8).opr().select();
   if (select_opr.predicate().operators_size() != 7) {
     return false;
   }
@@ -260,18 +259,13 @@ gs::result<OpBuildResultT> TCOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (tc_fusable(plan, op_idx)) {
-    int alias1 =
-        plan.query_plan().plan(op_idx + 6).opr().vertex().alias().value();
+    int alias1 = plan.plan(op_idx + 6).opr().vertex().alias().value();
 
-    int alias2 =
-        plan.query_plan().plan(op_idx + 7).opr().edge().alias().value();
+    int alias2 = plan.plan(op_idx + 7).opr().edge().alias().value();
 
-    auto labels0 =
-        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
-    auto labels1 =
-        parse_label_triplets(plan.query_plan().plan(op_idx + 5).meta_data(0));
-    auto labels2 =
-        parse_label_triplets(plan.query_plan().plan(op_idx + 7).meta_data(0));
+    auto labels0 = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+    auto labels1 = parse_label_triplets(plan.plan(op_idx + 5).meta_data(0));
+    auto labels2 = parse_label_triplets(plan.plan(op_idx + 7).meta_data(0));
 
     if (labels0.size() != 1 || labels1.size() != 1 || labels2.size() != 1) {
       return std::make_pair(nullptr, ContextMeta());
@@ -282,11 +276,10 @@ gs::result<OpBuildResultT> TCOprBuilder::Build(
         !parse_edge_type(schema, labels2[0], eps[2])) {
       return std::make_pair(nullptr, ContextMeta());
     }
-    auto opr =
-        make_tc_opr(plan.query_plan().plan(op_idx).opr().edge(),
-                    plan.query_plan().plan(op_idx + 5).opr().edge(),
-                    plan.query_plan().plan(op_idx + 7).opr().edge(), labels0[0],
-                    labels1[0], labels2[0], eps, alias1, alias2);
+    auto opr = make_tc_opr(plan.plan(op_idx).opr().edge(),
+                           plan.plan(op_idx + 5).opr().edge(),
+                           plan.plan(op_idx + 7).opr().edge(), labels0[0],
+                           labels1[0], labels2[0], eps, alias1, alias2);
     if (opr == nullptr) {
       return std::make_pair(nullptr, ContextMeta());
     }

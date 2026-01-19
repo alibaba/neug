@@ -141,21 +141,3 @@ message RenameEdgeTypeSchema {
     EdgeType new_type = 2;
     ConflictAction conflict_action = 3;
 }
-
-// A single Cypher query can perform only one DDL operation.
-message DDLPlan {
-    oneof plan {
-        CreateVertexSchema create_vertex_schema = 1;
-        CreateEdgeSchema  create_edge_schema = 2;
-        DropVertexSchema drop_vertex_schema = 3;
-        DropEdgeSchema drop_edge_schema = 4;
-        AddVertexPropertySchema add_vertex_property_schema = 5;
-        AddEdgePropertySchema add_edge_property_schema = 6;
-        DropVertexPropertySchema drop_vertex_property_schema = 7;
-        DropEdgePropertySchema drop_edge_property_schema = 8;
-        RenameVertexPropertySchema rename_vertex_property_schema = 9;
-        RenameEdgePropertySchema rename_edge_property_schema = 10;
-        RenameVertexTypeSchema rename_vertex_type_schema = 11;
-        RenameEdgeTypeSchema rename_edge_type_schema = 12;
-    }
-}

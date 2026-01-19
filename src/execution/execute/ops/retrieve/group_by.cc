@@ -87,13 +87,11 @@ class GroupByOpr : public IOperator {
 gs::result<OpBuildResultT> GroupByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  int mappings_num =
-      plan.query_plan().plan(op_idx).opr().group_by().mappings_size();
-  int func_num =
-      plan.query_plan().plan(op_idx).opr().group_by().functions_size();
+  int mappings_num = plan.plan(op_idx).opr().group_by().mappings_size();
+  int func_num = plan.plan(op_idx).opr().group_by().functions_size();
   ContextMeta meta;
   for (int i = 0; i < mappings_num; ++i) {
-    auto& key = plan.query_plan().plan(op_idx).opr().group_by().mappings(i);
+    auto& key = plan.plan(op_idx).opr().group_by().mappings(i);
     if (key.has_alias()) {
       meta.set(key.alias().value());
     } else {
@@ -101,7 +99,7 @@ gs::result<OpBuildResultT> GroupByOprBuilder::Build(
     }
   }
   for (int i = 0; i < func_num; ++i) {
-    auto& func = plan.query_plan().plan(op_idx).opr().group_by().functions(i);
+    auto& func = plan.plan(op_idx).opr().group_by().functions(i);
     if (func.has_alias()) {
       meta.set(func.alias().value());
     } else {
@@ -109,7 +107,7 @@ gs::result<OpBuildResultT> GroupByOprBuilder::Build(
     }
   }
 
-  auto opr = plan.query_plan().plan(op_idx).opr().group_by();
+  auto opr = plan.plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
   std::vector<common::Variable> vars;
   std::vector<physical::GroupBy_AggFunc> reduce_funcs;

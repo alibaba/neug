@@ -38,12 +38,27 @@ NeuG implements a statement-level transaction model where each statement automat
 - **Isolation**: Achieved through global locking (readers concurrent, writers exclusive)
 - **Durability**: Changes are persisted to disk only after an explicit `CHECKPOINT` operation or database closure with `checkpoint_when_close=True`. For in-memory databases, durability is not applicable as data exists only in volatile memory.
 
+#### Transactions 
+
+- **Read Transactions**: Multiple read statements can execute concurrently without blocking each other.
+- **Write Transactions**: Write statements acquire exclusive locks, blocking other read and write operations until completion.
+
 ### Service Mode (TP)
 
 - **Atomicity**: Each statement executes as an all-or-nothing operation
 - **Consistency**: Schema constraints and referential integrity are enforced  
 - **Isolation**: Serializable isolation level implemented via MVCC
 - **Durability**: Immediate persistence through Write-Ahead Logging (WAL)
+
+#### Transactions
+- **Read Transactions**: Multiple read statements can execute concurrently without blocking each other.
+- **Write Transactions**: In service mode, write transactions are further categorized:
+  - **Insert Transactions**: Insert statements can execute concurrently with reads and other inserts, but will be blocked by update statements.
+  - **Update Transactions**: Update statements will block all other operations until completion.
+
+**Note**: All transactions in Service mode use MVCC, ensuring each statement sees a consistent snapshot of the database. 
+Insert transactions are write-only, a insert-after-read operator should be put in UpdateTransaction;
+thanks to thread-safe primary key handling, multiple inserts can execute concurrently.
 
 ## Concurrency Control
 
@@ -53,9 +68,8 @@ Embedded mode uses a global lock-based approach for simplicity and analytical pe
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read-Read      | Concurrent execution allowed |
-| Read-Write     | Mutually exclusive (write takes exclusive lock) |
-| Write-Write    | Mutually exclusive (serialized execution) |
+| Read-Only      | Concurrent execution allowed |
+| Read-Write     | Mutually exclusive (Both insert and update takes exclusive lock) |
 
 **Example:**
 ```python
@@ -107,6 +121,42 @@ session2.execute("MATCH (p:Person) RETURN count(p)")
 session1.close()
 session2.close()
 ```
+
+## Access Mode 
+
+### Usage 
+
+`AccessMode` can be specified when submitting queries in both Embedded and Service modes to control transaction behavior. By default, the access mode is set to empty, and NeuG will determine the appropriate mode based on the statement type.
+
+If the access_mode is explicitly set, it must be one of the following values:
+- `read` (or `r`): Indicates that the statement is read-only.
+- `insert` (or `i`): Indicates that the statement performs insert operations. 
+- `update` (or `u`): Indicates that the statement performs update operations.
+- `schema` (or `s`): Indicates that the statement modifies the database schema.
+
+**Note**: The `schema` is a special access mode that allows schema modifications. For execution level, it is treated same as `update` mode.
+
+For example, in Service mode, you can specify the access mode as follows:
+
+```python
+from neug import Session
+
+session = Session('http://localhost:10000', timeout='10s')
+result = session.execute(
+    query="MATCH (n) RETURN count(n)",
+    access_mode="read"
+)
+```
+
+Different transactions will be created based on the specified access mode, optimizing performance and concurrency control. If the access mode conflicts with the actual operations performed in the statement, an error will be raised.
+
+If you are interested in how the conflict is detected and handled, here is the logic:
+- If the access mode is `read` but the statement performs insert/update/schema operations, an error is raised.
+- If the access mode is `insert` but the statement performs read/update/schema operations, an error is raised.
+
+**Note**: The `update` and `schema` access mode take the largest lock, any operations inside these modes will be executed without access_mode conflict.
+However, if you specify `insert` access mode but the statement contains update or schema operations, an error will be raised.
+
 
 ## Data Persistence
 

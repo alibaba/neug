@@ -7,7 +7,6 @@ add_library(neug_gopt
     g_type_converter.cpp
     g_query_converter.cpp
     g_precedence.cpp
-    g_admin_convertor.cpp
     g_catalog_holder.cpp
     g_vfs_holder.cpp
 )

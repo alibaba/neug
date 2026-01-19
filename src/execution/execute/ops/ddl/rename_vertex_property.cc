@@ -57,8 +57,9 @@ class RenameVertexPropertyOpr : public IOperator {
 
 gs::result<OpBuildResultT> RenameVertexPropertyOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& rename_vertex_property = plan.rename_vertex_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& rename_vertex_property =
+      plan.plan(op_id).opr().rename_vertex_property_schema();
   std::string vertex_type = rename_vertex_property.vertex_type().name();
   std::vector<std::pair<std::string, std::string>> rename_properties;
   for (const auto& prop_pair : rename_vertex_property.mappings()) {

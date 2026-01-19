@@ -143,7 +143,7 @@ class Session:
         self._http_session = None
         self._http_adapter = None
 
-    def execute(self, query: str, access_mode: str = "update"):
+    def execute(self, query: str, access_mode: str = ""):
         """
         Execute a query on the NeuG server.
 
@@ -160,7 +160,7 @@ class Session:
             f"Executing query: {query} on endpoint: {self._query_endpoint} with timeout: {self.timeout}"
         )
         access_mode = access_mode.lower()
-        if not is_access_mode_valid(access_mode):
+        if access_mode != "" and not is_access_mode_valid(access_mode):
             raise ValueError(
                 f"Invalid access_mode: {access_mode}. Supported access modes are "
                 f"{valid_access_modes}."

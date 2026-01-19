@@ -104,11 +104,11 @@ class GetVFromEdgesOpr : public IOperator {
 gs::result<OpBuildResultT> VertexOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  const auto& vertex = plan.query_plan().plan(op_idx).opr().vertex();
+  const auto& vertex = plan.plan(op_idx).opr().vertex();
 
   int alias = -1;
   if (vertex.has_alias()) {
-    alias = plan.query_plan().plan(op_idx).opr().vertex().alias().value();
+    alias = plan.plan(op_idx).opr().vertex().alias().value();
   }
 
   ContextMeta ret_meta = ctx_meta;
@@ -133,16 +133,14 @@ gs::result<OpBuildResultT> VertexOprBuilder::Build(
   if (vertex.params().has_predicate()) {
     if (opt == VOpt::kItself) {
       // general predicate
-      return std::make_pair(
-          std::make_unique<GetVFromVerticesOpr>(
-              plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ret_meta);
+      return std::make_pair(std::make_unique<GetVFromVerticesOpr>(
+                                plan.plan(op_idx).opr().vertex(), p),
+                            ret_meta);
     } else if (opt == VOpt::kEnd || opt == VOpt::kStart ||
                opt == VOpt::kOther) {
-      return std::make_pair(
-          std::make_unique<GetVFromEdgesOpr>(
-              plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ret_meta);
+      return std::make_pair(std::make_unique<GetVFromEdgesOpr>(
+                                plan.plan(op_idx).opr().vertex(), p),
+                            ret_meta);
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
                                       std::to_string(static_cast<int>(opt)) +
@@ -150,10 +148,9 @@ gs::result<OpBuildResultT> VertexOprBuilder::Build(
     }
   } else {
     if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
-      return std::make_pair(
-          std::make_unique<GetVFromEdgesOpr>(
-              plan.query_plan().plan(op_idx).opr().vertex(), p),
-          ret_meta);
+      return std::make_pair(std::make_unique<GetVFromEdgesOpr>(
+                                plan.plan(op_idx).opr().vertex(), p),
+                            ret_meta);
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
                                       std::to_string(static_cast<int>(opt)) +

@@ -34,18 +34,20 @@ class CheckpointOpr : public IOperator {
                            Context&& ctx, OprTimer* timer) override;
 };
 
-class CheckpointOprBuilder : public IAdminOperatorBuilder {
+class CheckpointOprBuilder : public IOperatorBuilder {
  public:
   CheckpointOprBuilder() = default;
   ~CheckpointOprBuilder() override = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
+  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
                                    const ContextMeta& ctx_meta,
-                                   const physical::AdminPlan& plan,
-                                   int op_id) override;
+                                   const physical::PhysicalPlan& plan,
+                                   int op_idx) override;
+  virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
-  physical::AdminPlan_Operator::KindCase GetOpKind() const override {
-    return physical::AdminPlan_Operator::KindCase::kCheckpoint;
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kCheckpoint};
   }
 };
 }  // namespace ops

@@ -72,7 +72,7 @@ gs::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
-  const auto& opr = plan.query_plan().plan(op_idx).opr().load_vertex();
+  const auto& opr = plan.plan(op_idx).opr().load_vertex();
   // before BatchInsertVertexOpr, we assume the raw data has already been loaded
   // into memory, with each tag points to a column.
 

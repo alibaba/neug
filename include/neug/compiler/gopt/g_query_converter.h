@@ -28,6 +28,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
+#include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_expr_converter.h"
 #include "neug/compiler/gopt/g_type_converter.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
@@ -46,6 +47,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
+#include "neug/compiler/planner/operator/logical_transaction.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
@@ -56,6 +58,7 @@
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
+#include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -77,91 +80,91 @@ class GQueryConvertor {
   GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
                   gs::catalog::Catalog* catalog);
 
-  std::unique_ptr<::physical::QueryPlan> convert(
+  std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink);
   static bool skipColumn(const std::string& columnName);
 
  private:
   void convertOperator(const planner::LogicalOperator& op,
-                       ::physical::QueryPlan* plan, bool skipScan = false);
+                       ::physical::PhysicalPlan* plan, bool skipScan = false);
   void convertScan(const planner::LogicalScanNodeTable& scan,
-                   ::physical::QueryPlan* plan);
+                   ::physical::PhysicalPlan* plan);
   void convertExtend(const planner::LogicalExtend& extend,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
   void convertRecursiveExtend(const planner::LogicalRecursiveExtend& extend,
-                              ::physical::QueryPlan* plan);
+                              ::physical::PhysicalPlan* plan);
   void convertGetV(const planner::LogicalGetV& getV,
-                   ::physical::QueryPlan* plan);
+                   ::physical::PhysicalPlan* plan);
   void convertFilter(const planner::LogicalFilter& filter,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
   void convertProject(const planner::LogicalProjection& project,
-                      ::physical::QueryPlan* plan);
+                      ::physical::PhysicalPlan* plan);
   void convertAggregate(const planner::LogicalAggregate& project,
-                        ::physical::QueryPlan* plan);
+                        ::physical::PhysicalPlan* plan);
   void convertOrder(const planner::LogicalOrderBy& order,
-                    ::physical::QueryPlan* plan);
+                    ::physical::PhysicalPlan* plan);
   void convertLimit(const planner::LogicalLimit& limit,
-                    ::physical::QueryPlan* plan);
+                    ::physical::PhysicalPlan* plan);
   void convertIntersect(const planner::LogicalIntersect& intersect,
-                        ::physical::QueryPlan* plan);
+                        ::physical::PhysicalPlan* plan);
   void convertTableFunc(const planner::LogicalTableFunctionCall& tableFunc,
-                        ::physical::QueryPlan* plan);
+                        ::physical::PhysicalPlan* plan);
   void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
-                       ::physical::QueryPlan* plan);
+                       ::physical::PhysicalPlan* plan);
   void convertBatchInsertVertex(
       catalog::NodeTableCatalogEntry* nodeEntry,
       const binder::expression_vector& columnExprs,
       const std::vector<common::alias_id_t>& columnIdMap,
-      ::physical::QueryPlan* plan);
+      ::physical::PhysicalPlan* plan);
   void convertBatchInsertEdge(
       catalog::GRelTableCatalogEntry* relEntry,
       const binder::expression_vector& columnExprs,
       const std::vector<common::alias_id_t>& columnIdMap,
-      ::physical::QueryPlan* plan);
+      ::physical::PhysicalPlan* plan);
   void convertInsert(const planner::LogicalInsert& insert,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
   void convertInsertVertex(const planner::LogicalInsert& insert,
-                           ::physical::QueryPlan* plan);
+                           ::physical::PhysicalPlan* plan);
   void convertInsertEdge(const planner::LogicalInsert& insert,
-                         ::physical::QueryPlan* plan);
+                         ::physical::PhysicalPlan* plan);
   void convertSetProperty(const planner::LogicalSetProperty& set,
-                          ::physical::QueryPlan* plan);
+                          ::physical::PhysicalPlan* plan);
   void convertSetVertexProperty(const planner::LogicalSetProperty& set,
-                                ::physical::QueryPlan* plan);
+                                ::physical::PhysicalPlan* plan);
   void convertSetEdgeProperty(const planner::LogicalSetProperty& set,
-                              ::physical::QueryPlan* plan);
+                              ::physical::PhysicalPlan* plan);
   void convertDelete(const planner::LogicalDelete& deleteOp,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
   void convertDeleteVertex(const planner::LogicalDelete& deleteOp,
-                           ::physical::QueryPlan* plan);
+                           ::physical::PhysicalPlan* plan);
   void convertDeleteEdge(const planner::LogicalDelete& deleteOp,
-                         ::physical::QueryPlan* plan);
+                         ::physical::PhysicalPlan* plan);
   void convertCrossProduct(const planner::LogicalCrossProduct& cross,
-                           ::physical::QueryPlan* plan);
+                           ::physical::PhysicalPlan* plan);
   void convertHashJoin(const planner::LogicalHashJoin& join,
-                       ::physical::QueryPlan* plan);
+                       ::physical::PhysicalPlan* plan);
   void convertCopyTo(const planner::LogicalCopyTo& copyTo,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
   void convertDummyScan(const planner::LogicalDummyScan& dummyScan,
-                        ::physical::QueryPlan* plan);
+                        ::physical::PhysicalPlan* plan);
 
   void convertUnion(const planner::LogicalUnion& unionOp,
-                    ::physical::QueryPlan* plan);
+                    ::physical::PhysicalPlan* plan);
 
   void convertAliasMap(const planner::LogicalAliasMap& aliasMap,
-                       ::physical::QueryPlan* plan);
+                       ::physical::PhysicalPlan* plan);
 
   void convertExpressionScan(
       const planner::LogicalExpressionsScan& expressionScan,
-      ::physical::QueryPlan* plan);
+      ::physical::PhysicalPlan* plan);
 
   void convertDistinct(const planner::LogicalDistinct& distinct,
-                       ::physical::QueryPlan* plan);
+                       ::physical::PhysicalPlan* plan);
   void convertProcedureCall(const planner::LogicalTableFunctionCall& funcCall,
-                            ::physical::QueryPlan* plan);
+                            ::physical::PhysicalPlan* plan);
 
   void convertUnwind(const planner::LogicalUnwind& unwind,
-                     ::physical::QueryPlan* plan);
+                     ::physical::PhysicalPlan* plan);
 
   // help functions
   ::physical::Join::JoinKind convertJoinKind(common::JoinType joinType);
@@ -186,7 +189,7 @@ class GQueryConvertor {
       const std::string& propertyName, const binder::Expression& data,
       const planner::LogicalOperator& op);
   void convertDataSource(const planner::LogicalTableFunctionCall& fileInfo,
-                         ::physical::QueryPlan* plan);
+                         ::physical::PhysicalPlan* plan);
   std::unique_ptr<Options> convertDataSourceOptions(
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<Options> convertExportOptions(
@@ -211,13 +214,17 @@ class GQueryConvertor {
   uint64_t convertValueAsUint64(common::Value value);
   std::string getExtensionName(const planner::LogicalCopyTo& copyTo);
   void convertDataExport(const planner::LogicalCopyTo& copyTo,
-                         ::physical::QueryPlan* plan);
+                         ::physical::PhysicalPlan* plan);
   void convertProcedureCall(const planner::LogicalCopyTo& copyTo,
-                            ::physical::QueryPlan* plan);
+                            ::physical::PhysicalPlan* plan);
   std::unique_ptr<::common::Value> convertCopyToHeader(
       const planner::LogicalCopyTo& copyTo);
   void convertExtraInfo(const planner::LogicalRecursiveExtend& extend,
                         ::physical::PathExpand* pathPB);
+  void convertCheckpoint(const planner::LogicalTransaction& op,
+                         ::physical::PhysicalPlan* plan);
+  void convertExtension(const planner::LogicalExtension& op,
+                        ::physical::PhysicalPlan* plan);
 
   std::unique_ptr<::physical::FileSchema> convertFileSchema(
       const function::ScanFileBindData* scanBindData);
@@ -230,6 +237,7 @@ class GQueryConvertor {
   std::unique_ptr<GExprConverter> exprConvertor;
   std::unique_ptr<GPhysicalTypeConverter> typeConverter;
   gs::catalog::Catalog* catalog;
+  gs::gopt::GDDLConverter ddlConverter;
 };
 
 }  // namespace gopt

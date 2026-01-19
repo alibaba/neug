@@ -92,17 +92,17 @@ class GResultSchema {
   }
 
   static inline bool inferFromExpr(const planner::LogicalPlan& plan) {
-    GPhysicalAnalyzer analyzer;
-    auto mode = analyzer.analyze(plan);
-    if (mode == PhysicalMode::DDL || mode == PhysicalMode::ADMIN) {
-      return false;
-    }
     auto opType = plan.getLastOperator()->getOperatorType();
     if (opType == planner::LogicalOperatorType::COPY_FROM ||
         opType == planner::LogicalOperatorType::INSERT ||
         opType == planner::LogicalOperatorType::SET_PROPERTY ||
         opType == planner::LogicalOperatorType::DELETE ||
-        opType == planner::LogicalOperatorType::COPY_TO) {
+        opType == planner::LogicalOperatorType::COPY_TO ||
+        opType == planner::LogicalOperatorType::TRANSACTION ||
+        opType == planner::LogicalOperatorType::EXTENSION ||
+        opType == planner::LogicalOperatorType::CREATE_TABLE ||
+        opType == planner::LogicalOperatorType::DROP ||
+        opType == planner::LogicalOperatorType::ALTER) {
       return false;
     }
     return true;

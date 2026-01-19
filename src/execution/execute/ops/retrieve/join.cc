@@ -94,7 +94,7 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
   std::vector<int> right_columns;
-  auto& opr = plan.query_plan().plan(op_idx).opr().join();
+  auto& opr = plan.plan(op_idx).opr().join();
   JoinParams p;
   if (opr.left_keys().size() != opr.right_keys().size()) {
     LOG(ERROR) << "join keys size mismatch";
@@ -119,18 +119,16 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
   }
 
   p.join_type = parse_join_kind(opr.join_kind());
-  auto join_kind = plan.query_plan().plan(op_idx).opr().join().join_kind();
+  auto join_kind = plan.plan(op_idx).opr().join().join_kind();
 
   auto pair1_res = PlanParser::get().parse_execute_pipeline_with_meta(
-      schema, ctx_meta,
-      plan.query_plan().plan(op_idx).opr().join().left_plan());
+      schema, ctx_meta, plan.plan(op_idx).opr().join().left_plan());
 
   if (!pair1_res) {
     return std::make_pair(nullptr, ContextMeta());
   }
   auto pair2_res = PlanParser::get().parse_execute_pipeline_with_meta(
-      schema, ctx_meta,
-      plan.query_plan().plan(op_idx).opr().join().right_plan());
+      schema, ctx_meta, plan.plan(op_idx).opr().join().right_plan());
   if (!pair2_res) {
     LOG(ERROR) << "failed to build right pipeline for join operator"
                << pair2_res.error().ToString();
@@ -212,7 +210,7 @@ gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
-  auto& opr = plan.query_plan().plan(op_idx).opr().join();
+  auto& opr = plan.plan(op_idx).opr().join();
   const auto& left_keys = opr.left_keys();
   const auto& right_keys = opr.right_keys();
   if (right_keys.size() != 1) {
@@ -234,14 +232,13 @@ gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
   }
 
   auto name = left_key.property().key().name();
-  auto left_plan = plan.query_plan().plan(op_idx).opr().join().left_plan();
-  if (left_plan.query_plan().plan_size() != 1 ||
-      (!left_plan.query_plan().plan(0).opr().has_scan())) {
+  auto left_plan = plan.plan(op_idx).opr().join().left_plan();
+  if (left_plan.plan_size() != 1 || (!left_plan.plan(0).opr().has_scan())) {
     LOG(ERROR) << "SPJoin left plan should be a scan operator";
     return std::make_pair(nullptr, ContextMeta());
   }
 
-  const auto& scan_opr = left_plan.query_plan().plan(0).opr().scan();
+  const auto& scan_opr = left_plan.plan(0).opr().scan();
   if (scan_opr.has_idx_predicate() ||
       (scan_opr.has_params() && scan_opr.params().has_predicate())) {
     LOG(ERROR) << "PKJoin left scan operator should not have predicate";
@@ -263,8 +260,7 @@ gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
   }
 
   auto right_res = PlanParser::get().parse_execute_pipeline_with_meta(
-      schema, ctx_meta,
-      plan.query_plan().plan(op_idx).opr().join().right_plan());
+      schema, ctx_meta, plan.plan(op_idx).opr().join().right_plan());
   if (!right_res) {
     LOG(ERROR) << "failed to build right pipeline for join operator"
                << right_res.error().ToString();

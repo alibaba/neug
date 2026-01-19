@@ -52,8 +52,8 @@ class DropEdgeTypeOpr : public IOperator {
 
 gs::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& drop_edge = plan.drop_edge_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& drop_edge = plan.plan(op_id).opr().drop_edge_schema();
   auto edge_type_name = drop_edge.edge_type().type_name().name();
   auto src_vertex_type_name = drop_edge.edge_type().src_type_name().name();
   auto dst_vertex_type_name = drop_edge.edge_type().dst_type_name().name();

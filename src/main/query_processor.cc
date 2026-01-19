@@ -24,7 +24,7 @@
 namespace gs {
 
 result<results::CollectiveResults> QueryProcessor::execute(
-    const std::string& query_string, const std::string& access_mode,
+    const std::string& query_string, const std::string& user_access_mode,
     int32_t num_threads) {
   if (num_threads == 0) {
     num_threads = max_num_threads_;
@@ -38,6 +38,10 @@ result<results::CollectiveResults> QueryProcessor::execute(
     RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
                             "Number of threads must be greater than 0"));
   }
+
+  std::string access_mode = user_access_mode.empty()
+                                ? planner_->analyzeMode(query_string)
+                                : user_access_mode;
 
   if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -64,37 +68,20 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
   VLOG(20) << "Physical plan: " << plan.DebugString();
 
   if (is_read_only_) {
-    if (plan.has_ddl_plan() || plan.has_admin_plan()) {
+    const auto& flags = plan.flag();
+    if (flags.insert() || flags.update() || flags.schema() || flags.batch() ||
+        flags.create_temp_table() || flags.checkpoint() ||
+        flags.procedure_call()) {
       RETURN_ERROR(
           gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                     "DDL/Admin queries are not supported in read-only "
-                     "mode"));
-    }
-    if (plan.has_query_plan()) {
-      auto mode = plan.query_plan().mode();
-      if (mode == physical::QueryPlan::WRITE_ONLY ||
-          mode == physical::QueryPlan::READ_WRITE) {
-        if (is_read_only_) {
-          RETURN_ERROR(
-              gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                         "Write queries are not supported in read-only mode"));
-        }
-      }
+                     "Write queries are not supported in read-only mode"));
     }
   }
 
-  result<results::CollectiveResults> exec_result;
   // TODO(zhanglei,lexiao): Implement corresponding operators for these DDL
   // operations
-  if (plan.has_ddl_plan()) {
-    exec_result = execute_ddl(plan.ddl_plan(), num_threads);
-  } else if (plan.has_admin_plan()) {
-    exec_result = execute_admin(plan.admin_plan(), num_threads);
-  } else if (plan.has_query_plan()) {
-    exec_result = execute_query(plan, num_threads);
-  } else {
-    LOG(WARNING) << "Empty physical plan for query: " << query_string;
-  }
+  result<results::CollectiveResults> exec_result =
+      execute_query(plan, num_threads);
   if (!exec_result) {
     LOG(ERROR) << "Error in executing query: " << query_string
                << ", error code: " << exec_result.error().error_code()
@@ -106,22 +93,6 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
   return exec_result;
 }
 
-result<results::CollectiveResults> QueryProcessor::execute_admin(
-    const physical::AdminPlan& admin_plan, int32_t num_threads) {
-  // For admin plan, we always use update transaction.
-  StorageAPUpdateInterface gui(g_, 0, allocator_);
-
-  std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  auto ctx =
-      runtime::ParseAndExecuteAdminPipeline(gui, admin_plan, timer.get());
-
-  if (!ctx) {
-    LOG(ERROR) << "Error: " << ctx.error().ToString();
-    RETURN_ERROR(ctx.error());
-  }
-  return runtime::Sink::sink(ctx.value(), gui);
-}
-
 result<results::CollectiveResults> QueryProcessor::execute_query(
     const physical::PhysicalPlan& plan, int32_t num_threads) {
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
@@ -129,19 +100,6 @@ result<results::CollectiveResults> QueryProcessor::execute_query(
   std::unique_ptr<runtime::OprTimer> timer_ptr = nullptr;
   auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer_ptr.get());
 
-  if (!ctx) {
-    LOG(ERROR) << "Error: " << ctx.error().ToString();
-    RETURN_ERROR(ctx.error());
-  }
-  return runtime::Sink::sink(ctx.value(), gii);
-}
-
-result<results::CollectiveResults> QueryProcessor::execute_ddl(
-    const physical::DDLPlan& ddl_plan, int32_t num_threads) {
-  StorageAPUpdateInterface gii(g_, std::numeric_limits<timestamp_t>::max(),
-                               allocator_);
-  std::unique_ptr<runtime::OprTimer> timer = nullptr;
-  auto ctx = runtime::ParseAndExecuteDDLPipeline(gii, ddl_plan, timer.get());
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();
     RETURN_ERROR(ctx.error());
@@ -159,7 +117,8 @@ bool QueryProcessor::need_exclusive_lock(const std::string& access_mode) {
 
 void QueryProcessor::update_compiler_meta_if_needed(
     const physical::PhysicalPlan& plan) {
-  if (plan.has_ddl_plan()) {
+  const auto flags = plan.flag();
+  if (flags.schema() || flags.create_temp_table()) {
     auto yaml = g_.schema().to_yaml();
     if (!yaml) {
       LOG(ERROR) << "Failed to convert schema to YAML: "
@@ -169,10 +128,8 @@ void QueryProcessor::update_compiler_meta_if_needed(
     }
     planner_->update_meta(yaml.value());
     planner_->update_statistics(g_.get_statistics_json());
-  } else if (plan.query_plan().mode() ==
-                 physical::QueryPlan::Mode::QueryPlan_Mode_READ_WRITE ||
-             plan.query_plan().mode() ==
-                 physical::QueryPlan::Mode::QueryPlan_Mode_WRITE_ONLY) {
+  }
+  if (flags.batch() || flags.insert() || flags.update()) {
     planner_->update_statistics(g_.get_statistics_json());
   }
 }

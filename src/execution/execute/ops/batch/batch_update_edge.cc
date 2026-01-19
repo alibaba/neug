@@ -136,7 +136,7 @@ gs::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta meta = ctx_meta;
-  const auto& opr = plan.query_plan().plan(op_idx).opr().set_edge();
+  const auto& opr = plan.plan(op_idx).opr().set_edge();
   typename UpdateEdgeOpr::edge_data_vec_t edge_data_vec;
   for (const auto& entry : opr.entries()) {
     auto& edge_binding = entry.edge_binding();

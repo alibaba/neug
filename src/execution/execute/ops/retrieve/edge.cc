@@ -56,8 +56,8 @@ struct DummyPredicate {
 
 bool edge_expand_get_v_fusable(const physical::PhysicalPlan& plan, int idx,
                                const physical::PhysicalOpr_MetaData& meta) {
-  const auto& ee_opr = plan.query_plan().plan(idx).opr().edge();
-  const auto& v_opr = plan.query_plan().plan(idx + 1).opr().vertex();
+  const auto& ee_opr = plan.plan(idx).opr().edge();
+  const auto& v_opr = plan.plan(idx + 1).opr().vertex();
   if (ee_opr.expand_opt() !=
           physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE &&
       ee_opr.expand_opt() !=
@@ -67,9 +67,8 @@ bool edge_expand_get_v_fusable(const physical::PhysicalPlan& plan, int idx,
 
   int alias = ee_opr.has_alias() ? ee_opr.alias().value() : -1;
   if (alias != -1) {
-    if (idx + 2 < plan.query_plan().plan_size() &&
-        plan.query_plan().plan(idx + 2).opr().has_project()) {
-      auto proj_opr = plan.query_plan().plan(idx + 2).opr().project();
+    if (idx + 2 < plan.plan_size() && plan.plan(idx + 2).opr().has_project()) {
+      auto proj_opr = plan.plan(idx + 2).opr().project();
       if (proj_opr.is_append()) {
         return false;
       }
@@ -314,12 +313,12 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int alias = -1;
-  if (plan.query_plan().plan(op_idx).opr().edge().has_alias()) {
-    alias = plan.query_plan().plan(op_idx).opr().edge().alias().value();
+  if (plan.plan(op_idx).opr().edge().has_alias()) {
+    alias = plan.plan(op_idx).opr().edge().alias().value();
   }
   ContextMeta meta = ctx_meta;
   meta.set(alias);
-  auto opr = plan.query_plan().plan(op_idx).opr().edge();
+  auto opr = plan.plan(op_idx).opr().edge();
   int v_tag = opr.has_v_tag() ? opr.v_tag().value() : -1;
   Direction dir = parse_direction(opr.direction());
   bool is_optional = opr.is_optional();
@@ -330,8 +329,7 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
   const auto& query_params = opr.params();
   EdgeExpandParams eep;
   eep.v_tag = v_tag;
-  eep.labels =
-      parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
+  eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
   eep.dir = dir;
   eep.alias = alias;
   eep.is_optional = is_optional;
@@ -382,16 +380,15 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
 gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  if (edge_expand_get_v_fusable(plan, op_idx,
-                                plan.query_plan().plan(op_idx).meta_data(0))) {
+  if (edge_expand_get_v_fusable(plan, op_idx, plan.plan(op_idx).meta_data(0))) {
     int alias = -1;
-    if (plan.query_plan().plan(op_idx + 1).opr().vertex().has_alias()) {
-      alias = plan.query_plan().plan(op_idx + 1).opr().vertex().alias().value();
+    if (plan.plan(op_idx + 1).opr().vertex().has_alias()) {
+      alias = plan.plan(op_idx + 1).opr().vertex().alias().value();
     }
     ContextMeta meta = ctx_meta;
     meta.set(alias);
-    const auto& ee_opr = plan.query_plan().plan(op_idx).opr().edge();
-    const auto& v_opr = plan.query_plan().plan(op_idx + 1).opr().vertex();
+    const auto& ee_opr = plan.plan(op_idx).opr().edge();
+    const auto& v_opr = plan.plan(op_idx + 1).opr().vertex();
     auto vtables = parse_tables(v_opr.params());
 
     int v_tag = ee_opr.has_v_tag() ? ee_opr.v_tag().value() : -1;
@@ -415,8 +412,7 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
 
     EdgeExpandParams eep;
     eep.v_tag = v_tag;
-    eep.labels =
-        parse_label_triplets(plan.query_plan().plan(op_idx).meta_data(0));
+    eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
     std::vector<LabelTriplet> filtered_labels;
     for (auto label : eep.labels) {
       if (dir == Direction::kOut &&

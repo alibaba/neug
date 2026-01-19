@@ -92,7 +92,7 @@ gs::result<OpBuildResultT> OrderByOprBuilder::Build(
     const gs::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
-  const auto opr = plan.query_plan().plan(op_idx).opr().order_by();
+  const auto opr = plan.plan(op_idx).opr().order_by();
   int lower = 0;
   int upper = std::numeric_limits<int>::max();
   if (opr.has_limit()) {

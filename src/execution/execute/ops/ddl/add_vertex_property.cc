@@ -57,8 +57,9 @@ class AddVertexPropertySchemaOpr : public IOperator {
 
 gs::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& add_vertex_property = plan.add_vertex_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& add_vertex_property =
+      plan.plan(op_id).opr().add_vertex_property_schema();
   auto tuple_res = property_defs_to_tuple(add_vertex_property.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());

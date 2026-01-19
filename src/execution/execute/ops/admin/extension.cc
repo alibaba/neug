@@ -65,8 +65,8 @@ gs::result<Context> ExtensionUninstallOpr::Eval(
 // Builders
 gs::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::AdminPlan& plan, int op_idx) {
-  const auto& op = plan.plan(op_idx);
+    const physical::PhysicalPlan& plan, int op_idx) {
+  const auto& op = plan.plan(op_idx).opr();
   return std::make_pair(
       std::make_unique<ExtensionInstallOpr>(op.ext_install().extension_name()),
       ctx_meta);
@@ -74,8 +74,8 @@ gs::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
 
 gs::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::AdminPlan& plan, int op_idx) {
-  const auto& op = plan.plan(op_idx);
+    const physical::PhysicalPlan& plan, int op_idx) {
+  const auto& op = plan.plan(op_idx).opr();
   return std::make_pair(
       std::make_unique<ExtensionLoadOpr>(op.ext_load().extension_name()),
       ctx_meta);
@@ -83,8 +83,8 @@ gs::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
 
 gs::result<OpBuildResultT> ExtensionUninstallOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::AdminPlan& plan, int op_idx) {
-  const auto& op = plan.plan(op_idx);
+    const physical::PhysicalPlan& plan, int op_idx) {
+  const auto& op = plan.plan(op_idx).opr();
   return std::make_pair(std::make_unique<ExtensionUninstallOpr>(
                             op.ext_uninstall().extension_name()),
                         ctx_meta);

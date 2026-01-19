@@ -61,8 +61,9 @@ class AddEdgePropertySchemaOpr : public IOperator {
 
 gs::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
-    const physical::DDLPlan& plan, int op_id) {
-  const auto& add_edge_property = plan.add_edge_property_schema();
+    const physical::PhysicalPlan& plan, int op_id) {
+  const auto& add_edge_property =
+      plan.plan(op_id).opr().add_edge_property_schema();
   auto src_name = add_edge_property.edge_type().src_type_name().name();
   auto dst_name = add_edge_property.edge_type().dst_type_name().name();
   auto edge_name = add_edge_property.edge_type().type_name().name();
