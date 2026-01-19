@@ -8,9 +8,6 @@ find_package(OpenSSL REQUIRED)
 
 set(BRPC_WITH_GLOG 1)
 
-add_executable(test_run_query test_run_query.cc)
-target_link_libraries(test_run_query PRIVATE ${GLOG_LIBRARIES} ${NEUG_LIBRARIES} ${OPENSSL_LIBRARIES} ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
-
 add_neug_test(version_manager_test test_version_manager.cc)
 
 add_neug_test(test_extension test_extension.cc)

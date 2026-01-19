@@ -1,7 +1,7 @@
 cibuildwheel>=2.0.0
 pytest>=6.2.5
 importlib_resources
-black>=23.3.0
+black>=23.3.0, <=25.9.0
 flake8>=6.0.0
 isort==5.10.1
 neo4j>=4.4.19

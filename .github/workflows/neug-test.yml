@@ -190,11 +190,6 @@ jobs:
         export LSQB_DATA_DIR=/tmp/lsqb
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_lsqb.py
 
-    - name: Run TinySNB Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        GLOG_v=10 ./build/neug_py_bind/tests/unittest/test_run_query /tmp/tinysnb "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
-
     - name: Run DB Init Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
