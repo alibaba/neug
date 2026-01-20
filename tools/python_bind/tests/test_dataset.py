@@ -105,3 +105,71 @@ def test_load_builtin_dataset():
 
     res4 = conn2.execute("MATCH(n)-[e]->(m) return count(e);")
     assert res4.__next__()[0] == 30
+
+
+def test_load_ogbn_mag_small_dataset():
+    """
+    Test loading the ogbn_mag_small dataset.
+    """
+    db = Database.from_builtin_dataset(
+        "ogbn_mag_small"
+    )  # should be loaded to a temporary directory
+    assert db is not None, "Failed to load ogbn_mag_small dataset"
+    conn = db.connect()
+
+    # Check papers
+    res = conn.execute("MATCH (p:paper) RETURN count(p)")
+    paper_count = res.__next__()[0]
+    assert paper_count > 0, "Expected papers in ogbn_mag_small dataset"
+
+    # Check authors
+    res = conn.execute("MATCH (a:author) RETURN count(a)")
+    author_count = res.__next__()[0]
+    assert author_count > 0, "Expected authors in ogbn_mag_small dataset"
+
+    # Check institutions
+    res = conn.execute("MATCH (i:institution) RETURN count(i)")
+    inst_count = res.__next__()[0]
+    assert inst_count > 0, "Expected institutions in ogbn_mag_small dataset"
+
+    # Check fields of study
+    res = conn.execute("MATCH (f:field_of_study) RETURN count(f)")
+    field_count = res.__next__()[0]
+    assert field_count > 0, "Expected fields of study in ogbn_mag_small dataset"
+
+    # Check total nodes
+    res = conn.execute("MATCH (n) RETURN count(n)")
+    total_nodes = res.__next__()[0]
+    assert (
+        total_nodes == paper_count + author_count + inst_count + field_count
+    ), "Total node count mismatch"
+
+    # Check citations
+    res = conn.execute("MATCH ()-[c:cites]->() RETURN count(c)")
+    cite_count = res.__next__()[0]
+    assert cite_count > 0, "Expected citations in ogbn_mag_small dataset"
+
+    # Check author-paper relationships
+    res = conn.execute("MATCH ()-[w:writes]->() RETURN count(w)")
+    write_count = res.__next__()[0]
+    assert write_count > 0, "Expected writes relationships in ogbn_mag_small dataset"
+
+    # Check affiliations
+    res = conn.execute("MATCH ()-[a:affiliated_with]->() RETURN count(a)")
+    affil_count = res.__next__()[0]
+    assert affil_count > 0, "Expected affiliations in ogbn_mag_small dataset"
+
+    # Check topics
+    res = conn.execute("MATCH ()-[h:has_topic]->() RETURN count(h)")
+    topic_count = res.__next__()[0]
+    assert topic_count > 0, "Expected has_topic relationships in ogbn_mag_small dataset"
+
+    # Verify paper features exist
+    res = conn.execute("MATCH (p:paper) RETURN p.feat_0, p.year, p.label LIMIT 1")
+    row = res.__next__()
+    assert row[0] is not None, "Expected paper features"
+    assert row[1] is not None, "Expected paper year"
+    assert row[2] is not None, "Expected paper label"
+
+    conn.close()
+    db.close()

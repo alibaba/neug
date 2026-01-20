@@ -108,6 +108,58 @@ def get_available_datasets() -> List[DatasetInfo]:
             site=DATA_SITE,
             path="tinysnb.tar.gz",
         ),
+        DatasetInfo(
+            name="ogbn_mag_small",
+            description="Open Graph Benchmark - MAG (Microsoft Academic Graph) small subset. "
+            "A heterogeneous academic graph with papers, authors, institutions, and fields of study.",
+            node_types=["paper", "author", "institution", "field_of_study"],
+            edge_types=["cites", "writes", "affiliated_with", "has_topic"],
+            create_schema_query=[
+                "CREATE NODE TABLE paper (id INT64, feat_0 DOUBLE, feat_1 DOUBLE, feat_2 DOUBLE, feat_3 DOUBLE, "
+                "feat_4 DOUBLE, feat_5 DOUBLE, feat_6 DOUBLE, feat_7 DOUBLE, feat_8 DOUBLE, feat_9 DOUBLE, "
+                "feat_10 DOUBLE, feat_11 DOUBLE, feat_12 DOUBLE, feat_13 DOUBLE, feat_14 DOUBLE, feat_15 DOUBLE, "
+                "feat_16 DOUBLE, feat_17 DOUBLE, feat_18 DOUBLE, feat_19 DOUBLE, feat_20 DOUBLE, feat_21 DOUBLE, "
+                "feat_22 DOUBLE, feat_23 DOUBLE, feat_24 DOUBLE, feat_25 DOUBLE, feat_26 DOUBLE, feat_27 DOUBLE, "
+                "feat_28 DOUBLE, feat_29 DOUBLE, feat_30 DOUBLE, feat_31 DOUBLE, feat_32 DOUBLE, feat_33 DOUBLE, "
+                "feat_34 DOUBLE, feat_35 DOUBLE, feat_36 DOUBLE, feat_37 DOUBLE, feat_38 DOUBLE, feat_39 DOUBLE, "
+                "feat_40 DOUBLE, feat_41 DOUBLE, feat_42 DOUBLE, feat_43 DOUBLE, feat_44 DOUBLE, feat_45 DOUBLE, "
+                "feat_46 DOUBLE, feat_47 DOUBLE, feat_48 DOUBLE, feat_49 DOUBLE, feat_50 DOUBLE, feat_51 DOUBLE, "
+                "feat_52 DOUBLE, feat_53 DOUBLE, feat_54 DOUBLE, feat_55 DOUBLE, feat_56 DOUBLE, feat_57 DOUBLE, "
+                "feat_58 DOUBLE, feat_59 DOUBLE, feat_60 DOUBLE, feat_61 DOUBLE, feat_62 DOUBLE, feat_63 DOUBLE, "
+                "feat_64 DOUBLE, feat_65 DOUBLE, feat_66 DOUBLE, feat_67 DOUBLE, feat_68 DOUBLE, feat_69 DOUBLE, "
+                "feat_70 DOUBLE, feat_71 DOUBLE, feat_72 DOUBLE, feat_73 DOUBLE, feat_74 DOUBLE, feat_75 DOUBLE, "
+                "feat_76 DOUBLE, feat_77 DOUBLE, feat_78 DOUBLE, feat_79 DOUBLE, feat_80 DOUBLE, feat_81 DOUBLE, "
+                "feat_82 DOUBLE, feat_83 DOUBLE, feat_84 DOUBLE, feat_85 DOUBLE, feat_86 DOUBLE, feat_87 DOUBLE, "
+                "feat_88 DOUBLE, feat_89 DOUBLE, feat_90 DOUBLE, feat_91 DOUBLE, feat_92 DOUBLE, feat_93 DOUBLE, "
+                "feat_94 DOUBLE, feat_95 DOUBLE, feat_96 DOUBLE, feat_97 DOUBLE, feat_98 DOUBLE, feat_99 DOUBLE, "
+                "feat_100 DOUBLE, feat_101 DOUBLE, feat_102 DOUBLE, feat_103 DOUBLE, feat_104 DOUBLE, feat_105 DOUBLE, "
+                "feat_106 DOUBLE, feat_107 DOUBLE, feat_108 DOUBLE, feat_109 DOUBLE, feat_110 DOUBLE, feat_111 DOUBLE, "
+                "feat_112 DOUBLE, feat_113 DOUBLE, feat_114 DOUBLE, feat_115 DOUBLE, feat_116 DOUBLE, feat_117 DOUBLE, "
+                "feat_118 DOUBLE, feat_119 DOUBLE, feat_120 DOUBLE, feat_121 DOUBLE, feat_122 DOUBLE, feat_123 DOUBLE, "
+                "feat_124 DOUBLE, feat_125 DOUBLE, feat_126 DOUBLE, feat_127 DOUBLE, "
+                "year INT32, label INT32, PRIMARY KEY(id));",
+                "CREATE NODE TABLE author (id INT64, PRIMARY KEY(id));",
+                "CREATE NODE TABLE institution (id INT64, PRIMARY KEY(id));",
+                "CREATE NODE TABLE field_of_study (id INT64, PRIMARY KEY(id));",
+                "CREATE REL TABLE cites (FROM paper TO paper);",
+                "CREATE REL TABLE writes (FROM author TO paper);",
+                "CREATE REL TABLE affiliated_with (FROM author TO institution);",
+                "CREATE REL TABLE has_topic (FROM paper TO field_of_study);",
+            ],
+            data_import_query=[
+                "COPY paper from '{}/paper.csv' (DELIMITER=',', HEADER=true)",
+                "COPY author from '{}/author.csv' (DELIMITER=',', HEADER=true)",
+                "COPY institution from '{}/institution.csv' (DELIMITER=',', HEADER=true)",
+                "COPY field_of_study from '{}/field_of_study.csv' (DELIMITER=',', HEADER=true)",
+                "COPY cites from '{}/paper_cites_paper.csv' (DELIMITER=',', HEADER=true)",
+                "COPY writes from '{}/author_writes_paper.csv' (DELIMITER=',', HEADER=true)",
+                "COPY affiliated_with from '{}/author_affiliated_with_institution.csv' "
+                "(DELIMITER=',', HEADER=true)",
+                "COPY has_topic from '{}/paper_has_topic_field_of_study.csv' (DELIMITER=',', HEADER=true)",
+            ],
+            site=DATA_SITE,
+            path="ogbn_mag_small.tar.gz",
+        ),
     ]
 
 
