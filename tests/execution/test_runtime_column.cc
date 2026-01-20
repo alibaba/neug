@@ -292,7 +292,7 @@ TEST_F(VertexColumnTest, MLVertexColumnBasic) {
 
   EXPECT_EQ(ml_col->size(), 4);
   EXPECT_EQ(ml_col->vertex_column_type(), VertexColumnType::kMultiple);
-  EXPECT_EQ(ml_col->column_info(), "Optional MLVertexColumn(0, 1)[4]");
+  EXPECT_EQ(ml_col->column_info(), "MLVertexColumn(0, 1)[4]");
   EXPECT_EQ(ml_col->elem_type().id(), DataTypeId::kVertex);
 
   EXPECT_EQ(ml_col->get_vertex(0), (VertexRecord{kLabel0, kVid0}));

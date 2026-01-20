@@ -410,7 +410,7 @@ class MLVertexColumnBuilder : public IVertexColumnBuilder {
  private:
   std::vector<VertexRecord> vertices_;
   std::set<label_t> labels_;
-  bool is_optional_;
+  bool is_optional_ = false;
 };
 
 class MLVertexColumnBuilderOpt : public IVertexColumnBuilder {
