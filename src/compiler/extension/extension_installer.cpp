@@ -22,18 +22,10 @@
 
 #include "neug/compiler/extension/extension_installer.h"
 
-#include <fstream>
-#include <filesystem>
-#include <iomanip>
-#include <sstream>
-#include <algorithm>
-#include <openssl/sha.h>
 #include "httplib.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/result.h"
-#include "neug/compiler/common/string_utils.h"
 
 namespace gs {
 namespace extension {

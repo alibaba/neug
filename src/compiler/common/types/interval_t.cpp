@@ -157,31 +157,7 @@ T intervalTryCastInteger(int64_t input) {
 
 template <class T>
 void intervalTryAddition(T& target, int64_t input, int64_t multiplier,
-                         int64_t fraction = 0) {
-  int64_t addition = 0;
-  try {
-    function::Multiply::operation(input, multiplier, addition);
-  } catch (const exception::OverflowException& e) {
-    THROW_OVERFLOW_EXCEPTION("Interval value is out of range");
-  };
-  T additionBase = intervalTryCastInteger<T>(addition);
-  try {
-    function::Add::operation(target, additionBase, target);
-  } catch (const exception::OverflowException& e) {
-    THROW_OVERFLOW_EXCEPTION("Interval value is out of range");
-  };
-  if (fraction) {
-    //	Add in (fraction * multiplier) / MICROS_PER_SEC
-    //	This is always in range
-    addition = (fraction * multiplier) / Interval::MICROS_PER_SEC;
-    additionBase = intervalTryCastInteger<T>(addition);
-    try {
-      function::Add::operation(target, additionBase, target);
-    } catch (const exception::OverflowException& e) {
-      THROW_OVERFLOW_EXCEPTION("Interval fraction is out of range");
-    };
-  }
-}
+                         int64_t fraction = 0) {}
 
 interval_t gs::common::Interval::fromCString(const char* str, uint64_t len) {
   interval_t result;

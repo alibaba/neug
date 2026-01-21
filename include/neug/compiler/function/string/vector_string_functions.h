@@ -23,12 +23,7 @@
 #pragma once
 
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/compiler/function/string/functions/lower_function.h"
-#include "neug/compiler/function/string/functions/ltrim_function.h"
-#include "neug/compiler/function/string/functions/reverse_function.h"
-#include "neug/compiler/function/string/functions/rtrim_function.h"
-#include "neug/compiler/function/string/functions/trim_function.h"
-#include "neug/compiler/function/string/functions/upper_function.h"
+#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace function {
@@ -120,18 +115,6 @@ struct UCaseFunction {
   using alias = UpperFunction;
 
   static constexpr const char* name = "UCASE";
-};
-
-struct SubStrFunction : public VectorStringFunction {
-  static constexpr const char* name = "SUBSTR";
-
-  static function_set getFunctionSet();
-};
-
-struct SubstringFunction {
-  using alias = SubStrFunction;
-
-  static constexpr const char* name = "SUBSTRING";
 };
 
 }  // namespace function

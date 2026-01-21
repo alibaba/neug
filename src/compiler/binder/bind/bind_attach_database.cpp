@@ -30,7 +30,11 @@
 namespace gs {
 namespace binder {
 
-static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
+std::unique_ptr<BoundStatement> Binder::bindAttachDatabase(
+    const parser::Statement& statement) {
+  auto& attachDatabase = statement.constCast<parser::AttachDatabase>();
+  const auto& attachInfo = attachDatabase.getAttachInfo();
+
   binder::AttachOption attachOption;
   for (auto& [name, value] : attachInfo.options) {
     if (value->getExpressionType() != common::ExpressionType::LITERAL) {
@@ -47,14 +51,10 @@ static AttachInfo bindAttachInfo(const parser::AttachInfo& attachInfo) {
     THROW_BINDER_EXCEPTION(
         "Attaching a gs database without an alias is not allowed.");
   }
-  return binder::AttachInfo{attachInfo.dbPath, attachInfo.dbAlias,
-                            attachInfo.dbType, std::move(attachOption)};
-}
 
-std::unique_ptr<BoundStatement> Binder::bindAttachDatabase(
-    const parser::Statement& statement) {
-  auto& attachDatabase = statement.constCast<parser::AttachDatabase>();
-  auto boundAttachInfo = bindAttachInfo(attachDatabase.getAttachInfo());
+  auto boundAttachInfo =
+      binder::AttachInfo{attachInfo.dbPath, attachInfo.dbAlias,
+                         attachInfo.dbType, std::move(attachOption)};
   return std::make_unique<BoundAttachDatabase>(std::move(boundAttachInfo));
 }
 

@@ -22,7 +22,6 @@
 
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
-#include "neug/compiler/function/null/vector_null_functions.h"
 
 using namespace gs::common;
 using namespace gs::parser;
@@ -55,12 +54,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindNullOperatorExpression(
     }
   }
   auto functionName = ExpressionTypeUtil::toString(expressionType);
-  function::scalar_func_exec_t execFunc;
-  function::VectorNullFunction::bindExecFunction(expressionType,
-                                                 childrenAfterCast, execFunc);
-  function::scalar_func_select_t selectFunc;
-  function::VectorNullFunction::bindSelectFunction(
-      expressionType, childrenAfterCast, selectFunc);
+  function::scalar_func_exec_t execFunc = nullptr;
+  function::scalar_func_select_t selectFunc = nullptr;
   auto bindData =
       std::make_unique<function::FunctionBindData>(LogicalType::BOOL());
   auto uniqueExpressionName =

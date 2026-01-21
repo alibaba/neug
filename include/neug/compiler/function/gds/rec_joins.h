@@ -25,8 +25,6 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/common/enums/path_semantic.h"
-#include "neug/compiler/function/gds/gds_state.h"
-#include "neug/compiler/function/gds/rj_output_writer.h"
 #include "neug/compiler/graph/graph_entry.h"
 
 namespace gs {
@@ -57,8 +55,6 @@ struct RJBindData {
   explicit RJBindData(graph::GraphEntry graphEntry)
       : graphEntry{std::move(graphEntry)} {}
   RJBindData(const RJBindData& other);
-
-  PathsOutputWriterInfo getPathWriterInfo() const;
 
   std::string toString() const {
     return "RJBindData{"

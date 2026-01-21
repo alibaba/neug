@@ -63,32 +63,10 @@ struct SumFunction {
 
   static void updateSingleValue(SumState<RESULT_TYPE>* state,
                                 common::ValueVector* input, uint32_t pos,
-                                uint64_t multiplicity) {
-    INPUT_TYPE val = input->getValue<INPUT_TYPE>(pos);
-    for (auto j = 0u; j < multiplicity; ++j) {
-      if (state->isNull) {
-        state->sum = val;
-        state->isNull = false;
-      } else {
-        Add::operation(state->sum, val, state->sum);
-      }
-    }
-  }
+                                uint64_t multiplicity) {}
 
   static void combine(uint8_t* state_, uint8_t* otherState_,
-                      common::InMemOverflowBuffer* /*overflowBuffer*/) {
-    auto* otherState = reinterpret_cast<SumState<RESULT_TYPE>*>(otherState_);
-    if (otherState->isNull) {
-      return;
-    }
-    auto* state = reinterpret_cast<SumState<RESULT_TYPE>*>(state_);
-    if (state->isNull) {
-      state->sum = otherState->sum;
-      state->isNull = false;
-    } else {
-      Add::operation(state->sum, otherState->sum, state->sum);
-    }
-  }
+                      common::InMemOverflowBuffer* /*overflowBuffer*/) {}
 
   static void finalize(uint8_t* /*state_*/) {}
 };

@@ -168,12 +168,8 @@ FilterPushDownPattern::bindBooleanExpression(
     inputTypeIDs.push_back(common::LogicalTypeID::BOOL);
   }
   auto functionName = common::ExpressionTypeUtil::toString(expressionType);
-  function::scalar_func_exec_t execFunc;
-  function::VectorBooleanFunction::bindExecFunction(
-      expressionType, childrenAfterCast, execFunc);
-  function::scalar_func_select_t selectFunc;
-  function::VectorBooleanFunction::bindSelectFunction(
-      expressionType, childrenAfterCast, selectFunc);
+  function::scalar_func_exec_t execFunc = nullptr;
+  function::scalar_func_select_t selectFunc = nullptr;
   auto bindData =
       std::make_unique<function::FunctionBindData>(common::LogicalType::BOOL());
   auto uniqueExpressionName = binder::ScalarFunctionExpression::getUniqueName(

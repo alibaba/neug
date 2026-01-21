@@ -43,16 +43,5 @@ RJBindData::RJBindData(const RJBindData& other) {
   weightOutputExpr = other.weightOutputExpr;
 }
 
-PathsOutputWriterInfo RJBindData::getPathWriterInfo() const {
-  auto info = PathsOutputWriterInfo();
-  info.semantic = semantic;
-  info.lowerBound = lowerBound;
-  info.flipPath = flipPath;
-  info.writeEdgeDirection =
-      writePath && extendDirection == common::ExtendDirection::BOTH;
-  info.writePath = writePath;
-  return info;
-}
-
 }  // namespace function
 }  // namespace gs

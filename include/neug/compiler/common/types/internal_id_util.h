@@ -23,7 +23,6 @@
 #pragma once
 
 #include "neug/compiler/common/types/types.h"
-#include "neug/compiler/function/hash/hash_functions.h"
 
 namespace gs {
 namespace common {

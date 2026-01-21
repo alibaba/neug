@@ -27,12 +27,10 @@
 #include "neug/compiler/common/numeric_utils.h"
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
-#include "neug/compiler/function/hash/hash_functions.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs::common {
 
-// NOLINTNEXTLINE(cert-err58-cpp): This initialization won't actually throw.
 const int128_t Int128_t::powerOf10[]{
     int128_t((int64_t) 1),
     int128_t((int64_t) 10),
@@ -255,13 +253,10 @@ bool Int128_t::tryMultiply(int128_t lhs, int128_t rhs, int128_t& result) {
     }
   }
 
-  // if any of these products are set to a non-zero value, there is always an
-  // overflow
   if (products[0][0] || products[0][1] || products[0][2] || products[1][0] ||
       products[2][0] || products[1][1]) {
     return false;
   }
-  // if the high bits of any of these are set, there is always an overflow
   if ((products[0][3] & 0xffffffff80000000) ||
       (products[1][2] & 0xffffffff80000000) ||
       (products[2][1] & 0xffffffff80000000) ||
@@ -835,6 +830,5 @@ int128_t::operator float() const {
 std::size_t std::hash<gs::common::int128_t>::operator()(
     const gs::common::int128_t& v) const noexcept {
   gs::common::hash_t hash = 0;
-  gs::function::Hash::operation(v, hash);
   return hash;
 }

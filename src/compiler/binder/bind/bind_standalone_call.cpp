@@ -39,10 +39,8 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
     const parser::Statement& statement) {
   auto& callStatement =
       neug_dynamic_cast<const parser::StandaloneCall&>(statement);
-  const main::Option* option = nullptr;
-  if (option == nullptr) {
-    option = clientContext->getExtensionOption(callStatement.getOptionName());
-  }
+  const main::Option* option =
+      clientContext->getExtensionOption(callStatement.getOptionName());
   if (option == nullptr) {
     THROW_BINDER_EXCEPTION(
         "Invalid option name: " + callStatement.getOptionName() + ".");

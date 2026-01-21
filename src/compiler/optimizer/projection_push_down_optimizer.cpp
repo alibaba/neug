@@ -25,7 +25,6 @@
 
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/common/enums/expression_type.h"
-#include "neug/compiler/function/gds/gds_function_collection.h"
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"

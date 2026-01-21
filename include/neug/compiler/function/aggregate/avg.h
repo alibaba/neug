@@ -25,7 +25,6 @@
 #include "neug/compiler/common/in_mem_overflow_buffer.h"
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/function/aggregate_function.h"
-#include "neug/compiler/function/arithmetic/add.h"
 
 namespace gs {
 namespace function {
@@ -80,34 +79,10 @@ struct AvgFunction {
 
   static void updateSingleValue(AvgState<RESULT_TYPE>* state,
                                 common::ValueVector* input, uint32_t pos,
-                                uint64_t multiplicity) {
-    INPUT_TYPE val = input->getValue<INPUT_TYPE>(pos);
-    for (auto i = 0u; i < multiplicity; ++i) {
-      if (state->isNull) {
-        state->sum = (RESULT_TYPE) val;
-        state->isNull = false;
-      } else {
-        Add::operation(state->sum, val, state->sum);
-      }
-    }
-    state->count += multiplicity;
-  }
+                                uint64_t multiplicity) {}
 
   static void combine(uint8_t* state_, uint8_t* otherState_,
-                      common::InMemOverflowBuffer* /*overflowBuffer*/) {
-    auto* otherState = reinterpret_cast<AvgState<RESULT_TYPE>*>(otherState_);
-    if (otherState->isNull) {
-      return;
-    }
-    auto* state = reinterpret_cast<AvgState<RESULT_TYPE>*>(state_);
-    if (state->isNull) {
-      state->sum = otherState->sum;
-      state->isNull = false;
-    } else {
-      Add::operation(state->sum, otherState->sum, state->sum);
-    }
-    state->count = state->count + otherState->count;
-  }
+                      common::InMemOverflowBuffer* /*overflowBuffer*/) {}
 
   static void finalize(uint8_t* state_) {
     auto* state = reinterpret_cast<AvgState<RESULT_TYPE>*>(state_);

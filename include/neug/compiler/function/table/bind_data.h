@@ -25,7 +25,6 @@
 #include <memory>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
-#include "neug/compiler/storage/predicate/column_predicate.h"
 
 namespace gs {
 namespace common {

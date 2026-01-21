@@ -32,7 +32,6 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
-#include "neug/compiler/function/hash/hash_functions.h"
 #include "neug/utils/exception/exception.h"
 
 namespace gs {
@@ -914,75 +913,7 @@ bool Value::allowTypeChange() const {
   }
 }
 
-uint64_t Value::computeHash() const {
-  if (isNull_) {
-    return function::NULL_HASH;
-  }
-  hash_t hashValue = 0;
-  switch (dataType.getPhysicalType()) {
-  case PhysicalTypeID::BOOL: {
-    function::Hash::operation(val.booleanVal, hashValue);
-  } break;
-  case PhysicalTypeID::INT128: {
-    function::Hash::operation(val.int128Val, hashValue);
-  } break;
-  case PhysicalTypeID::INT64: {
-    function::Hash::operation(val.int64Val, hashValue);
-  } break;
-  case PhysicalTypeID::INT32: {
-    function::Hash::operation(val.int32Val, hashValue);
-  } break;
-  case PhysicalTypeID::INT16: {
-    function::Hash::operation(val.int16Val, hashValue);
-  } break;
-  case PhysicalTypeID::INT8: {
-    function::Hash::operation(val.int8Val, hashValue);
-  } break;
-  case PhysicalTypeID::UINT64: {
-    function::Hash::operation(val.uint64Val, hashValue);
-  } break;
-  case PhysicalTypeID::UINT32: {
-    function::Hash::operation(val.uint32Val, hashValue);
-  } break;
-  case PhysicalTypeID::UINT16: {
-    function::Hash::operation(val.uint16Val, hashValue);
-  } break;
-  case PhysicalTypeID::UINT8: {
-    function::Hash::operation(val.uint8Val, hashValue);
-  } break;
-  case PhysicalTypeID::DOUBLE: {
-    function::Hash::operation(val.doubleVal, hashValue);
-  } break;
-  case PhysicalTypeID::FLOAT: {
-    function::Hash::operation(val.floatVal, hashValue);
-  } break;
-  case PhysicalTypeID::INTERVAL: {
-    function::Hash::operation(val.intervalVal, hashValue);
-  } break;
-  case PhysicalTypeID::INTERNAL_ID: {
-    function::Hash::operation(val.internalIDVal, hashValue);
-  } break;
-  case PhysicalTypeID::STRING: {
-    function::Hash::operation(strVal, hashValue);
-  } break;
-  case PhysicalTypeID::ARRAY:
-  case PhysicalTypeID::LIST:
-  case PhysicalTypeID::STRUCT: {
-    if (childrenSize == 0) {
-      return function::NULL_HASH;
-    }
-    hashValue = children[0]->computeHash();
-    for (auto i = 1u; i < childrenSize; i++) {
-      hashValue =
-          function::combineHashScalar(hashValue, children[i]->computeHash());
-    }
-  } break;
-  default: {
-    NEUG_UNREACHABLE;
-  }
-  }
-  return hashValue;
-}
+uint64_t Value::computeHash() const { return 0; }
 
 std::string Value::mapToString() const {
   std::string result = "{";

@@ -20,12 +20,10 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-#include <openssl/dsa.h>
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/compiler/planner/operator/logical_transaction.h"
 
 using namespace gs::common;
 

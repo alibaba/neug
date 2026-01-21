@@ -50,45 +50,7 @@ int64_t SequenceCatalogEntry::currVal() {
   return sequenceData.currVal;
 }
 
-void SequenceCatalogEntry::nextValNoLock() {
-  if (sequenceData.usageCount == 0) {
-    // initialization of sequence
-    sequenceData.usageCount++;
-    return;
-  }
-  bool overflow = false;
-  auto next = sequenceData.currVal;
-  try {
-    function::Add::operation(next, sequenceData.increment, next);
-  } catch (const exception::OverflowException&) { overflow = true; }
-  if (sequenceData.cycle) {
-    if (overflow) {
-      next = sequenceData.increment < 0 ? sequenceData.maxValue
-                                        : sequenceData.minValue;
-    } else if (next < sequenceData.minValue) {
-      next = sequenceData.maxValue;
-    } else if (next > sequenceData.maxValue) {
-      next = sequenceData.minValue;
-    }
-  } else {
-    const bool minError =
-        overflow ? sequenceData.increment < 0 : next < sequenceData.minValue;
-    const bool maxError =
-        overflow ? sequenceData.increment > 0 : next > sequenceData.maxValue;
-    if (minError) {
-      THROW_CATALOG_EXCEPTION("nextval: reached minimum value of sequence \"" +
-                              name + "\" " +
-                              std::to_string(sequenceData.minValue));
-    }
-    if (maxError) {
-      THROW_CATALOG_EXCEPTION("nextval: reached maximum value of sequence \"" +
-                              name + "\" " +
-                              std::to_string(sequenceData.maxValue));
-    }
-  }
-  sequenceData.currVal = next;
-  sequenceData.usageCount++;
-}
+void SequenceCatalogEntry::nextValNoLock() {}
 
 // referenced from DuckDB
 void SequenceCatalogEntry::nextKVal(transaction::Transaction* transaction,

@@ -15,6 +15,7 @@
  */
 
 #include "neug/compiler/function/scalar_function.h"
+#include "neug/utils/function_type.h"
 
 namespace gs {
 namespace function {

@@ -18,7 +18,6 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_visitor.h"
-#include "neug/compiler/function/boolean/vector_boolean_functions.h"
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/extend/logical_extend.h"
 #include "neug/compiler/planner/operator/logical_filter.h"

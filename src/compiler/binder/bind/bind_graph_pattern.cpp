@@ -101,7 +101,7 @@ static LogicalType getRecursiveRelLogicalType(const LogicalType& nodeType,
   recursiveRelFields.emplace_back(InternalKeyword::NODES, std::move(nodesType));
   recursiveRelFields.emplace_back(InternalKeyword::RELS, std::move(relsType));
   return LogicalType::RECURSIVE_REL(
-      std::make_unique<StructTypeInfo>(std::move(recursiveRelFields)));
+      std::make_unique<common::StructTypeInfo>(std::move(recursiveRelFields)));
 }
 
 static void extraFieldFromStructType(const LogicalType& structType,
@@ -147,10 +147,10 @@ std::shared_ptr<Expression> Binder::createPath(
     }
   }
   auto nodeExtraInfo =
-      std::make_unique<StructTypeInfo>(nodeFieldNames, nodeFieldTypes);
+      std::make_unique<common::StructTypeInfo>(nodeFieldNames, nodeFieldTypes);
   auto nodeType = LogicalType::NODE(std::move(nodeExtraInfo));
   auto relExtraInfo =
-      std::make_unique<StructTypeInfo>(relFieldNames, relFieldTypes);
+      std::make_unique<common::StructTypeInfo>(relFieldNames, relFieldTypes);
   auto relType = LogicalType::REL(std::move(relExtraInfo));
   auto uniqueName = getUniqueExpressionName(pathName);
   return std::make_shared<PathExpression>(
@@ -353,7 +353,7 @@ std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
     fields.emplace_back(property.getPropertyName(),
                         property.getDataType().copy());
   }
-  auto extraInfo = std::make_unique<StructTypeInfo>(std::move(fields));
+  auto extraInfo = std::make_unique<common::StructTypeInfo>(std::move(fields));
   queryRel->setExtraTypeInfo(std::move(extraInfo));
   return queryRel;
 }
@@ -421,7 +421,7 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
       bindRecursivePatternNodeProjectionList(*recursivePatternInfo, *node);
   bindProjectionListAsStructField(nodeProjectionList, nodeFields);
   node->setExtraTypeInfo(
-      std::make_unique<StructTypeInfo>(std::move(nodeFields)));
+      std::make_unique<common::StructTypeInfo>(std::move(nodeFields)));
   auto nodeCopy = createQueryNode(
       recursivePatternInfo->nodeName,
       std::vector<TableCatalogEntry*>{entrySet.begin(), entrySet.end()});
@@ -435,7 +435,8 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
   auto relFields = getBaseRelStructFields();
   relFields.emplace_back(InternalKeyword::ID, LogicalType::INTERNAL_ID());
   bindProjectionListAsStructField(relProjectionList, relFields);
-  rel->setExtraTypeInfo(std::make_unique<StructTypeInfo>(std::move(relFields)));
+  rel->setExtraTypeInfo(
+      std::make_unique<common::StructTypeInfo>(std::move(relFields)));
   // Bind predicates in {}, e.g. [e* {date=1999-01-01}]
   std::shared_ptr<Expression> relPredicate = nullptr;
   for (auto& [propertyName, rhs] : relPattern.getPropertyKeyVals()) {
@@ -712,7 +713,8 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
     structFields.emplace_back(property->getPropertyName(),
                               property->getDataType().copy());
   }
-  auto extraInfo = std::make_unique<StructTypeInfo>(std::move(structFields));
+  auto extraInfo =
+      std::make_unique<common::StructTypeInfo>(std::move(structFields));
   queryNode->setExtraTypeInfo(std::move(extraInfo));
   return queryNode;
 }

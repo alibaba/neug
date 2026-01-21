@@ -25,29 +25,18 @@
 #include "neug/compiler/function/aggregate/count.h"
 #include "neug/compiler/function/aggregate/count_star.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
-#include "neug/compiler/function/array/vector_array_functions.h"
-#include "neug/compiler/function/blob/vector_blob_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
 #include "neug/compiler/function/comparison/vector_comparison_functions.h"
 #include "neug/compiler/function/csv_read_function.h"
 #include "neug/compiler/function/date/vector_date_functions.h"
 #include "neug/compiler/function/export/export_function.h"
-#include "neug/compiler/function/hash/vector_hash_functions.h"
-#include "neug/compiler/function/internal_id/vector_internal_id_functions.h"
-#include "neug/compiler/function/interval/vector_interval_functions.h"
 #include "neug/compiler/function/list/vector_list_functions.h"
-#include "neug/compiler/function/map/vector_map_functions.h"
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 #include "neug/compiler/function/show_loaded_extensions_function.h"
 #include "neug/compiler/function/string/vector_string_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
-#include "neug/compiler/function/table/simple_table_function.h"
-#include "neug/compiler/function/table/standalone_call_function.h"
-#include "neug/compiler/function/timestamp/vector_timestamp_functions.h"
-#include "neug/compiler/function/union/vector_union_functions.h"
-#include "neug/compiler/function/utility/vector_utility_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
 
 using namespace gs::processor;
@@ -154,8 +143,6 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION_ALIAS(UCaseFunction),
       SCALAR_FUNCTION_ALIAS(ToUpperFunction),
       SCALAR_FUNCTION(ContainsFunction),
-      SCALAR_FUNCTION(SubStrFunction),
-      SCALAR_FUNCTION_ALIAS(SubstringFunction),
       SCALAR_FUNCTION(EndsWithFunction),
       SCALAR_FUNCTION(StartsWithFunction),
       SCALAR_FUNCTION_ALIAS(SuffixFunction),

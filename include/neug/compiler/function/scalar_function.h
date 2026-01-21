@@ -25,9 +25,6 @@
 #include "binary_function_executor.h"
 #include "const_function_executor.h"
 #include "neug/compiler/function/function.h"
-#include "neug/utils/function_type.h"
-#include "pointer_function_executor.h"
-#include "ternary_function_executor.h"
 #include "unary_function_executor.h"
 
 namespace gs {
@@ -74,61 +71,6 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
                                   returnTypeID},
         execFunc{std::move(execFunc)},
         selectFunc{std::move(selectFunc)} {}
-
-  template <typename A_TYPE, typename B_TYPE, typename C_TYPE,
-            typename RESULT_TYPE, typename FUNC>
-  static void TernaryExecFunction(
-      const std::vector<std::shared_ptr<common::ValueVector>>& params,
-      const std::vector<common::SelectionVector*>& paramSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* dataPtr = nullptr) {
-    NEUG_ASSERT(params.size() == 3);
-    TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
-                                           FUNC, TernaryFunctionWrapper>(
-        *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
-        *params[2], paramSelVectors[2], result, resultSelVector, dataPtr);
-  }
-
-  template <typename A_TYPE, typename B_TYPE, typename C_TYPE,
-            typename RESULT_TYPE, typename FUNC>
-  static void TernaryStringExecFunction(
-      const std::vector<std::shared_ptr<common::ValueVector>>& params,
-      const std::vector<common::SelectionVector*>& paramSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* dataPtr = nullptr) {
-    NEUG_ASSERT(params.size() == 3);
-    TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
-                                           FUNC, TernaryStringFunctionWrapper>(
-        *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
-        *params[2], paramSelVectors[2], result, resultSelVector, dataPtr);
-  }
-
-  template <typename A_TYPE, typename B_TYPE, typename C_TYPE,
-            typename RESULT_TYPE, typename FUNC>
-  static void TernaryRegexExecFunction(
-      const std::vector<std::shared_ptr<common::ValueVector>>& params,
-      const std::vector<common::SelectionVector*>& paramSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* dataPtr) {
-    TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
-                                           FUNC, TernaryRegexFunctionWrapper>(
-        *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
-        *params[2], paramSelVectors[2], result, resultSelVector, dataPtr);
-  }
-
-  template <typename A_TYPE, typename B_TYPE, typename C_TYPE,
-            typename RESULT_TYPE, typename FUNC>
-  static void TernaryExecListStructFunction(
-      const std::vector<std::shared_ptr<common::ValueVector>>& params,
-      const std::vector<common::SelectionVector*>& paramSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* dataPtr = nullptr) {
-    NEUG_ASSERT(params.size() == 3);
-    TernaryFunctionExecutor::executeSwitch<A_TYPE, B_TYPE, C_TYPE, RESULT_TYPE,
-                                           FUNC, TernaryListFunctionWrapper>(
-        *params[0], paramSelVectors[0], *params[1], paramSelVectors[1],
-        *params[2], paramSelVectors[2], result, resultSelVector, dataPtr);
-  }
 
   template <typename LEFT_TYPE, typename RIGHT_TYPE, typename RESULT_TYPE,
             typename FUNC>
@@ -304,19 +246,6 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
       void* /*dataPtr*/ = nullptr) {
     NEUG_ASSERT(params.empty() && paramSelVectors.empty());
     ConstFunctionExecutor::execute<RESULT_TYPE, FUNC>(result, *resultSelVector);
-  }
-
-  template <typename RESULT_TYPE, typename FUNC>
-  static void NullaryAuxilaryExecFunction(
-      [[maybe_unused]] const std::vector<std::shared_ptr<common::ValueVector>>&
-          params,
-      [[maybe_unused]] const std::vector<common::SelectionVector*>&
-          paramSelVectors,
-      common::ValueVector& result, common::SelectionVector* resultSelVector,
-      void* dataPtr) {
-    NEUG_ASSERT(params.empty() && paramSelVectors.empty());
-    PointerFunctionExecutor::execute<RESULT_TYPE, FUNC>(
-        result, *resultSelVector, dataPtr);
   }
 
   virtual std::unique_ptr<ScalarFunction> copy() const {

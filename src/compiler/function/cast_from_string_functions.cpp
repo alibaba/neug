@@ -365,7 +365,7 @@ struct SplitStringListOperation {
     skipWhitespace(start, end);
     trimRightWhitespace(start, end);
     CastString::copyStringToVector(
-        resultVector, offset, std::string_view{start, (uint32_t) (end - start)},
+        resultVector, offset, std::string_view{start, (uint32_t)(end - start)},
         option);
     offset++;
   }
@@ -518,7 +518,7 @@ bool SplitStringMapOperation::handleKey(const char* start, const char* end,
   trimRightWhitespace(start, end);
   auto fieldVector = StructVector::getFieldVector(resultVector, 0).get();
   CastString::copyStringToVector(
-      fieldVector, offset, std::string_view{start, (uint32_t) (end - start)},
+      fieldVector, offset, std::string_view{start, (uint32_t)(end - start)},
       option);
   if (fieldVector->isNull(offset)) {
     THROW_CONVERSION_EXCEPTION("Map does not allow null as key.");
@@ -539,7 +539,7 @@ void SplitStringMapOperation::handleValue(const char* start, const char* end,
   trimRightWhitespace(start, end);
   CastString::copyStringToVector(
       StructVector::getFieldVector(resultVector, 1).get(), offset++,
-      std::string_view{start, (uint32_t) (end - start)}, option);
+      std::string_view{start, (uint32_t)(end - start)}, option);
 }
 
 template <typename T>
@@ -642,7 +642,6 @@ void CastString::operation(const neug_string_t& input, map_entry_t& result,
 }
 
 // ---------------------- cast String to Struct ------------------------------
-// //
 static bool parseStructFieldName(const char*& input, const char* end) {
   while (input < end) {
     if (*input == ':') {
@@ -738,7 +737,7 @@ static bool tryCastStringToStruct(const char* input, uint64_t len,
     fieldVector->setNull(rowToAdd, false);
     CastString::copyStringToVector(
         fieldVector, rowToAdd,
-        std::string_view{valStart, (uint32_t) (valEnd - valStart)}, option);
+        std::string_view{valStart, (uint32_t)(valEnd - valStart)}, option);
 
     if (closeBracket) {
       return (input == end);

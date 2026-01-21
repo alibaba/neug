@@ -23,7 +23,7 @@
 #include "neug/compiler/common/enums/query_rel_type.h"
 
 #include "neug/compiler/common/assert.h"
-#include "neug/compiler/function/gds/gds_function_collection.h"
+#include "neug/compiler/function/gds/rec_joins.h"
 
 using namespace gs::function;
 

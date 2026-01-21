@@ -22,7 +22,6 @@
 
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/binder/expression_binder.h"
-#include "neug/compiler/function/boolean/vector_boolean_functions.h"
 
 using namespace gs::common;
 using namespace gs::parser;
@@ -50,12 +49,8 @@ std::shared_ptr<Expression> ExpressionBinder::bindBooleanExpression(
     inputTypeIDs.push_back(LogicalTypeID::BOOL);
   }
   auto functionName = ExpressionTypeUtil::toString(expressionType);
-  scalar_func_exec_t execFunc;
-  VectorBooleanFunction::bindExecFunction(expressionType, childrenAfterCast,
-                                          execFunc);
-  scalar_func_select_t selectFunc;
-  VectorBooleanFunction::bindSelectFunction(expressionType, childrenAfterCast,
-                                            selectFunc);
+  scalar_func_exec_t execFunc = nullptr;
+  scalar_func_select_t selectFunc = nullptr;
   auto bindData = std::make_unique<FunctionBindData>(LogicalType::BOOL());
   auto uniqueExpressionName =
       ScalarFunctionExpression::getUniqueName(functionName, childrenAfterCast);
