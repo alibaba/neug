@@ -1,6 +1,6 @@
 # Feature: 新增针对insert的elle测试
 
-**Input**: Design documents from `/specs/003-elle-ins-del(#1416)/`
+**Input**: Design documents from `/specs/003-elle-insert(#1416)/`
 **Prerequisites**: plan.md (required), spec.md (required for modules)
 
 # Modules

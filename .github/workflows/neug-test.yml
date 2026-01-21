@@ -239,6 +239,12 @@ jobs:
         # concurrency tests
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_concurrent.py
 
+    - name: Run Transaction Concurrent Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # transaction concurrent tests
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/transaction/elle_tester_insert.py
+
     - name: Run E2E modern_graph Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e

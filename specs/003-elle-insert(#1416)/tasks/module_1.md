@@ -12,37 +12,33 @@
 **description**: 实现Read/Insert并发场景的单查询事务基础测试，每个事务只包含一个查询操作。测试器需要记录read和insert操作历史，基于read操作结果集合推导偏序关系，构建依赖图并检测并发冲突。
 
 **details**: 
-1. **实现elle_insert_tester.py基础框架**:
-   - 在`tools/python_bind/tests/transaction/elle/`目录下创建`elle_insert_tester.py`文件
-   - 复用`elle_tester.py`中的基础功能（操作历史记录、依赖图构建、Elle环检测等）
-   - 实现操作历史记录功能，使用统一的三元组格式`[op, target, list]`记录所有操作
-   - 支持Read操作（`["Read", "Person", [1, 2, 3, 4]]`）和Insert操作（`["Insert", "Person", [5]]`，单点插入）
 
-2. **实现单查询事务测试场景**:
-   - 设计测试用例，每个事务只包含一个查询操作（read或insert）
-   - 执行并发事务序列，记录每个事务的操作历史和时间戳
-   - 对于Read事务，执行`MATCH (p: Person) RETURN p.id`查询，收集返回的节点ID列表
-   - 对于Insert事务，执行`CREATE (p: Person {id: $id})`插入单个节点，记录插入的节点ID
+1. **构建rr边（读读依赖边）**:
+   - 根据子集偏序关系排序（read的结果保证满足子集关系）
+   - 对于排序后的相邻Read操作对 (Ta, Tb)，如果Ta的结果列表是Tb结果列表的子集（转换为集合后判断），则添加rr边 Ta → Tb
+   - 其中Ta和Tb的操作三元组为 `["Read", target, list_a]` 和 `["Read", target, list_b]`
+   - 示例：如果T1的操作为 `["Read", "Person", [1]]`，T2的操作为 `["Read", "Person", [1,2,3]]`，由于 [1] ⊆ [1,2,3]，则排序后T1在T2之前，添加边 T1 → T2
+   - 数学表示：如果 `set(list_a) ⊆ set(list_b)`，则 `Ta → Tb (rr)`
 
-3. **实现偏序关系推导**:
-   - 根据Read操作结果列表的长度（数量）对所有Read操作进行排序
-   - 对于排序后的相邻Read操作对，如果前一个Read的结果列表是后一个Read结果列表的子集，则添加rr边
-   - 计算相邻Read操作结果列表的差集，找到在两者之间执行的Insert事务，添加ri边和ir边
+2. **构建ir边和ri边（插入读依赖边和读插入依赖边）**:
+   - 遍历排序后的Read操作（已按子集偏序关系排序），对于相邻的两个Read操作 (Ta, Tb)，其操作三元组分别为 `["Read", target, list_a]` 和 `["Read", target, list_b]`
+   - 计算两个Read操作结果列表的差集：`diff = set(list_b) - set(list_a)`，表示Tb比Ta多读到的节点
+   - 对于差集中的每个节点x，找到在Ta和Tb之间执行的Insert事务 T_insert，其操作三元组为 `["Insert", target, [x]]`（单点插入）
+   - 如果找到这样的T_insert，则：
+     - 添加ri边：Ta → T_insert
+     - 添加ir边：T_insert → Tb
+   - 示例：如果T1的操作为 `["Read", "Person", [1]]`，T_insert_2的操作为 `["Insert", "Person", [2]]`，T2的操作为 `["Read", "Person", [1,2,3]]`，排序后T1和T2相邻，差集为 {2, 3}，找到T_insert_2插入2，则添加边 T1 → T_insert_2 和 T_insert_2 → T2
+   - 数学表示：如果 `diff = set(list_b) - set(list_a)` 且存在Insert事务 T_insert 插入节点 x ∈ diff，则 `Ta → T_insert (ri)` 和 `T_insert → Tb (ir)`
 
-4. **实现依赖图构建**:
-   - 构建包含rr边、ir边、ri边和线性边的依赖图
-   - 在每个时间块内构建线性边（如果事务a的结束时间早于事务b的开始时间）
-   - 使用NetworkX的DiGraph数据结构存储依赖图
+3. **构建线性边（线性一致性依赖边）**:
+   - 遍历所有事务对 (Ta, Tb)
+   - 如果事务a的结束时间早于事务b的开始时间，则添加线性边 Ta → Tb
+   - 数学表示：如果 `end_time(Ta) < start_time(Tb)`，则 `Ta → Tb (linear)`
 
-5. **实现并发冲突检测**:
-   - 使用Elle算法的环检测机制检测依赖图中的环
-   - 识别并发冲突和隔离异常
-   - 生成测试报告，说明检测到的并发冲突
-
-6. **测试验证**:
-   - 编写pytest测试用例，验证单查询事务场景下的依赖关系检测
-   - 测试偏序关系推导的正确性
-   - 验证依赖边数量相比全序方法减少至少50%
+4. **构建完整依赖图**:
+   - 将所有边添加到NetworkX的DiGraph中
+   - 节点为所有事务（read和insert）
+   - 边包含dep_type属性标识依赖类型
 
 ## [F003-T102] Read/Insert并发多查询事务复杂测试
 

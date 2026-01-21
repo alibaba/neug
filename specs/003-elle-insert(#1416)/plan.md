@@ -1,7 +1,7 @@
 # Implementation Plan: 新增针对insert的elle测试
 
-**Branch**: `003-elle-ins-del(#1416)` | **Date**: 2026-01-19 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/003-elle-ins-del(#1416)/spec.md`
+**Branch**: `003-elle-insert(#1416)` | **Date**: 2026-01-19 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/003-elle-insert(#1416)/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
