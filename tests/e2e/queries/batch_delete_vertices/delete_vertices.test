@@ -41,3 +41,12 @@
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
 ---- 1
 0
+
+-LOG DeleteMultiLabelVertices
+-STATEMENT MATCH (a:organisation:movies) DELETE a
+---- 0
+
+-LOG EmptyMultiLabelVerticesCount
+-STATEMENT MATCH (a:organisation:movies) RETURN count(a)
+---- 1
+0

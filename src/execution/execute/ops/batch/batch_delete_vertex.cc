@@ -57,7 +57,9 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
       graph.BatchDeleteVertices(sl_vertex_column->label(),
                                 sl_vertex_column->vertices());
     } else if (vertex_column->vertex_column_type() ==
-               VertexColumnType::kMultiple) {
+                   VertexColumnType::kMultiple ||
+               vertex_column->vertex_column_type() ==
+                   VertexColumnType::kMultiSegment) {
       std::unordered_map<label_t, std::vector<vid_t>> vids_map;
       for (auto label : vertex_column->get_labels_set()) {
         std::vector<vid_t> vids;

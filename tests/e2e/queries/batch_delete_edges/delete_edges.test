@@ -27,3 +27,12 @@
 -STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(e)
 ---- 1
 0
+
+-LOG DeleteMultiLabelEdge
+-STATEMENT MATCH (a:person)-[e:studyAt|workAt]->(b) DELETE e
+---- 0
+
+-LOG EmptyEdgesCount
+-STATEMENT MATCH (a:person)-[e:studyAt|workAt]->(b) RETURN COUNT(e)
+---- 1
+0

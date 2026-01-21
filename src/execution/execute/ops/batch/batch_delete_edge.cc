@@ -89,6 +89,8 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(
             edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
         if (edges_map.find(index) != edges_map.end()) {
           edges_map[index].emplace_back(edge);
+        } else {
+          edges_map[index] = {edge};
         }
       }
 
