@@ -1,4 +1,4 @@
-name: Neug Test
+name: NeuG Test
 
 on:
   # Trigger the workflow on push or pull request,
@@ -102,7 +102,7 @@ jobs:
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
-    - name: Build Interactive
+    - name: Build NeuG
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/

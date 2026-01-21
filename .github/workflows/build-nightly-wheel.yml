@@ -88,7 +88,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
         run: |
           neug-cli --help
@@ -164,7 +164,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
         run: |
           neug-cli --help
@@ -248,7 +248,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
         run: |
           neug-cli --help
@@ -332,7 +332,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
         run: |
           neug-cli --help

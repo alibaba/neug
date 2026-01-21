@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath('./'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Neug'
+project = 'NeuG'
 copyright = '2020-2024, GraphScope, Alibaba Inc.'
 author = 'GraphScope, Alibaba Inc.'
 

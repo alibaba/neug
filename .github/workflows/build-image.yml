@@ -33,7 +33,7 @@ jobs:
       with:
         submodules: false
     
-    - name: Build Neug Image
+    - name: Build NeuG Image
       run: |
         cd ${GITHUB_WORKSPACE}/
         cd docker && make neug-release

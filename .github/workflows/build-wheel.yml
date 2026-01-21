@@ -98,7 +98,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         run: |
           neug-cli --help
           neug-cli --version
@@ -167,7 +167,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         run: |
           neug-cli --help
           neug-cli --version
@@ -244,7 +244,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         run: |
           neug-cli --help
           neug-cli --version
@@ -321,7 +321,7 @@ jobs:
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
-      - name: Run Neug-cli test
+      - name: Run NeuG-Cli test
         run: |
           neug-cli --help
           neug-cli --version

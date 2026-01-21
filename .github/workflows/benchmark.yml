@@ -1,4 +1,4 @@
-name: Neug Benchmark
+name: NeuG Benchmark
 
 on:
   # Trigger the workflow on push or pull request,
@@ -62,7 +62,7 @@ jobs:
       with:
         python-version: '3.13'
 
-    - name: Build Interactive
+    - name: Build NeuG
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/

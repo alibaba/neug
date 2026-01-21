@@ -1,6 +1,6 @@
-# Neug Web UI
+# NeuG Web UI
 
-The Neug Web UI provides a browser-based interface for interacting with Neug databases. It offers an intuitive way to execute Cypher queries, visualize results, and explore your graph data through a modern web interface.
+The NeuG Web UI provides a browser-based interface for interacting with NeuG databases. It offers an intuitive way to execute Cypher queries, visualize results, and explore your graph data through a modern web interface.
 
 ## Overview
 

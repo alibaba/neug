@@ -24,10 +24,10 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
- - Interactive version: [e.g., v0.1, v0.2.2, master]
+ - NeuG version: [e.g., v0.1, v0.2.2, master]
  - OS: [e.g. macOS, Linux]
  - Version [e.g. 10.15]
- - Kubernetes Version [e.g., 1.19]
+ - Python Version [e.g. 3.12]
 
 **Additional context**
 Add any other context about the problem here.
