@@ -78,6 +78,7 @@ NeuG documentation
 
    development/dev_guide
    development/code_style_guide
+   development/error_code.md
 
 
 Indices and tables
