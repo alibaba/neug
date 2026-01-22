@@ -66,6 +66,10 @@ cd doc && make dependencies && make html
 python3 -m http.server --directory build/html 8080
 ```
 
+## AI-Assisted Development
+
+We apply an AI-assisted workflow called **Spec-Driven** during the development of NeuG. Inspired by [GitHub Spec-Kit](https://github.com/github/spec-kit), the spec-driven workflow standardizes the development process. You can refer to the [AI-Assisted Development Guide](./doc/source/development/ai_coding.md) for more details.
+
 ## Development
 
 For building NeuG from source and development instructions, see the [Development Guide](./doc/source/development/dev_guide.md).
