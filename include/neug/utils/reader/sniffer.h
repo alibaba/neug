@@ -61,28 +61,7 @@ class Sniffer {
    * @return EntrySchema containing inferred column names and types with the
    *         specified type.
    */
-  virtual std::shared_ptr<EntrySchema> sniff() = 0;
-
-  /**
-   * @brief Adaptively infer schema by merging user-provided schema with
-   *        inferred schema
-   *
-   * This method merges the user-provided schema (options) with the inferred
-   * schema from the file. The merge strategy:
-   * - Column names and types are taken from the inferred schema (from files)
-   * - User-provided metadata (labels, primary keys, source/destination columns)
-   *   are merged into the inferred schema
-   * - If user-provided metadata is empty, default values are used based on
-   *   inferred column names
-   *
-   * @param options User-provided schema options to merge with inferred schema.
-   *                The type field determines the schema type to create.
-   * @return EntrySchema containing merged column names and types. The returned
-   *         schema will be of the appropriate derived type matching
-   * options.type.
-   */
-  virtual std::shared_ptr<EntrySchema> adaptiveSniff(
-      const EntrySchema& options);
+  virtual result<std::shared_ptr<EntrySchema>> sniff() = 0;
 };
 
 /**
@@ -130,7 +109,7 @@ class ArrowSniffer : public Sniffer {
    *
    * @return EntrySchema containing inferred column names and types
    */
-  std::shared_ptr<EntrySchema> sniff() override;
+  result<std::shared_ptr<EntrySchema>> sniff() override;
 
  private:
   /**
@@ -144,7 +123,7 @@ class ArrowSniffer : public Sniffer {
    * @param type The type of entry schema to create (TABLE, VERTEX, or EDGE)
    * @return EntrySchema containing column names and types with specified type
    */
-  std::shared_ptr<EntrySchema> convertArrowSchemaToEntrySchema(
+  result<std::shared_ptr<EntrySchema>> convertArrowSchemaToEntrySchema(
       const std::shared_ptr<arrow::Schema>& arrowSchema);
 
   /**

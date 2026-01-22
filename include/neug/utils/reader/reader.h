@@ -193,7 +193,7 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
    *
    * @return Arrow Schema containing inferred column names and types
    */
-  std::shared_ptr<arrow::Schema> inferSchema();
+  arrow::Result<std::shared_ptr<arrow::Schema>> inferSchema();
 
  protected:
   /**

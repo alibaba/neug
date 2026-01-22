@@ -161,23 +161,27 @@ struct CSVReadFunction {
     auto reader = std::make_shared<reader::ArrowReader>(
         state, std::move(optionsBuilder), fileInfo.fileSystem);
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
-    try {
-      return sniffer->sniff();
-    } catch (const gs::exception::IOException& e) {
-      LOG(ERROR) << "Failed to sniff schema: " << e.what()
-                 << ". try to use auto-generate column names";
-      // When the header provided by the file contains duplicate column names,
-      // switch to auto-generate column names, like: f0, f1, f2 ...
-      reader::CSVParseOptions parseOptions;
-      auto& options = externalSchema.file.options;
-      bool hasHeader = parseOptions.has_header.get(options);
-      if (hasHeader) {
-        options.insert({"SKIP_ROWS", "1"});
-        options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
-        return sniffer->sniff();
-      }
-      THROW_IO_EXCEPTION("Failed to sniff schema: " + std::string(e.what()));
+    auto sniffResult = sniffer->sniff();
+    if (sniffResult) {
+      return sniffResult.value();
     }
+    LOG(WARNING) << "Sniff schema warning: " << sniffResult.error().ToString()
+                 << ". try to use auto-generate column names";
+    // When the header provided by the file contains duplicate column names,
+    // switch to auto-generate column names, like: f0, f1, f2 ...
+    reader::CSVParseOptions parseOptions;
+    auto& options = externalSchema.file.options;
+    bool hasHeader = parseOptions.has_header.get(options);
+    if (hasHeader) {
+      options.insert({"SKIP_ROWS", "1"});
+      options.insert({"AUTOGENERATE_COLUMN_NAMES", "TRUE"});
+      sniffResult = sniffer->sniff();
+      if (sniffResult) {
+        return sniffResult.value();
+      }
+    }
+    THROW_IO_EXCEPTION("Failed to sniff schema: " +
+                       sniffResult.error().ToString());
   }
 };
 }  // namespace function

@@ -14,6 +14,7 @@
  */
 
 #include <arrow/result.h>
+#include <arrow/status.h>
 #include <glog/logging.h>
 
 #include "neug/utils/reader/reader.h"
@@ -237,17 +238,20 @@ std::shared_ptr<arrow::dataset::DatasetFactory> ArrowReader::createFactory(
   return factory_result.ValueOrDie();
 }
 
-std::shared_ptr<arrow::Schema> ArrowReader::inferSchema() {
+arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
   if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
+    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                                  "SharedState is null");
   }
 
   if (!fileSystem) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FileSystem is null");
+    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                                  "FileSystem is null");
   }
 
   if (!optionsBuilder) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Options builder is null");
+    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+                                  "Options builder is null");
   }
 
   // Reuse optionsBuilder->build() to get fileFormat
@@ -256,8 +260,8 @@ std::shared_ptr<arrow::Schema> ArrowReader::inferSchema() {
   // but fileFormat will still be correctly built.
   auto arrowOptions = optionsBuilder->build();
   if (!arrowOptions.fileFormat) {
-    LOG(ERROR) << "Failed to build file format from options builder";
-    THROW_IO_EXCEPTION("Failed to build file format from options builder");
+    return arrow::Status::IOError(
+        "Failed to build file format from options builder");
   }
   auto fileFormat = arrowOptions.fileFormat;
 
@@ -265,16 +269,7 @@ std::shared_ptr<arrow::Schema> ArrowReader::inferSchema() {
   auto factory = createFactory(fileSystem, fileFormat);
 
   // Infer schema using Inspect()
-  auto schema_result = factory->Inspect();
-
-  if (!schema_result.ok()) {
-    LOG(ERROR) << "Failed to infer schema: "
-               << schema_result.status().message();
-    THROW_IO_EXCEPTION("Failed to infer schema: " +
-                       schema_result.status().message());
-  }
-
-  return schema_result.ValueOrDie();
+  return factory->Inspect();
 }
 
 }  // namespace reader
