@@ -12,7 +12,6 @@ cd tools/python_bind
 export DEBUG=1
 pip3 install -r requirements.txt
 pip3 install -r requirements_dev.txt
-python3 setup.py build_proto
 python3 setup.py build_ext
 python3 setup.py bdist_wheel
 pip3 install dist/*

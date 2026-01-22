@@ -355,7 +355,7 @@ class BuildProto(Command):
 class BuildExtFirst(_build_py):
     # Override the build_py command to build the extension first.
     def run(self):
-        self.run_command("build_proto")
+        # self.run_command("build_proto")
         self.run_command("build_ext")
         return super().run()
 
@@ -398,7 +398,7 @@ setup(
     },
     install_requires=[
         "packaging>=24.2",
-        "protobuf==4.25",
+        "protobuf<=3.20.3",
         "requests",
         "click>=8.0.0",
         "tabulate>=0.9.0",
