@@ -1128,6 +1128,8 @@ std::string RTAny::to_string() const {
     return value_.b_val ? "true" : "false";
   } else if (type_.id() == DataTypeId::kInt64) {
     return std::to_string(value_.i64_val);
+  } else if (type_.id() == DataTypeId::kUInt64) {
+    return std::to_string(value_.u64_val);
   } else if (type_.id() == DataTypeId::kInt32) {
     return std::to_string(value_.i32_val);
   } else if (type_.id() == DataTypeId::kUInt32) {

@@ -505,6 +505,25 @@ TEST_F(EdgeColumnTest, BDSLEdgeColumnShuffle) {
 
   EdgeRecord e1 = shuffled->get_edge(1);
   EXPECT_EQ(e1, expected_e1);
+
+  BDSLEdgeColumnBuilder optional_builder(label);
+  optional_builder.push_back_opt(kVid0, kVid1, nullptr, Direction::kOut);
+  optional_builder.push_back_null();
+  optional_builder.push_back_opt(kVid1, kVid0, nullptr, Direction::kIn);
+
+  auto optional_col_ptr = optional_builder.finish();
+  std::shared_ptr<BDSLEdgeColumn> optional_ms_col =
+      std::dynamic_pointer_cast<BDSLEdgeColumn>(optional_col_ptr);
+
+  auto optional_shuffled = std::dynamic_pointer_cast<BDSLEdgeColumn>(
+      optional_ms_col->shuffle(offsets));
+  ASSERT_EQ(optional_shuffled->size(), 2);
+
+  EdgeRecord optional_e0 = optional_shuffled->get_edge(0);
+  EXPECT_EQ(optional_e0.src, kNullVid);
+
+  EdgeRecord optional_e1 = optional_shuffled->get_edge(1);
+  EXPECT_EQ(optional_e1, expected_e1);
 }
 
 TEST_F(EdgeColumnTest, BDSLEdgeColumnOptionalShuffle) {
@@ -586,6 +605,25 @@ TEST_F(EdgeColumnTest, SDMLEdgeColumnShuffle) {
 
   EdgeRecord e1 = shuffled->get_edge(1);
   EXPECT_EQ(e1, expected_e1);
+
+  SDMLEdgeColumnBuilder optional_builder(Direction::kOut, labels);
+  optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr);
+  optional_builder.push_back_null();
+  optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr);
+
+  auto optional_col_ptr = optional_builder.finish();
+  std::shared_ptr<SDMLEdgeColumn> optional_ms_col =
+      std::dynamic_pointer_cast<SDMLEdgeColumn>(optional_col_ptr);
+
+  auto optional_shuffled = std::dynamic_pointer_cast<SDMLEdgeColumn>(
+      optional_ms_col->shuffle(offsets));
+  ASSERT_EQ(optional_shuffled->size(), 2);
+
+  EdgeRecord optional_e0 = optional_shuffled->get_edge(0);
+  EXPECT_EQ(optional_e0.src, kNullVid);
+
+  EdgeRecord optional_e1 = optional_shuffled->get_edge(1);
+  EXPECT_EQ(optional_e1, expected_e1);
 }
 
 TEST_F(EdgeColumnTest, SDMLEdgeColumnOptionalShuffle) {
@@ -668,6 +706,26 @@ TEST_F(EdgeColumnTest, BDMLEdgeColumnShuffle) {
 
   EdgeRecord e1 = shuffled->get_edge(1);
   EXPECT_EQ(e1, expected_e1);
+
+  BDMLEdgeColumnBuilder optional_builder(labels);
+  optional_builder.push_back_opt(label0, kVid0, kVid1, nullptr,
+                                 Direction::kOut);
+  optional_builder.push_back_null();
+  optional_builder.push_back_opt(label1, kVid1, kVid0, nullptr, Direction::kIn);
+
+  auto optional_col_ptr = optional_builder.finish();
+  std::shared_ptr<BDMLEdgeColumn> optional_ms_col =
+      std::dynamic_pointer_cast<BDMLEdgeColumn>(optional_col_ptr);
+
+  auto optional_shuffled = std::dynamic_pointer_cast<BDMLEdgeColumn>(
+      optional_ms_col->shuffle(offsets));
+  ASSERT_EQ(optional_shuffled->size(), 2);
+
+  EdgeRecord optional_e0 = optional_shuffled->get_edge(0);
+  EXPECT_EQ(optional_e0.src, kNullVid);
+
+  EdgeRecord optional_e1 = optional_shuffled->get_edge(1);
+  EXPECT_EQ(optional_e1, expected_e1);
 }
 
 TEST_F(EdgeColumnTest, BDMLEdgeColumnOptionalShuffle) {
@@ -727,6 +785,55 @@ TEST_F(EdgeColumnTest, MSEdgeColumnFromBuilder) {
   EXPECT_EQ(e1, expected_e1);
 }
 
+TEST_F(EdgeColumnTest, MSEdgeColumnSingleLabelShuffle) {
+  LabelTriplet label = {2, 3, 2};
+  MSEdgeColumnBuilder builder;
+  builder.start_label_dir(label, Direction::kOut);
+  builder.push_back_opt(kVid0, kVid1, nullptr);
+  builder.start_label_dir(label, Direction::kIn);
+  builder.push_back_opt(kVid1, kVid2, nullptr);
+  auto col_ptr = builder.finish();
+  std::shared_ptr<MSEdgeColumn> ms_col =
+      std::dynamic_pointer_cast<MSEdgeColumn>(col_ptr);
+
+  std::vector<size_t> offsets = {1, 0};
+  auto shuffled =
+      std::dynamic_pointer_cast<BDSLEdgeColumn>(ms_col->shuffle(offsets));
+  ASSERT_EQ(shuffled->size(), 2);
+
+  EdgeRecord expected_e0 =
+      EdgeRecord{label, kVid1, kVid2, nullptr, Direction::kIn};
+  EdgeRecord expected_e1 =
+      EdgeRecord{label, kVid0, kVid1, nullptr, Direction::kOut};
+
+  EdgeRecord e0 = shuffled->get_edge(0);
+  EXPECT_EQ(e0, expected_e0);
+
+  EdgeRecord e1 = shuffled->get_edge(1);
+  EXPECT_EQ(e1, expected_e1);
+
+  MSEdgeColumnBuilder optional_builder;
+  optional_builder.start_label_dir(label, Direction::kOut);
+  optional_builder.push_back_opt(kVid0, kVid1, nullptr);
+  optional_builder.push_back_null();
+  optional_builder.start_label_dir(label, Direction::kIn);
+  optional_builder.push_back_opt(kVid1, kVid2, nullptr);
+
+  auto optional_col_ptr = optional_builder.finish();
+  std::shared_ptr<MSEdgeColumn> optional_ms_col =
+      std::dynamic_pointer_cast<MSEdgeColumn>(optional_col_ptr);
+
+  auto optional_shuffled = std::dynamic_pointer_cast<BDSLEdgeColumn>(
+      optional_ms_col->shuffle(offsets));
+  ASSERT_EQ(optional_shuffled->size(), 2);
+
+  EdgeRecord optional_e0 = optional_shuffled->get_edge(0);
+  EXPECT_EQ(optional_e0.src, kNullVid);
+
+  EdgeRecord optional_e1 = optional_shuffled->get_edge(1);
+  EXPECT_EQ(optional_e1, expected_e1);
+}
+
 TEST_F(EdgeColumnTest, MSEdgeColumnShuffle) {
   LabelTriplet label0 = {2, 3, 2};
   LabelTriplet label1 = {2, 3, 3};
@@ -754,6 +861,27 @@ TEST_F(EdgeColumnTest, MSEdgeColumnShuffle) {
 
   EdgeRecord e1 = shuffled->get_edge(1);
   EXPECT_EQ(e1, expected_e1);
+
+  MSEdgeColumnBuilder optional_builder;
+  optional_builder.start_label_dir(label0, Direction::kOut);
+  optional_builder.push_back_opt(kVid0, kVid1, nullptr);
+  optional_builder.push_back_null();
+  optional_builder.start_label_dir(label1, Direction::kIn);
+  optional_builder.push_back_opt(kVid1, kVid2, nullptr);
+
+  auto optional_col_ptr = optional_builder.finish();
+  std::shared_ptr<MSEdgeColumn> optional_ms_col =
+      std::dynamic_pointer_cast<MSEdgeColumn>(optional_col_ptr);
+
+  auto optional_shuffled = std::dynamic_pointer_cast<BDMLEdgeColumn>(
+      optional_ms_col->shuffle(offsets));
+  ASSERT_EQ(optional_shuffled->size(), 2);
+
+  EdgeRecord optional_e0 = optional_shuffled->get_edge(0);
+  EXPECT_EQ(optional_e0.src, kNullVid);
+
+  EdgeRecord optional_e1 = optional_shuffled->get_edge(1);
+  EXPECT_EQ(optional_e1, expected_e1);
 }
 
 TEST_F(EdgeColumnTest, MSEdgeColumnOptionalShuffle) {
@@ -778,6 +906,25 @@ TEST_F(EdgeColumnTest, MSEdgeColumnOptionalShuffle) {
 
   EdgeRecord e1 = shuffled->get_edge(1);
   EXPECT_EQ(e1.src, kVid0);
+
+  MSEdgeColumnBuilder single_builder;
+  single_builder.start_label_dir(label0, Direction::kOut);
+  single_builder.push_back_opt(kVid0, kVid1, nullptr);
+  single_builder.start_label_dir(label0, Direction::kIn);
+  single_builder.push_back_opt(kVid1, kVid2, nullptr);
+  auto single_col_ptr = single_builder.finish();
+  std::shared_ptr<MSEdgeColumn> single_ms_col =
+      std::dynamic_pointer_cast<MSEdgeColumn>(single_col_ptr);
+
+  auto single_shuffled = std::dynamic_pointer_cast<BDSLEdgeColumn>(
+      single_ms_col->optional_shuffle(offsets));
+  ASSERT_EQ(single_shuffled->size(), 2);
+
+  EdgeRecord single_e0 = single_shuffled->get_edge(0);
+  EXPECT_EQ(single_e0.src, kNullVid);
+
+  EdgeRecord single_e1 = single_shuffled->get_edge(1);
+  EXPECT_EQ(single_e1.src, kVid0);
 }
 
 TEST_F(EdgeColumnTest, ForeachEdgeSDSL) {

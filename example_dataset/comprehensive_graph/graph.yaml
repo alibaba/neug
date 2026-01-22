@@ -1,0 +1,233 @@
+name: comprehensive_graph
+version: v0.1
+store_type: mutable_csr
+description: A comprehensive graph with all types supported in NeuG
+schema:
+  vertex_types:
+    - type_id: 0
+      type_name: node_a
+      description: ""
+      x_csr_params:
+        max_vertex_num: 100
+      properties:
+        - property_id: 0
+          property_name: id
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: i32_property
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: i64_property
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: u32_property
+          property_type:
+            primitive_type: DT_UNSIGNED_INT32
+        - property_id: 4
+          property_name: u64_property
+          property_type:
+            primitive_type: DT_UNSIGNED_INT64
+        - property_id: 5
+          property_name: f32_property
+          property_type:
+            primitive_type: DT_FLOAT
+        - property_id: 6
+          property_name: f64_property
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 7
+          property_name: str_property
+          property_type:
+            string:
+              long_text:
+        - property_id: 8
+          property_name: date_property
+          property_type:
+            primitive_type: DT_DATE
+        - property_id: 9
+          property_name: datetime_property
+          property_type:
+            primitive_type: DT_DATETIME
+        - property_id: 10
+          property_name: interval_property
+          property_type:
+            primitive_type: DT_INTERVAL
+      primary_keys:
+        - id
+    - type_id: 1
+      type_name: node_b
+      description: ""
+      x_csr_params:
+        max_vertex_num: 100
+      properties:
+        - property_id: 0
+          property_name: id
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 1
+          property_name: i32_property
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: i64_property
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: u32_property
+          property_type:
+            primitive_type: DT_UNSIGNED_INT32
+        - property_id: 4
+          property_name: u64_property
+          property_type:
+            primitive_type: DT_UNSIGNED_INT64
+        - property_id: 5
+          property_name: f32_property
+          property_type:
+            primitive_type: DT_FLOAT
+        - property_id: 6
+          property_name: f64_property
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 7
+          property_name: str_property
+          property_type:
+            string:
+              long_text:
+        - property_id: 8
+          property_name: date_property
+          property_type:
+            primitive_type: DT_DATE
+        - property_id: 9
+          property_name: datetime_property
+          property_type:
+            primitive_type: DT_DATETIME
+        - property_id: 10
+          property_name: interval_property
+          property_type:
+            primitive_type: DT_INTERVAL
+      primary_keys:
+        - id
+  edge_types:
+    - type_id: 0
+      type_name: rel_a
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_a
+          destination_vertex: node_a
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: double_weight
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 1
+          property_name: i32_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: i64_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: datetime_weight
+          property_type:
+            primitive_type: DT_DATETIME
+    - type_id: 1
+      type_name: rel_b
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_a
+          destination_vertex: node_b
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: double_weight
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 1
+          property_name: i32_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: i64_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: datetime_weight
+          property_type:
+            primitive_type: DT_DATETIME
+    - type_id: 2
+      type_name: rel_c
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_b
+          destination_vertex: node_a
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: double_weight
+          property_type:
+            primitive_type: DT_DOUBLE
+        - property_id: 1
+          property_name: i32_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+        - property_id: 2
+          property_name: i64_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+        - property_id: 3
+          property_name: datetime_weight
+          property_type:
+            primitive_type: DT_DATETIME
+    - type_id: 3
+      type_name: rel_i32
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_a
+          destination_vertex: node_a
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: i32_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT32
+    - type_id: 4
+      type_name: rel_i64
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_a
+          destination_vertex: node_a
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: i64_weight
+          property_type:
+            primitive_type: DT_SIGNED_INT64
+    - type_id: 5
+      type_name: rel_datetime
+      description: ""
+      vertex_type_pair_relations:
+        - source_vertex: node_a
+          destination_vertex: node_a
+          relation: MANY_TO_MANY
+          x_csr_params:
+            sort_on_compaction: TRUE
+      properties:
+        - property_id: 0
+          property_name: datetime_weight
+          property_type:
+            primitive_type: DT_DATETIME

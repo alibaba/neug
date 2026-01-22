@@ -87,27 +87,6 @@ bool check_csv_import_options(
   return true;
 }
 
-bool check_csv_export_options(
-    const std::unordered_map<std::string, std::string>& options) {
-  std::unordered_set<std::string> valid_keys = {
-      CSV_DELIMITER_KEY, CSV_DELIM_KEY,        CSV_HEADER_KEY,
-      CSV_QUOTE_KEY,     CSV_DOUBLE_QUOTE_KEY, CSV_ESCAPE_KEY};
-  int32_t delim_count = 0;
-  for (const auto& [key, value] : options) {
-    if (valid_keys.find(key) == valid_keys.end()) {
-      LOG(ERROR) << "\"" << key << "\" is not a valid parameter";
-      return false;
-    }
-    if (key == CSV_DELIMITER_KEY || key == CSV_DELIM_KEY) {
-      delim_count++;
-    }
-  }
-  if (delim_count >= 2) {
-    LOG(ERROR) << "Too many \"DELIMITER\" parameters";
-  }
-  return true;
-}
-
 void add_member(rapidjson::Value& object,
                 rapidjson::Document::AllocatorType& allocator,
                 const std::string& key, Property value) {
@@ -336,21 +315,6 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   doc.Accept(writer);
   return buffer.GetString();
-}
-
-DataTypeId get_the_pk_type_from_schema(const Schema& schema, label_t label_id) {
-  auto pks = schema.get_vertex_primary_key(label_id);
-  if (pks.empty()) {
-    LOG(FATAL) << "No primary key found for label id: " << label_id;
-  }
-  if (pks.size() > 1) {
-    LOG(FATAL) << "Multiple primary keys found for label id: " << label_id;
-  }
-  auto pk = pks[0];
-  if (std::get<0>(pk) == DataTypeId::kEmpty) {
-    LOG(FATAL) << "Invalid primary key type for label id: " << label_id;
-  }
-  return std::get<0>(pk);
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>>

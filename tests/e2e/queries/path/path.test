@@ -1,0 +1,138 @@
+-DATASET CSV comprehensive_graph
+
+--
+
+-CASE TestPathExpand
+-LOG TestSLODPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*0..1]->(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLBDPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLIDPathExpand
+-STATEMENT MATCH (v:node_a)<-[:rel_a*0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 1
+1
+-LOG TestMLODPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a|rel_b*0..1]->(v2:node_a:node_b) where v.id=1 RETURN v2.id,label(v2)
+---- 5
+1|node_a
+7|node_a
+4|node_a
+7|node_b
+4|node_b
+-LOG TestMLBDPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a|rel_b*0..1]-(v2:node_a:node_b) where v.id=1 RETURN v2.id,label(v2)
+---- 5
+1|node_a
+7|node_a
+4|node_a
+7|node_b
+4|node_b
+-LOG TestMLIDPathExpand
+-STATEMENT MATCH (v:node_a)<-[:rel_a|rel_b*0..1]-(v2:node_a:node_b) where v.id=1 RETURN v2.id,label(v2)
+---- 1
+1|node_a
+
+-CASE TestSimplePathExpand
+-LOG TestSLODSimplePathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*ACYCLIC 0..1]->(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLBDSimplePathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*ACYCLIC 0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLIDSimplePathExpand
+-STATEMENT MATCH (v:node_a)<-[:rel_a*ACYCLIC 0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 1
+1
+
+-CASE TestTrailPathExpand
+-LOG TestSLODTrailPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*TRAIL 0..1]->(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLBDTrailPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*TRAIL 0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+1
+7
+4
+-LOG TestSLIDTrailPathExpand
+-STATEMENT MATCH (v:node_a)<-[:rel_a*TRAIL 0..1]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 1
+1
+
+-CASE TestShortestPathExpand
+-LOG TestSLODShortestPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*SHORTEST 1..]->(v2:node_a) where v.id=1 RETURN v2.id
+---- 3
+4
+7
+8
+-LOG TestSLBDShortestPathExpand
+-STATEMENT MATCH (v:node_a)-[:rel_a*SHORTEST 1..]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 6
+7
+4
+1
+0
+8
+3
+-LOG TestSLIDShortestPathExpand
+-STATEMENT MATCH (v:node_a)<-[:rel_a*SHORTEST 1..]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 0
+-LOG TestSLODShortestPathExpandWithVPred
+-STATEMENT MATCH (v:node_a)-[:rel_a*SHORTEST 1..]->(v2:node_a) where v.id=1 and v2.id>3 RETURN v2.id
+---- 3
+4
+7
+8
+-LOG TestSLBDShortestPathExpandWithVPred
+-STATEMENT MATCH (v:node_a)-[:rel_a*SHORTEST 1..]-(v2:node_a) where v.id=1 and v2.id>3 RETURN v2.id
+---- 3
+7
+4
+8
+-LOG TestSLIDShortestPathExpandWithVPred
+-STATEMENT MATCH (v:node_a)<-[:rel_a*SHORTEST 1..]-(v2:node_a) where v.id=1 and v2.id>3 RETURN v2.id
+---- 0
+-LOG TestSLODShortestPathExpandWithEPred
+-STATEMENT MATCH (v:node_a)-[e:rel_a*0..1(r,_ | WHERE r.i32_weight > 0)]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 2
+1
+7
+-LOG TestSLBDShortestPathExpandWithEPred
+-STATEMENT MATCH (v:node_a)-[e:rel_a*0..1(r,_ | WHERE r.i32_weight > 0)]->(v2:node_a) where v.id=1 RETURN v2.id
+---- 2
+7
+1
+-LOG TestSLIDShortestPathExpandWithEPred
+-STATEMENT MATCH (v:node_a)<-[e:rel_a*0..1(r,_ | WHERE r.i32_weight > 0)]-(v2:node_a) where v.id=1 RETURN v2.id
+---- 1
+1
+-LOG TestShortestPathOrderByLimit
+-STATEMENT MATCH (v:node_a {id:1})-[e:rel_a*SHORTEST 1..]-(v2:node_a) where v<>v2 with v2,length(e) as distance RETURN v2.id, distance order by distance ASC limit 10;
+---- 5
+7|1
+4|1
+0|2
+8|2
+3|3
+
+-CASE TestAllShortestPath
+MATCH (v:node_a)-[e:rel_a*ALL SHORTEST 1..3]-(v2:node_a) where v.id=1 and v2.id=0 RETURN v2.id
+---- 0

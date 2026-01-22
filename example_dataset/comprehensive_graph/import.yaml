@@ -1,0 +1,267 @@
+graph: comprehensive_graph
+loading_config:
+  data_source:
+    scheme: file # file, oss, s3, hdfs; only file is supported now
+  import_option: init # append, overwrite, only init is supported now
+  format:
+    type: csv
+    metadata:
+      delimiter: "|" # other loading configuration places here
+      header_row: true # whether to use the first row as the header
+      quoting: false
+      quote_char: '"'
+      double_quote: true
+      escape_char: '\'
+      escaping: false
+      block_size: 4MB
+      batch_reader: true
+      null_values: [""]
+
+vertex_mappings:
+  - type_name: node_a # must align with the schema
+    inputs:
+      - node_a.csv
+    column_mappings:
+      - column:
+          index: 0
+          name: id
+        property: id
+      - column:
+          index: 1
+          name: i32_property
+        property: i32_property
+      - column:
+          index: 2
+          name: i64_property
+        property: i64_property
+      - column:
+          index: 3
+          name: u32_property
+        property: u32_property
+      - column:
+          index: 4
+          name: u64_property
+        property: u64_property
+      - column:
+          index: 5
+          name: f32_property
+        property: f32_property
+      - column:
+          index: 6
+          name: f64_property
+        property: f64_property
+      - column:
+          index: 7
+          name: str_property
+        property: str_property
+      - column:
+          index: 8
+          name: date_property
+        property: date_property
+      - column:
+          index: 9
+          name: datetime_property
+        property: datetime_property
+      - column:
+          index: 10
+          name: interval_property
+        property: interval_property
+  - type_name: node_b
+    inputs:
+      - node_b.csv
+    column_mappings:
+      - column:
+          index: 0 # can be omitted if the index is the same as the property index
+          name: id # can be omitted if the name is not known or header_row is set to true.
+        property: id # must align with the schema
+      - column:
+          index: 1
+          name: i32_property
+        property: i32_property
+      - column:
+          index: 2
+          name: i64_property
+        property: i64_property
+      - column:
+          index: 3
+          name: u32_property
+        property: u32_property
+      - column:
+          index: 4
+          name: u64_property
+        property: u64_property
+      - column:
+          index: 5
+          name: f32_property
+        property: f32_property
+      - column:
+          index: 6
+          name: f64_property
+        property: f64_property
+      - column:
+          index: 7
+          name: str_property
+        property: str_property
+      - column:
+          index: 8
+          name: date_property
+        property: date_property
+      - column:
+          index: 9
+          name: datetime_property
+        property: datetime_property
+      - column:
+          index: 10
+          name: interval_property
+        property: interval_property
+edge_mappings:
+  - type_triplet:
+      edge: rel_a
+      source_vertex: node_a
+      destination_vertex: node_a
+    inputs:
+      - rel_a.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: double_weight
+        property: double_weight
+      - column:
+          index: 3
+          name: i32_weight
+        property: i32_weight
+      - column:
+          index: 4
+          name: i64_weight
+        property: i64_weight
+      - column:
+          index: 5
+          name: datetime_weight
+        property: datetime_weight
+  - type_triplet:
+      edge: rel_b
+      source_vertex: node_a
+      destination_vertex: node_b
+    inputs:
+      - rel_b.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: double_weight
+        property: double_weight
+      - column:
+          index: 3
+          name: i32_weight
+        property: i32_weight
+      - column:
+          index: 4
+          name: i64_weight
+        property: i64_weight
+      - column:
+          index: 5
+          name: datetime_weight
+        property: datetime_weight
+  - type_triplet:
+      edge: rel_c
+      source_vertex: node_b
+      destination_vertex: node_a
+    inputs:
+      - rel_c.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: double_weight
+        property: double_weight
+      - column:
+          index: 3
+          name: i32_weight
+        property: i32_weight
+      - column:
+          index: 4
+          name: i64_weight
+        property: i64_weight
+      - column:
+          index: 5
+          name: datetime_weight
+        property: datetime_weight
+  - type_triplet:
+      edge: rel_i32
+      source_vertex: node_a
+      destination_vertex: node_a
+    inputs:
+      - rel_i32.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: i32_weight
+        property: i32_weight
+  - type_triplet:
+      edge: rel_i64
+      source_vertex: node_a
+      destination_vertex: node_a
+    inputs:
+      - rel_i64.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: i64_weight
+        property: i64_weight
+  - type_triplet:
+      edge: rel_datetime
+      source_vertex: node_a
+      destination_vertex: node_a
+    inputs:
+      - rel_datetime.csv
+    source_vertex_mappings:
+      - column:
+          index: 0
+          name: id
+    destination_vertex_mappings:
+      - column:
+          index: 1
+          name: id
+    column_mappings:
+      - column:
+          index: 2
+          name: datetime_weight
+        property: datetime_weight

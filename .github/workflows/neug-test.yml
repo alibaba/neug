@@ -144,11 +144,14 @@ jobs:
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
     
     - name: Run C++ Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        export COMPREHENSIVE_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
@@ -268,6 +271,11 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_embed_test.sh ldbc /tmp/ldbc agg,match,ldbc
+
+    - name: Run E2E COMPREHENSIVE_GRAPH Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e
+        ./scripts/run_embed_test.sh comprehensive_graph /tmp/comprehensive_graph path
 
     - name: Test installation c++ sdk
       run: |

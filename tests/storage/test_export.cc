@@ -46,65 +46,76 @@ TEST(StorageDDLTest, ExportTest) {
 
   gs::NeugDB db;
   db.Open(data_path);
-  const char* flex_data_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
+  const char* flex_data_dir_ptr = std::getenv("COMPREHENSIVE_GRAPH_DATA_DIR");
   if (flex_data_dir_ptr == nullptr) {
     throw std::runtime_error(
-        "MODERN_GRAPH_DATA_DIR environment variable is not set");
+        "COMPREHENSIVE_GRAPH_DATA_DIR environment variable is not set");
   }
   std::string flex_data_dir = flex_data_dir_ptr;
   LOG(INFO) << "Flex data dir: " << flex_data_dir;
   auto conn = db.Connect();
   EXPECT_TRUE(
-      conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
-                  "INT64, PRIMARY "
+      conn->Query("CREATE NODE TABLE node_a(id INT64, i32_property INT32, "
+                  "i64_property INT64, u32_property UINT32,u64_property "
+                  "UINT64, f32_property FLOAT, f64_property DOUBLE, "
+                  "str_property STRING, date_property DATE, datetime_property "
+                  "TIMESTAMP, interval_property INTERVAL, "
+                  "PRIMARY "
                   "KEY(id));"));
-  EXPECT_TRUE(conn->Query(
-      "CREATE NODE TABLE software(id INT64, name STRING, lang STRING, "
-      "PRIMARY "
-      "KEY(id));"));
-  EXPECT_TRUE(conn->Query(
-      "CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);"));
   EXPECT_TRUE(
-      conn->Query("CREATE REL TABLE created(FROM person TO software, "
-                  "weight DOUBLE, "
-                  "since INT64);"));
+      conn->Query("CREATE NODE TABLE node_b(id INT64, i32_property INT32, "
+                  "i64_property INT64, u32_property UINT32,u64_property "
+                  "UINT64, f32_property FLOAT, f64_property DOUBLE, "
+                  "str_property STRING, date_property DATE, datetime_property "
+                  "TIMESTAMP, interval_property INTERVAL, "
+                  "PRIMARY "
+                  "KEY(id));"));
   EXPECT_TRUE(
-      conn->Query("COPY person from \"" + flex_data_dir + "/person.csv\";"));
-  EXPECT_TRUE(conn->Query("COPY software from \"" + flex_data_dir +
-                          "/software.csv\";"));
-  EXPECT_TRUE(conn->Query("COPY knows from \"" + flex_data_dir +
-                          "/person_knows_person.csv\" (from=\"person\", "
-                          "to=\"person\");"));
-  EXPECT_TRUE(conn->Query("COPY created from \"" + flex_data_dir +
-                          "/person_created_software.csv\" (from=\"person\", "
-                          "to=\"software\");"));
+      conn->Query("CREATE REL TABLE rel_a(FROM node_a TO node_a, double_weight "
+                  "DOUBLE, i32_weight INT32, i64_weight INT64, datetime_weight "
+                  "TIMESTAMP);"));
+  EXPECT_TRUE(
+      conn->Query("CREATE REL TABLE rel_b(FROM node_a TO node_b, double_weight "
+                  "DOUBLE, i32_weight INT32, i64_weight INT64, datetime_weight "
+                  "TIMESTAMP);"));
+  EXPECT_TRUE(
+      conn->Query("COPY node_a from \"" + flex_data_dir + "/node_a.csv\";"));
+  EXPECT_TRUE(
+      conn->Query("COPY node_b from \"" + flex_data_dir + "/node_b.csv\";"));
+  EXPECT_TRUE(conn->Query("COPY rel_a from \"" + flex_data_dir +
+                          "/rel_a.csv\" (from=\"node_a\", "
+                          "to=\"node_a\");"));
+  EXPECT_TRUE(conn->Query("COPY rel_b from \"" + flex_data_dir +
+                          "/rel_b.csv\" (from=\"node_a\", "
+                          "to=\"node_b\");"));
 
-  if (std::filesystem::exists("/tmp/person.csv")) {
-    std::filesystem::remove("/tmp/person.csv");
+  if (std::filesystem::exists("/tmp/node_a.csv")) {
+    std::filesystem::remove("/tmp/node_a.csv");
   }
   EXPECT_TRUE(
-      conn->Query("COPY (MATCH (v:person) RETURN v) to "
-                  "'/tmp/person.csv' (HEADER = true);"));
+      conn->Query("COPY (MATCH (v:node_a) RETURN v.*) to "
+                  "'/tmp/node_a.csv' (HEADER = true);"));
+  LOG(INFO) << "Finished export";
   // Read from file /tmp/person.csv
   {
-    std::ifstream file("/tmp/person.csv");
+    std::ifstream file("/tmp/node_a.csv");
     ASSERT_TRUE(file.is_open()) << "Failed to open file for reading.";
     std::string line;
     int count = 0;
     std::vector<std::string> expected_lines =
-        read_lines_from_file(flex_data_dir + "/person_export.csv");
+        read_lines_from_file(flex_data_dir + "/node_a_export.csv");
     while (std::getline(file, line)) {
       EXPECT_EQ(line, expected_lines[count])
           << "Line " << count << " does not match expected.";
       count++;
     }
-    EXPECT_EQ(count, 5);  // Assuming there are 5 persons in the dataset
+    EXPECT_EQ(count, 11);  // Assuming there are 5 persons in the dataset
     file.close();
   }
 
   {
     auto res = conn->Query(
-        "MATCH (v:person)-[e:knows]->(v2:person) "
+        "MATCH (v:node_a)-[e:rel_a]->(v2:node_a) "
         "RETURN e;");
     ASSERT_TRUE(res);
     auto query_result = res.value();
@@ -117,27 +128,49 @@ TEST(StorageDDLTest, ExportTest) {
     LOG(INFO) << "Total knows relationships: " << count;
   }
 
-  if (std::filesystem::exists("/tmp/person_knows_person.csv")) {
-    std::filesystem::remove("/tmp/person_knows_person.csv");
+  if (std::filesystem::exists("/tmp/rel_a.csv")) {
+    std::filesystem::remove("/tmp/rel_a.csv");
   }
   EXPECT_TRUE(
-      conn->Query("COPY (MATCH (v:person)-[e:knows]->(v2:person) "
+      conn->Query("COPY (MATCH (v:node_a)-[e:rel_a]->(v2:node_a) "
                   "RETURN e) to "
-                  "'/tmp/person_knows_person.csv' (HEADER = true);"));
-  // Read from file /tmp/person_knows_person.csv
+                  "'/tmp/rel_a.csv' (HEADER = true);"));
   {
-    std::ifstream file("/tmp/person_knows_person.csv");
+    std::ifstream file("/tmp/rel_a.csv");
     ASSERT_TRUE(file.is_open()) << "Failed to open file for reading.";
     std::string line;
     int count = 0;
     std::vector<std::string> expected_lines =
-        read_lines_from_file(flex_data_dir + "/person_knows_person_export.csv");
+        read_lines_from_file(flex_data_dir + "/rel_a_export.csv");
     while (std::getline(file, line)) {
       EXPECT_EQ(line, expected_lines[count])
           << "Line " << count << " does not match expected.";
       count++;
     }
-    EXPECT_EQ(count, 3);  // Assuming there are 8 relationships in the dataset
+    EXPECT_EQ(count, 11);  // Assuming there are 8 relationships in the dataset
+    file.close();
+  }
+
+  if (std::filesystem::exists("/tmp/path_a.csv")) {
+    std::filesystem::remove("/tmp/path_a.csv");
+  }
+  EXPECT_TRUE(
+      conn->Query("COPY (MATCH (v:node_a)-[e:rel_a*0..1]->(v2:node_a) "
+                  "RETURN e) to "
+                  "'/tmp/path_a.csv' (HEADER = true);"));
+  {
+    std::ifstream file("/tmp/path_a.csv");
+    ASSERT_TRUE(file.is_open()) << "Failed to open file for reading.";
+    std::string line;
+    int count = 0;
+    std::vector<std::string> expected_lines =
+        read_lines_from_file(flex_data_dir + "/path_a_export.csv");
+    while (std::getline(file, line)) {
+      EXPECT_EQ(line, expected_lines[count])
+          << "Line " << count << " does not match expected.";
+      count++;
+    }
+    EXPECT_EQ(count, 21);
     file.close();
   }
 }
