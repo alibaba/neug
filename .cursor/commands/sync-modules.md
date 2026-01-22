@@ -1,5 +1,5 @@
 ---
-description: Cerate a GitHub Issue for each Module in the task document.
+description: Cerate or Update a GitHub Issue for each Module in the task document.
 ---
 
 ## User Input
@@ -13,11 +13,16 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Outline
 
 1. **Locate Feature**:
-    - If the current branch name can match a specs directory, i.e., `./specs/001-feature-name(#id)`, use this sepcs
-    - Otherwise, user must given the feature explicity
+    - If the current branch name can match a specs directory, i.e., `./specs/001-feature-name(#id)`, use this spec
+    - Otherwise, user must given the feature explicitly
     - The feature issue id is at the end of the directory name, i.e., `#id`
 
-2. **Locate Tasks**. The feature spec must has a task direcotry (i.e, `tasks/`) including a `metadata.md` file and multiple `module_i.md` files. All paths must be absolute.
+2. **Locate Tasks**. The feature spec must has a task directory (i.e, `tasks/`) including a `metadata.md` file and multiple `module_i.md` files. All paths must be absolute.
+
+3. **Check Current Modules**:
+    - View the feature issue and its sub-issues to confirm the current modules.
+    - If some modules are missing, go to Step 3 to create them.
+    - If some modules are modified (local files and remote issues are different), synchronize them.
 
 3. **Create Module Issue**: (For each `module_i.md` file)
     - Create a new issue on the GitHub.

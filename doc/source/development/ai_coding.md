@@ -16,7 +16,40 @@ Moreover, we also provide some useful tool-kits to simplify your developments:
 
 Spec-driven workflow is installed as `Slash Commands` in the coding agent, which is supported by most coding agent such as Cursor and Qwen Code.
 
-We provide cursor-format commands in [Commands](https://github.com/GraphScope/neug/tree/main/.cursor/commands). You can modify them to fit your own coding agent. (We will also provide a automatic tools to convert these commands to different coding agent formats.)
+We provide cursor-format commands in [Commands](https://github.com/GraphScope/neug/tree/main/.cursor/commands). You can modify them to fit your own coding agent.
+
+### Converting Commands to Other Coding Agents (Experimental Feature)
+
+Since different coding agents have various temporary file names and formats, we provide a script to convert the commands to adapt your coding agent:
+```bash
+./scripts/init_commands.sh --format|-f=<markdown|toml> --output|-o=<output-path>
+```
+
+For example, to convert the commands to Qwen Code format, run:
+```bash
+./scripts/init_commands.sh --format=toml --output=.qwen/commands
+```
+
+We also provide a shortcut to convert the commands to the following common formats:
+
+| Shortcut   | Coding Agent        | Format    | Output Path               |
+|------------|---------------------|-----------|---------------------------|
+| amazonq    | Amazon Q            | markdown  | .amazonq/prompts          |
+| claude     | Claude Code         | markdown  | .claude/commands          |
+| codebuddy  | CodeBuddy           | markdown  | .codebuddy/commands       |
+| codex      | Codex               | markdown  | .codex/commands           |
+| gemini     | Gemini CLI          | toml      | .gemini/commands          |
+| kilocode   | Kilocode            | markdown  | .kilocode/rules           |
+| opencode   | OpenCode            | markdown  | .opencode/command         |
+| qoder      | Qoder               | markdown  | .qoder/commands           |
+| qwen       | Qwen Code           | toml      | .qwen/commands            |
+| roo        | RooCode             | markdown  | .roo/rules                |
+| windsurf   | Windsurf            | markdown  | .windsurf/workflows       |
+
+You can directly use the shortcut for convenience. For example, the command above can be simplified as:
+```bash
+./scripts/init_commands.sh qwen
+```
 
 ## Command Usage
 
@@ -66,7 +99,7 @@ GitHub is powerful to track the development with `Issue` and `Project`. Therefor
 
 Therefore, we provide two task commands called `/sync-modules` and `/sync-tasks` to synchronize the tasks to GitHub. The reason we separate these two commands is that the modules are usually constant, but the tasks are frequently adjusted during the development. These two commands also support updating issues if you have any changes.
 
-## Other Tool-kits (TODO)
+## Other Tool-kits
 
 We also provide some other tool-kits to simplify your developments.
 

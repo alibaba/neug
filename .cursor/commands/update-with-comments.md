@@ -11,22 +11,20 @@ $ARGUMENTS
 You **MUST** consider the user input before proceeding (if not empty).
 
 
-## Process
+## Outline
 
-1. Locate the Pull Request.
 
-    1. The branch name contains the feature issue id.
-    2. Find the related PR, e.g., `Specify: #10`.
-    3. Check this PR is merging into main from the current branch. If not match, **STOP** and report to users.
+1. **Locate the Pull Request**:
+    * If user explicitly provides the PR ID
+        - Stash current changes and checkout to the PR branch.
+    * If user does not provide the PR ID
+        - Search the PR on the current branch
+    If there is multiple PRs or no PR, **STOP** and report to users.
 
-2. Get PR information.
+2. **Get PR information**: Use command `gh pr view` to obtain all comments.
 
-    Use command `gh pr view` to obtain all comments.
+3. **Update code**: For each comment, fix problem in the workspace.
 
-3. Update code.
+4. **Report summary**: Generate a summary to show what changes.
 
-    For each comment, fix problem in the workspace.
-
-4. Report summary.
-
-    Generate a summary to show what changes.
+5. **Submit Commits**: Commit the changes and push to the PR branch.

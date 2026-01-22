@@ -17,7 +17,7 @@ You **MUST** consider the user input before proceeding (if not empty).
     - Otherwise, user must given the feature explicity
     - The feature issue id is at the end of the directory name, i.e., `#id`
 
-2. Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\\''m Groot' (or double-quote if possible: "I'm Groot").
+2. Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list.
 
 3. From the executed script, extract the path to **tasks**.
 

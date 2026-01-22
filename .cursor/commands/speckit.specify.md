@@ -81,7 +81,6 @@ Given that feature description, do this:
    - You must only ever run this script once per feature
    - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
    - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
-   - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
 
 3. Load `.specify/templates/spec-template.md` to understand required sections.
 
