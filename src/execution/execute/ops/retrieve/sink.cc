@@ -15,12 +15,6 @@
 
 #include "neug/execution/execute/ops/retrieve/sink.h"
 
-#include <google/protobuf/wrappers.pb.h>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 

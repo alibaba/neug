@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/utils/app_utils.h"
+#include "neug/utils/encoder.h"
 
 #include <string.h>
 

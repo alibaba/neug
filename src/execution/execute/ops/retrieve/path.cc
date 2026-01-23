@@ -15,29 +15,14 @@
 
 #include "neug/execution/execute/ops/retrieve/path.h"
 
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stdint.h>
-
-#include <functional>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <string>
-#include <string_view>
-#include <type_traits>
-#include <utility>
-
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/path_expand.h"
-#include "neug/execution/common/types.h"
-#include "neug/execution/utils/expr_impl.h"
+#include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/utils/expr.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/utils.h"
 #include "neug/execution/utils/var.h"
-#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -288,15 +273,12 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (pred_) {
-      Arena arena;
-      auto v_pred = parse_expression(&graph, std::move(ctx), params,
-                                     pred_.value(), VarType::kVertexVar);
-      auto pred = [&v_pred, &arena](label_t label, vid_t vid) {
-        return v_pred->eval_vertex(label, vid, arena).as_bool();
-      };
+      Expr v_pred(&graph, std::move(ctx), params, pred_.value(),
+                  VarType::kVertexVar);
+      PredWrapper predicate_wrapper(std::move(v_pred));
 
       return PathExpand::single_source_shortest_path_with_order_by_length_limit(
-          graph, std::move(ctx), spp_, pred, limit_);
+          graph, std::move(ctx), spp_, predicate_wrapper, limit_);
     } else {
       return PathExpand::single_source_shortest_path_with_order_by_length_limit(
           graph, std::move(ctx), spp_, [](label_t, vid_t) { return true; },
@@ -404,15 +386,11 @@ class SPGPredOpr : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    auto predicate = parse_expression(&graph, std::move(ctx), params, pred_,
-                                      VarType::kVertexVar);
-    Arena arena;
-    auto pred = [&arena, &predicate](label_t label, vid_t v) {
-      return predicate->eval_vertex(label, v, arena).as_bool();
-    };
+    Expr v_pred(&graph, std::move(ctx), params, pred_, VarType::kVertexVar);
+    PredWrapper predicate_wrapper(std::move(v_pred));
 
     return PathExpand::single_source_shortest_path(graph, std::move(ctx), spp_,
-                                                   pred);
+                                                   predicate_wrapper);
   }
 
  private:
@@ -777,10 +755,9 @@ class AnyWeightedShortestPathOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     Expr expr(&graph, ctx, params, weight_, VarType::kEdgeVar);
-    Arena arena;
-    auto weight_func = [&expr, &arena](const LabelTriplet& label, vid_t src,
-                                       vid_t dst, const void* data_ptr) {
-      return expr.eval_edge(label, src, dst, data_ptr, arena).as_double();
+    auto weight_func = [&expr](const LabelTriplet& label, vid_t src, vid_t dst,
+                               const void* data_ptr) {
+      return expr.eval_edge(label, src, dst, data_ptr).GetValue<double>();
     };
     return PathExpand::any_weighted_shortest_path(graph, std::move(ctx), pep_,
                                                   weight_func);

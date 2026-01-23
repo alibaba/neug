@@ -16,15 +16,11 @@
 #include "neug/execution/common/operators/retrieve/dedup.h"
 
 #include <algorithm>
-#include <memory>
-#include <set>
-#include <string>
 #include <tuple>
 
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
-#include "neug/utils/app_utils.h"
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/utils/encoder.h"
 #include "parallel_hashmap/phmap.h"
 
 namespace gs {
@@ -83,7 +79,7 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
       Encoder encoder(bytes);
       for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
         auto val = ctx.get(cols[c_i])->get_elem(r_i);
-        val.encode_sig(val.type(), encoder);
+        encode_value(val, encoder);
         encoder.put_byte('#');
       }
       std::string cur(bytes.begin(), bytes.end());

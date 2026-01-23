@@ -14,7 +14,6 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
-#include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/utils/pb_utils.h"
@@ -54,7 +53,6 @@ gs::result<Context> UpdateEdgeOpr::Eval(
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
-  Arena arena;
   for (const auto& entry : edge_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
@@ -75,7 +73,7 @@ gs::result<Context> UpdateEdgeOpr::Eval(
 
     Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < edge_col->size(); ++ind) {
-      auto value = expr.eval_path(ind, arena);
+      auto value = expr.eval_path(ind);
       auto er = edge_col->get_edge(ind);
       auto label_id = er.label.edge_label;
       auto src_label = er.label.src_label;
@@ -105,13 +103,13 @@ gs::result<Context> UpdateEdgeOpr::Eval(
       LOG(INFO) << "value type: " << static_cast<int>(val_type.id());
       if (val_type.id() == DataTypeId::kEmpty) {
       } else if (val_type.id() == DataTypeId::kInt32) {
-        prop.set_int32(value.as_int32());
+        prop.set_int32(value.GetValue<int32_t>());
       } else if (val_type.id() == DataTypeId::kInt64) {
-        prop.set_int64(value.as_int64());
+        prop.set_int64(value.GetValue<int64_t>());
       } else if (val_type.id() == DataTypeId::kVarchar) {
-        prop.set_string_view(value.as_string());
+        prop.set_string_view(StringValue::Get(value));
       } else if (val_type.id() == DataTypeId::kDouble) {
-        prop.set_double(value.as_double());
+        prop.set_double(value.GetValue<double>());
       } else {
         THROW_RUNTIME_ERROR("Unsupported property type: " +
                             std::to_string(static_cast<int>(val_type.id())));

@@ -24,6 +24,9 @@
 #include "neug/common/types.h"
 
 #include "neug/common/extra_type_info.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
+#include "neug/utils/exception/exception.h"
 
 namespace gs {
 
@@ -60,6 +63,13 @@ bool DataType::operator==(const DataType& rhs) const {
   return EqualTypeInfo(rhs);
 }
 
+const DataType& ListType::GetChildType(const DataType& type) {
+  assert(type.id() == DataTypeId::kList);
+  auto info = type.AuxInfo();
+  assert(info);
+  return info->Cast<ListTypeInfo>().child_type;
+}
+
 const std::vector<DataType>& StructType::GetChildTypes(const DataType& type) {
   assert(type.id() == DataTypeId::kStruct);
   auto info = type.AuxInfo();
@@ -71,6 +81,118 @@ const DataType& StructType::GetChildType(const DataType& type, size_t index) {
   const auto& children = GetChildTypes(type);
   assert(index < children.size());
   return children[index];
+}
+
+DataType DataType::Struct(std::vector<DataType> children) {
+  std::shared_ptr<ExtraTypeInfo> type_info =
+      std::make_shared<StructTypeInfo>(children);
+  return DataType(DataTypeId::kStruct, type_info);
+}
+
+DataType DataType::List(const DataType& child_type) {
+  std::shared_ptr<ExtraTypeInfo> type_info =
+      std::make_shared<ListTypeInfo>(child_type);
+  return DataType(DataTypeId::kList, type_info);
+}
+
+DataType parse_from_data_type(const ::common::DataType& ddt) {
+  switch (ddt.item_case()) {
+  case ::common::DataType::kPrimitiveType: {
+    const ::common::PrimitiveType pt = ddt.primitive_type();
+    switch (pt) {
+    case ::common::PrimitiveType::DT_SIGNED_INT32:
+      return DataType(DataTypeId::kInt32);
+    case ::common::PrimitiveType::DT_UNSIGNED_INT32:
+      return DataType(DataTypeId::kUInt32);
+    case ::common::PrimitiveType::DT_UNSIGNED_INT64:
+      return DataType(DataTypeId::kUInt64);
+    case ::common::PrimitiveType::DT_SIGNED_INT64:
+      return DataType(DataTypeId::kInt64);
+    case ::common::PrimitiveType::DT_FLOAT:
+      return DataType(DataTypeId::kFloat);
+    case ::common::PrimitiveType::DT_DOUBLE:
+      return DataType(DataTypeId::kDouble);
+    case ::common::PrimitiveType::DT_BOOL:
+      return DataType(DataTypeId::kBoolean);
+    case ::common::PrimitiveType::DT_ANY:
+      return DataType(DataTypeId::kUnknown);
+    default:
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized primitive type - " +
+                                    std::to_string(pt));
+      break;
+    }
+  }
+  case ::common::DataType::kString:
+    return DataType(DataTypeId::kVarchar);
+  case ::common::DataType::kTemporal: {
+    if (ddt.temporal().item_case() == ::common::Temporal::kDate32) {
+      return DataType(DataTypeId::kDate);
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kDateTime) {
+      return DataType(DataTypeId::kTimestampMs);
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kDate) {
+      return DataType(DataTypeId::kDate);
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kInterval) {
+      return DataType(DataTypeId::kInterval);
+    } else if (ddt.temporal().item_case() == ::common::Temporal::kTimestamp) {
+      return DataType(DataTypeId::kTimestampMs);
+    } else {
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized temporal type - " +
+                                    ddt.temporal().DebugString());
+    }
+  }
+  case ::common::DataType::kArray: {
+    const auto& element_type = ddt.array().component_type();
+    auto data_type = parse_from_data_type(element_type);
+    return DataType(DataTypeId::kList,
+                    std::make_shared<ListTypeInfo>(data_type));
+  }
+  case ::common::DataType::kTuple: {
+    const auto& component_types = ddt.tuple().component_types();
+    std::vector<DataType> data_types;
+    for (int i = 0; i < component_types.size(); ++i) {
+      data_types.push_back(parse_from_data_type(component_types.Get(i)));
+    }
+    std::shared_ptr<ExtraTypeInfo> type_info =
+        std::make_shared<StructTypeInfo>(data_types);
+    return DataType(DataTypeId::kStruct, type_info);
+  }
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("unrecognized data type - " +
+                                  ddt.DebugString());
+    break;
+  }
+
+  return DataType(DataTypeId::kUnknown);
+}
+
+DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
+  switch (dt.type_case()) {
+  case ::common::IrDataType::TypeCase::kDataType: {
+    const ::common::DataType ddt = dt.data_type();
+    return parse_from_data_type(ddt);
+  }
+  case ::common::IrDataType::TypeCase::kGraphType: {
+    const ::common::GraphDataType gdt = dt.graph_type();
+    switch (gdt.element_opt()) {
+    case ::common::GraphDataType_GraphElementOpt::
+        GraphDataType_GraphElementOpt_VERTEX:
+      return DataType(DataTypeId::kVertex);
+    case ::common::GraphDataType_GraphElementOpt::
+        GraphDataType_GraphElementOpt_EDGE:
+      return DataType(DataTypeId::kEdge);
+    case ::common::GraphDataType_GraphElementOpt::
+        GraphDataType_GraphElementOpt_PATH:
+      return DataType(DataTypeId::kPath);
+    default:
+      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
+                                    gdt.DebugString());
+      break;
+    }
+  } break;
+  default:
+    break;
+  }
+  return DataType(DataTypeId::kUnknown);
 }
 
 }  // namespace gs

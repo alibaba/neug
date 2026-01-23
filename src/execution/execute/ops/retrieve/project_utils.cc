@@ -282,7 +282,8 @@ bool is_property_extract(const common::Expression& expr, int& tag,
           type.id() == DataTypeId::kInt32 || type.id() == DataTypeId::kFloat ||
           type.id() == DataTypeId::kUInt64 ||
           type.id() == DataTypeId::kUInt32 ||
-          type.id() == DataTypeId::kDouble) {
+          type.id() == DataTypeId::kDouble ||
+          type.id() == DataTypeId::kVarchar) {
         return true;
       }
     }
@@ -307,8 +308,10 @@ std::unique_ptr<ProjectExprBase> create_sl_property_expr(
                                         decltype(collector)>>(                \
         std::move(expr), collector, alias);                                   \
   }
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+    TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
+
   default:
     LOG(ERROR) << "create_sl_property_expr: not implemented for type: "
                << static_cast<int>(type.id());
@@ -334,7 +337,8 @@ std::unique_ptr<ProjectExprBase> create_ml_property_expr(
         ProjectExpr<MLPropertyExpr<VertexColumn, type>, decltype(collector)>>( \
         std::move(expr), collector, alias);                                    \
   }
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+    TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
   default:
     LOG(ERROR) << "create_ml_property_expr: not implemented for type: "
@@ -420,32 +424,32 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
     int alias) {
   if (type == SPPredicateType::kPropertyLT) {
     using CMP_T = LTCmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGT) {
     using CMP_T = GTCmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyLE) {
     using CMP_T = LECmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGE) {
     using CMP_T = GECmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyEQ) {
     using CMP_T = EQCmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyNE) {
     using CMP_T = NECmp<T>;
-    CMP_T cmp(TypedConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   }
@@ -458,8 +462,8 @@ static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
     const std::shared_ptr<IVertexColumn>& vertex_col,
     const std::string& property_name, const std::string& lower_value,
     const std::string& upper_value, int then_value, int else_value) {
-  BetweenCmp<T> cmp(TypedConverter<T>::typed_from_string(lower_value),
-                    TypedConverter<T>::typed_from_string(upper_value));
+  BetweenCmp<T> cmp(ValueConverter<T>::typed_from_string(lower_value),
+                    ValueConverter<T>::typed_from_string(upper_value));
   auto labels = vertex_col->get_labels_set();
   if (labels.size() == 1) {
     label_t label = *labels.begin();
@@ -593,7 +597,6 @@ std::unique_ptr<ProjectExprBase> parse_special_expr(
     }                                                                       \
     break;                                                                  \
   }
-          TYPE_DISPATCHER(kVarchar, std::string_view)
           TYPE_DISPATCHER(kInt32, int32_t)
           TYPE_DISPATCHER(kInt64, int64_t)
           TYPE_DISPATCHER(kTimestampMs, DateTime)
@@ -628,7 +631,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_vertex_property_expr_builder(
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
     return std::make_unique<VertexPropertyExprBuilder<type>>(tag, name, alias);
-      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+      TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
     default:
       return nullptr;
@@ -766,8 +770,8 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
     TYPE_DISPATCHER(kInt32, int32_t)
     TYPE_DISPATCHER(kInt64, int64_t)
     TYPE_DISPATCHER(kDouble, double)
-    TYPE_DISPATCHER(kVarchar, std::string_view)
     TYPE_DISPATCHER(kTimestampMs, DateTime)
+    TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
   default:
     LOG(ERROR) << "unsupported when type " << static_cast<int>(when_type.id());

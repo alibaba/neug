@@ -32,7 +32,7 @@
 #include "neug/execution/common/columns/arrow_context_column.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
-#include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/string_utils.h"
@@ -285,7 +285,7 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
   rapidjson::Value vertex_array(rapidjson::kArrayType);
   rapidjson::Value edge_array(rapidjson::kArrayType);
   auto path_vertices = path.nodes();
-  auto path_edges = path.edge_labels();
+  auto path_edges = path.relationships();
   for (size_t i = 0; i < path_vertices.size(); i++) {
     auto vertex_object = build_vertex_object(
         path_vertices[i].label_, path_vertices[i].vid_, graph, allocator);
@@ -303,8 +303,9 @@ std::string path_to_json_string(Path& path, const StorageReadInterface& graph) {
       add_member(edge_object, allocator, internal_dst_label_key,
                  dst_label_name);
       std::string internal_label_key = "_LABEL";
-      Property edge_label_name = Property::from_string_view(
-          graph.schema().get_edge_label_name(path_edges[i - 1]));
+      Property edge_label_name =
+          Property::from_string_view(graph.schema().get_edge_label_name(
+              path_edges[i - 1].label.edge_label));
       add_member(edge_object, allocator, internal_label_key, edge_label_name);
       edge_array.PushBack(edge_object, allocator);
     }

@@ -138,8 +138,10 @@ std::shared_ptr<ColumnBase> CreateColumn(
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
     return std::make_shared<TypedEmptyColumn<type>>();
-      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+    case DataTypeId::kVarchar:
+      return std::make_shared<TypedEmptyColumn<std::string_view>>();
     default:
       THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for empty column: " +
                                     std::to_string(type));
@@ -206,8 +208,12 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::enum_val:                       \
     return std::make_shared<TypedRefColumn<type>>( \
         dynamic_cast<const TypedColumn<type>&>(column));
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+  case DataTypeId::kVarchar: {
+    return std::make_shared<TypedRefColumn<std::string_view>>(
+        dynamic_cast<const StringColumn&>(column));
+  }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
                                   std::to_string(type));

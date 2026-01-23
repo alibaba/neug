@@ -65,16 +65,16 @@ gs::runtime::Context ShowLoadedExtensionsFunction::execFunc(
     gs::runtime::Context ctx;
     const auto& ext_map = gs::extension::ExtensionAPI::getLoadedExtensions();
 
-    gs::runtime::ValueColumnBuilder<std::string_view> name_builder;
-    gs::runtime::ValueColumnBuilder<std::string_view> desc_builder;
+    gs::runtime::ValueColumnBuilder<std::string> name_builder;
+    gs::runtime::ValueColumnBuilder<std::string> desc_builder;
     name_builder.reserve(ext_map.size());
     desc_builder.reserve(ext_map.size());
 
     for (const auto& kv : ext_map) {
-      std::string_view name_view = kv.second.name;
+      const std::string& name_view = kv.second.name;
       name_builder.push_back_opt(name_view);
 
-      std::string_view desc_view = kv.second.description;
+      const std::string& desc_view = kv.second.description;
       desc_builder.push_back_opt(desc_view);
     }
 

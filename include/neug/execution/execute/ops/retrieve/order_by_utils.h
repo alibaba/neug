@@ -37,8 +37,8 @@ class GeneralComparer {
     for (size_t k = 0; k < keys_num_; ++k) {
       auto& v = keys_[k];
       auto asc = order_[k];
-      RTAny lhs_val = v.get(lhs);
-      RTAny rhs_val = v.get(rhs);
+      Value lhs_val = v.get(lhs);
+      Value rhs_val = v.get(rhs);
       if (lhs_val < rhs_val) {
         return asc;
       } else if (rhs_val < lhs_val) {
@@ -54,6 +54,12 @@ class GeneralComparer {
   std::vector<bool> order_;
   size_t keys_num_;
 };
+
+bool vertex_property_topN(bool asc, size_t limit,
+                          const std::shared_ptr<IVertexColumn>& col,
+                          const StorageReadInterface& graph,
+                          const std::string& prop_name,
+                          std::vector<size_t>& offsets);
 }  // namespace ops
 }  // namespace runtime
 }  // namespace gs

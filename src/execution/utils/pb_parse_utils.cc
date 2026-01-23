@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "neug/execution/utils/utils.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 
 #include <glog/logging.h>
 #include <google/protobuf/wrappers.pb.h>
@@ -23,10 +23,12 @@
 #include <string_view>
 #include <tuple>
 
-#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/generated/proto/plan/algebra.pb.h"
+#include "neug/generated/proto/plan/common.pb.h"
+#include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/generated/proto/plan/type.pb.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/top_n_generator.h"
 
 namespace gs {
 
@@ -139,84 +141,28 @@ PathOpt parse_path_opt(const physical::PathExpand_PathOpt& path_opt_pb) {
   }
 }
 
-template <typename T>
-bool vertex_property_topN_impl(bool asc, size_t limit,
-                               const std::shared_ptr<IVertexColumn>& col,
-                               const StorageReadInterface& graph,
-                               const std::string& prop_name,
-                               std::vector<size_t>& offsets) {
-  std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
-      property_columns;
-  label_t label_num = graph.schema().vertex_label_num();
-  for (label_t i = 0; i < label_num; ++i) {
-    property_columns.emplace_back(graph.GetVertexPropColumn<T>(i, prop_name));
-  }
-  bool success = true;
-  if (asc) {
-    TopNGenerator<T, TopNAscCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
-      } else {
-        success = false;
-      }
-    });
-    if (success) {
-      gen.generate_indices(offsets);
-    }
+AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
+  if (v == physical::GroupBy_AggFunc::SUM) {
+    return AggrKind::kSum;
+  } else if (v == physical::GroupBy_AggFunc::MIN) {
+    return AggrKind::kMin;
+  } else if (v == physical::GroupBy_AggFunc::MAX) {
+    return AggrKind::kMax;
+  } else if (v == physical::GroupBy_AggFunc::COUNT) {
+    return AggrKind::kCount;
+  } else if (v == physical::GroupBy_AggFunc::COUNT_DISTINCT) {
+    return AggrKind::kCountDistinct;
+  } else if (v == physical::GroupBy_AggFunc::TO_SET) {
+    return AggrKind::kToSet;
+  } else if (v == physical::GroupBy_AggFunc::FIRST) {
+    return AggrKind::kFirst;
+  } else if (v == physical::GroupBy_AggFunc::TO_LIST) {
+    return AggrKind::kToList;
+  } else if (v == physical::GroupBy_AggFunc::AVG) {
+    return AggrKind::kAvg;
   } else {
-    TopNGenerator<T, TopNDescCmp<T>> gen(limit);
-    foreach_vertex(*col, [&](size_t idx, label_t label, vid_t v) {
-      if (!(property_columns[label] == nullptr)) {
-        gen.push(property_columns[label]->get_view(v), idx);
-      } else {
-        success = false;
-      }
-    });
-    if (success) {
-      gen.generate_indices(offsets);
-    }
-  }
-
-  return success;
-}
-
-bool vertex_property_topN(bool asc, size_t limit,
-                          const std::shared_ptr<IVertexColumn>& col,
-                          const StorageReadInterface& graph,
-                          const std::string& prop_name,
-                          std::vector<size_t>& offsets) {
-  std::vector<DataTypeId> prop_types;
-  const auto& labels = col->get_labels_set();
-  for (auto l : labels) {
-    const auto& prop_names = graph.schema().get_vertex_property_names(l);
-    int prop_names_size = prop_names.size();
-    for (int prop_id = 0; prop_id < prop_names_size; ++prop_id) {
-      if (prop_names[prop_id] == prop_name) {
-        prop_types.push_back(graph.schema().get_vertex_properties(l)[prop_id]);
-        break;
-      }
-    }
-  }
-  if (prop_types.size() != labels.size()) {
-    return false;
-  }
-  for (size_t k = 1; k < prop_types.size(); ++k) {
-    if (prop_types[k] != prop_types[0]) {
-      LOG(INFO) << "multiple types...";
-      return false;
-    }
-  }
-  switch (prop_types[0]) {
-#define TYPE_DISPATCHER(enum_val, type)                                       \
-  case DataTypeId::enum_val:                                                  \
-    return vertex_property_topN_impl<type>(asc, limit, col, graph, prop_name, \
-                                           offsets);
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-  default:
-    LOG(INFO) << "prop type not support..." << static_cast<int>(prop_types[0]);
-    return false;
+    LOG(FATAL) << "unsupport" << static_cast<int>(v);
+    return AggrKind::kSum;
   }
 }
 

@@ -14,45 +14,12 @@
  */
 #pragma once
 
-#include <map>
-#include <memory>
-#include <set>
-#include <unordered_map>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/utils/app_utils.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
-namespace std {
-template <>
-struct hash<gs::runtime::VertexRecord> {
-  template <typename T>
-  static inline void hash_combine(std::size_t& seed, const T& val) {
-    std::hash<T> hasher;
-    seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-  }
 
-  size_t operator()(const gs::runtime::VertexRecord& record) const {
-    std::size_t seed = 0;
-    hash_combine(seed, record.vid_);
-    hash_combine(seed, record.label_);
-    return seed;
-  }
-};
-
-template <>
-struct hash<gs::DateTime> {
-  size_t operator()(const gs::DateTime& date) const {
-    return std::hash<int64_t>()(date.milli_second);
-  }
-};
-
-};  // namespace std
 namespace gs {
-
 namespace runtime {
 
 namespace ops {
@@ -61,19 +28,6 @@ struct IsCountReducer {
   static constexpr bool value = false;
 };
 }  // namespace ops
-
-enum class AggrKind {
-  kSum,
-  kMin,
-  kMax,
-  kCount,
-  kCountDistinct,
-  kToSet,
-  kFirst,
-  kToList,
-  kAvg,
-};
-
 struct KeyBase {
   virtual ~KeyBase() = default;
   virtual std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>>
@@ -129,7 +83,7 @@ struct GKey : public KeyBase {
       ::gs::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i](i);
-        val.encode_sig(val.type(), encoder);
+        encode_value(val, encoder);
       }
       std::string_view sv(buf.data(), buf.size());
       auto iter = sig_to_root.find(sv);
@@ -203,31 +157,7 @@ class GroupBy {
  public:
   static gs::result<Context> group_by(
       Context&& ctx, std::unique_ptr<KeyBase>&& key,
-      std::vector<std::unique_ptr<ReducerBase>>&& aggrs) {
-    auto [offsets, groups] = key->group(ctx);
-    Context ret;
-    const auto& tag_alias = key->tag_alias();
-    for (size_t i = 0; i < tag_alias.size(); ++i) {
-      ret.set(tag_alias[i].second, ctx.get(tag_alias[i].first));
-    }
-    ret.reshuffle(offsets);
-    std::set<size_t> filter;
-    for (auto& aggr : aggrs) {
-      ret = aggr->reduce(ctx, std::move(ret), groups, filter);
-    }
-    if (filter.empty()) {
-      return ret;
-    } else {
-      std::vector<size_t> new_offsets;
-      for (size_t i = 0; i < ret.row_num(); ++i) {
-        if (filter.find(i) == filter.end()) {
-          new_offsets.push_back(i);
-        }
-      }
-      ret.reshuffle(new_offsets);
-      return ret;
-    }
-  }
+      std::vector<std::unique_ptr<ReducerBase>>&& aggrs);
 };
 
 }  // namespace runtime

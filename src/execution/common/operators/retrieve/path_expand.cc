@@ -15,16 +15,9 @@
 
 #include "neug/execution/common/operators/retrieve/path_expand.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <queue>
-#include <tuple>
-
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/storages/csr/mutable_csr.h"
 
 namespace gs {
 
@@ -254,15 +247,14 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
     in_labels_map[triplet.dst_label].emplace_back(triplet);
   }
   auto dir = params.dir;
-  std::vector<std::pair<PathImpl*, size_t>> input;
-  std::vector<std::pair<PathImpl*, size_t>> output;
+  std::vector<std::pair<Path, size_t>> input;
+  std::vector<std::pair<Path, size_t>> output;
 
-  GeneralPathColumnBuilder builder;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  PathColumnBuilder builder;
   if (dir == Direction::kOut) {
     foreach_vertex(input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
-                     auto p = PathImpl::make_path_impl(label, v, *arena);
+                     auto p = Path(label, v);
                      input.emplace_back(std::move(p), index);
                    });
     int depth = 0;
@@ -270,15 +262,15 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
       output.clear();
       if (depth + 1 < params.hop_upper) {
         for (auto& [path, index] : input) {
-          auto end = path->get_end();
+          auto end = path.end_node();
           for (const auto& label_triplet : out_labels_map[end.label_]) {
             auto oview = graph.GetGenericOutgoingGraphView(
                 end.label_, label_triplet.dst_label, label_triplet.edge_label);
             auto oes = oview.get_edges(end.vid_);
             for (auto it = oes.begin(); it != oes.end(); ++it) {
-              PathImpl* new_path = path->expand(
+              Path new_path = path.expand(
                   label_triplet.edge_label, label_triplet.dst_label,
-                  it.get_vertex(), Direction::kOut, it.get_data_ptr(), *arena);
+                  it.get_vertex(), Direction::kOut, it.get_data_ptr());
               output.emplace_back(std::move(new_path), index);
             }
           }
@@ -299,14 +291,13 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    builder.set_arena(arena);
     ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
     return ctx;
   } else if (dir == Direction::kIn) {
     foreach_vertex(input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
-                     auto p = PathImpl::make_path_impl(label, v, *arena);
+                     auto p = Path(label, v);
                      input.emplace_back(std::move(p), index);
                    });
     int depth = 0;
@@ -315,15 +306,15 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
 
       if (depth + 1 < params.hop_upper) {
         for (const auto& [path, index] : input) {
-          auto end = path->get_end();
+          auto end = path.end_node();
           for (const auto& label_triplet : in_labels_map[end.label_]) {
             auto iview = graph.GetGenericIncomingGraphView(
                 end.label_, label_triplet.src_label, label_triplet.edge_label);
             auto ies = iview.get_edges(end.vid_);
             for (auto it = ies.begin(); it != ies.end(); ++it) {
-              PathImpl* new_path = path->expand(
+              Path new_path = path.expand(
                   label_triplet.edge_label, label_triplet.src_label,
-                  it.get_vertex(), Direction::kIn, it.get_data_ptr(), *arena);
+                  it.get_vertex(), Direction::kIn, it.get_data_ptr());
               output.emplace_back(std::move(new_path), index);
             }
           }
@@ -345,7 +336,6 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    builder.set_arena(arena);
     ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
     return ctx;
@@ -353,7 +343,7 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
   } else if (dir == Direction::kBoth) {
     foreach_vertex(input_vertex_list,
                    [&](size_t index, label_t label, vid_t v) {
-                     auto p = PathImpl::make_path_impl(label, v, *arena);
+                     auto p = Path(label, v);
                      input.emplace_back(std::move(p), index);
                    });
     int depth = 0;
@@ -361,15 +351,15 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
       output.clear();
       if (depth + 1 < params.hop_upper) {
         for (auto& [path, index] : input) {
-          auto end = path->get_end();
+          auto end = path.end_node();
           for (const auto& label_triplet : out_labels_map[end.label_]) {
             auto oview = graph.GetGenericOutgoingGraphView(
                 end.label_, label_triplet.dst_label, label_triplet.edge_label);
             auto oes = oview.get_edges(end.vid_);
             for (auto it = oes.begin(); it != oes.end(); ++it) {
-              auto new_path = path->expand(
+              auto new_path = path.expand(
                   label_triplet.edge_label, label_triplet.dst_label,
-                  it.get_vertex(), Direction::kOut, it.get_data_ptr(), *arena);
+                  it.get_vertex(), Direction::kOut, it.get_data_ptr());
               output.emplace_back(std::move(new_path), index);
             }
           }
@@ -379,9 +369,9 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
                 end.label_, label_triplet.src_label, label_triplet.edge_label);
             auto ies = iview.get_edges(end.vid_);
             for (auto it = ies.begin(); it != ies.end(); ++it) {
-              auto new_path = path->expand(
+              auto new_path = path.expand(
                   label_triplet.edge_label, label_triplet.src_label,
-                  it.get_vertex(), Direction::kIn, it.get_data_ptr(), *arena);
+                  it.get_vertex(), Direction::kIn, it.get_data_ptr());
               output.emplace_back(std::move(new_path), index);
             }
           }
@@ -402,7 +392,6 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
       std::swap(input, output);
       ++depth;
     }
-    builder.set_arena(arena);
     ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
     return ctx;
   }
@@ -427,8 +416,7 @@ gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
   }
   auto dir = params.dir;
 
-  GeneralPathColumnBuilder builder;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  PathColumnBuilder builder;
   std::function<void(std::vector<VertexRecord>&,
                      std::vector<std::tuple<label_t, Direction, const void*>>&,
                      size_t)>
@@ -437,7 +425,7 @@ gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
                     edge_labels,
                 size_t index) {
         if (path.size() >= static_cast<size_t>(params.hop_lower)) {
-          auto ptr = PathImpl::make_path_impl(edge_labels, path, *arena);
+          auto ptr = Path(edge_labels, path);
           builder.push_back_opt(Path(ptr));
 
           shuffle_offset.push_back(index);
@@ -489,7 +477,6 @@ gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
     std::vector<std::tuple<label_t, Direction, const void*>> edge_labels;
     dfs(path, edge_labels, index);
   });
-  builder.set_arena(arena);
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
   return ctx;
 }
@@ -511,8 +498,7 @@ gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
   }
   auto dir = params.dir;
 
-  GeneralPathColumnBuilder builder;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  PathColumnBuilder builder;
   std::function<void(std::vector<VertexRecord>&,
                      std::vector<std::tuple<label_t, Direction, const void*>>&,
                      size_t)>
@@ -521,8 +507,8 @@ gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
                     edge_labels,
                 size_t index) {
         if (path.size() >= static_cast<size_t>(params.hop_lower)) {
-          auto ptr = PathImpl::make_path_impl(edge_labels, path, *arena);
-          builder.push_back_opt(Path(ptr));
+          auto ptr = Path(edge_labels, path);
+          builder.push_back_opt(ptr);
           shuffle_offset.push_back(index);
         }
         if (path.size() == static_cast<size_t>(params.hop_upper)) {
@@ -593,7 +579,6 @@ gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
     std::vector<std::tuple<label_t, Direction, const void*>> edge_labels;
     dfs(path, edge_labels, index);
   });
-  builder.set_arena(arena);
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
   return ctx;
 }
@@ -615,14 +600,12 @@ gs::result<Context> path_expand_p_any_shortest(
   }
   auto dir = params.dir;
 
-  GeneralPathColumnBuilder builder;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  PathColumnBuilder builder;
   std::function<void(const VertexRecord&, size_t)> bfs = [&](const VertexRecord&
                                                                  root,
                                                              size_t index) {
     std::unordered_map<
-        VertexRecord, std::tuple<VertexRecord, label_t, Direction, const void*>,
-        VertexRecordHash>
+        VertexRecord, std::tuple<VertexRecord, label_t, Direction, const void*>>
         visited;
     std::tuple<VertexRecord, label_t, Direction, const void*> dummy;
     visited.emplace(root, dummy);
@@ -689,8 +672,8 @@ gs::result<Context> path_expand_p_any_shortest(
         path.emplace_back(root);
         std::reverse(path.begin(), path.end());
         std::reverse(edge_labels.begin(), edge_labels.end());
-        auto ptr = PathImpl::make_path_impl(edge_labels, path, *arena);
-        builder.push_back_opt(Path(ptr));
+        auto ptr = Path(edge_labels, path);
+        builder.push_back_opt(ptr);
         shuffle_offset.push_back(index);
       }
     }
@@ -699,7 +682,6 @@ gs::result<Context> path_expand_p_any_shortest(
     VertexRecord root{label, v};
     bfs(root, index);
   });
-  builder.set_arena(arena);
   ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
   return ctx;
 }
@@ -910,8 +892,7 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
         "direction");
   }
   MSVertexColumnBuilder builder(label_triplet.dst_label);
-  GeneralPathColumnBuilder path_builder;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+  PathColumnBuilder path_builder;
   foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
     std::vector<vid_t> path;
     std::vector<std::pair<Direction, const void*>> edge_datas;
@@ -919,15 +900,13 @@ gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
             graph, params, v, dest.second, path, edge_datas)) {
       builder.push_back_opt(dest.second);
       shuffle_offset.push_back(index);
-      auto impl = PathImpl::make_path_impl(label_triplet.src_label,
-                                           label_triplet.edge_label, path,
-                                           edge_datas, *arena);
-      path_builder.push_back_opt(Path(impl));
+      auto impl = Path(label_triplet.src_label, label_triplet.edge_label, path,
+                       edge_datas);
+      path_builder.push_back_opt(impl);
     }
   });
 
   ctx.set_with_reshuffle(params.v_alias, builder.finish(), shuffle_offset);
-  path_builder.set_arena(arena);
   ctx.set(params.alias, path_builder.finish());
   return ctx;
 }
@@ -1160,9 +1139,8 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
     RETURN_UNSUPPORTED_ERROR("only support same src and dst label");
   }
   MSVertexColumnBuilder builder(label_triplet.dst_label);
-  GeneralPathColumnBuilder path_builder;
+  PathColumnBuilder path_builder;
   std::vector<size_t> shuffle_offset;
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
   foreach_vertex(input_vertex_list, [&](size_t index, label_t label, vid_t v) {
     std::vector<std::vector<vid_t>> paths;
     std::vector<std::vector<std::pair<Direction, const void*>>> edge_datas;
@@ -1171,16 +1149,14 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
     for (size_t i = 0; i < paths.size(); ++i) {
       const auto& path = paths[i];
       const auto& cur_edge_datas = edge_datas[i];
-      auto ptr = PathImpl::make_path_impl(label_triplet.src_label,
-                                          label_triplet.edge_label, path,
-                                          cur_edge_datas, *arena);
+      auto ptr = Path(label_triplet.src_label, label_triplet.edge_label, path,
+                      cur_edge_datas);
       builder.push_back_opt(dest.second);
-      path_builder.push_back_opt(Path(ptr));
+      path_builder.push_back_opt(ptr);
       shuffle_offset.push_back(index);
     }
   });
   ctx.set_with_reshuffle(params.v_alias, builder.finish(), shuffle_offset);
-  path_builder.set_arena(arena);
   ctx.set(params.alias, path_builder.finish());
   return ctx;
 }

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include "neug/compiler/common/case_insensitive_map.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/reader.h"
 
 namespace gs {

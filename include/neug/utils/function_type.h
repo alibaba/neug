@@ -22,11 +22,9 @@
 
 namespace gs {
 namespace runtime {
-class RTAny;
-class CObject;
-using Arena = std::vector<std::unique_ptr<CObject>>;
+class Value;
 
-using neug_func_exec_t = RTAny (*)(Arena&, const std::vector<RTAny>&);
+using neug_func_exec_t = Value (*)(const std::vector<Value>&);
 
 }  // namespace runtime
 }  // namespace gs

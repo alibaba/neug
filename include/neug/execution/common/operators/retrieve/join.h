@@ -14,21 +14,14 @@
  */
 #pragma once
 
-#include <vector>
-
-#include "neug/execution/common/context.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/utils/result.h"
 
 namespace gs {
+class IStorageInterface;
 namespace runtime {
 class Context;
-
-struct JoinParams {
-  std::vector<int> left_columns;
-  std::vector<int> right_columns;
-  JoinKind join_type;
-};
+class JoinParams;
 
 class Join {
  public:

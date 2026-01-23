@@ -17,7 +17,7 @@
 #include <limits>
 #include <vector>
 
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 
 namespace gs {
 namespace runtime {
@@ -63,6 +63,12 @@ struct ShortestPathParams {
   Direction dir;
   int hop_lower;
   int hop_upper;
+};
+
+struct JoinParams {
+  std::vector<int> left_columns;
+  std::vector<int> right_columns;
+  JoinKind join_type;
 };
 
 }  // namespace runtime

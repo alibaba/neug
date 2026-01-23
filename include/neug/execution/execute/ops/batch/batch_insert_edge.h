@@ -23,9 +23,6 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 

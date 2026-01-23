@@ -14,31 +14,14 @@
  */
 #pragma once
 
-#include <algorithm>
-#include <map>
-#include <memory>
-#include <set>
-#include <string>
-#include <tuple>
-#include <unordered_set>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/var.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
-
 namespace gs {
 namespace runtime {
 namespace ops {
-
-AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v);
 
 struct SLVertexWrapper {
   using V = vid_t;
@@ -70,7 +53,7 @@ struct ValueWrapper {
 };
 
 struct ColumnWrapper {
-  using V = RTAny;
+  using V = Value;
   explicit ColumnWrapper(const IContextColumn& column) : column(column) {}
   V operator()(size_t idx) const { return column.get_elem(idx); }
   const IContextColumn& column;
@@ -178,10 +161,10 @@ struct KeyBuilder {
 };
 
 struct OptionalVarWrapper {
-  using V = RTAny;
-  std::optional<RTAny> operator()(size_t idx) const {
+  using V = Value;
+  std::optional<Value> operator()(size_t idx) const {
     auto v = vars.get(idx);
-    if (v.is_null()) {
+    if (v.IsNull()) {
       return std::nullopt;
     } else {
       return v;
@@ -191,15 +174,15 @@ struct OptionalVarWrapper {
   Var vars;
 };
 struct VarWrapper {
-  using V = RTAny;
-  RTAny operator()(size_t idx) const { return vars.get(idx); }
+  using V = Value;
+  Value operator()(size_t idx) const { return vars.get(idx); }
   explicit VarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
 };
 
 struct VarPairWrapper {
-  using V = std::pair<RTAny, RTAny>;
-  std::pair<RTAny, RTAny> operator()(size_t idx) const {
+  using V = std::pair<Value, Value>;
+  std::pair<Value, Value> operator()(size_t idx) const {
     return std::make_pair(fst.get(idx), snd.get(idx));
   }
   VarPairWrapper(Var&& fst, Var&& snd)
@@ -213,7 +196,7 @@ struct TypedVarWrapper {
   using V = T;
   T operator()(size_t idx) const {
     auto v = vars.get(idx);
-    return TypedConverter<T>::to_typed(v);
+    return v.GetValue<T>();
   }
   explicit TypedVarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
@@ -224,10 +207,10 @@ struct OptionalTypedVarWrapper {
   using V = T;
   std::optional<T> operator()(size_t idx) const {
     auto v = vars_.get(idx);
-    if (v.is_null()) {
+    if (v.IsNull()) {
       return std::nullopt;
     }
-    return TypedConverter<T>::to_typed(v);
+    return v.GetValue<T>();
   }
   explicit OptionalTypedVarWrapper(Var&& vars) : vars_(std::move(vars)) {}
   Var vars_;
@@ -550,28 +533,22 @@ struct AvgReducer<
 template <typename T>
 struct SetCollector {
   SetCollector()
-      : arena(std::make_shared<Arena>()),
-        builder(std::make_shared<ListValueColumnBuilder>(
-            TypedConverter<T>::type())) {}
+      : builder(
+            std::make_shared<ListColumnBuilder>(ValueConverter<T>::type())) {}
   void init(size_t size) { builder->reserve(size); }
 
   void collect(std::set<T>&& val) {
-    std::vector<T> vec_val;
+    std::vector<Value> vec_val;
     vec_val.reserve(val.size());
     for (auto& v : val) {
-      vec_val.push_back(std::move(v));
+      vec_val.push_back(Value::CreateValue<T>(std::move(v)));
     }
-    auto impl = ListImpl<T>::make_list_impl(std::move(vec_val));
-    List list(impl.get());
-    arena->emplace_back(std::move(impl));
-    builder->push_back_opt(list);
+
+    builder->push_back_elem(Value::LIST(std::move(vec_val)));
   }
-  auto get() {
-    builder->set_arena(arena);
-    return builder->finish();
-  }
-  std::shared_ptr<Arena> arena;
-  std::shared_ptr<ListValueColumnBuilder> builder;
+  auto get() { return builder->finish(); }
+
+  std::shared_ptr<ListColumnBuilder> builder;
 };
 
 template <typename T>
@@ -595,25 +572,34 @@ struct VertexCollector {
 template <typename T>
 struct ListCollector {
   ListCollector()
-      : arena(std::make_shared<Arena>()),
-        builder(std::make_shared<ListValueColumnBuilder>(
-            TypedConverter<T>::type())) {}
+      : builder(
+            std::make_shared<ListColumnBuilder>(ValueConverter<T>::type())) {}
   void init(size_t size) { builder->reserve(size); }
   void collect(std::vector<T>&& val) {
-    auto impl = ListImpl<T>::make_list_impl(std::move(val));
-    List list(impl.get());
-    arena->emplace_back(std::move(impl));
-    builder->push_back_opt(list);
+    std::vector<Value> impl;
+    impl.reserve(val.size());
+    for (const auto& v : val) {
+      impl.push_back(Value::CreateValue<T>(std::move(v)));
+    }
+
+    builder->push_back_elem(Value::LIST(std::move(impl)));
   }
 
-  auto get() {
-    builder->set_arena(arena);
-    return builder->finish();
+  auto get() { return builder->finish(); }
+
+  std::shared_ptr<ListColumnBuilder> builder;
+};
+
+struct GeneralListCollector {
+  GeneralListCollector(const DataType& type)
+      : type_(type), builder(std::make_shared<ListColumnBuilder>(type)) {}
+  void init(size_t size) { builder->reserve(size); }
+  void collect(std::vector<Value>&& val) {
+    builder->push_back_elem(Value::LIST(type_, std::move(val)));
   }
-
-  std::shared_ptr<Arena> arena;
-
-  std::shared_ptr<ListValueColumnBuilder> builder;
+  auto get() { return builder->finish(); }
+  DataType type_;
+  std::shared_ptr<ListColumnBuilder> builder;
 };
 
 template <typename EXPR, bool IS_OPTIONAL>
@@ -747,6 +733,19 @@ inline std::unique_ptr<ReducerBase> make_general_reducer(const Context& ctx,
     } else {
       LOG(FATAL) << "not support optional count\n";
     }
+  } else if (kind == AggrKind::kToList) {
+    if (var.is_optional()) {
+      ToListReducer<OptionalVarWrapper, true> r(
+          OptionalVarWrapper(std::move(var)));
+      GeneralListCollector collector(var.type());
+      return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
+          std::move(r), std::move(collector), alias);
+    } else {
+      ToListReducer<VarWrapper, false> r(VarWrapper(std::move(var)));
+      GeneralListCollector collector(var.type());
+      return std::make_unique<Reducer<decltype(r), decltype(collector)>>(
+          std::move(r), std::move(collector), alias);
+    }
   } else {
     LOG(FATAL) << "not support var reduce\n";
   }
@@ -824,7 +823,7 @@ inline std::unique_ptr<ReducerBase> make_reducer(
         switch (col->elem_type().id()) {
           TYPE_DISPATCHER(kInt64, int64_t)
           TYPE_DISPATCHER(kInt32, int32_t)
-          TYPE_DISPATCHER(kVarchar, std::string_view)
+          TYPE_DISPATCHER(kVarchar, std::string)
           TYPE_DISPATCHER(kTimestampMs, DateTime)
 #undef TYPE_DISPATCHER
 
@@ -843,8 +842,6 @@ inline std::unique_ptr<ReducerBase> make_reducer(
 #undef TYPE_DISPATCHER
   case DataTypeId::kVertex:
     return make_reducer<VertexRecord>(ctx, std::move(var_), kind, alias);
-  case DataTypeId::kStruct:
-    return make_reducer<Tuple>(ctx, std::move(var_), kind, alias);
   default:
     return make_general_reducer(ctx, std::move(var_), kind, alias);
   }
@@ -905,25 +902,14 @@ inline std::unique_ptr<ReducerBase> create_reducer(
 bool BuildGroupByUtils(const physical::GroupBy& group_by,
                        std::vector<common::Variable>& key_vars,
                        std::vector<std::pair<int, int>>& mappings,
-                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs,
-                       std::vector<std::pair<int, int>>& dependencies);
+                       std::vector<physical::GroupBy_AggFunc>& reduce_funcs);
 
 inline gs::result<gs::runtime::Context> GroupByEvalImpl(
     const StorageReadInterface& graph,
     const std::map<std::string, std::string>& params,
     gs::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
-    const std::vector<physical::GroupBy_AggFunc>& aggrs,
-    const std::vector<std::pair<int, int>>& dependencies) {
-  std::vector<std::shared_ptr<Arena>> arenas;
-  if (!dependencies.empty()) {
-    arenas.resize(ctx.col_num(), nullptr);
-    for (size_t i = 0; i < ctx.col_num(); ++i) {
-      if (ctx.get(i)) {
-        arenas[i] = ctx.get(i)->get_arena();
-      }
-    }
-  }
+    const std::vector<physical::GroupBy_AggFunc>& aggrs) {
   auto key = create_key_func(vars, mappings, graph, ctx);
   std::vector<std::unique_ptr<ReducerBase>> reducers;
   for (auto& aggr : aggrs) {
@@ -934,17 +920,7 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
   if (!ret) {
     return ret;
   }
-  for (auto& [idx, deps] : dependencies) {
-    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-    auto arena1 = ret.value().get(idx)->get_arena();
-    if (arena1) {
-      arena->emplace_back(std::make_unique<ArenaRef>(arena1));
-    }
-    if (arenas[deps]) {
-      arena->emplace_back(std::make_unique<ArenaRef>(arenas[deps]));
-    }
-    ret.value().get(idx)->set_arena(arena);
-  }
+
   return ret;
 }
 

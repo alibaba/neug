@@ -25,7 +25,7 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/execution/common/types/value.h"
 
 using namespace gs::common;
 
@@ -67,8 +67,7 @@ function_set UpperFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny UpperFunction::Exec(runtime::Arena& arena,
-                                   const std::vector<runtime::RTAny>& args) {
+runtime::Value UpperFunction::Exec(const std::vector<runtime::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -77,12 +76,9 @@ runtime::RTAny UpperFunction::Exec(runtime::Arena& arena,
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
-  std::string str(val.as_string());
+  std::string str(runtime::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-  auto ptr = runtime::StringImpl::make_string_impl(str);
-  auto str_view = ptr->str_view();
-  arena.emplace_back(std::move(ptr));
-  return runtime::RTAny::from_string(str_view);
+  return runtime::Value::STRING(str);
 }
 
 function_set LowerFunction::getFunctionSet() {
@@ -93,8 +89,7 @@ function_set LowerFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny LowerFunction::Exec(runtime::Arena& arena,
-                                   const std::vector<runtime::RTAny>& args) {
+runtime::Value LowerFunction::Exec(const std::vector<runtime::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -103,12 +98,9 @@ runtime::RTAny LowerFunction::Exec(runtime::Arena& arena,
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
-  std::string str(val.as_string());
+  std::string str(runtime::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-  auto ptr = runtime::StringImpl::make_string_impl(str);
-  auto str_view = ptr->str_view();
-  arena.emplace_back(std::move(ptr));
-  return runtime::RTAny::from_string(str_view);
+  return runtime::Value::STRING(str);
 }
 
 function_set ReverseFunction::getFunctionSet() {
@@ -119,8 +111,7 @@ function_set ReverseFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::RTAny ReverseFunction::Exec(runtime::Arena& arena,
-                                     const std::vector<runtime::RTAny>& args) {
+runtime::Value ReverseFunction::Exec(const std::vector<runtime::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -129,12 +120,9 @@ runtime::RTAny ReverseFunction::Exec(runtime::Arena& arena,
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }
-  std::string str(val.as_string());
+  std::string str(runtime::StringValue::Get(val));
   std::reverse(str.begin(), str.end());
-  auto ptr = runtime::StringImpl::make_string_impl(str);
-  auto str_view = ptr->str_view();
-  arena.emplace_back(std::move(ptr));
-  return runtime::RTAny::from_string(str_view);
+  return runtime::Value::STRING(str);
 }
 
 }  // namespace function

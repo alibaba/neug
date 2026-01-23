@@ -35,11 +35,10 @@ struct GeneralVertexPredicate {
       : expr_(&graph, ctx, params, expr, VarType::kVertexVar) {}
 
   inline bool operator()(label_t label, vid_t v) const {
-    auto val = expr_.eval_vertex(label, v, arena_);
-    return val.as_bool();
+    auto val = expr_.eval_vertex(label, v);
+    return val.IsTrue();
   }
 
-  mutable Arena arena_;
   Expr expr_;
 };
 
@@ -57,13 +56,11 @@ struct GeneralEdgePredicate {
     auto triplet = (dir == Direction::kOut)
                        ? LabelTriplet(label, nbr_label, e_label)
                        : LabelTriplet(nbr_label, label, e_label);
-    auto val =
-        expr_.eval_edge(triplet, dir == Direction::kOut ? src : nbr,
-                        dir == Direction::kOut ? nbr : src, edata_ptr, arena_);
-    return val.as_bool();
+    auto val = expr_.eval_edge(triplet, dir == Direction::kOut ? src : nbr,
+                               dir == Direction::kOut ? nbr : src, edata_ptr);
+    return val.IsTrue();
   }
 
-  mutable Arena arena_;
   Expr expr_;
 };
 

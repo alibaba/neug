@@ -19,8 +19,7 @@
  * by Liu Lexiao in 2025 to support Neug-specific features.
  */
 
-#ifndef NEUG_INCLUDE_NEUG_EXECUTION_UTILS_NUMERIC_CAST_H_
-#define NEUG_INCLUDE_NEUG_EXECUTION_UTILS_NUMERIC_CAST_H_
+#pragma once
 
 #include <cctype>
 #include <cmath>
@@ -495,5 +494,3 @@ struct NumericCast {
 }  // namespace  runtime
 
 }  // namespace gs
-
-#endif  // NEUG_INCLUDE_NEUG_EXECUTION_UTILS_NUMERIC_CAST_H_

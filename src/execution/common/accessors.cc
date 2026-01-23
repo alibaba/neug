@@ -15,11 +15,7 @@
 
 #include "neug/execution/common/accessors.h"
 
-#include <cstdint>
-#include <string_view>
-
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -36,11 +32,11 @@ std::shared_ptr<IAccessor> create_context_value_accessor(const Context& ctx,
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case DataTypeId::kStruct:
-    return std::make_shared<ContextValueAccessor<Tuple>>(ctx, tag);
+    return std::make_shared<ContextStructAccessor>(ctx, tag);
   case DataTypeId::kList:
-    return std::make_shared<ContextValueAccessor<List>>(ctx, tag);
+    return std::make_shared<ContextListAccessor>(ctx, tag);
   case DataTypeId::kPath:
-    return std::make_shared<ContextValueAccessor<Path>>(ctx, tag);
+    return std::make_shared<ContextPathAccessor>(ctx, tag);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
                                   std::to_string(static_cast<int>(type.id())));
@@ -56,8 +52,11 @@ std::shared_ptr<IAccessor> create_vertex_property_path_accessor(
   case DataTypeId::enum_val:                                                   \
     return std::make_shared<VertexPropertyPathAccessor<type>>(graph, ctx, tag, \
                                                               prop_name);
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+  case DataTypeId::kVarchar:
+    return std::make_shared<VertexPropertyPathAccessor<std::string_view>>(
+        graph, ctx, tag, prop_name);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
                                   std::to_string(static_cast<int>(type.id())));
@@ -78,8 +77,11 @@ std::shared_ptr<IAccessor> create_vertex_property_vertex_accessor(
   case DataTypeId::enum_val:                                           \
     return std::make_shared<VertexPropertyVertexAccessor<type>>(graph, \
                                                                 prop_name);
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+  case DataTypeId::kVarchar:
+    return std::make_shared<VertexPropertyVertexAccessor<std::string_view>>(
+        graph, prop_name);
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not implemented accessor for type: " +
                                   std::to_string(static_cast<int>(type.id())));
@@ -98,8 +100,11 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
   case DataTypeId::enum_val:                                               \
     return std::make_shared<SLEdgePropertyPathAccessor<type>>(graph, name, \
                                                               ctx, tag);
-      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+    case DataTypeId::kVarchar:
+      return std::make_shared<SLEdgePropertyPathAccessor<std::string_view>>(
+          graph, name, ctx, tag);
     default:
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Not implemented accessor for type: " +
@@ -111,8 +116,11 @@ std::shared_ptr<IAccessor> create_edge_property_path_accessor(
   case DataTypeId::enum_val:                                                  \
     return std::make_shared<EdgePropertyPathAccessor<type>>(graph, name, ctx, \
                                                             tag);
-      FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+    case DataTypeId::kVarchar:
+      return std::make_shared<EdgePropertyPathAccessor<std::string_view>>(
+          graph, name, ctx, tag);
     default:
       LOG(FATAL) << "not implemented - " << static_cast<int>(type.id());
     }
@@ -124,7 +132,8 @@ template <typename T>
 VertexPropertyPathAccessor<T>::VertexPropertyPathAccessor(
     const StorageReadInterface& graph, const Context& ctx, int tag,
     const std::string& prop_name)
-    : is_optional_(false),
+    : type_(ValueConverter<T>::type()),
+      is_optional_(false),
       vertex_col_(*std::dynamic_pointer_cast<IVertexColumn>(ctx.get(tag))) {
   int max_label_num = std::numeric_limits<label_t>::max() + 1;
   property_columns_.resize(max_label_num);
@@ -154,8 +163,11 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
     return std::make_shared<EdgePropertyEdgeAccessor<type>>(graph, prop_name);
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
+  case DataTypeId::kVarchar:
+    return std::make_shared<EdgePropertyEdgeAccessor<std::string_view>>(
+        graph, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type.id());
   }
@@ -175,12 +187,10 @@ template class ContextValueAccessor<int64_t>;
 template class ContextValueAccessor<int32_t>;
 template class ContextValueAccessor<uint32_t>;
 template class ContextValueAccessor<uint64_t>;
-template class ContextValueAccessor<std::string_view>;
+template class ContextValueAccessor<std::string>;
 template class ContextValueAccessor<DateTime>;
 template class ContextValueAccessor<Date>;
 template class ContextValueAccessor<bool>;
-template class ContextValueAccessor<Tuple>;
-template class ContextValueAccessor<List>;
 template class ContextValueAccessor<Interval>;
 
 template class VertexPropertyVertexAccessor<int64_t>;

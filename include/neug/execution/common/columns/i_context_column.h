@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/execution/common/types/value.h"
 
 #include "glog/logging.h"
 
@@ -98,10 +98,9 @@ class SigColumn<DateTime> : public ISigColumn {
 };
 
 template <>
-class SigColumn<VertexRecord> : public ISigColumn {
+class SigColumn<vertex_t> : public ISigColumn {
  public:
-  explicit SigColumn(const std::vector<VertexRecord>& data)
-      : data_(data.data()) {}
+  explicit SigColumn(const std::vector<vertex_t>& data) : data_(data.data()) {}
   ~SigColumn() = default;
   inline size_t get_sig(size_t idx) const override {
     const auto& v = data_[idx];
@@ -112,14 +111,14 @@ class SigColumn<VertexRecord> : public ISigColumn {
   }
 
  private:
-  const VertexRecord* data_;
+  const vertex_t* data_;
 };
 
 template <>
-class SigColumn<std::string_view> : public ISigColumn {
+class SigColumn<std::string> : public ISigColumn {
  public:
-  explicit SigColumn(const std::vector<std::string_view>& data) {
-    std::unordered_map<std::string_view, size_t> table;
+  explicit SigColumn(const std::vector<std::string>& data) {
+    std::unordered_map<std::string, size_t> table;
     sig_list_.reserve(data.size());
     for (auto& str : data) {
       auto iter = table.find(str);
@@ -140,7 +139,6 @@ class SigColumn<std::string_view> : public ISigColumn {
 };
 
 class IContextColumnBuilder;
-class IOptionalContextColumnBuilder;
 
 class IContextColumn {
  public:
@@ -175,9 +173,9 @@ class IContextColumn {
     return nullptr;
   }
 
-  virtual RTAny get_elem(size_t idx) const {
+  virtual Value get_elem(size_t idx) const {
     LOG(FATAL) << "not implemented for " << this->column_info();
-    return RTAny();
+    return Value(elem_type());
   }
 
   virtual bool has_value(size_t idx) const { return true; }
@@ -206,10 +204,6 @@ class IContextColumn {
     LOG(INFO) << "order by limit not implemented for " << this->column_info();
     return false;
   }
-
-  virtual std::shared_ptr<Arena> get_arena() const { return nullptr; }
-
-  virtual void set_arena(const std::shared_ptr<Arena>& arena) {}
 };
 
 class IContextColumnBuilder {
@@ -218,19 +212,12 @@ class IContextColumnBuilder {
   virtual ~IContextColumnBuilder() = default;
 
   virtual void reserve(size_t size) = 0;
-  virtual void push_back_elem(const RTAny& val) = 0;
+  virtual void push_back_elem(const Value& val) = 0;
+  virtual void push_back_null() {
+    LOG(FATAL) << "push_back_null not implemented";
+  }
 
   virtual std::shared_ptr<IContextColumn> finish() = 0;
-
-  virtual void set_arena(const std::shared_ptr<Arena>& arena) {}
-};
-
-class IOptionalContextColumnBuilder : public IContextColumnBuilder {
- public:
-  IOptionalContextColumnBuilder() = default;
-  virtual ~IOptionalContextColumnBuilder() = default;
-
-  virtual void push_back_null() = 0;
 };
 
 }  // namespace runtime

@@ -18,7 +18,6 @@
 
 #include "neug/compiler/function/function.h"
 #include "neug/execution/execute/operator.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 #include "neug/compiler/function/neug_call_function.h"
 

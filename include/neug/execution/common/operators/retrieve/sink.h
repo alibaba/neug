@@ -14,16 +14,17 @@
  */
 #pragma once
 
-#include <limits>
-#include <string>
-
-#include "neug/execution/common/context.h"
-#include "neug/utils/app_utils.h"
-#include "neug/utils/runtime/rt_any.h"
-
+namespace results {
+class CollectiveResults;
+}  // namespace results
 namespace gs {
+
+class Encoder;
+class StorageReadInterface;
+
 namespace runtime {
 
+class Context;
 class Sink {
  public:
   static results::CollectiveResults sink(const Context& ctx,

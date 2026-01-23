@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "neug/execution/execute/operator.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace gs {
 class Schema;

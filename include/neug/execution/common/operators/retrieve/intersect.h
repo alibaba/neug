@@ -14,22 +14,16 @@
  */
 #pragma once
 
-#include <map>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
+#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
-
 namespace gs {
 
 namespace runtime {
-class Context;
 
 void get_labels(
     const EdgeExpandParams& eep, const StorageReadInterface& graph,
@@ -167,7 +161,7 @@ class Intersect {
     std::vector<size_t> offsets;
 
     for (size_t i = 0; i < row_num; ++i) {
-      phmap::flat_hash_map<VertexRecord, uint32_t, VertexRecordHash> vertex_set;
+      phmap::flat_hash_map<VertexRecord, uint32_t> vertex_set;
 
       auto v0 = vertex_col0->get_vertex(i);
       if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {

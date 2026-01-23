@@ -14,20 +14,8 @@
  */
 #pragma once
 
-#include <assert.h>
-#include <glog/logging.h>
-#include <stddef.h>
-#include <limits>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -52,8 +40,8 @@ class IVertexColumn : public IContextColumn {
   virtual VertexColumnType vertex_column_type() const = 0;
   virtual VertexRecord get_vertex(size_t idx) const = 0;
 
-  RTAny get_elem(size_t idx) const override {
-    return RTAny::from_vertex(this->get_vertex(idx));
+  Value get_elem(size_t idx) const override {
+    return Value::VERTEX(this->get_vertex(idx));
   }
 
   __attribute__((always_inline)) const DataType& elem_type() const override {
@@ -73,15 +61,13 @@ class IVertexColumnBuilder : public IContextColumnBuilder {
 
   virtual void push_back_vertex(VertexRecord v) = 0;
 
-  void push_back_elem(const RTAny& val) override {
-    if (val.is_null()) {
+  void push_back_elem(const Value& val) override {
+    if (val.IsNull()) {
       this->push_back_null();
       return;
     }
-    this->push_back_vertex(val.as_vertex());
+    this->push_back_vertex(val.GetValue<VertexRecord>());
   }
-
-  virtual void push_back_null() = 0;
 };
 
 class MSVertexColumnBuilder;

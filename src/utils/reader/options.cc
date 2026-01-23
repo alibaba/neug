@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "neug/generated/proto/plan/basic_type.pb.h"
+#include "neug/utils/arrow_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/reader/type_converter.h"

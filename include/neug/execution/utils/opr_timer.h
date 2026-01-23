@@ -20,8 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include "neug/storages/graph/graph_interface.h"
-
 namespace gs {
 
 namespace runtime {

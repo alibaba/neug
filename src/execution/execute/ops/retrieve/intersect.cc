@@ -23,12 +23,9 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/intersect.h"
-#include "neug/execution/execute/pipeline.h"
-#include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/params.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/predicates.h"
-#include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/utils.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace gs {

@@ -15,27 +15,13 @@
 
 #include "neug/execution/execute/ops/retrieve/vertex.h"
 
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <limits>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/params.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 

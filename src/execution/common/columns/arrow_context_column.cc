@@ -24,8 +24,40 @@
 
 namespace gs {
 namespace runtime {
+DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
+  if (type->Equals(arrow::int64())) {
+    return DataType(DataTypeId::kInt64);
+  } else if (type->Equals(arrow::int32())) {
+    return DataType(DataTypeId::kInt32);
+  } else if (type->Equals(arrow::uint32())) {
+    return DataType(DataTypeId::kUInt32);
+  } else if (type->Equals(arrow::uint64())) {
+    return DataType(DataTypeId::kUInt64);
+  } else if (type->Equals(arrow::float32())) {
+    return DataType(DataTypeId::kFloat);
+  } else if (type->Equals(arrow::float64())) {
+    return DataType(DataTypeId::kDouble);
+  } else if (type->Equals(arrow::boolean())) {
+    return DataType(DataTypeId::kBoolean);
+  } else if (type->Equals(arrow::utf8()) || type->Equals(arrow::large_utf8())) {
+    return DataType(DataTypeId::kVarchar);
+  } else if (type->Equals(arrow::date32())) {
+    return DataType(DataTypeId::kDate);
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::SECOND))) {
+    return DataType(DataTypeId::kTimestampMs);
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MILLI))) {
+    return DataType(DataTypeId::kTimestampMs);
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MICRO))) {
+    return DataType(DataTypeId::kTimestampMs);
+  } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::NANO))) {
+    return DataType(DataTypeId::kTimestampMs);
+  } else {
+    THROW_NOT_SUPPORTED_EXCEPTION("Unexpected arrow type: " + type->ToString());
+  }
+}
 
 namespace {
+
 // Helper function to create an Arrow builder based on Arrow type
 std::unique_ptr<arrow::ArrayBuilder> createArrowBuilder(
     const std::shared_ptr<arrow::DataType>& arrow_type) {
@@ -200,7 +232,7 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
   return col_builder.finish();
 }
 
-RTAny ArrowArrayContextColumn::get_elem(size_t idx) const {
+Value ArrowArrayContextColumn::get_elem(size_t idx) const {
   CHECK(idx < size_) << "Index out of range: " << idx << " >= " << size_;
 
   // Locate the array and offset for the given index.
@@ -212,41 +244,41 @@ RTAny ArrowArrayContextColumn::get_elem(size_t idx) const {
 
   if (arrow_type->Equals(arrow::int64())) {
     auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-    return RTAny::from_int64(casted->Value(offset));
+    return Value::INT64(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::int32())) {
     auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-    return RTAny::from_int32(casted->Value(offset));
+    return Value::INT32(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::uint32())) {
     auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-    return RTAny::from_uint32(casted->Value(offset));
+    return Value::UINT32(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::uint64())) {
     auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-    return RTAny::from_uint64(casted->Value(offset));
+    return Value::UINT64(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::float32())) {
     auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-    return RTAny::from_float(casted->Value(offset));
+    return Value::FLOAT(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::float64())) {
     auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-    return RTAny::from_double(casted->Value(offset));
+    return Value::DOUBLE(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::boolean())) {
     auto casted = std::static_pointer_cast<arrow::BooleanArray>(array);
-    return RTAny::from_bool(casted->Value(offset));
+    return Value::BOOLEAN(casted->Value(offset));
   } else if (arrow_type->Equals(arrow::utf8())) {
     auto casted = std::static_pointer_cast<arrow::StringArray>(array);
     auto str_view = casted->GetView(offset);
-    return RTAny::from_string(str_view);
+    return Value::STRING(std::string(str_view));
   } else if (arrow_type->Equals(arrow::large_utf8())) {
     auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
     auto str_view = casted->GetView(offset);
-    return RTAny::from_string(str_view);
+    return Value::STRING(std::string(str_view));
   } else if (arrow_type->Equals(arrow::date32())) {
     auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
     Date d;
     d.from_num_days(casted->Value(offset));
-    return RTAny::from_date(d);
+    return Value::DATE(d);
   } else if (arrow_type->id() == arrow::Type::TIMESTAMP) {
     auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
-    return RTAny::from_datetime(DateTime(casted->Value(offset)));
+    return Value::TIMESTAMPMS(DateTime(casted->Value(offset)));
   } else {  // todo: support interval type
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());

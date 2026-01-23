@@ -20,40 +20,41 @@
 namespace gs {
 namespace runtime {
 
-std::shared_ptr<IContextColumn> GeneralPathColumn::shuffle(
+std::shared_ptr<IContextColumn> PathColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
     builder.push_back_opt(data_[offset]);
   }
-  builder.set_arena(this->get_arena());
   return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> GeneralPathColumn::optional_shuffle(
+std::shared_ptr<IContextColumn> PathColumn::optional_shuffle(
     const std::vector<size_t>& offsets) const {
-  OptionalGeneralPathColumnBuilder builder;
+  PathColumnBuilder builder(true);
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
     if (offset == std::numeric_limits<size_t>::max()) {
       builder.push_back_null();
     } else {
-      builder.push_back_opt(data_[offset], true);
+      builder.push_back_opt(data_[offset]);
     }
   }
-  builder.set_arena(this->get_arena());
   return builder.finish();
 }
 
-std::shared_ptr<IContextColumn> OptionalGeneralPathColumn::shuffle(
+std::shared_ptr<IContextColumn> OptionalPathColumn::shuffle(
     const std::vector<size_t>& offsets) const {
-  OptionalGeneralPathColumnBuilder builder;
+  PathColumnBuilder builder(true);
   builder.reserve(offsets.size());
   for (auto& offset : offsets) {
-    builder.push_back_opt(data_[offset], valids_[offset]);
+    if (!valids_[offset]) {
+      builder.push_back_null();
+    } else {
+      builder.push_back_opt(data_[offset]);
+    }
   }
-  builder.set_arena(this->get_arena());
   return builder.finish();
 }
 

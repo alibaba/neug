@@ -15,14 +15,6 @@
 
 #include "neug/execution/execute/ops/retrieve/limit.h"
 
-#include <stddef.h>
-#include <algorithm>
-#include <limits>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/limit.h"
 #include "neug/storages/graph/graph_interface.h"

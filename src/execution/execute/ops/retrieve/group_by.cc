@@ -15,39 +15,14 @@
 
 #include "neug/execution/execute/ops/retrieve/group_by.h"
 
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stddef.h>
-#include <algorithm>
-#include <cstdint>
-
-#include <functional>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <set>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <type_traits>
-#include <typeindex>
-#include <unordered_set>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/group_by.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
-#include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
-class Schema;
 
 namespace runtime {
 class OprTimer;
@@ -58,12 +33,10 @@ class GroupByOpr : public IOperator {
  public:
   GroupByOpr(std::vector<common::Variable>&& vars,
              std::vector<std::pair<int, int>>&& mappings,
-             std::vector<physical::GroupBy_AggFunc>&& aggrs,
-             const std::vector<std::pair<int, int>>& dependencies)
+             std::vector<physical::GroupBy_AggFunc>&& aggrs)
       : vars_(std::move(vars)),
         mappings_(std::move(mappings)),
-        aggrs_(std::move(aggrs)),
-        dependencies_(dependencies) {}
+        aggrs_(std::move(aggrs)) {}
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
@@ -74,14 +47,13 @@ class GroupByOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
-                           aggrs_, dependencies_);
+                           aggrs_);
   }
 
  private:
   std::vector<common::Variable> vars_;
   std::vector<std::pair<int, int>> mappings_;
   std::vector<physical::GroupBy_AggFunc> aggrs_;
-  std::vector<std::pair<int, int>> dependencies_;
 };
 
 gs::result<OpBuildResultT> GroupByOprBuilder::Build(
@@ -111,16 +83,15 @@ gs::result<OpBuildResultT> GroupByOprBuilder::Build(
   std::vector<std::pair<int, int>> mappings;
   std::vector<common::Variable> vars;
   std::vector<physical::GroupBy_AggFunc> reduce_funcs;
-  std::vector<std::pair<int, int>> dependencies;
 
-  if (!BuildGroupByUtils(opr, vars, mappings, reduce_funcs, dependencies)) {
+  if (!BuildGroupByUtils(opr, vars, mappings, reduce_funcs)) {
     return std::make_pair(nullptr, ContextMeta());
   }
 
   return std::make_pair(
       std::make_unique<GroupByOpr>(std::move(vars), std::move(mappings),
 
-                                   std::move(reduce_funcs), dependencies),
+                                   std::move(reduce_funcs)),
 
       meta);
 }

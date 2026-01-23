@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
@@ -40,9 +39,12 @@ struct ReadOptions;
 namespace gs {
 class IRecordBatchSupplier;
 class Schema;
-
+class StorageReadInterface;
 namespace runtime {
 class Context;
+class VertexRecord;
+class EdgeRecord;
+class Path;
 
 namespace ops {
 

@@ -24,7 +24,6 @@
 #include "neug/execution/execute/operator.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -32,7 +31,6 @@ class Schema;
 
 namespace runtime {
 class Context;
-class OprTimer;
 
 namespace ops {
 

@@ -22,18 +22,11 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -47,7 +40,12 @@ struct PropertyValueCollector {
     builder.reserve(ctx.row_num());
   }
   void collect(const EXPR& expr, size_t idx) {
-    builder.push_back_opt(expr(idx));
+    auto val = expr(idx);
+    if constexpr (std::is_same_v<decltype(val), std::string_view>) {
+      builder.push_back_opt(std::string(val));
+    } else {
+      builder.push_back_opt(expr(idx));
+    }
   }
   auto get() { return builder.finish(); }
 
@@ -56,7 +54,8 @@ struct PropertyValueCollector {
 
 template <typename VertexColumn, typename T>
 struct SLPropertyExpr {
-  using V = T;
+  using V = std::conditional_t<std::is_same<T, std::string_view>::value,
+                               std::string, T>;
   SLPropertyExpr(const IStorageInterface& igraph, const VertexColumn& column,
                  const std::string& property_name)
       : column(column) {
@@ -78,7 +77,8 @@ struct SLPropertyExpr {
 
 template <typename VertexColumn, typename T>
 struct MLPropertyExpr {
-  using V = T;
+  using V = std::conditional_t<std::is_same<T, std::string_view>::value,
+                               std::string, T>;
   MLPropertyExpr(const IStorageInterface& igraph, const VertexColumn& vertex,
                  const std::string& property_name)
       : vertex(vertex) {
@@ -198,7 +198,8 @@ struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
 
 template <typename VERTEX_COL_PTR, typename SP_PRED_T, typename RESULT_T>
 struct SPOpr {
-  using V = RESULT_T;
+  using V = std::conditional_t<std::is_same<RESULT_T, std::string_view>::value,
+                               std::string, RESULT_T>;
   SPOpr(const VERTEX_COL_PTR& vertex_col, SP_PRED_T&& pred, RESULT_T then_value,
         RESULT_T else_value)
       : vertex_col(vertex_col),
@@ -257,8 +258,13 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
     using T = typename CMP_T::data_t;
     std::vector<T> values;
     for (auto& param_name : param_names_) {
-      values.push_back(
-          TypedConverter<T>::typed_from_string(params.at(param_name)));
+      if constexpr (std::is_same_v<T, std::string_view>) {
+        values.push_back(std::string_view(params.at(param_name).data(),
+                                          params.at(param_name).size()));
+      } else {
+        values.push_back(
+            ValueConverter<T>::typed_from_string(params.at(param_name)));
+      }
     }
     CMP_T cmp;
     cmp.reset(values);
@@ -315,19 +321,16 @@ template <typename T>
 struct ValueCollector {
   struct ExprWrapper {
     using V = T;
-    explicit ExprWrapper(Expr&& expr)
-        : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
+    explicit ExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
     inline T operator()(size_t idx) const {
-      auto val = expr.eval_path(idx, *arena);
-      return TypedConverter<T>::to_typed(val);
+      auto val = expr.eval_path(idx);
+      return val.GetValue<T>();
     }
-
-    mutable std::shared_ptr<Arena> arena;
 
     Expr expr;
   };
   using EXPR = ExprWrapper;
-  ValueCollector(const Context& ctx, const EXPR& expr) : arena_(expr.arena) {
+  ValueCollector(const Context& ctx, const EXPR& expr) {
     builder.reserve(ctx.row_num());
   }
 
@@ -335,16 +338,8 @@ struct ValueCollector {
     auto val = expr(idx);
     builder.push_back_opt(val);
   }
-  auto get() {
-    if constexpr (gs::runtime::is_view_type<T>::value) {
-      builder.set_arena(arena_);
-      return builder.finish();
-    } else {
-      return builder.finish();
-    }
-  }
+  auto get() { return builder.finish(); }
 
-  std::shared_ptr<Arena> arena_;
   ValueColumnBuilder<T> builder;
 };
 
@@ -352,22 +347,19 @@ template <typename T>
 struct OptionalValueCollector {
   struct OptionalExprWrapper {
     using V = std::optional<T>;
-    explicit OptionalExprWrapper(Expr&& expr)
-        : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
+    explicit OptionalExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
     inline std::optional<T> operator()(size_t idx) const {
-      auto val = expr.eval_path(idx, *arena);
-      if (val.is_null()) {
+      auto val = expr.eval_path(idx);
+      if (val.IsNull()) {
         return std::nullopt;
       }
-      return TypedConverter<T>::to_typed(val);
+      return val.GetValue<T>();
     }
 
-    mutable std::shared_ptr<Arena> arena;
     Expr expr;
   };
   using EXPR = OptionalExprWrapper;
-  OptionalValueCollector(const Context& ctx, const EXPR& expr)
-      : arena_(expr.arena) {
+  OptionalValueCollector(const Context& ctx, const EXPR& expr) : builder(true) {
     builder.reserve(ctx.row_num());
   }
 
@@ -376,16 +368,12 @@ struct OptionalValueCollector {
     if (!val.has_value()) {
       builder.push_back_null();
     } else {
-      builder.push_back_opt(*val, true);
+      builder.push_back_opt(*val);
     }
   }
-  auto get() {
-    builder.set_arena(arena_);
-    return builder.finish();
-  }
+  auto get() { return builder.finish(); }
 
-  std::shared_ptr<Arena> arena_;
-  OptionalValueColumnBuilder<T> builder;
+  ValueColumnBuilder<T> builder;
 };
 
 struct VertexExprWrapper {
@@ -393,10 +381,8 @@ struct VertexExprWrapper {
   explicit VertexExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
 
   inline VertexRecord operator()(size_t idx) const {
-    return expr.eval_path(idx, arena).as_vertex();
+    return expr.eval_path(idx).GetValue<vertex_t>();
   }
-
-  mutable Arena arena;
 
   Expr expr;
 };
@@ -430,10 +416,9 @@ struct EdgeCollector {
 
     explicit EdgeExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
     inline EdgeRecord operator()(size_t idx) const {
-      return expr.eval_path(idx, arena).as_edge();
+      return expr.eval_path(idx).GetValue<edge_t>();
     }
 
-    mutable Arena arena;
     Expr expr;
   };
   using EXPR = EdgeExprWrapper;
@@ -448,33 +433,46 @@ struct EdgeCollector {
 
 struct ListCollector {
   struct ListExprWrapper {
-    using V = List;
-    explicit ListExprWrapper(Expr&& expr)
-        : arena(std::make_shared<Arena>()), expr(std::move(expr)) {}
-    inline List operator()(size_t idx) const {
-      return expr.eval_path(idx, *arena).as_list();
-    }
+    using V = Value;
+    explicit ListExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
+    inline Value operator()(size_t idx) const { return expr.eval_path(idx); }
 
-    mutable std::shared_ptr<Arena> arena;
     Expr expr;
   };
   using EXPR = ListExprWrapper;
   ListCollector(const Context& ctx, const EXPR& expr)
-      : builder_(std::make_shared<ListValueColumnBuilder>(
-            dynamic_cast<const ListTypeInfo*>(expr.expr.type().AuxInfo())
-                ->child_type)),
-        arena_(expr.arena) {}
+      : builder_(std::make_shared<ListColumnBuilder>(
+            ListType::GetChildType(expr.expr.type()))) {}
 
   void collect(const EXPR& expr, size_t idx) {
-    builder_->push_back_opt(expr(idx));
+    builder_->push_back_elem(expr(idx));
   }
-  auto get() {
-    builder_->set_arena(arena_);
-    return builder_->finish();
-  }
+  auto get() { return builder_->finish(); }
 
-  std::shared_ptr<ListValueColumnBuilder> builder_;
-  std::shared_ptr<Arena> arena_;
+  std::shared_ptr<ListColumnBuilder> builder_;
+};
+
+struct StructCollector {
+  struct StructExprWrapper {
+    using V = Value;
+    explicit StructExprWrapper(Expr&& expr) : expr(std::move(expr)) {}
+    inline Value operator()(size_t idx) const { return expr.eval_path(idx); }
+
+    Expr expr;
+  };
+  using EXPR = StructExprWrapper;
+  StructCollector(const Context& ctx, const EXPR& expr)
+      : builder_(std::make_shared<StructColumnBuilder>(expr.expr.type())) {}
+  void collect(const EXPR& expr, size_t idx) {
+    auto val = expr(idx);
+    if (val.IsNull()) {
+      builder_->push_back_null();
+    } else {
+      builder_->push_back_elem(val);
+    }
+  }
+  auto get() { return builder_->finish(); }
+  std::shared_ptr<StructColumnBuilder> builder_;
 };
 
 template <typename T>
@@ -493,51 +491,6 @@ static std::unique_ptr<ProjectExprBase> _make_project_expr(Expr&& expr,
     return std::make_unique<ProjectExpr<
         typename OptionalValueCollector<T>::EXPR, OptionalValueCollector<T>>>(
         std::move(wexpr), collector, alias);
-  }
-}
-
-inline bool check_identities(const common::Variable& var, int& tag) {
-  if (var.has_property()) {
-    return false;
-  }
-  tag = var.has_tag() ? var.tag().id() : -1;
-
-  return false;
-}
-
-inline void parse_potential_dependencies(const common::Expression& expr,
-                                         std::set<int>& dependencies) {
-  if (expr.operators_size() > 1) {
-    return;
-  }
-  if (expr.operators(0).item_case() == common::ExprOpr::kVar) {
-    auto var = expr.operators(0).var();
-    int tag;
-    if (check_identities(var, tag)) {
-      dependencies.insert(tag);
-    }
-  } else if (expr.operators(0).item_case() == common::ExprOpr::kVars) {
-    int len = expr.operators(0).vars().keys_size();
-    for (int i = 0; i < len; ++i) {
-      auto var = expr.operators(0).vars().keys(i);
-      int tag;
-      if (check_identities(var, tag)) {
-        dependencies.insert(tag);
-      }
-    }
-  } else if (expr.operators(0).item_case() == common::ExprOpr::kCase) {
-    auto opr = expr.operators(0).case_();
-    int when_size = opr.when_then_expressions_size();
-    for (int i = 0; i < when_size; ++i) {
-      auto when = opr.when_then_expressions(i).when_expression();
-      if (when.operators_size() == 1) {
-        parse_potential_dependencies(when, dependencies);
-      }
-    }
-    auto else_expr = opr.else_result_expression();
-    if (else_expr.operators_size() == 1) {
-      parse_potential_dependencies(else_expr, dependencies);
-    }
   }
 }
 
@@ -560,7 +513,7 @@ make_project_expr_without_data_type(
     return _make_project_expr<type>(std::move(e), alias, ctx);
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-  case DataType::VERTEX: {
+  case DataTypeId::kVertex: {
     MLVertexCollector collector;
     collector.builder.reserve(ctx.row_num());
     return std::make_unique<
@@ -575,7 +528,11 @@ make_project_expr_without_data_type(
         EdgeCollector::EXPR(std::move(e)), collector, alias);
   } break;
   case DataTypeId::kStruct: {
-    return _make_project_expr<Tuple>(std::move(e), alias, ctx);
+    StructCollector::EXPR expr(std::move(e));
+    StructCollector collector(ctx, expr);
+    return std::make_unique<
+        ProjectExpr<typename StructCollector::EXPR, StructCollector>>(
+        StructCollector::EXPR(std::move(expr)), collector, alias);
   } break;
   case DataTypeId::kList: {
     ListCollector::EXPR expr(std::move(e));
@@ -612,11 +569,6 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
       FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
 
-    // compiler bug here
-    case DataTypeId::kUnknown: {
-      return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                 params);
-    } break;
     case DataTypeId::kList: {
       return make_project_expr_without_data_type(expr, alias, graph, ctx,
                                                  params);
@@ -707,18 +659,9 @@ inline gs::result<Context> ProjectEvalImpl(
     const std::vector<
         std::tuple<common::Expression, int, std::optional<common::IrDataType>>>&
         exprs_infos,
-    const std::vector<std::pair<int, std::set<int>>>& dependencies,
     bool is_append) {
   std::vector<std::unique_ptr<ProjectExprBase>> exprs;
-  std::vector<std::shared_ptr<Arena>> arenas;
-  if (!dependencies.empty()) {
-    arenas.resize(ctx.col_num(), nullptr);
-    for (size_t i = 0; i < ctx.col_num(); ++i) {
-      if (ctx.get(i)) {
-        arenas[i] = ctx.get(i)->get_arena();
-      }
-    }
-  }
+
   for (size_t i = 0; i < exprs_infos.size(); ++i) {
     const auto& [expr, alias, data_type] = exprs_infos[i];
     exprs.push_back(
@@ -728,20 +671,6 @@ inline gs::result<Context> ProjectEvalImpl(
   auto ret = Project::project(std::move(ctx), exprs, is_append);
   if (!ret) {
     return ret;
-  }
-
-  for (auto& [idx, deps] : dependencies) {
-    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-    auto arena1 = ret.value().get(idx)->get_arena();
-    if (arena1) {
-      arena->emplace_back(std::make_unique<ArenaRef>(arena1));
-    }
-    for (auto& dep : deps) {
-      if (arenas[dep]) {
-        arena->emplace_back(std::make_unique<ArenaRef>(arenas[dep]));
-      }
-    }
-    ret.value().get(idx)->set_arena(arena);
   }
 
   return ret;

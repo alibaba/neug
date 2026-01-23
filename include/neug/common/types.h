@@ -26,6 +26,11 @@
 #include <ostream>
 #include <vector>
 
+namespace common {
+class DataType;
+class IrDataType;
+}  // namespace common
+
 namespace gs {
 enum class DataTypeId : uint8_t {
   kInvalid = 0,
@@ -94,7 +99,7 @@ enum class DataTypeId : uint8_t {
 #define FOR_EACH_DATA_TYPE(M)     \
   FOR_EACH_DATA_TYPE_PRIMITIVE(M) \
   DATA_TYPES_DATETIME(M)          \
-  M(kVarchar, std::string_view)
+  M(kVarchar, std::string)
 
 struct ExtraTypeInfo;
 
@@ -106,8 +111,7 @@ struct DataType {
   DataType(DataType&& other) noexcept;
   ~DataType();
 
-  static DataType Struct(
-      std::vector<std::pair<std::string, DataType>> children);
+  static DataType Struct(std::vector<DataType> children);
   static DataType List(const DataType& child_type);
 
   inline DataTypeId id() const { return id_; }
@@ -151,28 +155,36 @@ struct DataType {
   static constexpr const DataTypeId SQLNULL = DataTypeId::kNull;
   static constexpr const DataTypeId UNKNOWN = DataTypeId::kUnknown;
   static constexpr const DataTypeId BOOLEAN = DataTypeId::kBoolean;
-  static constexpr const DataTypeId TINYINT = DataTypeId::kInt8;
-  static constexpr const DataTypeId SMALLINT = DataTypeId::kInt16;
-  static constexpr const DataTypeId INTEGER = DataTypeId::kInt32;
-  static constexpr const DataTypeId BIGINT = DataTypeId::kInt64;
+  static constexpr const DataTypeId INT8 = DataTypeId::kInt8;
+  static constexpr const DataTypeId INT16 = DataTypeId::kInt16;
+  static constexpr const DataTypeId INT32 = DataTypeId::kInt32;
+  static constexpr const DataTypeId INT64 = DataTypeId::kInt64;
   static constexpr const DataTypeId DATE = DataTypeId::kDate;
   static constexpr const DataTypeId TIMESTAMP_MS = DataTypeId::kTimestampMs;
   static constexpr const DataTypeId FLOAT = DataTypeId::kFloat;
   static constexpr const DataTypeId DOUBLE = DataTypeId::kDouble;
   static constexpr const DataTypeId VARCHAR = DataTypeId::kVarchar;
   static constexpr const DataTypeId INTERVAL = DataTypeId::kInterval;
-  static constexpr const DataTypeId UTINYINT = DataTypeId::kUInt8;
-  static constexpr const DataTypeId USMALLINT = DataTypeId::kUInt16;
-  static constexpr const DataTypeId UINTEGER = DataTypeId::kUInt32;
-  static constexpr const DataTypeId UBIGINT = DataTypeId::kUInt64;
+  static constexpr const DataTypeId UINT8 = DataTypeId::kUInt8;
+  static constexpr const DataTypeId UINT16 = DataTypeId::kUInt16;
+  static constexpr const DataTypeId UINT32 = DataTypeId::kUInt32;
+  static constexpr const DataTypeId UINT64 = DataTypeId::kUInt64;
   static constexpr const DataTypeId VERTEX = DataTypeId::kVertex;
   static constexpr const DataTypeId EDGE = DataTypeId::kEdge;
   static constexpr const DataTypeId PATH = DataTypeId::kPath;
 };
 
+struct ListType {
+  static const DataType& GetChildType(const DataType& type);
+};
 struct StructType {
   static const std::vector<DataType>& GetChildTypes(const DataType& type);
   static const DataType& GetChildType(const DataType& type, size_t index);
   // static const std::string& GetChildName(const DataType& type, size_t index);
 };
+
+DataType parse_from_data_type(const ::common::DataType& ddt);
+
+DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
+
 }  // namespace gs

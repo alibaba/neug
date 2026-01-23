@@ -14,30 +14,10 @@
  */
 #pragma once
 
-#include <glog/logging.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
-#include "neug/execution/common/types.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -145,15 +125,15 @@ class PathExpand {
       in_labels_map[triplet.dst_label].emplace_back(triplet);
     }
     auto dir = params.dir;
-    std::vector<std::pair<PathImpl*, size_t>> input;
-    std::vector<std::pair<PathImpl*, size_t>> output;
+    std::vector<std::pair<Path, size_t>> input;
+    std::vector<std::pair<Path, size_t>> output;
 
-    GeneralPathColumnBuilder builder;
-    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+    PathColumnBuilder builder;
+
     if (dir == Direction::kOut) {
       foreach_vertex(input_vertex_list,
                      [&](size_t index, label_t label, vid_t v) {
-                       auto p = PathImpl::make_path_impl(label, v, *arena);
+                       auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
       int depth = 0;
@@ -161,7 +141,7 @@ class PathExpand {
         output.clear();
         if (depth + 1 < params.hop_upper) {
           for (auto& [path, index] : input) {
-            auto end = path->get_end();
+            auto end = path.end_node();
             for (const auto& label_triplet : out_labels_map[end.label_]) {
               auto oview = graph.GetGenericOutgoingGraphView(
                   end.label_, label_triplet.dst_label,
@@ -171,10 +151,9 @@ class PathExpand {
                 if (pred(end.label_, end.vid_, label_triplet.dst_label,
                          it.get_vertex(), label_triplet.edge_label,
                          Direction::kOut, it.get_data_ptr())) {
-                  PathImpl* new_path =
-                      path->expand(label_triplet.edge_label,
-                                   label_triplet.dst_label, it.get_vertex(),
-                                   Direction::kOut, it.get_data_ptr(), *arena);
+                  Path new_path = path.expand(
+                      label_triplet.edge_label, label_triplet.dst_label,
+                      it.get_vertex(), Direction::kOut, it.get_data_ptr());
                   output.emplace_back(std::move(new_path), index);
                 }
               }
@@ -196,14 +175,13 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      builder.set_arena(arena);
       ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
       return ctx;
     } else if (dir == Direction::kIn) {
       foreach_vertex(input_vertex_list,
                      [&](size_t index, label_t label, vid_t v) {
-                       auto p = PathImpl::make_path_impl(label, v, *arena);
+                       auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
       int depth = 0;
@@ -212,7 +190,7 @@ class PathExpand {
 
         if (depth + 1 < params.hop_upper) {
           for (const auto& [path, index] : input) {
-            auto end = path->get_end();
+            auto end = path.end_node();
             for (const auto& label_triplet : in_labels_map[end.label_]) {
               auto iview = graph.GetGenericIncomingGraphView(
                   end.label_, label_triplet.src_label,
@@ -222,10 +200,9 @@ class PathExpand {
                 if (pred(end.label_, end.vid_, label_triplet.src_label,
                          it.get_vertex(), label_triplet.edge_label,
                          Direction::kIn, it.get_data_ptr())) {
-                  PathImpl* new_path =
-                      path->expand(label_triplet.edge_label,
-                                   label_triplet.src_label, it.get_vertex(),
-                                   Direction::kIn, it.get_data_ptr(), *arena);
+                  Path new_path = path.expand(
+                      label_triplet.edge_label, label_triplet.src_label,
+                      it.get_vertex(), Direction::kIn, it.get_data_ptr());
                   output.emplace_back(std::move(new_path), index);
                 }
               }
@@ -247,7 +224,6 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      builder.set_arena(arena);
       ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
 
       return ctx;
@@ -255,7 +231,7 @@ class PathExpand {
     } else if (dir == Direction::kBoth) {
       foreach_vertex(input_vertex_list,
                      [&](size_t index, label_t label, vid_t v) {
-                       auto p = PathImpl::make_path_impl(label, v, *arena);
+                       auto p = Path(label, v);
                        input.emplace_back(std::move(p), index);
                      });
       int depth = 0;
@@ -263,7 +239,7 @@ class PathExpand {
         output.clear();
         if (depth + 1 < params.hop_upper) {
           for (auto& [path, index] : input) {
-            auto end = path->get_end();
+            auto end = path.end_node();
             for (const auto& label_triplet : out_labels_map[end.label_]) {
               auto oview = graph.GetGenericOutgoingGraphView(
                   end.label_, label_triplet.dst_label,
@@ -273,10 +249,9 @@ class PathExpand {
                 if (pred(end.label_, end.vid_, label_triplet.dst_label,
                          it.get_vertex(), label_triplet.edge_label,
                          Direction::kOut, it.get_data_ptr())) {
-                  PathImpl* new_path =
-                      path->expand(label_triplet.edge_label,
-                                   label_triplet.dst_label, it.get_vertex(),
-                                   Direction::kOut, it.get_data_ptr(), *arena);
+                  Path new_path = path.expand(
+                      label_triplet.edge_label, label_triplet.dst_label,
+                      it.get_vertex(), Direction::kOut, it.get_data_ptr());
                   output.emplace_back(std::move(new_path), index);
                 }
               }
@@ -291,10 +266,9 @@ class PathExpand {
                 if (pred(end.label_, end.vid_, label_triplet.src_label,
                          it.get_vertex(), label_triplet.edge_label,
                          Direction::kIn, it.get_data_ptr())) {
-                  PathImpl* new_path =
-                      path->expand(label_triplet.edge_label,
-                                   label_triplet.src_label, it.get_vertex(),
-                                   Direction::kIn, it.get_data_ptr(), *arena);
+                  Path new_path = path.expand(
+                      label_triplet.edge_label, label_triplet.src_label,
+                      it.get_vertex(), Direction::kIn, it.get_data_ptr());
                   output.emplace_back(std::move(new_path), index);
                 }
               }
@@ -316,7 +290,6 @@ class PathExpand {
         std::swap(input, output);
         ++depth;
       }
-      builder.set_arena(arena);
       ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
       return ctx;
     }
@@ -330,37 +303,34 @@ class PathExpand {
       const PathExpandParams& params, const FUNC_T& weight_func) {
     auto col = ctx.get(params.start_tag);
     auto& input_vertex_list = *std::dynamic_pointer_cast<IVertexColumn>(col);
-    GeneralPathColumnBuilder path_builder;
-    std::shared_ptr<Arena> arena = std::make_shared<Arena>();
+    PathColumnBuilder path_builder;
     std::vector<size_t> shuffle_offset;
     foreach_vertex(input_vertex_list, [&](size_t index, label_t label,
                                           vid_t v) {
-      std::unordered_map<VertexRecord, double, VertexRecordHash> dist;
-      std::unordered_set<VertexRecord, VertexRecordHash> visited;
+      std::unordered_map<VertexRecord, double> dist;
+      std::unordered_set<VertexRecord> visited;
       VertexRecord start_vr(label, v);
       dist[start_vr] = 0;
-      auto cmp = [](PathImpl* a, PathImpl* b) {
-        double wa = a->get_weight();
-        double wb = b->get_weight();
+      auto cmp = [](const Path& a, const Path& b) {
+        double wa = a.get_weight();
+        double wb = b.get_weight();
         return wa > wb;
       };
-      std::priority_queue<PathImpl*, std::vector<PathImpl*>, decltype(cmp)> pq(
-          cmp);
-      PathImpl* root = PathImpl::make_path_impl(label, v, *arena);
-      root->set_weight(0.0);
+      std::priority_queue<Path, std::vector<Path>, decltype(cmp)> pq(cmp);
+      Path root = Path(label, v);
+      root.set_weight(0.0);
       pq.push(root);
       while (!pq.empty()) {
-        PathImpl* path_impl = pq.top();
-
-        label_t label = path_impl->get_end().label_;
-        vid_t cur = path_impl->get_end().vid_;
+        Path path = pq.top();
+        label_t label = path.end_node().label_;
+        vid_t cur = path.end_node().vid_;
         VertexRecord cur_vr(label, cur);
         if (visited.count(cur_vr) > 0) {
           pq.pop();
           continue;
         }
         visited.insert(cur_vr);
-        path_builder.push_back_opt(Path(path_impl));
+        path_builder.push_back_opt(path);
         shuffle_offset.push_back(index);
         pq.pop();
         for (LabelTriplet label_triplet : params.labels) {
@@ -382,14 +352,14 @@ class PathExpand {
               double weight =
                   weight_func(label_triplet, cur, nbr, it.get_data_ptr());
               if (dist.count(nbr_vr) == 0 ||
-                  dist[nbr_vr] > path_impl->get_weight() + weight) {
-                auto new_path_impl = path_impl->expand(
-                    label_triplet.edge_label, label_triplet.dst_label, nbr,
-                    Direction::kOut, it.get_data_ptr(), *arena);
-                new_path_impl->set_weight(path_impl->get_weight() + weight);
-                dist[nbr_vr] = new_path_impl->get_weight() + weight;
+                  dist[nbr_vr] > path.get_weight() + weight) {
+                auto new_path = path.expand(label_triplet.edge_label,
+                                            label_triplet.dst_label, nbr,
+                                            Direction::kOut, it.get_data_ptr());
+                new_path.set_weight(path.get_weight() + weight);
+                dist[nbr_vr] = new_path.get_weight() + weight;
 
-                pq.push(new_path_impl);
+                pq.push(new_path);
               }
             }
           }
@@ -406,21 +376,20 @@ class PathExpand {
               double weight =
                   weight_func(label_triplet, cur, nbr, it.get_data_ptr());
               if (dist.count(nbr_vr) == 0 ||
-                  dist[nbr_vr] > path_impl->get_weight() + weight) {
-                auto new_path_impl = path_impl->expand(
-                    label_triplet.edge_label, label_triplet.src_label, nbr,
-                    Direction::kOut, it.get_data_ptr(), *arena);
-                new_path_impl->set_weight(path_impl->get_weight() + weight);
-                dist[nbr_vr] = new_path_impl->get_weight() + weight;
+                  dist[nbr_vr] > path.get_weight() + weight) {
+                auto new_path = path.expand(label_triplet.edge_label,
+                                            label_triplet.src_label, nbr,
+                                            Direction::kOut, it.get_data_ptr());
+                new_path.set_weight(path.get_weight() + weight);
+                dist[nbr_vr] = new_path.get_weight() + weight;
 
-                pq.push(new_path_impl);
+                pq.push(new_path);
               }
             }
           }
         }
       }
     });
-    path_builder.set_arena(arena);
     ctx.set_with_reshuffle(params.alias, path_builder.finish(), shuffle_offset);
     return ctx;
   }

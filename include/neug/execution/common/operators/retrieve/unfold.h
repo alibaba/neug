@@ -14,13 +14,12 @@
  */
 #pragma once
 
-#include "neug/execution/common/context.h"
-#include "neug/execution/utils/expr.h"
 #include "neug/utils/result.h"
 namespace gs {
 
 namespace runtime {
 class Context;
+class Expr;
 
 class Unfold {
  public:

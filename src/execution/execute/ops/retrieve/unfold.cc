@@ -15,12 +15,6 @@
 
 #include "neug/execution/execute/ops/retrieve/unfold.h"
 
-#include <google/protobuf/wrappers.pb.h>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/unfold.h"
 #include "neug/execution/utils/expr.h"

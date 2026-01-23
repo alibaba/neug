@@ -22,12 +22,10 @@
 #include <string>
 #include <utility>
 
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/dedup.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 class Schema;

@@ -15,27 +15,15 @@
 
 #include "neug/execution/common/operators/retrieve/join.h"
 
-#include <glog/logging.h>
-#include <parallel_hashmap/phmap_base.h>
-#include <stddef.h>
-#include <limits>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <type_traits>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/common/types.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/utils/app_utils.h"
+#include "neug/execution/utils/params.h"
+#include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/encoder.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
-
-// #define DEBUG_JOIN
 
 namespace gs {
 
@@ -54,7 +42,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.right_columns.size(); i++) {
       auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
-      val.encode_sig(val.type(), encoder);
+      encode_value(val, encoder);
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
@@ -67,7 +55,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
-      val.encode_sig(val.type(), encoder);
+      encode_value(val, encoder);
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
@@ -88,7 +76,7 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
 static Context dual_vertex_column_semi_join(Context&& ctx, Context&& ctx2,
                                             const JoinParams& params) {
   size_t right_size = ctx2.row_num();
-  phmap::flat_hash_set<vertex_pair, VertexRecordHash> right_set;
+  phmap::flat_hash_set<vertex_pair> right_set;
   std::vector<size_t> offset;
   auto casted_right_col = std::dynamic_pointer_cast<IVertexColumn>(
       ctx2.get(params.right_columns[0]));
@@ -134,9 +122,8 @@ static Context single_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
   size_t right_size = casted_right_col->size();
 
   if (left_size < right_size) {
-    phmap::flat_hash_set<VertexRecord, VertexRecordHash> left_set;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_set<VertexRecord> left_set;
+    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> right_map;
     for (size_t r_i = 0; r_i < left_size; ++r_i) {
       left_set.emplace(casted_left_col->get_vertex(r_i));
     }
@@ -156,9 +143,8 @@ static Context single_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   } else {
-    phmap::flat_hash_set<VertexRecord, VertexRecordHash> right_set;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>, VertexRecordHash>
-        left_map;
+    phmap::flat_hash_set<VertexRecord> right_set;
+    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> left_map;
     if (right_size != 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         right_set.emplace(casted_right_col->get_vertex(r_i));
@@ -210,9 +196,8 @@ static Context dual_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
   size_t right_size = casted_right_col->size();
 
   if (left_size < right_size) {
-    phmap::flat_hash_set<vertex_pair, VertexRecordHash> left_set;
-    phmap::flat_hash_map<vertex_pair, std::vector<size_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_set<vertex_pair> left_set;
+    phmap::flat_hash_map<vertex_pair, std::vector<size_t>> right_map;
     for (size_t r_i = 0; r_i < left_size; ++r_i) {
       left_set.emplace(casted_left_col->get_vertex(r_i),
                        casted_left_col2->get_vertex(r_i));
@@ -238,9 +223,8 @@ static Context dual_vertex_column_inner_join(Context&& ctx, Context&& ctx2,
       }
     }
   } else {
-    phmap::flat_hash_set<vertex_pair, VertexRecordHash> right_set;
-    phmap::flat_hash_map<vertex_pair, std::vector<size_t>, VertexRecordHash>
-        left_map;
+    phmap::flat_hash_set<vertex_pair> right_set;
+    phmap::flat_hash_map<vertex_pair, std::vector<size_t>> left_map;
     for (size_t r_i = 0; r_i < right_size; ++r_i) {
       auto cur1 = casted_right_col->get_vertex(r_i);
       auto cur2 = casted_right_col2->get_vertex(r_i);
@@ -294,7 +278,7 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.right_columns.size(); i++) {
       auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
-      val.encode_sig(val.type(), encoder);
+      encode_value(val, encoder);
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
@@ -307,7 +291,7 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
-      val.encode_sig(val.type(), encoder);
+      encode_value(val, encoder);
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
@@ -381,9 +365,8 @@ static Context single_vertex_column_left_outer_join(Context&& ctx,
   size_t left_size = casted_left_col->size();
   size_t right_size = casted_right_col->size();
   if (left_size < right_size) {
-    phmap::flat_hash_set<VertexRecord, VertexRecordHash> left_set;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_set<VertexRecord> left_set;
+    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> right_map;
     for (size_t r_i = 0; r_i < left_size; ++r_i) {
       left_set.emplace(casted_left_col->get_vertex(r_i));
     }
@@ -407,8 +390,7 @@ static Context single_vertex_column_left_outer_join(Context&& ctx,
       }
     }
   } else {
-    phmap::flat_hash_map<VertexRecord, std::vector<vid_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_map<VertexRecord, std::vector<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         right_map[casted_right_col->get_vertex(r_i)].emplace_back(r_i);
@@ -462,9 +444,8 @@ static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
   size_t right_size = casted_right_col0->size();
 
   if (left_size < right_size) {
-    phmap::flat_hash_set<vertex_pair, VertexRecordHash> left_set;
-    phmap::flat_hash_map<vertex_pair, std::vector<size_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_set<vertex_pair> left_set;
+    phmap::flat_hash_map<vertex_pair, std::vector<size_t>> right_map;
     for (size_t r_i = 0; r_i < left_size; ++r_i) {
       vertex_pair cur(casted_left_col0->get_vertex(r_i),
                       casted_left_col1->get_vertex(r_i));
@@ -492,8 +473,7 @@ static Context dual_vertex_column_left_outer_join(Context&& ctx, Context&& ctx2,
       }
     }
   } else {
-    phmap::flat_hash_map<vertex_pair, std::vector<vid_t>, VertexRecordHash>
-        right_map;
+    phmap::flat_hash_map<vertex_pair, std::vector<vid_t>> right_map;
     if (left_size > 0) {
       for (size_t r_i = 0; r_i < right_size; ++r_i) {
         vertex_pair cur(casted_right_col0->get_vertex(r_i),
@@ -539,7 +519,7 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
       Encoder encoder(bytes);
       for (size_t i = 0; i < params.right_columns.size(); i++) {
         auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
-        val.encode_sig(val.type(), encoder);
+        encode_value(val, encoder);
         encoder.put_byte('#');
       }
       std::string cur(bytes.begin(), bytes.end());
@@ -555,7 +535,7 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
     Encoder encoder(bytes);
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
-      val.encode_sig(val.type(), encoder);
+      encode_value(val, encoder);
       encoder.put_byte('#');
     }
     std::string cur(bytes.begin(), bytes.end());
@@ -655,7 +635,7 @@ gs::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
   for (label_t label : labels) {
     builder.start_label(label);
     for (size_t i = 0; i < row_num; ++i) {
-      auto any = column->get_elem(i).to_any();
+      auto any = value_to_property(column->get_elem(i));
       vid_t index;
       if (graph.GetVertexIndex(label, any, index)) {
         builder.push_back_opt(index);

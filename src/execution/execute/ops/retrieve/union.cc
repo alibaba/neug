@@ -15,11 +15,6 @@
 
 #include "neug/execution/execute/ops/retrieve/union.h"
 
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/union.h"
 #include "neug/execution/execute/pipeline.h"

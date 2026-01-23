@@ -14,15 +14,6 @@
  */
 #pragma once
 
-#include <limits>
-#include <memory>
-#include <set>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/path_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/predicates.h"
@@ -308,11 +299,11 @@ class GetV {
       required_label[label] = true;
       required_label_set.insert(label);
     }
-    auto& input_path_list = *std::dynamic_pointer_cast<GeneralPathColumn>(col);
+    auto& input_path_list = *std::dynamic_pointer_cast<PathColumn>(col);
 
     MLVertexColumnBuilderOpt builder(required_label_set);
     input_path_list.foreach_path([&](size_t index, const Path& path) {
-      auto [label, vid] = path.get_end();
+      auto [label, vid] = path.end_node();
 
       if (required_label[label] && pred(label, vid)) {
         builder.push_back_vertex({label, vid});

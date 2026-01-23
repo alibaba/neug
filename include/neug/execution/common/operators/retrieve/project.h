@@ -14,19 +14,10 @@
  */
 #pragma once
 
-#include <algorithm>
-#include <map>
-#include <memory>
-#include <set>
-#include <string>
-#include <tuple>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
+#include "neug/utils/top_n_generator.h"
 
 namespace gs {
 
@@ -81,19 +72,28 @@ struct ProjectExpr : public ProjectExprBase {
     }
     using T = typename EXPR::V;
     if constexpr (std::is_same_v<T, Date> || std::is_same_v<T, DateTime> ||
-                  std::is_same_v<T, std::string_view> ||
                   std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||
-                  std::is_same_v<T, double>) {
+                  std::is_same_v<T, double> || std::is_same_v<T, std::string>) {
       if (asc) {
         TopNGenerator<T, TopNAscCmp<T>> generator(limit);
         for (size_t i = 0; i < size; ++i) {
-          generator.push(expr_(i), i);
+          auto val = expr_(i);
+          if constexpr (std::is_same_v<decltype(val), std::string_view>) {
+            generator.push(std::string(val), i);
+          } else {
+            generator.push(val, i);
+          }
         }
         generator.generate_indices(offsets);
       } else {
         TopNGenerator<T, TopNDescCmp<T>> generator(limit);
         for (size_t i = 0; i < size; ++i) {
-          generator.push(expr_(i), i);
+          auto val = expr_(i);
+          if constexpr (std::is_same_v<decltype(val), std::string_view>) {
+            generator.push(std::string(val), i);
+          } else {
+            generator.push(val, i);
+          }
         }
         generator.generate_indices(offsets);
       }

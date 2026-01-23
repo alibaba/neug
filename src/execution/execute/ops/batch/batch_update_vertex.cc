@@ -52,7 +52,6 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
     StorageUpdateInterface& graph,
     const std::map<std::string, std::string>& params, Context&& ctx,
     OprTimer* timer) {
-  Arena arena;
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
@@ -70,7 +69,7 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
 
     Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
-      auto value = expr.eval_path(ind, arena).to_any();
+      auto value = value_to_property(expr.eval_path(ind));
       auto vr = vertex_col->get_vertex(ind);
       auto label_id = vr.label();
       // Restricts: 0. Could not set primary key; 1. Could not set empty

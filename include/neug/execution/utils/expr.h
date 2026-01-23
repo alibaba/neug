@@ -14,20 +14,7 @@
  */
 #pragma once
 
-#include <stddef.h>
-#include <map>
-#include <memory>
-#include <string>
-
 #include "neug/execution/utils/expr_impl.h"
-#include "neug/execution/utils/var.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
-
-namespace common {
-class Expression;
-}  // namespace common
 
 namespace gs {
 
@@ -48,10 +35,10 @@ class Expr {
     }
   }
 
-  RTAny eval_path(size_t idx, Arena&) const;
-  RTAny eval_vertex(label_t label, vid_t v, Arena&) const;
-  RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                  const void* data_ptr, Arena&) const;
+  Value eval_path(size_t idx) const;
+  Value eval_vertex(label_t label, vid_t v) const;
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr) const;
 
   const DataType& type() const;
 
@@ -59,6 +46,25 @@ class Expr {
 
  private:
   std::unique_ptr<ExprBase> expr_;
+};
+
+struct PredWrapper {
+ public:
+  explicit PredWrapper(Expr&& pred) : pred(std::move(pred)) {}
+
+  bool operator()(size_t idx) const { return pred.eval_path(idx).IsTrue(); }
+
+  bool operator()(label_t label, vid_t v) const {
+    return pred.eval_vertex(label, v).IsTrue();
+  }
+
+  bool operator()(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data_ptr) const {
+    return pred.eval_edge(label, src, dst, data_ptr).IsTrue();
+  }
+
+ private:
+  Expr pred;
 };
 
 }  // namespace runtime

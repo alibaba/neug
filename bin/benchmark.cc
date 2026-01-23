@@ -26,6 +26,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/encoder.h"
 
 #include <glog/logging.h>
 #include "cxxopts/cxxopts.hpp"

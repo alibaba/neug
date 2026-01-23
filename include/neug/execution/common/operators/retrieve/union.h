@@ -13,10 +13,7 @@
  * limitations under the License.
  */
 #pragma once
-
 #include <vector>
-
-#include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 
 namespace gs {

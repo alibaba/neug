@@ -16,38 +16,13 @@
 
 #include "neug/execution/execute/ops/retrieve/project.h"
 
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stddef.h>
-#include <cstdint>
-
-#include <functional>
-#include <limits>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <set>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <utility>
-
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/project.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/utils.h"
-#include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
@@ -62,9 +37,8 @@ class ProjectOpr : public IOperator {
   ProjectOpr(const std::vector<std::tuple<common::Expression, int,
                                           std::optional<common::IrDataType>>>&
                  exprs_infos,
-             const std::vector<std::pair<int, std::set<int>>>& dependencies,
              bool is_append)
-      : dependencies_(dependencies), is_append_(is_append) {
+      : is_append_(is_append) {
     is_select_columns_ = true;
     for (auto& expr_info : exprs_infos) {
       int tag = -1;
@@ -135,15 +109,6 @@ class ProjectOpr : public IOperator {
     }
 
     std::vector<std::unique_ptr<ProjectExprBase>> exprs;
-    std::vector<std::shared_ptr<Arena>> arenas;
-    if (!dependencies_.empty()) {
-      arenas.resize(ctx.col_num(), nullptr);
-      for (size_t i = 0; i < ctx.col_num(); ++i) {
-        if (ctx.get(i)) {
-          arenas[i] = ctx.get(i)->get_arena();
-        }
-      }
-    }
 
     for (size_t i = 0; i < expr_builders_.size(); ++i) {
       if (!expr_builders_[i]) {
@@ -164,27 +129,12 @@ class ProjectOpr : public IOperator {
       return ret;
     }
 
-    for (auto& [idx, deps] : dependencies_) {
-      std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-      auto arena1 = ret.value().get(idx)->get_arena();
-      if (arena1) {
-        arena->emplace_back(std::make_unique<ArenaRef>(arena1));
-      }
-      for (auto& dep : deps) {
-        if (arenas[dep]) {
-          arena->emplace_back(std::make_unique<ArenaRef>(arenas[dep]));
-        }
-      }
-      ret.value().get(idx)->set_arena(arena);
-    }
-
     return ret;
   }
 
   std::string get_operator_name() const override { return "ProjectOpr"; }
 
  private:
-  std::vector<std::pair<int, std::set<int>>> dependencies_;
   bool is_append_;
 
   bool is_select_columns_;
@@ -208,7 +158,6 @@ gs::result<OpBuildResultT> ProjectOprBuilder::Build(
     ret_meta = ctx_meta;
   }
 
-  std::vector<std::pair<int, std::set<int>>> dependencies;
   if (plan.plan(op_idx).meta_data_size() == mappings_size) {
     for (int i = 0; i < plan.plan(op_idx).meta_data_size(); ++i) {
       data_types.push_back(plan.plan(op_idx).meta_data(i).type());
@@ -220,11 +169,6 @@ gs::result<OpBuildResultT> ProjectOprBuilder::Build(
         return std::make_pair(nullptr, ret_meta);
       }
       auto expr = m.expr();
-      std::set<int> dependencies_set;
-      parse_potential_dependencies(expr, dependencies_set);
-      if (!dependencies_set.empty()) {
-        dependencies.emplace_back(alias, dependencies_set);
-      }
       expr_infos.emplace_back(expr, alias, data_types[i]);
     }
   } else {
@@ -239,18 +183,13 @@ gs::result<OpBuildResultT> ProjectOprBuilder::Build(
         return std::make_pair(nullptr, ret_meta);
       }
       auto expr = m.expr();
-      std::set<int> dependencies_set;
-      parse_potential_dependencies(expr, dependencies_set);
-      if (!dependencies_set.empty()) {
-        dependencies.emplace_back(alias, dependencies_set);
-      }
+
       expr_infos.emplace_back(expr, alias, std::nullopt);
     }
   }
 
-  return std::make_pair(std::make_unique<ProjectOpr>(std::move(expr_infos),
-                                                     dependencies, is_append),
-                        ret_meta);
+  return std::make_pair(
+      std::make_unique<ProjectOpr>(std::move(expr_infos), is_append), ret_meta);
 }
 
 class ProjectOrderByOprBeta : public IOperator {
@@ -259,12 +198,10 @@ class ProjectOrderByOprBeta : public IOperator {
       const std::vector<std::tuple<common::Expression, int,
                                    std::optional<common::IrDataType>>>&
           exprs_infos,
-      const std::vector<std::pair<int, std::set<int>>>& dependencies,
       const std::set<int>& order_by_keys,
       const std::vector<std::pair<common::Variable, bool>>& order_by_pairs,
       int lower_bound, int upper_bound, const std::pair<int, bool>& first_pair)
       : exprs_infos_(exprs_infos),
-        dependencies_(dependencies),
         order_by_keys_(order_by_keys),
         order_by_pairs_(order_by_pairs),
         lower_bound_(lower_bound),
@@ -281,15 +218,7 @@ class ProjectOrderByOprBeta : public IOperator {
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    std::vector<std::shared_ptr<Arena>> arenas;
-    if (!dependencies_.empty()) {
-      arenas.resize(ctx.col_num(), nullptr);
-      for (size_t i = 0; i < ctx.col_num(); ++i) {
-        if (ctx.get(i)) {
-          arenas[i] = ctx.get(i)->get_arena();
-        }
-      }
-    }
+
     auto cmp_func = [&](const Context& ctx) -> GeneralComparer {
       GeneralComparer cmp;
       for (const auto& pair : order_by_pairs_) {
@@ -351,19 +280,6 @@ class ProjectOrderByOprBeta : public IOperator {
     if (!ret) {
       return ret;
     }
-    for (auto& [idx, deps] : dependencies_) {
-      std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-      auto arena1 = ret.value().get(idx)->get_arena();
-      if (arena1) {
-        arena->emplace_back(std::make_unique<ArenaRef>(arena1));
-      }
-      for (auto& dep : deps) {
-        if (arenas[dep]) {
-          arena->emplace_back(std::make_unique<ArenaRef>(arenas[dep]));
-        }
-      }
-      ret.value().get(idx)->set_arena(arena);
-    }
     return ret;
   }
 
@@ -371,7 +287,6 @@ class ProjectOrderByOprBeta : public IOperator {
   std::vector<
       std::tuple<common::Expression, int, std::optional<common::IrDataType>>>
       exprs_infos_;
-  std::vector<std::pair<int, std::set<int>>> dependencies_;
   std::set<int> order_by_keys_;
   std::vector<std::pair<common::Variable, bool>> order_by_pairs_;
   int lower_bound_, upper_bound_;
@@ -452,7 +367,6 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
     int first_key =
         plan.plan(op_idx + 1).opr().order_by().pairs(0).key().tag().id();
     int first_idx = -1;
-    std::vector<std::pair<int, std::set<int>>> dependencies;
     for (int i = 0; i < mappings_size; ++i) {
       auto& m = plan.plan(op_idx).opr().project().mappings(i);
       int alias = -1;
@@ -468,11 +382,6 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
         return std::make_pair(nullptr, ret_meta);
       }
       auto expr = m.expr();
-      std::set<int> dependencies_set;
-      parse_potential_dependencies(expr, dependencies_set);
-      if (!dependencies_set.empty()) {
-        dependencies.emplace_back(alias, dependencies_set);
-      }
       expr_infos.emplace_back(expr, alias, data_types[i]);
       if (order_by_keys.find(alias) != order_by_keys.end()) {
         index_set.insert(i);
@@ -511,8 +420,8 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
       upper = order_by_opr.limit().upper();
     }
     return std::make_pair(std::make_unique<ProjectOrderByOprBeta>(
-                              std::move(expr_infos), dependencies, index_set,
-                              order_by_pairs, lower, upper, first_tuple),
+                              std::move(expr_infos), index_set, order_by_pairs,
+                              lower, upper, first_tuple),
                           ret_meta);
   } else {
     return std::make_pair(nullptr, ContextMeta());

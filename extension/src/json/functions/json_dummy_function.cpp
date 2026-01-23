@@ -16,8 +16,8 @@
 #include "json/json_dummy_function.h"
 #include <glog/logging.h>
 #include "neug/compiler/function/neug_scalar_function.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/runtime/rt_any.h"
 
 using namespace gs::common;
 using namespace gs::function;
@@ -34,7 +34,8 @@ function_set JsonDummyFunction::getFunctionSet() {
   return functionSet;
 }
 
-RTAny JsonDummyFunction::Exec(Arena& arena, const std::vector<RTAny>& args) {
+runtime::Value JsonDummyFunction::Exec(
+    const std::vector<runtime::Value>& args) {
   if (args.size() != 1) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "JSON_DUMMY: expect exactly 1 argument, got " +
@@ -45,13 +46,10 @@ RTAny JsonDummyFunction::Exec(Arena& arena, const std::vector<RTAny>& args) {
     THROW_EXCEPTION_WITH_FILE_LINE("JSON_DUMMY: input value is not a string");
   }
 
-  std::string s(val.as_string());
-  LOG(INFO) << "[json extension] JSON_DUMMY Exec called, arg='" << s;
+  std::string s(val.GetValue<std::string>());
+  LOG(INFO) << "[json extension] JSON_DUMMY Exec called, arg='" << s << "'";
 
-  auto ptr = StringImpl::make_string_impl(s);
-  auto str_view = ptr->str_view();
-  arena.emplace_back(std::move(ptr));
-  return RTAny::from_string(str_view);
+  return runtime::Value::STRING(s);
 }
 
 }  // namespace extension

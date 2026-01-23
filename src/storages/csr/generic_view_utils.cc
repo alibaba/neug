@@ -14,9 +14,9 @@
  */
 
 #include "neug/storages/csr/generic_view_utils.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"  // For EdgeRecord
 
 namespace gs {
 

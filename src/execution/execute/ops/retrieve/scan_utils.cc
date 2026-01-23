@@ -16,14 +16,7 @@
  */
 
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
-
-#include <glog/logging.h>
-#include <cstdint>
-#include <ostream>
-#include <type_traits>
-#include <utility>
-
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 
 namespace gs {
 namespace runtime {

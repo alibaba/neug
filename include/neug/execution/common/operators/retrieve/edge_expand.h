@@ -14,39 +14,15 @@
  */
 #pragma once
 
-#include <assert.h>
-#include <glog/logging.h>
-#include <stddef.h>
-
-#include <array>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
-
-class OprTimer;
-class IContextColumn;
 
 class EdgeExpand {
  public:
@@ -256,7 +232,7 @@ class EdgeExpand {
                     : graph.GetGenericIncomingGraphView(
                           d1_nbr_label, d2_nbr_label, d2_e_label);
 
-    T1 param = TypedConverter<T1>::typed_from_string(val);
+    T1 param = ValueConverter<T1>::typed_from_string(val);
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);

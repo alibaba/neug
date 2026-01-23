@@ -19,12 +19,8 @@
 #include <string>
 
 #include "neug/execution/common/accessors.h"
-#include "neug/execution/common/context.h"
 #include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace common {
 class Variable;
@@ -32,10 +28,13 @@ class Variable;
 
 namespace gs {
 
+class StorageReadInterface;
+
 namespace runtime {
 class Context;
 class IContextColumnBuilder;
 struct LabelTriplet;
+class IAccessor;
 
 enum class VarType {
   kVertexVar,
@@ -46,9 +45,9 @@ enum class VarType {
 class VarGetterBase {
  public:
   virtual ~VarGetterBase() = default;
-  virtual RTAny eval_path(size_t idx) const = 0;
-  virtual RTAny eval_vertex(label_t label, vid_t v, size_t idx) const = 0;
-  virtual RTAny eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+  virtual Value eval_path(size_t idx) const = 0;
+  virtual Value eval_vertex(label_t label, vid_t v, size_t idx) const = 0;
+  virtual Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                           const void* data_ptr, size_t idx) const = 0;
   virtual std::string name() const = 0;
 };
@@ -61,9 +60,9 @@ class Var {
       const common::Variable& pb, VarType var_type);
   ~Var();
 
-  RTAny get(size_t path_idx) const;
-  RTAny get_vertex(label_t label, vid_t v) const;
-  RTAny get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+  Value get(size_t path_idx) const;
+  Value get_vertex(label_t label, vid_t v) const;
+  Value get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                  const void* data_ptr) const;
 
   const DataType& type() const;

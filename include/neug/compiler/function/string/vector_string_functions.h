@@ -23,7 +23,7 @@
 #pragma once
 
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/execution/common/types/value.h"
 
 namespace gs {
 namespace function {
@@ -65,8 +65,7 @@ struct LowerFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(gs::runtime::Arena& arena,
-                                 const std::vector<gs::runtime::RTAny>& args);
+  static runtime::Value Exec(const std::vector<runtime::Value>& args);
 };
 
 struct ToLowerFunction : public VectorStringFunction {
@@ -86,8 +85,7 @@ struct ReverseFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(gs::runtime::Arena& arena,
-                                 const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
 };
 
 struct StartsWithFunction : public VectorStringFunction {
@@ -101,8 +99,7 @@ struct UpperFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(gs::runtime::Arena& arena,
-                                 const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {

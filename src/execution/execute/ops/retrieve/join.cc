@@ -16,21 +16,14 @@
 #include "neug/execution/execute/ops/retrieve/join.h"
 
 #include <glog/logging.h>
-#include <algorithm>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string>
-#include <type_traits>
-#include <utility>
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/join.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
-#include "neug/execution/utils/utils.h"
+#include "neug/execution/utils/params.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/likely.h"
 

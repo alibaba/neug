@@ -36,8 +36,8 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/runtime/rt_any.h"
 
 using namespace gs::common;
 using namespace gs::binder;
@@ -176,8 +176,8 @@ static void nestedTypesCastExecFunction(
 
 static bool hasImplicitCastList(const LogicalType& srcType,
                                 const LogicalType& dstType) {
-  return CastFunction::hasImplicitCast(ListType::getChildType(srcType),
-                                       ListType::getChildType(dstType));
+  return CastFunction::hasImplicitCast(::ListType::getChildType(srcType),
+                                       ::ListType::getChildType(dstType));
 }
 
 static bool hasImplicitCastArray(const LogicalType& srcType,
@@ -193,12 +193,12 @@ static bool hasImplicitCastArray(const LogicalType& srcType,
 static bool hasImplicitCastArrayToList(const LogicalType& srcType,
                                        const LogicalType& dstType) {
   return CastFunction::hasImplicitCast(ArrayType::getChildType(srcType),
-                                       ListType::getChildType(dstType));
+                                       ::ListType::getChildType(dstType));
 }
 
 static bool hasImplicitCastListToArray(const LogicalType& srcType,
                                        const LogicalType& dstType) {
-  return CastFunction::hasImplicitCast(ListType::getChildType(srcType),
+  return CastFunction::hasImplicitCast(::ListType::getChildType(srcType),
                                        ArrayType::getChildType(dstType));
 }
 
@@ -998,15 +998,14 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
-static runtime::RTAny castFunc(runtime::Arena& arena,
-                               const std::vector<runtime::RTAny>& args) {
+static runtime::Value castFunc(const std::vector<runtime::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));
   }
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
-  auto type = arg1.as_string();
+  auto type = runtime::StringValue::Get(arg1);
 
   if (type == "INT64") {
     return performCast<int64_t>(arg0);
@@ -1017,7 +1016,7 @@ static runtime::RTAny castFunc(runtime::Arena& arena,
   } else if (type == "DOUBLE") {
     return performCast<double>(arg0);
   } else if (type == "STRING") {
-    return performCastToString(arg0, arena);
+    return performCastToString(arg0);
   } else if (type == "DATE") {
     return performCast<gs::Date>(arg0);
   } else if (type == "TIMESTAMP") {
@@ -1030,7 +1029,7 @@ static runtime::RTAny castFunc(runtime::Arena& arena,
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));
   }
-  return runtime::RTAny();
+  return runtime::Value(DataType::SQLNULL);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

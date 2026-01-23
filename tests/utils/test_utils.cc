@@ -15,9 +15,9 @@
 
 #include <gtest/gtest.h>
 
-#include "neug/utils/app_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/bitset.h"
+#include "neug/utils/encoder.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
 

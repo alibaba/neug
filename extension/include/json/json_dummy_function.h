@@ -27,8 +27,7 @@ struct JsonDummyFunction {
 
   static gs::function::function_set getFunctionSet();
 
-  static gs::runtime::RTAny Exec(gs::runtime::Arena& arena,
-                                 const std::vector<gs::runtime::RTAny>& args);
+  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
 };
 
 }  // namespace extension

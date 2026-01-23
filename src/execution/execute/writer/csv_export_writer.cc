@@ -161,14 +161,14 @@ Status CsvExportWriter::Write(
         ofs << delimeter_;
       }
       if (columns_map[j]->column_type() == ContextColumnType::kVertex) {
-        auto vertex = columns_map[j]->get_elem(i).as_vertex();
+        auto vertex = columns_map[j]->get_elem(i).GetValue<vertex_t>();
         LOG(INFO) << "Start write vertex " << vertex.vid_;
         ofs << ops::vertex_to_json_string(vertex.label_, vertex.vid_, graph);
       } else if (columns_map[j]->column_type() == ContextColumnType::kEdge) {
-        auto edge = columns_map[j]->get_elem(i).as_edge();
+        auto edge = columns_map[j]->get_elem(i).GetValue<edge_t>();
         ofs << ops::edge_to_json_string(edge, graph);
       } else if (columns_map[j]->column_type() == ContextColumnType::kPath) {
-        auto path = columns_map[j]->get_elem(i).as_path();
+        auto path = PathValue::Get(columns_map[j]->get_elem(i));
         ofs << ops::path_to_json_string(path, graph);
       } else {
         ofs << columns_map[j]->get_elem(i).to_string();

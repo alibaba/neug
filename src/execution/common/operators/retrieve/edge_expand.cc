@@ -15,22 +15,15 @@
 
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 
-#include <glog/logging.h>
-#include <cstdint>
-
-#include <set>
-#include <string_view>
-
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/execution/utils/predicates.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/storages/csr/mutable_csr.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 
 namespace runtime {
-class IContextColumn;
 
 Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
@@ -153,7 +146,7 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
-  T target = TypedConverter<T>::typed_from_string(target_val_str);
+  T target = ValueConverter<T>::typed_from_string(target_val_str);
   if (config.ptype == SPPredicateType::kPropertyGT) {
     GTCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
@@ -210,7 +203,7 @@ void expand_vertex_ep_cmp_impl(
     MSVertexColumnBuilder& builder, std::vector<size_t>& offsets,
     label_t input_label, label_t nbr_label, label_t edge_label, Direction dir,
     const std::string& cmp_value, SPPredicateType tp) {
-  T cmp_val(TypedConverter<T>::typed_from_string(cmp_value));
+  T cmp_val(ValueConverter<T>::typed_from_string(cmp_value));
   auto view = (dir == Direction::kOut)
                   ? graph.GetGenericOutgoingGraphView(input_label, nbr_label,
                                                       edge_label)

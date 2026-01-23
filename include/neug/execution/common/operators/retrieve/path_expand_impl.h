@@ -15,171 +15,26 @@
  */
 #pragma once
 
-#include <glog/logging.h>
-#include <stddef.h>
-#include <algorithm>
-#include <cstdint>
-
-#include <limits>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <tuple>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
-class IContextColumn;
 
-inline std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex_on_graph_view(const GenericView& view,
                                       const SLVertexColumn& input, int lower,
-                                      int upper) {
-  int input_label = input.label();
-  MSVertexColumnBuilder builder(input_label);
-  std::vector<size_t> offsets;
-  if (upper == lower) {
-    return std::make_pair(builder.finish(), std::move(offsets));
-  }
-  if (upper == 1) {
-    CHECK_EQ(lower, 0);
-    size_t idx = 0;
-    for (auto v : input.vertices()) {
-      builder.push_back_opt(v);
-      offsets.push_back(idx++);
-    }
-    return std::make_pair(builder.finish(), std::move(offsets));
-  }
-  // upper >= 2
-  std::vector<std::pair<vid_t, vid_t>> input_list;
-  std::vector<std::pair<vid_t, vid_t>> output_list;
+                                      int upper);
 
-  {
-    vid_t idx = 0;
-    for (auto v : input.vertices()) {
-      output_list.emplace_back(v, idx++);
-    }
-  }
-  int depth = 0;
-  while (!output_list.empty()) {
-    input_list.clear();
-    std::swap(input_list, output_list);
-    if (depth >= lower && depth < upper) {
-      if (depth == (upper - 1)) {
-        for (auto& pair : input_list) {
-          builder.push_back_opt(pair.first);
-          offsets.push_back(pair.second);
-        }
-      } else {
-        for (auto& pair : input_list) {
-          builder.push_back_opt(pair.first);
-          offsets.push_back(pair.second);
-
-          auto es = view.get_edges(pair.first);
-          for (auto it = es.begin(); it != es.end(); ++it) {
-            output_list.emplace_back(it.get_vertex(), pair.second);
-          }
-        }
-      }
-    } else if (depth < lower) {
-      for (auto& pair : input_list) {
-        auto es = view.get_edges(pair.first);
-        for (auto it = es.begin(); it != es.end(); ++it) {
-          output_list.emplace_back(it.get_vertex(), pair.second);
-        }
-      }
-    }
-    ++depth;
-  }
-
-  return std::make_pair(builder.finish(), std::move(offsets));
-}
-
-inline std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
                                            const GenericView& oview,
                                            const SLVertexColumn& input,
-                                           int lower, int upper) {
-  int input_label = input.label();
-  MSVertexColumnBuilder builder(input_label);
-  std::vector<size_t> offsets;
-  if (upper == lower) {
-    return std::make_pair(builder.finish(), std::move(offsets));
-  }
-  if (upper == 1) {
-    CHECK_EQ(lower, 0);
-    size_t idx = 0;
-    for (auto v : input.vertices()) {
-      builder.push_back_opt(v);
-      offsets.push_back(idx++);
-    }
-    return std::make_pair(builder.finish(), std::move(offsets));
-  }
-  // upper >= 2
-  std::vector<std::pair<vid_t, vid_t>> input_list;
-  std::vector<std::pair<vid_t, vid_t>> output_list;
-
-  {
-    vid_t idx = 0;
-    for (auto v : input.vertices()) {
-      output_list.emplace_back(v, idx++);
-    }
-  }
-  int depth = 0;
-  while (!output_list.empty()) {
-    input_list.clear();
-    std::swap(input_list, output_list);
-    if (depth >= lower && depth < upper) {
-      if (depth == (upper - 1)) {
-        for (auto& pair : input_list) {
-          builder.push_back_opt(pair.first);
-          offsets.push_back(pair.second);
-        }
-      } else {
-        for (auto& pair : input_list) {
-          builder.push_back_opt(pair.first);
-          offsets.push_back(pair.second);
-
-          auto ies = iview.get_edges(pair.first);
-          for (auto it = ies.begin(); it != ies.end(); ++it) {
-            output_list.emplace_back(it.get_vertex(), pair.second);
-          }
-          auto oes = oview.get_edges(pair.first);
-          for (auto it = oes.begin(); it != oes.end(); ++it) {
-            output_list.emplace_back(it.get_vertex(), pair.second);
-          }
-        }
-      }
-    } else if (depth < lower) {
-      for (auto& pair : input_list) {
-        auto ies = iview.get_edges(pair.first);
-        for (auto it = ies.begin(); it != ies.end(); ++it) {
-          output_list.emplace_back(it.get_vertex(), pair.second);
-        }
-        auto oes = oview.get_edges(pair.first);
-        for (auto it = oes.begin(); it != oes.end(); ++it) {
-          output_list.emplace_back(it.get_vertex(), pair.second);
-        }
-      }
-    }
-    ++depth;
-  }
-
-  return std::make_pair(builder.finish(), std::move(offsets));
-}
+                                           int lower, int upper);
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 path_expand_vertex_without_predicate_impl(
@@ -192,8 +47,8 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
               label_t e_label,
               const StorageReadInterface::vertex_set_t& vertices, size_t idx,
               int lower, int upper, MSVertexColumnBuilder& dest_col_builder,
-              GeneralPathColumnBuilder& path_col_builder, Arena& path_impls,
-              std::vector<size_t>& offsets, const PRED_T& pred) {
+              PathColumnBuilder& path_col_builder, std::vector<size_t>& offsets,
+              const PRED_T& pred) {
   std::vector<vid_t> cur;
   std::vector<vid_t> next;
   cur.push_back(v);
@@ -225,9 +80,8 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
             }
 
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
-                                                 edge_datas, path_impls);
-            path_col_builder.push_back_opt(Path(impl));
+            path_col_builder.push_back_opt(
+                Path(v_label, e_label, path, edge_datas));
             offsets.push_back(idx);
           }
         }
@@ -254,9 +108,8 @@ void sssp_dir(const GenericView& view, Direction dir, label_t v_label, vid_t v,
             }
 
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
-                                                 edge_datas, path_impls);
-            path_col_builder.push_back_opt(Path(impl));
+            auto impl = Path(v_label, e_label, path, edge_datas);
+            path_col_builder.push_back_opt(impl);
             offsets.push_back(idx);
           }
           auto es = view.get_edges(u);
@@ -293,9 +146,8 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
                    const StorageReadInterface::vertex_set_t& vertices,
                    size_t idx, int lower, int upper,
                    MSVertexColumnBuilder& dest_col_builder,
-                   GeneralPathColumnBuilder& path_col_builder,
-                   Arena& path_impls, std::vector<size_t>& offsets,
-                   const PRED_T& pred) {
+                   PathColumnBuilder& path_col_builder,
+                   std::vector<size_t>& offsets, const PRED_T& pred) {
   std::vector<vid_t> cur;
   std::vector<vid_t> next;
   cur.push_back(v);
@@ -337,9 +189,8 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
             }
 
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
-                                                 edge_datas, path_impls);
-            path_col_builder.push_back_opt(Path(impl));
+            auto impl = Path(v_label, e_label, path, edge_datas);
+            path_col_builder.push_back_opt(impl);
             offsets.push_back(idx);
           }
         }
@@ -374,11 +225,9 @@ void sssp_both_dir(const GenericView& view0, const GenericView& view1,
                 }
               }
             }
-
             dest_col_builder.push_back_opt(u);
-            auto impl = PathImpl::make_path_impl(v_label, e_label, path,
-                                                 edge_datas, path_impls);
-            path_col_builder.push_back_opt(Path(impl));
+            path_col_builder.push_back_opt(
+                Path(v_label, e_label, path, edge_datas));
             offsets.push_back(idx);
           }
           auto es0 = view0.get_edges(u);
@@ -539,11 +388,10 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
                                  const IVertexColumn& input, label_t e_label,
                                  Direction dir, int lower, int upper,
                                  const PRED_T& pred) {
-  std::shared_ptr<Arena> path_impls = std::make_shared<Arena>();
   label_t v_label = *input.get_labels_set().begin();
   auto vertices = graph.GetVertexSet(v_label);
   MSVertexColumnBuilder dest_col_builder(v_label);
-  GeneralPathColumnBuilder path_col_builder;
+  PathColumnBuilder path_col_builder;
   std::vector<size_t> offsets;
   if (dir == Direction::kIn || dir == Direction::kOut) {
     auto view =
@@ -552,7 +400,7 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
             : graph.GetGenericOutgoingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       sssp_dir(view, dir, label, v, e_label, vertices, idx, lower, upper,
-               dest_col_builder, path_col_builder, *path_impls, offsets, pred);
+               dest_col_builder, path_col_builder, offsets, pred);
     });
   } else {
     CHECK(dir == Direction::kBoth);
@@ -560,11 +408,9 @@ single_source_shortest_path_impl(const StorageReadInterface& graph,
     auto ie_view = graph.GetGenericIncomingGraphView(v_label, v_label, e_label);
     foreach_vertex(input, [&](size_t idx, label_t label, vid_t v) {
       sssp_both_dir(oe_view, ie_view, v_label, v, e_label, vertices, idx, lower,
-                    upper, dest_col_builder, path_col_builder, *path_impls,
-                    offsets, pred);
+                    upper, dest_col_builder, path_col_builder, offsets, pred);
     });
   }
-  path_col_builder.set_arena(path_impls);
   return std::make_tuple(dest_col_builder.finish(), path_col_builder.finish(),
                          std::move(offsets));
 }
@@ -581,7 +427,6 @@ default_single_source_shortest_path_impl(
       label_num);
   const auto& input_labels_set = input.get_labels_set();
   std::set<label_t> dest_labels;
-  std::shared_ptr<Arena> path_impls = std::make_shared<Arena>();
   for (auto& triplet : labels) {
     if (!graph.schema().exist(triplet.src_label, triplet.dst_label,
                               triplet.edge_label)) {
@@ -602,7 +447,7 @@ default_single_source_shortest_path_impl(
       }
     }
   }
-  GeneralPathColumnBuilder path_col_builder;
+  PathColumnBuilder path_col_builder;
   std::vector<size_t> offsets;
 
   std::shared_ptr<IContextColumn> dest_col(nullptr);
@@ -638,10 +483,7 @@ default_single_source_shortest_path_impl(
             std::reverse(path.begin(), path.end());
 
             if (path.size() > 1) {
-              auto impl =
-                  PathImpl::make_path_impl(edge_labels, path, *path_impls);
-
-              path_col_builder.push_back_opt(Path(impl));
+              path_col_builder.push_back_opt(Path(edge_labels, path));
 
               dest_col_builder.push_back_opt(vid);
               offsets.push_back(idx);
@@ -710,9 +552,7 @@ default_single_source_shortest_path_impl(
             std::reverse(path.begin(), path.end());
 
             if (path.size() > 1) {
-              auto impl =
-                  PathImpl::make_path_impl(edge_labels, path, *path_impls);
-              path_col_builder.push_back_opt(Path(impl));
+              path_col_builder.push_back_opt(Path(edge_labels, path));
 
               dest_col_builder.push_back_vertex({v_label, vid});
               offsets.push_back(idx);
@@ -749,7 +589,6 @@ default_single_source_shortest_path_impl(
 
     dest_col = dest_col_builder.finish();
   }
-  path_col_builder.set_arena(path_impls);
   return std::make_tuple(dest_col, path_col_builder.finish(),
                          std::move(offsets));
 }

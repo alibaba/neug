@@ -14,53 +14,18 @@
  */
 #include "neug/execution/execute/ops/retrieve/select.h"
 
-#include <stddef.h>
-#include <stdint.h>
-#include <map>
-#include <memory>
-#include <set>
-#include <string>
-#include <type_traits>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/select.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
 class OprTimer;
 
 namespace ops {
-
-struct ExprWrapper {
-  explicit ExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
-
-  bool operator()(size_t idx, Arena& arena) const {
-    return expr_.eval_path(idx, arena).as_bool();
-  }
-
-  Expr expr_;
-};
-
-struct OptionalExprWrapper {
-  explicit OptionalExprWrapper(Expr&& expr) : expr_(std::move(expr)) {}
-
-  bool operator()(size_t idx, Arena& arena) const {
-    auto val = expr_.eval_path(idx, arena);
-    return (!val.is_null()) && val.as_bool();
-  }
-
-  Expr expr_;
-};
 
 class SelectIdNeOpr : public IOperator {
  public:
@@ -108,19 +73,9 @@ class SelectIdNeOpr : public IOperator {
       graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
     }
     Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
-    Arena arena;
+    PredWrapper expr_wrapper(std::move(expr));
 
-    if (!expr.is_optional()) {
-      ExprWrapper wrapper(std::move(expr));
-      return Select::select(std::move(ctx), [&wrapper, &arena](size_t i) {
-        return wrapper(i, arena);
-      });
-    } else {
-      OptionalExprWrapper wrapper(std::move(expr));
-      return Select::select(std::move(ctx), [&wrapper, &arena](size_t i) {
-        return wrapper(i, arena);
-      });
-    }
+    return Select::select(std::move(ctx), expr_wrapper);
   }
   common::Expression expr_;
 };
@@ -140,18 +95,8 @@ class SelectOpr : public IOperator {
       graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
     }
     Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
-    Arena arena;
-    if (!expr.is_optional()) {
-      ExprWrapper wrapper(std::move(expr));
-      return Select::select(std::move(ctx), [&wrapper, &arena](size_t i) {
-        return wrapper(i, arena);
-      });
-    } else {
-      OptionalExprWrapper wrapper(std::move(expr));
-      return Select::select(std::move(ctx), [&wrapper, &arena](size_t i) {
-        return wrapper(i, arena);
-      });
-    }
+    PredWrapper expr_wrapper(std::move(expr));
+    return Select::select(std::move(ctx), expr_wrapper);
   }
 
  private:

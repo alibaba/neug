@@ -15,9 +15,6 @@
 #pragma once
 
 #include <algorithm>
-#include <queue>
-#include <utility>
-#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"

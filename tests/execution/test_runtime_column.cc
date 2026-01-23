@@ -37,7 +37,7 @@ class VertexColumnTest : public ::testing::Test {
   std::shared_ptr<SLVertexColumn> build_sl_vertex_column(label_t label,
                                                          bool is_optional) {
     MSVertexColumnBuilder col_builder(label);
-    col_builder.push_back_elem(RTAny::from_vertex(VertexRecord(label, kVid0)));
+    col_builder.push_back_elem(Value::VERTEX(VertexRecord(label, kVid0)));
     col_builder.push_back_vertex(VertexRecord(label, kVid1));
     if (is_optional) {
       col_builder.push_back_null();
@@ -388,7 +388,7 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnOptional) {
   LabelTriplet label = {2, 3, 2};
   SDSLEdgeColumnBuilder builder(Direction::kOut, label);
   EdgeRecord e = EdgeRecord{label, kVid1, kVid2, nullptr, Direction::kOut};
-  builder.push_back_elem(RTAny::from_edge(e));
+  builder.push_back_elem(Value::EDGE(e));
   builder.push_back_opt(kVid1, kVid2, nullptr);
   builder.push_back_null();
   auto col_ptr = builder.finish();
@@ -1142,12 +1142,9 @@ TEST_F(EdgeColumnTest, SDSLEdgeColumnDedup) {
 
 class PathColumnTest : public ::testing::Test {};
 
-TEST_F(PathColumnTest, GeneralPathColumnBasic) {
+TEST_F(PathColumnTest, PathColumnBasic) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1159,35 +1156,30 @@ TEST_F(PathColumnTest, GeneralPathColumnBasic) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
 
   builder.push_back_opt(p1);
-  builder.push_back_elem(RTAny::from_path(p2));
-  auto col = std::dynamic_pointer_cast<GeneralPathColumn>(builder.finish());
+  builder.push_back_elem(Value::PATH(p2));
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
-  EXPECT_EQ(col->column_info(), "GeneralPathColumn[2]");
+  EXPECT_EQ(col->column_info(), "PathColumn[2]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_EQ(col->size(), 2);
   EXPECT_EQ(col->get_path(0), p1);
   EXPECT_EQ(col->get_path(1), p2);
-  EXPECT_EQ(col->get_path_length(0), 2);
+  EXPECT_EQ(col->path_length(0), 2);
 
-  RTAny elem0 = col->get_elem(0);
-  EXPECT_EQ(elem0.as_path(), p1);
+  Value elem0 = col->get_elem(0);
+  EXPECT_EQ(PathValue::Get(elem0), p1);
 }
 
-TEST_F(PathColumnTest, GeneralPathColumnShuffle) {
+TEST_F(PathColumnTest, PathColumnShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1199,12 +1191,10 @@ TEST_F(PathColumnTest, GeneralPathColumnShuffle) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
   builder.push_back_opt(p1);
   builder.push_back_opt(p2);
   auto base_col = builder.finish();
@@ -1213,16 +1203,13 @@ TEST_F(PathColumnTest, GeneralPathColumnShuffle) {
   auto shuffled = base_col->shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 2);
 
-  EXPECT_EQ(shuffled->get_elem(1).as_path(), p1);
-  EXPECT_EQ(shuffled->get_elem(0).as_path(), p2);
+  EXPECT_EQ(PathValue::Get(shuffled->get_elem(1)), p1);
+  EXPECT_EQ(PathValue::Get(shuffled->get_elem(0)), p2);
 }
 
-TEST_F(PathColumnTest, GeneralPathColumnOptionalShuffle) {
+TEST_F(PathColumnTest, PathColumnOptionalShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1234,12 +1221,10 @@ TEST_F(PathColumnTest, GeneralPathColumnOptionalShuffle) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
   builder.push_back_opt(p1);
   builder.push_back_opt(p2);
   auto base_col = builder.finish();
@@ -1248,7 +1233,7 @@ TEST_F(PathColumnTest, GeneralPathColumnOptionalShuffle) {
   auto shuffled = base_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
-  auto opt_col = std::dynamic_pointer_cast<OptionalGeneralPathColumn>(shuffled);
+  auto opt_col = std::dynamic_pointer_cast<OptionalPathColumn>(shuffled);
   ASSERT_NE(opt_col, nullptr);
   EXPECT_TRUE(opt_col->has_value(0));
   EXPECT_FALSE(opt_col->has_value(1));
@@ -1258,12 +1243,9 @@ TEST_F(PathColumnTest, GeneralPathColumnOptionalShuffle) {
   EXPECT_EQ(opt_col->get_path(2), p1);
 }
 
-TEST_F(PathColumnTest, GeneralPathColumnDedup) {
+TEST_F(PathColumnTest, PathColumnDedup) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1275,17 +1257,15 @@ TEST_F(PathColumnTest, GeneralPathColumnDedup) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
   builder.push_back_opt(p1);
   builder.push_back_opt(p1);
   builder.push_back_opt(p2);
   builder.push_back_opt(p2);
-  auto col = std::dynamic_pointer_cast<GeneralPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   std::vector<size_t> offsets;
   col->generate_dedup_offset(offsets);
@@ -1299,12 +1279,9 @@ TEST_F(PathColumnTest, GeneralPathColumnDedup) {
   EXPECT_EQ(unique.size(), 2);
 }
 
-TEST_F(PathColumnTest, OptionalGeneralPathColumnBasic) {
+TEST_F(PathColumnTest, OptionalPathColumnBasic) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1316,22 +1293,19 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnBasic) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  OptionalGeneralPathColumnBuilder builder;
-  builder.push_back_opt(p1, true);
-  builder.push_back_opt(p2, false);
-  builder.push_back_elem(RTAny::from_path(p2));
+  PathColumnBuilder builder(true);
+  builder.push_back_opt(p1);
+  builder.push_back_null();
+  builder.push_back_elem(Value::PATH(p2));
 
-  auto col =
-      std::dynamic_pointer_cast<OptionalGeneralPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalGeneralPathColumn[3]");
+  EXPECT_EQ(col->column_info(), "OptionalPathColumn[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kPath);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_TRUE(col->is_optional());
@@ -1339,16 +1313,14 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnBasic) {
   EXPECT_FALSE(col->has_value(1));
   EXPECT_TRUE(col->has_value(2));
 
-  EXPECT_EQ(col->get_elem(0).as_path(), p1);
-  EXPECT_TRUE(col->get_elem(1).is_null());
-  EXPECT_EQ(col->get_elem(2).as_path(), p2);
+  EXPECT_EQ(PathValue::Get(col->get_elem(0)), p1);
+  EXPECT_TRUE(col->get_elem(1).IsNull());
+  EXPECT_EQ(PathValue::Get(col->get_elem(2)), p2);
 }
 
-TEST_F(PathColumnTest, OptionalGeneralPathColumnShuffle) {
+TEST_F(PathColumnTest, OptionalPathColumnShuffle) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls = std::make_shared<Arena>();
 
   std::vector<vid_t> vids = {1, 2, 3};
   std::vector<std::pair<Direction, const void*>> edge_datas;
@@ -1356,19 +1328,18 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnShuffle) {
     edge_datas.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p = Path(PathImpl::make_path_impl(v_label, e_label, vids, edge_datas,
-                                         *path_impls));
+  Path p(v_label, e_label, vids, edge_datas);
 
-  OptionalGeneralPathColumnBuilder builder;
-  builder.push_back_opt(p, true);
+  PathColumnBuilder builder(true);
+  builder.push_back_opt(p);
   builder.push_back_null();
 
   auto base_col =
-      std::dynamic_pointer_cast<OptionalGeneralPathColumn>(builder.finish());
+      std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
 
   std::vector<size_t> offsets = {1, 0};
   auto shuffled = base_col->shuffle(offsets);
-  auto opt_col = std::dynamic_pointer_cast<OptionalGeneralPathColumn>(shuffled);
+  auto opt_col = std::dynamic_pointer_cast<OptionalPathColumn>(shuffled);
 
   ASSERT_NE(opt_col, nullptr);
   EXPECT_FALSE(opt_col->has_value(0));
@@ -1376,11 +1347,9 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnShuffle) {
   EXPECT_EQ(opt_col->get_path(1), p);
 }
 
-TEST_F(PathColumnTest, OptionalGeneralPathColumnPushBackNull) {
+TEST_F(PathColumnTest, OptionalPathColumnPushBackNull) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls = std::make_shared<Arena>();
 
   std::vector<vid_t> vids = {1, 2, 3};
   std::vector<std::pair<Direction, const void*>> edge_datas;
@@ -1388,15 +1357,13 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnPushBackNull) {
     edge_datas.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p = Path(PathImpl::make_path_impl(v_label, e_label, vids, edge_datas,
-                                         *path_impls));
+  Path p(v_label, e_label, vids, edge_datas);
 
-  OptionalGeneralPathColumnBuilder builder;
-  builder.push_back_opt(p, true);
+  PathColumnBuilder builder(true);
+  builder.push_back_opt(p);
   builder.push_back_null();
 
-  auto col =
-      std::dynamic_pointer_cast<OptionalGeneralPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 2);
@@ -1404,12 +1371,9 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnPushBackNull) {
   EXPECT_FALSE(col->has_value(1));
 }
 
-TEST_F(PathColumnTest, GeneralPathColumnForeach) {
+TEST_F(PathColumnTest, PathColumnForeach) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1421,15 +1385,13 @@ TEST_F(PathColumnTest, GeneralPathColumnForeach) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  GeneralPathColumnBuilder builder;
+  PathColumnBuilder builder;
   builder.push_back_opt(p1);
   builder.push_back_opt(p2);
-  auto col = std::dynamic_pointer_cast<GeneralPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   std::vector<Path> collected;
   col->foreach_path(
@@ -1440,12 +1402,9 @@ TEST_F(PathColumnTest, GeneralPathColumnForeach) {
   EXPECT_EQ(collected[1], p2);
 }
 
-TEST_F(PathColumnTest, OptionalGeneralPathColumnForeach) {
+TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   label_t v_label = 0;
   label_t e_label = 1;
-
-  std::shared_ptr<Arena> path_impls1 = std::make_shared<Arena>();
-  std::shared_ptr<Arena> path_impls2 = std::make_shared<Arena>();
 
   std::vector<vid_t> vids1 = {1, 2, 3};
   std::vector<vid_t> vids2 = {4, 5};
@@ -1457,17 +1416,14 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnForeach) {
     edge_datas2.emplace_back(std::make_pair(Direction::kOut, nullptr));
   }
 
-  Path p1 = Path(PathImpl::make_path_impl(v_label, e_label, vids1, edge_datas1,
-                                          *path_impls1));
-  Path p2 = Path(PathImpl::make_path_impl(v_label, e_label, vids2, edge_datas2,
-                                          *path_impls2));
+  Path p1(v_label, e_label, vids1, edge_datas1);
+  Path p2(v_label, e_label, vids2, edge_datas2);
 
-  OptionalGeneralPathColumnBuilder builder;
-  builder.push_back_opt(p1, true);
-  builder.push_back_opt(p2, false);
+  PathColumnBuilder builder(true);
+  builder.push_back_opt(p1);
+  builder.push_back_null();
 
-  auto col =
-      std::dynamic_pointer_cast<OptionalGeneralPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
 
   std::vector<std::pair<size_t, Path>> collected;
   col->foreach_path(
@@ -1476,7 +1432,7 @@ TEST_F(PathColumnTest, OptionalGeneralPathColumnForeach) {
   // foreach_path iterates over all, regardless of validity
   ASSERT_EQ(collected.size(), 2);
   EXPECT_EQ(collected[0].second, p1);
-  EXPECT_EQ(collected[1].second, p2);  // even though it's marked invalid
+  // EXPECT_EQ(collected[1].second, p2);  // even though it's marked invalid
 }
 
 class ArrowContextColumnTest : public ::testing::Test {

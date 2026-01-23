@@ -14,16 +14,8 @@
  */
 #pragma once
 
-#include <glog/logging.h>
-#include <stddef.h>
-#include <memory>
-#include <ostream>
-#include <string>
-#include <vector>
-
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 namespace runtime {
@@ -33,20 +25,20 @@ class IPathColumn : public IContextColumn {
   IPathColumn() = default;
   virtual ~IPathColumn() = default;
   virtual const Path& get_path(size_t idx) const = 0;
-  virtual int get_path_length(size_t idx) const {
-    return get_path(idx).len() - 1;
+  virtual int path_length(size_t idx) const {
+    return get_path(idx).length() - 1;
   }
 };
 
-class GeneralPathColumnBuilder;
+class PathColumnBuilder;
 
-class GeneralPathColumn : public IPathColumn {
+class PathColumn : public IPathColumn {
  public:
-  GeneralPathColumn() : type_(DataType(DataTypeId::kPath)) {}
-  ~GeneralPathColumn() {}
+  PathColumn() : type_(DataType(DataTypeId::kPath)) {}
+  ~PathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
-    return "GeneralPathColumn[" + std::to_string(size()) + "]";
+    return "PathColumn[" + std::to_string(size()) + "]";
   }
   inline ContextColumnType column_type() const override {
     return ContextColumnType::kPath;
@@ -57,7 +49,9 @@ class GeneralPathColumn : public IPathColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
   inline const DataType& elem_type() const override { return type_; }
-  inline RTAny get_elem(size_t idx) const override { return RTAny(data_[idx]); }
+  inline Value get_elem(size_t idx) const override {
+    return Value::PATH(data_[idx]);
+  }
   inline const Path& get_path(size_t idx) const override { return data_[idx]; }
   ISigColumn* generate_signature() const override {
     LOG(FATAL) << "not implemented for " << this->column_info();
@@ -76,50 +70,19 @@ class GeneralPathColumn : public IPathColumn {
     }
   }
 
-  std::shared_ptr<Arena> get_arena() const override { return arena_; }
-  void set_arena(const std::shared_ptr<Arena>& arena) override {
-    arena_ = arena;
-  }
-
  private:
-  friend class GeneralPathColumnBuilder;
+  friend class PathColumnBuilder;
   std::vector<Path> data_;
-  std::shared_ptr<Arena> arena_;
   DataType type_;
 };
 
-class GeneralPathColumnBuilder : public IContextColumnBuilder {
+class OptionalPathColumn : public IPathColumn {
  public:
-  GeneralPathColumnBuilder() = default;
-  ~GeneralPathColumnBuilder() = default;
-  inline void push_back_opt(const Path& p) { data_.push_back(p); }
-  inline void push_back_elem(const RTAny& val) override {
-    data_.push_back(val.as_path());
-  }
-  void reserve(size_t size) override { data_.reserve(size); }
-
-  void set_arena(const std::shared_ptr<Arena>& arena) override {
-    arena_ = arena;
-  }
-  std::shared_ptr<IContextColumn> finish() override {
-    auto col = std::make_shared<GeneralPathColumn>();
-    col->data_.swap(data_);
-    col->arena_ = arena_;
-    return col;
-  }
-
- private:
-  std::vector<Path> data_;
-  std::shared_ptr<Arena> arena_;
-};
-
-class OptionalGeneralPathColumn : public IPathColumn {
- public:
-  OptionalGeneralPathColumn() : type_(DataType(DataTypeId::kPath)) {}
-  ~OptionalGeneralPathColumn() {}
+  OptionalPathColumn() : type_(DataType(DataTypeId::kPath)) {}
+  ~OptionalPathColumn() {}
   inline size_t size() const override { return data_.size(); }
   std::string column_info() const override {
-    return "OptionalGeneralPathColumn[" + std::to_string(size()) + "]";
+    return "OptionalPathColumn[" + std::to_string(size()) + "]";
   }
   inline ContextColumnType column_type() const override {
     return ContextColumnType::kPath;
@@ -129,11 +92,11 @@ class OptionalGeneralPathColumn : public IPathColumn {
   inline bool is_optional() const override { return true; }
   inline const DataType& elem_type() const override { return type_; }
   inline bool has_value(size_t idx) const override { return valids_[idx]; }
-  inline RTAny get_elem(size_t idx) const override {
+  inline Value get_elem(size_t idx) const override {
     if (!valids_[idx]) {
-      return RTAny(DataType(DataTypeId::kNull));
+      return Value(DataType(DataTypeId::kNull));
     }
-    return RTAny(data_[idx]);
+    return Value::PATH(data_[idx]);
   }
   inline const Path& get_path(size_t idx) const override { return data_[idx]; }
   ISigColumn* generate_signature() const override {
@@ -153,56 +116,55 @@ class OptionalGeneralPathColumn : public IPathColumn {
     }
   }
 
-  std::shared_ptr<Arena> get_arena() const override { return arena_; }
-
-  void set_arena(const std::shared_ptr<Arena>& arena) override {
-    arena_ = arena;
-  }
-
  private:
-  friend class OptionalGeneralPathColumnBuilder;
+  friend class PathColumnBuilder;
   std::vector<Path> data_;
   std::vector<bool> valids_;
-  std::shared_ptr<Arena> arena_;
   DataType type_;
 };
 
-class OptionalGeneralPathColumnBuilder : public IContextColumnBuilder {
+class PathColumnBuilder : public IContextColumnBuilder {
  public:
-  OptionalGeneralPathColumnBuilder() = default;
-  ~OptionalGeneralPathColumnBuilder() = default;
-  inline void push_back_opt(const Path& p, bool valid) {
-    data_.push_back(p);
-    valids_.push_back(valid);
+  PathColumnBuilder(bool is_optional = false) : is_optional_(is_optional) {}
+  ~PathColumnBuilder() = default;
+  inline void push_back_opt(const Path& p) { data_.push_back(p); }
+  inline void push_back_elem(const Value& val) override {
+    data_.push_back(PathValue::Get(val));
   }
-  inline void push_back_elem(const RTAny& val) override {
-    data_.push_back(val.as_path());
-    valids_.push_back(true);
-  }
-  inline void push_back_null() {
-    data_.push_back(Path());
+  void push_back_null() override {
+    if (!is_optional_) {
+      is_optional_ = true;
+      valids_.reserve(data_.capacity());
+    }
+    valids_.resize(data_.size(), true);
     valids_.push_back(false);
+    data_.emplace_back();
   }
   void reserve(size_t size) override {
     data_.reserve(size);
-    valids_.reserve(size);
+    if (is_optional_) {
+      valids_.reserve(size);
+    }
   }
 
-  void set_arena(const std::shared_ptr<Arena>& arena) override {
-    arena_ = arena;
-  }
   std::shared_ptr<IContextColumn> finish() override {
-    auto col = std::make_shared<OptionalGeneralPathColumn>();
-    col->data_.swap(data_);
-    col->valids_.swap(valids_);
-    col->arena_ = arena_;
-    return col;
+    if (is_optional_) {
+      auto col = std::make_shared<OptionalPathColumn>();
+      valids_.resize(data_.size(), true);
+      col->data_.swap(data_);
+      col->valids_.swap(valids_);
+      return col;
+    } else {
+      auto col = std::make_shared<PathColumn>();
+      col->data_.swap(data_);
+      return col;
+    }
   }
 
  private:
-  std::vector<Path> data_;
+  bool is_optional_ = false;
   std::vector<bool> valids_;
-  std::shared_ptr<Arena> arena_;
+  std::vector<Path> data_;
 };
 
 }  // namespace runtime

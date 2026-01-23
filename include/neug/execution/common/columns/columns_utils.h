@@ -18,8 +18,10 @@
 #include <algorithm>
 #include <numeric>
 #include <vector>
+#include "neug/execution/common/columns/i_context_column.h"
 
 namespace gs {
+namespace runtime {
 class ColumnsUtils {
  public:
   template <typename VEC_T>
@@ -80,5 +82,9 @@ class ColumnsUtils {
       }
     }
   }
+
+  static std::shared_ptr<IContextColumnBuilder> create_builder(
+      const DataType& type);
 };
+}  // namespace runtime
 }  // namespace gs

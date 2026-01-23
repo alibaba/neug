@@ -15,31 +15,12 @@
  */
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include <glog/logging.h>
-#include <limits>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <string_view>
-#include <tuple>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-#include "neug/execution/common/types.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
-#include "neug/utils/property/types.h"
 
 namespace gs {
 namespace runtime {
-class IContextColumn;
 
 #define expand_sv_np_ms(v, v_idx, view, builder, offsets) \
   {                                                       \

@@ -15,13 +15,148 @@
 
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 
-#include "neug/storages/csr/mutable_csr.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
 
 namespace runtime {
-class IContextColumn;
+
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+iterative_expand_vertex_on_graph_view(const GenericView& view,
+                                      const SLVertexColumn& input, int lower,
+                                      int upper) {
+  int input_label = input.label();
+  MSVertexColumnBuilder builder(input_label);
+  std::vector<size_t> offsets;
+  if (upper == lower) {
+    return std::make_pair(builder.finish(), std::move(offsets));
+  }
+  if (upper == 1) {
+    CHECK_EQ(lower, 0);
+    size_t idx = 0;
+    for (auto v : input.vertices()) {
+      builder.push_back_opt(v);
+      offsets.push_back(idx++);
+    }
+    return std::make_pair(builder.finish(), std::move(offsets));
+  }
+  // upper >= 2
+  std::vector<std::pair<vid_t, vid_t>> input_list;
+  std::vector<std::pair<vid_t, vid_t>> output_list;
+
+  {
+    vid_t idx = 0;
+    for (auto v : input.vertices()) {
+      output_list.emplace_back(v, idx++);
+    }
+  }
+  int depth = 0;
+  while (!output_list.empty()) {
+    input_list.clear();
+    std::swap(input_list, output_list);
+    if (depth >= lower && depth < upper) {
+      if (depth == (upper - 1)) {
+        for (auto& pair : input_list) {
+          builder.push_back_opt(pair.first);
+          offsets.push_back(pair.second);
+        }
+      } else {
+        for (auto& pair : input_list) {
+          builder.push_back_opt(pair.first);
+          offsets.push_back(pair.second);
+
+          auto es = view.get_edges(pair.first);
+          for (auto it = es.begin(); it != es.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
+          }
+        }
+      }
+    } else if (depth < lower) {
+      for (auto& pair : input_list) {
+        auto es = view.get_edges(pair.first);
+        for (auto it = es.begin(); it != es.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
+        }
+      }
+    }
+    ++depth;
+  }
+
+  return std::make_pair(builder.finish(), std::move(offsets));
+}
+
+std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+iterative_expand_vertex_on_dual_graph_view(const GenericView& iview,
+                                           const GenericView& oview,
+                                           const SLVertexColumn& input,
+                                           int lower, int upper) {
+  int input_label = input.label();
+  MSVertexColumnBuilder builder(input_label);
+  std::vector<size_t> offsets;
+  if (upper == lower) {
+    return std::make_pair(builder.finish(), std::move(offsets));
+  }
+  if (upper == 1) {
+    CHECK_EQ(lower, 0);
+    size_t idx = 0;
+    for (auto v : input.vertices()) {
+      builder.push_back_opt(v);
+      offsets.push_back(idx++);
+    }
+    return std::make_pair(builder.finish(), std::move(offsets));
+  }
+  // upper >= 2
+  std::vector<std::pair<vid_t, vid_t>> input_list;
+  std::vector<std::pair<vid_t, vid_t>> output_list;
+
+  {
+    vid_t idx = 0;
+    for (auto v : input.vertices()) {
+      output_list.emplace_back(v, idx++);
+    }
+  }
+  int depth = 0;
+  while (!output_list.empty()) {
+    input_list.clear();
+    std::swap(input_list, output_list);
+    if (depth >= lower && depth < upper) {
+      if (depth == (upper - 1)) {
+        for (auto& pair : input_list) {
+          builder.push_back_opt(pair.first);
+          offsets.push_back(pair.second);
+        }
+      } else {
+        for (auto& pair : input_list) {
+          builder.push_back_opt(pair.first);
+          offsets.push_back(pair.second);
+
+          auto ies = iview.get_edges(pair.first);
+          for (auto it = ies.begin(); it != ies.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
+          }
+          auto oes = oview.get_edges(pair.first);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            output_list.emplace_back(it.get_vertex(), pair.second);
+          }
+        }
+      }
+    } else if (depth < lower) {
+      for (auto& pair : input_list) {
+        auto ies = iview.get_edges(pair.first);
+        for (auto it = ies.begin(); it != ies.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
+        }
+        auto oes = oview.get_edges(pair.first);
+        for (auto it = oes.begin(); it != oes.end(); ++it) {
+          output_list.emplace_back(it.get_vertex(), pair.second);
+        }
+      }
+    }
+    ++depth;
+  }
+
+  return std::make_pair(builder.finish(), std::move(offsets));
+}
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 path_expand_vertex_without_predicate_impl(

@@ -12,27 +12,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <google/protobuf/wrappers.pb.h>
-#include <array>
-
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/retrieve/edge.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/utils.h"
-#include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {

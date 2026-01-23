@@ -29,9 +29,8 @@
 #include <vector>
 
 #include "neug/execution/common/columns/i_context_column.h"
+#include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/exception/exception.h"
-#include "neug/utils/runtime/rt_any.h"
-
 namespace arrow {
 class DataType;
 class RecordBatch;
@@ -41,6 +40,8 @@ namespace gs {
 class IRecordBatchSupplier;
 
 namespace runtime {
+
+DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
 /**
  * @brief ArrowArrayContextColumn is a context column that holds multiple
@@ -86,7 +87,7 @@ class ArrowArrayContextColumn : public IContextColumn {
     }
     return arrow::null();
   }
-  RTAny get_elem(size_t idx) const override;
+  Value get_elem(size_t idx) const override;
 
   bool has_value(size_t idx) const override { return idx >= 0 && idx < size_; }
 
@@ -110,7 +111,7 @@ class ArrowArrayContextColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow column";
   }
-  void push_back_elem(const RTAny& val) override {
+  void push_back_elem(const Value& val) override {
     LOG(FATAL) << "not implemented for arrow column";
   }
 
@@ -172,7 +173,7 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
-  void push_back_elem(const RTAny& val) override {
+  void push_back_elem(const runtime::Value& val) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
 

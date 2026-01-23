@@ -15,15 +15,10 @@
 
 #include "neug/execution/common/operators/retrieve/unfold.h"
 
-#include <glog/logging.h>
-#include <memory>
-#include <ostream>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
+#include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/utils/expr.h"
 #include "neug/utils/result.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -35,7 +30,7 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
     LOG(ERROR) << "Unfold column type is not list";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list");
   }
-  auto list_col = std::dynamic_pointer_cast<ListValueColumnBase>(col);
+  auto list_col = std::dynamic_pointer_cast<ListColumnBase>(col);
   auto [ptr, offsets] = list_col->unfold();
 
   ctxs.set_with_reshuffle(alias, ptr, offsets);
@@ -44,54 +39,50 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
 }
 
 template <typename T>
-Context unfold_impl(Context&& ctx, int alias, const Expr& key,
-                    std::shared_ptr<Arena> arena) {
+Context unfold_impl(Context&& ctx, int alias, const Expr& key) {
   ValueColumnBuilder<T> builder;
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    RTAny val = key.eval_path(i, *arena);
-    auto list = val.as_list();
-    size_t list_size = list.size();
-    for (size_t j = 0; j < list_size; ++j) {
-      builder.push_back_elem(list.get(j));
+    Value val = key.eval_path(i);
+    const auto& list = ListValue::GetChildren(val);
+    for (const auto& elem : list) {
+      builder.push_back_elem(elem);
       offsets.push_back(i);
     }
   }
   ctx.set_with_reshuffle(alias, builder.finish(), offsets);
   return ctx;
 }
-template <>
-Context unfold_impl<List>(Context&& ctx, int alias, const Expr& key,
-                          std::shared_ptr<Arena> arena) {
-  ValueColumnBuilder<List> builder;
+
+Context unfold_list(Context&& ctx, int alias, const Expr& key) {
+  const auto& elem_type = ListType::GetChildType(key.type());
+
+  ListColumnBuilder builder(ListType::GetChildType(elem_type));
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    RTAny val = key.eval_path(i, *arena);
-    auto list = val.as_list();
-    size_t list_size = list.size();
-    for (size_t j = 0; j < list_size; ++j) {
-      builder.push_back_elem(list.get(j));
+    Value val = key.eval_path(i);
+    const auto& list = ListValue::GetChildren(val);
+    for (const auto& elem : list) {
+      builder.push_back_elem(elem);
       offsets.push_back(i);
     }
   }
-  builder.set_arena(arena);
   ctx.set_with_reshuffle(alias, builder.finish(), offsets);
   return ctx;
 }
 
 gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
-  std::shared_ptr<Arena> arena = std::make_shared<Arena>();
-  auto type = key.eval_path(0, *arena).as_list().elem_type();
+  auto type = ListType::GetChildType(key.type());
   switch (type.id()) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
-    return unfold_impl<type>(std::move(ctxs), alias, key, arena);
+    return unfold_impl<type>(std::move(ctxs), alias, key);
     FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case DataTypeId::kList:
-    return unfold_impl<List>(std::move(ctxs), alias, key, arena);
+    return unfold_list(std::move(ctxs), alias, key);
   default:
     LOG(ERROR) << "Unfold column type is not supported: "
                << static_cast<int>(type.id());

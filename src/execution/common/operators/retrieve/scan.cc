@@ -15,10 +15,6 @@
 
 #include "neug/execution/common/operators/retrieve/scan.h"
 
-#include <glog/logging.h>
-#include <ostream>
-#include <string_view>
-
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 

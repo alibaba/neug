@@ -15,15 +15,6 @@
 
 #include "neug/execution/common/operators/retrieve/intersect.h"
 
-#include <glog/logging.h>
-#include <parallel_hashmap/phmap_base.h>
-#include <stddef.h>
-
-#include <limits>
-#include <memory>
-#include <ostream>
-#include <utility>
-
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/value_columns.h"
@@ -88,7 +79,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
   std::vector<size_t> offsets;
 
   for (size_t i = 0; i < row_num; ++i) {
-    phmap::flat_hash_map<VertexRecord, size_t, VertexRecordHash> vertex_set;
+    phmap::flat_hash_map<VertexRecord, size_t> vertex_set;
     auto v = vertex_cols[0]->get_vertex(i);
     if (eeps[0].dir == Direction::kOut || eeps[0].dir == Direction::kBoth) {
       for (const auto& label_triplet : eeps[0].labels) {
@@ -140,7 +131,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
     }
 
     for (size_t j = 1; j < eeps.size(); ++j) {
-      phmap::flat_hash_map<VertexRecord, size_t, VertexRecordHash> tmp_set;
+      phmap::flat_hash_map<VertexRecord, size_t> tmp_set;
       v = vertex_cols[j]->get_vertex(i);
       if (eeps[j].dir == Direction::kOut || eeps[j].dir == Direction::kBoth) {
         for (const auto& label_triplet : eeps[j].labels) {
@@ -262,8 +253,7 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
         std::tuple<LabelTriplet, vid_t, vid_t, const void*, Direction>;
 
     std::vector<value_t> aux_values;
-    phmap::flat_hash_map<VertexRecord, std::vector<size_t>, VertexRecordHash>
-        vertex_set;
+    phmap::flat_hash_map<VertexRecord, std::vector<size_t>> vertex_set;
 
     auto v0 = vertex_col0->get_vertex(i);
     if (eep0.dir == Direction::kOut || eep0.dir == Direction::kBoth) {

@@ -14,14 +14,14 @@
  */
 #pragma once
 
-#include <vector>
-
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 
 namespace gs {
 
 namespace runtime {
+
+class Expr;
 
 class Select {
  public:

@@ -15,9 +15,6 @@
 
 #include "neug/execution/common/operators/retrieve/limit.h"
 
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/context.h"
 
 namespace gs {

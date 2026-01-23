@@ -25,23 +25,23 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/utils/runtime/rt_any.h"
+#include "neug/execution/common/types/value.h"
 
 using namespace gs::common;
 
 namespace gs {
 namespace function {
 
-static int checkAndGetIndex(const runtime::RTAny& value) {
+static int checkAndGetIndex(const runtime::Value& value) {
   switch (value.type().id()) {
   case gs::DataTypeId::kUInt32:
-    return value.as_uint32();
+    return value.GetValue<uint32_t>();
   case gs::DataTypeId::kInt32:
-    return value.as_int32();
+    return value.GetValue<int32_t>();
   case gs::DataTypeId::kUInt64:
-    return value.as_uint64();
+    return value.GetValue<uint64_t>();
   case gs::DataTypeId::kInt64:
-    return value.as_int64();
+    return value.GetValue<int64_t>();
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the second element should be a integer, "
@@ -50,8 +50,7 @@ static int checkAndGetIndex(const runtime::RTAny& value) {
   }
 }
 
-static runtime::RTAny execFunc(runtime::Arena& arena,
-                               const std::vector<runtime::RTAny>& args) {
+static runtime::Value execFunc(const std::vector<runtime::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): expect exactly 2 argument, got " +
@@ -61,9 +60,9 @@ static runtime::RTAny execFunc(runtime::Arena& arena,
   const auto& arg0 = args[0];
   switch (arg0.type().id()) {
   case gs::DataTypeId::kStruct:
-    return arg0.as_tuple().get(index);
+    return runtime::StructValue::GetChildren(arg0).at(index);
   case gs::DataTypeId::kList:
-    return arg0.as_list().get(index);
+    return runtime::ListValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the first element should be a tuple or a "
@@ -75,7 +74,8 @@ static runtime::RTAny execFunc(runtime::Arena& arena,
 
 static std::unique_ptr<FunctionBindData> bindFunc(
     const ScalarBindFuncInput& input) {
-  const auto& resultType = ListType::getChildType(input.arguments[0]->dataType);
+  const auto& resultType =
+      ::ListType::getChildType(input.arguments[0]->dataType);
   std::vector<LogicalType> paramTypes;
   paramTypes.push_back(input.arguments[0]->getDataType().copy());
   paramTypes.push_back(LogicalType(input.definition->parameterTypeIDs[1]));

@@ -15,30 +15,10 @@
 
 #include "neug/execution/execute/ops/retrieve/scan.h"
 
-#include <glog/logging.h>
-#include <google/protobuf/wrappers.pb.h>
-#include <stddef.h>
-#include <cstdint>
-#include <functional>
-#include <limits>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <set>
-#include <string>
-#include <type_traits>
-#include <utility>
-
-#include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
-#include "neug/execution/utils/expr_impl.h"
+#include "neug/execution/utils/expr.h"
 #include "neug/execution/utils/params.h"
-#include "neug/execution/utils/special_predicates.h"
-#include "neug/execution/utils/var.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
 namespace gs {
@@ -73,19 +53,14 @@ class FilterOidsGPredOpr : public IOperator {
           std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
           oids);
     } else {
-      Arena arena;
       const StorageReadInterface* graph_ptr = nullptr;
       if (graph.readable()) {
         graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
       }
-      auto expr = parse_expression(graph_ptr, ctx, params, pred_.value(),
-                                   VarType::kVertexVar);
-      return Scan::filter_oids(
-          std::move(ctx), graph, params_,
-          [&expr, &arena](label_t label, vid_t vid) {
-            return expr->eval_vertex(label, vid, arena).as_bool();
-          },
-          oids);
+      Expr pred(graph_ptr, ctx, params, pred_.value(), VarType::kVertexVar);
+      PredWrapper predicate_wrapper(std::move(pred));
+      return Scan::filter_oids(std::move(ctx), graph, params_,
+                               predicate_wrapper, oids);
     }
   }
 
@@ -134,7 +109,6 @@ class ScanWithGPredOpr : public IOperator {
       const std::map<std::string, std::string>& params,
       gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
     ctx = Context();
-    Arena arena;
     if (!pred_.has_value()) {
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
         return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
@@ -149,21 +123,15 @@ class ScanWithGPredOpr : public IOperator {
       if (graph.readable()) {
         graph_ptr = dynamic_cast<StorageReadInterface*>(&graph);
       }
-      auto expr = parse_expression(graph_ptr, ctx, params, pred_.value(),
-                                   VarType::kVertexVar);
+      Expr pred(graph_ptr, ctx, params, pred_.value(), VarType::kVertexVar);
+      PredWrapper pred_wrapper(std::move(pred));
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
-        auto ret = Scan::scan_vertex(
-            std::move(ctx), graph, scan_params_,
-            [&expr, &arena](label_t label, vid_t vid) {
-              return expr->eval_vertex(label, vid, arena).as_bool();
-            });
+        auto ret = Scan::scan_vertex(std::move(ctx), graph, scan_params_,
+                                     pred_wrapper);
         return ret;
       } else {
-        auto ret = Scan::scan_vertex_with_limit(
-            std::move(ctx), graph, scan_params_,
-            [&expr, &arena](label_t label, vid_t vid) {
-              return expr->eval_vertex(label, vid, arena).as_bool();
-            });
+        auto ret = Scan::scan_vertex_with_limit(std::move(ctx), graph,
+                                                scan_params_, pred_wrapper);
         return ret;
       }
     }

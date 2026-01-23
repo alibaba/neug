@@ -14,32 +14,17 @@
  */
 
 #pragma once
-
 #include <glog/logging.h>
-#include <stddef.h>
-#include <stdint.h>
-
 #include <iostream>
 #include <memory>
 #include <set>
-#include <string>
-#include <string_view>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/value_columns.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/read_transaction.h"
-#include "neug/utils/property/types.h"
-
 namespace gs {
+class StorageReadInterface;
 
 namespace runtime {
 class IContextColumn;
-template <typename T>
-class ValueColumn;
 
 class Context {
  public:

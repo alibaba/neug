@@ -14,29 +14,11 @@
  */
 #pragma once
 
-#include <assert.h>
-#include <glog/logging.h>
-#include <stddef.h>
-#include <cstdint>
-
-#include <limits>
-#include <map>
-#include <memory>
-#include <ostream>
-#include <set>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/types.h"
+#include "neug/execution/common/types/graph_types.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -55,9 +37,9 @@ class IEdgeColumn : public IContextColumn {
 
   virtual EdgeRecord get_edge(size_t idx) const = 0;
 
-  inline RTAny get_elem(size_t idx) const override {
+  inline Value get_elem(size_t idx) const override {
     auto er = get_edge(idx);
-    return RTAny::from_edge(er);
+    return Value::EDGE(er);
   }
 
   virtual Direction dir() const { return Direction::kBoth; }
@@ -149,8 +131,8 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
   ~SDSLEdgeColumnBuilder() = default;
 
   void reserve(size_t size) override { edges_.reserve(size); }
-  inline void push_back_elem(const RTAny& val) override {
-    const auto& e = val.as_edge();
+  inline void push_back_elem(const Value& val) override {
+    const auto& e = val.GetValue<edge_t>();
     push_back_opt(e.src, e.dst, e.prop);
   }
   inline void push_back_opt(vid_t src, vid_t dst, const void* prop) {
@@ -159,7 +141,7 @@ class SDSLEdgeColumnBuilder : public IContextColumnBuilder {
     edges_.emplace_back(src, dst, prop);
   }
 
-  inline void push_back_null() {
+  inline void push_back_null() override {
     is_optional_ = true;
     edges_.emplace_back(std::numeric_limits<vid_t>::max(),
                         std::numeric_limits<vid_t>::max(), nullptr);
@@ -270,7 +252,7 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { cur_edges_.reserve(size); }
 
-  inline void push_back_elem(const RTAny& val) override {
+  inline void push_back_elem(const Value& val) override {
     LOG(FATAL) << "not implemented for MSEdgeColumnBuilder";
   }
 
@@ -299,7 +281,7 @@ class MSEdgeColumnBuilder : public IContextColumnBuilder {
     cur_edges_.emplace_back(src, dst, prop);
   }
 
-  inline void push_back_null() {
+  inline void push_back_null() override {
     is_optional_ = true;
     cur_edges_.emplace_back(std::numeric_limits<vid_t>::max(),
                             std::numeric_limits<vid_t>::max(), nullptr);
@@ -422,7 +404,7 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { edges_.reserve(size); }
 
-  inline void push_back_elem(const RTAny& val) override {
+  inline void push_back_elem(const Value& val) override {
     LOG(FATAL) << "not implemented for BDSLEdgeColumnBuilder";
   }
 
@@ -433,7 +415,7 @@ class BDSLEdgeColumnBuilder : public IContextColumnBuilder {
     edges_.emplace_back(src, dst, prop, dir);
   }
 
-  inline void push_back_null() {
+  inline void push_back_null() override {
     is_optional_ = true;
     edges_.emplace_back(std::numeric_limits<vid_t>::max(),
                         std::numeric_limits<vid_t>::max(), nullptr,
@@ -533,7 +515,7 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { edges_.reserve(size); }
 
-  inline void push_back_elem(const RTAny& val) override {
+  inline void push_back_elem(const Value& val) override {
     LOG(FATAL) << "not implemented for SDMLEdgeColumnBuilder";
   }
 
@@ -551,7 +533,7 @@ class SDMLEdgeColumnBuilder : public IContextColumnBuilder {
     edges_.emplace_back(label_idx, src, dst, prop);
   }
 
-  inline void push_back_null() {
+  inline void push_back_null() override {
     is_optional_ = true;
     edges_.emplace_back(-1, std::numeric_limits<vid_t>::max(),
                         std::numeric_limits<vid_t>::max(), nullptr);
@@ -651,8 +633,10 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
 
   void reserve(size_t size) override { edges_.reserve(size); }
 
-  inline void push_back_elem(const RTAny& val) override {
-    LOG(FATAL) << "not implemented for BDMLEdgeColumnBuilder";
+  inline void push_back_elem(const Value& val) override {
+    const auto& edge = val.GetValue<edge_t>();
+    insert_label(edge.label);
+    push_back_opt(edge.label, edge.src, edge.dst, edge.prop, edge.dir);
   }
 
   inline void push_back_opt(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -669,7 +653,7 @@ class BDMLEdgeColumnBuilder : public IContextColumnBuilder {
     edges_.emplace_back(label_idx, src, dst, prop, dir);
   }
 
-  inline void push_back_null() {
+  inline void push_back_null() override {
     is_optional_ = true;
     edges_.emplace_back(-1, std::numeric_limits<vid_t>::max(),
                         std::numeric_limits<vid_t>::max(), nullptr,

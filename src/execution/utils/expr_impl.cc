@@ -17,6 +17,7 @@
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 
 #include <time.h>
 
@@ -28,17 +29,16 @@
 namespace gs {
 
 namespace runtime {
-class Context;
+
 struct LabelTriplet;
 
-RTAny VariableExpr::eval_path(size_t idx, Arena&) const {
-  return var_.get(idx);
-}
-RTAny VariableExpr::eval_vertex(label_t label, vid_t v, Arena&) const {
+Value VariableExpr::eval_path(size_t idx) const { return var_.get(idx); }
+
+Value VariableExpr::eval_vertex(label_t label, vid_t v) const {
   return var_.get_vertex(label, v);
 }
-RTAny VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                              const void* data_ptr, Arena&) const {
+Value VariableExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                              const void* data_ptr) const {
   return var_.get_edge(label, src, dst, data_ptr);
 }
 
@@ -51,47 +51,39 @@ LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
       type_(DataType(DataTypeId::kBoolean)) {
   switch (logic) {
   case ::common::Logical::LT: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs < rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs < rhs; };
     break;
   }
   case ::common::Logical::GT: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return rhs < lhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return rhs < lhs; };
     break;
   }
   case ::common::Logical::GE: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(lhs < rhs); };
+    op_ = [](const Value& lhs, const Value& rhs) { return !(lhs < rhs); };
     break;
   }
   case ::common::Logical::LE: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(rhs < lhs); };
+    op_ = [](const Value& lhs, const Value& rhs) { return !(rhs < lhs); };
     break;
   }
   case ::common::Logical::EQ: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs == rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs == rhs; };
     break;
   }
   case ::common::Logical::NE: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return !(lhs == rhs); };
-    break;
-  }
-  case ::common::Logical::AND: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) {
-      return lhs.as_bool() && rhs.as_bool();
-    };
-    break;
-  }
-  case ::common::Logical::OR: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) {
-      return lhs.as_bool() || rhs.as_bool();
-    };
+    op_ = [](const Value& lhs, const Value& rhs) { return !(lhs == rhs); };
     break;
   }
   case ::common::Logical::REGEX: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) {
-      auto lhs_str = std::string(lhs.as_string());
-      auto rhs_str = std::string(rhs.as_string());
+    op_ = [](const Value& lhs, const Value& rhs) {
+      auto lhs_str = std::string(lhs.GetValue<std::string>());
+      auto rhs_str = std::string(rhs.GetValue<std::string>());
       return std::regex_match(lhs_str, std::regex(rhs_str));
     };
+    break;
+  }
+  case ::common::Logical::AND:
+  case ::common::Logical::OR: {
     break;
   }
   default: {
@@ -101,26 +93,25 @@ LogicalExpr::LogicalExpr(std::unique_ptr<ExprBase>&& lhs,
   }
 }
 
-RTAny LogicalExpr::eval_impl(const RTAny& lhs_val, const RTAny& rhs_val) const {
-  if (lhs_val.is_null() || rhs_val.is_null()) {
-    return RTAny(DataType(DataTypeId::kNull));
+Value LogicalExpr::eval_impl(const Value& lhs_val, const Value& rhs_val) const {
+  if (lhs_val.IsNull() || rhs_val.IsNull()) {
+    return Value(DataType::BOOLEAN);
   }
-  return RTAny::from_bool(op_(lhs_val, rhs_val));
+  return Value::BOOLEAN(op_(lhs_val, rhs_val));
 }
 
-RTAny LogicalExpr::eval_path(size_t idx, Arena& arena) const {
-  return eval_impl(lhs_->eval_path(idx, arena), rhs_->eval_path(idx, arena));
+Value LogicalExpr::eval_path(size_t idx) const {
+  return eval_impl(lhs_->eval_path(idx), rhs_->eval_path(idx));
 }
 
-RTAny LogicalExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
-  return eval_impl(lhs_->eval_vertex(label, v, arena),
-                   rhs_->eval_vertex(label, v, arena));
+Value LogicalExpr::eval_vertex(label_t label, vid_t v) const {
+  return eval_impl(lhs_->eval_vertex(label, v), rhs_->eval_vertex(label, v));
 }
 
-RTAny LogicalExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                             const void* data_ptr, Arena& arena) const {
-  return eval_impl(lhs_->eval_edge(label, src, dst, data_ptr, arena),
-                   rhs_->eval_edge(label, src, dst, data_ptr, arena));
+Value LogicalExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                             const void* data_ptr) const {
+  return eval_impl(lhs_->eval_edge(label, src, dst, data_ptr),
+                   rhs_->eval_edge(label, src, dst, data_ptr));
 }
 
 UnaryLogicalExpr::UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr,
@@ -129,43 +120,47 @@ UnaryLogicalExpr::UnaryLogicalExpr(std::unique_ptr<ExprBase>&& expr,
       logic_(logic),
       type_(DataType(DataTypeId::kBoolean)) {}
 
-RTAny UnaryLogicalExpr::eval_path(size_t idx, Arena& arena) const {
-  auto any_val = expr_->eval_path(idx, arena);
+Value UnaryLogicalExpr::eval_path(size_t idx) const {
+  auto any_val = expr_->eval_path(idx);
   if (logic_ == ::common::Logical::NOT) {
-    if (any_val.is_null()) {
-      return RTAny(DataType(DataTypeId::kNull));
+    if (any_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
     }
-    return RTAny::from_bool(!any_val.as_bool());
+    return Value::BOOLEAN(!any_val.GetValue<bool>());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(any_val.type() == DataType::SQLNULL);
+    return Value::BOOLEAN(any_val.IsNull());
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
-  return RTAny::from_bool(false);
+  return Value::BOOLEAN(false);
 }
 
-RTAny UnaryLogicalExpr::eval_vertex(label_t label, vid_t v,
-                                    Arena& arena) const {
-  auto any_val = expr_->eval_vertex(label, v, arena);
+Value UnaryLogicalExpr::eval_vertex(label_t label, vid_t v) const {
+  auto any_val = expr_->eval_vertex(label, v);
   if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(!any_val.as_bool());
+    if (any_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(!any_val.GetValue<bool>());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(any_val.is_null());
+    return Value::BOOLEAN(any_val.IsNull());
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
-  return RTAny::from_bool(false);
+  return Value::BOOLEAN(false);
 }
 
-RTAny UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
-                                  vid_t dst, const void* data_ptr,
-                                  Arena& arena) const {
-  auto any_val = expr_->eval_edge(label, src, dst, data_ptr, arena);
+Value UnaryLogicalExpr::eval_edge(const LabelTriplet& label, vid_t src,
+                                  vid_t dst, const void* data_ptr) const {
+  auto any_val = expr_->eval_edge(label, src, dst, data_ptr);
   if (logic_ == ::common::Logical::NOT) {
-    return RTAny::from_bool(!any_val.as_bool());
+    if (any_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(!any_val.GetValue<bool>());
   } else if (logic_ == ::common::Logical::ISNULL) {
-    return RTAny::from_bool(any_val.is_null());
+    return Value::BOOLEAN(any_val.IsNull());
   }
   LOG(FATAL) << "not support" << static_cast<int>(logic_);
-  return RTAny::from_bool(false);
+  return Value::BOOLEAN(false);
 }
 
 ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
@@ -186,24 +181,24 @@ ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
   }
   switch (arith_) {
   case ::common::Arithmetic::ADD: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs + rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs + rhs; };
     break;
   }
   case ::common::Arithmetic::SUB: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs - rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs - rhs; };
     break;
   }
   case ::common::Arithmetic::DIV: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs / rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs / rhs; };
     break;
   }
   case ::common::Arithmetic::MOD: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs % rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs % rhs; };
     break;
   }
 
   case ::common::Arithmetic::MUL: {
-    op_ = [](const RTAny& lhs, const RTAny& rhs) { return lhs * rhs; };
+    op_ = [](const Value& lhs, const Value& rhs) { return lhs * rhs; };
     break;
   }
 
@@ -214,42 +209,25 @@ ArithExpr::ArithExpr(std::unique_ptr<ExprBase>&& lhs,
   }
 }
 
-RTAny ArithExpr::eval_path(size_t idx, Arena& arena) const {
-  return op_(lhs_->eval_path(idx, arena), rhs_->eval_path(idx, arena));
+Value ArithExpr::eval_path(size_t idx) const {
+  return op_(lhs_->eval_path(idx), rhs_->eval_path(idx));
 }
 
-RTAny ArithExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
-  return op_(lhs_->eval_vertex(label, v, arena),
-             rhs_->eval_vertex(label, v, arena));
+Value ArithExpr::eval_vertex(label_t label, vid_t v) const {
+  return op_(lhs_->eval_vertex(label, v), rhs_->eval_vertex(label, v));
 }
 
-RTAny ArithExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                           const void* data_ptr, Arena& arena) const {
-  return op_(lhs_->eval_edge(label, src, dst, data_ptr, arena),
-             rhs_->eval_edge(label, src, dst, data_ptr, arena));
+Value ArithExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                           const void* data_ptr) const {
+  return op_(lhs_->eval_edge(label, src, dst, data_ptr),
+             rhs_->eval_edge(label, src, dst, data_ptr));
 }
 
-ConstExpr::ConstExpr(const RTAny& val, std::shared_ptr<Arena> ptr)
-    : val_(val), arena_(ptr) {
-  type_ = val_.type();
-}
-RTAny ConstExpr::eval_path(size_t idx, Arena& arena) const {
-  if (arena_) {
-    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
-  }
-  return val_;
-}
-RTAny ConstExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
-  if (arena_) {
-    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
-  }
-  return val_;
-}
-RTAny ConstExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                           const void* data_ptr, Arena& arena) const {
-  if (arena_) {
-    arena.emplace_back(std::make_unique<ArenaRef>(arena_));
-  }
+ConstExpr::ConstExpr(const Value& val) : val_(val) { type_ = val_.type(); }
+Value ConstExpr::eval_path(size_t idx) const { return val_; }
+Value ConstExpr::eval_vertex(label_t label, vid_t v) const { return val_; }
+Value ConstExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                           const void* data_ptr) const {
   return val_;
 }
 
@@ -333,32 +311,35 @@ CaseWhenExpr::CaseWhenExpr(
   }
 }
 
-RTAny CaseWhenExpr::eval_path(size_t idx, Arena& arena) const {
+Value CaseWhenExpr::eval_path(size_t idx) const {
   for (auto& pair : when_then_exprs_) {
-    if (pair.first->eval_path(idx, arena).as_bool()) {
-      return pair.second->eval_path(idx, arena);
+    const auto& cond_val = pair.first->eval_path(idx);
+    if (cond_val.IsTrue()) {
+      return pair.second->eval_path(idx);
     }
   }
-  return else_expr_->eval_path(idx, arena);
+  return else_expr_->eval_path(idx);
 }
 
-RTAny CaseWhenExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
+Value CaseWhenExpr::eval_vertex(label_t label, vid_t v) const {
   for (auto& pair : when_then_exprs_) {
-    if (pair.first->eval_vertex(label, v, arena).as_bool()) {
-      return pair.second->eval_vertex(label, v, arena);
+    const auto& cond_val = pair.first->eval_vertex(label, v);
+    if (cond_val.IsTrue()) {
+      return pair.second->eval_vertex(label, v);
     }
   }
-  return else_expr_->eval_vertex(label, v, arena);
+  return else_expr_->eval_vertex(label, v);
 }
 
-RTAny CaseWhenExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                              const void* data_ptr, Arena& arena) const {
+Value CaseWhenExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                              const void* data_ptr) const {
   for (auto& pair : when_then_exprs_) {
-    if (pair.first->eval_edge(label, src, dst, data_ptr, arena).as_bool()) {
-      return pair.second->eval_edge(label, src, dst, data_ptr, arena);
+    const auto& cond_val = pair.first->eval_edge(label, src, dst, data_ptr);
+    if (cond_val.IsTrue()) {
+      return pair.second->eval_edge(label, src, dst, data_ptr);
     }
   }
-  return else_expr_->eval_edge(label, src, dst, data_ptr, arena);
+  return else_expr_->eval_edge(label, src, dst, data_ptr);
 }
 
 TupleExpr::TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs)
@@ -371,97 +352,68 @@ TupleExpr::TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs)
                    std::make_shared<StructTypeInfo>(components));
 }
 
-RTAny TupleExpr::eval_path(size_t idx, Arena& arena) const {
-  std::vector<RTAny> ret;
+Value TupleExpr::eval_path(size_t idx) const {
+  std::vector<Value> ret;
   for (auto& expr : exprs_) {
-    ret.push_back(expr->eval_path(idx, arena));
+    auto val = expr->eval_path(idx);
+    ret.push_back(val);
   }
-  auto tup = Tuple::make_generic_tuple_impl(std::move(ret));
-  Tuple t(tup.get());
-  arena.emplace_back(std::move(tup));
-  return RTAny::from_tuple(t);
+  return Value::STRUCT(std::move(ret));
 }
 
-RTAny TupleExpr::eval_vertex(label_t label, vid_t v, Arena& arena) const {
-  std::vector<RTAny> ret;
+Value TupleExpr::eval_vertex(label_t label, vid_t v) const {
+  std::vector<Value> ret;
   for (auto& expr : exprs_) {
-    ret.push_back(expr->eval_vertex(label, v, arena));
+    auto val = expr->eval_vertex(label, v);
+    ret.push_back(val);
   }
-  auto tup = Tuple::make_generic_tuple_impl(std::move(ret));
-  Tuple t(tup.get());
-  arena.emplace_back(std::move(tup));
-  return RTAny::from_tuple(t);
+  return Value::STRUCT(std::move(ret));
 }
 
-RTAny TupleExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                           const void* data_ptr, Arena& arena) const {
-  std::vector<RTAny> ret;
+Value TupleExpr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                           const void* data_ptr) const {
+  std::vector<Value> ret;
   for (auto& expr : exprs_) {
-    ret.push_back(expr->eval_edge(label, src, dst, data_ptr, arena));
+    auto val = expr->eval_edge(label, src, dst, data_ptr);
+    ret.push_back(val);
   }
-  auto tup = Tuple::make_generic_tuple_impl(std::move(ret));
-  Tuple t(tup.get());
-  arena.emplace_back(std::move(tup));
-  return RTAny::from_tuple(t);
+  return Value::STRUCT(std::move(ret));
 }
 
-template <typename T>
-RTAny create_list_impl(std::vector<RTAny>&& elements, Arena& arena) {
-  auto list_impl = ListImpl<T>::make_list_impl(std::move(elements));
-  List list(list_impl.get());
-  arena.emplace_back(std::move(list_impl));
-  return RTAny::from_list(list);
-}
-RTAny create_list(std::vector<RTAny>&& elements, DataType elem_type,
-                  Arena& arena) {
-  switch (elem_type.id()) {
-#define TYPE_DISPATCHER(enum_val, type)                        \
-  case DataTypeId::enum_val: {                                 \
-    return create_list_impl<type>(std::move(elements), arena); \
-  }
-    FOR_EACH_DATA_TYPE(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-
-  default:
-    LOG(FATAL) << "not support list of " << static_cast<int>(elem_type.id());
-    return RTAny();
-  }
-}
-
-RTAny PathVertexPropsExpr::eval_path(size_t idx, Arena& arena) const {
+Value PathVertexPropsExpr::eval_path(size_t idx) const {
   auto path = col_.get_elem(idx);
-  if (path.is_null()) {
-    return RTAny(DataType(DataTypeId::kNull));
+  if (path.IsNull()) {
+    return Value(type());
   }
-  const auto& nodes = path.as_path().nodes();
-  std::vector<RTAny> props;
+  const auto& nodes = PathValue::Get(path).nodes();
+  std::vector<Value> props;
   for (const auto& node : nodes) {
     const auto& name = graph_.schema().get_vertex_property_names(node.label_);
     auto it = std::find(name.begin(), name.end(), prop_);
     if (it == name.end()) {
-      props.push_back(RTAny(DataType(DataTypeId::kNull)));
+      props.push_back(Value(ListType::GetChildType(type_)));
     } else {
       size_t index = std::distance(name.begin(), it);
       auto prop = graph_.GetVertexProperty(node.label_, node.vid_, index);
-      props.push_back(RTAny(prop));
+      props.push_back(property_to_value(prop));
     }
   }
-  return create_list(std::move(props), prop_type_, arena);
+  return Value::LIST(std::move(props));
 }
 
-RTAny PathEdgePropsExpr::eval_path(size_t idx, Arena& arena) const {
+Value PathEdgePropsExpr::eval_path(size_t idx) const {
   auto path = col_.get_elem(idx);
-  if (path.is_null()) {
-    return RTAny(DataType(DataTypeId::kNull));
+  if (path.IsNull()) {
+    return Value(type());
   }
-  const auto& edges = path.as_path().relationships();
-  std::vector<RTAny> props;
+  const auto& edges = PathValue::Get(path).relationships();
+  std::vector<Value> props;
   for (const auto& edge : edges) {
     const auto& name = graph_.schema().get_edge_property_names(
         edge.label.src_label, edge.label.dst_label, edge.label.edge_label);
     auto it = std::find(name.begin(), name.end(), prop_);
     if (it == name.end()) {
-      props.push_back(RTAny(DataType(DataTypeId::kNull)));
+      props.push_back(Value(ListType::GetChildType(type_)));
     } else {
       size_t index = std::distance(name.begin(), it);
       auto accessor =
@@ -471,105 +423,63 @@ RTAny PathEdgePropsExpr::eval_path(size_t idx, Arena& arena) const {
       if (prop_type_.id() == DataTypeId::kVarchar) {
         auto ret = accessor.template get_typed_data_from_ptr<std::string_view>(
             edge.prop);
-        props.push_back(RTAny::from_string(ret));
+        props.push_back(Value::STRING(std::string(ret)));
       } else if (prop_type_.id() == DataTypeId::kInt32) {
         auto ret =
             accessor.template get_typed_data_from_ptr<int32_t>(edge.prop);
-        props.push_back(RTAny::from_int32(ret));
+        props.push_back(Value::INT32(ret));
       } else if (prop_type_.id() == DataTypeId::kInt64) {
         auto ret =
             accessor.template get_typed_data_from_ptr<int64_t>(edge.prop);
-        props.push_back(RTAny::from_int64(ret));
+        props.push_back(Value::INT64(ret));
       } else if (prop_type_.id() == DataTypeId::kDouble) {
         auto ret = accessor.template get_typed_data_from_ptr<double>(edge.prop);
-        props.push_back(RTAny::from_double(ret));
+        props.push_back(Value::DOUBLE(ret));
       } else if (prop_type_.id() == DataTypeId::kBoolean) {
         auto ret = accessor.template get_typed_data_from_ptr<bool>(edge.prop);
-        props.push_back(RTAny::from_bool(ret));
+        props.push_back(Value::BOOLEAN(ret));
       } else if (prop_type_.id() == DataTypeId::kTimestampMs) {
         auto ret =
             accessor.template get_typed_data_from_ptr<DateTime>(edge.prop);
-        props.push_back(RTAny::from_datetime(ret));
+        props.push_back(Value::TIMESTAMPMS(ret));
       } else {
         LOG(FATAL) << "not support edge prop type "
                    << static_cast<int>(prop_type_.id());
       }
     }
   }
-  return create_list(std::move(props), prop_type_, arena);
+  return Value::LIST(std::move(props));
 }
 
-static RTAny parse_const_value(const ::common::Value& val,
-                               std::shared_ptr<Arena>& arena) {
+static Value parse_const_value(const ::common::Value& val) {
   switch (val.item_case()) {
   case ::common::Value::kI32:
-    return RTAny::from_int32(val.i32());
+    return Value::INT32(val.i32());
   case ::common::Value::kU32:
-    return RTAny::from_uint32(val.u32());
+    return Value::UINT32(val.u32());
   case ::common::Value::kStr: {
-    arena = std::make_shared<Arena>();
-    auto ptr = StringImpl::make_string_impl(val.str());
-    RTAny val = RTAny::from_string(ptr->str_view());
-    arena->emplace_back(std::move(ptr));
-    return val;
+    return Value::STRING(std::string(val.str()));
   }
   case ::common::Value::kI64:
-    return RTAny::from_int64(val.i64());
+    return Value::INT64(val.i64());
   case ::common::Value::kU64:
-    return RTAny::from_uint64(val.u64());
+    return Value::UINT64(val.u64());
   case ::common::Value::kBoolean:
-    return RTAny::from_bool(val.boolean());
+    return Value::BOOLEAN(val.boolean());
   case ::common::Value::kNone:
-    return RTAny(DataType(DataTypeId::kNull));
+    return Value(DataType::SQLNULL);
   case ::common::Value::kF64:
-    return RTAny::from_double(val.f64());
+    return Value::DOUBLE(val.f64());
   case ::common::Value::kF32:
-    return RTAny::from_float(val.f32());
+    return Value::FLOAT(val.f32());
   default:
     LOG(FATAL) << "not support for " << val.item_case();
   }
-  return RTAny();
+  return Value(DataType::UNKNOWN);
 }
 
-template <size_t N, size_t I, typename... Args>
-struct TypedTupleBuilder {
-  std::unique_ptr<ExprBase> build_typed_tuple(
-      std::array<std::unique_ptr<ExprBase>, N>&& exprs) {
-    switch (exprs[I - 1]->type().id()) {
-    case DataTypeId::kInt32:
-      return TypedTupleBuilder<N, I - 1, int, Args...>().build_typed_tuple(
-          std::move(exprs));
-    case DataTypeId::kInt64:
-      return TypedTupleBuilder<N, I - 1, int64_t, Args...>().build_typed_tuple(
-          std::move(exprs));
-    case DataTypeId::kDouble:
-      return TypedTupleBuilder<N, I - 1, double, Args...>().build_typed_tuple(
-          std::move(exprs));
-    case DataTypeId::kVarchar:
-      return TypedTupleBuilder<N, I - 1, std::string_view, Args...>()
-          .build_typed_tuple(std::move(exprs));
-    default: {
-      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
-      for (auto& expr : exprs) {
-        exprs_vec.emplace_back(std::move(expr));
-      }
-      return std::make_unique<TupleExpr>(std::move(exprs_vec));
-    }
-    }
-  }
-};
-
-template <size_t N, typename... Args>
-struct TypedTupleBuilder<N, 0, Args...> {
-  std::unique_ptr<ExprBase> build_typed_tuple(
-      std::array<std::unique_ptr<ExprBase>, N>&& exprs) {
-    return std::make_unique<TypedTupleExpr<Args...>>(std::move(exprs));
-  }
-};
-
-static RTAny parse_param(const ::common::DynamicParam& param,
-                         const std::map<std::string, std::string>& input,
-                         std::shared_ptr<Arena>& arena) {
+static Value parse_param(const ::common::DynamicParam& param,
+                         const std::map<std::string, std::string>& input) {
   if (param.data_type().type_case() ==
       ::common::IrDataType::TypeCase::kDataType) {
     auto type = parse_from_ir_data_type(param.data_type());
@@ -577,111 +487,98 @@ static RTAny parse_param(const ::common::DynamicParam& param,
     const std::string& name = param.name();
     if (type.id() == DataTypeId::kDate) {
       Date val = Date(input.at(name));
-      return RTAny::from_date(val);
+      return Value::DATE(val);
     } else if (type.id() == DataTypeId::kVarchar) {
       const std::string& val = input.at(name);
-      return RTAny::from_string(val);
+      return Value::STRING(val);
     } else if (type.id() == DataTypeId::kInt32) {
       int val = std::stoi(input.at(name));
-      return RTAny::from_int32(val);
+      return Value::INT32(val);
     } else if (type.id() == DataTypeId::kInt64) {
       int64_t val = std::stoll(input.at(name));
-      return RTAny::from_int64(val);
+      return Value::INT64(val);
     } else if (type.id() == DataTypeId::kTimestampMs) {
       DateTime val = DateTime(input.at(name));
-      return RTAny::from_datetime(val);
+      return Value::TIMESTAMPMS(val);
     } else if (type.id() == DataTypeId::kInterval) {
       Interval val = Interval(input.at(name));
-      return RTAny::from_interval(val);
+      return Value::INTERVAL(val);
     } else if (type.id() == DataTypeId::kUInt32) {
       uint32_t val = std::stoul(input.at(name));
-      return RTAny::from_uint32(val);
+      return Value::UINT32(val);
     } else if (type.id() == DataTypeId::kUInt64) {
       uint64_t val = std::stoull(input.at(name));
-      return RTAny::from_uint64(val);
+      return Value::UINT64(val);
     } else if (type.id() == DataTypeId::kBoolean) {
       bool val = input.at(name) == "true" || input.at(name) == "1";
-      return RTAny::from_bool(val);
+      return Value::BOOLEAN(val);
     } else if (type.id() == DataTypeId::kFloat) {
       float val = std::stof(input.at(name));
-      return RTAny::from_float(val);
+      return Value::FLOAT(val);
     } else if (type.id() == DataTypeId::kDouble) {
       double val = std::stod(input.at(name));
-      return RTAny::from_double(val);
+      return Value::DOUBLE(val);
     } else if (type.id() == DataTypeId::kList) {
       auto type = param.data_type().data_type().array().component_type();
       if (type.has_string()) {
-        std::vector<std::string_view> vec;
+        std::vector<Value> vec;
         const auto& val = input.at(name);
         size_t start = 0;
         for (size_t i = 0; i <= val.size(); ++i) {
-          if (i == val.size() || val[i] == ';') {
-            vec.emplace_back(val.data() + start, i - start);
+          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
+            vec.emplace_back(
+                Value::STRING(std::string(val.data() + start, i - start)));
             start = i + 1;
           }
         }
-        arena = std::make_shared<Arena>();
-        auto ptr = ListImpl<std::string_view>::make_list_impl(std::move(vec));
-        List list(ptr.get());
-        arena->emplace_back(std::move(ptr));
-        return RTAny::from_list(list);
+        return Value::LIST(DataType::VARCHAR, std::move(vec));
       } else if (type.item_case() ==
                      ::common::DataType::ItemCase::kPrimitiveType &&
                  type.primitive_type() ==
                      ::common::PrimitiveType::DT_SIGNED_INT64) {
-        std::vector<int64_t> vec;
+        std::vector<Value> vec;
         const auto& val = input.at(name);
         size_t start = 0;
         for (size_t i = 0; i <= val.size(); ++i) {
-          if (i == val.size() || val[i] == ';') {
-            vec.emplace_back(
-                std::stoll(std::string(val.data() + start, i - start)));
+          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
+            vec.emplace_back(Value::INT64(
+                std::stoll(std::string(val.data() + start, i - start))));
             start = i + 1;
           }
         }
-        arena = std::make_shared<Arena>();
-        auto ptr = ListImpl<int64_t>::make_list_impl(std::move(vec));
-        List list(ptr.get());
-        arena->emplace_back(std::move(ptr));
-        return RTAny::from_list(list);
+        return Value::LIST(DataType::INT64, std::move(vec));
       } else if (type.has_array() &&
                  type.array().component_type().has_primitive_type() &&
                  type.array().component_type().primitive_type() ==
                      ::common::PrimitiveType::DT_SIGNED_INT64) {
-        std::vector<List> vec;
-        arena = std::make_shared<Arena>();
+        std::vector<Value> vec;
         const auto& val = input.at(name);
         size_t start = 0;
         for (size_t i = 0; i <= val.size(); ++i) {
-          if (i == val.size() || val[i] == ';') {
-            std::vector<int64_t> inner_vec;
+          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
+            std::vector<Value> inner_vec;
             size_t inner_start = start;
             for (size_t j = start; j <= i; ++j) {
-              if (j == i || val[j] == ',') {
-                inner_vec.emplace_back(std::stoll(
-                    std::string(val.data() + inner_start, j - inner_start)));
+              if ((j == i || val[j] == ',') && (j - inner_start > 0)) {
+                inner_vec.emplace_back(Value::INT64(std::stoll(
+                    std::string(val.data() + inner_start, j - inner_start))));
                 inner_start = j + 1;
               }
             }
-            auto inner_ptr =
-                ListImpl<int64_t>::make_list_impl(std::move(inner_vec));
-            List inner_list(inner_ptr.get());
-            arena->emplace_back(std::move(inner_ptr));
-            vec.emplace_back(inner_list);
+            vec.emplace_back(
+                Value::LIST(DataType::INT64, std::move(inner_vec)));
             start = i + 1;
           }
         }
-        auto ptr = ListImpl<List>::make_list_impl(std::move(vec));
-        List list(ptr.get());
-        arena->emplace_back(std::move(ptr));
-        return RTAny::from_list(list);
+        auto type = DataType::List(DataType::INT64);
+        return Value::LIST(type, std::move(vec));
       }
     }
 
     LOG(FATAL) << "not support type: " << param.DebugString();
   }
   LOG(FATAL) << "graph data type not expected....";
-  return RTAny();
+  return Value(DataType::SQLNULL);
 }
 
 static inline int get_proiority(const ::common::ExprOpr& opr) {
@@ -751,14 +648,10 @@ static std::unique_ptr<ExprBase> build_expr(
     opr_stack.pop();
     switch (opr.item_case()) {
     case ::common::ExprOpr::kConst: {
-      std::shared_ptr<Arena> arena = nullptr;
-      return std::make_unique<ConstExpr>(parse_const_value(opr.const_(), arena),
-                                         arena);
+      return std::make_unique<ConstExpr>(parse_const_value(opr.const_()));
     }
     case ::common::ExprOpr::kParam: {
-      std::shared_ptr<Arena> arena = nullptr;
-      return std::make_unique<ConstExpr>(
-          parse_param(opr.param(), params, arena), arena);
+      return std::make_unique<ConstExpr>(parse_param(opr.param(), params));
     }
     case ::common::ExprOpr::kVar: {
       return std::make_unique<VariableExpr>(graph, ctx, opr.var(), var_type);
@@ -799,9 +692,8 @@ static std::unique_ptr<ExprBase> build_expr(
         } else if (rhs.has_param()) {
           auto key =
               std::make_unique<VariableExpr>(graph, ctx, lhs.var(), var_type);
-          std::shared_ptr<Arena> arena = nullptr;
-          auto val = std::make_unique<ConstExpr>(
-              parse_param(rhs.param(), params, arena), arena);
+          auto val =
+              std::make_unique<ConstExpr>(parse_param(rhs.param(), params));
           return std::make_unique<WithInListExpr>(ctx, std::move(key),
                                                   std::move(val));
         } else {
@@ -873,7 +765,7 @@ static std::unique_ptr<ExprBase> build_expr(
       // Parse the date string into Date
       auto date = Date(date_str);
       // Create a ConstExpr with the parsed Date
-      return std::make_unique<ConstExpr>(RTAny::from_date(date));
+      return std::make_unique<ConstExpr>(Value::DATE(date));
     }
 
     case ::common::ExprOpr::kToDatetime: {
@@ -881,7 +773,7 @@ static std::unique_ptr<ExprBase> build_expr(
       // Parse the date time string into DateTime
       auto date_time = DateTime(date_time_str);
       // Create a ConstExpr with the parsed DateTime
-      return std::make_unique<ConstExpr>(RTAny::from_datetime(date_time));
+      return std::make_unique<ConstExpr>(Value::TIMESTAMPMS(date_time));
     }
 
     case ::common::ExprOpr::kToInterval: {
@@ -889,34 +781,16 @@ static std::unique_ptr<ExprBase> build_expr(
       // Parse the interval string into Interval
       Interval interval(interval_str);
       // Create a ConstExpr with the parsed Interval
-      return std::make_unique<ConstExpr>(RTAny::from_interval(interval));
+      return std::make_unique<ConstExpr>(Value::INTERVAL(interval));
     }
 
     case ::common::ExprOpr::kToTuple: {
       const auto& compisite_fields = opr.to_tuple().fields();
 
       std::vector<std::unique_ptr<ExprBase>> exprs_vec;
-      bool has_optional = false;
       for (int i = 0; i < compisite_fields.size(); ++i) {
         exprs_vec.emplace_back(parse_expression_impl(
             graph, ctx, params, compisite_fields[i], var_type));
-        if (exprs_vec.back()->is_optional()) {
-          has_optional = true;
-        }
-      }
-
-      if (compisite_fields.size() == 3 && !has_optional) {
-        std::array<std::unique_ptr<ExprBase>, 3> exprs;
-        for (int i = 0; i < compisite_fields.size(); ++i) {
-          exprs[i] = std::move(exprs_vec[i]);
-        }
-        return TypedTupleBuilder<3, 3>().build_typed_tuple(std::move(exprs));
-      } else if (compisite_fields.size() == 2 && !has_optional) {
-        std::array<std::unique_ptr<ExprBase>, 2> exprs;
-        for (int i = 0; i < compisite_fields.size(); ++i) {
-          exprs[i] = std::move(exprs_vec[i]);
-        }
-        return TypedTupleBuilder<2, 2>().build_typed_tuple(std::move(exprs));
       }
 
       return std::make_unique<TupleExpr>(std::move(exprs_vec));
@@ -969,10 +843,6 @@ static std::unique_ptr<ExprBase> build_expr(
         return std::make_unique<StartNodeExpr>(std::move(expr));
       } else if (name == "gs.function.endNode") {
         return std::make_unique<EndNodeExpr>(std::move(expr));
-      } else if (name == "gs.function.datetime") {
-        return std::make_unique<ToDateTimeExpr>(std::move(expr));
-      } else if (name == "gs.function.date32") {
-        return std::make_unique<ToDate32Expr>(std::move(expr));
       } else if (name == "gs.function.abs") {
         return std::make_unique<AbsExpr>(std::move(expr));
       } else {

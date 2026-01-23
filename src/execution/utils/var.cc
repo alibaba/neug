@@ -22,6 +22,7 @@
 #include "neug/execution/common/accessors.h"
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/utils/pb_parse_utils.h"
 
 namespace gs {
 
@@ -40,17 +41,7 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
     tag = pb.tag().id();
   }
 
-  if (type_.id() == DataTypeId::kUnknown) {
-    if (pb.has_tag()) {
-      tag = pb.tag().id();
-      assert(ctx.get(tag) != nullptr);
-      type_ = ctx.get(tag)->elem_type();
-    } else {
-      VLOG(10) << "receive empty variable, using tag -1";
-      tag = -1;
-      type_ = ctx.get(tag)->elem_type();
-    }
-  }
+  assert(type_.id() != DataTypeId::kUnknown);
 
   if (var_type == VarType::kPathVar) {
     if (ctx.get(tag) == nullptr) {
@@ -152,13 +143,13 @@ Var::Var(const StorageReadInterface* graph, const Context& ctx,
 
 Var::~Var() {}
 
-RTAny Var::get(size_t path_idx) const { return getter_->eval_path(path_idx); }
+Value Var::get(size_t path_idx) const { return getter_->eval_path(path_idx); }
 
-RTAny Var::get_vertex(label_t label, vid_t v) const {
+Value Var::get_vertex(label_t label, vid_t v) const {
   return getter_->eval_vertex(label, v);
 }
 
-RTAny Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+Value Var::get_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                     const void* data_ptr) const {
   return getter_->eval_edge(label, src, dst, data_ptr);
 }

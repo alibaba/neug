@@ -21,10 +21,10 @@
 #include <utility>
 #include <vector>
 
+#include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/runtime/rt_any.h"
 
 namespace gs {
 
@@ -648,53 +648,53 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config,
     const std::map<std::string, std::string>& params, Args&&... args) {
+  auto get_value = [&](const std::string& param_name) -> T {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return std::string_view(params.at(param_name));
+    } else {
+      return ValueConverter<T>::typed_from_string(params.at(param_name));
+    }
+  };
   if (config.ptype == SPPredicateType::kPropertyLT) {
     using CMP_T = LTCmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyGT) {
     using CMP_T = GTCmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyEQ) {
     using CMP_T = EQCmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyLE) {
     using CMP_T = LECmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyGE) {
     using CMP_T = GECmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyNE) {
     using CMP_T = NECmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);
   } else if (config.ptype == SPPredicateType::kPropertyBetween) {
     using CMP_T = BetweenCmp<T>;
-    auto cmp_val = CMP_T(
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[0])),
-        TypedConverter<T>::typed_from_string(params.at(config.param_names[1])));
+    auto cmp_val = CMP_T(get_value(config.param_names[0]),
+                         get_value(config.param_names[1]));
     return dispatch_vertex_predicate_impl_cmp_type<OP_T, CMP_T>(
         graph, expected_labels, config, params, cmp_val,
         std::forward<Args>(args)...);

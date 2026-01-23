@@ -17,10 +17,6 @@
 #include <vector>
 
 #include "neug/execution/execute/operator.h"
-#include "neug/generated/proto/plan/algebra.pb.h"
-#include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace gs {
 class Schema;

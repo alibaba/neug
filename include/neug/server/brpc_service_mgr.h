@@ -29,7 +29,7 @@
 #include "neug/server/neug_db_service.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/app_utils.h"
+#include "neug/utils/encoder.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/result.h"

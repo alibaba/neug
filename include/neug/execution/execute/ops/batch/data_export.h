@@ -18,7 +18,6 @@
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/writer/export_writer_factory.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace gs {
 namespace runtime {

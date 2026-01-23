@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"

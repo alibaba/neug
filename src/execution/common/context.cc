@@ -15,11 +15,9 @@
 
 #include "neug/execution/common/context.h"
 
-#include <assert.h>
-
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
 

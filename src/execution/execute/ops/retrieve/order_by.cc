@@ -15,28 +15,10 @@
 
 #include "neug/execution/execute/ops/retrieve/order_by.h"
 
-#include <glog/logging.h>
-#include <stddef.h>
-#include <algorithm>
-#include <functional>
-#include <limits>
-#include <map>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <set>
-#include <string>
-#include <utility>
-
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
-#include "neug/execution/utils/utils.h"
-#include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/schema.h"
 
 namespace gs {
 namespace runtime {
