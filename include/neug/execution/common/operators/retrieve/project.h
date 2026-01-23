@@ -17,6 +17,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/order_by.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace gs {
@@ -123,11 +124,9 @@ class Project {
 
   template <typename Comparer>
   static gs::result<Context> project_order_by_fuse(
-      const StorageReadInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
+      const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
       const std::vector<std::function<std::unique_ptr<ProjectExprBase>(
-          const StorageReadInterface& graph,
-          const std::map<std::string, std::string>& params,
+          const StorageReadInterface& graph, const ParamsMap& params,
           const Context& ctx)>>& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,
       size_t upper, const std::set<int>& order_index,

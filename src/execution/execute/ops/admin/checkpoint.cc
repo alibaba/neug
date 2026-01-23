@@ -20,10 +20,18 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-gs::result<Context> CheckpointOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+class CheckpointOpr : public IOperator {
+ public:
+  CheckpointOpr() = default;
+  ~CheckpointOpr() override = default;
+  std::string get_operator_name() const override { return "CheckpointOpr"; }
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                           Context&& ctx, OprTimer* timer) override;
+};
+
+gs::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params, Context&& ctx,
+                                        OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   graph.CreateCheckpoint();
   return gs::result<Context>(std::move(ctx));

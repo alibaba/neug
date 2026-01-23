@@ -27,18 +27,16 @@ class OprTimer;
 
 namespace ops {
 
-typedef const std::map<std::string, std::string>& ParamsType;
-
 class FilterOidsGPredOpr : public IOperator {
  public:
   FilterOidsGPredOpr(
       ScanParams params,
-      const std::function<std::vector<Property>(ParamsType)>& oids,
+      const std::function<std::vector<Property>(const ParamsMap&)>& oids,
       const std::optional<common::Expression>& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
   gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        ParamsType params,
+                                        const ParamsMap& params,
                                         gs::runtime::Context&& ctx,
                                         gs::runtime::OprTimer* timer) override {
     ctx = Context();
@@ -70,7 +68,7 @@ class FilterOidsGPredOpr : public IOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Property>(ParamsType)> oids_;
+  std::function<std::vector<Property>(const ParamsMap&)> oids_;
   std::optional<common::Expression> pred_;
 };
 
@@ -82,10 +80,10 @@ class ScanWithSPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     ctx = Context();
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
@@ -104,10 +102,10 @@ class ScanWithGPredOpr : public IOperator {
                    const std::optional<common::Expression>& pred)
       : scan_params_(scan_params), pred_(pred) {}
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     ctx = Context();
     if (!pred_.has_value()) {
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
@@ -195,7 +193,7 @@ gs::result<OpBuildResultT> ScanOprBuilder::Build(
       pred = scan_opr.params().predicate();
     }
 
-    std::function<std::vector<Property>(ParamsType)> oids;
+    std::function<std::vector<Property>(const ParamsMap&)> oids;
     for (auto& table : scan_params.tables) {
       const auto& pks = schema.get_vertex_primary_key(table);
       const auto type = std::get<0>(pks[0]);
@@ -227,10 +225,10 @@ class DummySourceOpr : public IOperator {
  public:
   DummySourceOpr() {}
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);

@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -95,7 +96,7 @@ class Scan {
   static gs::result<Context> scan_vertex_with_special_vertex_predicate(
       Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
       const SpecialVertexPredicateConfig& config,
-      const std::map<std::string, std::string>& query_params);
+      const ParamsMap& query_params);
 
   template <typename PRED_T>
   static gs::result<Context> filter_oids(Context&& ctx,

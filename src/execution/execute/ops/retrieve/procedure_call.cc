@@ -34,10 +34,10 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }

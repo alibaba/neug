@@ -96,10 +96,10 @@ class ProjectOpr : public IOperator {
   }
   ~ProjectOpr() {}
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     if (is_select_columns_) {
       Context ret;
       for (auto& p : select_columns_mapping_) {
@@ -212,10 +212,10 @@ class ProjectOrderByOprBeta : public IOperator {
     return "ProjectOrderByOprBeta";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -228,8 +228,7 @@ class ProjectOrderByOprBeta : public IOperator {
       return cmp;
     };
     std::vector<std::function<std::unique_ptr<ProjectExprBase>(
-        const StorageReadInterface&, const std::map<std::string, std::string>&,
-        const Context&)>>
+        const StorageReadInterface&, const ParamsMap&, const Context&)>>
         exprs;
     for (size_t i = 0; i < exprs_infos_.size(); ++i) {
       const auto& expr = std::get<0>(exprs_infos_[i]);
@@ -237,8 +236,7 @@ class ProjectOrderByOprBeta : public IOperator {
       const auto& data_type = std::get<2>(exprs_infos_[i]);
       exprs.push_back([expr, alias, data_type](
                           const StorageReadInterface& graph,
-                          const std::map<std::string, std::string>& params,
-                          const Context& ctx) {
+                          const ParamsMap& params, const Context& ctx) {
         return create_project_expr(expr, alias, data_type, graph, ctx, params);
       });
     }

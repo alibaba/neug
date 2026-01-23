@@ -384,7 +384,7 @@ struct ExpandVertexSPOp {
 gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& query_params) {
+    const ParamsMap& query_params) {
   auto input_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
   auto input_vertex_labels_set = input_col->get_labels_set();

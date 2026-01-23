@@ -45,10 +45,10 @@ class JoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
 
     std::unique_ptr<gs::runtime::OprTimer> left_timer =
@@ -173,10 +173,10 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     gs::runtime::Context ret_dup(ctx);
     std::unique_ptr<gs::runtime::OprTimer> right_timer =
         (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()

@@ -26,8 +26,7 @@ class DropVertexTypeOpr : public IOperator {
       : vertex_type_(vertex_type), error_on_conflict_(error_on_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);

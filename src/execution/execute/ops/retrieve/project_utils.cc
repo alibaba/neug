@@ -22,7 +22,7 @@ namespace ops {
 
 std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
     const IStorageInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
+    const ParamsMap& params) {
   if (data_type_.has_value() &&
       data_type_.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
     auto func = make_project_expr(expr_, data_type_.value(), alias_, graph, ctx,
@@ -416,8 +416,7 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when_impl(
 
 template <typename T>
 static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
-    const Context& ctx, const IStorageInterface& graph,
-    const std::map<std::string, std::string>& params,
+    const Context& ctx, const IStorageInterface& graph, const ParamsMap& params,
     const std::shared_ptr<IVertexColumn>& vertex, SPPredicateType type,
     const std::string& name, const std::string& target,
     const common::Value& then_value, const common::Value& else_value,
@@ -489,7 +488,7 @@ static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
     const common::Expression& expr, int alias, const IStorageInterface& graph,
-    const Context& ctx, const std::map<std::string, std::string>& params) {
+    const Context& ctx, const ParamsMap& params) {
   int tag = -1;
   if (is_exchange_index(expr, tag)) {
     return std::make_unique<DummyGetter>(tag, alias);

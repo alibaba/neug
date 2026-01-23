@@ -22,11 +22,10 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-typedef const std::map<std::string, std::string>& ParamsType;
 template <typename T>
 void parse_ids_from_idx_predicate(
     const algebra::IndexPredicate& predicate,
-    std::function<std::vector<Property>(ParamsType)>& ids) {
+    std::function<std::vector<Property>(const ParamsMap&)>& ids) {
   const algebra::IndexPredicate_Triplet& triplet =
       predicate.or_predicates(0).predicates(0);
 
@@ -50,19 +49,19 @@ void parse_ids_from_idx_predicate(
         ret.emplace_back(PropUtils<T>::to_prop(static_cast<T>(arr.item(i))));
       }
     }
-    ids = [ret = std::move(ret)](ParamsType) { return ret; };
+    ids = [ret = std::move(ret)](const ParamsMap&) { return ret; };
   }
 
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kInt32) {
-      ids = [triplet](ParamsType params) {
+      ids = [triplet](const ParamsMap& params) {
         return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoi(params.at(triplet.param().name()))))};
       };
     } else if (param_type.id() == DataTypeId::kInt64) {
-      ids = [triplet](ParamsType params) {
+      ids = [triplet](const ParamsMap& params) {
         return std::vector<Property>{PropUtils<T>::to_prop(
             static_cast<T>(std::stoll(params.at(triplet.param().name()))))};
       };
@@ -75,7 +74,7 @@ void parse_ids_from_idx_predicate(
 
 void parse_ids_from_idx_predicate(
     const algebra::IndexPredicate& predicate,
-    std::function<std::vector<Property>(ParamsType)>& ids) {
+    std::function<std::vector<Property>(const ParamsMap&)>& ids) {
   const algebra::IndexPredicate_Triplet& triplet =
       predicate.or_predicates(0).predicates(0);
   std::vector<Property> ret;
@@ -83,14 +82,14 @@ void parse_ids_from_idx_predicate(
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
     if (triplet.const_().item_case() == common::Value::kStr) {
       ret.emplace_back(Property::from_string_view(triplet.const_().str()));
-      ids = [ret = std::move(ret)](ParamsType) { return ret; };
+      ids = [ret = std::move(ret)](const ParamsMap&) { return ret; };
 
     } else if (triplet.const_().item_case() == common::Value::kStrArray) {
       const auto& arr = triplet.const_().str_array();
       for (int i = 0; i < arr.item_size(); ++i) {
         ret.emplace_back(Property::from_string_view(arr.item(i)));
       }
-      ids = [ret = std::move(ret)](ParamsType) { return ret; };
+      ids = [ret = std::move(ret)](const ParamsMap&) { return ret; };
     }
   }
 
@@ -98,7 +97,7 @@ void parse_ids_from_idx_predicate(
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
     if (param_type.id() == DataTypeId::kVarchar) {
-      ids = [triplet](ParamsType params) {
+      ids = [triplet](const ParamsMap& params) {
         return std::vector<Property>{
             Property::from_string_view(params.at(triplet.param().name()))};
       };
@@ -108,12 +107,10 @@ void parse_ids_from_idx_predicate(
     break;
   }
 }
-std::function<std::vector<Property>(const std::map<std::string, std::string>&)>
+std::function<std::vector<Property>(const ParamsMap&)>
 ScanUtils::parse_ids_with_type(DataTypeId type,
                                const algebra::IndexPredicate& triplet) {
-  std::function<std::vector<Property>(
-      const std::map<std::string, std::string>&)>
-      ids;
+  std::function<std::vector<Property>(const ParamsMap&)> ids;
   switch (type) {
   case DataTypeId::kInt64: {
     parse_ids_from_idx_predicate<int64_t>(triplet, ids);

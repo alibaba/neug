@@ -39,10 +39,10 @@ class DedupOpr : public IOperator {
   explicit DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     return Dedup::dedup(std::move(ctx), tag_ids_);
   }
 

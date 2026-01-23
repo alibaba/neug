@@ -25,8 +25,8 @@ struct LabelTriplet;
 class Expr {
  public:
   Expr(const StorageReadInterface* graph, const Context& ctx,
-       const std::map<std::string, std::string>& params,
-       const ::common::Expression& expr, VarType var_type) {
+       const ParamsMap& params, const ::common::Expression& expr,
+       VarType var_type) {
     expr_ = parse_expression(graph, ctx, params, expr, var_type);
     if (!expr_) {
       THROW_RUNTIME_ERROR(

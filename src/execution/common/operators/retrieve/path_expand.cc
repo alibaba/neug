@@ -1175,8 +1175,7 @@ gs::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params,
-    const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& query_params) {
+    const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (const auto& label_triplet : params.labels) {
     expected_labels.insert(label_triplet.dst_label);

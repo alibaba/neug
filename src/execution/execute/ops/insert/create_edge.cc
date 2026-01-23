@@ -36,8 +36,8 @@ class CreateEdgeOpr : public IOperator {
         properties_(properties) {}
 
   gs::result<Context> Eval(IStorageInterface& graph_interface,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override {
+                           const ParamsMap& params, Context&& ctx,
+                           OprTimer* timer) override {
     const StorageReadInterface* graph_ptr = nullptr;
     if (graph_interface.readable()) {
       graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);

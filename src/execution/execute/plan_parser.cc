@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/generated/proto/plan/common.pb.h"
 
 #include <glog/logging.h>
 #include <stddef.h>
@@ -376,6 +377,117 @@ gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
     RETURN_ERROR(status);
   }
   return std::move(ctx);
+}
+
+static void expression_parse(const ::common::Expression& expr,
+                             std::map<std::string, DataType>& params_type) {
+  for (int i = 0; i < expr.operators_size(); ++i) {
+    const auto& opr = expr.operators(i);
+    if (opr.has_param()) {
+      const auto& param = opr.param();
+      if (params_type.find(param.name()) != params_type.end()) {
+        continue;
+      }
+      params_type[param.name()] = parse_from_ir_data_type(param.data_type());
+    }
+  }
+}
+
+static void parse_params_type_impl(
+    const physical::PhysicalPlan& plan,
+    std::map<std::string, DataType>& params_type) {
+  int opr_num = plan.plan_size();
+  for (int i = 0; i < opr_num; ++i) {
+    const auto& cur_op_kind = plan.plan(i).opr().op_kind_case();
+    switch (cur_op_kind) {
+    case physical::PhysicalOpr_Operator::OpKindCase::kScan: {
+      const auto& scan_opr = plan.plan(i).opr().scan();
+      if (scan_opr.has_params() && scan_opr.params().has_predicate()) {
+        expression_parse(scan_opr.params().predicate(), params_type);
+      }
+      if (scan_opr.has_idx_predicate()) {
+        const auto& predicate = scan_opr.idx_predicate();
+        const auto& triplet = predicate.or_predicates(0).predicates(0);
+        if (triplet.value_case() ==
+            algebra::IndexPredicate_Triplet::ValueCase::kParam) {
+          const auto& param = triplet.param();
+          if (params_type.find(param.name()) == params_type.end()) {
+            params_type[param.name()] =
+                parse_from_ir_data_type(param.data_type());
+          }
+        }
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kEdge: {
+      const auto& edge_opr = plan.plan(i).opr().edge();
+      if (edge_opr.has_params() && edge_opr.params().has_predicate()) {
+        expression_parse(edge_opr.params().predicate(), params_type);
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kProject: {
+      const auto& project_opr = plan.plan(i).opr().project();
+      int expr_num = project_opr.mappings_size();
+      for (int j = 0; j < expr_num; ++j) {
+        expression_parse(project_opr.mappings(j).expr(), params_type);
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kVertex: {
+      const auto& vertex_opr = plan.plan(i).opr().vertex();
+      if (vertex_opr.has_params() && vertex_opr.params().has_predicate()) {
+        expression_parse(vertex_opr.params().predicate(), params_type);
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kSelect: {
+      const auto& select_opr = plan.plan(i).opr().select();
+      expression_parse(select_opr.predicate(), params_type);
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kPath: {
+      const auto& path_expand_opr = plan.plan(i).opr().path();
+      if (path_expand_opr.base().edge_expand().has_params() &&
+          path_expand_opr.base().edge_expand().params().has_predicate()) {
+        expression_parse(
+            path_expand_opr.base().edge_expand().params().predicate(),
+            params_type);
+      }
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kJoin: {
+      const auto& join_opr = plan.plan(i).opr().join();
+      parse_params_type_impl(join_opr.left_plan(), params_type);
+      parse_params_type_impl(join_opr.right_plan(), params_type);
+      break;
+    }
+    case physical::PhysicalOpr_Operator::OpKindCase::kUnion: {
+      const auto& union_opr = plan.plan(i).opr().union_();
+      for (int j = 0; j < union_opr.sub_plans_size(); ++j) {
+        parse_params_type_impl(union_opr.sub_plans(j), params_type);
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kIntersect: {
+      const auto& intersect_opr = plan.plan(i).opr().intersect();
+      for (int j = 0; j < intersect_opr.sub_plans_size(); ++j) {
+        parse_params_type_impl(intersect_opr.sub_plans(j), params_type);
+      }
+      break;
+    }
+    default: {
+      break;
+    }
+    }
+  }
+}
+std::map<std::string, DataType> PlanParser::parse_params_type(
+    const physical::PhysicalPlan& plan) {
+  std::map<std::string, DataType> params_type;
+  parse_params_type_impl(plan, params_type);
+  return params_type;
 }
 
 }  // namespace runtime

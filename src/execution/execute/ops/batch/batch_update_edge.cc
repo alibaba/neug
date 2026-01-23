@@ -38,18 +38,16 @@ class UpdateEdgeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
   edge_data_vec_t edge_data_;
 };
 
-gs::result<Context> UpdateEdgeOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+gs::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params, Context&& ctx,
+                                        OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";

@@ -55,6 +55,9 @@ class PlanParser {
       const gs::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
+  static std::map<std::string, DataType> parse_params_type(
+      const physical::PhysicalPlan& plan);
+
  private:
   std::vector<std::vector<
       std::pair<std::vector<physical::PhysicalOpr_Operator::OpKindCase>,

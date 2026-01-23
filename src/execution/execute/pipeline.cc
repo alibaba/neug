@@ -27,9 +27,9 @@ namespace gs {
 namespace runtime {
 class OprTimer;
 
-gs::result<Context> Pipeline::Execute(
-    IStorageInterface& graph, Context&& ctx,
-    const std::map<std::string, std::string>& params, OprTimer* timer) {
+gs::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
+                                      const ParamsMap& params,
+                                      OprTimer* timer) {
   gs::Status status = Status::OK();
   TimerUnit tu;
   OprTimer* cur_timer = timer;

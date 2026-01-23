@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
@@ -186,7 +187,7 @@ class EdgeExpand {
       const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params,
       const SpecialVertexPredicateConfig& config,
-      const std::map<std::string, std::string>& query_params);
+      const ParamsMap& query_params);
 
   template <typename T1>
   static gs::result<Context> tc(

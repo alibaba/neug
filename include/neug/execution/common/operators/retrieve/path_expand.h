@@ -16,6 +16,7 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
@@ -101,7 +102,7 @@ class PathExpand {
       const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params,
       const SpecialVertexPredicateConfig& config,
-      const std::map<std::string, std::string>& query_params);
+      const ParamsMap& query_params);
 
   template <typename PRED_T>
   static gs::result<Context> edge_expand_p_with_pred(

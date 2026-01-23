@@ -24,16 +24,6 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class CheckpointOpr : public IOperator {
- public:
-  CheckpointOpr() = default;
-  ~CheckpointOpr() override = default;
-  std::string get_operator_name() const override { return "CheckpointOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-};
-
 class CheckpointOprBuilder : public IOperatorBuilder {
  public:
   CheckpointOprBuilder() = default;

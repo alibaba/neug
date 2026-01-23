@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "neug/execution/common/columns/path_columns.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/execution/utils/var.h"
 #include "neug/generated/proto/plan/common.pb.h"
@@ -829,10 +830,11 @@ class AbsExpr : public ExprBase {
   std::unique_ptr<ExprBase> args;
 };
 
-std::unique_ptr<ExprBase> parse_expression(
-    const StorageReadInterface* graph, const Context& ctx,
-    const std::map<std::string, std::string>& params,
-    const ::common::Expression& expr, VarType var_type);
+std::unique_ptr<ExprBase> parse_expression(const StorageReadInterface* graph,
+                                           const Context& ctx,
+                                           const ParamsMap& params,
+                                           const ::common::Expression& expr,
+                                           VarType var_type);
 
 bool graph_related_expr(const ::common::Expression& expr);
 

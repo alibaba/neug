@@ -73,10 +73,10 @@ class TCOpr : public IOperator {
 
   std::string get_operator_name() const override { return "TCOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const std::string& param_value = params.at(param_name_);
     auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,

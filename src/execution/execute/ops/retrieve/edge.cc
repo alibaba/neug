@@ -111,10 +111,10 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     return "EdgeExpandVWithEPCmpOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
@@ -145,10 +145,10 @@ class EdgeExpandVOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -177,10 +177,10 @@ class EdgeExpandEWithSPredOpr : public IOperator {
     return "EdgeExpandEWithSPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_edge_with_special_edge_predicate(
@@ -200,10 +200,10 @@ class EdgeExpandEOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!pred_.has_value()) {
@@ -231,10 +231,10 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithSPVertexPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_vertex_with_special_vertex_predicate(
@@ -255,10 +255,10 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithGPVertexPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     GeneralVertexPredicate v_pred(graph, ctx, params, pred_);
@@ -276,10 +276,10 @@ class EdgeExpandDegreeOpr : public IOperator {
  public:
   EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);

@@ -36,8 +36,7 @@ class CreateVertexTypeOpr : public IOperator {
     return "CreateVertexTypeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);

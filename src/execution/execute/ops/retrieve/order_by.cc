@@ -38,10 +38,10 @@ class OrderByOprBeta : public IOperator {
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     int keys_num = keys_.size();

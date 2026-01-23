@@ -108,9 +108,9 @@ struct MLPropertyExpr {
 
 struct ProjectExprBuilderBase {
   virtual ~ProjectExprBuilderBase() = default;
-  virtual std::unique_ptr<ProjectExprBase> build(
-      const IStorageInterface& graph, const Context& ctx,
-      const std::map<std::string, std::string>& params) = 0;
+  virtual std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                                 const Context& ctx,
+                                                 const ParamsMap& params) = 0;
   virtual bool is_general() const { return false; }
 };
 
@@ -123,9 +123,9 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 
 struct DummyGetterBuilder : public ProjectExprBuilderBase {
   DummyGetterBuilder(int from, int to) : from_(from), to_(to) {}
-  std::unique_ptr<ProjectExprBase> build(
-      const IStorageInterface& graph, const Context& ctx,
-      const std::map<std::string, std::string>& params) override {
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const Context& ctx,
+                                         const ParamsMap& params) override {
     return std::make_unique<DummyGetter>(from_, to_);
   }
   int from_;
@@ -137,9 +137,9 @@ struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
   VertexPropertyExprBuilder(int tag, const std::string& property_name,
                             int alias)
       : tag_(tag), property_name_(property_name), alias_(alias) {}
-  std::unique_ptr<ProjectExprBase> build(
-      const IStorageInterface& graph, const Context& ctx,
-      const std::map<std::string, std::string>& params) override {
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const Context& ctx,
+                                         const ParamsMap& params) override {
     auto col = ctx.get(tag_);
     if (col->column_type() != ContextColumnType::kVertex) {
       return nullptr;
@@ -246,9 +246,9 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
         property_name_(property_name),
         alias_(alias) {}
 
-  std::unique_ptr<ProjectExprBase> build(
-      const IStorageInterface& igraph, const Context& ctx,
-      const std::map<std::string, std::string>& params) override {
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& igraph,
+                                         const Context& ctx,
+                                         const ParamsMap& params) override {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
     auto col = ctx.get(tag_);
     if (col->column_type() != ContextColumnType::kVertex) {
@@ -306,9 +306,9 @@ struct GeneralProjectExprBuilder : public ProjectExprBuilderBase {
                             const std::optional<common::IrDataType>& data_type,
                             int alias)
       : expr_(expr), data_type_(data_type), alias_(alias) {}
-  std::unique_ptr<ProjectExprBase> build(
-      const IStorageInterface& graph, const Context& ctx,
-      const std::map<std::string, std::string>& params) override;
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const Context& ctx,
+                                         const ParamsMap& params) override;
 
   bool is_general() const override { return true; }
 
@@ -498,9 +498,10 @@ static std::unique_ptr<ProjectExprBase> _make_project_expr(Expr&& expr,
 // type from the expr
 
 static inline std::unique_ptr<ProjectExprBase>
-make_project_expr_without_data_type(
-    const common::Expression& expr, int alias, const IStorageInterface& graph,
-    const Context& ctx, const std::map<std::string, std::string>& params) {
+make_project_expr_without_data_type(const common::Expression& expr, int alias,
+                                    const IStorageInterface& graph,
+                                    const Context& ctx,
+                                    const ParamsMap& params) {
   const StorageReadInterface* graph_ptr = nullptr;
   if (graph.readable()) {
     graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
@@ -552,7 +553,7 @@ make_project_expr_without_data_type(
 inline std::unique_ptr<ProjectExprBase> make_project_expr(
     const common::Expression& expr, const common::IrDataType& data_type,
     int alias, const IStorageInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
+    const ParamsMap& params) {
   const StorageReadInterface* graph_ptr = nullptr;
   if (graph.readable()) {
     graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
@@ -631,13 +632,13 @@ inline std::unique_ptr<ProjectExprBase> make_project_expr(
 
 std::unique_ptr<ProjectExprBase> parse_special_expr(
     const common::Expression& expr, int alias, const IStorageInterface& graph,
-    const Context& ctx, const std::map<std::string, std::string>& params);
+    const Context& ctx, const ParamsMap& params);
 
 inline std::unique_ptr<ProjectExprBase> create_project_expr(
     const common::Expression& expr, int alias,
     const std::optional<common::IrDataType>& data_type,
     const IStorageInterface& graph, const Context& ctx,
-    const std::map<std::string, std::string>& params) {
+    const ParamsMap& params) {
   auto func = parse_special_expr(expr, alias, graph, ctx, params);
   if (func != nullptr) {
     return func;
@@ -654,8 +655,7 @@ inline std::unique_ptr<ProjectExprBase> create_project_expr(
 }
 
 inline gs::result<Context> ProjectEvalImpl(
-    const StorageReadInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
+    const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
     const std::vector<
         std::tuple<common::Expression, int, std::optional<common::IrDataType>>>&
         exprs_infos,

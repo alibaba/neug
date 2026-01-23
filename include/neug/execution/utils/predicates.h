@@ -30,7 +30,7 @@ namespace runtime {
 struct GeneralVertexPredicate {
   static constexpr bool is_dummy = false;
   GeneralVertexPredicate(const StorageReadInterface& graph, const Context& ctx,
-                         const std::map<std::string, std::string>& params,
+                         const ParamsMap& params,
                          const common::Expression& expr)
       : expr_(&graph, ctx, params, expr, VarType::kVertexVar) {}
 
@@ -46,8 +46,7 @@ struct GeneralEdgePredicate {
   static constexpr bool is_dummy = false;
 
   GeneralEdgePredicate(const StorageReadInterface& graph, const Context& ctx,
-                       const std::map<std::string, std::string>& params,
-                       const common::Expression& expr)
+                       const ParamsMap& params, const common::Expression& expr)
       : expr_(&graph, ctx, params, expr, VarType::kEdgeVar) {}
 
   inline bool operator()(label_t label, vid_t src, label_t nbr_label, vid_t nbr,

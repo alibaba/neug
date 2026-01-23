@@ -30,8 +30,7 @@ class SinkOpr : public IOperator {
  public:
   explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids_;
     return ctx;

@@ -34,13 +34,11 @@ class UpdateVertexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateVertexOpr"; }
 
-  gs::result<Context> eval_impl(
-      StorageUpdateInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer);
+  gs::result<Context> eval_impl(StorageUpdateInterface& graph,
+                                const ParamsMap& params, Context&& ctx,
+                                OprTimer* timer);
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
@@ -48,10 +46,9 @@ class UpdateVertexOpr : public IOperator {
   vertex_prop_vec_t vertex_data_;
 };
 
-gs::result<Context> UpdateVertexOpr::eval_impl(
-    StorageUpdateInterface& graph,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+gs::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
+                                               const ParamsMap& params,
+                                               Context&& ctx, OprTimer* timer) {
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
@@ -115,10 +112,9 @@ gs::result<Context> UpdateVertexOpr::eval_impl(
   return gs::result<Context>(std::move(ctx));
 }
 
-gs::result<Context> UpdateVertexOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+gs::result<Context> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
+                                          const ParamsMap& params,
+                                          Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   return eval_impl(graph, params, std::move(ctx), timer);
 }

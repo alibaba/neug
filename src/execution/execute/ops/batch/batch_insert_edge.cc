@@ -55,8 +55,7 @@ class BatchInsertEdgeOpr : public IOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
@@ -66,10 +65,9 @@ class BatchInsertEdgeOpr : public IOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-gs::result<Context> BatchInsertEdgeOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+gs::result<Context> BatchInsertEdgeOpr::Eval(IStorageInterface& graph_interface,
+                                             const ParamsMap& params,
+                                             Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   std::vector<std::pair<int32_t, std::string>>
       total_mappings;  // include prop_mappings and src/dst vertex bindings

@@ -33,8 +33,7 @@ class BatchDeleteVertexOpr : public IOperator {
     return "BatchDeleteVertexOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
@@ -43,8 +42,7 @@ class BatchDeleteVertexOpr : public IOperator {
 };
 
 gs::result<Context> BatchDeleteVertexOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
+    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   size_t binding_size = vertex_bindings_.size();

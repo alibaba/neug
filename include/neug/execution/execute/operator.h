@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -36,10 +37,9 @@ class IOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual gs::result<Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params, Context&& ctx,
-      OprTimer* timer) = 0;
+  virtual gs::result<Context> Eval(IStorageInterface& graph,
+                                   const ParamsMap& params, Context&& ctx,
+                                   OprTimer* timer) = 0;
 };
 
 using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;

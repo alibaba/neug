@@ -51,8 +51,7 @@ class IntersectOprMultip : public IOperator {
   }
 
   gs::result<gs::runtime::Context> Eval_Impl(
-      const IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
+      const IStorageInterface& graph_interface, const ParamsMap& params,
       gs::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t)>>& v_preds,
       const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
@@ -64,10 +63,10 @@ class IntersectOprMultip : public IOperator {
     return Intersect::Multiple_Intersect(graph, params, std::move(ctx), v_preds,
                                          e_preds, eeps_, alias_);
   }
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<std::function<bool(label_t, vid_t)>> v_preds;
@@ -132,10 +131,10 @@ class IntersectOprBeta : public IOperator {
 
   std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v) {
@@ -235,10 +234,10 @@ class IntersectWithEdgeOpr : public IOperator {
     return "IntersectWithEdgeOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v) {

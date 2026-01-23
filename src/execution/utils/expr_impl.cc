@@ -479,7 +479,7 @@ static Value parse_const_value(const ::common::Value& val) {
 }
 
 static Value parse_param(const ::common::DynamicParam& param,
-                         const std::map<std::string, std::string>& input) {
+                         const ParamsMap& input) {
   if (param.data_type().type_case() ==
       ::common::IrDataType::TypeCase::kDataType) {
     auto type = parse_from_ir_data_type(param.data_type());
@@ -636,13 +636,13 @@ static inline int get_proiority(const ::common::ExprOpr& opr) {
 
 static std::unique_ptr<ExprBase> parse_expression_impl(
     const StorageReadInterface* graph, const Context& ctx,
-    const std::map<std::string, std::string>& params,
-    const ::common::Expression& expr, VarType var_type);
+    const ParamsMap& params, const ::common::Expression& expr,
+    VarType var_type);
 
 static std::unique_ptr<ExprBase> build_expr(
     const StorageReadInterface* graph, const Context& ctx,
-    const std::map<std::string, std::string>& params,
-    std::stack<::common::ExprOpr>& opr_stack, VarType var_type) {
+    const ParamsMap& params, std::stack<::common::ExprOpr>& opr_stack,
+    VarType var_type) {
   while (!opr_stack.empty()) {
     auto opr = opr_stack.top();
     opr_stack.pop();
@@ -884,8 +884,8 @@ static std::unique_ptr<ExprBase> build_expr(
 
 static std::unique_ptr<ExprBase> parse_expression_impl(
     const StorageReadInterface* graph, const Context& ctx,
-    const std::map<std::string, std::string>& params,
-    const ::common::Expression& expr, VarType var_type) {
+    const ParamsMap& params, const ::common::Expression& expr,
+    VarType var_type) {
   std::stack<::common::ExprOpr> opr_stack;
   std::stack<::common::ExprOpr> opr_stack2;
   const auto& oprs = expr.operators();
@@ -955,10 +955,11 @@ static std::unique_ptr<ExprBase> parse_expression_impl(
   return build_expr(graph, ctx, params, opr_stack2, var_type);
 }
 
-std::unique_ptr<ExprBase> parse_expression(
-    const StorageReadInterface* graph, const Context& ctx,
-    const std::map<std::string, std::string>& params,
-    const ::common::Expression& expr, VarType var_type) {
+std::unique_ptr<ExprBase> parse_expression(const StorageReadInterface* graph,
+                                           const Context& ctx,
+                                           const ParamsMap& params,
+                                           const ::common::Expression& expr,
+                                           VarType var_type) {
   return parse_expression_impl(graph, ctx, params, expr, var_type);
 }
 

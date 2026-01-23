@@ -34,8 +34,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
   std::string get_operator_name() const override {
     return "AddVertexPropertySchemaOpr";
   }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap&,
                            Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);

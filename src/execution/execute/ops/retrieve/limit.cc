@@ -39,10 +39,10 @@ class LimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     return Limit::limit(std::move(ctx), lower_, upper_);
   }
 

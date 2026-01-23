@@ -34,10 +34,10 @@ class UnfoldOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnfoldOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     if (expr_.operators_size() == 1 && expr_.operators(0).has_var() &&
         (!expr_.operators(0).var().has_property())) {
       int key = expr_.operators(0).var().tag().id();

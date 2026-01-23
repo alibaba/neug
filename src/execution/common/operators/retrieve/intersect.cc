@@ -48,8 +48,7 @@ void get_labels(
 }
 
 gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
-    const StorageReadInterface& graph,
-    const std::map<std::string, std::string>& params,
+    const StorageReadInterface& graph, const ParamsMap& params,
     gs::runtime::Context&& ctx,
     const std::vector<std::function<bool(label_t, vid_t)>>& preds,
     const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
@@ -204,8 +203,7 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
 }
 
 gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
-    const StorageReadInterface& graph,
-    const std::map<std::string, std::string>& params,
+    const StorageReadInterface& graph, const ParamsMap& params,
     gs::runtime::Context&& ctx,
     const std::function<bool(label_t, vid_t)>& left_pred,
     const std::function<bool(label_t, vid_t)>& right_pred,

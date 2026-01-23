@@ -34,8 +34,7 @@ class BatchDeleteEdgeOpr : public IOperator {
     return "BatchDeleteEdgeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
@@ -44,10 +43,9 @@ class BatchDeleteEdgeOpr : public IOperator {
   std::vector<int32_t> edge_bindings_;
 };
 
-gs::result<Context> BatchDeleteEdgeOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
-    OprTimer* timer) {
+gs::result<Context> BatchDeleteEdgeOpr::Eval(IStorageInterface& graph_interface,
+                                             const ParamsMap& params,
+                                             Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   size_t binding_size = edge_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {

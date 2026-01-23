@@ -36,10 +36,10 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     std::vector<gs::runtime::Context> ctxs;
     for (auto& plan : sub_plans_) {
       gs::runtime::Context n_ctx = ctx;

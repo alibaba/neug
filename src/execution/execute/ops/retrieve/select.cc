@@ -33,10 +33,10 @@ class SelectIdNeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     auto tag = expr_.operators(0).var().tag().id();
     auto col = ctx.get(tag);
     const auto& name = expr_.operators(0).var().property().key().name();
@@ -86,10 +86,10 @@ class SelectOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SelectOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(
-      IStorageInterface& graph_interface,
-      const std::map<std::string, std::string>& params,
-      gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) override {
+  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
+                                        const ParamsMap& params,
+                                        gs::runtime::Context&& ctx,
+                                        gs::runtime::OprTimer* timer) override {
     StorageReadInterface* graph = nullptr;
     if (graph_interface.readable()) {
       graph = dynamic_cast<StorageReadInterface*>(&graph_interface);

@@ -44,8 +44,7 @@ class BatchInsertVertexOpr : public IOperator {
     return "BatchInsertVertexOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
+  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
                            Context&& ctx, OprTimer* timer) override;
 
  private:
@@ -54,8 +53,7 @@ class BatchInsertVertexOpr : public IOperator {
 };
 
 gs::result<Context> BatchInsertVertexOpr::Eval(
-    IStorageInterface& graph_interface,
-    const std::map<std::string, std::string>& params, Context&& ctx,
+    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);

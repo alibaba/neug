@@ -31,8 +31,8 @@ class CreateVertexOpr : public IOperator {
       : labels_(labels), alias_(alias), properties_(properties) {}
 
   gs::result<Context> Eval(IStorageInterface& graph_interface,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override {
+                           const ParamsMap& params, Context&& ctx,
+                           OprTimer* timer) override {
     // Implementation of vertex creation logic goes here.
 
     const StorageReadInterface* graph_ptr = nullptr;

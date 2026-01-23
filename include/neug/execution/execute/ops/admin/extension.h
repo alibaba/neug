@@ -27,52 +27,6 @@ namespace gs {
 namespace runtime {
 namespace ops {
 
-class ExtensionInstallOpr : public IOperator {
- public:
-  explicit ExtensionInstallOpr(std::string extension_name)
-      : extension_name_(std::move(extension_name)) {}
-  ~ExtensionInstallOpr() override = default;
-  std::string get_operator_name() const override {
-    return "ExtensionInstallOpr";
-  }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  std::string extension_name_;
-};
-
-class ExtensionLoadOpr : public IOperator {
- public:
-  explicit ExtensionLoadOpr(std::string extension_name)
-      : extension_name_(std::move(extension_name)) {}
-  ~ExtensionLoadOpr() override = default;
-  std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  std::string extension_name_;
-};
-
-class ExtensionUninstallOpr : public IOperator {
- public:
-  explicit ExtensionUninstallOpr(std::string extension_name)
-      : extension_name_(std::move(extension_name)) {}
-  ~ExtensionUninstallOpr() override = default;
-  std::string get_operator_name() const override {
-    return "ExtensionUninstallOpr";
-  }
-  gs::result<Context> Eval(IStorageInterface& graph,
-                           const std::map<std::string, std::string>& params,
-                           Context&& ctx, OprTimer* timer) override;
-
- private:
-  std::string extension_name_;
-};
-
 // Builders
 class ExtensionInstallOprBuilder : public IOperatorBuilder {
  public:

@@ -32,7 +32,7 @@ namespace runtime {
 
 inline bool is_pk_oid_exact_check(
     const gs::Schema& schema, label_t label, const common::Expression& expr,
-    std::function<Property(const std::map<std::string, std::string>&)>& value) {
+    std::function<Property(const ParamsMap&)>& value) {
   if (expr.operators_size() != 3) {
     return false;
   }
@@ -58,7 +58,7 @@ inline bool is_pk_oid_exact_check(
     if (type_.id() != DataTypeId::kInt64 && type_.id() != DataTypeId::kInt32) {
       return false;
     }
-    value = [name](const std::map<std::string, std::string>& params) {
+    value = [name](const ParamsMap& params) {
       return Property::from_int64(
           static_cast<int64_t>(std::stoll(params.at(name))));
     };
@@ -66,12 +66,10 @@ inline bool is_pk_oid_exact_check(
   } else if (expr.operators(2).has_const_()) {
     auto& c = expr.operators(2).const_();
     if (c.item_case() == common::Value::kI64) {
-      value = [c](const std::map<std::string, std::string>&) {
-        return Property::from_int64(c.i64());
-      };
+      value = [c](const ParamsMap&) { return Property::from_int64(c.i64()); };
 
     } else if (c.item_case() == common::Value::kI32) {
-      value = [c](const std::map<std::string, std::string>&) {
+      value = [c](const ParamsMap&) {
         return Property::from_int64(static_cast<int64_t>(c.i32()));
       };
     } else {
@@ -618,9 +616,8 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
 template <typename OP_T, typename CMP_T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& params, const CMP_T& cmp_val,
-    Args&&... args) {
+    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    const CMP_T& cmp_val, Args&&... args) {
   if (expected_labels.size() == 1) {
     // single label
     label_t label = *expected_labels.begin();
@@ -646,8 +643,8 @@ static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 template <typename OP_T, typename T, typename... Args>
 static gs::result<Context> dispatch_vertex_predicate_impl_typed(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& params, Args&&... args) {
+    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    Args&&... args) {
   auto get_value = [&](const std::string& param_name) -> T {
     if constexpr (std::is_same_v<T, std::string_view>) {
       return std::string_view(params.at(param_name));
@@ -708,8 +705,8 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
 template <typename OP_T, typename... Args>
 gs::result<Context> dispatch_vertex_predicate(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& params, Args&&... args) {
+    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    Args&&... args) {
   switch (config.param_type) {
 #define TYPE_DISPATCHER(enum_val, type)                      \
   case DataTypeId::enum_val:                                 \

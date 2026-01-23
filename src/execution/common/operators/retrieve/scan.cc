@@ -47,8 +47,7 @@ struct ScanVertexSPOp {
 
 gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
-    const SpecialVertexPredicateConfig& config,
-    const std::map<std::string, std::string>& query_params) {
+    const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (auto label : params.tables) {
     expected_labels.insert(label);

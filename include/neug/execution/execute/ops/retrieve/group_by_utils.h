@@ -905,8 +905,7 @@ bool BuildGroupByUtils(const physical::GroupBy& group_by,
                        std::vector<physical::GroupBy_AggFunc>& reduce_funcs);
 
 inline gs::result<gs::runtime::Context> GroupByEvalImpl(
-    const StorageReadInterface& graph,
-    const std::map<std::string, std::string>& params,
+    const StorageReadInterface& graph, const ParamsMap& params,
     gs::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
     const std::vector<physical::GroupBy_AggFunc>& aggrs) {

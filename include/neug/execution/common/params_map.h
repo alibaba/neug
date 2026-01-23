@@ -12,38 +12,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
-
 #include <map>
-#include <memory>
 #include <string>
-#include <utility>
-#include <vector>
-
-#include "neug/execution/execute/operator.h"
-#include "neug/storages/graph/graph_interface.h"
 
 namespace gs {
-
 namespace runtime {
-class Context;
-class OprTimer;
-
-class Pipeline {
- public:
-  Pipeline() {}
-  Pipeline(Pipeline&& rhs) : operators_(std::move(rhs.operators_)) {}
-  explicit Pipeline(std::vector<std::unique_ptr<IOperator>>&& operators)
-      : operators_(std::move(operators)) {}
-  ~Pipeline() = default;
-
-  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
-                              const ParamsMap& params, OprTimer* timer);
-
- private:
-  std::vector<std::unique_ptr<IOperator>> operators_;
-};
-
+using ParamsMap = std::map<std::string, std::string>;
 }  // namespace runtime
-
 }  // namespace gs
