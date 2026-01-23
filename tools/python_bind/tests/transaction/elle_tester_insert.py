@@ -16,305 +16,151 @@
 # limitations under the License.
 #
 
-import os
 import random
-import shutil
-import sys
-import time
-from pathlib import Path
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
-
-import threading
-from datetime import datetime
-
+import elle_tester as elle
 import networkx as nx
 
-from neug.database import Database
-from neug.session import Session
 
+# 定义读依赖，所有的read结果从少到多存储在results中，相同的结果group在ids中
+# 例如results=[[], [1, 2], [1, 2, 3]], ids=[[], [1], [2, 3]]
+# 表示初始状态为空，id=1的事务读到了[1, 2]，id=2,3的事务读到了[1, 2, 3]
+class ReadDependency:
+    results: list[list[int]]
+    ids: list[list[int]]
 
-class QueryTriplet:
-    operator: str
-    target: str
-    result: list[int]
-
-    def __init__(self, operator: str, target: str, result: list[int]):
-        self.operator = operator
-        self.target = target
-        self.result = result
-
-
-class Transaction:
-    id: int
-    queries: list[QueryTriplet]
-    start_time: datetime
-    end_time: datetime
-
-    def __init__(self, id: int, queries: list[QueryTriplet]):
-        self.id = id
-        self.queries = queries
-        self.start_time = None
-        self.end_time = None
-
-
-# send a single query
-def send(endpoint, query: str):
-    print(query)
-    session = Session.open(endpoint)
-    result = session.execute(query)
-    record = list(result)
-    print(record)
-    session.close()
-    return record
-
-
-# create a transaction to send queries
-def sends(transaction: Transaction, endpoint: str):
-    print("START TRANSACTION", transaction.id)
-    max_retries = 100
-    retry_delay = 0.1  # 100ms
-    for attempt in range(max_retries):
-        try:
-            # 每个线程创建自己的 Connection
-            session = Session.open(endpoint)
-            time.sleep(random.random() * 0.2)
-            transaction.start_time = datetime.now()
-            for query in transaction.queries:
-                if query.operator == "Insert":
-                    query_str = f"Create (n: Person {{id: {query.result[0]}}})"
-                    session.execute(query_str)
-                    print(
-                        "Transaction ID: ",
-                        transaction.id,
-                        query.operator,
-                        query.target,
-                        query.result,
-                    )
-                elif query.operator == "Read":
-                    query_str = "MATCH (n:Person) RETURN n.id;"
-                    result = session.execute(query_str)
-                    time.sleep(0.1)
-                    query.result = [row[0] for row in result]
-                    print(
-                        "Transaction ID:",
-                        transaction.id,
-                        query.operator,
-                        query.target,
-                        query.result,
-                    )
-            # 提交事务
-            transaction.end_time = datetime.now()
-            return  # 成功执行，退出重试循环
-        except RuntimeError as e:
-            error_msg = str(e)
-            if (
-                "Only one write transaction at a time is allowed" in error_msg
-                or "Cannot start a new write transaction" in error_msg
-            ):
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    raise  # 重试次数用完，抛出异常
-            else:
-                raise  # 其他错误直接抛出
-
-
-# connect dependency edges
-def connect(G: nx.DiGraph, edge_type: str, from_id: int, to_id: int):
-    print(from_id, "->", to_id)
-    if from_id != to_id:
-        G.add_edge(from_id, to_id, type=edge_type)
-
-
-class ElleTester:
     def __init__(self):
-        self.num_of_nodes = 1
+        self.results = []
+        self.ids = []
+
+
+class ElleTesterInsertEdge(elle.ElleTester):
+    def __init__(self):
+        super().__init__()
+        self.num_of_nodes = 2
         self.num_of_query = 1
-        self.num_of_trans = 10
-        self.db = None
-        self.endpoint = None
-        self.track_id = {}
-        self.transactions: map[int, Transaction] = {}
-        self.lock = threading.Lock()  # 用于保护共享数据的锁
-        self.transaction_time = None
-        self.read_dependency_results = None
-        self.read_dependency_ids = None
-        pass
+        self.num_of_trans = 100
 
-    # generate a single query
-    def generate_single_query(self, tot_id) -> QueryTriplet:
-        if random.random() > 0.3:
-            return QueryTriplet("Insert", "Person", [tot_id])
-        else:
-            return QueryTriplet("Read", "Person", [])
-
-    # initialization
+    # 初始化数据库
+    # 创建若干个Person点用于边的Read/Insert
     def init(self):
-        db_dir = Path("./my_db")
-        shutil.rmtree(db_dir, ignore_errors=True)
-        self.db = Database(db_path=str(db_dir), mode="w")
-        self.endpoint = self.db.serve(port=10010, host="localhost", blocking=False)
-        send(self.endpoint, "CREATE NODE TABLE Person(id INT64, PRIMARY KEY (id))")
-        send(self.endpoint, "MATCH (n:Person) DELETE n;")
+        super().init()
+        elle.send(self.endpoint, "CREATE NODE TABLE Person(id INT64, PRIMARY KEY (id))")
+        elle.send(
+            self.endpoint, "CREATE REL TABLE Knows(FROM Person TO Person, id INT64)"
+        )
+        for i in range(1, self.num_of_nodes + 1):
+            elle.send(self.endpoint, f"CREATE (p: Person {{id: {i}}});")
+            self.track_id[i] = 0
 
-    # generate a query list for each transaction
-    def generate(self):
-        for i in range(1, self.num_of_trans + 1):
-            tot_id = i * 100 + 1
-            transaction = Transaction(i, [])
-            for j in range(self.num_of_query):
-                query = self.generate_single_query(tot_id)
-                transaction.queries.append(query)
-                self.track_id[tot_id] = i
-                tot_id += 1
-            self.transactions[i] = transaction
-
-    # create multiple threads to run transactions concurrently
-    def run(self):
-        print("------ start executing ------")
-        threads = []
-        for i in range(1, self.num_of_trans + 1):
-            # 每个线程自行连接数据库，执行transaction
-            thread = threading.Thread(
-                target=sends,
-                args=(self.transactions[i], self.endpoint),
-            )
-            threads.append(thread)
-
-        # 启动所有线程（并发执行）
-        for t in threads:
-            t.start()
-
-        # 等待所有线程完成
-        for t in threads:
-            t.join()
-
-        for i in range(1, self.num_of_trans + 1):
-            for query in self.transactions[i].queries:
-                print(
-                    "Transaction ", i, "->", query.operator, query.target, query.result
-                )
-        # 收集所有开始和结束时间，合并后按时间排序
-        all_events = []
-        for i in range(1, self.num_of_trans + 1):
-            if self.transactions[i].start_time is not None:
-                all_events.append((self.transactions[i].start_time, i, "start"))
-            if self.transactions[i].end_time is not None:
-                all_events.append((self.transactions[i].end_time, i, "finish"))
-
-        # 按时间排序
-        all_events.sort(key=lambda x: x[0])
-
-        # 输出所有事件（开始和结束合并，按时间排序）
-        for event_time, trans_id, event_type in all_events:
-            if event_type == "start":
-                print("Transaction", trans_id, "start at:", event_time)
+    # 随机生成查询
+    def generate_single_query(self, tot_id):
+        if random.random() > 0.5:
+            # 生成点操作
+            if random.random() > 0.3:
+                return "Insert", "Person", [tot_id]
             else:
-                print("Transaction", trans_id, "finish at:", event_time)
+                return "Read", "Person", []
+        else:
+            # 生成边操作
+            start_node = random.randint(1, self.num_of_nodes)
+            end_node = random.randint(1, self.num_of_nodes)
+            if random.random() > 0.3:
+                return "Insert", f"Knows|{start_node}|{end_node}", [tot_id]
+            else:
+                return "Read", f"Knows|{start_node}|{end_node}", []
 
-    def prepare_result(self):
-        read_results = []
-        for i in range(1, self.num_of_trans + 1):
-            for query in self.transactions[i].queries:
-                if query.operator == "Read":
-                    read_results.append([i, query])
-
-        result = send(self.endpoint, "MATCH (n:Person) RETURN n.id;")
+    # 将read的结果排序合并
+    def grouping_results(
+        self,
+        target: str,
+        results: list[[int, elle.QueryTriplet]],
+        dependency: ReadDependency,
+    ):
+        # Step 1: 读到最终结果
+        query_str = elle.construct_query("Read", target, None)
+        result = elle.send(self.endpoint, query_str)
         full_version = [row[0] for row in result]
-
         print("full_version:", full_version)
+
+        # Step 2: 考虑到read的结果可能是乱序，规定read内部的顺序（以full version为标准）
         index_map = {item: i for i, item in enumerate(full_version)}
-        for read_result in read_results:
-            read_result[1].result.sort(
-                key=lambda x: index_map[x]
-            )  # Sort the result list in place
-            print(read_result)
+        for result in results:
+            result[1].result.sort(key=lambda x: index_map[x])
 
-        # Discretization
-        # Sort query_queue by the size of the read result list
-        sorted_read_results = sorted(read_results, key=lambda x: len(x[1].result))
-        print("sorted_read_results:", sorted_read_results)
+        # Step  3: 根据read的数量排序
+        sorted_results = sorted(results, key=lambda x: len(x[1].result))
+        print("sorted_results:")
+        for result in sorted_results:
+            print(result)
 
-        # save all read results (unique, initially empty)
-        self.read_dependency_results = [[]]
-        self.read_dependency_ids = [[]]
-        for trans_id, triplet in sorted_read_results:
-            if triplet.result == self.read_dependency_results[-1]:
-                # same read result
-                self.read_dependency_ids[-1].append(trans_id)
+        # Step 4: 相同的read结果合并
+        dependency.results = [[]]
+        dependency.ids = [[]]
+        for trans_id, triplet in sorted_results:
+            if len(triplet.result) == len(dependency.results[-1]):
+                # len相同即说明是相同的read结果
+                dependency.ids[-1].append(trans_id)
             else:
-                # new read result
-                self.read_dependency_results.append(triplet.result)
-                self.read_dependency_ids.append([trans_id])
-        if self.read_dependency_results[-1] != full_version:
-            self.read_dependency_results.append(full_version)
-            self.read_dependency_ids.append([])
+                # 否则说明是新的read结果
+                dependency.results.append(triplet.result)
+                dependency.ids.append([trans_id])
+        if dependency.results[-1] != full_version:
+            dependency.results.append(full_version)
+            dependency.ids.append([])
 
-        print("Discretization:")
-        for i in range(len(self.read_dependency_results)):
-            print(self.read_dependency_results[i], self.read_dependency_ids[i])
-
-    # build a dependency graph
-    def build_graph(self):
-        G = nx.DiGraph()
-
-        # 1. r-r edge
+    def connect_dependency_edges(self, dependency: ReadDependency):
+        # 1. r-r边，相邻两个read结果存在先后依赖关系
         print("Step 1: r-r edge")
-        for i in range(len(self.read_dependency_ids) - 1):
-            for id_1 in self.read_dependency_ids[i]:
-                for id_2 in self.read_dependency_ids[i + 1]:
-                    connect(G, "rr", id_1, id_2)
+        for i in range(len(dependency.results) - 1):
+            for id_1 in dependency.ids[i]:
+                for id_2 in dependency.ids[i + 1]:
+                    elle.connect(self.G, "rr", id_1, id_2)
 
-        # 2. i-r / r-i edge
+        # 2. i-r / r-i边，相邻两个read结果的差值，表示这两个read操作中间的insert操作
         print("Step 2: i-r / r-i edge")
-        for i in range(len(self.read_dependency_results) - 1):
-            prev_read_result = self.read_dependency_results[i]
-            succ_read_result = self.read_dependency_results[i + 1]
+        for i in range(len(dependency.results) - 1):
+            prev_read_result = dependency.results[i]
+            succ_read_result = dependency.results[i + 1]
             for j in range(len(prev_read_result), len(succ_read_result)):
                 new_x = succ_read_result[j]
-                for id_1 in self.read_dependency_ids[i]:
-                    connect(G, "ri", id_1, self.track_id[new_x])
-                for id_2 in self.read_dependency_ids[i + 1]:
-                    connect(G, "ir", self.track_id[new_x], id_2)
+                for id_1 in dependency.ids[i]:
+                    elle.connect(self.G, "ri", id_1, self.track_id[new_x])
+                for id_2 in dependency.ids[i + 1]:
+                    elle.connect(self.G, "ir", self.track_id[new_x], id_2)
 
-        # 3. Linearizability
-        print("Step 3: linearizability edge:")
-        for i in range(1, self.num_of_trans):
-            for j in range(i + 1, self.num_of_trans + 1):
-                if self.transactions[i].end_time < self.transactions[j].start_time:
-                    print(i, "->", j)
-                    connect(G, "li", i, j)
-                if self.transactions[j].end_time < self.transactions[i].start_time:
-                    print(j, "->", i)
-                    connect(G, "li", j, i)
+    # 实现依赖图的构造
+    def build_graph(self):
+        # Step 1: 将所有的read结果根据target分类
+        read_results = {}
+        for transaction in self.transactions.values():
+            for query in transaction.queries:
+                if query.operator == "Read":
+                    read_results.setdefault(query.target, []).append(
+                        [transaction.id, query]
+                    )
 
-        try:
-            cycle = nx.find_cycle(G, orientation="original")
-            assert False, "Cycle detected"
-            print("Cycle detected")
-            for u, v, d in cycle:
-                edge_type = G.edges[u, v].get("type")
-                print(f"edge {u}-{v}: edge_type={edge_type}")
-        except nx.NetworkXNoCycle:
-            print("No cycle detected")
+        # Step 2: 对于每种target，构造依赖边
+        for target, results in read_results.items():
+            print("--------------------------------")
+            print("Update the dependency graph for", target)
+            print("--------------------------------")
 
-        # sccs = nx.strongly_connected_components(G)
-        # for i, nodes in enumerate(sccs, 1):
-        #     subgraph = G.subgraph(nodes)
-        #     if subgraph.number_of_edges() > 0:
-        #         print("----------------")
-        #         print(f"component {i} (node: {nodes}):")
-        #         for u, v, attrs in subgraph.edges(data=True):
-        #             print(f"  edge: {u} -> {v}, type: {attrs}")
+            # Step 2.1: 将read的结果排序合并
+            dependency = ReadDependency()
+            self.grouping_results(target, results, dependency)
+            print("Discretization:")
+            for i in range(len(dependency.results)):
+                print(dependency.ids[i], dependency.results[i])
+
+            # Step 2.2: 构造依赖边
+            self.connect_dependency_edges(dependency)
+
+        # Step 3: 添加线性依赖
+        self.connect_linearizability_edges()
 
 
 def test_elle_insert_concurrent():
     # Test Read/Insert concurrent dependency detection.
-    elle_tester = ElleTester()
-    elle_tester.init()
-    elle_tester.generate()
-    elle_tester.run()
-    elle_tester.prepare_result()
-    elle_tester.build_graph()
+    elle_tester = ElleTesterInsertEdge()
+    elle_tester.start_test()

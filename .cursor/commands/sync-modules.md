@@ -40,11 +40,3 @@ You **MUST** consider the user input before proceeding (if not empty).
         ```
         gh api graphql -f query='mutation { addSubIssue(input: {issueId: "xxx", subIssueId: "xxx"}) { issue { id title } subIssue { id title } } }'
         ```
-
-5. **Create Task Issue**: (Ask whether user want to CONTINUE to create task issues or DELAY.)
-    - For each task in the `module_i.md` file, create a new issue on the GitHub.
-    - The issue title is the task title in the `module_i.md` file, e.g., `[Fxxx-Txxx] <task-title>`.
-    - The body is all content in the task region including `description` and `details`.
-    - Set Assignee, Label, Project as same as the module issue. Do NOT set Milestone.
-    - Link the task issue to the module issue. The command is as same as the one in STEP 5.
-
