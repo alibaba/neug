@@ -20,6 +20,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
 namespace gs {
@@ -62,7 +63,7 @@ class IGraphPlanner {
   // and can only distinguish between "update" and "read" modes.
   // Inferring an "insert" mode would require more complex operator
   // combination analysis, which is not supported at the moment.
-  virtual std::string analyzeMode(const std::string& query) const = 0;
+  virtual AccessMode analyzeMode(const std::string& query) const = 0;
 };
 
 }  // namespace gs

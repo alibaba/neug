@@ -39,9 +39,9 @@ result<results::CollectiveResults> QueryProcessor::execute(
                             "Number of threads must be greater than 0"));
   }
 
-  std::string access_mode = user_access_mode.empty()
-                                ? planner_->analyzeMode(query_string)
-                                : user_access_mode;
+  AccessMode access_mode = user_access_mode.empty()
+                               ? planner_->analyzeMode(query_string)
+                               : ParseAccessMode(user_access_mode);
 
   if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -107,9 +107,8 @@ result<results::CollectiveResults> QueryProcessor::execute_query(
   return runtime::Sink::sink(ctx.value(), gii);
 }
 
-bool QueryProcessor::need_exclusive_lock(const std::string& access_mode) {
-  if (access_mode == "read" || access_mode == "READ" || access_mode == "r" ||
-      access_mode == "R") {
+bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
+  if (access_mode == AccessMode::kRead) {
     return false;
   }
   return true;  // For Insert and Update operations

@@ -127,7 +127,7 @@ bool isTokenEnd(char ch) {
          ch == '(';
 }
 
-std::string GOptPlanner::analyzeMode(const std::string& query) const {
+AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
   size_t i = 0;
   const size_t n = query.size();
 
@@ -166,13 +166,13 @@ std::string GOptPlanner::analyzeMode(const std::string& query) const {
     std::string token(query.data() + token_start, i - token_start);
 
     if (getUpdateOpTokens().contains(token)) {
-      return "update";
+      return AccessMode::kUpdate;
     }
 
     ++i;
   }
 
-  return "read";
+  return AccessMode::kRead;
 }
 
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {

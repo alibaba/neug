@@ -43,7 +43,7 @@ class GOptPlanner : public gs::IGraphPlanner {
 
   void update_statistics(const std::string& graph_statistic_json) override;
 
-  std::string analyzeMode(const std::string& query) const override;
+  AccessMode analyzeMode(const std::string& query) const override;
 
  private:
   std::unique_ptr<gs::main::MetadataManager> database;

@@ -129,14 +129,13 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   if (document.HasMember("query") && document["query"].IsString()) {
     query = document["query"].GetString();
   }
-  std::string access_mode_str;
+  gs::AccessMode access_mode = gs::AccessMode::kUnKnown;
   if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
-    access_mode_str = document["access_mode"].GetString();
+    access_mode = gs::ParseAccessMode(document["access_mode"].GetString());
   }
-  if (access_mode_str.empty()) {
-    access_mode_str = planner_->analyzeMode(query);
+  if (access_mode == gs::AccessMode::kUnKnown) {
+    access_mode = planner_->analyzeMode(query);
   }
-  gs::AccessMode access_mode = gs::ParseAccessMode(access_mode_str);
 
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;

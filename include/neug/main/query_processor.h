@@ -52,7 +52,7 @@ class QueryProcessor {
   result<results::CollectiveResults> execute_query(
       const physical::PhysicalPlan& plan, int32_t num_threads);
 
-  bool need_exclusive_lock(const std::string& access_mode);
+  bool need_exclusive_lock(AccessMode access_mode);
 
   void update_compiler_meta_if_needed(const physical::PhysicalPlan& plan);
 

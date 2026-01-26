@@ -21,14 +21,17 @@
 namespace gs {
 
 enum class AccessMode {
-  kRead,    // Read-only access
-  kInsert,  // Insert-only access
-  kUpdate,  // Update graph data, read existing data, insert new data
-  kSchema   // Modify schema,
+  kUnKnown,  // Unset access mode
+  kRead,     // Read-only access
+  kInsert,   // Insert-only access
+  kUpdate,   // Update graph data, read existing data, insert new data
+  kSchema    // Modify schema,
 };
 inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
   std::string mode_upper = to_lower_copy(access_mode_str);
-  if (mode_upper == "read" || mode_upper == "r") {
+  if (mode_upper == "" || mode_upper == "unkown") {
+    return AccessMode::kUnKnown;
+  } else if (mode_upper == "read" || mode_upper == "r") {
     return AccessMode::kRead;
   } else if (mode_upper == "insert" || mode_upper == "i") {
     return AccessMode::kInsert;
@@ -38,6 +41,23 @@ inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
     return AccessMode::kSchema;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Unknown access mode: " + access_mode_str);
+  }
+}
+
+inline std::string AccessModeToString(AccessMode mode) {
+  switch (mode) {
+  case AccessMode::kRead:
+    return "read";
+  case AccessMode::kInsert:
+    return "insert";
+  case AccessMode::kUpdate:
+    return "update";
+  case AccessMode::kSchema:
+    return "schema";
+  case AccessMode::kUnKnown:
+    return "unknown";
+  default:
+    return "unknown";
   }
 }
 
