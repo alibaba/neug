@@ -17,7 +17,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/utils/function_type.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 struct NeugScalarFunction : public ScalarFunction {
   runtime::neug_func_exec_t neugExecFunc = nullptr;
@@ -35,4 +35,4 @@ struct NeugScalarFunction : public ScalarFunction {
   }
 };
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

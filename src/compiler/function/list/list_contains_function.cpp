@@ -26,10 +26,10 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListContains {
@@ -83,4 +83,4 @@ function_set ListContainsFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

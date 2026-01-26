@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalDummyScan final : public LogicalOperator {
@@ -31,4 +31,4 @@ class LogicalDummyScan final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

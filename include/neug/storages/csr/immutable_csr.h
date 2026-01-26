@@ -26,7 +26,7 @@
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 template <typename EDATA_T>
 class ImmutableCsr : public TypedCsrBase<EDATA_T> {
@@ -209,4 +209,4 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   mmap_array<nbr_t> nbr_list_;
 };
 
-}  // namespace gs
+}  // namespace neug

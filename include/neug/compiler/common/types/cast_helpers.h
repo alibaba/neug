@@ -27,7 +27,7 @@
 #include "interval_t.h"
 #include "neug/compiler/common/types/date_t.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // This is copied from third_party/fmt/include/fmt/format.h and format-inl.h.
@@ -321,4 +321,4 @@ struct IntervalToStringCast {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

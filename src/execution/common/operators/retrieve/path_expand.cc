@@ -19,13 +19,13 @@
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
 #include "neug/execution/utils/special_predicates.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
-gs::result<Context> PathExpand::edge_expand_v(const StorageReadInterface& graph,
-                                              Context&& ctx,
-                                              const PathExpandParams& params) {
+neug::result<Context> PathExpand::edge_expand_v(
+    const StorageReadInterface& graph, Context&& ctx,
+    const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   if (params.labels.size() == 1 &&
       ctx.get(params.start_tag)->column_type() == ContextColumnType::kVertex &&
@@ -231,9 +231,9 @@ gs::result<Context> PathExpand::edge_expand_v(const StorageReadInterface& graph,
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
 
-gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
-                                            Context&& ctx,
-                                            const PathExpandParams& params) {
+neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
+                                              Context&& ctx,
+                                              const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
@@ -399,9 +399,9 @@ gs::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
 
-gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
-                                         Context&& ctx,
-                                         const PathExpandParams& params) {
+neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
+                                           Context&& ctx,
+                                           const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
@@ -481,9 +481,9 @@ gs::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
   return ctx;
 }
 
-gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
-                                        Context&& ctx,
-                                        const PathExpandParams& params) {
+neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
+                                          Context&& ctx,
+                                          const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
   auto& input_vertex_list =
       *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
@@ -583,7 +583,7 @@ gs::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
   return ctx;
 }
 
-gs::result<Context> path_expand_p_any_shortest(
+neug::result<Context> path_expand_p_any_shortest(
     const StorageReadInterface& graph, Context&& ctx,
     const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
@@ -686,9 +686,9 @@ gs::result<Context> path_expand_p_any_shortest(
   return ctx;
 }
 
-gs::result<Context> PathExpand::edge_expand_p(const StorageReadInterface& graph,
-                                              Context&& ctx,
-                                              const PathExpandParams& params) {
+neug::result<Context> PathExpand::edge_expand_p(
+    const StorageReadInterface& graph, Context&& ctx,
+    const PathExpandParams& params) {
   if (params.opt == PathOpt::kArbitrary) {
     return path_expand_p_arbitrary(graph, std::move(ctx), params);
   } else if (params.opt == PathOpt::kAnyShortest) {
@@ -871,7 +871,7 @@ static bool single_source_single_dest_shortest_path_impl(
   return false;
 }
 
-gs::result<Context> PathExpand::single_source_single_dest_shortest_path(
+neug::result<Context> PathExpand::single_source_single_dest_shortest_path(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, std::pair<label_t, vid_t>& dest) {
   std::vector<size_t> shuffle_offset;
@@ -1112,7 +1112,7 @@ static void all_shortest_path_with_given_source_and_dest_impl(
       edge_datas, cur_edge_data);
 }
 
-gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
+neug::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params, const std::pair<label_t, vid_t>& dest) {
   auto& input_vertex_list =
@@ -1163,7 +1163,7 @@ gs::result<Context> PathExpand::all_shortest_paths_with_given_source_and_dest(
 
 struct SSSPSPOp {
   template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(
+  static neug::result<Context> eval_with_predicate(
       const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
       const ShortestPathParams& params) {
     return PathExpand::single_source_shortest_path<PRED_T>(
@@ -1171,7 +1171,7 @@ struct SSSPSPOp {
   }
 };
 
-gs::result<Context>
+neug::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const ShortestPathParams& params,
@@ -1188,4 +1188,4 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -37,7 +37,7 @@
 #include <utility>
 #include <vector>
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 void GDDLConverter::convertCreateTable(const planner::LogicalCreateTable& op,
@@ -68,15 +68,15 @@ void GDDLConverter::convertCreateTable(const planner::LogicalCreateTable& op,
 void GDDLConverter::convertDropTable(const planner::LogicalDrop& op,
                                      ::physical::PhysicalPlan* plan) {
   auto& info = op.getDropInfo();
-  if (info.dropType != gs::common::DropType::TABLE) {
+  if (info.dropType != neug::common::DropType::TABLE) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Expected DROP TABLE type");
   }
 
   if (checkEntryType(info.name,
-                     gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                     neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     plan->mutable_plan()->AddAllocated(convertToDropVertexSchema(op).release());
   } else if (checkEntryType(info.name,
-                            gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                            neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     plan->mutable_plan()->AddAllocated(convertToDropEdgeSchema(op).release());
   } else {
     THROW_RUNTIME_ERROR("Invalid table type for drop table");
@@ -89,21 +89,21 @@ void GDDLConverter::convertAlterTable(const planner::LogicalAlter& op,
 
   // Check table type
   if (checkEntryType(info->tableName,
-                     gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                     neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     switch (info->alterType) {
-    case gs::common::AlterType::ADD_PROPERTY:
+    case neug::common::AlterType::ADD_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToAddVertexPropertySchema(op).release());
       break;
-    case gs::common::AlterType::DROP_PROPERTY:
+    case neug::common::AlterType::DROP_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToDropVertexPropertySchema(op).release());
       break;
-    case gs::common::AlterType::RENAME_PROPERTY:
+    case neug::common::AlterType::RENAME_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToRenameVertexPropertySchema(op).release());
       break;
-    case gs::common::AlterType::RENAME:
+    case neug::common::AlterType::RENAME:
       plan->mutable_plan()->AddAllocated(
           convertToRenameVertexTypeSchema(op).release());
       break;
@@ -111,21 +111,21 @@ void GDDLConverter::convertAlterTable(const planner::LogicalAlter& op,
       THROW_RUNTIME_ERROR("Invalid alter type for vertex schema");
     }
   } else if (checkEntryType(info->tableName,
-                            gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                            neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     switch (info->alterType) {
-    case gs::common::AlterType::ADD_PROPERTY:
+    case neug::common::AlterType::ADD_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToAddEdgePropertySchema(op).release());
       break;
-    case gs::common::AlterType::DROP_PROPERTY:
+    case neug::common::AlterType::DROP_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToDropEdgePropertySchema(op).release());
       break;
-    case gs::common::AlterType::RENAME_PROPERTY:
+    case neug::common::AlterType::RENAME_PROPERTY:
       plan->mutable_plan()->AddAllocated(
           convertToRenameEdgePropertySchema(op).release());
       break;
-    case gs::common::AlterType::RENAME:
+    case neug::common::AlterType::RENAME:
       plan->mutable_plan()->AddAllocated(
           convertToRenameEdgeTypeSchema(op).release());
       break;
@@ -326,9 +326,9 @@ GDDLConverter::convertToCreateEdgeSchema(
 std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToDropVertexSchema(const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
-  if (info.dropType != gs::common::DropType::TABLE ||
+  if (info.dropType != neug::common::DropType::TABLE ||
       !checkEntryType(info.name,
-                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected DROP TABLE type for vertex schema");
   }
 
@@ -350,9 +350,9 @@ GDDLConverter::convertToDropVertexSchema(const planner::LogicalDrop& op) {
 std::unique_ptr<::physical::PhysicalOpr> GDDLConverter::convertToDropEdgeSchema(
     const planner::LogicalDrop& op) {
   auto& info = op.getDropInfo();
-  if (info.dropType != gs::common::DropType::TABLE ||
+  if (info.dropType != neug::common::DropType::TABLE ||
       !checkEntryType(info.name,
-                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected DROP TABLE type for edge schema");
   }
   auto physical_opr = std::make_unique<::physical::PhysicalOpr>();
@@ -380,9 +380,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToAddVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected ADD_PROPERTY alter type for vertex schema");
   }
 
@@ -417,9 +417,9 @@ GDDLConverter::convertToAddVertexPropertySchema(
 std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToAddEdgePropertySchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::ADD_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::ADD_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected ADD_PROPERTY alter type for edge schema");
   }
 
@@ -459,9 +459,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToDropVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected DROP_PROPERTY alter type for vertex schema");
   }
 
@@ -490,9 +490,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToDropEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::DROP_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::DROP_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected DROP_PROPERTY alter type for edge schema");
   }
 
@@ -525,9 +525,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameVertexPropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR(
         "Expected RENAME_PROPERTY alter type for vertex schema");
   }
@@ -557,9 +557,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameEdgePropertySchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::RENAME_PROPERTY ||
+  if (info->alterType != neug::common::AlterType::RENAME_PROPERTY ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected RENAME_PROPERTY alter type for edge schema");
   }
 
@@ -593,9 +593,9 @@ std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameVertexTypeSchema(
     const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::RENAME ||
+  if (info->alterType != neug::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::NODE_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for vertex schema");
   }
 
@@ -625,9 +625,9 @@ GDDLConverter::convertToRenameVertexTypeSchema(
 std::unique_ptr<::physical::PhysicalOpr>
 GDDLConverter::convertToRenameEdgeTypeSchema(const planner::LogicalAlter& op) {
   const auto* info = op.getInfo();
-  if (info->alterType != gs::common::AlterType::RENAME ||
+  if (info->alterType != neug::common::AlterType::RENAME ||
       !checkEntryType(info->tableName,
-                      gs::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
+                      neug::catalog::CatalogEntryType::REL_TABLE_ENTRY)) {
     THROW_RUNTIME_ERROR("Expected RENAME_TABLE alter type for edge schema");
   }
 
@@ -689,8 +689,8 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
                                   std::vector<EdgeLabel>& edgeLabels) {
   checkCatalogInitialized();
 
-  const auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
-  std::vector<gs::catalog::GRelTableCatalogEntry*> relTableEntries;
+  const auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
+  std::vector<neug::catalog::GRelTableCatalogEntry*> relTableEntries;
 
   if (catalog->containsRelGroup(&transaction, labelName)) {
     auto* groupEntry = catalog->getRelGroupEntry(&transaction, labelName);
@@ -704,7 +704,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
         THROW_RUNTIME_ERROR("Edge Table Entry Not found: " + tableId);
       }
       auto* edgeTableEntry =
-          static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
+          static_cast<neug::catalog::GRelTableCatalogEntry*>(entry);
       relTableEntries.push_back(edgeTableEntry);
     }
   } else {
@@ -714,7 +714,7 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
       THROW_RUNTIME_ERROR("Edge table entry not found: " + labelName);
     }
     auto* edgeTableEntry =
-        static_cast<gs::catalog::GRelTableCatalogEntry*>(entry);
+        static_cast<neug::catalog::GRelTableCatalogEntry*>(entry);
     relTableEntries.push_back(edgeTableEntry);
   }
 
@@ -728,11 +728,11 @@ void GDDLConverter::getEdgeLabels(const std::string& labelName,
   }
 }
 
-std::string GDDLConverter::getVertexLabelName(gs::common::oid_t tableId) {
+std::string GDDLConverter::getVertexLabelName(neug::common::oid_t tableId) {
   checkCatalogInitialized();
 
   auto* entry = catalog->getTableCatalogEntry(
-      &gs::Constants::DEFAULT_TRANSACTION, tableId);
+      &neug::Constants::DEFAULT_TRANSACTION, tableId);
   if (!entry ||
       entry->getType() != catalog::CatalogEntryType::NODE_TABLE_ENTRY) {
     THROW_RUNTIME_ERROR("Node table entry not found for id: " +
@@ -746,7 +746,7 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
   checkCatalogInitialized();
 
   auto* entry = catalog->getTableCatalogEntry(
-      &gs::Constants::DEFAULT_TRANSACTION, labelName);
+      &neug::Constants::DEFAULT_TRANSACTION, labelName);
   if (!entry) {
     THROW_RUNTIME_ERROR("Catalog entry not found for label: " + labelName);
   }
@@ -754,4 +754,4 @@ bool GDDLConverter::checkEntryType(const std::string& labelName,
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

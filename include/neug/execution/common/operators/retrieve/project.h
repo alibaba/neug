@@ -20,7 +20,7 @@
 #include "neug/execution/common/params_map.h"
 #include "neug/utils/top_n_generator.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -109,7 +109,7 @@ struct ProjectExpr : public ProjectExprBase {
 
 class Project {
  public:
-  static gs::result<Context> project(
+  static neug::result<Context> project(
       Context&& ctx, const std::vector<std::unique_ptr<ProjectExprBase>>& exprs,
       bool is_append = false) {
     Context ret;
@@ -123,7 +123,7 @@ class Project {
   }
 
   template <typename Comparer>
-  static gs::result<Context> project_order_by_fuse(
+  static neug::result<Context> project_order_by_fuse(
       const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
       const std::vector<std::function<std::unique_ptr<ProjectExprBase>(
           const StorageReadInterface& graph, const ParamsMap& params,
@@ -186,4 +186,4 @@ class Project {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

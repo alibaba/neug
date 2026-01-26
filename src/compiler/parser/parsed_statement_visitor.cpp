@@ -26,9 +26,9 @@
 #include "neug/compiler/parser/explain_statement.h"
 #include "neug/compiler/parser/query/regular_query.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void StatementVisitor::visit(const Statement& statement) {
@@ -173,4 +173,4 @@ void StatementVisitor::visitUpdatingClause(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

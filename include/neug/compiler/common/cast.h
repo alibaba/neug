@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 template <typename TO, typename FROM>
@@ -55,4 +55,4 @@ TO neug_dynamic_cast(FROM& old) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

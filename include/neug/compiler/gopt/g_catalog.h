@@ -25,7 +25,7 @@
 #include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/compiler/gopt/g_type_utils.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 class GCatalog : public Catalog {
  public:
@@ -80,4 +80,4 @@ class GCatalog : public Catalog {
   void validatePropertyName(const std::string& name, common::TableType type);
 };
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

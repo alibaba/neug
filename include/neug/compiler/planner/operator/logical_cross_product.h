@@ -6,7 +6,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/sip/side_way_info_passing.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalCrossProduct final : public LogicalOperator {
@@ -54,4 +54,4 @@ class LogicalCrossProduct final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

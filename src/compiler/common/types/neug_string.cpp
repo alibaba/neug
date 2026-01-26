@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/types/neug_string.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 neug_string_t::neug_string_t(const char* value, uint64_t length)
@@ -103,4 +103,4 @@ bool neug_string_t::operator>(const neug_string_t& rhs) const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

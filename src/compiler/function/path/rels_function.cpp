@@ -25,10 +25,10 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -54,4 +54,4 @@ function_set RelsFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -3,7 +3,7 @@
 #include "neug/compiler/parser/ddl/drop_info.h"
 #include "neug/compiler/planner/operator/simple/logical_simple.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalDropPrintInfo : OPPrintInfo {
@@ -42,4 +42,4 @@ class LogicalDrop : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

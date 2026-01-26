@@ -26,7 +26,7 @@
 #include "re2/include/strutil.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Constructors per Inst opcode
@@ -1173,4 +1173,4 @@ const void* Prog::PrefixAccel_FrontAndBack(const void* data, size_t size) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

@@ -1,7 +1,7 @@
 #pragma once
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-namespace gs {
+namespace neug {
 namespace optimizer {
 /**
  * To guarantee all subqueries have the same ouput schema by adding
@@ -16,4 +16,4 @@ class UnionAliasMapOptimizer : public LogicalOperatorVisitor {
       std::shared_ptr<planner::LogicalOperator> op) override;
 };
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

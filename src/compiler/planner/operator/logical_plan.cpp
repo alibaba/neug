@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_explain.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 bool LogicalPlan::isProfile() const {
@@ -31,4 +31,4 @@ std::unique_ptr<LogicalPlan> LogicalPlan::deepCopy() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/logical_order_by.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendOrderBy(const expression_vector& expressions,
@@ -18,4 +18,4 @@ void Planner::appendOrderBy(const expression_vector& expressions,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

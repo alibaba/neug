@@ -17,7 +17,7 @@
 #define FWD_REL_STORAGE 1
 #define BWD_REL_STORAGE 2
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // clang-format off
@@ -84,7 +84,7 @@ struct CopyConfig {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug
 
 #undef BOTH_REL_STORAGE
 #undef FWD_REL_STORAGE

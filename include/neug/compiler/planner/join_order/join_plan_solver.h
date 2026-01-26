@@ -3,7 +3,7 @@
 #include "join_tree.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class JoinPlanSolver {
@@ -28,4 +28,4 @@ class JoinPlanSolver {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -34,7 +34,7 @@
 #include "neug/utils/service_manager.h"
 #include "neug/utils/service_utils.h"
 
-namespace server {
+namespace neug {
 
 /**
  * @brief NeuG database HTTP service wrapper
@@ -60,7 +60,7 @@ class NeugDBService {
    *
    * @note The database should be opened and ready before creating the service
    */
-  NeugDBService(gs::NeugDB& db, const ServiceConfig& config = ServiceConfig())
+  NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()), compact_thread_running_(false) {
     init(config);
   }
@@ -72,7 +72,7 @@ class NeugDBService {
    *
    * @warning Direct database access bypasses the service layer
    */
-  gs::NeugDB& db() { return db_; }
+  neug::NeugDB& db() { return db_; }
 
   /**
    * @brief Destructor that ensures proper cleanup
@@ -117,7 +117,7 @@ class NeugDBService {
    */
   const ServiceConfig& GetServiceConfig() const;
 
-  server::SessionGuard AcquireSession();
+  neug::SessionGuard AcquireSession();
 
   /**
    * @brief Checks if the service has been initialized
@@ -150,7 +150,7 @@ class NeugDBService {
    *
    * @note Always returns OK status, actual state is in the message string
    */
-  gs::result<std::string> service_status();
+  neug::result<std::string> service_status();
 
   /**
    * @brief Starts service and blocks until shutdown signal
@@ -191,10 +191,10 @@ class NeugDBService {
    */
   void init(const ServiceConfig& config);
 
-  gs::NeugDB& db_;
-  gs::NeugDBConfig db_config_;
-  std::shared_ptr<gs::IVersionManager> version_manager_;
-  std::unique_ptr<server::SessionPool> session_pool_;
+  neug::NeugDB& db_;
+  neug::NeugDBConfig db_config_;
+  std::shared_ptr<neug::IVersionManager> version_manager_;
+  std::unique_ptr<neug::SessionPool> session_pool_;
   std::unique_ptr<IServiceManager> hdl_mgr_;
 
   std::thread compact_thread_;
@@ -206,7 +206,7 @@ class NeugDBService {
 
   ServiceConfig service_config_;
 
-  friend class gs::NeugDB;
+  friend class neug::NeugDB;
 };
 
-}  // namespace server
+}  // namespace neug

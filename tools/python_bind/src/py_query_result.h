@@ -23,7 +23,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 class PyQueryResult {
  public:
@@ -65,6 +65,6 @@ class PyQueryResult {
   QueryResult query_result_;
 };
 
-}  // namespace gs
+}  // namespace neug
 
 #endif  // TOOLS_PYTHON_BIND_SRC_PY_QUERY_RESULT_H_

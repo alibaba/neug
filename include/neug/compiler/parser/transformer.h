@@ -31,7 +31,7 @@
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
 #include "statement.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -324,4 +324,4 @@ class Transformer {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

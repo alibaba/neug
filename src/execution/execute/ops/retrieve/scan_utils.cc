@@ -18,7 +18,7 @@
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -172,4 +172,4 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

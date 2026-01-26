@@ -17,8 +17,8 @@
 #include <map>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace runtime {
 using ParamsMap = std::map<std::string, std::string>;
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

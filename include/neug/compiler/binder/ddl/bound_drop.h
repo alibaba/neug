@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/parser/ddl/drop_info.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundDrop final : public BoundStatement {
@@ -44,4 +44,4 @@ class BoundDrop final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string ConflictActionUtil::toString(ConflictAction action) {
@@ -41,4 +41,4 @@ std::string ConflictActionUtil::toString(ConflictAction action) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

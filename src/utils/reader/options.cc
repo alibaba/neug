@@ -36,7 +36,7 @@
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/reader/type_converter.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
@@ -252,4 +252,4 @@ ArrowCsvOptionsBuilder::buildFragmentOptions() const {
 }
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

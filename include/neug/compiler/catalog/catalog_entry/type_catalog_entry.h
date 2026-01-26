@@ -24,7 +24,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 class TypeCatalogEntry : public CatalogEntry {
@@ -54,4 +54,4 @@ class TypeCatalogEntry : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

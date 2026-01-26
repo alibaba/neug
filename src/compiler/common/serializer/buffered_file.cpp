@@ -29,7 +29,7 @@
 #include "neug/compiler/common/system_config.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 static constexpr uint64_t BUFFER_SIZE = NEUG_PAGE_SIZE;
@@ -129,4 +129,4 @@ void BufferedFileReader::readNextPage() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

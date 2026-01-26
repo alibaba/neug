@@ -33,18 +33,18 @@ TEST(DatabaseTest, OpenClose) {
   std::filesystem::create_directories(dir);
   // Get the path of current source file
 
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(dir);
   auto conn = db.Connect();
   LOG(INFO) << "Before close db1";
   db.Close();
   LOG(INFO) << "After close db1";
-  gs::NeugDB db2;
-  db2.Open(dir, 1, gs::DBMode::READ_ONLY);
+  neug::NeugDB db2;
+  db2.Open(dir, 1, neug::DBMode::READ_ONLY);
 
   LOG(INFO) << "After open db2 in read-only mode";
-  gs::NeugDB db3;
-  db3.Open(dir, 1, gs::DBMode::READ_ONLY);
+  neug::NeugDB db3;
+  db3.Open(dir, 1, neug::DBMode::READ_ONLY);
   LOG(INFO) << "After open db3 in read-only mode";
 
   db2.Close();
@@ -53,12 +53,12 @@ TEST(DatabaseTest, OpenClose) {
   LOG(INFO) << "After close db3";
 
   {
-    gs::NeugDB db4;
-    db4.Open("", 1, gs::DBMode::READ_WRITE);
-    gs::NeugDB db5;
-    db5.Open("", 1, gs::DBMode::READ_ONLY);
-    gs::NeugDB db6;
-    db6.Open("", 1, gs::DBMode::READ_WRITE, "gopt");
+    neug::NeugDB db4;
+    db4.Open("", 1, neug::DBMode::READ_WRITE);
+    neug::NeugDB db5;
+    db5.Open("", 1, neug::DBMode::READ_ONLY);
+    neug::NeugDB db6;
+    db6.Open("", 1, neug::DBMode::READ_WRITE, "gopt");
 
     db6.Close();
     LOG(INFO) << "After close db6";
@@ -84,8 +84,8 @@ TEST(DatabaseTest, TestDangling) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db;
-  db.Open(data_path, 1, gs::DBMode::READ_WRITE);
+  neug::NeugDB db;
+  db.Open(data_path, 1, neug::DBMode::READ_WRITE);
   auto conn = db.Connect();
   EXPECT_TRUE(
       conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "
@@ -105,7 +105,7 @@ TEST(DatabaseTest, TestDangling) {
   auto res = conn->Query("MATCH (v) RETURN v;");
   // The query should fail because the connection is dangling
   EXPECT_FALSE(res);
-  EXPECT_EQ(res.error().error_code(), gs::StatusCode::ERR_CONNECTION_CLOSED)
+  EXPECT_EQ(res.error().error_code(), neug::StatusCode::ERR_CONNECTION_CLOSED)
       << "Expected connection to be closed, but got: "
       << res.error().ToString();
 }
@@ -119,14 +119,14 @@ TEST(DatabaseTest, TestReadWriteConflict) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(data_path);
   bool res = false;
   {
     try {
-      auto db2 = gs::NeugDB();
+      auto db2 = neug::NeugDB();
       db2.Open(data_path);
-    } catch (const gs::exception::DatabaseLockedException& e) {
+    } catch (const neug::exception::DatabaseLockedException& e) {
       LOG(INFO) << "Caught expected error: " << e.what();
       res = true;  // Expected error, test passes
     } catch (const std::exception& e) {
@@ -143,11 +143,11 @@ TEST(DatabaseTest, TestReadWriteConflict) {
   {
     res = false;
     try {
-      auto db2 = gs::NeugDB();
-      db2.Open(data_path, 1, gs::DBMode::READ_ONLY);
+      auto db2 = neug::NeugDB();
+      db2.Open(data_path, 1, neug::DBMode::READ_ONLY);
       LOG(ERROR) << "Expected an error when opening in read mode while write "
                     "lock is held, but got success.";
-    } catch (const gs::exception::DatabaseLockedException& e) {
+    } catch (const neug::exception::DatabaseLockedException& e) {
       LOG(INFO) << "Caught expected error: " << e.what();
       res = true;  // Expected error, test passes
     } catch (const std::exception& e) {
@@ -164,13 +164,13 @@ TEST(DatabaseTest, TestReadWriteConflict) {
 }
 
 TEST(DatabaseTest, TestTemporal) {
-  gs::Date date("2023-10-01");
+  neug::Date date("2023-10-01");
   CHECK(date.to_timestamp() == 1696118400000);
-  gs::Date date2;
+  neug::Date date2;
   date2.from_timestamp(1696118400000);
   EXPECT_EQ(date2.to_string(), "2023-10-01");
 
-  gs::DateTime datetime("2023-10-01 12:34:56");
+  neug::DateTime datetime("2023-10-01 12:34:56");
   LOG(INFO) << "DateTime: " << datetime.to_string();
   EXPECT_EQ(datetime.to_string(), "2023-10-01 12:34:56.000");
 }
@@ -178,7 +178,7 @@ TEST(DatabaseTest, TestTemporal) {
 TEST(DatabaseTest, TestSplitStringIntoVec) {
   std::string str = "a,b,c,d";
   std::string delimeter = ",";
-  auto vec = gs::split_string_into_vec(str, delimeter);
+  auto vec = neug::split_string_into_vec(str, delimeter);
   EXPECT_EQ(vec.size(), 4) << "Expected 4 elements, got " << vec.size();
   EXPECT_EQ(vec[0], "a");
   EXPECT_EQ(vec[1], "b");
@@ -187,7 +187,7 @@ TEST(DatabaseTest, TestSplitStringIntoVec) {
 
   str = "a,,c,,e";
   std::string delimeter2 = ",";
-  vec = gs::split_string_into_vec(str, delimeter2);
+  vec = neug::split_string_into_vec(str, delimeter2);
   EXPECT_EQ(vec.size(), 5);
   EXPECT_EQ(vec[0], "a");
   EXPECT_EQ(vec[1], "");
@@ -202,8 +202,8 @@ TEST(DatabaseTest, TestPersist) {
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
-    gs::NeugDB db;
-    db.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true);
+    neug::NeugDB db;
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true);
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
     EXPECT_FALSE(flex_data_dir.empty());
@@ -215,8 +215,8 @@ TEST(DatabaseTest, TestPersist) {
     db.Close();
   }
   {
-    gs::NeugDB db2;
-    db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
+    neug::NeugDB db2;
+    db2.Open(db_dir, 1, neug::DBMode::READ_ONLY);
     auto conn = db2.Connect();
     auto res = conn->Query("MATCH (n: person) return n.id, n.name, n.age;");
     EXPECT_TRUE(res);
@@ -231,8 +231,8 @@ TEST(DatabaseTest, TestCompaction) {
     if (std::filesystem::exists(db_dir)) {
       std::filesystem::remove_all(db_dir);
     }
-    gs::NeugDB db;
-    db.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true,
+    neug::NeugDB db;
+    db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true,
             true);
     auto conn = db.Connect();
     std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
@@ -259,8 +259,8 @@ TEST(DatabaseTest, TestCompaction) {
     // Should do the compaction.
   }
   {
-    gs::NeugDB db2;
-    db2.Open(db_dir, 1, gs::DBMode::READ_ONLY);
+    neug::NeugDB db2;
+    db2.Open(db_dir, 1, neug::DBMode::READ_ONLY);
     auto conn = db2.Connect();
     auto res = conn->Query("MATCH (n: person) return COUNT(n);");
     EXPECT_TRUE(res);
@@ -274,8 +274,8 @@ TEST(DatabaseTest, TestCompaction) {
   }
 
   {
-    gs::NeugDB db3;
-    db3.Open(db_dir, 1, gs::DBMode::READ_WRITE, "gopt", false, false, true,
+    neug::NeugDB db3;
+    db3.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true,
              true);
   }
 }

@@ -6,10 +6,10 @@
 #include "neug/compiler/planner/join_order/join_tree.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 LogicalPlan JoinPlanSolver::solve(const JoinTree& joinTree) {
@@ -193,4 +193,4 @@ LogicalPlan JoinPlanSolver::solveMultiwayJoinTreeNode(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

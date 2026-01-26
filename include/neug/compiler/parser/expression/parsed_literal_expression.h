@@ -25,7 +25,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedLiteralExpression : public ParsedExpression {
@@ -69,4 +69,4 @@ class ParsedLiteralExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

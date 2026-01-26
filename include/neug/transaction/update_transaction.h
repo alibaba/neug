@@ -70,7 +70,7 @@
     }                                                                      \
   } while (0)
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class IWalWriter;
@@ -501,4 +501,4 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
   UpdateTransaction& txn_;
 };
 
-}  // namespace gs
+}  // namespace neug

@@ -22,10 +22,10 @@
 
 #include "neug/compiler/function/aggregate/count_star.h"
 
-using namespace gs::common;
-using namespace gs::storage;
+using namespace neug::common;
+using namespace neug::storage;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void CountStarFunction::updateAll(uint8_t* state_, ValueVector* input,
@@ -55,4 +55,4 @@ function_set CountStarFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

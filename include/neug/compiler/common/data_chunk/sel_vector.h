@@ -29,7 +29,7 @@
 #include <span>
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ValueVector;
@@ -202,4 +202,4 @@ class SelectionVector : public SelectionView {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

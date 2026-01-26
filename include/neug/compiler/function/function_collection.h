@@ -25,9 +25,9 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry_type.h"
 #include "neug/compiler/function/function.h"
 
-using namespace gs::catalog;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 using get_function_set_fun = std::function<function_set()>;
@@ -43,4 +43,4 @@ struct FunctionCollection {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

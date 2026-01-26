@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/string_utils.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 uint64_t CaseInsensitiveStringHashFunction::operator()(
@@ -38,4 +38,4 @@ bool CaseInsensitiveStringEquality::operator()(const std::string& lhs,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

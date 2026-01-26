@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/query/updating_clause/bound_delete_info.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalDeletePrintInfo final : OPPrintInfo {
@@ -56,4 +56,4 @@ class LogicalDelete final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

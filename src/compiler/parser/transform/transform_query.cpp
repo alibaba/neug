@@ -30,7 +30,7 @@
 #include "neug/compiler/parser/query/regular_query.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformQuery(
@@ -136,4 +136,4 @@ QueryPart Transformer::transformQueryPart(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

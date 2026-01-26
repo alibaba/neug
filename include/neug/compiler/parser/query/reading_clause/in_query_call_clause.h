@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/query/reading_clause/reading_clause.h"
 #include "yield_variable.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class InQueryCallClause final : public ReadingClause {
@@ -53,4 +53,4 @@ class InQueryCallClause final : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

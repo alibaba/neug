@@ -24,9 +24,9 @@
 
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void VariableExpression::cast(const LogicalType& type) {
@@ -41,4 +41,4 @@ void VariableExpression::cast(const LogicalType& type) {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

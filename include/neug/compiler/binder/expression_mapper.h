@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/expression_evaluator.h"
 #include "neug/compiler/processor/result/result_set_descriptor.h"
 
-namespace gs {
+namespace neug {
 namespace processor {
 
 class ExpressionMapper {
@@ -80,4 +80,4 @@ class ExpressionMapper {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

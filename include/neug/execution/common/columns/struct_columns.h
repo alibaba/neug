@@ -16,7 +16,7 @@
 
 #include "neug/execution/common/columns/i_context_column.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class StructColumnBuilder;
 
@@ -96,4 +96,4 @@ class StructColumnBuilder : public IContextColumnBuilder {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

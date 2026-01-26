@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalAggregatePrintInfo final : OPPrintInfo {
@@ -87,4 +87,4 @@ class LogicalAggregate final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

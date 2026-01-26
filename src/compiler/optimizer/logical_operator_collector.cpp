@@ -24,7 +24,7 @@
 
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void LogicalOperatorCollector::collect(planner::LogicalOperator* op) {
@@ -44,4 +44,4 @@ void LogicalIndexScanNodeCollector::visitScanNodeTable(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

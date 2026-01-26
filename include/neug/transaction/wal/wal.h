@@ -27,7 +27,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 struct WalHeader {
   uint32_t timestamp;
@@ -374,4 +374,4 @@ OutArchive& operator>>(OutArchive& out_archive, UpdateEdgePropRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, RemoveVertexRedo& value);
 OutArchive& operator>>(OutArchive& out_archive, RemoveEdgeRedo& value);
 
-}  // namespace gs
+}  // namespace neug

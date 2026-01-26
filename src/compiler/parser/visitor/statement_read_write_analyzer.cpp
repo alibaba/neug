@@ -26,7 +26,7 @@
 #include "neug/compiler/parser/query/reading_clause/reading_clause.h"
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void StatementReadWriteAnalyzer::visitReadingClause(
@@ -66,4 +66,4 @@ bool StatementReadWriteAnalyzer::isExprReadOnly(const ParsedExpression* expr) {
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

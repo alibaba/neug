@@ -34,9 +34,9 @@
 #include "neug/compiler/binder/query/updating_clause/bound_set_clause.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 expression_vector PropertyCollector::getProperties() const {
@@ -211,4 +211,4 @@ void PropertyCollector::collectPropertiesSkipNodeRel(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

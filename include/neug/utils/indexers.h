@@ -18,11 +18,11 @@ limitations under the License.
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 using IndexerType = LFIndexer<vid_t>;
 
 template <typename KEY_T>
 using IndexerBuilderType = IdIndexer<KEY_T, vid_t>;
 
-}  // namespace gs
+}  // namespace neug

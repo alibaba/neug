@@ -25,7 +25,7 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class Table {
  public:
@@ -158,4 +158,4 @@ class Table {
   std::string work_dir_, snapshot_dir_;
 };
 
-}  // namespace gs
+}  // namespace neug

@@ -8,7 +8,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum class LogicalScanNodeTableType : uint8_t {
@@ -173,4 +173,4 @@ class LogicalScanNodeTable final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

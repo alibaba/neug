@@ -3,7 +3,7 @@
 #include "neug/compiler/planner/operator/logical_alias_map.h"
 #include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/schema.h"
-namespace gs {
+namespace neug {
 namespace optimizer {
 void UnionAliasMapOptimizer::rewrite(planner::LogicalPlan* plan) {
   auto root = plan->getLastOperator();
@@ -71,4 +71,4 @@ UnionAliasMapOptimizer::visitUnionReplace(
   return op;
 }
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

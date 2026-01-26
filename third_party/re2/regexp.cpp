@@ -25,7 +25,7 @@
 #include "re2/include/util.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Constructor.  Allocates vectors as appropriate for operator.
@@ -988,4 +988,4 @@ CharClass* CharClassBuilder::GetCharClass() {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

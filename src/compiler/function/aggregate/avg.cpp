@@ -22,10 +22,10 @@
 
 #include "neug/compiler/function/aggregate/avg.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
-using namespace gs::common;
+using namespace neug::common;
 
 function_set AggregateAvgFunction::getFunctionSet() {
   function_set result;
@@ -37,4 +37,4 @@ function_set AggregateAvgFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

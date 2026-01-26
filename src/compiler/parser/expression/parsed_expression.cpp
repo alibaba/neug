@@ -32,9 +32,9 @@
 #include "neug/compiler/parser/expression/parsed_subquery_expression.h"
 #include "neug/compiler/parser/expression/parsed_variable_expression.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 ParsedExpression::ParsedExpression(ExpressionType type,
@@ -105,4 +105,4 @@ std::unique_ptr<ParsedExpression> ParsedExpression::deserialize(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

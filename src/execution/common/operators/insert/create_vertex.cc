@@ -17,10 +17,10 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
-gs::result<Context> CreateVertex::insert_vertex(
+neug::result<Context> CreateVertex::insert_vertex(
     StorageInsertInterface& graph, Context&& ctx,
     const std::vector<label_t>& labels,
     const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
@@ -83,7 +83,7 @@ gs::result<Context> CreateVertex::insert_vertex(
         LOG(ERROR) << "Vertex with label " << (int32_t) label
                    << " and primary key " << pk_value.to_string()
                    << " already exists.";
-        RETURN_STATUS_ERROR(gs::StatusCode::ERR_INVALID_ARGUMENT,
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
                             "Vertex with label " + std::to_string(label) +
                                 " and primary key " + pk_value.to_string() +
                                 " already exists.");
@@ -92,7 +92,7 @@ gs::result<Context> CreateVertex::insert_vertex(
       if (!graph.AddVertex(label, pk_value, property_values, vid)) {
         LOG(ERROR) << "Failed to add vertex with label " << (int32_t) label
                    << " and primary key " << pk_value.to_string();
-        RETURN_STATUS_ERROR(gs::StatusCode::ERR_INTERNAL_ERROR,
+        RETURN_STATUS_ERROR(neug::StatusCode::ERR_INTERNAL_ERROR,
                             "Failed to add vertex with label " +
                                 std::to_string(label) + " and primary key " +
                                 pk_value.to_string());
@@ -105,4 +105,4 @@ gs::result<Context> CreateVertex::insert_vertex(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

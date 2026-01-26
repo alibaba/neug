@@ -18,13 +18,13 @@
 #include "neug/compiler/planner/operator/logical_path_property_probe.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::common;
-using namespace gs::binder;
-using namespace gs::catalog;
-using namespace gs::transaction;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::binder;
+using namespace neug::catalog;
+using namespace neug::transaction;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static std::unordered_set<table_id_t> getBoundNodeTableIDSet(
@@ -192,4 +192,4 @@ void Planner::appendNodeLabelFilter(std::shared_ptr<Expression> nodeID,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

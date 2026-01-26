@@ -23,7 +23,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -47,12 +47,13 @@ class PlanParser {
 
   void register_operator_builder(std::unique_ptr<IOperatorBuilder>&& builder);
 
-  gs::result<std::pair<Pipeline, ContextMeta>> parse_execute_pipeline_with_meta(
-      const gs::Schema& schema, const ContextMeta& ctx_meta,
-      const physical::PhysicalPlan& plan);
+  neug::result<std::pair<Pipeline, ContextMeta>>
+  parse_execute_pipeline_with_meta(const neug::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan);
 
-  gs::result<Pipeline> parse_execute_pipeline(
-      const gs::Schema& schema, const ContextMeta& ctx_meta,
+  neug::result<Pipeline> parse_execute_pipeline(
+      const neug::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
   static std::map<std::string, DataType> parse_params_type(
@@ -65,10 +66,10 @@ class PlanParser {
       op_builders_;
 };
 
-gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
+neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer);
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

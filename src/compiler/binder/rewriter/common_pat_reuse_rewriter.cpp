@@ -9,7 +9,7 @@
 #include "neug/compiler/common/enums/clause_type.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 void CommonPatReuseRewriter::visitRegularQueryUnsafe(
     BoundStatement& statement) {
@@ -97,4 +97,4 @@ CommonPatReuseRewriter::constructJoinHintByDFS(
   return preJoinHint;
 }
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

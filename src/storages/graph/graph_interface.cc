@@ -15,7 +15,7 @@
 
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 
 void StorageAPUpdateInterface::UpdateVertexProperty(label_t label, vid_t lid,
                                                     int col_id,
@@ -29,13 +29,13 @@ void StorageAPUpdateInterface::UpdateEdgeProperty(
     const Property& value) {
   graph_.UpdateEdgeProperty(src_label, src, dst_label, dst, edge_label,
                             oe_offset, ie_offset, col_id, value,
-                            gs::timestamp_t(0));
+                            neug::timestamp_t(0));
 }
 
 bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
                                          const std::vector<Property>& props,
                                          vid_t& vid) {
-  auto status = graph_.AddVertex(label, id, props, vid, gs::timestamp_t(0));
+  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }
@@ -46,7 +46,7 @@ bool StorageAPUpdateInterface::AddEdge(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Property>& properties) {
   graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
-                 gs::timestamp_t(0), alloc_);
+                 neug::timestamp_t(0), alloc_);
   return true;
 }
 
@@ -169,4 +169,4 @@ Status StorageAPUpdateInterface::DeleteEdgeType(const std::string& src_type,
                                error_on_conflict);
 }
 
-}  // namespace gs
+}  // namespace neug

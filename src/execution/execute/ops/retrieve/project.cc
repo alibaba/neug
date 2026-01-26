@@ -26,7 +26,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
@@ -96,10 +96,9 @@ class ProjectOpr : public IOperator {
   }
   ~ProjectOpr() {}
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     if (is_select_columns_) {
       Context ret;
       for (auto& p : select_columns_mapping_) {
@@ -144,8 +143,8 @@ class ProjectOpr : public IOperator {
   std::vector<std::unique_ptr<ProjectExprBuilderBase>> fallback_expr_builders_;
 };
 
-gs::result<OpBuildResultT> ProjectOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> ProjectOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
@@ -212,10 +211,9 @@ class ProjectOrderByOprBeta : public IOperator {
     return "ProjectOrderByOprBeta";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -343,8 +341,8 @@ static bool project_order_by_fusable_beta(
   return true;
 }
 
-gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<common::IrDataType> data_types;
   int mappings_size = plan.plan(op_idx).opr().project().mappings_size();
@@ -428,4 +426,4 @@ gs::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -22,10 +22,10 @@
 static const size_t src_v_num = 5;
 static const size_t single_src_v_num = 10;
 static const size_t edge_num = 10;
-static const std::vector<gs::vid_t> src_vid = {0, 0, 0, 1, 2, 2, 4, 4, 4, 4};
-static const std::vector<gs::vid_t> single_src_vid = {0, 1, 2, 3, 4,
-                                                      5, 6, 7, 8, 9};
-static const std::vector<gs::vid_t> dst_vid = {3, 5, 7, 2, 1, 5, 9, 1, 0, 4};
+static const std::vector<neug::vid_t> src_vid = {0, 0, 0, 1, 2, 2, 4, 4, 4, 4};
+static const std::vector<neug::vid_t> single_src_vid = {0, 1, 2, 3, 4,
+                                                        5, 6, 7, 8, 9};
+static const std::vector<neug::vid_t> dst_vid = {3, 5, 7, 2, 1, 5, 9, 1, 0, 4};
 static const std::vector<int32_t> int32_data = {1, 4, -1, 2, 9, 2, 4, 3, 1, -2};
 static const std::vector<uint32_t> uint32_data = {0, 5, 2, 9, 3, 4, 3, 5, 7, 0};
 static const std::vector<int64_t> int64_data = {1, 4, -1, 2, 9, 2, 4, 3, 1, -2};
@@ -34,43 +34,43 @@ static const std::vector<float> float_data = {1.0, 4.5,  -1.3, 2.2, 9.7,
                                               2.4, 4.12, 3.6,  1.8, -2.49};
 static const std::vector<double> double_data = {1.0, 4.5,  -1.3, 2.2, 9.7,
                                                 2.4, 4.12, 3.6,  1.8, -2.49};
-static const std::vector<gs::Date> date_data = {
-    gs::Date(0), gs::Date(5), gs::Date(2), gs::Date(9), gs::Date(3),
-    gs::Date(4), gs::Date(3), gs::Date(5), gs::Date(7), gs::Date(0)};
-static const std::vector<gs::DateTime> datetime_data = {
-    gs::DateTime(0), gs::DateTime(5), gs::DateTime(2), gs::DateTime(9),
-    gs::DateTime(3), gs::DateTime(4), gs::DateTime(3), gs::DateTime(5),
-    gs::DateTime(7), gs::DateTime(0)};
-static const std::vector<gs::Interval> interval_data = {
-    gs::Interval(std::string("0hour")),
-    gs::Interval(std::string("5hours")),
-    gs::Interval(std::string("2minutes")),
-    gs::Interval(std::string("9hours")),
-    gs::Interval(std::string("3seconds")),
-    gs::Interval(std::string("4days")),
-    gs::Interval(std::string("3years")),
-    gs::Interval(std::string("5milliseconds")),
-    gs::Interval(std::string("7minutes")),
-    gs::Interval(std::string("0day"))};
-static const std::vector<gs::EmptyType> empty_data;
+static const std::vector<neug::Date> date_data = {
+    neug::Date(0), neug::Date(5), neug::Date(2), neug::Date(9), neug::Date(3),
+    neug::Date(4), neug::Date(3), neug::Date(5), neug::Date(7), neug::Date(0)};
+static const std::vector<neug::DateTime> datetime_data = {
+    neug::DateTime(0), neug::DateTime(5), neug::DateTime(2), neug::DateTime(9),
+    neug::DateTime(3), neug::DateTime(4), neug::DateTime(3), neug::DateTime(5),
+    neug::DateTime(7), neug::DateTime(0)};
+static const std::vector<neug::Interval> interval_data = {
+    neug::Interval(std::string("0hour")),
+    neug::Interval(std::string("5hours")),
+    neug::Interval(std::string("2minutes")),
+    neug::Interval(std::string("9hours")),
+    neug::Interval(std::string("3seconds")),
+    neug::Interval(std::string("4days")),
+    neug::Interval(std::string("3years")),
+    neug::Interval(std::string("5milliseconds")),
+    neug::Interval(std::string("7minutes")),
+    neug::Interval(std::string("0day"))};
+static const std::vector<neug::EmptyType> empty_data;
 
-static const std::set<gs::vid_t> delete_src_vertices = {1, 4};
-static const std::set<gs::vid_t> delete_dst_vertices = {1, 5, 7};
+static const std::set<neug::vid_t> delete_src_vertices = {1, 4};
+static const std::set<neug::vid_t> delete_dst_vertices = {1, 5, 7};
 static const size_t enum_after_delete_vertex = 1;
 static const size_t enum_after_delete_vertex_single = 5;
 
-static const std::vector<gs::vid_t> delete_src_edges = {0, 4, 4};
-static const std::vector<gs::vid_t> delete_dst_edges = {3, 4, 1};
+static const std::vector<neug::vid_t> delete_src_edges = {0, 4, 4};
+static const std::vector<neug::vid_t> delete_dst_edges = {3, 4, 1};
 static const size_t enum_after_delete_edge = 7;
 static const size_t enum_after_delete_edge_single = 8;
 
-static const gs::vid_t insert_src_vid = 1;
-static const gs::vid_t insert_dst_vid = 4;
+static const neug::vid_t insert_src_vid = 1;
+static const neug::vid_t insert_dst_vid = 4;
 
-namespace gs {
+namespace neug {
 namespace test {
 using Datatypes =
-    ::testing::Types<gs::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
+    ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
 template <typename EDATA_T>
@@ -79,13 +79,13 @@ class MutableCsrTest : public ::testing::Test {
   static constexpr const char* TEST_DIR = "/tmp/mutable_csr_test";
 
   void SetUp() override {
-    allocators.resize(1, Allocator(gs::MemoryStrategy::kMemoryOnly, ""));
+    allocators.resize(1, Allocator(neug::MemoryStrategy::kMemoryOnly, ""));
   }
 
   size_t count_edge_num(MutableCsr<EDATA_T>& csr) {
     size_t edge_num = 0;
     auto oe_view = csr.get_generic_view(0);
-    for (gs::vid_t src = 0; src < src_v_num; ++src) {
+    for (neug::vid_t src = 0; src < src_v_num; ++src) {
       auto edges = oe_view.get_edges(src);
       for (auto it = edges.begin(); it != edges.end(); ++it) {
         edge_num += 1;
@@ -123,7 +123,7 @@ class MutableCsrTest : public ::testing::Test {
       csr.batch_put_edges(src_vid, dst_vid, datetime_data);
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       csr.batch_put_edges(src_vid, dst_vid, interval_data);
-    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
+    } else if constexpr (std::is_same_v<EDATA_T, neug::EmptyType>) {
       csr.batch_put_edges(src_vid, dst_vid, empty_data);
     } else {
       FAIL();
@@ -159,7 +159,7 @@ class MutableCsrTest : public ::testing::Test {
       csr.batch_put_edges(single_src_vid, dst_vid, datetime_data);
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       csr.batch_put_edges(single_src_vid, dst_vid, interval_data);
-    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
+    } else if constexpr (std::is_same_v<EDATA_T, neug::EmptyType>) {
       csr.batch_put_edges(single_src_vid, dst_vid, empty_data);
     } else {
       FAIL();
@@ -280,7 +280,7 @@ class MutableCsrTest : public ::testing::Test {
             cur_value = next_value;
           }
         }
-      } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
+      } else if constexpr (std::is_same_v<EDATA_T, neug::EmptyType>) {
         continue;
       } else {
         return false;
@@ -290,7 +290,7 @@ class MutableCsrTest : public ::testing::Test {
   }
 
   template <template <typename> class CSR_T>
-  void put_single_edge(CSR_T<EDATA_T>& csr, gs::vid_t src, gs::vid_t dst,
+  void put_single_edge(CSR_T<EDATA_T>& csr, neug::vid_t src, neug::vid_t dst,
                        timestamp_t ts, Allocator& allocator) {
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
       int32_t data = 100;
@@ -319,15 +319,15 @@ class MutableCsrTest : public ::testing::Test {
     } else if constexpr (std::is_same_v<EDATA_T, Interval>) {
       Interval data(std::string("100seconds"));
       csr.put_edge(src, dst, data, ts, allocator);
-    } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
-      gs::EmptyType data;
+    } else if constexpr (std::is_same_v<EDATA_T, neug::EmptyType>) {
+      neug::EmptyType data;
       csr.put_edge(src, dst, data, ts, allocator);
     } else {
       FAIL();
     }
   }
 
-  std::vector<gs::Allocator> allocators;
+  std::vector<neug::Allocator> allocators;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
 
@@ -588,7 +588,7 @@ TEST(CsrToolTest, OpenNonExistFile) {
   void* buffer;
   std::string non_exist_filename = "/invalid/non_exist_file";
   EXPECT_THROW(read_file(non_exist_filename, buffer, 0, 0),
-               gs::exception::Exception);
+               neug::exception::Exception);
 }
 
 TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
@@ -638,7 +638,7 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
     EXPECT_THROW(
         mutable_csr.revert_delete_edge(std::get<0>(edge), std::get<1>(edge),
                                        std::get<2>(edge), 0),
-        gs::exception::Exception);
+        neug::exception::Exception);
   }
 
   for (size_t i = 0; i < 50; ++i) {
@@ -681,4 +681,4 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
   empty_csr.revert_delete_edge(0, 0, 0, 0);
 }
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

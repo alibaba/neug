@@ -15,10 +15,10 @@
 
 #include "neug/execution/common/operators/retrieve/group_by.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
-gs::result<Context> GroupBy::group_by(
+neug::result<Context> GroupBy::group_by(
     Context&& ctx, std::unique_ptr<KeyBase>&& key,
     std::vector<std::unique_ptr<ReducerBase>>&& aggrs) {
   auto [offsets, groups] = key->group(ctx);
@@ -46,4 +46,4 @@ gs::result<Context> GroupBy::group_by(
   }
 }
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

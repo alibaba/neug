@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace gs {
+namespace neug {
 class EdgeRecord;
 class PropertyGraph;
 
@@ -228,4 +228,4 @@ struct DeleteEdgeTypeUndo : public IUndoLog {
   void Undo(PropertyGraph& graph, timestamp_t ts) const override;
 };
 
-}  // namespace gs
+}  // namespace neug

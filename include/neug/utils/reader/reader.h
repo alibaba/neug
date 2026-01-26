@@ -36,7 +36,7 @@ namespace common {
 class Expression;
 }  // namespace common
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
@@ -224,4 +224,4 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
 };
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

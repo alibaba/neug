@@ -30,10 +30,10 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/main/client_context.h"
 
-using namespace gs::common;
-using namespace gs::main;
+using namespace neug::common;
+using namespace neug::main;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 std::unique_ptr<RelGroupCatalogEntry> RelGroupCatalogEntry::alter(
@@ -145,4 +145,4 @@ std::string RelGroupCatalogEntry::toCypher(const ToCypherInfo& info) const {
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

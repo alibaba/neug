@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // TODO(Guodong/Ziyi/Xiyang): Should we remove this and instead use
@@ -42,4 +42,4 @@ struct TableTypeUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

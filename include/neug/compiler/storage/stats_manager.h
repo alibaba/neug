@@ -32,7 +32,7 @@
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/compiler/storage/store/table.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class MetadataManager;
 }
@@ -82,4 +82,4 @@ class NEUG_API StatsManager {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

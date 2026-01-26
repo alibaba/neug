@@ -26,7 +26,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct BaseListSortOperation {
@@ -128,4 +128,4 @@ struct BaseListSortOperation {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class JoinType : uint8_t {
@@ -37,4 +37,4 @@ enum class JoinType : uint8_t {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

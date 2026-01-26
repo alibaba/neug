@@ -17,7 +17,7 @@
 
 #include "neug/storages/graph/property_graph.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraphTest : public ::testing::Test {
  protected:
@@ -135,4 +135,4 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
       exception::Exception);
 }
 
-}  // namespace gs
+}  // namespace neug

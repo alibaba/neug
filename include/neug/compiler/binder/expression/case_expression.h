@@ -24,7 +24,7 @@
 
 #include "expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct CaseAlternative {
@@ -72,4 +72,4 @@ class CaseExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

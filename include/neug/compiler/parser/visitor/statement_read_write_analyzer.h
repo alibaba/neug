@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/parsed_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class StatementReadWriteAnalyzer final : public StatementVisitor {
@@ -79,4 +79,4 @@ class StatementReadWriteAnalyzer final : public StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

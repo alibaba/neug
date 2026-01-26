@@ -24,7 +24,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 class IExportWriter {
@@ -55,4 +55,4 @@ class ExportWriterFactory {
   getKnownWriters();
 };
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

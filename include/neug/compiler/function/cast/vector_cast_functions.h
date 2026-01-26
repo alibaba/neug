@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/scalar_function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 /**
@@ -95,4 +95,4 @@ struct CastAnyFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

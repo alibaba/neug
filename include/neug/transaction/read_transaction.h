@@ -40,7 +40,7 @@
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class IVersionManager;
@@ -105,4 +105,4 @@ class ReadTransaction {
   timestamp_t timestamp_;
 };
 
-}  // namespace gs
+}  // namespace neug

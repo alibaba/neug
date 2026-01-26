@@ -24,7 +24,7 @@
 
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class CreateType final : public Statement {
@@ -47,4 +47,4 @@ class CreateType final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

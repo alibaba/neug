@@ -19,7 +19,7 @@
 
 #include <string_view>
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 class BatchDeleteEdgeOpr : public IOperator {
@@ -34,8 +34,8 @@ class BatchDeleteEdgeOpr : public IOperator {
     return "BatchDeleteEdgeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   std::vector<std::vector<std::tuple<label_t, label_t, label_t>>>
@@ -43,9 +43,9 @@ class BatchDeleteEdgeOpr : public IOperator {
   std::vector<int32_t> edge_bindings_;
 };
 
-gs::result<Context> BatchDeleteEdgeOpr::Eval(IStorageInterface& graph_interface,
-                                             const ParamsMap& params,
-                                             Context&& ctx, OprTimer* timer) {
+neug::result<Context> BatchDeleteEdgeOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
+    OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   size_t binding_size = edge_bindings_.size();
   for (size_t i = 0; i < binding_size; i++) {
@@ -119,10 +119,10 @@ gs::result<Context> BatchDeleteEdgeOpr::Eval(IStorageInterface& graph_interface,
                              // remove all data.
   }
 
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
+neug::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta meta = ctx_meta;
@@ -149,4 +149,4 @@ gs::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

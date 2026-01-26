@@ -37,7 +37,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 
-namespace gs {
+namespace neug {
 
 rapidjson::Value create_bolt_summary(
     const std::string& query_text,
@@ -134,4 +134,4 @@ rapidjson::Value create_bolt_summary(
   return summary;
 }
 
-}  // namespace gs
+}  // namespace neug

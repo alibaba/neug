@@ -24,7 +24,7 @@
 #include "neug/utils/encoder.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 static void sink_any(const Property& any, common::Value* value) {
@@ -418,4 +418,4 @@ void Sink::sink_beta(const Context& ctx, const StorageReadInterface& graph,
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

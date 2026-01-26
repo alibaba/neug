@@ -45,10 +45,10 @@ INSTANTIATE_TEST_SUITE_P(AllMemoryLevels, MemoryLevelPersistenceTest,
 
 TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   // 1. Open DB, do DDL and DML
-  gs::NeugDBConfig config(db_dir);
+  neug::NeugDBConfig config(db_dir);
   config.memory_level = memory_level;
   config.checkpoint_on_close = true;  // ensure data is saved on close
-  gs::NeugDB db;
+  neug::NeugDB db;
   ASSERT_TRUE(db.Open(config));
   auto conn = db.Connect();
   // DDL: create table
@@ -65,7 +65,7 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   db.Close();
 
   // 2. Reopen and check data
-  gs::NeugDB db2;
+  neug::NeugDB db2;
   ASSERT_TRUE(db2.Open(config));
   auto conn2 = db2.Connect();
   auto res =
@@ -110,7 +110,7 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   db2.Close();
 
   // 4. Reopen and check again
-  gs::NeugDB db3;
+  neug::NeugDB db3;
   ASSERT_TRUE(db3.Open(config));
   auto conn3 = db3.Connect();
   auto res2 =

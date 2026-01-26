@@ -22,7 +22,7 @@
 
 #include "neug/transaction/wal/wal.h"
 
-namespace gs {
+namespace neug {
 
 class LocalWalParser : public IWalParser {
  public:
@@ -52,4 +52,4 @@ class LocalWalParser : public IWalParser {
   static const bool registered_;
 };
 
-}  // namespace gs
+}  // namespace neug

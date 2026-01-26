@@ -17,7 +17,7 @@
 
 #include "re2/include/utf.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 enum {
@@ -244,4 +244,4 @@ char* utfrune(const char* s, Rune c) {
   return 0;
 }
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

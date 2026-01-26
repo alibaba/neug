@@ -1,6 +1,6 @@
 #include "generated_extension_loader.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 void loadLinkedExtensions([[maybe_unused]] main::ClientContext* context) {
@@ -10,4 +10,4 @@ void loadLinkedExtensions([[maybe_unused]] main::ClientContext* context) {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

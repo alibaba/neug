@@ -21,7 +21,7 @@
 #include "neug/execution/utils/params.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
@@ -35,10 +35,9 @@ class FilterOidsGPredOpr : public IOperator {
       const std::optional<common::Expression>& pred)
       : params_(params), oids_(std::move(oids)), pred_(pred) {}
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
     std::vector<Property> oids = oids_(params);
 
@@ -80,10 +79,9 @@ class ScanWithSPredOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
@@ -102,10 +100,9 @@ class ScanWithGPredOpr : public IOperator {
                    const std::optional<common::Expression>& pred)
       : scan_params_(scan_params), pred_(pred) {}
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
     if (!pred_.has_value()) {
       if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
@@ -141,8 +138,8 @@ class ScanWithGPredOpr : public IOperator {
   std::optional<common::Expression> pred_;
 };
 
-gs::result<OpBuildResultT> ScanOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> ScanOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
   int alias = -1;
@@ -225,10 +222,9 @@ class DummySourceOpr : public IOperator {
  public:
   DummySourceOpr() {}
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);
@@ -237,13 +233,13 @@ class DummySourceOpr : public IOperator {
   }
 
   std::string get_operator_name() const override { return "DummySourceOpr"; }
-};
+};  // namespace ops
 
-gs::result<OpBuildResultT> DummySourceOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> DummySourceOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(std::make_unique<DummySourceOpr>(), ctx_meta);
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

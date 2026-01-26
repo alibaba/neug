@@ -26,7 +26,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 namespace config_parsing {
 
@@ -932,4 +932,4 @@ LoadingConfig::GetEdgeSrcDstCol(label_t src_label_id, label_t dst_label_id,
   return edge_src_dst_col_.at(key);
 }
 
-}  // namespace gs
+}  // namespace neug

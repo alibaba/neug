@@ -22,10 +22,11 @@
 #include "unittest/utils.h"
 
 using StreamCsrTypes = ::testing::Types<
-    gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,
-    gs::MutableCsr<gs::EmptyType>, gs::MutableCsr<gs::DateTime>,
-    gs::SingleMutableCsr<uint32_t>, gs::SingleMutableCsr<uint64_t>,
-    gs::SingleMutableCsr<double>, gs::SingleMutableCsr<gs::Date>>;
+    neug::MutableCsr<int32_t>, neug::MutableCsr<int64_t>,
+    neug::MutableCsr<float>, neug::MutableCsr<neug::EmptyType>,
+    neug::MutableCsr<neug::DateTime>, neug::SingleMutableCsr<uint32_t>,
+    neug::SingleMutableCsr<uint64_t>, neug::SingleMutableCsr<double>,
+    neug::SingleMutableCsr<neug::Date>>;
 
 template <typename T>
 class CsrStreamTest : public ::testing::Test {
@@ -73,15 +74,15 @@ class CsrStreamTest : public ::testing::Test {
     std::filesystem::create_directories(work_dir);
   }
 
-  void CheckEqual(
-      const std::vector<std::tuple<gs::vid_t, gs::vid_t, typename T::data_t>>&
-          expected,
-      gs::timestamp_t ts) {
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename T::data_t>> actual;
+  void CheckEqual(const std::vector<std::tuple<neug::vid_t, neug::vid_t,
+                                               typename T::data_t>>& expected,
+                  neug::timestamp_t ts) {
+    std::vector<std::tuple<neug::vid_t, neug::vid_t, typename T::data_t>>
+        actual;
     auto view = this->csr->get_generic_view(ts);
-    auto ed_accessor = gs::EdgeDataAccessor(
-        gs::PropUtils<typename T::data_t>::prop_type(), nullptr);
-    for (gs::vid_t src = 0; src < this->csr->size(); ++src) {
+    auto ed_accessor = neug::EdgeDataAccessor(
+        neug::PropUtils<typename T::data_t>::prop_type(), nullptr);
+    for (neug::vid_t src = 0; src < this->csr->size(); ++src) {
       auto es = view.get_edges(src);
       for (auto it = es.begin(); it != es.end(); ++it) {
         auto edata = ed_accessor.get_typed_data<typename T::data_t>(it);
@@ -97,14 +98,14 @@ class CsrStreamTest : public ::testing::Test {
     }
   }
 
-  gs::timestamp_t ParallelInsert(
-      const std::vector<std::tuple<gs::vid_t, gs::vid_t, typename T::data_t>>&
-          edges,
-      int thread_num, gs::timestamp_t start_ts) {
+  neug::timestamp_t ParallelInsert(
+      const std::vector<
+          std::tuple<neug::vid_t, neug::vid_t, typename T::data_t>>& edges,
+      int thread_num, neug::timestamp_t start_ts) {
     std::vector<std::thread> threads;
     if (this->allocators.size() < static_cast<size_t>(thread_num)) {
       this->allocators.resize(
-          thread_num, gs::Allocator(gs::MemoryStrategy::kMemoryOnly, ""));
+          thread_num, neug::Allocator(neug::MemoryStrategy::kMemoryOnly, ""));
     }
     std::atomic<size_t> counter(0);
     for (int i = 0; i < thread_num; ++i) {
@@ -130,7 +131,7 @@ class CsrStreamTest : public ::testing::Test {
   }
 
   std::unique_ptr<CsrType> csr = nullptr;
-  std::vector<gs::Allocator> allocators;
+  std::vector<neug::Allocator> allocators;
 
  private:
   std::filesystem::path temp_dir_;
@@ -145,14 +146,14 @@ class CsrStreamTest : public ::testing::Test {
 TYPED_TEST_SUITE(CsrStreamTest, StreamCsrTypes);
 
 template <typename EDATA_T>
-static std::pair<std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>>,
-                 std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>>>
-generate_two_part_edges(gs::vid_t src_num, gs::vid_t dst_num, size_t edge_num,
-                        double init_percent, bool is_single) {
-  gs::vid_t init_src_num = src_num * init_percent;
+static std::pair<std::vector<std::tuple<neug::vid_t, neug::vid_t, EDATA_T>>,
+                 std::vector<std::tuple<neug::vid_t, neug::vid_t, EDATA_T>>>
+generate_two_part_edges(neug::vid_t src_num, neug::vid_t dst_num,
+                        size_t edge_num, double init_percent, bool is_single) {
+  neug::vid_t init_src_num = src_num * init_percent;
   auto edges =
       generate_random_edges<EDATA_T>(src_num, dst_num, edge_num, is_single);
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>> part0, part1;
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, EDATA_T>> part0, part1;
   for (auto& e : edges) {
     if (std::get<0>(e) < init_src_num) {
       part0.push_back(e);
@@ -173,7 +174,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemoryEmpty) {
   auto snapshot_dir = this->SnapshotDirectory();
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
-      1000, 1000, 20000, this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      1000, 1000, 20000,
+      this->csr->csr_type() == neug::CsrType::kSingleMutable);
 
   this->csr->open_in_memory(snapshot_dir.string() + "/csr", 1000);
   this->csr->resize(1000);
@@ -189,7 +191,8 @@ TYPED_TEST(CsrStreamTest, ParallelInsertFileEmpty) {
   auto snapshot_dir = this->SnapshotDirectory();
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
-      1000, 1000, 20000, this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      1000, 1000, 20000,
+      this->csr->csr_type() == neug::CsrType::kSingleMutable);
 
   this->csr->open("csr", snapshot_dir.string(), work_dir.string());
   this->csr->resize(1000);
@@ -206,11 +209,11 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemory) {
 
   auto pair = generate_two_part_edges<typename TypeParam::data_t>(
       1000, 1000, 20000, 0.6,
-      this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleMutable);
   auto& init_edges = pair.first;
   auto& insert_edges = pair.second;
 
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> data_list;
   for (auto& e : init_edges) {
     src_list.push_back(std::get<0>(e));
@@ -239,11 +242,11 @@ TYPED_TEST(CsrStreamTest, ParallelInsertFile) {
 
   auto pair = generate_two_part_edges<typename TypeParam::data_t>(
       1000, 1000, 20000, 0.6,
-      this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleMutable);
   auto& init_edges = pair.first;
   auto& insert_edges = pair.second;
 
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> data_list;
   for (auto& e : init_edges) {
     src_list.push_back(std::get<0>(e));

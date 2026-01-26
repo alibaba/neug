@@ -4,7 +4,7 @@
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalCopyFromPrintInfo final : OPPrintInfo {
@@ -78,4 +78,4 @@ class LogicalCopyFrom final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

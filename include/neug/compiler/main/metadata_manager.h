@@ -31,7 +31,7 @@
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class FileSystem;
 enum class LogicalTypeID : uint8_t;
@@ -101,4 +101,4 @@ class MetadataManager {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

@@ -21,7 +21,7 @@
 #include "neug/main/connection.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 void ConnectionManager::ConnectionManager::Close() {
   std::lock_guard<std::mutex> lock(connection_mutex_);
@@ -81,4 +81,4 @@ void ConnectionManager::RemoveConnection(std::shared_ptr<Connection> conn) {
   LOG(ERROR) << "Connection not found.";
 }
 
-}  // namespace gs
+}  // namespace neug

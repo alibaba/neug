@@ -8,10 +8,10 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 JoinTree JoinTreeConstructor::construct(
@@ -246,4 +246,4 @@ std::shared_ptr<JoinTreeNode> JoinTreeConstructor::tryConstructNestedLoopJoin(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

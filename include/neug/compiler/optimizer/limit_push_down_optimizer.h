@@ -24,7 +24,7 @@
 
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class LimitPushDownOptimizer {
@@ -43,4 +43,4 @@ class LimitPushDownOptimizer {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

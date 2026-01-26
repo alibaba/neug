@@ -15,7 +15,7 @@
 #pragma once
 
 #include "neug/utils/result.h"
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
@@ -23,11 +23,12 @@ class Expr;
 
 class Unfold {
  public:
-  static gs::result<Context> unfold(Context&& ctxs, int key, int alias);
+  static neug::result<Context> unfold(Context&& ctxs, int key, int alias);
 
-  static gs::result<Context> unfold(Context&& ctxs, const Expr& key, int alias);
+  static neug::result<Context> unfold(Context&& ctxs, const Expr& key,
+                                      int alias);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

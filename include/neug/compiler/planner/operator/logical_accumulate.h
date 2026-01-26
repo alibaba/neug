@@ -3,7 +3,7 @@
 #include "neug/compiler/common/enums/accumulate_type.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalAccumulate final : public LogicalOperator {
@@ -49,4 +49,4 @@ class LogicalAccumulate final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

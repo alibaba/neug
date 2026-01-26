@@ -24,9 +24,9 @@
 
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 void ExpressionEvaluator::init(const processor::ResultSet& resultSet,
@@ -77,4 +77,4 @@ bool ExpressionEvaluator::select(common::SelectionVector& selVector,
 }
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

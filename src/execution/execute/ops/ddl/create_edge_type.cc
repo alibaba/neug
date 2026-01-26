@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/create_edge_type.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -32,8 +32,8 @@ class CreateEdgeTypeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "CreateEdgeTypeOpr"; }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     int32_t succeed_index = 0;
@@ -72,14 +72,14 @@ class CreateEdgeTypeOpr : public IOperator {
     if (succeed_index < defs_size - 1) {
       RETURN_ERROR(status);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
   std::vector<create_edge_type_t> create_edge_types_;
 };
 
-gs::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
+neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
@@ -122,4 +122,4 @@ gs::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -1,10 +1,10 @@
 #include "neug/compiler/planner/operator/logical_cross_product.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendCrossProduct(const LogicalPlan& probePlan,
@@ -53,4 +53,4 @@ void Planner::appendCrossProduct(AccumulateType accumulateType,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

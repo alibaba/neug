@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/schema.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // This class contains the logic for re-computing factorization structure after
@@ -31,4 +31,4 @@ class SinkOperatorUtil {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

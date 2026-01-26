@@ -26,29 +26,29 @@
 
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
-int64_t CompressedFileSystem::readFile(gs::common::FileInfo& fileInfo,
+int64_t CompressedFileSystem::readFile(neug::common::FileInfo& fileInfo,
                                        void* buf, size_t numBytes) const {
   auto& compressedFileInfo = fileInfo.cast<CompressedFileInfo>();
   return compressedFileInfo.readData(buf, numBytes);
 }
 
-void CompressedFileSystem::reset(gs::common::FileInfo& fileInfo) {
+void CompressedFileSystem::reset(neug::common::FileInfo& fileInfo) {
   auto& compressedFileInfo = fileInfo.cast<CompressedFileInfo>();
   compressedFileInfo.childFileInfo->reset();
   compressedFileInfo.initialize();
 }
 
 uint64_t CompressedFileSystem::getFileSize(
-    const gs::common::FileInfo& fileInfo) const {
+    const neug::common::FileInfo& fileInfo) const {
   auto& compressedFileInfo = fileInfo.constCast<CompressedFileInfo>();
   return compressedFileInfo.childFileInfo->getFileSize();
 }
 
 void CompressedFileSystem::syncFile(
-    const gs::common::FileInfo& fileInfo) const {
+    const neug::common::FileInfo& fileInfo) const {
   auto& compressedFileInfo = fileInfo.constCast<CompressedFileInfo>();
   return compressedFileInfo.childFileInfo->syncFile();
 }
@@ -152,4 +152,4 @@ void CompressedFileInfo::close() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

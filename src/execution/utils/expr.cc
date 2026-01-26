@@ -15,7 +15,7 @@
 
 #include "neug/execution/utils/expr.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 struct LabelTriplet;
@@ -34,4 +34,4 @@ const DataType& Expr::type() const { return expr_->type(); }
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

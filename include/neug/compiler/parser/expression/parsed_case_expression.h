@@ -25,7 +25,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct ParsedCaseAlternative {
@@ -123,4 +123,4 @@ class ParsedCaseExpression final : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

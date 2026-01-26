@@ -30,7 +30,7 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class NEUG_API StringUtils {
@@ -164,4 +164,4 @@ class NEUG_API StringUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

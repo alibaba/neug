@@ -3,7 +3,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/subplans_table.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class JoinOrderEnumeratorContext {
@@ -56,4 +56,4 @@ class JoinOrderEnumeratorContext {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -27,7 +27,7 @@
 #include "neug/compiler/common/enums/rel_multiplicity.h"
 #include "table_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 struct RelTableToCypherInfo : public ToCypherInfo {
@@ -109,4 +109,4 @@ class NEUG_API RelTableCatalogEntry : public TableCatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

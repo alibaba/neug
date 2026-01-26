@@ -9,12 +9,12 @@
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 
-using namespace gs::binder;
-using namespace gs::catalog;
-using namespace gs::common;
-using namespace gs::storage;
+using namespace neug::binder;
+using namespace neug::catalog;
+using namespace neug::common;
+using namespace neug::storage;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 bool QueryGraphPlanningInfo::containsCorrExpr(const Expression& expr) const {
@@ -159,4 +159,4 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::getAllPlans(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

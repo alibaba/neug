@@ -25,7 +25,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "query_graph.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class QueryGraphLabelAnalyzer {
@@ -46,4 +46,4 @@ class QueryGraphLabelAnalyzer {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

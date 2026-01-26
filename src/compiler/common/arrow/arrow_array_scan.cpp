@@ -26,7 +26,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // scans are based on data specification found here
@@ -682,4 +682,4 @@ void ArrowConverter::fromArrowArray(const ArrowSchema* schema,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

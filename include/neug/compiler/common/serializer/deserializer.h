@@ -34,7 +34,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/serializer/reader.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class NEUG_API Deserializer {
@@ -45,8 +45,8 @@ class NEUG_API Deserializer {
   bool finished() const { return reader->finished(); }
 
   template <typename T>
-  requires std::is_trivially_destructible_v<T> || std::is_same_v<std::string, T>
-  void deserializeValue(T& value) {
+      requires std::is_trivially_destructible_v<T> ||
+      std::is_same_v<std::string, T> void deserializeValue(T& value) {
     reader->read(reinterpret_cast<uint8_t*>(&value), sizeof(T));
   }
 
@@ -172,4 +172,4 @@ template <>
 void Deserializer::deserializeValue(std::string& value);
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

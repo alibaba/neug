@@ -19,7 +19,7 @@
 
 #include "neug/generated/proto/plan/expr.pb.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 /**
@@ -116,4 +116,4 @@ class ArrowExpressionConverter
 };
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

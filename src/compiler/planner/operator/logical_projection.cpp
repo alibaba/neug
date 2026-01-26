@@ -4,7 +4,7 @@
 
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalProjection::computeFactorizedSchema() {
@@ -80,4 +80,4 @@ std::unordered_set<uint32_t> LogicalProjection::getDiscardedGroupsPos() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

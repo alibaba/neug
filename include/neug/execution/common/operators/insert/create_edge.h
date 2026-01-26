@@ -16,7 +16,7 @@
 
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 class StorageInsertInterface;
 namespace runtime {
 class Context;
@@ -25,7 +25,7 @@ class LabelTriplet;
 namespace ops {
 class CreateEdge {
  public:
-  static gs::result<Context> insert_edge(
+  static neug::result<Context> insert_edge(
       StorageInsertInterface& graph, Context&& ctx,
       std::vector<LabelTriplet> labels,
       const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
@@ -34,4 +34,4 @@ class CreateEdge {
 };
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

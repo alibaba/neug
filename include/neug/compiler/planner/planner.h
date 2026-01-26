@@ -12,7 +12,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/operator/sip/semi_mask_target_type.h"
-namespace gs {
+namespace neug {
 namespace binder {
 struct BoundTableScanInfo;
 struct BoundCopyFromInfo;
@@ -509,4 +509,4 @@ class NEUG_API Planner {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

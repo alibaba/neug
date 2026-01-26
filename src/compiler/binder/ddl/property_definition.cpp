@@ -26,10 +26,10 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 PropertyDefinition::PropertyDefinition(ColumnDefinition columnDefinition)
@@ -55,4 +55,4 @@ PropertyDefinition PropertyDefinition::deserialize(Deserializer& deserializer) {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

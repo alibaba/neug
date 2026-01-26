@@ -5,7 +5,7 @@
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 #include "neug/compiler/planner/operator/schema.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalAggregatePrintInfo::toString() const {
@@ -89,4 +89,4 @@ void LogicalAggregate::insertAllExpressionsToGroupAndScope(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

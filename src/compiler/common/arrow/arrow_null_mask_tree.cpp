@@ -25,7 +25,7 @@
 #include "neug/compiler/common/arrow/arrow.h"
 #include "neug/compiler/common/arrow/arrow_nullmask_tree.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // scans are based on data specification found here
@@ -258,4 +258,4 @@ ArrowNullMaskTree::ArrowNullMaskTree(const ArrowSchema* schema,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

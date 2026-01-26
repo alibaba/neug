@@ -27,7 +27,7 @@
 #include "neug/compiler/common/serializer/reader.h"
 #include "neug/compiler/common/serializer/writer.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct FileInfo;
@@ -80,4 +80,4 @@ class BufferedFileReader final : public Reader {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -2,9 +2,9 @@
 #include "neug/compiler/planner/operator/persistent/logical_delete.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos,
@@ -18,4 +18,4 @@ void Planner::appendDelete(const std::vector<BoundDeleteInfo>& infos,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

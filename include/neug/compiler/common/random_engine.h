@@ -27,7 +27,7 @@
 #include "neug/utils/api.h"
 #include "pcg/pcg_random.hpp"
 
-namespace gs {
+namespace neug {
 
 namespace main {
 class ClientContext;
@@ -55,4 +55,4 @@ class NEUG_API RandomEngine {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -24,10 +24,10 @@
 
 #include "neug/compiler/binder/expression/expression_util.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 std::unique_ptr<FunctionBindData> FunctionBindData::getSimpleBindData(
@@ -38,4 +38,4 @@ std::unique_ptr<FunctionBindData> FunctionBindData::getSimpleBindData(
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

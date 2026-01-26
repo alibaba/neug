@@ -27,7 +27,7 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class RelDataDirection : uint8_t { FWD = 0, BWD = 1, INVALID = 255 };
@@ -41,4 +41,4 @@ struct RelDirectionUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -26,7 +26,7 @@ class Expr;
 class Select {
  public:
   template <typename PRED_T>
-  static gs::result<Context> select(Context&& ctx, const PRED_T& pred) {
+  static neug::result<Context> select(Context&& ctx, const PRED_T& pred) {
     size_t row_num = ctx.row_num();
     std::vector<size_t> offsets;
     for (size_t k = 0; k < row_num; ++k) {
@@ -42,4 +42,4 @@ class Select {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

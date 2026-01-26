@@ -24,7 +24,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 // ArrowOperatorPrecedence implementation
@@ -321,4 +321,4 @@ arrow::compute::Expression ArrowExpressionConverter::convertArith(
 }
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

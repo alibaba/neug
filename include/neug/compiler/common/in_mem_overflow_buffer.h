@@ -29,7 +29,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 class MemoryBuffer;
 class MemoryManager;
@@ -93,4 +93,4 @@ class InMemOverflowBuffer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -36,8 +36,8 @@ class AddEdgePropertySchemaOpr : public IOperator {
   std::string get_operator_name() const override {
     return "AddEdgePropertySchemaOpr";
   }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.AddEdgeProperties(src_type_, dst_type_, edge_type_,
@@ -47,7 +47,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -58,7 +58,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
+neug::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& add_edge_property =
@@ -80,4 +80,4 @@ gs::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
 }  // namespace ops
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

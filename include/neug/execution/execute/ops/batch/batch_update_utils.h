@@ -36,7 +36,7 @@ struct ReadOptions;
 }  // namespace csv
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 class IRecordBatchSupplier;
 class Schema;
 class StorageReadInterface;
@@ -102,4 +102,4 @@ void parse_property_mappings(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

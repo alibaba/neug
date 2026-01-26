@@ -28,7 +28,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ComparisonFunction {
@@ -308,4 +308,4 @@ struct LessThanEqualsFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

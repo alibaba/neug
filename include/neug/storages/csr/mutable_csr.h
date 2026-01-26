@@ -37,7 +37,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
-namespace gs {
+namespace neug {
 
 void read_file(const std::string& filename, void* buffer, size_t size,
                size_t num);
@@ -370,4 +370,4 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   }
 };
 
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 
-namespace gs {
+namespace neug {
 
 void AbstractPropertyGraphLoader::addVerticesToVertexTable(
     label_t v_label_id, const std::string& label_name, DataTypeId pk_type,
@@ -196,4 +196,4 @@ result<bool> AbstractPropertyGraphLoader::LoadFragment() {
   return result<bool>(true);
 }
 
-}  // namespace gs
+}  // namespace neug

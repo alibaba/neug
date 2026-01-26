@@ -20,16 +20,16 @@
 #include "neug/compiler/storage/wal/wal.h"
 #include "neug/compiler/transaction/transaction.h"
 
-namespace gs {
+namespace neug {
 class Constants {
  public:
   static inline uint64_t MAX_UPPER_BOUND = INT32_MAX;
   static inline uint64_t VARCHAR_MAX_LENGTH = 65536;
   static inline uint64_t ARRAY_MAX_LENGTH = 256;
-  static inline gs::transaction::Transaction DEFAULT_TRANSACTION =
-      gs::transaction::Transaction(
-          gs::transaction::TransactionType::DUMMY,
-          gs::transaction::Transaction::DUMMY_TRANSACTION_ID,
+  static inline neug::transaction::Transaction DEFAULT_TRANSACTION =
+      neug::transaction::Transaction(
+          neug::transaction::TransactionType::DUMMY,
+          neug::transaction::Transaction::DUMMY_TRANSACTION_ID,
           common::INVALID_TRANSACTION);
 };
-}  // namespace gs
+}  // namespace neug

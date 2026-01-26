@@ -13,10 +13,10 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static std::vector<std::vector<std::unique_ptr<LogicalPlan>>>
@@ -181,4 +181,4 @@ void Planner::exitPropertyExprCollection(PropertyExprCollection collection) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

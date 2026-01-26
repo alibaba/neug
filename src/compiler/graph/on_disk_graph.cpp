@@ -38,14 +38,14 @@
 #include "neug/compiler/processor/result/result_set.h"
 #include "neug/compiler/storage/stats_manager.h"
 
-using namespace gs::catalog;
-using namespace gs::storage;
-using namespace gs::main;
-using namespace gs::common;
-using namespace gs::planner;
-using namespace gs::binder;
+using namespace neug::catalog;
+using namespace neug::storage;
+using namespace neug::main;
+using namespace neug::common;
+using namespace neug::planner;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace graph {
 
 static std::vector<column_id_t> getColumnIDs(
@@ -70,7 +70,7 @@ static Schema getSchema(const expression_vector& exprs) {
   return schema;
 }
 
-static gs::processor::ResultSet getResultSet(Schema* schema,
+static neug::processor::ResultSet getResultSet(Schema* schema,
                                              MemoryManager* mm) {
   throw new std::runtime_error(
       "getResultSet is not implemented, remove dependency of processor module");
@@ -202,4 +202,4 @@ void OnDiskGraphVertexScanState::startScan(offset_t beginOffset,
 bool OnDiskGraphVertexScanState::next() {}
 
 }  // namespace graph
-}  // namespace gs
+}  // namespace neug

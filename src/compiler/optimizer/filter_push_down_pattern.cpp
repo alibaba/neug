@@ -17,7 +17,7 @@
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void FilterPushDownPattern::rewrite(planner::LogicalPlan* plan) {
@@ -183,4 +183,4 @@ FilterPushDownPattern::bindBooleanExpression(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

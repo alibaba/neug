@@ -31,7 +31,7 @@
 #include "neug/compiler/common/enums/conflict_action.h"
 #include "parsed_property_definition.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct ExtraCreateTableInfo {
@@ -95,4 +95,4 @@ struct ExtraCreateRelTableGroupInfo : public ExtraCreateTableInfo {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

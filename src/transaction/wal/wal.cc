@@ -26,7 +26,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 std::string parse_wal_uri(std::string wal_uri, const std::string& work_dir) {
   if (wal_uri.empty()) {
@@ -669,4 +669,4 @@ OutArchive& operator>>(OutArchive& out_archive, RemoveEdgeRedo& value) {
   return out_archive;
 }
 
-}  // namespace gs
+}  // namespace neug

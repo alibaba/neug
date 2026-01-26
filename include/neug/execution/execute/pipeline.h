@@ -23,7 +23,7 @@
 #include "neug/execution/execute/operator.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
@@ -37,8 +37,8 @@ class Pipeline {
       : operators_(std::move(operators)) {}
   ~Pipeline() = default;
 
-  gs::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
-                              const ParamsMap& params, OprTimer* timer);
+  neug::result<Context> Execute(IStorageInterface& graph, Context&& ctx,
+                                const ParamsMap& params, OprTimer* timer);
 
  private:
   std::vector<std::unique_ptr<IOperator>> operators_;
@@ -46,4 +46,4 @@ class Pipeline {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

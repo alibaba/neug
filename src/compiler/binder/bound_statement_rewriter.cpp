@@ -27,7 +27,7 @@
 #include "neug/compiler/binder/rewriter/with_clause_projection_rewriter.h"
 #include "neug/compiler/binder/visitor/default_type_solver.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void BoundStatementRewriter::rewrite(BoundStatement& boundStatement,
@@ -48,4 +48,4 @@ void BoundStatementRewriter::rewrite(BoundStatement& boundStatement,
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 #include "neug/generated/proto/plan/type.pb.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 DataType::DataType() : DataType(DataTypeId::kInvalid) {}
 
@@ -195,4 +195,4 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   return DataType(DataTypeId::kUnknown);
 }
 
-}  // namespace gs
+}  // namespace neug

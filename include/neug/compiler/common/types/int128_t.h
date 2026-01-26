@@ -34,7 +34,7 @@
 #include "neug/utils/api.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct NEUG_API int128_t;
@@ -257,9 +257,9 @@ bool Int128_t::tryCastTo(long double value, int128_t& result);
 // TODO: const char to int128
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug
 
 template <>
-struct std::hash<gs::common::int128_t> {
-  std::size_t operator()(const gs::common::int128_t& v) const noexcept;
+struct std::hash<neug::common::int128_t> {
+  std::size_t operator()(const neug::common::int128_t& v) const noexcept;
 };

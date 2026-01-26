@@ -25,9 +25,9 @@
 #include "neug/compiler/binder/ddl/bound_create_table_info.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 void NodeTableCatalogEntry::serialize(common::Serializer& serializer) const {
@@ -69,4 +69,4 @@ NodeTableCatalogEntry::getBoundExtraCreateInfo(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

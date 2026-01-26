@@ -31,7 +31,7 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 // arrow related;
 
@@ -370,4 +370,4 @@ struct TypeConverter<Interval> {
 };
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type);
-}  // namespace gs
+}  // namespace neug

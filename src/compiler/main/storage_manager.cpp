@@ -12,7 +12,7 @@
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 
 StatsManager::StatsManager(const std::string& statsData,
@@ -35,7 +35,7 @@ bool StatsManager::checkTableConsistency(Table* oldTable,
   }
   if (oldTable->getTableType() == common::TableType::REL) {
     auto catalog = database->getCatalog();
-    auto& transaction = gs::Constants ::DEFAULT_TRANSACTION;
+    auto& transaction = neug::Constants ::DEFAULT_TRANSACTION;
     // check if the src and dst table ids are consistent
     auto oldRelTable = oldTable->ptrCast<GRelTable>();
     if (!catalog->containsTable(&transaction, oldRelTable->getSrcTableId()) ||
@@ -80,7 +80,7 @@ Table* StatsManager::getTableByName(common::table_id_t tableID,
 }
 
 Table* StatsManager::getTable(common::table_id_t tableID) {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto catalog = database->getCatalog();
   if (!catalog) {
     THROW_EXCEPTION_WITH_FILE_LINE("Catalog is not initialized");
@@ -178,7 +178,7 @@ void StatsManager::getCardMap(
               auto srcName = srcDst["source_vertex"].GetString();
               auto dstName = srcDst["destination_vertex"].GetString();
               auto childName =
-                  gs::catalog::RelGroupCatalogEntry::getChildTableName(
+                  neug::catalog::RelGroupCatalogEntry::getChildTableName(
                       relName, srcName, dstName);
               auto count = srcDst["count"].GetInt64();
               countMap[childName] = count;
@@ -198,7 +198,7 @@ void StatsManager::getCardMap(
 void StatsManager::loadStats(
     const catalog::Catalog& catalog,
     const std::unordered_map<std::string, common::row_idx_t>& countMap) {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
 
   // Process all node tables from catalog
   for (auto& tableEntry : catalog.getTableEntries(&transaction)) {
@@ -216,10 +216,10 @@ void StatsManager::loadStats(
       auto relName = relTableEntry->getName();
       auto count = countMap.count(relName) ? countMap.at(relName) : 1;
       tables[relTableEntry->getTableID()] =
-          std::make_unique<gs::storage::GRelTable>(count, relTableEntry, this);
+          std::make_unique<neug::storage::GRelTable>(count, relTableEntry, this);
     }
   }
 }
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

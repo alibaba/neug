@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // Collect all property expressions for a given statement.
@@ -64,4 +64,4 @@ class PropertyCollector final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

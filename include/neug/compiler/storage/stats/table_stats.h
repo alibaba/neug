@@ -25,10 +25,10 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/storage/stats/column_stats.h"
 
-namespace gs::common {
+namespace neug::common {
 class LogicalType;
 }
-namespace gs {
+namespace neug {
 namespace storage {
 
 class TableStats {
@@ -92,4 +92,4 @@ class TableStats {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

@@ -29,11 +29,11 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::parser;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindComparisonExpression(
@@ -102,4 +102,4 @@ ExpressionBinder::createEqualityComparisonExpression(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

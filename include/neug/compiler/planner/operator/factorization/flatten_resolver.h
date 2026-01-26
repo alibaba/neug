@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/schema.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class GroupDependencyAnalyzer;
@@ -64,4 +64,4 @@ class GroupDependencyAnalyzer {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

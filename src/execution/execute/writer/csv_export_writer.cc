@@ -23,7 +23,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/execution/execute/writer/csv_export_writer.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 void put_delimiter_option(const std::string& delimiter_str, char& delimeter) {
@@ -186,4 +186,4 @@ const bool CsvExportWriter::registered_ = ExportWriterFactory::Register(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

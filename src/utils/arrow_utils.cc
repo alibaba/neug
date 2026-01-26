@@ -18,7 +18,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 
-namespace gs {
+namespace neug {
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
   if (type == DataTypeId::kBoolean) {
@@ -56,7 +56,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
 template <typename T>
 void emplace_into_vector(const std::shared_ptr<arrow::ChunkedArray>& array,
                          std::vector<Property>& vec) {
-  using arrow_array_type = typename gs::TypeConverter<T>::ArrowArrayType;
+  using arrow_array_type = typename neug::TypeConverter<T>::ArrowArrayType;
   for (int32_t i = 0; i < array->num_chunks(); ++i) {
     auto casted = std::static_pointer_cast<arrow_array_type>(array->chunk(i));
     for (auto k = 0; k < casted->length(); ++k) {
@@ -65,4 +65,4 @@ void emplace_into_vector(const std::shared_ptr<arrow::ChunkedArray>& array,
   }
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -23,13 +23,13 @@
 #include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class GPhysicalConvertor {
  public:
   GPhysicalConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                     gs::catalog::Catalog* catalog)
+                     neug::catalog::Catalog* catalog)
       : aliasManager{aliasManager}, catalog{catalog} {}
 
   std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
@@ -89,8 +89,8 @@ class GPhysicalConvertor {
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;
-  gs::catalog::Catalog* catalog;
+  neug::catalog::Catalog* catalog;
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

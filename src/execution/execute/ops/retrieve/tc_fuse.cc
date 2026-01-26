@@ -23,7 +23,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
@@ -73,10 +73,9 @@ class TCOpr : public IOperator {
 
   std::string get_operator_name() const override { return "TCOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const std::string& param_value = params.at(param_name_);
     auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
@@ -243,8 +242,8 @@ std::unique_ptr<IOperator> make_tc_opr(
   return nullptr;
 }
 
-gs::result<OpBuildResultT> TCOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> TCOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (tc_fusable(plan, op_idx)) {
     int alias1 = plan.plan(op_idx + 6).opr().vertex().alias().value();
@@ -283,4 +282,4 @@ gs::result<OpBuildResultT> TCOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

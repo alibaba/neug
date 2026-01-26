@@ -29,7 +29,7 @@
 #include "compressed_file_system.h"
 #include "file_system.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class MetadataManager;
 }
@@ -101,4 +101,4 @@ class NEUG_API VirtualFileSystem final : public FileSystem {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

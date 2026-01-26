@@ -27,7 +27,7 @@
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindAttachDatabase(
@@ -59,4 +59,4 @@ std::unique_ptr<BoundStatement> Binder::bindAttachDatabase(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

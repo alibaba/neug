@@ -18,7 +18,7 @@
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 template <typename EDATA_T>
 struct ImmutableNbr {
@@ -125,4 +125,4 @@ struct MutableNbr<EmptyType> {
   };
 };
 
-}  // namespace gs
+}  // namespace neug

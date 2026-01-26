@@ -29,7 +29,7 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs::common {
+namespace neug::common {
 
 const int128_t Int128_t::powerOf10[]{
     int128_t((int64_t) 1),
@@ -825,10 +825,10 @@ int128_t::operator float() const {
   return result;
 }
 
-}  // namespace gs::common
+}  // namespace neug::common
 
-std::size_t std::hash<gs::common::int128_t>::operator()(
-    const gs::common::int128_t& v) const noexcept {
-  gs::common::hash_t hash = 0;
+std::size_t std::hash<neug::common::int128_t>::operator()(
+    const neug::common::int128_t& v) const noexcept {
+  neug::common::hash_t hash = 0;
   return hash;
 }

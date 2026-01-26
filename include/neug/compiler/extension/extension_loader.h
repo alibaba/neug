@@ -26,7 +26,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -46,4 +46,4 @@ class NEUG_API ExtensionLoader {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

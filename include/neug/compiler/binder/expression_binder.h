@@ -26,7 +26,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -181,4 +181,4 @@ class ExpressionBinder {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

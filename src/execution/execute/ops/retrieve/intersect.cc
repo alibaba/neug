@@ -28,7 +28,7 @@
 #include "neug/execution/utils/predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -50,23 +50,22 @@ class IntersectOprMultip : public IOperator {
     return "IntersectOprMultip";
   }
 
-  gs::result<gs::runtime::Context> Eval_Impl(
+  neug::result<neug::runtime::Context> Eval_Impl(
       const IStorageInterface& graph_interface, const ParamsMap& params,
-      gs::runtime::Context&& ctx,
+      neug::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t)>>& v_preds,
       const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
                                            label_t, Direction, const void*)>>&
           e_preds,
-      gs::runtime::OprTimer* timer) {
+      neug::runtime::OprTimer* timer) {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return Intersect::Multiple_Intersect(graph, params, std::move(ctx), v_preds,
                                          e_preds, eeps_, alias_);
   }
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<std::function<bool(label_t, vid_t)>> v_preds;
@@ -131,10 +130,9 @@ class IntersectOprBeta : public IOperator {
 
   std::string get_operator_name() const override { return "IntersectOprBeta"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v) {
@@ -234,10 +232,9 @@ class IntersectWithEdgeOpr : public IOperator {
     return "IntersectWithEdgeOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto lambda = [](label_t label, vid_t v) {
@@ -372,7 +369,7 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
     }
   }
 }
-gs::result<OpBuildResultT> IntersectOprBuilder::Build(
+neug::result<OpBuildResultT> IntersectOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& intersect_opr = plan.plan(op_idx).opr().intersect();
@@ -461,4 +458,4 @@ gs::result<OpBuildResultT> IntersectOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

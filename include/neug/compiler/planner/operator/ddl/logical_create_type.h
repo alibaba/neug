@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/simple/logical_simple.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalCreateTypePrintInfo final : OPPrintInfo {
@@ -54,4 +54,4 @@ class LogicalCreateType : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

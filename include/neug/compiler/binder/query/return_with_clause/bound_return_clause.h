@@ -25,7 +25,7 @@
 #include "bound_projection_body.h"
 #include "neug/compiler/binder/bound_statement_result.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundReturnClause {
@@ -53,4 +53,4 @@ class BoundReturnClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

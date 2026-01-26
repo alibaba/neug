@@ -30,7 +30,7 @@
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/string_utils.h"
 
-namespace gs {
+namespace neug {
 
 static bool put_skip_rows_option(const LoadingConfig& loading_config,
                                  arrow::csv::ReadOptions& read_options) {
@@ -202,7 +202,7 @@ void put_column_names_option(bool header_row, const std::string& file_path,
       }
     }
     VLOG(10) << "before Got all column names: " << all_column_names.size()
-             << gs::to_string(all_column_names);
+             << neug::to_string(all_column_names);
     for (size_t i = 0; i < all_column_names.size(); ++i) {
       auto& name = all_column_names[i];
       if (name_count[name] > 1) {
@@ -212,7 +212,7 @@ void put_column_names_option(bool header_row, const std::string& file_path,
       }
     }
     VLOG(10) << "Got all column names: " << all_column_names.size()
-             << gs::to_string(all_column_names);
+             << neug::to_string(all_column_names);
   } else {
     // just get the number of columns.
     all_column_names.resize(len);
@@ -222,7 +222,7 @@ void put_column_names_option(bool header_row, const std::string& file_path,
   }
   read_options.column_names = all_column_names;
   VLOG(10) << "Got all column names: " << all_column_names.size()
-           << gs::to_string(all_column_names);
+           << neug::to_string(all_column_names);
 }
 
 std::vector<std::string> columnMappingsToSelectedCols(
@@ -398,8 +398,8 @@ void fillVertexReaderMeta(
     CHECK(vertex_property_names.size() + 1 == read_options.column_names.size())
         << " size in schema: " << vertex_property_names.size()
         << ", size in file: " << read_options.column_names.size() << ","
-        << gs::to_string(vertex_property_names)
-        << ", read options: " << gs::to_string(read_options.column_names);
+        << neug::to_string(vertex_property_names)
+        << ", read options: " << neug::to_string(read_options.column_names);
     vertex_property_names_copy.insert(
         vertex_property_names_copy.begin() + pk_ind, pk_name);
 
@@ -590,7 +590,7 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
     }
   }
 
-  VLOG(10) << "Include Edge columns: " << gs::to_string(included_col_names);
+  VLOG(10) << "Include Edge columns: " << neug::to_string(included_col_names);
   // if empty, then means need all columns
   convert_options.include_columns = included_col_names;
 
@@ -645,12 +645,12 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
 }
 
 template <typename COL_T>
-void set_column(std::shared_ptr<gs::ColumnBase> col,
+void set_column(std::shared_ptr<neug::ColumnBase> col,
                 std::shared_ptr<arrow::ChunkedArray> array,
                 const std::vector<vid_t>& vids) {
-  using arrow_array_type = typename gs::TypeConverter<COL_T>::ArrowArrayType;
+  using arrow_array_type = typename neug::TypeConverter<COL_T>::ArrowArrayType;
   auto array_type = array->type();
-  auto arrow_type = gs::TypeConverter<COL_T>::ArrowTypeValue();
+  auto arrow_type = neug::TypeConverter<COL_T>::ArrowTypeValue();
   CHECK(array_type->Equals(arrow_type))
       << "Inconsistent data type, expect " << arrow_type->ToString()
       << ", but got " << array_type->ToString();
@@ -666,7 +666,7 @@ void set_column(std::shared_ptr<gs::ColumnBase> col,
   }
 }
 
-void set_column_from_date_array(std::shared_ptr<gs::ColumnBase> col,
+void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
                                 std::shared_ptr<arrow::ChunkedArray> array,
                                 const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -691,7 +691,7 @@ void set_column_from_date_array(std::shared_ptr<gs::ColumnBase> col,
 }
 
 template <typename COL_T>  // COL_T = DateTime or Timestamp
-void set_column_from_timestamp_array(std::shared_ptr<gs::ColumnBase> col,
+void set_column_from_timestamp_array(std::shared_ptr<neug::ColumnBase> col,
                                      std::shared_ptr<arrow::ChunkedArray> array,
                                      const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -716,7 +716,7 @@ void set_column_from_timestamp_array(std::shared_ptr<gs::ColumnBase> col,
 }
 
 void set_interval_column_from_string_array(
-    std::shared_ptr<gs::ColumnBase> col,
+    std::shared_ptr<neug::ColumnBase> col,
     std::shared_ptr<arrow::ChunkedArray> array,
     const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -739,12 +739,13 @@ void set_interval_column_from_string_array(
   }
 }
 
-void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
+void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
                                   const std::vector<vid_t>& vids,
                                   bool enable_resize = false) {
   auto type = array->type();
-  auto typed_col = dynamic_cast<gs::TypedColumn<std::string_view>*>(col.get());
+  auto typed_col =
+      dynamic_cast<neug::TypedColumn<std::string_view>*>(col.get());
   if (enable_resize) {
     CHECK(typed_col != nullptr) << "Only support TypedColumn<std::string_view>";
   }
@@ -796,7 +797,7 @@ void set_column_from_string_array(std::shared_ptr<gs::ColumnBase> col,
   }
 }
 
-void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
+void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids) {
   auto type = array->type();
@@ -827,4 +828,4 @@ void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
   }
 }
 
-}  // namespace gs
+}  // namespace neug

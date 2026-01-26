@@ -44,7 +44,7 @@
 #include "re2/include/utf.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 enum {
@@ -75,5 +75,5 @@ extern const CaseFold* LookupCaseFold(const CaseFold*, int, Rune rune);
 extern Rune ApplyFold(const CaseFold* f, Rune r);
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // RE2_UNICODE_CASEFOLD_H_

@@ -33,7 +33,7 @@
 #include "neug/utils/exception/exception.h"
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 interval_t::interval_t() = default;
@@ -159,7 +159,7 @@ template <class T>
 void intervalTryAddition(T& target, int64_t input, int64_t multiplier,
                          int64_t fraction = 0) {}
 
-interval_t gs::common::Interval::fromCString(const char* str, uint64_t len) {
+interval_t neug::common::Interval::fromCString(const char* str, uint64_t len) {
   interval_t result;
   uint64_t pos = 0;
   uint64_t startPos = 0;
@@ -517,4 +517,4 @@ const regex::RE2& Interval::regexPattern2() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/system_config.h"
 
-namespace gs::graph {
+namespace neug::graph {
 NbrScanState::Chunk::Chunk(std::span<const common::nodeID_t> nbrNodes,
                            common::SelectionVector& selVector,
                            std::vector<common::ValueVector*> propertyVectors)
@@ -40,4 +40,4 @@ VertexScanState::Chunk::Chunk(
     : nodeIDs{nodeIDs}, propertyVectors{propertyVectors} {
   NEUG_ASSERT(nodeIDs.size() <= common::DEFAULT_VECTOR_CAPACITY);
 }
-}  // namespace gs::graph
+}  // namespace neug::graph

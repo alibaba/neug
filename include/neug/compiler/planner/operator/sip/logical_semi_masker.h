@@ -5,7 +5,7 @@
 #include "neug/utils/exception/exception.h"
 #include "semi_mask_target_type.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 /*
@@ -124,4 +124,4 @@ class LogicalSemiMasker final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

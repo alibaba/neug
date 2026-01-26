@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // WithClauseProjectionRewriter first analyze the properties need to be scanned
@@ -38,4 +38,4 @@ class WithClauseProjectionRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

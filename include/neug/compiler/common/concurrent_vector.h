@@ -30,7 +30,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/system_config.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 template <typename T, uint64_t BLOCK_SIZE = DEFAULT_VECTOR_CAPACITY,
@@ -132,4 +132,4 @@ class ConcurrentVector {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

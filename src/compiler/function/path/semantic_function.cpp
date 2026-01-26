@@ -24,10 +24,10 @@
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static std::unique_ptr<FunctionBindData> bindFunc(
@@ -57,4 +57,4 @@ function_set IsACyclicFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

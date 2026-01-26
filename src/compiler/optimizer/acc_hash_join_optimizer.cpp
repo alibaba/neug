@@ -32,12 +32,12 @@
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
 
-using namespace gs::common;
-using namespace gs::binder;
-using namespace gs::planner;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::binder;
+using namespace neug::planner;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 static std::shared_ptr<LogicalOperator> appendAccumulate(
@@ -452,4 +452,4 @@ void HashJoinSIPOptimizer::visitPathPropertyProbe(LogicalOperator* op) {
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

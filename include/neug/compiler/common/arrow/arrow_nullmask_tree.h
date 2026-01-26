@@ -26,7 +26,7 @@
 #include "neug/compiler/common/null_mask.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ArrowNullMaskTree {
@@ -62,4 +62,4 @@ class ArrowNullMaskTree {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

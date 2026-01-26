@@ -25,7 +25,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/enums/clause_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundUpdatingClause {
@@ -50,4 +50,4 @@ class BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -22,7 +22,7 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 
 ReadTransaction::ReadTransaction(const PropertyGraph& graph,
                                  IVersionManager& vm, timestamp_t timestamp)
@@ -47,4 +47,4 @@ void ReadTransaction::release() {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/drop_vertex_property.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -33,8 +33,8 @@ class DropVertexPropertySchemaOpr : public IOperator {
     return "DropVertexPropertySchemaOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.DeleteVertexProperties(vertex_type_, property_names_,
@@ -44,7 +44,7 @@ class DropVertexPropertySchemaOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -53,7 +53,7 @@ class DropVertexPropertySchemaOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
+neug::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& drop_vertex_property =
@@ -72,4 +72,4 @@ gs::result<OpBuildResultT> DropVertexPropertySchemaOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

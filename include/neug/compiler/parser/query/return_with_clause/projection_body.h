@@ -25,7 +25,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ProjectionBody {
@@ -86,4 +86,4 @@ class ProjectionBody {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

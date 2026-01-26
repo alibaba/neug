@@ -25,7 +25,7 @@
 #include "alter_info.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class Alter : public Statement {
@@ -41,4 +41,4 @@ class Alter : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

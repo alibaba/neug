@@ -17,7 +17,7 @@
 
 #include <string>
 
-namespace gs {
+namespace neug {
 
 void ensure_directory_exists(const std::string& dir_path);
 
@@ -38,4 +38,4 @@ void copy_directory(const std::string& src, const std::string& dst,
 
 void remove_directory(const std::string& dir_path);
 
-}  // namespace gs
+}  // namespace neug

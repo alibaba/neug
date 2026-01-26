@@ -32,11 +32,9 @@
 namespace YAML {
 class Node;
 }  // namespace YAML
-namespace gs {
-class LoadingConfig;
-}  // namespace gs
 
-namespace gs {
+namespace neug {
+class LoadingConfig;
 
 namespace reader_options {
 static const int32_t DEFAULT_BLOCK_SIZE = (1 << 20);  // 1MB
@@ -96,9 +94,9 @@ class LoadingConfig {
                  schema_label_type>;  // src_label_t, dst_label_t, edge_label_t
 
   // Check whether loading config file is consistent with schema
-  static gs::result<LoadingConfig> ParseFromYamlFile(
+  static neug::result<LoadingConfig> ParseFromYamlFile(
       const Schema& schema, const std::string& yaml_file);
-  static gs::result<LoadingConfig> ParseFromYamlNode(
+  static neug::result<LoadingConfig> ParseFromYamlNode(
       const Schema& schema, const YAML::Node& yaml_node);
 
   LoadingConfig(const Schema& schema);
@@ -229,16 +227,16 @@ class LoadingConfig {
       const YAML::Node& root, const Schema& schema, LoadingConfig& load_config);
 };
 
-}  // namespace gs
+}  // namespace neug
 
 namespace std {
 // BulkLoadMethod << operator
-inline ostream& operator<<(ostream& os, const gs::BulkLoadMethod& method) {
+inline ostream& operator<<(ostream& os, const neug::BulkLoadMethod& method) {
   switch (method) {
-  case gs::BulkLoadMethod::kInit:
+  case neug::BulkLoadMethod::kInit:
     os << "init";
     break;
-  case gs::BulkLoadMethod::kOverwrite:
+  case neug::BulkLoadMethod::kOverwrite:
     os << "overwrite";
     break;
   default:

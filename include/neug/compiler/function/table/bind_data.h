@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class FileSystem;
 }
@@ -96,4 +96,4 @@ struct NEUG_API TableFuncBindData {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

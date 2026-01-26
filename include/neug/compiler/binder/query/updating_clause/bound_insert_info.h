@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/conflict_action.h"
 #include "neug/compiler/common/enums/table_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundInsertInfo {
@@ -53,4 +53,4 @@ struct BoundInsertInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

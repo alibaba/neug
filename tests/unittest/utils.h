@@ -23,7 +23,7 @@
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
 
-class GeneratedRecordBatchSupplier : public gs::IRecordBatchSupplier {
+class GeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
  public:
   GeneratedRecordBatchSupplier(
       std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches)
@@ -68,9 +68,9 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(dis(gen));
     }
     return data;
-  } else if constexpr (std::is_same<EDATA_T, gs::EmptyType>::value) {
-    return std::vector<EDATA_T>(len, gs::EmptyType());
-  } else if constexpr (std::is_same<EDATA_T, gs::Date>::value) {
+  } else if constexpr (std::is_same<EDATA_T, neug::EmptyType>::value) {
+    return std::vector<EDATA_T>(len, neug::EmptyType());
+  } else if constexpr (std::is_same<EDATA_T, neug::Date>::value) {
     std::vector<EDATA_T> data;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -79,7 +79,7 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(EDATA_T(dis(gen)));
     }
     return data;
-  } else if constexpr (std::is_same<EDATA_T, gs::DateTime>::value) {
+  } else if constexpr (std::is_same<EDATA_T, neug::DateTime>::value) {
     std::vector<EDATA_T> data;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -105,7 +105,7 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
       data.push_back(str);
     }
     return data;
-  } else if constexpr (std::is_same<EDATA_T, gs::Interval>::value) {
+  } else if constexpr (std::is_same<EDATA_T, neug::Interval>::value) {
     std::vector<EDATA_T> data;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -113,7 +113,7 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
         std::numeric_limits<int64_t>::min(),
         std::numeric_limits<int64_t>::max());
     for (size_t i = 0; i < len; ++i) {
-      gs::Interval interval;
+      neug::Interval interval;
       interval.from_mill_seconds(dis(gen));
       data.push_back(interval);
     }
@@ -265,21 +265,22 @@ inline std::vector<ID_T> generate_random_vertices(ID_T vnum, size_t len) {
 }
 
 template <typename EDATA_T>
-std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>> generate_random_edges(
-    gs::vid_t src_num, gs::vid_t dst_num, size_t len, bool single = false) {
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>> edges;
+std::vector<std::tuple<neug::vid_t, neug::vid_t, EDATA_T>>
+generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
+                      bool single = false) {
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, EDATA_T>> edges;
   if (!single) {
-    auto src_list = generate_random_vertices<gs::vid_t>(src_num, len);
-    auto dst_list = generate_random_vertices<gs::vid_t>(dst_num, len);
+    auto src_list = generate_random_vertices<neug::vid_t>(src_num, len);
+    auto dst_list = generate_random_vertices<neug::vid_t>(dst_num, len);
     auto data_list = generate_random_data<EDATA_T>(len);
     for (size_t i = 0; i < len; ++i) {
       edges.emplace_back(src_list[i], dst_list[i], data_list[i]);
     }
   } else {
     len = std::min(len, static_cast<size_t>(src_num));
-    auto dst_list = generate_random_vertices<gs::vid_t>(dst_num, len);
-    std::vector<gs::vid_t> src_list;
-    for (gs::vid_t i = 0; i < src_num; ++i) {
+    auto dst_list = generate_random_vertices<neug::vid_t>(dst_num, len);
+    std::vector<neug::vid_t> src_list;
+    for (neug::vid_t i = 0; i < src_num; ++i) {
       src_list.push_back(i);
     }
     std::shuffle(src_list.begin(), src_list.end(),
@@ -293,10 +294,10 @@ std::vector<std::tuple<gs::vid_t, gs::vid_t, EDATA_T>> generate_random_edges(
   return edges;
 }
 
-namespace gs {
+namespace neug {
 namespace test {
 
-inline void load_modern_graph(std::shared_ptr<gs::Connection> conn) {
+inline void load_modern_graph(std::shared_ptr<neug::Connection> conn) {
   const char* csv_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
   if (csv_dir_ptr == nullptr) {
     throw std::runtime_error(
@@ -355,6 +356,6 @@ inline void load_modern_graph(std::shared_ptr<gs::Connection> conn) {
   }
 }
 }  // namespace test
-}  // namespace gs
+}  // namespace neug
 
 #endif  // NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_

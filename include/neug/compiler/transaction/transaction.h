@@ -5,7 +5,7 @@
 #include "neug/compiler/common/enums/statement_type.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 struct BoundAlterInfo;
 }
@@ -197,4 +197,4 @@ extern NEUG_API Transaction DUMMY_TRANSACTION;
 extern NEUG_API Transaction DUMMY_CHECKPOINT_TRANSACTION;
 
 }  // namespace transaction
-}  // namespace gs
+}  // namespace neug

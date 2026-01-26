@@ -48,14 +48,14 @@
 #include "neug/compiler/common/windows_utils.h"
 #endif
 
-using namespace gs::parser;
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::catalog;
-using namespace gs::planner;
-using namespace gs::transaction;
+using namespace neug::parser;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::catalog;
+using namespace neug::planner;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace main {
 
 ActiveQuery::ActiveQuery() : interrupted{false} {}
@@ -109,7 +109,7 @@ Value ClientContext::getCurrentSetting(const std::string& optionName) const {
 }
 
 Transaction* ClientContext::getTransaction() const {
-  return &gs::Constants::DEFAULT_TRANSACTION;
+  return &neug::Constants::DEFAULT_TRANSACTION;
 }
 
 std::unique_ptr<function::ScanReplacementData> ClientContext::tryReplace(
@@ -302,4 +302,4 @@ std::unique_ptr<PreparedStatement> ClientContext::prepareNoLock(
 }
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

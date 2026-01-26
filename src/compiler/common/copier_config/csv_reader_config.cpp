@@ -27,7 +27,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 static char bindParsingOptionValue(std::string value) {
@@ -176,4 +176,4 @@ CSVReaderConfig CSVReaderConfig::construct(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

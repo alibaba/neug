@@ -24,7 +24,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -200,11 +200,11 @@ struct Path {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug
 
 namespace std {
 template <>
-struct hash<gs::runtime::VertexRecord> {
+struct hash<neug::runtime::VertexRecord> {
   // Hash combine functions copied from Boost.ContainerHash
   // https://github.com/boostorg/container_hash/blob/171c012d4723c5e93cc7cffe42919afdf8b27dfa/include/boost/container_hash/hash.hpp#L311
   // that is based on Peter Dimov's proposal
@@ -217,15 +217,16 @@ struct hash<gs::runtime::VertexRecord> {
     seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
 
-  size_t operator()(const gs::runtime::VertexRecord& record) const {
+  size_t operator()(const neug::runtime::VertexRecord& record) const {
     std::size_t seed = 0;
     hash_combine(seed, record.vid_);
     hash_combine(seed, record.label_);
     return seed;
   }
 
-  std::size_t operator()(const std::pair<gs::runtime::VertexRecord,
-                                         gs::runtime::VertexRecord>& p) const {
+  std::size_t operator()(
+      const std::pair<neug::runtime::VertexRecord, neug::runtime::VertexRecord>&
+          p) const {
     std::size_t seed = 0;
     hash_combine(seed, p.first.vid_);
     hash_combine(seed, p.first.label_);
@@ -236,8 +237,8 @@ struct hash<gs::runtime::VertexRecord> {
 };
 
 template <>
-struct hash<gs::DateTime> {
-  size_t operator()(const gs::DateTime& date) const {
+struct hash<neug::DateTime> {
+  size_t operator()(const neug::DateTime& date) const {
     return std::hash<int64_t>()(date.milli_second);
   }
 };

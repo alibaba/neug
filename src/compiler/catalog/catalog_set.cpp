@@ -32,10 +32,10 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::transaction;
+using namespace neug::common;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 CatalogSet::CatalogSet(bool isInternal) {
@@ -362,4 +362,4 @@ void CatalogSet::validateNotExistNoLock(const Transaction* transaction,
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

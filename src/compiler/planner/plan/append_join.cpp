@@ -5,10 +5,10 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendHashJoin(const expression_vector& joinNodeIDs,
@@ -188,4 +188,4 @@ void Planner::appendIntersect(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

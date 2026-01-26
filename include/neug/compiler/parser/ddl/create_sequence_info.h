@@ -27,7 +27,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/enums/conflict_action.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 enum class SequenceInfoType {
@@ -65,4 +65,4 @@ struct CreateSequenceInfo {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

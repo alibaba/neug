@@ -16,16 +16,17 @@
 
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
 
 class Limit {
  public:
-  static gs::result<Context> limit(Context&& ctxs, size_t lower, size_t upper);
+  static neug::result<Context> limit(Context&& ctxs, size_t lower,
+                                     size_t upper);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -25,10 +25,10 @@
 #include "bound_statement.h"
 #include "neug/compiler/extension/extension_action.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
-using namespace gs::extension;
+using namespace neug::extension;
 
 class BoundExtensionStatement final : public BoundStatement {
  public:
@@ -44,4 +44,4 @@ class BoundExtensionStatement final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

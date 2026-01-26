@@ -20,7 +20,7 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-namespace server {
+namespace neug {
 
 void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
@@ -36,11 +36,11 @@ void NeugDBService::init(const ServiceConfig& config) {
     return;
   }
 
-  version_manager_ = std::make_shared<gs::TPVersionManager>();
+  version_manager_ = std::make_shared<neug::TPVersionManager>();
   version_manager_->init_ts(
       db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
 
-  session_pool_ = std::make_unique<server::SessionPool>(
+  session_pool_ = std::make_unique<neug::SessionPool>(
       db_.graph(), db_.GetPlanner(), version_manager_, db_.allocators_,
       db_config_, db_.work_dir());
 
@@ -66,7 +66,7 @@ const ServiceConfig& NeugDBService::GetServiceConfig() const {
   return service_config_;
 }
 
-server::SessionGuard NeugDBService::AcquireSession() {
+neug::SessionGuard NeugDBService::AcquireSession() {
   return session_pool_->AcquireSession();
 }
 
@@ -78,14 +78,14 @@ bool NeugDBService::IsRunning() const {
   return running_.load(std::memory_order_relaxed);
 }
 
-gs::result<std::string> NeugDBService::service_status() {
+neug::result<std::string> NeugDBService::service_status() {
   if (!IsInitialized()) {
-    return gs::result<std::string>("NeugDB service has not been inited!");
+    return neug::result<std::string>("NeugDB service has not been inited!");
   }
   if (!IsRunning()) {
-    return gs::result<std::string>("NeugDB service has not been started!");
+    return neug::result<std::string>("NeugDB service has not been started!");
   }
-  return gs::result<std::string>("NeugDB service is running ...");
+  return neug::result<std::string>("NeugDB service is running ...");
 }
 
 void NeugDBService::run_and_wait_for_exit() {
@@ -170,4 +170,4 @@ void NeugDBService::startCompactThreadIfNeeded() {
   }
 }
 
-}  // namespace server
+}  // namespace neug

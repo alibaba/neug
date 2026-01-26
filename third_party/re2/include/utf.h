@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 typedef signed int Rune; /* Code-point values in Unicode 4.0 are 21 bits wide.*/
@@ -40,5 +40,5 @@ int utflen(const char* s);
 char* utfrune(const char*, Rune);
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_UTF_H_

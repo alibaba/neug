@@ -24,10 +24,10 @@
 #include "neug/compiler/parser/transaction_statement.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::transaction;
-using namespace gs::common;
+using namespace neug::transaction;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformTransaction(
@@ -54,4 +54,4 @@ std::unique_ptr<Statement> Transformer::transformTransaction(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

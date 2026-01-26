@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // Add exception only if you need to throw it in multiple places.
@@ -46,4 +46,4 @@ struct ExceptionMessage {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

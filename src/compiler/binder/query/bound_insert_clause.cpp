@@ -22,9 +22,9 @@
 
 #include "neug/compiler/binder/query/updating_clause/bound_insert_clause.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 bool BoundInsertClause::hasInfo(
@@ -49,4 +49,4 @@ std::vector<const BoundInsertInfo*> BoundInsertClause::getInfos(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

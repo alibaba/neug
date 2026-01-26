@@ -22,9 +22,9 @@
 
 #include "neug/compiler/binder/visitor/default_type_solver.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static void resolveAnyType(Expression& expr) {
@@ -45,4 +45,4 @@ void DefaultTypeSolver::visitProjectionBody(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

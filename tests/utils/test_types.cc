@@ -20,7 +20,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 TEST(TestType, TestInterval) {
   Interval interval = Interval(
@@ -203,8 +203,9 @@ TEST(TestType, TestPropertyType) {
   EXPECT_EQ(
       config_parsing::PrimitivePropertyTypeToString(DataTypeId::kTimestampMs),
       DT_DATETIME);
-  EXPECT_EQ(config_parsing::PrimitivePropertyTypeToString(DataTypeId::kInterval),
-            DT_INTERVAL);
+  EXPECT_EQ(
+      config_parsing::PrimitivePropertyTypeToString(DataTypeId::kInterval),
+      DT_INTERVAL);
 }
 
 TEST(TestType, TestGlobalId) {
@@ -517,4 +518,4 @@ TEST_F(PropertyTest, SerializeDeserializePropertyRoundTrip) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

@@ -15,9 +15,9 @@
 
 #include "neug/transaction/wal/dummy_wal_writer.h"
 
-namespace gs {
+namespace neug {
 std::string DummyWalWriter::type() const { return "dummy"; }
 void DummyWalWriter::open() {}
 void DummyWalWriter::close() {}
 bool DummyWalWriter::append(const char* data, size_t length) { return true; }
-}  // namespace gs
+}  // namespace neug

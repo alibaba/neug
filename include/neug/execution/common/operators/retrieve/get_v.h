@@ -19,7 +19,7 @@
 #include "neug/execution/utils/predicates.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 inline std::vector<label_t> extract_labels(
@@ -288,7 +288,7 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static gs::result<Context> _get_vertex_from_path(
+  static neug::result<Context> _get_vertex_from_path(
       const StorageReadInterface& graph, Context&& ctx,
       const GetVParams& params, const PRED_T& pred) {
     std::vector<bool> required_label(graph.schema().vertex_label_num(), false);
@@ -315,7 +315,7 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static gs::result<Context> get_vertex_from_edges(
+  static neug::result<Context> get_vertex_from_edges(
       const StorageReadInterface& graph, Context&& ctx,
       const GetVParams& params, const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
@@ -346,7 +346,7 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static gs::result<Context> get_vertex_from_vertices(
+  static neug::result<Context> get_vertex_from_vertices(
       const StorageReadInterface& graph, Context&& ctx,
       const GetVParams& params, const PRED_T& pred) {
     std::shared_ptr<IVertexColumn> input_vertex_list_ptr =
@@ -393,4 +393,4 @@ class GetV {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

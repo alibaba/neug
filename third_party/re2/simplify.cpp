@@ -15,7 +15,7 @@
 #include "re2/include/util.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Parses the regexp src and then simplifies it and sets *dst to the
@@ -648,4 +648,4 @@ Regexp* SimplifyWalker::SimplifyCharClass(Regexp* re) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

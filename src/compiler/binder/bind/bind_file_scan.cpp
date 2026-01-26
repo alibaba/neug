@@ -40,13 +40,13 @@
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 
-using namespace gs::parser;
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::function;
-using namespace gs::catalog;
+using namespace neug::parser;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::function;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 FileTypeInfo bindSingleFileType(const main::ClientContext* context,
@@ -317,4 +317,4 @@ std::unique_ptr<BoundBaseScanSource> Binder::bindTableFuncScanSource(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

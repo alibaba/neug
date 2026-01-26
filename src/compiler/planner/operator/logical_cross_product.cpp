@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/factorization/sink_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalCrossProduct::computeFactorizedSchema() {
@@ -32,4 +32,4 @@ void LogicalCrossProduct::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

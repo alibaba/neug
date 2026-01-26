@@ -28,11 +28,11 @@
 #include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::planner;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void LimitPushDownOptimizer::rewrite(LogicalPlan* plan) {
@@ -108,4 +108,4 @@ void LimitPushDownOptimizer::visitOperator(planner::LogicalOperator* op) {
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

@@ -19,15 +19,15 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::function;
-using namespace gs::runtime;
+using namespace neug::common;
+using namespace neug::function;
+using namespace neug::runtime;
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 function_set JsonDummyFunction::getFunctionSet() {
-  gs::function::function_set functionSet;
+  neug::function::function_set functionSet;
   functionSet.emplace_back(std::make_unique<NeugScalarFunction>(
       name, std::vector<LogicalTypeID>{LogicalTypeID::STRING},
       LogicalTypeID::STRING, JsonDummyFunction::Exec));
@@ -53,4 +53,4 @@ runtime::Value JsonDummyFunction::Exec(
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/type.pb.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 struct GRelType;
@@ -65,4 +65,4 @@ class GLogicalTypeConverter {
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

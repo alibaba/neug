@@ -30,7 +30,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/parser/query/reading_clause/yield_variable.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 class LiteralExpression;
 class Binder;
@@ -86,4 +86,4 @@ struct NEUG_API ExtraScanTableFuncBindInput : ExtraTableFuncBindInput {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

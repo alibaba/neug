@@ -26,7 +26,7 @@ namespace common {
 class Variable;
 }  // namespace common
 
-namespace gs {
+namespace neug {
 
 class StorageReadInterface;
 
@@ -75,4 +75,4 @@ class Var {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

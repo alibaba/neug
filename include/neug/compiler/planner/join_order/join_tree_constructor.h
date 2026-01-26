@@ -3,7 +3,7 @@
 #include "join_tree.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class PropertyExprCollection;
@@ -46,4 +46,4 @@ class JoinTreeConstructor {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

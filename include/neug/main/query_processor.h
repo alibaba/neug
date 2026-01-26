@@ -28,7 +28,7 @@
 #include "neug/utils/allocators.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 class QueryProcessor {
  public:
@@ -65,4 +65,4 @@ class QueryProcessor {
   std::shared_mutex mutex_;
 };
 
-}  // namespace gs
+}  // namespace neug

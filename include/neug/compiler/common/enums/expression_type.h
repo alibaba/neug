@@ -27,7 +27,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class ExpressionType : uint8_t {
@@ -93,4 +93,4 @@ struct ExpressionTypeUtil {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

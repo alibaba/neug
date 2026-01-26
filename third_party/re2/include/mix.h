@@ -9,7 +9,7 @@
 
 #include <limits>
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Silence "truncation of constant value" warning for kMul in 32-bit mode.
@@ -41,5 +41,5 @@ class HashMix {
 #endif
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_MIX_H_

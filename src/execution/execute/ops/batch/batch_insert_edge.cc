@@ -26,7 +26,7 @@
 #include "neug/transaction/update_transaction.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 class IRecordBatchSupplier;
 class PropertyGraph;
 
@@ -55,8 +55,8 @@ class BatchInsertEdgeOpr : public IOperator {
     return "BatchInsertEdgeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   label_t edge_label_id_, src_label_id_, dst_label_id_;
@@ -65,9 +65,9 @@ class BatchInsertEdgeOpr : public IOperator {
       src_vertex_bindings_, dst_vertex_bindings_;
 };
 
-gs::result<Context> BatchInsertEdgeOpr::Eval(IStorageInterface& graph_interface,
-                                             const ParamsMap& params,
-                                             Context&& ctx, OprTimer* timer) {
+neug::result<Context> BatchInsertEdgeOpr::Eval(
+    IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
+    OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   std::vector<std::pair<int32_t, std::string>>
       total_mappings;  // include prop_mappings and src/dst vertex bindings
@@ -90,7 +90,7 @@ gs::result<Context> BatchInsertEdgeOpr::Eval(IStorageInterface& graph_interface,
       THROW_INTERNAL_EXCEPTION("Failed to add edges");
     }
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
 bool get_edge_triplet_label_ids(const Schema& schema,
@@ -139,7 +139,7 @@ bool get_edge_triplet_label_ids(const Schema& schema,
   return true;
 }
 
-gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
+neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
@@ -183,4 +183,4 @@ gs::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -41,7 +41,7 @@ limitations under the License.
 #include "neug/utils/serialization/out_archive.h"
 #include "neug/utils/string_view_vector.h"
 
-namespace gs {
+namespace neug {
 
 namespace id_indexer_impl {
 
@@ -1116,4 +1116,4 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
   lf.keys_->open(filename + ".keys", snapshot_dir, "");
 }
 
-}  // namespace gs
+}  // namespace neug

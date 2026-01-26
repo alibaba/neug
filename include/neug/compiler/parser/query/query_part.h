@@ -26,7 +26,7 @@
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
 #include "neug/compiler/parser/query/updating_clause/updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class QueryPart {
@@ -62,4 +62,4 @@ class QueryPart {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

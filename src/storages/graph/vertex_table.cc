@@ -16,7 +16,7 @@
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 
 void VertexTable::Open(const std::string& work_dir, int memory_level,
                        bool build_empty_graph) {
@@ -291,4 +291,4 @@ vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts) {
   return vid;
 }
 
-}  // namespace gs
+}  // namespace neug

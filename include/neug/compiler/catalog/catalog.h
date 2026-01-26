@@ -27,11 +27,11 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs::main {
+namespace neug::main {
 struct DBConfig;
-}  // namespace gs::main
+}  // namespace neug::main
 
-namespace gs {
+namespace neug {
 namespace main {
 class AttachedKuzuDatabase;
 }  // namespace main
@@ -73,7 +73,7 @@ class IndexCatalogEntry;
 
 class NEUG_API Catalog {
   friend class main::AttachedKuzuDatabase;
-  friend class gs::extension::ExtensionAPI;
+  friend class neug::extension::ExtensionAPI;
 
  public:
   // This is extended by DuckCatalog and PostgresCatalog.
@@ -312,4 +312,4 @@ class NEUG_API Catalog {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

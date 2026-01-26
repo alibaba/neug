@@ -18,7 +18,7 @@
 
 #include "neug/execution/execute/operator.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -31,10 +31,10 @@ class VertexOprBuilder : public IOperatorBuilder {
   VertexOprBuilder() = default;
   ~VertexOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {physical::PhysicalOpr_Operator::OpKindCase::kVertex};
@@ -45,4 +45,4 @@ class VertexOprBuilder : public IOperatorBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

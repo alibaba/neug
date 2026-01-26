@@ -23,7 +23,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/generated/proto/plan/basic_type.pb.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 enum class EntrySchemaType : uint8_t { TABLE = 0, VERTEX = 1, EDGE = 2 };
@@ -134,4 +134,4 @@ struct ExternalSchema {
 };
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/common/serializer/buffered_serializer.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 std::shared_ptr<common::BufferedSerializer> IndexAuxInfo::serialize() const {
@@ -97,4 +97,4 @@ std::unique_ptr<common::BufferReader> IndexCatalogEntry::getAuxBufferReader()
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

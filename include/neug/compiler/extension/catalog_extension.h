@@ -24,7 +24,7 @@
 
 #include "neug/compiler/catalog/catalog.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 class NEUG_API CatalogExtension : public catalog::Catalog {
@@ -37,4 +37,4 @@ class NEUG_API CatalogExtension : public catalog::Catalog {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

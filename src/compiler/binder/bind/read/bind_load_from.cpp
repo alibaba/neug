@@ -29,12 +29,12 @@
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::function;
-using namespace gs::common;
-using namespace gs::parser;
-using namespace gs::catalog;
+using namespace neug::function;
+using namespace neug::common;
+using namespace neug::parser;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
@@ -82,4 +82,4 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

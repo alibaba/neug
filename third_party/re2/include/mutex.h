@@ -30,7 +30,7 @@ typedef pthread_rwlock_t MutexType;
 typedef std::mutex MutexType;
 #endif
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class Mutex {
@@ -135,5 +135,5 @@ class WriterMutexLock {
 #define WriterMutexLock(x) \
   static_assert(false, "WriterMutexLock declaration missing variable name")
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_MUTEX_H_

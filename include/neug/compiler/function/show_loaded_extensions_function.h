@@ -21,7 +21,7 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ShowLoadedExtensionsFuncInput : public CallFuncInputBase {
@@ -34,13 +34,12 @@ struct ShowLoadedExtensionsFunction {
   static function_set getFunctionSet();
 
   static std::unique_ptr<ShowLoadedExtensionsFuncInput> bindFunc(
-    const gs::Schema& schema,
-    const gs::runtime::ContextMeta& ctx_meta,
-    const ::physical::PhysicalPlan& plan,
-    int op_idx);
+      const neug::Schema& schema, const neug::runtime::ContextMeta& ctx_meta,
+      const ::physical::PhysicalPlan& plan, int op_idx);
 
-  static gs::runtime::Context execFunc(const ShowLoadedExtensionsFuncInput& input);
+  static neug::runtime::Context execFunc(
+      const ShowLoadedExtensionsFuncInput& input);
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

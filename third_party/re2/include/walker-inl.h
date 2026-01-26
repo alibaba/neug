@@ -18,7 +18,7 @@
 #include "re2/include/logging.h"
 #include "re2/include/regexp.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 template <typename T>
@@ -246,6 +246,6 @@ T Regexp::Walker<T>::WalkExponential(Regexp* re, T top_arg, int max_visits) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_WALKER_INL_H_

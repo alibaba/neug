@@ -4,7 +4,7 @@
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 #include "neug/compiler/planner/operator/factorization/sink_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 f_group_pos_set LogicalOrderBy::getGroupsPosToFlatten() {
@@ -57,4 +57,4 @@ std::string LogicalOrderBy::getExpressionsForPrinting() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

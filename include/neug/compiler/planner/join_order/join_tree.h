@@ -2,7 +2,7 @@
 
 #include "neug/compiler/binder/expression/node_expression.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum class TreeNodeType : uint8_t {
@@ -105,4 +105,4 @@ struct JoinTree {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

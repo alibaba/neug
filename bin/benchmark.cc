@@ -136,32 +136,32 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 }
 
 void benchmark_iteration(
-    gs::IStorageInterface& graph, gs::runtime::Pipeline& pipeline,
+    neug::IStorageInterface& graph, neug::runtime::Pipeline& pipeline,
     const std::vector<std::map<std::string, std::string>>& parameters,
     int query_num, std::vector<std::vector<char>>& outputs,
-    gs::runtime::OprTimer& timer) {
+    neug::runtime::OprTimer& timer) {
   outputs.resize(query_num);
   for (int i = 0; i < query_num; ++i) {
-    gs::runtime::Context ctx;
+    neug::runtime::Context ctx;
     auto& m = parameters[i % parameters.size()];
     if (i == 0) {
-      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &timer);
+      auto ctx = pipeline.Execute(graph, neug::runtime::Context(), m, &timer);
       if (!ctx) {
         LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
         return;
       }
       outputs[i].clear();
-      gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<gs::StorageReadInterface&>(graph), output);
+      neug::Encoder output(outputs[i]);
+      neug::runtime::Sink::sink(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph), output);
     } else {
-      gs::runtime::OprTimer cur_timer;
-      auto ctx = pipeline.Execute(graph, gs::runtime::Context(), m, &cur_timer);
+      neug::runtime::OprTimer cur_timer;
+      auto ctx = pipeline.Execute(graph, neug::runtime::Context(), m, &cur_timer);
 
       outputs[i].clear();
-      gs::Encoder output(outputs[i]);
-      gs::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<gs::StorageReadInterface&>(graph), output);
+      neug::Encoder output(outputs[i]);
+      neug::runtime::Sink::sink(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph), output);
       timer += cur_timer;
     }
   }
@@ -192,13 +192,13 @@ int main(int argc, char** argv) {
   std::string graph_schema_path = data_path + "/graph.yaml";
   int shard_num = 1;
 
-  gs::NeugDB db;
-  gs::NeugDBConfig config(data_path, shard_num);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
 
   config.enable_auto_compaction = false;
   db.Open(config);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
 
   if (!vm.count("benchmark-config")) {
     LOG(ERROR) << "benchmark-config is required";
@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
 
   auto sess = svc->AcquireSession();
   auto txn = sess->GetReadTransaction();
-  gs::StorageReadInterface graph(txn.graph(), txn.timestamp());
+  neug::StorageReadInterface graph(txn.graph(), txn.timestamp());
 
   for (const auto& unit : benchmark_config.benchmarks()) {
     int query_num = unit.repeat;
@@ -227,15 +227,15 @@ int main(int argc, char** argv) {
       fout << plan.DebugString();
       fout.close();
     }
-    auto pipeline = gs::runtime::PlanParser::get().parse_execute_pipeline(
-        txn.graph().schema(), gs::runtime::ContextMeta(), plan);
+    auto pipeline = neug::runtime::PlanParser::get().parse_execute_pipeline(
+        txn.graph().schema(), neug::runtime::ContextMeta(), plan);
 
-    std::unique_ptr<gs::runtime::OprTimer> best_timer =
-        std::make_unique<gs::runtime::OprTimer>();
+    std::unique_ptr<neug::runtime::OprTimer> best_timer =
+        std::make_unique<neug::runtime::OprTimer>();
     double best_elapsed = std::numeric_limits<double>::max();
     for (int iter = 0; iter < 3; ++iter) {
-      std::unique_ptr<gs::runtime::OprTimer> timer =
-          std::make_unique<gs::runtime::OprTimer>();
+      std::unique_ptr<neug::runtime::OprTimer> timer =
+          std::make_unique<neug::runtime::OprTimer>();
       benchmark_iteration(graph, pipeline.value(), parameters, query_num,
                           outputs, *timer);
       if (timer->elapsed() < best_elapsed) {

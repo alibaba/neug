@@ -46,7 +46,7 @@ template YAML::detail::node& YAML::detail::node_data::get<char[8]>(
     char const (&)[8], std::shared_ptr<YAML::detail::memory_holder>);
 template YAML::detail::node& YAML::detail::node_data::get<char[9]>(
     char const (&)[9], std::shared_ptr<YAML::detail::memory_holder>);
-namespace gs {
+namespace neug {
 
 YAML::Node property_type_to_yaml(const DataTypeId& type) {
   YAML::Node node;
@@ -270,4 +270,4 @@ bool write_yaml_file(const YAML::Node& node, const std::string& file_path) {
   return true;
 }
 
-}  // namespace gs
+}  // namespace neug

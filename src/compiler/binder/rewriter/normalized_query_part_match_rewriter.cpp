@@ -25,9 +25,9 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static bool canRewrite(const BoundMatchClause& matchClause) {
@@ -70,4 +70,4 @@ void NormalizedQueryPartMatchRewriter::visitQueryPartUnsafe(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

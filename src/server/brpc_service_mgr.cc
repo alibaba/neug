@@ -19,35 +19,35 @@
 #include "neug/generated/proto/plan/error.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 
-namespace server {
+namespace neug {
 
 static pthread_once_t brpc_service_protocol_init_once = PTHREAD_ONCE_INIT;
 
-int32_t status_code_to_http_code(gs::StatusCode code) {
+int32_t status_code_to_http_code(neug::StatusCode code) {
   switch (code) {
-  case gs::StatusCode::OK:
+  case neug::StatusCode::OK:
     return brpc::HTTP_STATUS_OK;
-  case gs::StatusCode::ERR_PERMISSION:
+  case neug::StatusCode::ERR_PERMISSION:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_DATABASE_LOCKED:
+  case neug::StatusCode::ERR_DATABASE_LOCKED:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_NOT_SUPPORTED:
+  case neug::StatusCode::ERR_NOT_SUPPORTED:
     return brpc::HTTP_STATUS_NOT_IMPLEMENTED;
-  case gs::StatusCode::ERR_NOT_IMPLEMENTED:
+  case neug::StatusCode::ERR_NOT_IMPLEMENTED:
     return brpc::HTTP_STATUS_NOT_IMPLEMENTED;
-  case gs::StatusCode::ERR_QUERY_SYNTAX:
+  case neug::StatusCode::ERR_QUERY_SYNTAX:
     return brpc::HTTP_STATUS_BAD_REQUEST;
-  case gs::StatusCode::ERR_NOT_INITIALIZED:
+  case neug::StatusCode::ERR_NOT_INITIALIZED:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_QUERY_EXECUTION:
+  case neug::StatusCode::ERR_QUERY_EXECUTION:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_INTERNAL_ERROR:
+  case neug::StatusCode::ERR_INTERNAL_ERROR:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_NOT_FOUND:
+  case neug::StatusCode::ERR_NOT_FOUND:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
-  case gs::StatusCode::ERR_INVALID_ARGUMENT:
+  case neug::StatusCode::ERR_INVALID_ARGUMENT:
     return brpc::HTTP_STATUS_BAD_REQUEST;
-  case gs::StatusCode::ERR_COMPILATION:
+  case neug::StatusCode::ERR_COMPILATION:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
   default:
     return brpc::HTTP_STATUS_INTERNAL_SERVER_ERROR;
@@ -73,7 +73,7 @@ bool ParseHttpQueryRequest(brpc::Controller* cntl, void* request,
 }
 
 void SendHttpQueryResponse(brpc::Controller* cntl,
-                           gs::result<results::CollectiveResults>& response) {
+                           neug::result<results::CollectiveResults>& response) {
   if (response) {
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
     const auto& results_pb = response.value();
@@ -90,7 +90,7 @@ void SendHttpQueryResponse(brpc::Controller* cntl,
 }
 
 void SendHttpStringResponse(brpc::Controller* cntl,
-                            gs::result<std::string>& schema) {
+                            neug::result<std::string>& schema) {
   if (schema) {
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
     cntl->response_attachment().append(schema.value().data(),
@@ -192,17 +192,17 @@ void InitializeBrpcServiceProtocols() {
   SealProtocolRegistration();
 }
 
-gs::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
+neug::result<std::string> UnifiedServiceImpl::GetSchemaImpl(
     brpc::Controller* cntl) {
   const auto& schema = neug_db_.schema();
   auto yaml = schema.to_yaml();
   if (!yaml) {
     RETURN_ERROR(yaml.error());
   }
-  return gs::get_json_string_from_yaml(yaml.value());
+  return neug::get_json_string_from_yaml(yaml.value());
 }
 
-gs::result<std::string> UnifiedServiceImpl::GetServiceStatusImpl(
+neug::result<std::string> UnifiedServiceImpl::GetServiceStatusImpl(
     brpc::Controller* cntl) {
   // Implement the logic to get service status here
   // For now, return a placeholder string
@@ -264,7 +264,7 @@ void HttpServiceImpl::GetServiceStatus(
   return;
 }
 
-BrpcServiceManager::BrpcServiceManager(gs::NeugDB& neug_db,
+BrpcServiceManager::BrpcServiceManager(neug::NeugDB& neug_db,
                                        SessionPool& session_pool)
     : neug_db_(neug_db), session_pool_(session_pool) {
   brpc_server_ = std::make_unique<brpc::Server>();
@@ -337,4 +337,4 @@ brpc::ServerOptions BrpcServiceManager::get_server_options() const {
 
   return options;
 }
-}  // namespace server
+}  // namespace neug

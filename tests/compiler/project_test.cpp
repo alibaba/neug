@@ -21,7 +21,7 @@
 #include "neug/compiler/gopt/g_result_schema.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class ProjectTest : public GOptTest {
  public:
@@ -81,4 +81,4 @@ TEST_F(ProjectTest, DUPLICATE_EDGE) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

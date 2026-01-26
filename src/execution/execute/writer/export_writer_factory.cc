@@ -17,7 +17,7 @@
 
 #include "neug/execution/execute/writer/export_writer_factory.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 std::shared_ptr<IExportWriter> ExportWriterFactory::CreateExportWriter(
@@ -51,4 +51,4 @@ ExportWriterFactory::getKnownWriters() {
   return *known_writers_;
 }
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

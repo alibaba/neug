@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalUnwind : public LogicalOperator {
@@ -42,4 +42,4 @@ class LogicalUnwind : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "return_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class WithClause : public ReturnClause {
@@ -48,4 +48,4 @@ class WithClause : public ReturnClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -31,7 +31,7 @@
 #include "neug/utils/serialization/out_archive.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 std::shared_ptr<ExtraTypeInfo> parse_extra_type_info(YAML::Node node) {
   try {
@@ -962,7 +962,7 @@ bool Schema::Equals(const Schema& other) const {
   return true;
 }
 
-gs::result<YAML::Node> Schema::to_yaml() const {
+neug::result<YAML::Node> Schema::to_yaml() const {
   return Schema::DumpToYaml(*this);
 }
 
@@ -1005,7 +1005,7 @@ StorageStrategy StringToStorageStrategy(const std::string& str) {
 
 static bool parse_property_type(YAML::Node node, DataTypeId& type) {
   try {
-    type = node.as<gs::DataTypeId>();
+    type = node.as<neug::DataTypeId>();
     return true;
   } catch (const YAML::BadConversion& e) {
     LOG(ERROR) << "Failed to parse property type: " << e.what();
@@ -1738,34 +1738,34 @@ bool Schema::has_edge_label(label_t src_label, label_t dst_label,
   return e_schemas_.find(e_label_id) != e_schemas_.end();
 }
 
-gs::result<Schema> Schema::LoadFromYaml(const std::string& schema_config) {
+neug::result<Schema> Schema::LoadFromYaml(const std::string& schema_config) {
   Schema schema;
   if (!schema_config.empty() && std::filesystem::exists(schema_config)) {
     auto status =
         config_parsing::parse_schema_config_file(schema_config, schema);
     if (status.ok()) {
-      return gs::result<Schema>(std::move(schema));
+      return neug::result<Schema>(std::move(schema));
     } else {
       RETURN_ERROR(status);
     }
   }
-  RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_SCHEMA,
-                          "Schema config file not found"));
+  RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_SCHEMA,
+                            "Schema config file not found"));
 }
 
-gs::result<Schema> Schema::LoadFromYamlNode(
+neug::result<Schema> Schema::LoadFromYamlNode(
     const YAML::Node& schema_yaml_node) {
   Schema schema;
   auto status =
       config_parsing::parse_schema_from_yaml_node(schema_yaml_node, schema);
   if (status.ok()) {
-    return gs::result<Schema>(std::move(schema));
+    return neug::result<Schema>(std::move(schema));
   } else {
     RETURN_ERROR(status);
   }
 }
 
-gs::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
+neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
   YAML::Node graph_node;
   graph_node["name"] = schema.GetGraphName();
   graph_node["id"] = schema.GetGraphId();
@@ -2234,4 +2234,4 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
   return archive;
 }
 
-}  // namespace gs
+}  // namespace neug

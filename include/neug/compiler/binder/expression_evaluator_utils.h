@@ -26,7 +26,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 struct ExpressionEvaluatorUtils {
@@ -36,4 +36,4 @@ struct ExpressionEvaluatorUtils {
 };
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

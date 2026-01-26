@@ -29,7 +29,7 @@
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 struct EdgeLabel {
@@ -45,7 +45,7 @@ struct EdgeLabel {
 class GDDLConverter {
  public:
   explicit GDDLConverter(std::shared_ptr<GAliasManager> aliasManager,
-                         gs::catalog::Catalog* catalog)
+                         neug::catalog::Catalog* catalog)
       : catalog{catalog}, exprConverter(aliasManager) {}
 
   virtual ~GDDLConverter() = default;
@@ -63,7 +63,7 @@ class GDDLConverter {
                          ::physical::PhysicalPlan* plan);
 
  private:
-  gs::catalog::Catalog* catalog;
+  neug::catalog::Catalog* catalog;
 
   void checkCatalogInitialized() const {
     if (!catalog) {
@@ -101,7 +101,7 @@ class GDDLConverter {
 
   void getEdgeLabels(const std::string& labelName,
                      std::vector<EdgeLabel>& edgeLabels);
-  std::string getVertexLabelName(gs::common::oid_t tableId);
+  std::string getVertexLabelName(neug::common::oid_t tableId);
   bool checkEntryType(const std::string& labelName,
                       catalog::CatalogEntryType expectedType);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
@@ -110,9 +110,9 @@ class GDDLConverter {
       const binder::BoundCreateTableInfo& info, const std::string& edgeName);
 
  private:
-  gs::gopt::GPhysicalTypeConverter typeConverter;
-  gs::gopt::GExprConverter exprConverter;
+  neug::gopt::GPhysicalTypeConverter typeConverter;
+  neug::gopt::GExprConverter exprConverter;
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

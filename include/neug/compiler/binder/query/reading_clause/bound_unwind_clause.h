@@ -25,7 +25,7 @@
 #include "bound_reading_clause.h"
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundUnwindClause final : public BoundReadingClause {
@@ -49,4 +49,4 @@ class BoundUnwindClause final : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

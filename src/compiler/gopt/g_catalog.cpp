@@ -28,7 +28,7 @@
 #include "neug/utils/string_utils.h"
 #include "neug/compiler/function/function_collection.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 GCatalog::GCatalog() : Catalog() {
@@ -80,7 +80,7 @@ void GCatalog::registerBuiltInFunctions() {
   for (auto i = 0u; functionCollection[i].name != nullptr; ++i) {
     auto& f = functionCollection[i];
     auto functionSet = f.getFunctionSetFunc();
-    addFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION, 
+    addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION, 
                            f.catalogEntryType, 
                            f.name, 
                            std::move(functionSet), 
@@ -102,7 +102,7 @@ void GCatalog::addFunctionWithSignature(transaction::Transaction* transaction,
 
 function::Function* GCatalog::getFunctionWithSignature(
     const std::string& signatureName) {
-  return getFunctionWithSignature(&gs::Constants::DEFAULT_TRANSACTION,
+  return getFunctionWithSignature(&neug::Constants::DEFAULT_TRANSACTION,
                                   signatureName);
 }
 
@@ -204,7 +204,7 @@ void GCatalog::loadSchema(const YAML::Node& schema) {
     }
   }
 
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto& group : nameToSDPairMap) {
     // if the edge type has more than one rel table entries, we need to create
     // a rel group entry to record the mapping between the edge type and
@@ -281,7 +281,7 @@ std::unique_ptr<GRelTableCatalogEntry> GCatalog::createRelTableEntry(
   }
   auto srcID = srcEntry->getTableID();
   auto dstID = dstEntry->getTableID();
-  auto multiplicity = gs::to_lower_copy(relation["relation"].as<std::string>());
+  auto multiplicity = neug::to_lower_copy(relation["relation"].as<std::string>());
   common::RelMultiplicity srcMultiplicity = common::RelMultiplicity::MANY;
   common::RelMultiplicity dstMultiplicity = common::RelMultiplicity::MANY;
   if (multiplicity == "one_to_one") {
@@ -307,13 +307,13 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
   switch (type) {
   case common::TableType::NODE: {
     for (auto& inner : getBaseNodeStructFields()) {
-      result.add(gs::binder::PropertyDefinition(std::move(inner)));
+      result.add(neug::binder::PropertyDefinition(std::move(inner)));
     }
     break;
   }
   case common::TableType::REL: {
     for (auto& inner : getBaseRelStructFields()) {
-      result.add(gs::binder::PropertyDefinition(std::move(inner)));
+      result.add(neug::binder::PropertyDefinition(std::move(inner)));
     }
     break;
   }
@@ -328,9 +328,9 @@ PropertyDefinitionCollection GCatalog::createPropertyDefinitionCollection(
       auto name = property["property_name"].as<std::string>();
       validatePropertyName(name, type);
       auto type = property["property_type"];
-      auto columnDefinition = gs::binder::ColumnDefinition(
+      auto columnDefinition = neug::binder::ColumnDefinition(
           name, GTypeUtils::createLogicalType(type));
-      result.add(gs::binder::PropertyDefinition(std::move(columnDefinition)));
+      result.add(neug::binder::PropertyDefinition(std::move(columnDefinition)));
     }
   }
 
@@ -462,4 +462,4 @@ void GCatalog::validatePropertyName(const std::string& name,
   }
 }
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

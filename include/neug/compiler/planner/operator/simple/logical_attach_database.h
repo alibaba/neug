@@ -3,7 +3,7 @@
 #include "logical_simple.h"
 #include "neug/compiler/binder/bound_attach_info.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalAttachDatabasePrintInfo final : OPPrintInfo {
@@ -49,4 +49,4 @@ class LogicalAttachDatabase final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

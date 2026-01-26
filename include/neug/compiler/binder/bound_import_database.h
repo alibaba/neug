@@ -23,7 +23,7 @@
 #pragma once
 #include "neug/compiler/binder/bound_statement.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundImportDatabase final : public BoundStatement {
@@ -51,4 +51,4 @@ class BoundImportDatabase final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -8,7 +8,7 @@
 #include <memory>
 #include <type_traits>
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 template <typename T>
@@ -40,5 +40,5 @@ class PODArray {
   std::unique_ptr<T[], Deleter> ptr_;
 };
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_POD_ARRAY_H_

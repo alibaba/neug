@@ -16,7 +16,7 @@
 
 #include "neug/execution/common/columns/value_columns.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 class ListColumnBase : public IContextColumn {
@@ -137,4 +137,4 @@ class ListColumnBuilder : public IContextColumnBuilder {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

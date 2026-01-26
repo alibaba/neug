@@ -27,7 +27,7 @@
 #include "neug/compiler/common/arrow/arrow_row_batch.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 static void releaseArrowSchema(ArrowSchema* schema) {
@@ -309,4 +309,4 @@ std::unique_ptr<ArrowSchema> ArrowConverter::toArrowSchema(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

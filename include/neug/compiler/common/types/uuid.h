@@ -24,7 +24,7 @@
 
 #include "int128_t.h"
 
-namespace gs {
+namespace neug {
 
 namespace regex {
 class RE2;
@@ -60,4 +60,4 @@ struct UUID {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

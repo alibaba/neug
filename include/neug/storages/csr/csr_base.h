@@ -22,7 +22,7 @@
 #include "neug/utils/allocators.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 enum class CsrType {
   kImmutable,
@@ -119,4 +119,4 @@ class TypedCsrBase : public CsrBase {
   }
 };
 
-}  // namespace gs
+}  // namespace neug

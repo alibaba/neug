@@ -29,7 +29,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class FileType : uint8_t {
@@ -87,4 +87,4 @@ struct FileScanInfo {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

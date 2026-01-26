@@ -23,9 +23,9 @@
 #include "neug/compiler/parser/port_db.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformExportDatabase(
@@ -45,4 +45,4 @@ std::unique_ptr<Statement> Transformer::transformImportDatabase(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

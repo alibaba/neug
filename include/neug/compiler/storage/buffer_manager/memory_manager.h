@@ -31,7 +31,7 @@
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace common {
 class VirtualFileSystem;
@@ -120,4 +120,4 @@ class NEUG_API MemoryManager {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

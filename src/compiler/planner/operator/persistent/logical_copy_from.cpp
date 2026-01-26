@@ -1,8 +1,8 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalCopyFrom::computeFactorizedSchema() {
@@ -22,4 +22,4 @@ void LogicalCopyFrom::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

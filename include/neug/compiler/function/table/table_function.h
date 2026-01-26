@@ -29,7 +29,7 @@
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/processor/operator/physical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 class BoundReadingClause;
 }
@@ -220,4 +220,4 @@ struct NEUG_API TableFunction : Function {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

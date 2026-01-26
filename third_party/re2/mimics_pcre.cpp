@@ -27,7 +27,7 @@
 #include "re2/include/util.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Returns whether re might match an empty string.
@@ -195,4 +195,4 @@ static bool CanBeEmptyString(Regexp* re) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

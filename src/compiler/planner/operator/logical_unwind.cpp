@@ -2,10 +2,10 @@
 
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 f_group_pos_set LogicalUnwind::getGroupsPosToFlatten() {
@@ -31,4 +31,4 @@ void LogicalUnwind::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

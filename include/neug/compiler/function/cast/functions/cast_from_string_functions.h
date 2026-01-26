@@ -29,9 +29,9 @@
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct NEUG_API CastString {
@@ -157,12 +157,12 @@ inline void CastString::operation(const neug_string_t& input, date_t& result,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
   result =
-      gs::common::Date::fromCString((const char*) input.getData(), input.len);
+      neug::common::Date::fromCString((const char*) input.getData(), input.len);
 }
 
 template <>
 inline void CastString::operation(const neug_string_t& input,
-                                  gs::common::timestamp_t& result,
+                                  neug::common::timestamp_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
@@ -204,11 +204,11 @@ inline void CastString::operation(const neug_string_t& input,
 
 template <>
 inline void CastString::operation(const neug_string_t& input,
-                                  gs::common::timestamp_tz_t& result,
+                                  neug::common::timestamp_tz_t& result,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<gs::common::timestamp_tz_t>(
+  TryCastStringToTimestamp::cast<neug::common::timestamp_tz_t>(
       (const char*) input.getData(), input.len, result,
       LogicalTypeID::TIMESTAMP_TZ);
 }
@@ -219,8 +219,8 @@ inline void CastString::operation(const neug_string_t& input,
                                   ValueVector* /*resultVector*/,
                                   uint64_t /*rowToAdd*/,
                                   const CSVOption* /*option*/) {
-  result = gs::common::Interval::fromCString((const char*) input.getData(),
-                                             input.len);
+  result = neug::common::Interval::fromCString((const char*) input.getData(),
+                                               input.len);
 }
 
 template <>
@@ -263,4 +263,4 @@ void CastString::operation(const neug_string_t& input, union_entry_t& result,
                            const CSVOption* option);
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

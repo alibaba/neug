@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CurrValFunction {
@@ -40,4 +40,4 @@ struct NextValFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

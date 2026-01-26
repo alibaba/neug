@@ -31,7 +31,7 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/transaction/transaction.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 void CatalogEntry::serialize(common::Serializer& serializer) const {
@@ -102,4 +102,4 @@ void CatalogEntry::copyFrom(const CatalogEntry& other) {
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

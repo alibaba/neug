@@ -30,7 +30,7 @@
 #include "neug/compiler/storage/stats/table_stats.h"
 #include "neug/compiler/storage/store/table.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -73,4 +73,4 @@ class NEUG_API NodeTable : public Table {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

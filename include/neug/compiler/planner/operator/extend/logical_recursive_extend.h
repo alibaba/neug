@@ -6,7 +6,7 @@
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum ResultOpt { END_V = 0, ALL_V = 1, ALL_V_E = 2 };
@@ -43,11 +43,11 @@ class LogicalRecursiveExtend final : public LogicalOperator {
     return bindData.extendDirection;
   }
 
-  void setFusionType(gs::optimizer::FusionType fusionType_) {
+  void setFusionType(neug::optimizer::FusionType fusionType_) {
     fusionType = fusionType_;
   }
 
-  gs::optimizer::FusionType getFusionType() const { return fusionType; }
+  neug::optimizer::FusionType getFusionType() const { return fusionType; }
 
   void setFunction(std::unique_ptr<function::RJAlgorithm> func) {
     function = std::move(func);
@@ -159,10 +159,10 @@ class LogicalRecursiveExtend final : public LogicalOperator {
   bool hasInputNodeMask_ = false;
   bool hasOutputNodeMask_ = false;
   std::shared_ptr<binder::RelExpression> relExpr;
-  gs::optimizer::FusionType fusionType =
-      gs::optimizer::FusionType::EXPANDE_GETV;
+  neug::optimizer::FusionType fusionType =
+      neug::optimizer::FusionType::EXPANDE_GETV;
   ResultOpt resultOpt = ResultOpt::ALL_V;
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

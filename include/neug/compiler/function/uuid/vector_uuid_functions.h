@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct GenRandomUUIDFunction {
@@ -34,4 +34,4 @@ struct GenRandomUUIDFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

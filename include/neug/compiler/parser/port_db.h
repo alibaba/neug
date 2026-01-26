@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ExportDB : public Statement {
@@ -60,4 +60,4 @@ class ImportDB : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

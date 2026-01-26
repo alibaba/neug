@@ -27,7 +27,7 @@
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/reader/sniffer.h"
-namespace gs {
+namespace neug {
 namespace function {
 
 class LocalFileSystemProvider
@@ -41,7 +41,7 @@ class LocalFileSystemProvider
     auto& paths = schema.paths;
     std::vector<std::string> resolvedPaths;
     for (auto& path : paths) {
-      auto files = gs::runtime::ops::match_files_with_pattern(path);
+      auto files = neug::runtime::ops::match_files_with_pattern(path);
       resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
     }
     return FileInfo<arrow::fs::FileSystem>{resolvedPaths, fs};
@@ -185,4 +185,4 @@ struct CSVReadFunction {
   }
 };
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

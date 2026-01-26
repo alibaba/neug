@@ -2,9 +2,9 @@
 #include "neug/compiler/binder/visitor/property_collector.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // Note: we cannot append ResultCollector for plans enumerated for single query
@@ -57,4 +57,4 @@ std::vector<std::unique_ptr<LogicalPlan>> Planner::planQueryPart(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

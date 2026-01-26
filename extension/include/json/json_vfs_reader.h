@@ -22,7 +22,7 @@
 #include "neug/compiler/common/file_system/file_info.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 // JSON format
@@ -61,4 +61,4 @@ class JsonVFSReader {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

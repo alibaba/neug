@@ -39,10 +39,10 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static cardinality_t atLeastOne(uint64_t x) { return x == 0 ? 1 : x; }
@@ -579,7 +579,7 @@ static std::unique_ptr<LogicalPlan> getWCOJBuildPlanForRel(
 double Planner::computeRelCardRate(
     size_t relIdx, const std::vector<std::shared_ptr<RelExpression>>& rels,
     const std::shared_ptr<NodeExpression>& intersectNode) {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto& rel = rels[relIdx];
   auto boundNode = rel->getSrcNodeName() == intersectNode->getUniqueName()
                        ? rel->getDstNode()
@@ -610,7 +610,7 @@ std::vector<std::shared_ptr<RelExpression>> Planner::sortRels(
         auto aBound = a->getSrcNodeName() == intersectNode->getUniqueName()
                           ? a->getDstNode()
                           : a->getSrcNode();
-        auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+        auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
         double aRate =
             cardinalityEstimator.getExtensionRate(*a, *aBound, &transaction);
         auto bBound = b->getSrcNodeName() == intersectNode->getUniqueName()
@@ -1074,4 +1074,4 @@ expression_vector Planner::getNewlyMatchedExprs(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

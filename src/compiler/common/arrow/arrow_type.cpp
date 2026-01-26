@@ -24,7 +24,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // Pyarrow format string specifications can be found here
@@ -177,4 +177,4 @@ LogicalType ArrowConverter::fromArrowSchema(const ArrowSchema* schema) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

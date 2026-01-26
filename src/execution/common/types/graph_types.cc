@@ -18,7 +18,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 int64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {
   // encode label_id and vid to a unique vid
@@ -241,4 +241,4 @@ VertexRecord Path::end_node() const {
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

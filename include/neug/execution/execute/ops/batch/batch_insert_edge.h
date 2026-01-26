@@ -26,7 +26,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -40,10 +40,10 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
   BatchInsertEdgeOprBuilder() = default;
   ~BatchInsertEdgeOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -53,4 +53,4 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

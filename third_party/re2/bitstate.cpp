@@ -29,7 +29,7 @@
 #include "re2/include/prog.h"
 #include "re2/include/regexp.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 struct Job {
@@ -379,4 +379,4 @@ bool Prog::SearchBitState(const StringPiece& text, const StringPiece& context,
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

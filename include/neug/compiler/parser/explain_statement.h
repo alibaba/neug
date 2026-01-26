@@ -27,7 +27,7 @@
 #include "neug/compiler/common/enums/explain_type.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ExplainStatement : public Statement {
@@ -50,4 +50,4 @@ class ExplainStatement : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -30,7 +30,7 @@
 #include <unistd.h>
 #endif
 
-namespace gs {
+namespace neug {
 namespace common {
 
 uint64_t FileInfo::getFileSize() const {
@@ -64,4 +64,4 @@ void FileInfo::truncate(uint64_t size) { fileSystem->truncate(*this, size); }
 bool FileInfo::canPerformSeek() const { return fileSystem->canPerformSeek(); }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

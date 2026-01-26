@@ -16,7 +16,7 @@
 // under the License.
 
 syntax = "proto3";
-package server;
+package neug;
 
 import "google/protobuf/empty.proto";
 

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Equals {
@@ -153,4 +153,4 @@ void GreaterThan::operation(const common::struct_entry_t& left,
                             common::ValueVector* rightVector);
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

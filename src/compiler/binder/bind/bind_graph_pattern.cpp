@@ -40,11 +40,11 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::parser;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // A graph pattern contains node/rel and a set of key-value pairs associated
@@ -587,7 +587,7 @@ expression_vector Binder::bindRecursivePatternRelProjectionList(
 }
 
 std::pair<uint64_t, uint64_t> Binder::bindVariableLengthRelBound(
-    const gs::parser::RelPattern& relPattern) {
+    const neug::parser::RelPattern& relPattern) {
   auto recursiveInfo = relPattern.getRecursiveInfo();
   uint32_t lowerBound = 0;
   function::CastString::operation(
@@ -810,4 +810,4 @@ std::vector<TableCatalogEntry*> Binder::bindRelTableEntries(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -194,4 +194,4 @@ path_expand_vertex_without_predicate_impl(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

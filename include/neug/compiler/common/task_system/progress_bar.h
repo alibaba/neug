@@ -27,7 +27,7 @@
 
 #include "progress_bar_display.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 typedef std::unique_ptr<ProgressBarDisplay> (
@@ -75,4 +75,4 @@ class ProgressBar {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

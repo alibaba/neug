@@ -17,7 +17,7 @@
 namespace results {
 class CollectiveResults;
 }  // namespace results
-namespace gs {
+namespace neug {
 
 class Encoder;
 class StorageReadInterface;
@@ -41,4 +41,4 @@ class Sink {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

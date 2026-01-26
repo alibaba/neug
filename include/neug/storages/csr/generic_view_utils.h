@@ -16,7 +16,7 @@
 
 #include "neug/storages/csr/generic_view.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class EdgeRecord;
@@ -31,7 +31,7 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
-    const gs::runtime::EdgeRecord& record,
+    const neug::runtime::EdgeRecord& record,
     const std::vector<DataTypeId>& props);
 
 int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
@@ -55,4 +55,4 @@ inline DataTypeId determine_search_prop_type(
              : DataTypeId::kUInt64;
 }
 
-}  // namespace gs
+}  // namespace neug

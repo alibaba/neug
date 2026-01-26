@@ -7,10 +7,10 @@
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::planReadingClause(
@@ -188,4 +188,4 @@ void Planner::planReadOp(std::shared_ptr<LogicalOperator> op,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

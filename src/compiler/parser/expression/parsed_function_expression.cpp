@@ -25,9 +25,9 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<ParsedFunctionExpression> ParsedFunctionExpression::deserialize(
@@ -46,4 +46,4 @@ void ParsedFunctionExpression::serializeInternal(Serializer& serializer) const {
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

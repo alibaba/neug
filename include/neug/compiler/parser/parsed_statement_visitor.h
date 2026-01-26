@@ -24,7 +24,7 @@
 
 #include "statement.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -84,4 +84,4 @@ class StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

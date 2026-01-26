@@ -18,7 +18,7 @@
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/stats_manager.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class MetaDataTest : public GOptTest {
@@ -29,7 +29,7 @@ class MetaDataTest : public GOptTest {
   common::cardinality_t getTableCard(main::ClientContext* ctx,
                                      const std::string& tableName) {
     auto catalog = ctx->getCatalog();
-    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableName);
     auto table = ctx->getStatsManager()->getTable(tableEntry->getTableID());
     return table->getNumTotalRows(&transaction);
@@ -37,8 +37,8 @@ class MetaDataTest : public GOptTest {
 };
 
 TEST_F(MetaDataTest, GCataLog) {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
-  gs::catalog::GCatalog catalog(schemaData);
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
+  neug::catalog::GCatalog catalog(schemaData);
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsEntry = entry->constPtrCast<catalog::GRelTableCatalogEntry>();
   ASSERT_EQ("KNOWS", knowsEntry->getName());
@@ -74,7 +74,7 @@ TEST_F(MetaDataTest, GStorageManager) {
   database->updateStats(statsData);
   auto& catalog = *ctx->getCatalog();
   auto& storageManager = *ctx->getStatsManager();
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
   auto knowsTable = storageManager.getTable(entry->getTableID());
   ASSERT_EQ(knowsTable->getNumTotalRows(&transaction), 14073);
@@ -130,4 +130,4 @@ TEST_F(MetaDataTest, CheckStats) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

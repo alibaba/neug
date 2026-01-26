@@ -24,19 +24,19 @@
 #include "neug/utils/reader/type_converter.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 result<std::shared_ptr<EntrySchema>> ArrowSniffer::sniff() {
   if (!reader_) {
-    RETURN_STATUS_ERROR(gs::StatusCode::ERR_INVALID_ARGUMENT,
+    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
                         "ArrowReader is null");
   }
 
   // Call ArrowReader's inferSchema() method to get Arrow Schema
   auto arrowSchema = reader_->inferSchema();
   if (!arrowSchema.ok()) {
-    RETURN_STATUS_ERROR(gs::StatusCode::ERR_IO_ERROR,
+    RETURN_STATUS_ERROR(neug::StatusCode::ERR_IO_ERROR,
                         "Failed to infer schema from ArrowReader: " +
                             arrowSchema.status().ToString());
   }
@@ -49,7 +49,7 @@ result<std::shared_ptr<EntrySchema>>
 ArrowSniffer::convertArrowSchemaToEntrySchema(
     const std::shared_ptr<arrow::Schema>& arrowSchema) {
   if (!arrowSchema) {
-    RETURN_STATUS_ERROR(gs::StatusCode::ERR_INVALID_ARGUMENT,
+    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
                         "Arrow schema is null");
   }
 
@@ -70,7 +70,7 @@ ArrowSniffer::convertArrowSchemaToEntrySchema(
     auto commonType = converter.convert(*field->type());
     if (!commonType) {
       RETURN_STATUS_ERROR(
-          gs::StatusCode::ERR_TYPE_CONVERSION,
+          neug::StatusCode::ERR_TYPE_CONVERSION,
           "Failed to convert Arrow type for column: " + columnName);
     }
     // Store shared_ptr directly, avoiding copy of protobuf message
@@ -81,4 +81,4 @@ ArrowSniffer::convertArrowSchemaToEntrySchema(
 }
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ScanReplacementData {
@@ -44,4 +44,4 @@ struct ScanReplacement {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

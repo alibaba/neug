@@ -3,7 +3,7 @@
 #include <memory>
 #include "logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalUnion : public LogicalOperator {
@@ -50,4 +50,4 @@ class LogicalUnion : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

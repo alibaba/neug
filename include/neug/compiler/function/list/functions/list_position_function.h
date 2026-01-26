@@ -25,7 +25,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/comparison/comparison_functions.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListPosition {
@@ -58,4 +58,4 @@ struct ListPosition {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

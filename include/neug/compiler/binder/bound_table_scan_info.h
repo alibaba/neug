@@ -28,7 +28,7 @@
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundTableScanInfo {
@@ -49,4 +49,4 @@ struct BoundTableScanInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

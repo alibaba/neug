@@ -25,7 +25,7 @@
 #include "bound_statement.h"
 #include "neug/compiler/binder/query/normalized_single_query.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundStatementVisitor {
@@ -85,4 +85,4 @@ class BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -16,7 +16,7 @@
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/planner/graph_planner.h"
 
-namespace gs {
+namespace neug {
 
 /**
  * @brief GOptPlanner is an implementation of IGraphPlanner that uses the GOpt
@@ -27,11 +27,11 @@ namespace gs {
  * compilePlan: need read-lock.
  * update_meta/update_statistics: need write-lock.
  */
-class GOptPlanner : public gs::IGraphPlanner {
+class GOptPlanner : public neug::IGraphPlanner {
  public:
   GOptPlanner() : IGraphPlanner() {
-    database = std::make_unique<gs::main::MetadataManager>();
-    ctx = std::make_unique<gs::main::ClientContext>(database.get());
+    database = std::make_unique<neug::main::MetadataManager>();
+    ctx = std::make_unique<neug::main::ClientContext>(database.get());
   }
 
   inline std::string type() const override { return "gopt"; }
@@ -46,12 +46,12 @@ class GOptPlanner : public gs::IGraphPlanner {
   AccessMode analyzeMode(const std::string& query) const override;
 
  private:
-  std::unique_ptr<gs::main::MetadataManager> database;
-  std::unique_ptr<gs::main::ClientContext> ctx;
+  std::unique_ptr<neug::main::MetadataManager> database;
+  std::unique_ptr<neug::main::ClientContext> ctx;
   std::shared_mutex planner_mutex;  // Protects access to the planner
  private:
   // return string pattern of update operators
   const common::case_insensitve_set_t& getUpdateOpTokens() const;
 };
 
-}  // namespace gs
+}  // namespace neug

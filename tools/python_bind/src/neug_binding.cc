@@ -34,7 +34,7 @@
 
 namespace py = pybind11;
 
-namespace gs {
+namespace neug {
 
 void signal_handler(int signal) {
   LOG(INFO) << "Received signal " << signal << ", exiting...";
@@ -43,7 +43,7 @@ void signal_handler(int signal) {
       signal == SIGSEGV || signal == SIGABRT) {
     LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
     // remove all files in work_dir
-    gs::FileLock::CleanupAllLocks();
+    neug::FileLock::CleanupAllLocks();
 #ifdef NEUG_BACKTRACE
     cpptrace::generate_trace(1 /*skip this function's frame*/).print();
 #endif
@@ -89,7 +89,7 @@ void setup_logging() {
     FLAGS_logtostderr = false;  // Log to file instead of stderr
   }
 }
-}  // namespace gs
+}  // namespace neug
 
 bool get_is_interactive() {
   try {
@@ -115,26 +115,26 @@ PYBIND11_MODULE(neug_py_bind, m) {
     )pbdoc";
 
   m.attr("__version__") = MACRO_STRINGIFY(NEUG_VERSION);
-  gs::PyDatabase::initialize(m);
-  gs::PyConnection::initialize(m);
-  gs::PyQueryResult::initialize(m);
+  neug::PyDatabase::initialize(m);
+  neug::PyConnection::initialize(m);
+  neug::PyQueryResult::initialize(m);
 
   // Setup signal handling, for cleaning up resources on exit.
   bool is_interactive = get_is_interactive();
-  gs::setup_signal_handler(is_interactive);
+  neug::setup_signal_handler(is_interactive);
 
   // Register exception translation for Python.
   PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object>
       exc_storage;
   exc_storage.call_once_and_store_result([&]() {
-    return py::exception<gs::exception::Exception>(m, "Exception");
+    return py::exception<neug::exception::Exception>(m, "Exception");
   });
   pybind11::register_exception_translator([](std::exception_ptr p) {
     try {
       if (p) {
         std::rethrow_exception(p);
       }
-    } catch (const gs::exception::Exception& e) {
+    } catch (const neug::exception::Exception& e) {
       pybind11::set_error(PyExc_RuntimeError, e.what());
     } catch (const std::exception& e) {
       pybind11::set_error(PyExc_RuntimeError, e.what());
@@ -143,5 +143,5 @@ PYBIND11_MODULE(neug_py_bind, m) {
     }
   });
 
-  gs::setup_logging();
+  neug::setup_logging();
 }

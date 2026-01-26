@@ -18,10 +18,10 @@
 #include <rapidjson/rapidjson.h>
 #include "glog/logging.h"
 
-namespace gs {
+namespace neug {
 
 rapidjson::Value create_bolt_summary(
     const std::string& query_text,
     rapidjson::Document::AllocatorType& allocator);
 
-}  // namespace gs
+}  // namespace neug

@@ -25,9 +25,9 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CastArrayHelper {
@@ -42,4 +42,4 @@ struct CastArrayHelper {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

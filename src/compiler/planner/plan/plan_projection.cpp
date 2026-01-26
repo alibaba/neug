@@ -4,9 +4,9 @@
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::planProjectionBody(
@@ -108,4 +108,4 @@ void Planner::planOrderBy(const binder::expression_vector& expressionsToProject,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -19,7 +19,7 @@
 
 #include "neug/execution/common/types/graph_types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 struct ScanParams {
@@ -72,4 +72,4 @@ struct JoinParams {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

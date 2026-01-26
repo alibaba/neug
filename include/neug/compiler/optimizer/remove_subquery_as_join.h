@@ -21,7 +21,7 @@
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 class RemoveSubqueryAsJoin : public LogicalOperatorVisitor {
  public:
@@ -36,4 +36,4 @@ class RemoveSubqueryAsJoin : public LogicalOperatorVisitor {
   bool notExistSubQuery(std::shared_ptr<binder::Expression> expr);
 };
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

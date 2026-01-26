@@ -16,7 +16,7 @@
 #include "re2/include/logging.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class RE2;
@@ -127,6 +127,6 @@ class Prefilter {
 };
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_PREFILTER_H_

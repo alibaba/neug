@@ -42,11 +42,11 @@
 #include "neug/compiler/planner/operator/persistent/logical_merge.h"
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 
-using namespace gs::common;
-using namespace gs::binder;
-using namespace gs::planner;
+using namespace neug::common;
+using namespace neug::binder;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void FactorizationRewriter::rewrite(planner::LogicalPlan* plan) {
@@ -224,4 +224,4 @@ FactorizationRewriter::appendFlattenIfNecessary(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

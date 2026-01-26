@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/function/aggregate_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class AggregateFunctionExpression final : public Expression {
@@ -58,4 +58,4 @@ class AggregateFunctionExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

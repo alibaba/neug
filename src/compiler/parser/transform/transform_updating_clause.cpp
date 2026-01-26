@@ -27,7 +27,7 @@
 #include "neug/compiler/parser/query/updating_clause/set_clause.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<UpdatingClause> Transformer::transformUpdatingClause(
@@ -94,4 +94,4 @@ std::unique_ptr<UpdatingClause> Transformer::transformDelete(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/delete_type.h"
 #include "neug/compiler/common/enums/table_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundDeleteInfo {
@@ -52,4 +52,4 @@ struct BoundDeleteInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

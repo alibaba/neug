@@ -27,7 +27,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct CSVOption {
@@ -138,4 +138,4 @@ struct CSVReaderConfig {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

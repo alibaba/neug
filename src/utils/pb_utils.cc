@@ -42,7 +42,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 std::string convert_object_to_string(const ::common::Value& value) {
   if (value.item_case() == common::Value::ItemCase::kI32) {
@@ -936,7 +936,7 @@ bool common_value_to_any(const DataTypeId& type, const common::Value& value,
   return true;
 }
 
-gs::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
+neug::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
@@ -981,4 +981,4 @@ bool conflict_action_to_bool(const physical::ConflictAction& action) {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

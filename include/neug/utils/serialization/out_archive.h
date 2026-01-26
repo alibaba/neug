@@ -22,7 +22,7 @@ limitations under the License.
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class OutArchive {
  public:
@@ -165,4 +165,4 @@ inline OutArchive& operator>>(OutArchive& out_archive,
   return out_archive;
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -22,7 +22,7 @@
 
 #include "neug/utils/mmap_array.h"
 
-namespace gs {
+namespace neug {
 
 class ArenaAllocator {
   static constexpr size_t batch_size = 16 * 1024 * 1024;
@@ -110,4 +110,4 @@ class ArenaAllocator {
 
 using Allocator = ArenaAllocator;
 
-}  // namespace gs
+}  // namespace neug

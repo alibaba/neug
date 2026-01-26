@@ -23,7 +23,7 @@
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/extension/extension.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -33,10 +33,10 @@ class ExtensionInstallOprBuilder : public IOperatorBuilder {
   ExtensionInstallOprBuilder() = default;
   ~ExtensionInstallOprBuilder() override = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -49,10 +49,10 @@ class ExtensionLoadOprBuilder : public IOperatorBuilder {
   ExtensionLoadOprBuilder() = default;
   ~ExtensionLoadOprBuilder() override = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -65,10 +65,10 @@ class ExtensionUninstallOprBuilder : public IOperatorBuilder {
   ExtensionUninstallOprBuilder() = default;
   ~ExtensionUninstallOprBuilder() override = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -78,4 +78,4 @@ class ExtensionUninstallOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

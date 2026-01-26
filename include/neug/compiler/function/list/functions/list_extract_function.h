@@ -28,7 +28,7 @@
 #include "neug/compiler/function/string/functions/array_extract_function.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListExtract {
@@ -77,4 +77,4 @@ struct ListExtract {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

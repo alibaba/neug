@@ -26,7 +26,7 @@
 #include <array>
 #include <cstddef>
 
-namespace gs::common {
+namespace neug::common {
 template <typename T, size_t N1, size_t N2>
 constexpr std::array<T, N1 + N2> arrayConcat(const std::array<T, N1>& arr1,
                                              const std::array<T, N2>& arr2) {
@@ -35,4 +35,4 @@ constexpr std::array<T, N1 + N2> arrayConcat(const std::array<T, N1>& arr1,
   std::copy_n(arr2.cbegin(), arr2.size(), ret.begin() + arr1.size());
   return ret;
 }
-}  // namespace gs::common
+}  // namespace neug::common

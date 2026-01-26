@@ -23,10 +23,10 @@
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/parser/query/reading_clause/reading_clause.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundReadingClause> Binder::bindReadingClause(
@@ -50,4 +50,4 @@ std::unique_ptr<BoundReadingClause> Binder::bindReadingClause(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

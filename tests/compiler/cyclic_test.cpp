@@ -18,7 +18,7 @@
 #include <string>
 #include "gopt_test.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class CyclicTest : public GOptTest {
@@ -167,4 +167,4 @@ TEST_F(CyclicTest, CMT_LOOP) {
                                       getCyclicResource("CMT_LOOP_physical"));
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class NullBuffer {
@@ -57,4 +57,4 @@ class NullBuffer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

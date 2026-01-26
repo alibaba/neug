@@ -25,7 +25,7 @@
 #include "logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class TopKOptimizer : public LogicalOperatorVisitor {
@@ -41,4 +41,4 @@ class TopKOptimizer : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

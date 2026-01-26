@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 enum class CatalogEntryType : uint8_t {
@@ -62,4 +62,4 @@ struct FunctionEntryTypeUtils {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

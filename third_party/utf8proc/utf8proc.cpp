@@ -44,7 +44,7 @@
 
 #include "include/utf8proc_data.h"
 
-namespace gs {
+namespace neug {
 namespace utf8proc {
 
 #ifndef SSIZE_MAX
@@ -973,4 +973,4 @@ UTF8PROC_DLLEXPORT utf8proc_uint8_t* utf8proc_NFKC_Casefold(
 }
 
 }  // namespace utf8proc
-}  // namespace gs
+}  // namespace neug

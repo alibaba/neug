@@ -6,9 +6,9 @@
 #include "neug/compiler/planner/operator/logical_intersect.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalPlanUtil::encodeJoin(LogicalPlan& logicalPlan) {
@@ -111,4 +111,4 @@ void LogicalPlanUtil::encodeFilter(LogicalOperator*,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

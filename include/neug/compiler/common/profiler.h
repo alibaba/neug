@@ -29,7 +29,7 @@
 
 #include "neug/compiler/common/metric.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Profiler {
@@ -52,4 +52,4 @@ class Profiler {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -22,19 +22,19 @@
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 class EdgeExpand {
  public:
-  static gs::result<Context> expand_degree(const StorageReadInterface& graph,
-                                           Context&& ctx,
-                                           const EdgeExpandParams& params);
+  static neug::result<Context> expand_degree(const StorageReadInterface& graph,
+                                             Context&& ctx,
+                                             const EdgeExpandParams& params);
   template <typename PRED_T>
-  static gs::result<Context> expand_edge(const StorageReadInterface& graph,
-                                         Context&& ctx,
-                                         const EdgeExpandParams& params,
-                                         const PRED_T& pred) {
+  static neug::result<Context> expand_edge(const StorageReadInterface& graph,
+                                           Context&& ctx,
+                                           const EdgeExpandParams& params,
+                                           const PRED_T& pred) {
     auto input_vertex_list =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
     auto vertex_column_type = input_vertex_list->vertex_column_type();
@@ -94,16 +94,16 @@ class EdgeExpand {
     }
   }
 
-  static gs::result<Context> expand_edge_with_special_edge_predicate(
+  static neug::result<Context> expand_edge_with_special_edge_predicate(
       const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
       const std::string& target_val_str);
 
   template <typename PRED_T>
-  static gs::result<Context> expand_vertex(const StorageReadInterface& graph,
-                                           Context&& ctx,
-                                           const EdgeExpandParams& params,
-                                           const PRED_T& pred) {
+  static neug::result<Context> expand_vertex(const StorageReadInterface& graph,
+                                             Context&& ctx,
+                                             const EdgeExpandParams& params,
+                                             const PRED_T& pred) {
     std::shared_ptr<IVertexColumn> input_vertex_list =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
     if (!params.is_optional && input_vertex_list->is_optional()) {
@@ -178,19 +178,19 @@ class EdgeExpand {
     }
   }
 
-  static gs::result<Context> expand_vertex_ep_cmp(
+  static neug::result<Context> expand_vertex_ep_cmp(
       const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const std::string& ep_val,
       SPPredicateType tp);
 
-  static gs::result<Context> expand_vertex_with_special_vertex_predicate(
+  static neug::result<Context> expand_vertex_with_special_vertex_predicate(
       const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params,
       const SpecialVertexPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename T1>
-  static gs::result<Context> tc(
+  static neug::result<Context> tc(
       const StorageReadInterface& graph, Context&& ctx,
       const std::array<std::tuple<label_t, label_t, label_t, Direction>, 3>&
           labels,
@@ -370,4 +370,4 @@ class EdgeExpand {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

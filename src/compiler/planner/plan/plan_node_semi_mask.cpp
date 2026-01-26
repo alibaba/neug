@@ -6,10 +6,10 @@
 #include "neug/compiler/planner/operator/sip/logical_semi_masker.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // Create a plan with a root semi masker for given node and node predicate.
@@ -43,4 +43,4 @@ LogicalPlan Planner::getNodeSemiMaskPlan(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

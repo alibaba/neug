@@ -36,7 +36,7 @@
 
 #include <glog/logging.h>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ValueVector;
@@ -356,4 +356,4 @@ template <>
 std::string TypeUtils::toString(const union_entry_t& val, void* valueVector);
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

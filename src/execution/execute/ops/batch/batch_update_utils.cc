@@ -41,7 +41,7 @@ namespace arrow {
 class Array;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -62,7 +62,7 @@ void put_column_types_option(const std::vector<DataTypeId>& column_types,
       THROW_RUNTIME_ERROR("Duplicate column name found: " + col_name);
     }
     convert_options.column_types.insert(
-        {col_name, gs::PropertyTypeToArrowType(column_types[i])});
+        {col_name, neug::PropertyTypeToArrowType(column_types[i])});
   }
 }
 
@@ -623,4 +623,4 @@ void parse_property_mappings(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

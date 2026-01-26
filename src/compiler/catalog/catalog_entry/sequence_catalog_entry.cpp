@@ -29,10 +29,10 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 SequenceData SequenceCatalogEntry::getSequenceData() {
@@ -166,4 +166,4 @@ BoundCreateSequenceInfo SequenceCatalogEntry::getBoundCreateSequenceInfo(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

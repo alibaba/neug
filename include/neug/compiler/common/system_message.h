@@ -28,7 +28,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 inline std::string systemErrMessage(int code) {
@@ -47,4 +47,4 @@ inline std::string posixErrMessage() {
 NEUG_API std::string dlErrMessage();
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

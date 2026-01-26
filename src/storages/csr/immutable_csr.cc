@@ -29,7 +29,7 @@
 #include "neug/storages/file_names.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open(const std::string& name,
@@ -590,4 +590,4 @@ template class SingleImmutableCsr<DateTime>;
 template class SingleImmutableCsr<Interval>;
 template class SingleImmutableCsr<bool>;
 
-}  // namespace gs
+}  // namespace neug

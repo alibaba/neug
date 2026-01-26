@@ -29,7 +29,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class IWalWriter;
@@ -171,7 +171,7 @@ class InsertTransaction {
                                       timestamp_t timestamp);
   InArchive arc_;
 
-  std::vector<std::unique_ptr<gs::IdIndexerBase<vid_t>>> added_vertices_;
+  std::vector<std::unique_ptr<neug::IdIndexerBase<vid_t>>> added_vertices_;
   std::vector<vid_t> added_vertices_base_;
   std::vector<vid_t> vertex_nums_;
 
@@ -218,4 +218,4 @@ class StorageTPInsertInterface : public StorageInsertInterface {
   InsertTransaction& txn_;
 };
 
-}  // namespace gs
+}  // namespace neug

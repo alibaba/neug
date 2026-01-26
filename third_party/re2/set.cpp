@@ -17,7 +17,7 @@
 #include "re2/include/stringpiece.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 RE2::Set::Set(const RE2::Options& options, RE2::Anchor anchor) {
@@ -44,7 +44,7 @@ int RE2::Set::Add(const StringPiece& pattern, std::string* error) {
   Regexp::ParseFlags pf =
       static_cast<Regexp::ParseFlags>(options_.ParseFlags());
   RegexpStatus status;
-  gs::regex::Regexp* re = Regexp::Parse(pattern, pf, &status);
+  neug::regex::Regexp* re = Regexp::Parse(pattern, pf, &status);
   if (re == NULL) {
     if (error != NULL)
       *error = status.Text();
@@ -55,20 +55,20 @@ int RE2::Set::Add(const StringPiece& pattern, std::string* error) {
 
   // Concatenate with match index and push on vector.
   int n = static_cast<int>(elem_.size());
-  gs::regex::Regexp* m = gs::regex::Regexp::HaveMatch(n, pf);
+  neug::regex::Regexp* m = neug::regex::Regexp::HaveMatch(n, pf);
   if (re->op() == kRegexpConcat) {
     int nsub = re->nsub();
-    PODArray<gs::regex::Regexp*> sub(nsub + 1);
+    PODArray<neug::regex::Regexp*> sub(nsub + 1);
     for (int i = 0; i < nsub; i++)
       sub[i] = re->sub()[i]->Incref();
     sub[nsub] = m;
     re->Decref();
-    re = gs::regex::Regexp::Concat(sub.data(), nsub + 1, pf);
+    re = neug::regex::Regexp::Concat(sub.data(), nsub + 1, pf);
   } else {
-    gs::regex::Regexp* sub[2];
+    neug::regex::Regexp* sub[2];
     sub[0] = re;
     sub[1] = m;
-    re = gs::regex::Regexp::Concat(sub, 2, pf);
+    re = neug::regex::Regexp::Concat(sub, 2, pf);
   }
   elem_.emplace_back(std::string(pattern), re);
   return n;
@@ -88,7 +88,7 @@ bool RE2::Set::Compile() {
       elem_.begin(), elem_.end(),
       [](const Elem& a, const Elem& b) -> bool { return a.first < b.first; });
 
-  PODArray<gs::regex::Regexp*> sub(size_);
+  PODArray<neug::regex::Regexp*> sub(size_);
   for (int i = 0; i < size_; i++)
     sub[i] = elem_[i].second;
   elem_.clear();
@@ -96,7 +96,7 @@ bool RE2::Set::Compile() {
 
   Regexp::ParseFlags pf =
       static_cast<Regexp::ParseFlags>(options_.ParseFlags());
-  gs::regex::Regexp* re = gs::regex::Regexp::Alternate(sub.data(), size_, pf);
+  neug::regex::Regexp* re = neug::regex::Regexp::Alternate(sub.data(), size_, pf);
 
   prog_ = Prog::CompileSet(re, anchor_, options_.max_mem());
   re->Decref();
@@ -152,4 +152,4 @@ bool RE2::Set::Match(const StringPiece& text, std::vector<int>* v,
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

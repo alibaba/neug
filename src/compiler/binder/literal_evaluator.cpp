@@ -24,11 +24,11 @@
 
 #include "neug/compiler/common/types/value/value.h"
 
-using namespace gs::common;
-using namespace gs::storage;
-using namespace gs::main;
+using namespace neug::common;
+using namespace neug::storage;
+using namespace neug::main;
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 void LiteralExpressionEvaluator::evaluate() {}
@@ -63,4 +63,4 @@ void LiteralExpressionEvaluator::resolveResultVector(
 }
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

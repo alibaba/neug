@@ -31,7 +31,7 @@
 #include "neug/compiler/processor/operator/persistent/reader/copy_from_error.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class ValueVector;
 }
@@ -82,4 +82,4 @@ class NEUG_API WarningContext {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

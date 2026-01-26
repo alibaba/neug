@@ -17,7 +17,7 @@
 
 #include <string.h>
 
-namespace gs {
+namespace neug {
 
 void Encoder::put_long(int64_t v) {
   size_t size = buf_.size();
@@ -200,4 +200,4 @@ void Decoder::reset(const char* p, size_t size) {
   end_ = p + size;
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -33,7 +33,7 @@
 #include "neug/compiler/parser/ddl/parsed_property_definition.h"
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 class ProjectionBody;
 class ReturnClause;
@@ -442,4 +442,4 @@ class Binder {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

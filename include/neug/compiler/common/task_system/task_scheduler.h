@@ -31,7 +31,7 @@
 #include "neug/compiler/common/task_system/task.h"
 #include "neug/compiler/processor/execution_context.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct ScheduledTask {
@@ -130,4 +130,4 @@ class TaskScheduler {
 };
 #endif
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

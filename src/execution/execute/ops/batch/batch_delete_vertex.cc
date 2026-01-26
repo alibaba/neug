@@ -19,7 +19,7 @@
 
 #include <string_view>
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -33,15 +33,15 @@ class BatchDeleteVertexOpr : public IOperator {
     return "BatchDeleteVertexOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   std::vector<std::vector<label_t>> vertex_labels_;
   std::vector<int32_t> vertex_bindings_;
 };
 
-gs::result<Context> BatchDeleteVertexOpr::Eval(
+neug::result<Context> BatchDeleteVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
@@ -81,10 +81,10 @@ gs::result<Context> BatchDeleteVertexOpr::Eval(
                              // remove all data.
   }
 
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
+neug::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
@@ -110,4 +110,4 @@ gs::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

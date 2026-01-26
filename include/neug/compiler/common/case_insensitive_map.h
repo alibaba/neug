@@ -29,7 +29,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct CaseInsensitiveStringHashFunction {
@@ -51,4 +51,4 @@ using case_insensitve_set_t =
                        CaseInsensitiveStringEquality>;
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

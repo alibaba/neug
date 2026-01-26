@@ -2,9 +2,9 @@
 
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // LCOV_EXCL_START
@@ -107,9 +107,9 @@ std::string LogicalOperatorUtils::logicalOperatorTypeToString(
     return "USE_DATABASE";
   case LogicalOperatorType::CREATE_TYPE:
     return "CREATE_TYPE";
-  case gs::planner::LogicalOperatorType::GET_V:
+  case neug::planner::LogicalOperatorType::GET_V:
     return "GET_V";
-  case gs::planner::LogicalOperatorType::ALIAS_MAP:
+  case neug::planner::LogicalOperatorType::ALIAS_MAP:
     return "ALIAS_MAP";
   default:
     THROW_RUNTIME_ERROR("Unknown logical operator type.");
@@ -196,4 +196,4 @@ logical_op_vector_t LogicalOperator::copy(const logical_op_vector_t& ops) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

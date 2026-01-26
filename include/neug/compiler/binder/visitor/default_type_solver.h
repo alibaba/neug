@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // Assign a default data type (STRING) for expressions with ANY data type for a
@@ -40,4 +40,4 @@ class DefaultTypeSolver final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

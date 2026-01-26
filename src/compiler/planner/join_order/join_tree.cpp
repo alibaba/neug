@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/join_order/join_tree.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string TreeNodeTypeUtils::toString(TreeNodeType type) {
@@ -55,4 +55,4 @@ std::string JoinTreeNode::toString() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

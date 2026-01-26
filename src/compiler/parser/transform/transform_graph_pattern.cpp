@@ -24,9 +24,9 @@
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::vector<PatternElement> Transformer::transformPattern(
@@ -254,4 +254,4 @@ std::string Transformer::transformRelTypeName(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

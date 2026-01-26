@@ -25,7 +25,7 @@
 #include "logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class FactorizationRewriter final : public LogicalOperatorVisitor {
@@ -61,4 +61,4 @@ class FactorizationRewriter final : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

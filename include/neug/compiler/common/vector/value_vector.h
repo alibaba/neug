@@ -33,7 +33,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/auxiliary_buffer.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Value;
@@ -208,8 +208,8 @@ class NEUG_API StringVector {
                         neug_string_t& srcStr);
   static void addString(ValueVector* vector, neug_string_t& dstStr,
                         const char* srcStr, uint64_t length);
-  static void addString(gs::common::ValueVector* vector, neug_string_t& dstStr,
-                        const std::string& srcStr);
+  static void addString(neug::common::ValueVector* vector,
+                        neug_string_t& dstStr, const std::string& srcStr);
   static void copyToRowData(const ValueVector* vector, uint32_t pos,
                             uint8_t* rowData,
                             InMemOverflowBuffer* rowOverflowBuffer);
@@ -225,7 +225,7 @@ struct NEUG_API BlobVector {
     StringVector::addString(vector, pos, reinterpret_cast<const char*>(data),
                             length);
   }
-};  // namespace gs
+};  // namespace neug
 
 // ListVector is used for both LIST and ARRAY physical type
 class NEUG_API ListVector {
@@ -412,4 +412,4 @@ class MapVector {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

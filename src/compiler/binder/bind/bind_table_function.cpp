@@ -29,10 +29,10 @@
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/compiler/main/client_context.h"
 
-using namespace gs::common;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 BoundTableScanInfo Binder::bindTableFunc(
@@ -96,4 +96,4 @@ BoundTableScanInfo Binder::bindTableFunc(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

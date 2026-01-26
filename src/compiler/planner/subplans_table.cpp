@@ -1,11 +1,11 @@
 #include "neug/compiler/planner/subplans_table.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
-SubgraphPlans::SubgraphPlans(const gs::binder::SubqueryGraph& subqueryGraph) {
+SubgraphPlans::SubgraphPlans(const neug::binder::SubqueryGraph& subqueryGraph) {
   for (auto i = 0u; i < subqueryGraph.queryGraph.getNumQueryNodes(); ++i) {
     if (subqueryGraph.queryNodesSelector[i]) {
       nodeIDsToEncode.push_back(
@@ -63,7 +63,7 @@ std::vector<SubqueryGraph> DPLevel::getSubqueryGraphs() {
   return result;
 }
 
-void DPLevel::addPlan(const gs::binder::SubqueryGraph& subqueryGraph,
+void DPLevel::addPlan(const neug::binder::SubqueryGraph& subqueryGraph,
                       std::unique_ptr<LogicalPlan> plan) {
   if (subgraph2Plans.size() > MAX_NUM_SUBGRAPH) {
     return;
@@ -120,4 +120,4 @@ void SubPlansTable::clear() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

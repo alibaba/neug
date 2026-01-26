@@ -18,7 +18,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/string_utils.h"
 
-namespace gs {
+namespace neug {
 
 enum class AccessMode {
   kUnKnown,  // Unset access mode
@@ -61,4 +61,4 @@ inline std::string AccessModeToString(AccessMode mode) {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

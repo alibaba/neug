@@ -36,7 +36,7 @@ class DataType;
 class RecordBatch;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 class IRecordBatchSupplier;
 
 namespace runtime {
@@ -186,4 +186,4 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
 };
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

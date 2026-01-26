@@ -28,7 +28,7 @@
 #include "neug/compiler/common/serializer/writer.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // TODO(Ziyi): Move this to constants.h once we have a unified serializer
@@ -82,4 +82,4 @@ class NEUG_API BufferedSerializer : public Writer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

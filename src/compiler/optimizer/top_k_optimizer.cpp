@@ -25,9 +25,9 @@
 #include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/compiler/planner/operator/logical_order_by.h"
 
-using namespace gs::planner;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void TopKOptimizer::rewrite(planner::LogicalPlan* plan) {
@@ -84,4 +84,4 @@ std::shared_ptr<LogicalOperator> TopKOptimizer::visitLimitReplace(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

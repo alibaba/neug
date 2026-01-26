@@ -27,7 +27,7 @@
 
 #include "neug/compiler/common/enums/path_semantic.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 struct ClientConfigDefault {
@@ -86,4 +86,4 @@ struct ClientConfig {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

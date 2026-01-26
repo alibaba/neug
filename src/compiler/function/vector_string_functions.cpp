@@ -27,9 +27,9 @@
 
 #include "neug/execution/common/types/value.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 function_set ContainsFunction::getFunctionSet() {
@@ -126,4 +126,4 @@ runtime::Value ReverseFunction::Exec(const std::vector<runtime::Value>& args) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

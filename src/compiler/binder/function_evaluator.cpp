@@ -25,14 +25,14 @@
 #include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/function/sequence/sequence_functions.h"
 
-using namespace gs::common;
-using namespace gs::processor;
-using namespace gs::storage;
-using namespace gs::main;
-using namespace gs::binder;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::processor;
+using namespace neug::storage;
+using namespace neug::main;
+using namespace neug::binder;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 FunctionExpressionEvaluator::FunctionExpressionEvaluator(
@@ -106,4 +106,4 @@ void FunctionExpressionEvaluator::resolveResultVector(
 }
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

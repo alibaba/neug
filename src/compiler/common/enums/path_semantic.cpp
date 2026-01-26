@@ -27,7 +27,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 PathSemantic PathSemanticUtils::fromString(const std::string& str) {
@@ -61,4 +61,4 @@ std::string PathSemanticUtils::toString(PathSemantic semantic) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

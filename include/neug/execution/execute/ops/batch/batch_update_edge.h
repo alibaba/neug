@@ -19,7 +19,7 @@
 
 #include "neug/execution/execute/operator.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -28,10 +28,10 @@ class UpdateEdgeOprBuilder : public IOperatorBuilder {
   UpdateEdgeOprBuilder() = default;
   ~UpdateEdgeOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -43,4 +43,4 @@ class UpdateEdgeOprBuilder : public IOperatorBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -3,9 +3,9 @@
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendProjection(const expression_vector& expressionsToProject,
@@ -37,4 +37,4 @@ void Planner::appendProjection(const expression_vector& expressionsToProject,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class ConfidentialStatementAnalyzer final : public BoundStatementVisitor {
@@ -39,4 +39,4 @@ class ConfidentialStatementAnalyzer final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

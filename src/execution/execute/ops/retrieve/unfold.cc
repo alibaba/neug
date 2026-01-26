@@ -20,7 +20,7 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -34,10 +34,9 @@ class UnfoldOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnfoldOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     if (expr_.operators_size() == 1 && expr_.operators(0).has_var() &&
         (!expr_.operators(0).var().has_property())) {
       int key = expr_.operators(0).var().tag().id();
@@ -57,8 +56,8 @@ class UnfoldOpr : public IOperator {
   int alias_;
 };
 
-gs::result<OpBuildResultT> UnfoldOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> UnfoldOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   int alias = plan.plan(op_idx).opr().unfold().alias().value();
@@ -71,4 +70,4 @@ gs::result<OpBuildResultT> UnfoldOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

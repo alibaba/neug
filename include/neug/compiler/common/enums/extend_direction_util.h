@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/common/enums/rel_direction.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ExtendDirectionUtil {
@@ -42,4 +42,4 @@ class ExtendDirectionUtil {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

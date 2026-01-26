@@ -19,7 +19,7 @@
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace test {
 
@@ -2076,4 +2076,4 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
 
 }  // namespace test
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

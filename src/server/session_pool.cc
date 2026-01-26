@@ -15,7 +15,7 @@
 
 #include "neug/server/session_pool.h"
 
-namespace server {
+namespace neug {
 
 inline size_t acquire_session_impl(std::deque<size_t>& available_sessions_,
                                    bthread_mutex_t& mutex_,
@@ -56,4 +56,4 @@ void SessionPool::ReleaseSession(size_t session_id) {
   bthread_mutex_unlock(&mutex_);
 }
 
-}  // namespace server
+}  // namespace neug

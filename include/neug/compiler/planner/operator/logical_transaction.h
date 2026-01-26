@@ -3,7 +3,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/transaction/transaction_action.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalTransaction : public LogicalOperator {
@@ -31,4 +31,4 @@ class LogicalTransaction : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

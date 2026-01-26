@@ -24,7 +24,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 enum class ExtraValueInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
@@ -764,4 +764,4 @@ Value performCastToString(const Value& input) {
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

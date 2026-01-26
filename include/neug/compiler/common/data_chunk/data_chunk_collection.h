@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/data_chunk/data_chunk.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // TODO(Guodong): Should rework this to use ColumnChunk.
@@ -66,4 +66,4 @@ class DataChunkCollection {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

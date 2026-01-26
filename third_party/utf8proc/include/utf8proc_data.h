@@ -1,6 +1,6 @@
 #include "utf8proc.h"
 
-using namespace gs::utf8proc;
+using namespace neug::utf8proc;
 
 static const utf8proc_uint16_t utf8proc_sequences[] = {
     97,    98,    99,    100,   101,   102,   103,   104,   105,   106,   107,

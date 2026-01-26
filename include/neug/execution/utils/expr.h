@@ -16,7 +16,7 @@
 
 #include "neug/execution/utils/expr_impl.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
@@ -69,4 +69,4 @@ struct PredWrapper {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

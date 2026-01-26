@@ -35,12 +35,12 @@
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::planner;
-using namespace gs::storage;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::planner;
+using namespace neug::storage;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void FilterPushDownOptimizer::rewrite(LogicalPlan* plan) {
@@ -324,4 +324,4 @@ expression_vector PredicateSet::getAllPredicates() {
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

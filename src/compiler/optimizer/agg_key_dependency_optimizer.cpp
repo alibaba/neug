@@ -27,11 +27,11 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/operator/logical_distinct.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::planner;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void AggKeyDependencyOptimizer::rewrite(planner::LogicalPlan* plan) {
@@ -112,4 +112,4 @@ AggKeyDependencyOptimizer::resolveKeysAndDependentKeys(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

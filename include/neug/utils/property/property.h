@@ -25,7 +25,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 union PropValue {
   PropValue() {}
@@ -539,4 +539,4 @@ Property get_default_value(const DataTypeId& type);
 InArchive& operator<<(InArchive& in_archive, const Property& value);
 OutArchive& operator>>(OutArchive& out_archive, Property& value);
 
-}  // namespace gs
+}  // namespace neug

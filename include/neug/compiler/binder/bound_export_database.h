@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/query/bound_regular_query.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct ExportedTableData {
@@ -79,4 +79,4 @@ class BoundExportDatabase final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -33,7 +33,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/transaction/transaction.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -299,4 +299,4 @@ class Graph {
 };
 
 }  // namespace graph
-}  // namespace gs
+}  // namespace neug

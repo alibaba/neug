@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string DropTypeUtils::toString(DropType type) {
@@ -39,4 +39,4 @@ std::string DropTypeUtils::toString(DropType type) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

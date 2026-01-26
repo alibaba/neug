@@ -24,11 +24,11 @@
 
 #include "neug/compiler/common/system_config.h"
 
-using namespace gs::parser;
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::parser;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::string BoundCreateTableInfo::toString() const {
@@ -138,4 +138,4 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
       dstTableID{other.dstTableID} {}
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

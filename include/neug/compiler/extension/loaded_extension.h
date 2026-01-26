@@ -26,7 +26,7 @@
 
 #include "extension.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 class LoadedExtension {
@@ -52,4 +52,4 @@ class LoadedExtension {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

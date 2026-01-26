@@ -38,7 +38,7 @@
   db->addExtensionOption(OPTION::NAME, OPTION::TYPE, \
                          OPTION::getDefaultValue(), true)
 
-namespace gs {
+namespace neug {
 namespace function {
 struct TableFunction;
 }  // namespace function
@@ -209,4 +209,4 @@ void* dlsym(void* handle, const char* name);
 #endif
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

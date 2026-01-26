@@ -25,7 +25,7 @@
 #include "neug/compiler/common/file_system/file_system.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct StreamData {
@@ -109,4 +109,4 @@ struct CompressedFileInfo : public FileInfo {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

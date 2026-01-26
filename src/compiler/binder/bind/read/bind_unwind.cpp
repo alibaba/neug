@@ -30,10 +30,10 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/parser/query/reading_clause/unwind_clause.h"
 
-using namespace gs::parser;
-using namespace gs::common;
+using namespace neug::parser;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // E.g. UNWIND $1. We cannot validate $1 has data type LIST until we see the
@@ -96,4 +96,4 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

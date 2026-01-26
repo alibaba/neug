@@ -20,7 +20,7 @@
 
 #include "neug/execution/execute/operator.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -29,10 +29,10 @@ class CheckpointOprBuilder : public IOperatorBuilder {
   CheckpointOprBuilder() = default;
   ~CheckpointOprBuilder() override = default;
 
-  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
   virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
@@ -43,4 +43,4 @@ class CheckpointOprBuilder : public IOperatorBuilder {
 }  // namespace ops
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

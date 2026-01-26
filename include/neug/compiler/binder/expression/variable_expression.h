@@ -24,7 +24,7 @@
 
 #include "expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class VariableExpression final : public Expression {
@@ -59,4 +59,4 @@ class VariableExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

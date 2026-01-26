@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::vector<std::pair<std::string, std::unique_ptr<Value>>>
@@ -97,4 +97,4 @@ void NodeVal::throwIfNotNode(const Value* val) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

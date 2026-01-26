@@ -2,7 +2,7 @@
 #include "neug/compiler/binder/bound_statement_visitor.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 /** This rewriter is used to project outer variables (defined by call) before
  * each subquery in union. For example, in the following query: MATCH (a:person)
@@ -29,4 +29,4 @@ class UnionProjectionRewriter final : public BoundStatementVisitor {
       const std::vector<std::shared_ptr<Expression>>& projectionExprs);
 };
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

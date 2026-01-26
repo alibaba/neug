@@ -25,7 +25,7 @@
 
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
   // If the lock file already exists, it means another process is using the
@@ -123,4 +123,4 @@ void FileLock::unlock() {
 }
 
 std::set<std::string> FileLock::allLockFiles;
-}  // namespace gs
+}  // namespace neug

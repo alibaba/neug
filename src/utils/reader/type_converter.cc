@@ -24,7 +24,7 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 std::shared_ptr<arrow::DataType> ArrowTypeConverter::convert(
@@ -239,4 +239,4 @@ std::shared_ptr<::common::DataType> ArrowTypeConverter::convert(
 }
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

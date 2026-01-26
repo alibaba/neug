@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/add_vertex_property.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -34,8 +34,8 @@ class AddVertexPropertySchemaOpr : public IOperator {
   std::string get_operator_name() const override {
     return "AddVertexPropertySchemaOpr";
   }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap&,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.AddVertexProperties(vertex_type_, properties_,
@@ -45,7 +45,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -54,7 +54,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
+neug::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& add_vertex_property =
@@ -74,4 +74,4 @@ gs::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
 }  // namespace ops
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

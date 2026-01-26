@@ -5,7 +5,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 class CommonPatternReuseOptimizer : public LogicalOperatorVisitor {
  public:
@@ -23,4 +23,4 @@ class CommonPatternReuseOptimizer : public LogicalOperatorVisitor {
   main::ClientContext* ctx;
 };
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

@@ -32,7 +32,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class ValueVector;
 }
@@ -44,7 +44,7 @@ namespace processor {
 
 template <typename T>
 concept DataSource = std::same_as<storage::ColumnChunkData, T> ||
-    std::same_as<common::ValueVector, T>;
+                     std::same_as<common::ValueVector, T>;
 
 struct NEUG_API WarningSourceData {
   // we should stick to integral types here as each value essentially adds a
@@ -146,4 +146,4 @@ WarningSourceData WarningSourceData::constructFrom(uint64_t blockIdx,
 }
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

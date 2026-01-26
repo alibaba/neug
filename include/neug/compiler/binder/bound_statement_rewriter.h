@@ -25,7 +25,7 @@
 #include "bound_statement.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 // Perform semantic rewrite over bound statement.
@@ -36,4 +36,4 @@ class BoundStatementRewriter {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -25,9 +25,9 @@
 #include "neug/compiler/function/date/date_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 function_set DatePartFunction::getFunctionSet() {
@@ -43,7 +43,7 @@ function_set DatePartFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::STRING,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::INT64,
-      ScalarFunction::BinaryExecFunction<neug_string_t, gs::common::timestamp_t,
+      ScalarFunction::BinaryExecFunction<neug_string_t, neug::common::timestamp_t,
                                          int64_t, DatePart>));
   result.push_back(make_unique<ScalarFunction>(
       name,
@@ -69,4 +69,4 @@ function_set DatePartFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

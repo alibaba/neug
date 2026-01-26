@@ -5,7 +5,7 @@
 #include "neug/compiler/common/enums/explain_type.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalExplain final : public LogicalOperator {
@@ -49,4 +49,4 @@ class LogicalExplain final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

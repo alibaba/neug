@@ -19,7 +19,7 @@
 #include <string>
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 struct GAliasName {
   GAliasName() = default;
@@ -50,4 +50,4 @@ struct GAliasName {
   std::optional<std::string> queryName;
 };
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

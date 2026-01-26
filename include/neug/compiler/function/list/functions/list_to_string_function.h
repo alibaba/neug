@@ -25,7 +25,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListToString {
@@ -38,4 +38,4 @@ struct ListToString {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

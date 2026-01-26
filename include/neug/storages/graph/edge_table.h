@@ -31,7 +31,7 @@
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 
@@ -146,4 +146,4 @@ class EdgeTable {
 
   friend class PropertyGraph;
 };
-}  // namespace gs
+}  // namespace neug

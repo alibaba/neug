@@ -30,7 +30,7 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -140,4 +140,4 @@ class NEUG_API CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

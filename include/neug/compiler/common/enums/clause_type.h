@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class ClauseType : uint8_t {
@@ -50,4 +50,4 @@ enum class MatchClauseType : uint8_t {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

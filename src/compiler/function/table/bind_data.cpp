@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/constants.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 std::vector<bool> TableFuncBindData::getColumnSkips() const {
@@ -48,4 +48,4 @@ std::unique_ptr<TableFuncBindData> TableFuncBindData::copy() const {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 using default_macro_args =
@@ -63,4 +63,4 @@ class CreateMacro final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

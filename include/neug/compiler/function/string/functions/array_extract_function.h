@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/function/list/functions/list_len_function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ArrayExtract {
@@ -56,7 +56,7 @@ struct ArrayExtract {
       copySubstr(str, idxPos, 1 /* length */, result, isAscii);
     } else {
       int64_t characterCount = 0, startBytePos = 0, endBytePos = 0;
-      gs::utf8proc::utf8proc_grapheme_callback(
+      neug::utf8proc::utf8proc_grapheme_callback(
           stringVal.c_str(), stringVal.size(),
           [&](int64_t gstart, int64_t /*gend*/) {
             if (characterCount == startPos) {
@@ -89,4 +89,4 @@ struct ArrayExtract {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

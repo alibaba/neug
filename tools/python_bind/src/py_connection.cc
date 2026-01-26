@@ -20,13 +20,13 @@
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 void PyConnection::initialize(pybind11::handle& m) {
   pybind11::class_<PyConnection, std::shared_ptr<PyConnection>>(
       m, "PyConnection",
       "PyConnection is the python binds for the actual c++ implementation "
-      "of the connection to the database, gs::Connection.\n")
+      "of the connection to the database, neug::Connection.\n")
       .def(pybind11::init<NeugDB&, std::shared_ptr<Connection>>(),
            pybind11::arg("db"), pybind11::arg("conn"),
            "Creating a PyConnection. Holds a shared pointer to the C++ "
@@ -79,4 +79,4 @@ std::unique_ptr<PyQueryResult> PyConnection::execute(
 
 std::string PyConnection::get_schema() const { return conn_->GetSchema(); }
 
-}  // namespace gs
+}  // namespace neug

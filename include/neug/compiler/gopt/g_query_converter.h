@@ -63,7 +63,7 @@
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 const static common::alias_id_t INVALID_ALIAS_ID = -1;
 typedef ::google::protobuf::Map<std::string, std::string> Options;
@@ -78,7 +78,7 @@ struct EdgeLabelId {
 class GQueryConvertor {
  public:
   GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                  gs::catalog::Catalog* catalog);
+                  neug::catalog::Catalog* catalog);
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink);
@@ -206,7 +206,7 @@ class GQueryConvertor {
   ::physical::PathExpand_PathOpt convertPathOpt(
       const planner::LogicalRecursiveExtend& extend);
   ::physical::PathExpand_ResultOpt convertResultOpt(
-      gs::planner::ResultOpt resultOpt);
+      neug::planner::ResultOpt resultOpt);
   std::unique_ptr<::algebra::Range> convertRange(uint64_t skip, uint64_t limit);
   std::unique_ptr<::algebra::Range> convertRange(
       std::shared_ptr<binder::Expression> skip,
@@ -236,9 +236,9 @@ class GQueryConvertor {
   std::shared_ptr<GAliasManager> aliasManager;
   std::unique_ptr<GExprConverter> exprConvertor;
   std::unique_ptr<GPhysicalTypeConverter> typeConverter;
-  gs::catalog::Catalog* catalog;
-  gs::gopt::GDDLConverter ddlConverter;
+  neug::catalog::Catalog* catalog;
+  neug::gopt::GDDLConverter ddlConverter;
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

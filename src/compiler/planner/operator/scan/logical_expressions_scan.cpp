@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalExpressionsScan::computeSchema() {
@@ -12,4 +12,4 @@ void LogicalExpressionsScan::computeSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

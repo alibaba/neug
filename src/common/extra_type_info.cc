@@ -20,7 +20,7 @@
  */
 
 #include "neug/common/extra_type_info.h"
-namespace gs {
+namespace neug {
 
 ExtraTypeInfo::ExtraTypeInfo(ExtraTypeInfoType type) : type(type) {}
 
@@ -89,4 +89,4 @@ bool StringTypeInfo::EqualsInternal(ExtraTypeInfo* other_p) const {
   return max_length == other.max_length;
 }
 
-}  // namespace gs
+}  // namespace neug

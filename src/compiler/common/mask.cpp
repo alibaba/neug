@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/mask.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 offset_t NodeOffsetMaskMap::getNumMaskedNode() const {
@@ -34,4 +34,4 @@ offset_t NodeOffsetMaskMap::getNumMaskedNode() const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

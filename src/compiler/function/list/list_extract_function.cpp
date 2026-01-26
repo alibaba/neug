@@ -27,20 +27,20 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/execution/common/types/value.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static int checkAndGetIndex(const runtime::Value& value) {
   switch (value.type().id()) {
-  case gs::DataTypeId::kUInt32:
+  case neug::DataTypeId::kUInt32:
     return value.GetValue<uint32_t>();
-  case gs::DataTypeId::kInt32:
+  case neug::DataTypeId::kInt32:
     return value.GetValue<int32_t>();
-  case gs::DataTypeId::kUInt64:
+  case neug::DataTypeId::kUInt64:
     return value.GetValue<uint64_t>();
-  case gs::DataTypeId::kInt64:
+  case neug::DataTypeId::kInt64:
     return value.GetValue<int64_t>();
   default:
     THROW_RUNTIME_ERROR(
@@ -59,9 +59,9 @@ static runtime::Value execFunc(const std::vector<runtime::Value>& args) {
   int index = checkAndGetIndex(args[1]);
   const auto& arg0 = args[0];
   switch (arg0.type().id()) {
-  case gs::DataTypeId::kStruct:
+  case neug::DataTypeId::kStruct:
     return runtime::StructValue::GetChildren(arg0).at(index);
-  case gs::DataTypeId::kList:
+  case neug::DataTypeId::kList:
     return runtime::ListValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(
@@ -95,4 +95,4 @@ function_set ListExtractFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

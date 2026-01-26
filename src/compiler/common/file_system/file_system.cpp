@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/string_utils.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void FileSystem::overwriteFile(const std::string& /*from*/,
@@ -85,7 +85,7 @@ void FileSystem::truncate(FileInfo& /*fileInfo*/, uint64_t /*size*/) const {
   NEUG_UNREACHABLE;
 }
 
-void FileSystem::reset(gs::common::FileInfo& fileInfo) {
+void FileSystem::reset(neug::common::FileInfo& fileInfo) {
   fileInfo.seek(0, SEEK_SET);
 }
 
@@ -94,4 +94,4 @@ bool FileSystem::isGZIPCompressed(const std::filesystem::path& path) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

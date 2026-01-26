@@ -21,26 +21,26 @@
 #include "neug/execution/common/context.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   auto function = std::make_unique<NeugCallFunction>(
       ShowLoadedExtensionsFunction::name,
-      std::vector<gs::common::LogicalTypeID>{},
-      std::vector<std::pair<std::string, gs::common::LogicalTypeID>>{
-          {"name", gs::common::LogicalTypeID::STRING},
+      std::vector<neug::common::LogicalTypeID>{},
+      std::vector<std::pair<std::string, neug::common::LogicalTypeID>>{
+          {"name", neug::common::LogicalTypeID::STRING},
           {"description", common::LogicalTypeID::STRING}});
 
-  function->bindFunc = [](const gs::Schema& schema,
-                          const gs::runtime::ContextMeta& ctx_meta,
+  function->bindFunc = [](const neug::Schema& schema,
+                          const neug::runtime::ContextMeta& ctx_meta,
                           const ::physical::PhysicalPlan& plan,
                           int op_idx) -> std::unique_ptr<CallFuncInputBase> {
     return bindFunc(schema, ctx_meta, plan, op_idx);
   };
 
   function->execFunc =
-      [](const CallFuncInputBase& input) -> gs::runtime::Context {
+      [](const CallFuncInputBase& input) -> neug::runtime::Context {
     const auto& showInput =
         static_cast<const ShowLoadedExtensionsFuncInput&>(input);
     return execFunc(showInput);
@@ -52,21 +52,21 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
 }
 
 std::unique_ptr<ShowLoadedExtensionsFuncInput>
-ShowLoadedExtensionsFunction::bindFunc(const gs::Schema& schema,
-                                       const gs::runtime::ContextMeta& ctx_meta,
+ShowLoadedExtensionsFunction::bindFunc(const neug::Schema& schema,
+                                       const neug::runtime::ContextMeta& ctx_meta,
                                        const ::physical::PhysicalPlan& plan,
                                        int op_idx) {
   return std::make_unique<ShowLoadedExtensionsFuncInput>();
 }
 
-gs::runtime::Context ShowLoadedExtensionsFunction::execFunc(
+neug::runtime::Context ShowLoadedExtensionsFunction::execFunc(
     const ShowLoadedExtensionsFuncInput& input) {
   try {
-    gs::runtime::Context ctx;
-    const auto& ext_map = gs::extension::ExtensionAPI::getLoadedExtensions();
+    neug::runtime::Context ctx;
+    const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
 
-    gs::runtime::ValueColumnBuilder<std::string> name_builder;
-    gs::runtime::ValueColumnBuilder<std::string> desc_builder;
+    neug::runtime::ValueColumnBuilder<std::string> name_builder;
+    neug::runtime::ValueColumnBuilder<std::string> desc_builder;
     name_builder.reserve(ext_map.size());
     desc_builder.reserve(ext_map.size());
 
@@ -90,4 +90,4 @@ gs::runtime::Context ShowLoadedExtensionsFunction::execFunc(
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

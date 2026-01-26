@@ -3,7 +3,7 @@
 #include "neug/compiler/function/scalar_macro_function.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalCreateMacroPrintInfo final : OPPrintInfo {
@@ -63,4 +63,4 @@ class LogicalCreateMacro final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

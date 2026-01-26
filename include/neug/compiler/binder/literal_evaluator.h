@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/expression_evaluator.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 class LiteralExpressionEvaluator : public ExpressionEvaluator {
@@ -59,4 +59,4 @@ class LiteralExpressionEvaluator : public ExpressionEvaluator {
 };
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

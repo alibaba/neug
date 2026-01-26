@@ -27,10 +27,10 @@
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static std::shared_ptr<Expression> startRewriteFunc(
@@ -76,4 +76,4 @@ function_set EndNodeFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

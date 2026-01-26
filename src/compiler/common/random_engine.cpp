@@ -24,7 +24,7 @@
 
 #include <random>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 RandomEngine::RandomEngine() : randomState(RandomState()) {
@@ -47,4 +47,4 @@ uint32_t RandomEngine::nextRandomInteger(uint32_t upper) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

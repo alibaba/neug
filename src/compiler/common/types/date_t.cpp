@@ -30,7 +30,7 @@
 #include "neug/utils/exception/exception.h"
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 date_t::date_t() : days{0} {}
@@ -536,4 +536,4 @@ const regex::RE2& Date::regexPattern() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -61,7 +61,7 @@
   } else         \
     LOG_INFO.stream()
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class LogMessage {
@@ -112,7 +112,7 @@ class LogMessageFatal : public LogMessage {
   LogMessageFatal& operator=(const LogMessageFatal&) = delete;
 };
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #ifdef _MSC_VER
 // #pragma warning(pop)
 #endif

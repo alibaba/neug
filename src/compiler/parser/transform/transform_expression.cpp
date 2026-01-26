@@ -37,10 +37,10 @@
 #include "neug/compiler/parser/transformer.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<ParsedExpression> Transformer::transformExpression(
@@ -724,4 +724,4 @@ std::unique_ptr<ParsedExpression> Transformer::transformDoubleLiteral(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -16,7 +16,7 @@
 #include "re2/include/util.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 enum {
@@ -346,4 +346,4 @@ static void AppendCCRange(std::string* t, Rune lo, Rune hi) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

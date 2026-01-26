@@ -218,14 +218,14 @@
 
 #include "re2/include/stringpiece.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 class Prog;
 class Regexp;
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Interface for regular expression matching.  Also corresponds to a
@@ -753,8 +753,8 @@ class RE2 {
   // First cache line is relatively cold fields.
   const std::string* pattern_;        // string regular expression
   Options options_;                   // option flags
-  gs::regex::Regexp* entire_regexp_;  // parsed regular expression
-  gs::regex::Regexp*
+  neug::regex::Regexp* entire_regexp_;  // parsed regular expression
+  neug::regex::Regexp*
       suffix_regexp_;             // parsed regular expression, prefix_ removed
   const std::string* error_;      // error indicator (or points to empty string)
   const std::string* error_arg_;  // fragment of regexp showing error (or ditto)
@@ -1024,9 +1024,9 @@ DECLARE_HOOK(DFASearchFailure)
 
 }  // namespace hooks
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
-using gs::regex::LazyRE2;
-using gs::regex::RE2;
+using neug::regex::LazyRE2;
+using neug::regex::RE2;
 
 #endif  // RE2_RE2_H_

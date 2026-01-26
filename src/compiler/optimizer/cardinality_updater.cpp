@@ -32,7 +32,7 @@
 #include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs::optimizer {
+namespace neug::optimizer {
 void CardinalityUpdater::rewrite(planner::LogicalPlan* plan) {
   visitOperator(plan->getLastOperator().get());
 }
@@ -163,4 +163,4 @@ void CardinalityUpdater::visitAggregate(planner::LogicalOperator* op) {
   aggregate.setCardinality(cardinalityEstimator.estimateAggregate(aggregate));
 }
 
-}  // namespace gs::optimizer
+}  // namespace neug::optimizer

@@ -26,10 +26,10 @@
 
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-using namespace gs::common;
-using namespace gs::planner;
+using namespace neug::common;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace main {
 
 OpProfileBox::OpProfileBox(std::string opName, const std::string& paramsName,
@@ -95,4 +95,4 @@ static std::string dashedLineAccountingForIndex(uint32_t width,
 }
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 
 #include "antlr4-runtime.h"  // IWYU pragma: keep. This is the public header.
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParserErrorListener : public antlr4::BaseErrorListener {
@@ -43,4 +43,4 @@ class ParserErrorListener : public antlr4::BaseErrorListener {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

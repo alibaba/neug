@@ -72,7 +72,7 @@
 // #pragma warning(disable: 4200)
 #endif
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // The key insight behind this implementation is that the
@@ -572,4 +572,4 @@ fail:
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

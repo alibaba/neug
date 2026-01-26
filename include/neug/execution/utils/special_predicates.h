@@ -26,13 +26,13 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
 inline bool is_pk_oid_exact_check(
-    const gs::Schema& schema, label_t label, const common::Expression& expr,
-    std::function<Property(const ParamsMap&)>& value) {
+    const neug::Schema& schema, label_t label, const common::Expression& expr,
+    std::function<Property(const std::map<std::string, std::string>&)>& value) {
   if (expr.operators_size() != 3) {
     return false;
   }
@@ -614,7 +614,7 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
 }
 
 template <typename OP_T, typename CMP_T, typename... Args>
-static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
+static neug::result<Context> dispatch_vertex_predicate_impl_cmp_type(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config, const ParamsMap& params,
     const CMP_T& cmp_val, Args&&... args) {
@@ -641,7 +641,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 }
 
 template <typename OP_T, typename T, typename... Args>
-static gs::result<Context> dispatch_vertex_predicate_impl_typed(
+static neug::result<Context> dispatch_vertex_predicate_impl_typed(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
@@ -703,7 +703,7 @@ static gs::result<Context> dispatch_vertex_predicate_impl_typed(
 }
 
 template <typename OP_T, typename... Args>
-gs::result<Context> dispatch_vertex_predicate(
+neug::result<Context> dispatch_vertex_predicate(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
     const SpecialVertexPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
@@ -728,4 +728,4 @@ gs::result<Context> dispatch_vertex_predicate(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

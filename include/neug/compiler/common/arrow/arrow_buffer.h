@@ -26,7 +26,7 @@
 
 struct ArrowSchema;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct ArrowBuffer {
@@ -102,4 +102,4 @@ struct ArrowBuffer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

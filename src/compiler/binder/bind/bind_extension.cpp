@@ -28,9 +28,9 @@
 #include "neug/compiler/parser/extension_statement.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::parser;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static void bindInstallExtension(const ExtensionAuxInfo& auxInfo) {
@@ -79,4 +79,4 @@ std::unique_ptr<BoundStatement> Binder::bindExtension(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

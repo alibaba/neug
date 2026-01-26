@@ -28,7 +28,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 struct BoundAlterInfo;
 }  // namespace binder
@@ -113,4 +113,4 @@ class NEUG_API CatalogSet {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

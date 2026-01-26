@@ -9,10 +9,10 @@
 #include "neug/compiler/planner/operator/schema.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::pair<f_group_pos, f_group_pos_set> FlattenAllButOne::getGroupsPosToFlatten(
@@ -228,4 +228,4 @@ void GroupDependencyAnalyzer::visitSubquery(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 #include "neug/compiler/parser/standalone_call_function.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformStandaloneCall(
@@ -41,4 +41,4 @@ std::unique_ptr<Statement> Transformer::transformStandaloneCall(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

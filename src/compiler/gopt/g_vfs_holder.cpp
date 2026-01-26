@@ -16,7 +16,7 @@
 
 #include "neug/compiler/gopt/g_vfs_holder.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 VirtualFileSystem* VFSHolder::vfs = nullptr;
@@ -38,4 +38,4 @@ VirtualFileSystem* VFSHolder::getVFS() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

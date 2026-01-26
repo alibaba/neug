@@ -30,7 +30,7 @@
 #include "neug/compiler/common/serializer/buffered_file.h"
 #include "neug/compiler/storage/wal/wal_record.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 struct BoundAlterInfo;
 struct BoundCreateTableInfo;
@@ -122,4 +122,4 @@ class WAL {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

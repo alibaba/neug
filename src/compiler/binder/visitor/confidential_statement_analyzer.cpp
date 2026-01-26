@@ -24,9 +24,9 @@
 
 #include "neug/compiler/binder/bound_standalone_call.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void ConfidentialStatementAnalyzer::visitStandaloneCall(
@@ -36,4 +36,4 @@ void ConfidentialStatementAnalyzer::visitStandaloneCall(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

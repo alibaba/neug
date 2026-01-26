@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 Value* RecursiveRelVal::getNodes(const Value* val) {
@@ -51,4 +51,4 @@ void RecursiveRelVal::throwIfNotRecursiveRel(const Value* val) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

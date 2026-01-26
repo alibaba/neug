@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 /**
@@ -430,4 +430,4 @@ struct BinaryFunctionExecutor {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

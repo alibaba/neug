@@ -26,7 +26,7 @@
 #include "bound_reading_clause.h"
 #include "neug/compiler/binder/query/query_graph.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundMatchClause final : public BoundReadingClause {
@@ -59,4 +59,4 @@ class BoundMatchClause final : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

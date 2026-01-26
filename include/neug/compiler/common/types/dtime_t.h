@@ -27,7 +27,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // Type used to represent time (microseconds)
@@ -90,4 +90,4 @@ class Time {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

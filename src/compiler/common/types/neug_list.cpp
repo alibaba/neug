@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void neug_list_t::set(const uint8_t* values,
@@ -34,4 +34,4 @@ void neug_list_t::set(const std::vector<uint8_t*>& parameters,
                       LogicalTypeID childTypeId) {}
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

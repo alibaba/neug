@@ -29,7 +29,7 @@ namespace physical {
 class Scan;
 }  // namespace physical
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -44,4 +44,4 @@ class ScanUtils {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

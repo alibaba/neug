@@ -25,9 +25,9 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void ParsedCaseAlternative::serialize(Serializer& serializer) const {
@@ -76,4 +76,4 @@ void ParsedCaseExpression::serializeInternal(Serializer& serializer) const {
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

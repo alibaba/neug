@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/types/value/value.h"
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundQueryScanSourceInfo {
@@ -36,4 +36,4 @@ struct BoundQueryScanSourceInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

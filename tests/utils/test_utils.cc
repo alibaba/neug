@@ -21,7 +21,7 @@
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 class BitsetTest : public ::testing::Test {
  protected:
@@ -1493,4 +1493,4 @@ TEST_F(PBUtilsTest, ProtoToBoltResponse_Empty) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

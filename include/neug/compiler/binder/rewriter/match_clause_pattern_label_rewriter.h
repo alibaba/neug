@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/query/query_graph_label_analyzer.h"
 #include "neug/compiler/binder/query/reading_clause/bound_match_clause.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
@@ -44,4 +44,4 @@ class MatchClausePatternLabelRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

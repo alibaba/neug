@@ -5,10 +5,10 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalDelete::getExpressionsForPrinting() const {
@@ -46,4 +46,4 @@ f_group_pos_set LogicalDelete::getGroupsPosToFlatten() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

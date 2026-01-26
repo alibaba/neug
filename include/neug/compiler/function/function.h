@@ -27,7 +27,7 @@
 #include "neug/compiler/function/function_signature_util.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 
 namespace main {
 class ClientContext;
@@ -156,4 +156,4 @@ struct ScalarOrAggregateFunction : Function {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

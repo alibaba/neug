@@ -19,7 +19,7 @@
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 std::string Connection::GetSchema() const {
   if (IsClosed()) {
@@ -27,7 +27,7 @@ std::string Connection::GetSchema() const {
     THROW_RUNTIME_ERROR("Connection is closed, cannot get schema.");
   }
   auto yaml = graph_.schema().to_yaml();
-  return gs::get_json_string_from_yaml(yaml.value()).value();
+  return neug::get_json_string_from_yaml(yaml.value()).value();
 }
 
 void Connection::Close() {
@@ -56,4 +56,4 @@ result<QueryResult> Connection::Query(const std::string& query_string,
   }
 }
 
-}  // namespace gs
+}  // namespace neug

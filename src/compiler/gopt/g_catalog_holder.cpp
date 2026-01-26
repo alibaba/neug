@@ -17,7 +17,7 @@
 
 #include "neug/compiler/gopt/g_catalog_holder.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 GCatalog* GCatalogHolder::gCatalog = nullptr;
 
@@ -36,4 +36,4 @@ GCatalog* GCatalogHolder::getGCatalog() {
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

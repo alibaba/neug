@@ -1,8 +1,8 @@
 #include "neug/compiler/planner/join_order_enumerator_context.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void JoinOrderEnumeratorContext::init(const QueryGraph* queryGraph_,
@@ -36,4 +36,4 @@ void JoinOrderEnumeratorContext::resetState() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

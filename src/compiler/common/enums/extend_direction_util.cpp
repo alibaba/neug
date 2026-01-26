@@ -25,7 +25,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 ExtendDirection ExtendDirectionUtil::fromString(const std::string& str) {
@@ -56,4 +56,4 @@ std::string ExtendDirectionUtil::toString(ExtendDirection direction) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

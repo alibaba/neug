@@ -22,7 +22,7 @@
 
 #include "neug/compiler/function/gds/rec_joins.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 RJBindData::RJBindData(const RJBindData& other) {
@@ -44,4 +44,4 @@ RJBindData::RJBindData(const RJBindData& other) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

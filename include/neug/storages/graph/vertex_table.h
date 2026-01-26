@@ -21,7 +21,7 @@
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 
-namespace gs {
+namespace neug {
 
 class VertexSet {
  public:
@@ -213,8 +213,8 @@ class VertexTable {
     vids.resize(row_num);
     if constexpr (!std::is_same<std::string_view, PK_T>::value &&
                   !std::is_same<std::string, PK_T>::value) {
-      auto expected_type = gs::TypeConverter<PK_T>::ArrowTypeValue();
-      using arrow_array_t = typename gs::TypeConverter<PK_T>::ArrowArrayType;
+      auto expected_type = neug::TypeConverter<PK_T>::ArrowTypeValue();
+      using arrow_array_t = typename neug::TypeConverter<PK_T>::ArrowArrayType;
       if (!primary_key_column->type()->Equals(expected_type)) {
         LOG(FATAL) << "Inconsistent data type, expect "
                    << expected_type->ToString() << ", but got "
@@ -319,4 +319,4 @@ class VertexTable {
 
   friend class PropertyGraph;
 };
-}  // namespace gs
+}  // namespace neug

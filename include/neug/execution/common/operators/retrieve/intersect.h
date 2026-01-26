@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -35,9 +35,9 @@ class Intersect {
  public:
   template <typename PRED_LEFT, typename PRED_RIGHT, typename PRED_E_LEFT,
             typename PRED_E_RIGHT>
-  static gs::result<gs::runtime::Context> Binary_Intersect_SL_Impl(
+  static neug::result<neug::runtime::Context> Binary_Intersect_SL_Impl(
       const StorageReadInterface& graph, const ParamsMap& params,
-      gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
+      neug::runtime::Context&& ctx, const PRED_LEFT& left_pred,
       const PRED_RIGHT& right_pred, const PRED_E_LEFT& left_e_pred,
       const PRED_E_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int alias) {
@@ -140,9 +140,9 @@ class Intersect {
 
   template <typename PRED_LEFT, typename PRED_RIGHT, typename E_PRED_LEFT,
             typename E_PRED_RIGHT>
-  static gs::result<gs::runtime::Context> Binary_Intersect_ML_Impl(
+  static neug::result<neug::runtime::Context> Binary_Intersect_ML_Impl(
       const StorageReadInterface& graph, const ParamsMap& params,
-      gs::runtime::Context&& ctx, const PRED_LEFT& left_pred,
+      neug::runtime::Context&& ctx, const PRED_LEFT& left_pred,
       const PRED_RIGHT& right_pred, const E_PRED_LEFT& left_e_pred,
       const E_PRED_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int alias) {
@@ -271,9 +271,9 @@ class Intersect {
 
   template <typename PRED_V_LEFT, typename PRED_V_RIGHT, typename PRED_E_LEFT,
             typename PRED_E_RIGHT>
-  static gs::result<gs::runtime::Context> Binary_Intersect(
+  static neug::result<neug::runtime::Context> Binary_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      gs::runtime::Context&& ctx, const PRED_V_LEFT& left_v_pred,
+      neug::runtime::Context&& ctx, const PRED_V_LEFT& left_v_pred,
       const PRED_V_RIGHT& right_v_pred, const PRED_E_LEFT& left_e_pred,
       const PRED_E_RIGHT& right_e_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int alias) {
@@ -288,9 +288,9 @@ class Intersect {
     }
   }
 
-  static gs::result<gs::runtime::Context> Binary_Intersect_With_Edge(
+  static neug::result<neug::runtime::Context> Binary_Intersect_With_Edge(
       const StorageReadInterface& graph, const ParamsMap& params,
-      gs::runtime::Context&& ctx,
+      neug::runtime::Context&& ctx,
       const std::function<bool(label_t, vid_t)>& left_pred,
       const std::function<bool(label_t, vid_t)>& right_pred,
       const std::function<bool(label_t, vid_t, label_t, vid_t, label_t,
@@ -300,9 +300,9 @@ class Intersect {
       const EdgeExpandParams& eep0, const EdgeExpandParams& eep1,
       int vertex_alias, const std::vector<int>& edge_alias);
 
-  static gs::result<gs::runtime::Context> Multiple_Intersect(
+  static neug::result<neug::runtime::Context> Multiple_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      gs::runtime::Context&& ctx,
+      neug::runtime::Context&& ctx,
       const std::vector<std::function<bool(label_t, vid_t)>>& preds,
       const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
                                            label_t, Direction, const void*)>>&
@@ -312,4 +312,4 @@ class Intersect {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

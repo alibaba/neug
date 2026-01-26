@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/query/reading_clause/bound_reading_clause.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class NEUG_API BoundTableFunctionCall : public BoundReadingClause {
@@ -58,4 +58,4 @@ class NEUG_API BoundTableFunctionCall : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

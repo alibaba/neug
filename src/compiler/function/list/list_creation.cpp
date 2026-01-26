@@ -25,9 +25,9 @@
 #include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/scalar_function.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void ListCreationFunction::execFunc(
@@ -106,4 +106,4 @@ function_set ListCreationFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

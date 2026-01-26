@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression/property_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 NodeExpression::~NodeExpression() = default;
@@ -40,4 +40,4 @@ std::shared_ptr<Expression> NodeExpression::getPrimaryKey(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class AccumulateType : uint8_t {
@@ -38,4 +38,4 @@ struct AccumulateTypeUtil {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -19,7 +19,7 @@
 #include "neug/execution/utils/pb_parse_utils.h"
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -904,9 +904,9 @@ bool BuildGroupByUtils(const physical::GroupBy& group_by,
                        std::vector<std::pair<int, int>>& mappings,
                        std::vector<physical::GroupBy_AggFunc>& reduce_funcs);
 
-inline gs::result<gs::runtime::Context> GroupByEvalImpl(
+inline neug::result<neug::runtime::Context> GroupByEvalImpl(
     const StorageReadInterface& graph, const ParamsMap& params,
-    gs::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
+    neug::runtime::Context&& ctx, const std::vector<common::Variable>& vars,
     const std::vector<std::pair<int, int>>& mappings,
     const std::vector<physical::GroupBy_AggFunc>& aggrs) {
   auto key = create_key_func(vars, mappings, graph, ctx);
@@ -926,4 +926,4 @@ inline gs::result<gs::runtime::Context> GroupByEvalImpl(
 }  // namespace ops
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

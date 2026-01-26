@@ -23,7 +23,7 @@
 #include "neug/compiler/storage/stats/table_stats.h"
 #include "neug/compiler/storage/store/node_table.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 class GNodeTable : public NodeTable {
  private:
@@ -51,4 +51,4 @@ class GNodeTable : public NodeTable {
   }
 };
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

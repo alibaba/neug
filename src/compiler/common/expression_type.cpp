@@ -25,9 +25,9 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/function/comparison/vector_comparison_functions.h"
 
-using namespace gs::function;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 bool ExpressionTypeUtil::isUnary(ExpressionType type) {
@@ -159,4 +159,4 @@ std::string ExpressionTypeUtil::toParsableString(ExpressionType type) {
 // LCOV_EXCL_STOP
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

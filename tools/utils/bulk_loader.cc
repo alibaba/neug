@@ -137,13 +137,13 @@ int main(int argc, char** argv) {
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  auto schema_res = gs::Schema::LoadFromYaml(graph_schema_path);
+  auto schema_res = neug::Schema::LoadFromYaml(graph_schema_path);
   if (!schema_res) {
     LOG(ERROR) << "Fail to load graph schema file: "
                << schema_res.error().error_message();
     return -1;
   }
-  auto loading_config_res = gs::LoadingConfig::ParseFromYamlFile(
+  auto loading_config_res = neug::LoadingConfig::ParseFromYamlFile(
       schema_res.value(), bulk_load_config_path);
   if (!loading_config_res) {
     LOG(ERROR) << "Fail to parse loading config file: "
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
   std::signal(SIGABRT, signal_handler);
   std::signal(SIGFPE, signal_handler);
 
-  auto loader = gs::LoaderFactory::CreateFragmentLoader(
+  auto loader = neug::LoaderFactory::CreateFragmentLoader(
       data_dir_path.string(), schema_res.value(), loading_config_res.value());
 
   auto result = loader->LoadFragment();

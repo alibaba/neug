@@ -25,7 +25,7 @@
 #include "neug/compiler/common/copier_config/csv_reader_config.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CastFunctionBindData : public FunctionBindData {
@@ -49,4 +49,4 @@ struct CastFunctionBindData : public FunctionBindData {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

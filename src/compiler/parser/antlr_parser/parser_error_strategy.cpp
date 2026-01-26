@@ -22,7 +22,7 @@
 
 #include "neug/compiler/parser/antlr_parser/parser_error_strategy.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void ParserErrorStrategy::reportNoViableAlternative(
@@ -43,4 +43,4 @@ void ParserErrorStrategy::reportNoViableAlternative(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 
 #include "neug/compiler/parser/create_macro.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 using macro_parameter_value_map =
@@ -69,4 +69,4 @@ struct ScalarMacroFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -20,21 +20,20 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
 namespace neug {
 namespace interactive {
 enum Code : int;
-}
-}  // namespace neug
+}  // namespace interactive
 
-using StatusCode = gs::neug::interactive::Code;
+using StatusCode = neug::interactive::Code;
 namespace exception {
 
 class NEUG_API Exception : public std::exception {
  public:
-  explicit Exception(std::string msg, gs::StatusCode error_code);
+  explicit Exception(std::string msg, neug::StatusCode error_code);
   Exception(std::string msg, std::string file_line);
-  Exception(std::string msg, std::string file_line, gs::StatusCode error_code);
+  Exception(std::string msg, std::string file_line,
+            neug::StatusCode error_code);
 
  public:
   const char* what() const noexcept override {
@@ -242,17 +241,17 @@ class NEUG_API PropertyNotFoundException : public Exception {
 
 }  // namespace exception
 
-}  // namespace gs
+}  // namespace neug
 
 // Define guard to get the file and line number where the exception is thrown
 #define THROW_EXCEPTION_WITH_FILE_LINE(msg)                         \
-  throw gs::exception::Exception(                                   \
+  throw neug::exception::Exception(                                 \
       msg, std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
                " func: " + std::string(__FUNCTION__))
 
 // Define a template guard with exception name and msg given
 #define THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(exception_type, msg) \
-  throw gs::exception::exception_type(                               \
+  throw neug::exception::exception_type(                             \
       msg, std::string(__FILE__) + ":" + std::to_string(__LINE__) +  \
                " func: " + std::string(__FUNCTION__))
 

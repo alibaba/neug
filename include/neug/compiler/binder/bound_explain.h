@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/common/enums/explain_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundExplain final : public BoundStatement {
@@ -50,4 +50,4 @@ class BoundExplain final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

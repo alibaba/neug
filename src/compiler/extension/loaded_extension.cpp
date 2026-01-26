@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 std::string LoadedExtension::toCypher() {
@@ -40,4 +40,4 @@ std::string LoadedExtension::toCypher() {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

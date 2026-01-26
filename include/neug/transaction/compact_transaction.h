@@ -17,7 +17,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class IWalWriter;
@@ -47,4 +47,4 @@ class CompactTransaction {
   InArchive arc_;
 };
 
-}  // namespace gs
+}  // namespace neug

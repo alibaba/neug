@@ -24,7 +24,7 @@
 
 #include "neug/compiler/parser/parsed_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class StandaloneCallRewriter final : public StatementVisitor {
@@ -48,4 +48,4 @@ class StandaloneCallRewriter final : public StatementVisitor {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

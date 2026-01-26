@@ -29,7 +29,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/cast.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -161,4 +161,4 @@ class NEUG_API FileSystem {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -9,7 +9,7 @@
 #include "neug/compiler/common/enums/clause_type.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void UnionProjectionRewriter::visitRegularQueryUnsafe(
@@ -103,4 +103,4 @@ UnionProjectionRewriter::getJoinNodes(const expression_vector& preQueryExprs,
   return joinNodes;
 }
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

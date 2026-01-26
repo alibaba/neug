@@ -30,10 +30,10 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 
-using namespace gs::common;
-using namespace gs::function;
-using namespace gs::runtime;
-namespace gs {
+using namespace neug::common;
+using namespace neug::function;
+using namespace neug::runtime;
+namespace neug {
 namespace extension {
 
 const uint8_t* JsonScanFunction::findNextJsonObjectEnd(
@@ -110,7 +110,7 @@ const uint8_t* JsonScanFunction::findNextJsonObjectEnd(
 }
 
 std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
-    const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
+    const neug::Schema& schema, const neug::runtime::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx) {
   LOG(INFO) << "[JsonScan] Binding function from PhysicalPlan";
 
@@ -138,7 +138,7 @@ std::unique_ptr<JsonScanFuncInput> JsonScanFunction::bindFunc(
   const auto& metadatas = physical_opr.meta_data();
   for (const auto& metadata : metadatas) {
     DataTypeId type;
-    if (!gs::data_type_to_property_type(metadata.type().data_type(), type)) {
+    if (!neug::data_type_to_property_type(metadata.type().data_type(), type)) {
       THROW_EXTENSION_EXCEPTION("Unrecognized data type: " +
                                 metadata.type().DebugString());
     }
@@ -589,4 +589,4 @@ const uint8_t* JsonScanFunction::nextNewLine(const uint8_t* ptr,
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

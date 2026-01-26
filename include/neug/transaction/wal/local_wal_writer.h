@@ -20,7 +20,7 @@
 
 #include "neug/transaction/wal/wal.h"
 
-namespace gs {
+namespace neug {
 
 class LocalWalWriter : public IWalWriter {
  public:
@@ -51,4 +51,4 @@ class LocalWalWriter : public IWalWriter {
   static const bool registered_;
 };
 
-}  // namespace gs
+}  // namespace neug

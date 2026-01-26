@@ -20,7 +20,7 @@
 #include "neug/third_party/aliyun-oss-cpp-sdk/sdk/include/alibabacloud/oss/client/RetryStrategy.h"
 #include "neug/utils/file_utils.h"
 
-namespace gs {
+namespace neug {
 
 void OSSConf::load_conf_from_env() {
   if (accesskey_id_.empty()) {
@@ -123,7 +123,7 @@ std::string object_summary_to_string(
          ", restoreInfo: " + summary.RestoreInfo();
 }
 
-gs::Status OSSRemoteStorageUploader::Open() {
+neug::Status OSSRemoteStorageUploader::Open() {
   if (conf_.accesskey_id_.empty() || conf_.accesskey_secret_.empty()) {
     conf_.load_conf_from_env();
   }
@@ -138,21 +138,21 @@ gs::Status OSSRemoteStorageUploader::Open() {
   return Status::OK();
 }
 
-gs::Status OSSRemoteStorageUploader::Put(const std::string& local_path,
-                                         const std::string& remote_path,
-                                         bool override) {
+neug::Status OSSRemoteStorageUploader::Put(const std::string& local_path,
+                                           const std::string& remote_path,
+                                           bool override) {
   LOG(INFO) << "OSS Put local file " << local_path << " to remote "
             << remote_path;
   if (!client_ || local_path.empty() || remote_path.empty()) {
-    return gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                      "OSS Put invalid argument");
+    return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                        "OSS Put invalid argument");
   }
 
   // check local path is exist
   if (!std::filesystem::exists(local_path)) {
     LOG(ERROR) << "OSS Put local file " << local_path << " not exist";
-    return gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                      "OSS Put local file not exist");
+    return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                        "OSS Put local file not exist");
   }
 
   AlibabaCloud::OSS::UploadObjectRequest request(conf_.bucket_name_,
@@ -169,12 +169,12 @@ gs::Status OSSRemoteStorageUploader::Put(const std::string& local_path,
                                ", message: " + outcome.error().Message() +
                                ", requestId: " + outcome.error().RequestId();
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR, error_string);
   }
 
   return Status::OK();
 }
-gs::Status OSSRemoteStorageUploader::Delete(const std::string& remote_path) {
+neug::Status OSSRemoteStorageUploader::Delete(const std::string& remote_path) {
   AlibabaCloud::OSS::DeleteObjectRequest request(conf_.bucket_name_,
                                                  remote_path);
   auto outcome = client_->DeleteObject(request);
@@ -184,17 +184,17 @@ gs::Status OSSRemoteStorageUploader::Delete(const std::string& remote_path) {
                                ", message: " + outcome.error().Message() +
                                ", requestId: " + outcome.error().RequestId();
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR, error_string);
   }
   return Status::OK();
 }
-gs::Status OSSRemoteStorageUploader::Close() {
+neug::Status OSSRemoteStorageUploader::Close() {
   client_.reset();
   return Status::OK();
 }
 
 /// OSSRemote storage reader
-gs::Status OSSRemoteStorageDownloader::Open() {
+neug::Status OSSRemoteStorageDownloader::Open() {
   if (conf_.accesskey_id_.empty() || conf_.accesskey_secret_.empty()) {
     conf_.load_conf_from_env();
   }
@@ -209,13 +209,13 @@ gs::Status OSSRemoteStorageDownloader::Open() {
   return Status::OK();
 }
 
-gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
-                                           const std::string& local_path) {
+neug::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
+                                             const std::string& local_path) {
   LOG(INFO) << "OSS Get remote file " << remote_path << " to local "
             << local_path;
   if (local_path.empty() || remote_path.empty()) {
-    return gs::Status(
-        gs::StatusCode::ERR_INVALID_ARGUMENT,
+    return neug::Status(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
         "OSS Get invalid argument, local path or remote path is empty");
   }
 
@@ -224,7 +224,7 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
   std::string local_etag, oss_etag;
 
   if (std::filesystem::exists(local_path) &&
-      gs::read_string_from_file(etag_file, local_etag) &&
+      neug::read_string_from_file(etag_file, local_etag) &&
       get_metadata_etag(remote_path, oss_etag) && !local_etag.empty() &&
       !oss_etag.empty() && oss_etag == local_etag) {
     LOG(INFO) << "OSS Get local file " << local_path << " is up to date";
@@ -243,7 +243,7 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
             " to local " + local_path + " failed",
         outcome);
     LOG(ERROR) << error_string;
-    return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR, error_string);
   }
 
   if (std::filesystem::exists(local_path)) {
@@ -253,21 +253,21 @@ gs::Status OSSRemoteStorageDownloader::Get(const std::string& remote_path,
               << " success, size: " << file_size;
   } else {
     LOG(ERROR) << "OSS Get local file " << local_path << " failed";
-    return gs::Status(gs::StatusCode::ERR_IO_ERROR,
-                      "OSS Get local file failed");
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                        "OSS Get local file failed");
   }
 
   if (!(get_metadata_etag(remote_path, oss_etag) &&
-        gs::write_string_to_file(oss_etag, etag_file))) {
+        neug::write_string_to_file(oss_etag, etag_file))) {
     LOG(ERROR) << "OSS Get write etag file " << etag_file << " failed";
-    return gs::Status(gs::StatusCode::ERR_IO_ERROR,
-                      "OSS Get write etag file failed");
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                        "OSS Get write etag file failed");
   }
 
   return Status::OK();
 }
 
-gs::Status OSSRemoteStorageDownloader::List(
+neug::Status OSSRemoteStorageDownloader::List(
     const std::string& remote_prefix, std::vector<std::string>& path_list) {
   std::string nextMarker = "";
   bool isTruncated = false;
@@ -280,7 +280,7 @@ gs::Status OSSRemoteStorageDownloader::List(
       std::string error_string = oss_outcome_to_string(
           "OSS ListObjects from remote " + remote_prefix + " failed", outcome);
       LOG(ERROR) << error_string;
-      return gs::Status(gs::StatusCode::ERR_IO_ERROR, error_string);
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR, error_string);
     }
     for (const auto& object : outcome.result().ObjectSummarys()) {
       LOG(INFO) << "OSS ListObject:  " << object_summary_to_string(object);
@@ -294,7 +294,7 @@ gs::Status OSSRemoteStorageDownloader::List(
   return Status::OK();
 }
 
-gs::Status OSSRemoteStorageDownloader::Close() { return Status::OK(); }
+neug::Status OSSRemoteStorageDownloader::Close() { return Status::OK(); }
 
 bool OSSRemoteStorageDownloader::get_metadata_etag(
     const std::string& remote_path, std::string& etag) {
@@ -319,6 +319,6 @@ bool OSSRemoteStorageDownloader::get_metadata_etag(
   return true;
 }
 
-}  // namespace gs
+}  // namespace neug
 
 #endif  // BUILD_WITH_OSS

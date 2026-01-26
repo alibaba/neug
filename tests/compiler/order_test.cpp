@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class OrderTest : public GOptTest {
@@ -69,4 +69,4 @@ TEST_F(OrderTest, RETURN_SKIP) {
                                       getOrderResource("RETURN_SKIP_physical"));
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

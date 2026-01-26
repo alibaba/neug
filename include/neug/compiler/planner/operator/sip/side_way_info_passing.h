@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum class SemiMaskPosition : uint8_t {
@@ -84,4 +84,4 @@ struct SIPInfo {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

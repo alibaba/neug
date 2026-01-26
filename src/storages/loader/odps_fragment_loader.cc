@@ -25,7 +25,7 @@
 
 #include "neug/storages/loader/loader_utils.h"
 
-namespace gs {
+namespace neug {
 
 // odps_table_path is like /project_name/table_name/partition_name
 // partition : pt1
@@ -107,9 +107,9 @@ TableBatchScanResp ODPSReadClient::createReadSession(
     const std::vector<std::string>& selected_partitions) {
   VLOG(1) << "CreateReadSession:" << table_identifier.project_ << ", "
           << table_identifier.table_;
-  VLOG(1) << "Selected cols:" << gs::to_string(selected_cols);
-  VLOG(1) << "Partition:" << gs::to_string(partition_cols);
-  VLOG(1) << "Selected partitions:" << gs::to_string(selected_partitions);
+  VLOG(1) << "Selected cols:" << neug::to_string(selected_cols);
+  VLOG(1) << "Partition:" << neug::to_string(partition_cols);
+  VLOG(1) << "Selected partitions:" << neug::to_string(selected_partitions);
 
   TableBatchScanReq req;
   req.table_identifier_ = table_identifier;
@@ -257,7 +257,7 @@ std::shared_ptr<arrow::Table> ODPSReadClient::ReadTable(
     auto indices = split_indices(i, cur_thread_num, split_count);
     LOG(INFO) << "Thread " << i << " will read " << indices.size()
               << " splits of " << split_count
-              << " splits: " << gs::to_string(indices);
+              << " splits: " << neug::to_string(indices);
     producers.emplace_back(std::thread(
         &ODPSReadClient::producerRoutine, this, std::cref(session_id),
         std::cref(table_id), std::ref(all_batches), std::move(indices)));
@@ -485,4 +485,4 @@ const bool ODPSFragmentLoader::registered_ =
                             static_cast<LoaderFactory::loader_initializer_t>(
                                 &ODPSFragmentLoader::Make));
 
-}  // namespace gs
+}  // namespace neug

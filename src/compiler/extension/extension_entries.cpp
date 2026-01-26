@@ -23,7 +23,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension_manager.h"
 
-namespace gs::extension {
+namespace neug::extension {
 
 struct EntriesForExtension {
   const char* extensionName;
@@ -93,4 +93,4 @@ std::optional<ExtensionEntry> ExtensionManager::lookupExtensionsByTypeName(
   return lookupExtensionsByEntryName(common::StringUtils::getUpper(typeName),
                                      typesForExtensions);
 }
-}  // namespace gs::extension
+}  // namespace neug::extension

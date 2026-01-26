@@ -15,7 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/data_export.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -31,10 +31,9 @@ class DataExportOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override;
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override;
 
   std::shared_ptr<IExportWriter> writer_;
   std::string extension_name_;
@@ -43,12 +42,12 @@ class DataExportOpr : public IOperator {
   std::vector<std::pair<int, std::string>> headers_;
 };
 
-gs::result<gs::runtime::Context> DataExportOpr::Eval(
+neug::result<neug::runtime::Context> DataExportOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    gs::runtime::Context&& ctx, gs::runtime::OprTimer* timer) {
+    neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) {
   const auto& graph =
       dynamic_cast<const StorageReadInterface&>(graph_interface);
-  writer_ = gs::runtime::ExportWriterFactory::CreateExportWriter(
+  writer_ = neug::runtime::ExportWriterFactory::CreateExportWriter(
       extension_name_, file_path_, headers_, options_);
   std::vector<std::shared_ptr<IContextColumn>> columns;
   for (size_t i = 0; i < headers_.size(); i++) {
@@ -61,11 +60,11 @@ gs::result<gs::runtime::Context> DataExportOpr::Eval(
   for (size_t i = 0; i < headers_.size(); i++) {
     ctx.remove(headers_[i].first);
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> DataExportOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> DataExportOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto& data_export_opr = plan.plan(op_idx).opr().data_export();
@@ -91,4 +90,4 @@ gs::result<OpBuildResultT> DataExportOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

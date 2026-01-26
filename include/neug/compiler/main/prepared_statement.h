@@ -31,7 +31,7 @@
 #include "neug/utils/api.h"
 #include "query_summary.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 /**
@@ -85,4 +85,4 @@ class PreparedStatement {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

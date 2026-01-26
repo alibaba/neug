@@ -26,7 +26,7 @@
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <typename FileSystem>
@@ -65,4 +65,4 @@ struct ReadFunction : public TableFunction {
       : TableFunction{std::move(name), std::move(inputTypes)} {}
 };
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

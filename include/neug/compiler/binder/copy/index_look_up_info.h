@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct IndexLookupInfo {
@@ -45,4 +45,4 @@ struct IndexLookupInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

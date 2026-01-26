@@ -5,7 +5,7 @@
 #include "neug/compiler/binder/query/query_graph.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 const uint64_t MAX_LEVEL_TO_PLAN_EXACTLY = 7;
@@ -103,4 +103,4 @@ class SubPlansTable {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -46,7 +46,7 @@ using apsara::odps::sdk::storage_api::WriteRowsReq;
 using apsara::odps::sdk::storage_api::arrow_adapter::ArrowClient;
 using apsara::odps::sdk::storage_api::arrow_adapter::Reader;
 
-namespace gs {
+namespace neug {
 
 class ODPSReadClient {
  public:
@@ -194,4 +194,4 @@ class ODPSFragmentLoader : public AbstractPropertyGraphLoader {
   static const bool registered_;
 };
 
-}  // namespace gs
+}  // namespace neug

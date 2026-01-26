@@ -26,7 +26,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/enums/statement_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundStatement {
@@ -62,4 +62,4 @@ class BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

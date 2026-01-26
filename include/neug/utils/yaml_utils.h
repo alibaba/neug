@@ -26,7 +26,7 @@ namespace YAML {
 class Emitter;
 }  // namespace YAML
 
-namespace gs {
+namespace neug {
 
 enum class DataTypeId : uint8_t;
 
@@ -91,4 +91,4 @@ static bool expect_config(YAML::Node root, const std::string& key,
 }
 
 }  // namespace config_parsing
-}  // namespace gs
+}  // namespace neug

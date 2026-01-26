@@ -4,7 +4,7 @@
 #include "neug/compiler/common/enums/extend_direction.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct BaseLogicalExtendPrintInfo : OPPrintInfo {
@@ -93,4 +93,4 @@ class BaseLogicalExtend : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -20,7 +20,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 // For different input format, we should implement different fragment loader.
 class IFragmentLoader {
@@ -29,4 +29,4 @@ class IFragmentLoader {
   virtual result<bool> LoadFragment() = 0;
 };
 
-}  // namespace gs
+}  // namespace neug

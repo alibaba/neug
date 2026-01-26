@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/utils.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 uint64_t nextPowerOfTwo(uint64_t v) {
@@ -86,4 +86,4 @@ bool integerFitsIn<uint8_t>(int64_t val) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

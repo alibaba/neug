@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/query/updating_clause/bound_set_info.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalSetProperty final : public LogicalOperator {
@@ -40,4 +40,4 @@ class LogicalSetProperty final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

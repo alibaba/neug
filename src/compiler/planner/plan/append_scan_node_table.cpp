@@ -2,10 +2,10 @@
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static expression_vector removeInternalIDProperty(
@@ -34,4 +34,4 @@ void Planner::appendScanNodeTable(std::shared_ptr<Expression> nodeID,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -42,10 +42,9 @@ class GetVFromVerticesOpr : public IOperator {
     return "GetVFromVerticesOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     GeneralVertexPredicate pred(graph, ctx, params, opr_.params().predicate());
@@ -65,10 +64,9 @@ class GetVFromEdgesOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (opr_.params().has_predicate()) {
@@ -87,8 +85,8 @@ class GetVFromEdgesOpr : public IOperator {
   GetVParams v_params_;
 };
 
-gs::result<OpBuildResultT> VertexOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> VertexOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& vertex = plan.plan(op_idx).opr().vertex();
 
@@ -149,4 +147,4 @@ gs::result<OpBuildResultT> VertexOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

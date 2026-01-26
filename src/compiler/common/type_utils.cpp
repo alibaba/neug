@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string TypeUtils::entryToString(const LogicalType& dataType,
@@ -326,4 +326,4 @@ std::string TypeUtils::toString(const union_entry_t& val, void* valVector) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

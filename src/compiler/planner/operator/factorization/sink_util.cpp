@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/factorization/sink_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void SinkOperatorUtil::mergeSchema(
@@ -70,4 +70,4 @@ uint32_t SinkOperatorUtil::appendPayloadsToNewGroup(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

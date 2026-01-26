@@ -50,11 +50,11 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
-using namespace gs::common;
-using namespace gs::parser;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::parser;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static void validatePropertyName(
@@ -527,4 +527,4 @@ std::unique_ptr<BoundStatement> Binder::bindCommentOn(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class FilterPushDownPattern : public LogicalOperatorVisitor {
@@ -55,4 +55,4 @@ class FilterPushDownPattern : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

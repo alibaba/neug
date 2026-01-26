@@ -15,7 +15,7 @@
 
 #include "neug/execution/execute/ops/retrieve/group_by_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 bool BuildGroupByUtils(const physical::GroupBy& group_by,
@@ -49,4 +49,4 @@ bool BuildGroupByUtils(const physical::GroupBy& group_by,
 }  // namespace ops
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

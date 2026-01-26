@@ -25,7 +25,7 @@
 
 #include "glog/logging.h"
 
-namespace gs {
+namespace neug {
 // clang-format off
 /*
     ├── schema
@@ -246,4 +246,4 @@ inline std::string wal_ingest_allocator_prefix(const std::string& work_dir,
          std::to_string(thread_id) + "_";
 }
 
-}  // namespace gs
+}  // namespace neug

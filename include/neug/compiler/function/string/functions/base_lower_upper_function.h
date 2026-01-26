@@ -26,7 +26,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct BaseLowerUpperFunction {
@@ -43,4 +43,4 @@ struct BaseLowerUpperFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

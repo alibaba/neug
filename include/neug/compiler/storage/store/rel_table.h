@@ -25,7 +25,7 @@
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/storage/store/table.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -66,4 +66,4 @@ class NEUG_API RelTable : public Table {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

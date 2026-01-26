@@ -20,7 +20,7 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 // c++ operator precedence
@@ -131,4 +131,4 @@ bool GPrecedence::needBrace(const binder::Expression& parent,
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

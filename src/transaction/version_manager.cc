@@ -23,7 +23,7 @@
 #include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 
 constexpr static uint32_t ring_buf_size = 1024 * 1024;
 constexpr static uint32_t ring_index_mask = ring_buf_size - 1;
@@ -228,4 +228,4 @@ bool TPVersionManager::revert_update_timestamp(uint32_t ts) {
   return false;
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/aggregate_function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct BaseCountFunction {
@@ -58,4 +58,4 @@ struct BaseCountFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

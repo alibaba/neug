@@ -34,11 +34,11 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/main/client_context.h"
 
-using namespace gs::common;
-using namespace gs::binder;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::binder;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Label {
@@ -167,4 +167,4 @@ function_set LabelFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

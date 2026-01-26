@@ -68,11 +68,11 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/schema.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 GQueryConvertor::GQueryConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                                 gs::catalog::Catalog* catalog)
+                                 neug::catalog::Catalog* catalog)
     : ddlConverter(aliasManager, catalog),
       aliasManager(aliasManager),
       catalog(catalog),
@@ -467,7 +467,7 @@ std::unique_ptr<::physical::PathExpand_ExpandBase>
 GQueryConvertor::convertPathBase(
     const planner::LogicalRecursiveExtend& extend) {
   switch (extend.getFusionType()) {
-  case gs::optimizer::FusionType::EXPANDE_GETV: {
+  case neug::optimizer::FusionType::EXPANDE_GETV: {
     auto pathBasePB = std::make_unique<::physical::PathExpand_ExpandBase>();
     pathBasePB->set_allocated_edge_expand(
         convertExtendBase(extend, planner::EDGE).release());
@@ -476,7 +476,7 @@ GQueryConvertor::convertPathBase(
             .release());
     return pathBasePB;
   }
-  case gs::optimizer::FusionType::EXPANDV: {
+  case neug::optimizer::FusionType::EXPANDV: {
     auto pathBasePB = std::make_unique<::physical::PathExpand_ExpandBase>();
     pathBasePB->set_allocated_edge_expand(
         convertExtendBase(extend, planner::VERTEX).release());
@@ -518,13 +518,13 @@ GQueryConvertor::convertPathBase(
 }
 
 ::physical::PathExpand_ResultOpt GQueryConvertor::convertResultOpt(
-    gs::planner::ResultOpt resultOpt) {
+    neug::planner::ResultOpt resultOpt) {
   switch (resultOpt) {
-  case gs::planner::ResultOpt::ALL_V:
+  case neug::planner::ResultOpt::ALL_V:
     return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V;
-  case gs::planner::ResultOpt::END_V:
+  case neug::planner::ResultOpt::END_V:
     return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_END_V;
-  case gs::planner::ResultOpt::ALL_V_E:
+  case neug::planner::ResultOpt::ALL_V_E:
   default:
     return ::physical::PathExpand_ResultOpt::PathExpand_ResultOpt_ALL_V_E;
   }
@@ -544,7 +544,7 @@ std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
         "Skip and limit must be literal expressions.");
   }
   uint64_t skipValue = 0;
-  uint64_t limitValue = gs::Constants::MAX_UPPER_BOUND;
+  uint64_t limitValue = neug::Constants::MAX_UPPER_BOUND;
   if (skip) {
     auto valueExpr = skip->ptrCast<binder::LiteralExpression>()->getValue();
     skipValue = convertValueAsUint64(valueExpr);
@@ -559,14 +559,14 @@ std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
 std::unique_ptr<::algebra::Range> GQueryConvertor::convertRange(
     uint64_t skip, uint64_t limit) {
   auto rangePB = std::make_unique<::algebra::Range>();
-  if (skip > gs::Constants::MAX_UPPER_BOUND) {
+  if (skip > neug::Constants::MAX_UPPER_BOUND) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Skip value exceeds maximum allowed value: " +
-        std::to_string(gs::Constants::MAX_UPPER_BOUND));
+        std::to_string(neug::Constants::MAX_UPPER_BOUND));
   }
   int32_t upper = 0;
-  if (limit > gs::Constants::MAX_UPPER_BOUND - skip) {
-    upper = gs::Constants::MAX_UPPER_BOUND;
+  if (limit > neug::Constants::MAX_UPPER_BOUND - skip) {
+    upper = neug::Constants::MAX_UPPER_BOUND;
   } else {
     upper = static_cast<int32_t>(skip + limit);
   }
@@ -1331,7 +1331,7 @@ void GQueryConvertor::convertBatchInsertEdge(
         std::to_string(columnIdMap.size()) + ") and number of input columns (" +
         std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
   }
-  gs::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
+  neug::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
                                     relEntry->getSrcTableID(),
                                     relEntry->getDstTableID());
   auto batchEdge = std::make_unique<::physical::BatchInsertEdge>();
@@ -1801,13 +1801,13 @@ void GQueryConvertor::convertHashJoin(const planner::LogicalHashJoin& join,
 
 std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
     common::table_id_t labelId) {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto table = catalog->getTableCatalogEntry(&transaction, labelId);
   if (!table) {
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table not found: " +
                                    std::to_string(labelId));
   }
-  auto nodeTable = table->constPtrCast<gs::catalog::NodeTableCatalogEntry>();
+  auto nodeTable = table->constPtrCast<neug::catalog::NodeTableCatalogEntry>();
   if (!nodeTable) {
     THROW_EXCEPTION_WITH_FILE_LINE("Source vertex table is not a node table: " +
                                    table->getName());
@@ -1820,7 +1820,7 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(
-      std::move(gs::common::LogicalType(gs::common::LogicalTypeID::ANY)), pk,
+      std::move(neug::common::LogicalType(neug::common::LogicalTypeID::ANY)), pk,
       pk);
 }
 
@@ -1856,7 +1856,7 @@ void GQueryConvertor::convertBatchInsertVertex(
 std::string GQueryConvertor::getExtensionName(
     const planner::LogicalCopyTo& copyTo) {
   auto exportFunc = copyTo.getExportFunc();
-  if (exportFunc.name == gs::function::ExportCSVFunction::name) {
+  if (exportFunc.name == neug::function::ExportCSVFunction::name) {
     return "csv";
   } else {
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported export function: " +
@@ -1953,7 +1953,7 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
 void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
                                     ::physical::PhysicalPlan* plan) {
   auto exportFunc = copyTo.getExportFunc();
-  if (exportFunc.name == gs::function::ExportCSVFunction::name) {
+  if (exportFunc.name == neug::function::ExportCSVFunction::name) {
     convertDataExport(copyTo, plan);
   } else {
     convertProcedureCall(copyTo, plan);
@@ -2133,4 +2133,4 @@ GQueryConvertor::convertPropMapping(const std::string& propertyName,
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

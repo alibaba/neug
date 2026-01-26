@@ -6,9 +6,9 @@
 #include "neug/compiler/planner/join_order/join_order_util.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 uint64_t CostModel::computeExtendCost(const LogicalPlan& childPlan) {
@@ -45,7 +45,7 @@ uint64_t CostModel::computeMarkJoinCost(
 }
 
 uint64_t CostModel::computeIntersectCost(
-    const gs::planner::LogicalPlan& probePlan,
+    const neug::planner::LogicalPlan& probePlan,
     const std::vector<std::unique_ptr<LogicalPlan>>& buildPlans) {
   uint64_t cost = 0ul;
   cost += probePlan.getCost();
@@ -60,7 +60,7 @@ uint64_t CostModel::computeIntersectCost(
 }
 
 cardinality_t CostModel::estimateIntersectCostByCard(
-    const gs::planner::LogicalPlan& probePlan,
+    const neug::planner::LogicalPlan& probePlan,
     const std::vector<cardinality_t>& buildCards) {
   uint64_t cost = 0ul;
   cost += probePlan.getCost();
@@ -91,4 +91,4 @@ uint64_t CostModel::computeGetVCost(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

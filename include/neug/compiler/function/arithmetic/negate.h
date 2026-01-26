@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Negate {
@@ -47,4 +47,4 @@ template <>
 void Negate::operation(int64_t& input, int64_t& result);
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

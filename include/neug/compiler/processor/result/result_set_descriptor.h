@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 class Schema;
 }  // namespace planner
@@ -60,4 +60,4 @@ struct NEUG_API ResultSetDescriptor {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

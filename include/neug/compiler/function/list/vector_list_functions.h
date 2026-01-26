@@ -25,7 +25,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListCreationFunction {
@@ -64,4 +64,4 @@ struct ListHasFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

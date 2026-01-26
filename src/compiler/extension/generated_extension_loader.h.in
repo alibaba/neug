@@ -5,10 +5,10 @@
 @INCLUDES@
     //clang-format on
 
-    namespace gs {
+    namespace neug {
   namespace extension {
 
   void loadLinkedExtensions(main::ClientContext* context);
 
   }  // namespace extension
-}  // namespace gs
+}  // namespace neug

@@ -2,7 +2,7 @@
 
 #include "neug/compiler/binder/expression/expression_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalPrimaryKeyLookup::getExpressionsForPrinting() const {
@@ -32,4 +32,4 @@ void LogicalPrimaryKeyLookup::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

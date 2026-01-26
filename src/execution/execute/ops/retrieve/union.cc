@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -36,15 +36,14 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
-    std::vector<gs::runtime::Context> ctxs;
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+    std::vector<neug::runtime::Context> ctxs;
     for (auto& plan : sub_plans_) {
-      gs::runtime::Context n_ctx = ctx;
-      std::unique_ptr<gs::runtime::OprTimer> sub_timer =
-          (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+      neug::runtime::Context n_ctx = ctx;
+      std::unique_ptr<neug::runtime::OprTimer> sub_timer =
+          (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
                              : nullptr;
       auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
       if (NEUG_UNLIKELY(timer != nullptr)) {
@@ -61,8 +60,8 @@ class UnionOpr : public IOperator {
  private:
   std::vector<Pipeline> sub_plans_;
 };
-gs::result<OpBuildResultT> UnionOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> UnionOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<Pipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
@@ -85,4 +84,4 @@ gs::result<OpBuildResultT> UnionOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -3,7 +3,7 @@
 
 #include "re2/include/unicode_groups.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 static const URange16 code1[] = {
@@ -132,4 +132,4 @@ const UGroup posix_groups[] = {
 const int num_posix_groups = 28;
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

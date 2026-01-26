@@ -26,7 +26,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Value;
@@ -39,4 +39,4 @@ class NestedVal {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

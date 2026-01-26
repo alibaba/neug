@@ -41,20 +41,21 @@ class VertexTableBenchmark : public ::testing::Test {
 
     // Setup vertex table with three properties
     v_label_name_ = "person";
-    pk_type_ = gs::DataTypeId::kInt64;
+    pk_type_ = neug::DataTypeId::kInt64;
 
     property_names_ = {"name", "age", "score"};
-    property_types_ = {gs::DataTypeId::kVarchar, gs::DataTypeId::kInt32,
-                       gs::DataTypeId::kDouble};
-    property_values_ = {gs::Property::from_string_view("Alice"),
-                        gs::Property::from_int32(30),
-                        gs::Property::from_double(88.5)};
-    storage_strategies_ = {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem,
-                           gs::StorageStrategy::kMem};
-    pk_types_ = {{gs::DataTypeId::kVarchar, "name", 0}};
+    property_types_ = {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32,
+                       neug::DataTypeId::kDouble};
+    property_values_ = {neug::Property::from_string_view("Alice"),
+                        neug::Property::from_int32(30),
+                        neug::Property::from_double(88.5)};
+    storage_strategies_ = {neug::StorageStrategy::kMem,
+                           neug::StorageStrategy::kMem,
+                           neug::StorageStrategy::kMem};
+    pk_types_ = {{neug::DataTypeId::kVarchar, "name", 0}};
     property_extra_infos_ = {};
     description = "Person vertex label";
-    v_schema_ = std::make_shared<gs::VertexSchema>(
+    v_schema_ = std::make_shared<neug::VertexSchema>(
         v_label_name_, property_types_, property_names_, pk_types_,
         storage_strategies_, default_prop_values_, property_extra_infos_,
         description);
@@ -69,22 +70,22 @@ class VertexTableBenchmark : public ::testing::Test {
     }
   }
 
-  void CreateAndOpenVertexTable(gs::VertexTable& table) {
+  void CreateAndOpenVertexTable(neug::VertexTable& table) {
     // Open the vertex table
     table.Open(test_dir_, 1, true);  // memory_level=1 for in-memory
   }
 
-  void AddVerticesWithProperties(gs::VertexTable& table, size_t count) {
+  void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
     table.Reserve(count);
     std::uniform_int_distribution<int> age_dist(18, 80);
     std::uniform_real_distribution<double> score_dist(0.0, 100.0);
 
     for (size_t i = 0; i < count; ++i) {
       // Add vertex with integer ID
-      gs::Property vertex_id;
+      neug::Property vertex_id;
       vertex_id.set_int64(static_cast<int64_t>(i));
 
-      gs::vid_t vid;
+      neug::vid_t vid;
       EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
       EXPECT_EQ(vid, i);
       if (i % (count / 100) == 0) {
@@ -94,25 +95,25 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
   void BulkLoadVertices(
-      gs::VertexTable& table,
-      std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier) {
+      neug::VertexTable& table,
+      std::shared_ptr<neug::IRecordBatchSupplier> batch_supplier) {
     table.insert_vertices(batch_supplier);
   }
 
-  void BatchDeleteVertices(gs::VertexTable& table, size_t delete_count) {
+  void BatchDeleteVertices(neug::VertexTable& table, size_t delete_count) {
     size_t current_vertex_num = table.VertexNum();
     if (delete_count > current_vertex_num) {
       delete_count = current_vertex_num;
     }
 
-    std::vector<gs::vid_t> vids_to_delete;
-    std::uniform_int_distribution<gs::vid_t> vid_dist(0,
-                                                      current_vertex_num - 1);
-    std::unordered_set<gs::vid_t> unique_vids;
+    std::vector<neug::vid_t> vids_to_delete;
+    std::uniform_int_distribution<neug::vid_t> vid_dist(0,
+                                                        current_vertex_num - 1);
+    std::unordered_set<neug::vid_t> unique_vids;
 
     while (unique_vids.size() < delete_count) {
-      gs::vid_t vid = vid_dist(generator_);
-      if (table.IsValidLid(vid, gs::MAX_TIMESTAMP)) {
+      neug::vid_t vid = vid_dist(generator_);
+      if (table.IsValidLid(vid, neug::MAX_TIMESTAMP)) {
         unique_vids.insert(vid);
       }
     }
@@ -121,10 +122,10 @@ class VertexTableBenchmark : public ::testing::Test {
     table.BatchDeleteVertices(vids_to_delete);
   }
 
-  std::vector<gs::vid_t> GenerateRandomVertexIds(
-      const gs::VertexTable& vertex_table, size_t count, size_t max_id) {
-    std::vector<gs::vid_t> ids;
-    std::uniform_int_distribution<gs::vid_t> id_dist(0, max_id - 1);
+  std::vector<neug::vid_t> GenerateRandomVertexIds(
+      const neug::VertexTable& vertex_table, size_t count, size_t max_id) {
+    std::vector<neug::vid_t> ids;
+    std::uniform_int_distribution<neug::vid_t> id_dist(0, max_id - 1);
 
     while (ids.size() < count) {
       auto vid = id_dist(generator_);
@@ -135,14 +136,14 @@ class VertexTableBenchmark : public ::testing::Test {
     return ids;
   }
 
-  std::vector<gs::Property> GenerateRandomOids(
-      const gs::VertexTable& vertex_table, size_t count, size_t max_id) {
-    std::vector<gs::Property> oids;
+  std::vector<neug::Property> GenerateRandomOids(
+      const neug::VertexTable& vertex_table, size_t count, size_t max_id) {
+    std::vector<neug::Property> oids;
     std::uniform_int_distribution<int64_t> oid_dist(0, max_id - 1);
 
-    gs::vid_t lid;
+    neug::vid_t lid;
     while (oids.size() < count) {
-      gs::Property oid;
+      neug::Property oid;
       auto oid_value = oid_dist(generator_);
       oid.set_int64(oid_value);
       if (vertex_table.get_index(oid, lid)) {
@@ -160,15 +161,15 @@ class VertexTableBenchmark : public ::testing::Test {
  protected:
   std::string test_dir_;
   std::string v_label_name_;
-  gs::DataTypeId pk_type_;
+  neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
-  std::vector<gs::DataTypeId> property_types_;
-  std::vector<gs::Property> property_values_;
-  std::vector<gs::StorageStrategy> storage_strategies_;
-  std::vector<gs::Property> default_prop_values_;
-  std::shared_ptr<gs::VertexSchema> v_schema_;
-  std::vector<std::tuple<gs::DataTypeId, std::string, size_t>> pk_types_;
-  std::vector<std::shared_ptr<gs::ExtraTypeInfo>> property_extra_infos_;
+  std::vector<neug::DataTypeId> property_types_;
+  std::vector<neug::Property> property_values_;
+  std::vector<neug::StorageStrategy> storage_strategies_;
+  std::vector<neug::Property> default_prop_values_;
+  std::shared_ptr<neug::VertexSchema> v_schema_;
+  std::vector<std::tuple<neug::DataTypeId, std::string, size_t>> pk_types_;
+  std::vector<std::shared_ptr<neug::ExtraTypeInfo>> property_extra_infos_;
   std::string description;
   std::mt19937 generator_;
 };
@@ -176,7 +177,7 @@ class VertexTableBenchmark : public ::testing::Test {
 TEST_F(VertexTableBenchmark, AddVertexPerformance) {
   const size_t vertex_count = 1000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
   CreateAndOpenVertexTable(table);
   table.Reserve(vertex_count);
 
@@ -184,9 +185,9 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
 
   // Add vertices
   for (size_t i = 0; i < vertex_count; ++i) {
-    gs::Property vertex_id;
+    neug::Property vertex_id;
     vertex_id.set_int64(static_cast<int64_t>(i));
-    gs::vid_t vid;
+    neug::vid_t vid;
     EXPECT_TRUE(table.AddVertex(vertex_id, property_values_, vid, i));
   }
 
@@ -208,7 +209,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   LOG(INFO) << "Finish Open table";
@@ -227,7 +228,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Warm up
   for (auto vid : random_vids) {
-    gs::Property oid = table.GetOid(vid, gs::MAX_TIMESTAMP);
+    neug::Property oid = table.GetOid(vid, neug::MAX_TIMESTAMP);
     (void) oid;  // Avoid unused variable warning
   }
   LOG(INFO) << "Warm-up completed";
@@ -236,7 +237,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
 
   // Perform GetOid operations
   for (auto vid : random_vids) {
-    gs::Property oid = table.GetOid(vid);
+    neug::Property oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
 
@@ -253,7 +254,7 @@ TEST_F(VertexTableBenchmark, GetOidPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (auto vid : random_vids_after_delete) {
-    gs::Property oid = table.GetOid(vid);
+    neug::Property oid = table.GetOid(vid);
     (void) oid;  // Avoid unused variable warning
   }
   auto end2 = std::chrono::high_resolution_clock::now();
@@ -276,7 +277,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
   const size_t vertex_count = 100000000;
   const size_t lookup_count = 25000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -287,8 +288,8 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
 
   // Warm up
   for (const auto& oid : random_oids) {
-    gs::vid_t lid;
-    bool found = table.get_index(oid, lid, gs::MAX_TIMESTAMP);
+    neug::vid_t lid;
+    bool found = table.get_index(oid, lid, neug::MAX_TIMESTAMP);
     (void) found;  // Avoid unused variable warning
     (void) lid;    // Avoid unused variable warning
   }
@@ -298,7 +299,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
 
   // Perform get_index operations
   for (const auto& oid : random_oids) {
-    gs::vid_t lid;
+    neug::vid_t lid;
     bool found = table.get_index(oid, lid);
     (void) found;  // Avoid unused variable warning
     (void) lid;    // Avoid unused variable warning
@@ -315,7 +316,7 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
   auto start2 = std::chrono::high_resolution_clock::now();
 
   for (const auto& oid : random_oids) {
-    gs::vid_t lid;
+    neug::vid_t lid;
     bool found = table.get_index(oid, lid);
     (void) found;  // Avoid unused variable warning
     (void) lid;    // Avoid unused variable warning
@@ -342,17 +343,17 @@ TEST_F(VertexTableBenchmark, GetIndexPerformance) {
 TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   const size_t vertex_count = 100000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
 
   {
-    auto vertex_set = table.GetVertexSet(gs::MAX_TIMESTAMP);
+    auto vertex_set = table.GetVertexSet(neug::MAX_TIMESTAMP);
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    gs::vid_t res = 0;
+    neug::vid_t res = 0;
     for (auto vid : vertex_set) {
       res = res | vid;
     }
@@ -367,11 +368,11 @@ TEST_F(VertexTableBenchmark, VertexSetPerformance) {
   }
   BatchDeleteVertices(table, 25000);
   {
-    auto vertex_set = table.GetVertexSet(gs::MAX_TIMESTAMP);
+    auto vertex_set = table.GetVertexSet(neug::MAX_TIMESTAMP);
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    gs::vid_t res = 0;
+    neug::vid_t res = 0;
     for (auto vid : vertex_set) {
       res = res | vid;
     }
@@ -393,7 +394,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
   const size_t vertex_count = 100000000;
   const size_t operation_count = 25000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
   AddVerticesWithProperties(table, vertex_count);
@@ -414,14 +415,14 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
     switch (op) {
     case 0: {
       // GetOid operation
-      gs::Property oid = table.GetOid(random_vids[i]);
+      neug::Property oid = table.GetOid(random_vids[i]);
       (void) oid;
       break;
     }
     case 1: {
       // get_index operation
-      gs::vid_t lid;
-      bool found = table.get_index(random_oids[i], lid, gs::MAX_TIMESTAMP);
+      neug::vid_t lid;
+      bool found = table.get_index(random_oids[i], lid, neug::MAX_TIMESTAMP);
       (void) found;
       (void) lid;
       break;
@@ -444,7 +445,7 @@ TEST_F(VertexTableBenchmark, MixedOperationsPerformance) {
 TEST_F(VertexTableBenchmark, BulkLoadTest) {
   const size_t vertex_count = 100000000;
 
-  gs::VertexTable table(v_schema_);
+  neug::VertexTable table(v_schema_);
 
   CreateAndOpenVertexTable(table);
 
@@ -466,7 +467,7 @@ TEST_F(VertexTableBenchmark, BulkLoadTest) {
   auto record_batches = convert_to_record_batches(
       {"id", "name", "age", "score"},
       {oid_array, name_array, age_array, score_array});
-  std::shared_ptr<gs::IRecordBatchSupplier> batch_supplier =
+  std::shared_ptr<neug::IRecordBatchSupplier> batch_supplier =
       std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
 
   auto start = std::chrono::high_resolution_clock::now();

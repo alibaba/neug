@@ -24,14 +24,13 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // Note that this class is NOT thread-safe.
 class SemiMask {
  public:
-  explicit SemiMask(offset_t maxOffset)
-      : maxOffset{maxOffset}, enabled{false} {}
+  explicit SemiMask(offset_t maxOffset) : maxOffset{maxOffset}, enabled{false} {}
 
   virtual ~SemiMask() = default;
 
@@ -76,9 +75,7 @@ class NodeOffsetMaskMap {
     return result;
   }
 
-  bool containsTableID(table_id_t tableID) const {
-    return maskMap.contains(tableID);
-  }
+  bool containsTableID(table_id_t tableID) const { return maskMap.contains(tableID); }
   SemiMask* getOffsetMask(table_id_t tableID) const {
     NEUG_ASSERT(containsTableID(tableID));
     return maskMap.at(tableID).get();
@@ -109,4 +106,4 @@ class NodeOffsetMaskMap {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

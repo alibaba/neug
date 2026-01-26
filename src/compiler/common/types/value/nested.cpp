@@ -25,7 +25,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 uint32_t NestedVal::getChildrenSize(const Value* val) {
@@ -40,4 +40,4 @@ Value* NestedVal::getChildVal(const Value* val, uint32_t idx) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

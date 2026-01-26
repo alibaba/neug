@@ -43,7 +43,7 @@
 #include "neug/utils/file_utils.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 class Connection;
 static void IngestWalRange(PropertyGraph& graph,
@@ -127,7 +127,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!file_lock_->lock(work_dir_, config.mode)) {
     THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
   }
-  gs::runtime::PlanParser::get().init();
+  neug::runtime::PlanParser::get().init();
   initAllocators();
   openGraphAndSchema();
   ingestWals();
@@ -243,7 +243,7 @@ void NeugDB::openGraphAndSchema() {
 
 void NeugDB::ingestWals() {
   auto wal_uri = parse_wal_uri(config_.wal_uri, work_dir_);
-  gs::WalParserFactory::Init();
+  neug::WalParserFactory::Init();
   auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
   ingestWals(*wal_parser, work_dir_);
 }
@@ -305,4 +305,4 @@ void NeugDB::createCheckpoint(bool force_compaction) {
   VLOG(1) << "Finish checkpoint";
 }
 
-}  // namespace gs
+}  // namespace neug

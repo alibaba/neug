@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 namespace ops {
@@ -29,10 +29,10 @@ class RenameEdgePropertyOprBuilder : public IOperatorBuilder {
  public:
   RenameEdgePropertyOprBuilder() = default;
   ~RenameEdgePropertyOprBuilder() = default;
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_id) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_id) override;
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
     return {
@@ -44,4 +44,4 @@ class RenameEdgePropertyOprBuilder : public IOperatorBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

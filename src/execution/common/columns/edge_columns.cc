@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/columns/edge_columns.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -353,4 +353,4 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/types/int128_t.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Abs {
@@ -56,4 +56,4 @@ template <>
 void Abs::operation(common::int128_t& input, common::int128_t& result);
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

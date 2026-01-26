@@ -35,8 +35,8 @@ class InsertTransactionTest : public ::testing::Test {
     }
     std::filesystem::create_directories(db_dir);
 
-    gs::NeugDB db;
-    gs::NeugDBConfig config(db_dir);
+    neug::NeugDB db;
+    neug::NeugDBConfig config(db_dir);
     config.memory_level = 1;
     config.checkpoint_on_close = true;
     db.Open(db_dir);
@@ -79,20 +79,21 @@ class InsertTransactionTest : public ::testing::Test {
     }
   }
 
-  size_t count_vertices(const gs::StorageReadInterface& gi, gs::label_t label) {
+  size_t count_vertices(const neug::StorageReadInterface& gi,
+                        neug::label_t label) {
     size_t vertex_count = 0;
     auto v_set = gi.GetVertexSet(label);
-    v_set.foreach_vertex([&](gs::vid_t vid) { vertex_count++; });
+    v_set.foreach_vertex([&](neug::vid_t vid) { vertex_count++; });
     return vertex_count;
   }
 };
 
 TEST_F(InsertTransactionTest, InsertTransactionBasic) {
-  gs::NeugDB db;
-  gs::NeugDBConfig config(db_dir);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetInsertTransaction();
@@ -102,27 +103,27 @@ TEST_F(InsertTransactionTest, InsertTransactionBasic) {
 }
 
 TEST_F(InsertTransactionTest, AddVertex) {
-  gs::NeugDB db;
-  gs::NeugDBConfig config(db_dir);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetInsertTransaction();
-    gs::StorageTPInsertInterface interface(txn);
+    neug::StorageTPInsertInterface interface(txn);
     auto person_label = interface.schema().get_vertex_label_id("person");
-    gs::vid_t vid;
-    EXPECT_TRUE(interface.AddVertex(
-        person_label, gs::Property::from_int64(3),
-        {gs::Property::from_string_view("Eve"), gs::Property::from_int64(28)},
-        vid));
+    neug::vid_t vid;
+    EXPECT_TRUE(interface.AddVertex(person_label, neug::Property::from_int64(3),
+                                    {neug::Property::from_string_view("Eve"),
+                                     neug::Property::from_int64(28)},
+                                    vid));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     EXPECT_EQ(count_vertices(gi, person_label), 3);
   }
@@ -130,33 +131,33 @@ TEST_F(InsertTransactionTest, AddVertex) {
 }
 
 TEST_F(InsertTransactionTest, AddEdge) {
-  gs::NeugDB db;
-  gs::NeugDBConfig config(db_dir);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetInsertTransaction();
-    gs::StorageTPInsertInterface interface(txn);
+    neug::StorageTPInsertInterface interface(txn);
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto software_label = txn.schema().get_vertex_label_id("software");
     auto created_label = txn.schema().get_edge_label_id("created");
-    gs::vid_t vid;
+    neug::vid_t vid;
     EXPECT_TRUE(
-        txn.GetVertexIndex(person_label, gs::Property::from_int64(1), vid));
-    gs::vid_t vid2;
-    EXPECT_TRUE(
-        txn.GetVertexIndex(software_label, gs::Property::from_int64(2), vid2));
+        txn.GetVertexIndex(person_label, neug::Property::from_int64(1), vid));
+    neug::vid_t vid2;
+    EXPECT_TRUE(txn.GetVertexIndex(software_label,
+                                   neug::Property::from_int64(2), vid2));
     EXPECT_TRUE(interface.AddEdge(
         person_label, vid, software_label, vid2, created_label,
-        {gs::Property::from_double(0.9), gs::Property::from_int64(2022)}));
+        {neug::Property::from_double(0.9), neug::Property::from_int64(2022)}));
     EXPECT_TRUE(txn.Commit());
   }
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
-    gs::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
     auto created_label = gi.schema().get_edge_label_id("created");
@@ -165,7 +166,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
 
     size_t edge_count = 0;
     auto vertex_set = gi.GetVertexSet(person_label);
-    for (gs::vid_t vid : vertex_set) {
+    for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
       if (oid.as_int64() == 1) {
         auto edge_iter = view.get_edges(vid);
@@ -180,22 +181,22 @@ TEST_F(InsertTransactionTest, AddEdge) {
 }
 
 TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
-  gs::NeugDB db;
-  gs::NeugDBConfig config(db_dir);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
   config.memory_level = 1;
   db.Open(config);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
 
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetInsertTransaction();
-    gs::StorageTPInsertInterface interface(txn);
-    std::vector<gs::vid_t> vids;
-    std::vector<std::tuple<gs::vid_t, gs::vid_t>> edges;
-    std::vector<std::pair<gs::vid_t, int32_t>> oe_edges, ie_edges;
+    neug::StorageTPInsertInterface interface(txn);
+    std::vector<neug::vid_t> vids;
+    std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges;
+    std::vector<std::pair<neug::vid_t, int32_t>> oe_edges, ie_edges;
     EXPECT_EQ(interface.BatchAddVertices(0, nullptr).error_code(),
-              gs::StatusCode::ERR_NOT_SUPPORTED);
+              neug::StatusCode::ERR_NOT_SUPPORTED);
     EXPECT_EQ(interface.BatchAddEdges(0, 0, 0, nullptr).error_code(),
-              gs::StatusCode::ERR_NOT_SUPPORTED);
+              neug::StatusCode::ERR_NOT_SUPPORTED);
   }
 }

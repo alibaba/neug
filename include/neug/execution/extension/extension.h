@@ -20,7 +20,7 @@
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 Status install_extension(const std::string& extension_name);
@@ -39,4 +39,4 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
                                bool& checksumChecked);
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

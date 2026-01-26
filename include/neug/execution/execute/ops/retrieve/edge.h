@@ -18,7 +18,7 @@
 
 #include "neug/execution/execute/operator.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -31,10 +31,10 @@ class EdgeExpandOprBuilder : public IOperatorBuilder {
   EdgeExpandOprBuilder() = default;
   ~EdgeExpandOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -47,10 +47,10 @@ class EdgeExpandGetVOprBuilder : public IOperatorBuilder {
   EdgeExpandGetVOprBuilder() = default;
   ~EdgeExpandGetVOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -66,10 +66,10 @@ class TCOprBuilder : public IOperatorBuilder {
   TCOprBuilder() = default;
   ~TCOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -89,4 +89,4 @@ class TCOprBuilder : public IOperatorBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

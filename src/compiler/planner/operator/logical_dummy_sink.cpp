@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/logical_dummy_sink.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalDummySink::computeFactorizedSchema() {
@@ -14,4 +14,4 @@ void LogicalDummySink::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

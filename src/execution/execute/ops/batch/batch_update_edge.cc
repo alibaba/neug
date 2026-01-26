@@ -18,7 +18,7 @@
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 namespace ops {
@@ -38,16 +38,16 @@ class UpdateEdgeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateEdgeOpr"; }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   edge_data_vec_t edge_data_;
 };
 
-gs::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params, Context&& ctx,
-                                        OprTimer* timer) {
+neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
+                                          const ParamsMap& params,
+                                          Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   VLOG(10) << "Executing UpdateEdgeOpr with " << edge_data_.size()
            << " entries.";
@@ -125,10 +125,10 @@ gs::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
                                prop);
     }
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
+neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta meta = ctx_meta;
@@ -159,4 +159,4 @@ gs::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundJoinHintNode {
@@ -50,4 +50,4 @@ struct BoundJoinHintNode {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

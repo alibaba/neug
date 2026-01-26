@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/logical_create_macro.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalCreateMacroPrintInfo::toString() const {
@@ -23,4 +23,4 @@ void LogicalCreateMacro::computeFactorizedSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

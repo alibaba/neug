@@ -138,7 +138,7 @@ typedef bool utf8proc_bool;
 // #  endif
 // #endif
 
-namespace gs {
+namespace neug {
 namespace utf8proc {
 
 typedef int8_t utf8proc_int8_t;
@@ -799,5 +799,5 @@ UTF8PROC_DLLEXPORT utf8proc_uint8_t* utf8proc_NFKC_Casefold(
 // #endif
 
 }  // namespace utf8proc
-}  // namespace gs
+}  // namespace neug
 #endif

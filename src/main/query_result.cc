@@ -21,7 +21,7 @@
 #include <ostream>
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 QueryResult QueryResult::From(results::CollectiveResults&& result) {
   return QueryResult(std::move(result));
@@ -81,4 +81,4 @@ RecordLine QueryResult::operator[](int index) const {
 const std::string& QueryResult::get_result_schema() const {
   return result_.result_schema();
 }
-}  // namespace gs
+}  // namespace neug

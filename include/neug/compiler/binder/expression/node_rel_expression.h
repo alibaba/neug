@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -120,4 +120,4 @@ class NEUG_API NodeOrRelExpression : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

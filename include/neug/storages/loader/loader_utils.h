@@ -47,7 +47,7 @@ struct ReadOptions;
 }  // namespace csv
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 
 void printDiskRemaining(const std::string& path);
 
@@ -212,8 +212,8 @@ void fillEdgeReaderMeta(label_t src_label_id, label_t dst_label_id,
                         arrow::csv::ParseOptions& parse_options,
                         arrow::csv::ConvertOptions& convert_options);
 
-void set_properties_column(std::shared_ptr<gs::ColumnBase> col,
+void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids);
 
-}  // namespace gs
+}  // namespace neug

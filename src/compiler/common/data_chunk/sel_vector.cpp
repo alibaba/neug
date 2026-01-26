@@ -29,7 +29,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // NOLINTNEXTLINE(cert-err58-cpp): always evaluated at compile time, and even
@@ -70,4 +70,4 @@ std::vector<SelectionVector*> SelectionVector::fromValueVectors(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

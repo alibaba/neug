@@ -20,11 +20,11 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
-gs::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
+neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto col = ctxs.get(key);
   if (col->elem_type().id() != DataTypeId::kList) {
     LOG(ERROR) << "Unfold column type is not list";
@@ -73,7 +73,8 @@ Context unfold_list(Context&& ctx, int alias, const Expr& key) {
   return ctx;
 }
 
-gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
+neug::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key,
+                                     int alias) {
   auto type = ListType::GetChildType(key.type());
   switch (type.id()) {
 #define TYPE_DISPATCHER(enum_val, type) \
@@ -93,4 +94,4 @@ gs::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key, int alias) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

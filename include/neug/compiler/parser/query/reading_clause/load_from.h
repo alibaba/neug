@@ -27,7 +27,7 @@
 #include "neug/compiler/parser/scan_source.h"
 #include "reading_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class LoadFrom : public ReadingClause {
@@ -59,4 +59,4 @@ class LoadFrom : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

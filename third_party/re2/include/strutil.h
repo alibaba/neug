@@ -10,7 +10,7 @@
 #include "re2/include/stringpiece.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 std::string CEscape(const StringPiece& src);
@@ -20,6 +20,6 @@ void SStringPrintf(std::string* dst, const char* format, ...);
 void StringAppendF(std::string* dst, const char* format, ...);
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // UTIL_STRUTIL_H_

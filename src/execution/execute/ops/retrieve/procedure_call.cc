@@ -17,16 +17,16 @@
 #include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 class ProcedureCallOpr : public IOperator {
  private:
-  std::unique_ptr<gs::function::CallFuncInputBase> callInput;
+  std::unique_ptr<neug::function::CallFuncInputBase> callInput;
   function::NeugCallFunction* callFunction;
 
  public:
-  ProcedureCallOpr(std::unique_ptr<gs::function::CallFuncInputBase> input,
+  ProcedureCallOpr(std::unique_ptr<neug::function::CallFuncInputBase> input,
                    function::NeugCallFunction* callFunction)
       : callInput(std::move(input)), callFunction(callFunction) {}
 
@@ -34,19 +34,18 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
     return callFunction->execFunc(*callInput);
-  }
-};
+  }  // namespace ops
+};   // namespace runtime
 
-gs::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto gCatalog = catalog::GCatalogHolder::getGCatalog();
   auto procedurePB = plan.plan(op_idx).opr().procedure_call();
@@ -64,4 +63,4 @@ gs::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

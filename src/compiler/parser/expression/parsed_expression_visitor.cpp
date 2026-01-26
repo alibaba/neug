@@ -30,10 +30,10 @@
 #include "neug/compiler/parser/expression/parsed_lambda_expression.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void ParsedExpressionVisitor::visit(const ParsedExpression* expr) {
@@ -251,4 +251,4 @@ std::unique_ptr<ParsedExpression> MacroParameterReplacer::getReplace(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

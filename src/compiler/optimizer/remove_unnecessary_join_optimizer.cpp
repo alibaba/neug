@@ -25,10 +25,10 @@
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-using namespace gs::common;
-using namespace gs::planner;
+using namespace neug::common;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void RemoveUnnecessaryJoinOptimizer::rewrite(LogicalPlan* plan) {
@@ -82,4 +82,4 @@ RemoveUnnecessaryJoinOptimizer::visitHashJoinReplace(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

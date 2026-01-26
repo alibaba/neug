@@ -28,7 +28,7 @@
 #include "neug/compiler/parser/query/reading_clause/join_hint.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedSubqueryExpression : public ParsedExpression {
@@ -85,4 +85,4 @@ class ParsedSubqueryExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

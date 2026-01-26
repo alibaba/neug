@@ -51,7 +51,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace server {
+namespace neug {
 
 inline bool is_read_only(const physical::ExecutionFlag flags) {
   // Implementation to determine if the flags indicate a non-read-only operation
@@ -66,55 +66,57 @@ inline bool is_insert_only(const physical::ExecutionFlag flags) {
                              flags.checkpoint() || flags.procedure_call());
 }
 
-gs::result<std::pair<physical::PhysicalPlan, std::string>>
-compile_plan_and_check_consistency(std::shared_ptr<gs::IGraphPlanner> planner,
+neug::result<std::pair<physical::PhysicalPlan, std::string>>
+compile_plan_and_check_consistency(std::shared_ptr<neug::IGraphPlanner> planner,
                                    const std::string& query,
-                                   gs::AccessMode mode) {
+                                   neug::AccessMode mode) {
   GS_AUTO(plan_and_resschema, planner->compilePlan(query));
   const auto& flags = plan_and_resschema.first.flag();
   if (flags.batch() || flags.create_temp_table()) {
-    RETURN_ERROR(gs::Status(
-        gs::StatusCode::ERR_INVALID_ARGUMENT,
+    RETURN_ERROR(neug::Status(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
         "Batch or temporary table creation is not supported in TP service"));
   }
-  if (mode == gs::AccessMode::kRead) {
+  if (mode == neug::AccessMode::kRead) {
     if (!is_read_only(flags)) {
       RETURN_ERROR(
-          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                     "Read-only mode does not support write operations."));
+          neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                       "Read-only mode does not support write operations."));
     }
-  } else if (mode == gs::AccessMode::kInsert) {
+  } else if (mode == neug::AccessMode::kInsert) {
     if (!is_insert_only(flags)) {
-      RETURN_ERROR(gs::Status(
-          gs::StatusCode::ERR_INVALID_ARGUMENT,
+      RETURN_ERROR(neug::Status(
+          neug::StatusCode::ERR_INVALID_ARGUMENT,
           "Insert-only mode does not support read or update operations."));
     }
   }
   return plan_and_resschema;
 }
 
-gs::ReadTransaction NeugDBSession::GetReadTransaction() const {
+neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
   uint32_t ts = version_manager_->acquire_read_timestamp();
-  return gs::ReadTransaction(graph_, *version_manager_, ts);
+  return neug::ReadTransaction(graph_, *version_manager_, ts);
 }
 
-gs::InsertTransaction NeugDBSession::GetInsertTransaction() {
+neug::InsertTransaction NeugDBSession::GetInsertTransaction() {
   uint32_t ts = version_manager_->acquire_insert_timestamp();
-  return gs::InsertTransaction(graph_, alloc_, logger_, *version_manager_, ts);
+  return neug::InsertTransaction(graph_, alloc_, logger_, *version_manager_,
+                                 ts);
 }
 
-gs::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
+neug::UpdateTransaction NeugDBSession::GetUpdateTransaction() {
   uint32_t ts = version_manager_->acquire_update_timestamp();
-  return gs::UpdateTransaction(graph_, alloc_, logger_, *version_manager_, ts);
+  return neug::UpdateTransaction(graph_, alloc_, logger_, *version_manager_,
+                                 ts);
 }
 
-const gs::PropertyGraph& NeugDBSession::graph() const { return graph_; }
+const neug::PropertyGraph& NeugDBSession::graph() const { return graph_; }
 
-gs::PropertyGraph& NeugDBSession::graph() { return graph_; }
+neug::PropertyGraph& NeugDBSession::graph() { return graph_; }
 
-const gs::Schema& NeugDBSession::schema() const { return graph_.schema(); }
+const neug::Schema& NeugDBSession::schema() const { return graph_.schema(); }
 
-gs::result<results::CollectiveResults> NeugDBSession::Eval(
+neug::result<results::CollectiveResults> NeugDBSession::Eval(
     const std::string& req) {
   const auto start = std::chrono::high_resolution_clock::now();
 
@@ -123,47 +125,47 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
   document.Parse(req.c_str(), req.size());
   if (document.HasParseError()) {
     LOG(ERROR) << "The format of eval request is incorrect.";
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                            "The format of eval request is incorrect."));
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                              "The format of eval request is incorrect."));
   }
   if (document.HasMember("query") && document["query"].IsString()) {
     query = document["query"].GetString();
   }
-  gs::AccessMode access_mode = gs::AccessMode::kUnKnown;
+  AccessMode access_mode = AccessMode::kUnKnown;
   if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
-    access_mode = gs::ParseAccessMode(document["access_mode"].GetString());
+    access_mode = ParseAccessMode(document["access_mode"].GetString());
   }
-  if (access_mode == gs::AccessMode::kUnKnown) {
+  if (access_mode == AccessMode::kUnKnown) {
     access_mode = planner_->analyzeMode(query);
   }
 
   // Acquire different transaction on provided access_mode.;
-  std::unique_ptr<gs::runtime::OprTimer> timer = nullptr;
+  std::unique_ptr<neug::runtime::OprTimer> timer = nullptr;
   results::CollectiveResults ret;
   std::pair<physical::PhysicalPlan, std::string> plan_and_schema;
   std::string stats;
   YAML::Node schema_yaml_node;
-  if (access_mode == gs::AccessMode::kRead) {
+  if (access_mode == neug::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
-    gs::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
+    neug::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
     GS_ASSIGN(plan_and_schema,
               compile_plan_and_check_consistency(planner_, query, access_mode));
     // TODO(zhanglei): Check whether the mode is correct for the plan.
-    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
                      gri, plan_and_schema.first, timer.get()));
     if (!read_txn.Commit()) {
       LOG(ERROR) << "Read transaction commit failed.";
       RETURN_ERROR(
-          gs::Status::IntervalError("Read transaction commit failed."));
+          neug::Status::IntervalError("Read transaction commit failed."));
     }
-    ret = gs::runtime::Sink::sink(ctx, gri);
-  } else if (access_mode == gs::AccessMode::kInsert) {
+    ret = neug::runtime::Sink::sink(ctx, gri);
+  } else if (access_mode == neug::AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
-    gs::StorageTPInsertInterface gii(insert_txn);
+    neug::StorageTPInsertInterface gii(insert_txn);
     GS_ASSIGN(plan_and_schema,
               compile_plan_and_check_consistency(planner_, query, access_mode));
     // TODO(xiaoli,zhanglei): Need to check whether the plan is insert-only
-    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
                      gii, plan_and_schema.first, timer.get()));
     // We don't update statistics for insert mode currently, the reason is
     // that Update statistics for each insert cause massive performance
@@ -171,26 +173,26 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
     if (!insert_txn.Commit()) {
       LOG(ERROR) << "Insert transaction commit failed.";
       RETURN_ERROR(
-          gs::Status::IntervalError("Insert transaction commit failed."));
+          neug::Status::IntervalError("Insert transaction commit failed."));
     }
     // TODO(zhanglei,lexiao): enable sink for insert interface
-  } else if (access_mode == gs::AccessMode::kUpdate ||
-             access_mode == gs::AccessMode::kSchema) {  // Update mode
+  } else if (access_mode == neug::AccessMode::kUpdate ||
+             access_mode == neug::AccessMode::kSchema) {  // Update mode
     auto update_txn = GetUpdateTransaction();
-    gs::StorageTPUpdateInterface gui(update_txn);
+    neug::StorageTPUpdateInterface gui(update_txn);
     CHECK(planner_ != nullptr);
     GS_ASSIGN(plan_and_schema,
               compile_plan_and_check_consistency(planner_, query, access_mode));
     // update_planner_meta() and update_planner_stats() are called inside the
     // transaction scope to ensure concurrency safety.
-    GS_AUTO(ctx, gs::runtime::ParseAndExecuteQueryPipeline(
+    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
                      gui, plan_and_schema.first, timer.get()));
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
       RETURN_ERROR(
-          gs::Status::IntervalError("Update transaction commit failed."));
+          neug::Status::IntervalError("Update transaction commit failed."));
     }
-    ret = gs::runtime::Sink::sink(ctx, gui);
+    ret = neug::runtime::Sink::sink(ctx, gui);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +
@@ -219,11 +221,11 @@ gs::result<results::CollectiveResults> NeugDBSession::Eval(
 
 int NeugDBSession::SessionId() const { return thread_id_; }
 
-gs::CompactTransaction NeugDBSession::GetCompactTransaction() {
-  gs::timestamp_t ts = version_manager_->acquire_update_timestamp();
-  return gs::CompactTransaction(graph_, logger_, *version_manager_,
-                                db_config_.compact_csr,
-                                db_config_.csr_reserve_ratio, ts);
+neug::CompactTransaction NeugDBSession::GetCompactTransaction() {
+  neug::timestamp_t ts = version_manager_->acquire_update_timestamp();
+  return neug::CompactTransaction(graph_, logger_, *version_manager_,
+                                  db_config_.compact_csr,
+                                  db_config_.csr_reserve_ratio, ts);
 }
 
 double NeugDBSession::eval_duration() const {
@@ -232,4 +234,4 @@ double NeugDBSession::eval_duration() const {
 
 int64_t NeugDBSession::query_num() const { return query_num_.load(); }
 
-}  // namespace server
+}  // namespace neug

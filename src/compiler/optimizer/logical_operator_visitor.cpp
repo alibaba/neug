@@ -22,9 +22,9 @@
 
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
 
-using namespace gs::planner;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void LogicalOperatorVisitor::visitOperatorSwitch(LogicalOperator* op) {
@@ -213,4 +213,4 @@ LogicalOperatorVisitor::visitOperatorReplaceSwitch(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 #include <glog/logging.h>
 #include <algorithm>
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 std::unique_ptr<arrow::ArrayBuilder> createArrowBuilder(DataTypeId type) {
@@ -166,4 +166,4 @@ DataTypeId mergePropertyTypes(DataTypeId a, DataTypeId b) {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

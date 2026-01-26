@@ -45,7 +45,7 @@
 
 #include <cstring>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 LocalFileInfo::~LocalFileInfo() {
@@ -577,4 +577,4 @@ uint64_t LocalFileSystem::getFileSize(const FileInfo& fileInfo) const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 #include <sstream>
 #include <stack>
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -799,11 +799,11 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kScalarFunc: {
       auto op = opr.scalar_func();
       const std::string& signature = op.unique_name();
-      gs::runtime::neug_func_exec_t fn = nullptr;
+      neug::runtime::neug_func_exec_t fn = nullptr;
 
       auto gCatalog = catalog::GCatalogHolder::getGCatalog();
       auto func = gCatalog->getFunctionWithSignature(
-          &gs::transaction::DUMMY_TRANSACTION, signature);
+          &neug::transaction::DUMMY_TRANSACTION, signature);
       if (!func) {
         THROW_RUNTIME_ERROR("Function not found in catalog for signature: " +
                             signature);
@@ -980,4 +980,4 @@ bool graph_related_expr(const ::common::Expression& expr) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -4,9 +4,9 @@
 #include "neug/compiler/planner/operator/factorization/sink_util.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 f_group_pos_set LogicalHashJoin::getGroupsPosToFlattenOnProbeSide() {
@@ -238,4 +238,4 @@ bool LogicalHashJoin::requireFlatProbeKeys() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

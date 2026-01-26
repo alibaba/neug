@@ -25,7 +25,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/execution/common/types/value.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct VectorStringFunction {
@@ -85,7 +85,8 @@ struct ReverseFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
+  static neug::runtime::Value Exec(
+      const std::vector<neug::runtime::Value>& args);
 };
 
 struct StartsWithFunction : public VectorStringFunction {
@@ -99,7 +100,8 @@ struct UpperFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
+  static neug::runtime::Value Exec(
+      const std::vector<neug::runtime::Value>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {
@@ -115,4 +117,4 @@ struct UCaseFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

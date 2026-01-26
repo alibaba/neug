@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_flatten.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendFlattens(const f_group_pos_set& groupsPos,
@@ -26,4 +26,4 @@ void Planner::appendFlattenIfNecessary(f_group_pos groupPos,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

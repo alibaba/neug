@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 using internal_id_set_t =
@@ -38,4 +38,4 @@ template <typename T>
 using node_id_map_t = internal_id_map_t<T>;
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

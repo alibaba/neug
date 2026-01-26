@@ -5,7 +5,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/sip/side_way_info_passing.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalPathPropertyProbe : public LogicalOperator {
@@ -65,4 +65,4 @@ class LogicalPathPropertyProbe : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

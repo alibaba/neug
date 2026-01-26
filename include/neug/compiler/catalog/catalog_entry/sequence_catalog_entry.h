@@ -28,7 +28,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class ValueVector;
 }
@@ -126,4 +126,4 @@ class NEUG_API SequenceCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

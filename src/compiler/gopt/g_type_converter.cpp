@@ -36,7 +36,7 @@
 #include "neug/generated/proto/plan/type.pb.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertNodeType(
@@ -207,7 +207,7 @@ GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type,
     CHECK(const_off) << "Array type has null extra type info: " +
                             type.toString();
     auto array_type_info =
-        gs::common::neug_dynamic_cast<gs::common::ArrayTypeInfo*>(const_off);
+        neug::common::neug_dynamic_cast<neug::common::ArrayTypeInfo*>(const_off);
     CHECK(array_type_info) << "Expected ArrayTypeInfo for ARRAY type, ";
     auto& child_type = array_type_info->getChildType();
     return convertArrayType(child_type, expr);
@@ -222,7 +222,7 @@ GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type,
     CHECK(const_off) << "List type has null extra type info: " +
                             type.toString();
     auto list_type_info =
-        gs::common::neug_dynamic_cast<gs::common::ListTypeInfo*>(const_off);
+        neug::common::neug_dynamic_cast<neug::common::ListTypeInfo*>(const_off);
     CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
     auto& child_type = list_type_info->getChildType();
     return convertArrayType(child_type, expr);
@@ -279,7 +279,7 @@ GPhysicalTypeConverter::convertSimpleLogicalType(
   case common::LogicalTypeID::STRING: {
     auto strType = std::make_unique<::common::String>();
     auto varChar = std::make_unique<::common::String::VarChar>();
-    varChar->set_max_length(gs::Constants::VARCHAR_MAX_LENGTH);
+    varChar->set_max_length(neug::Constants::VARCHAR_MAX_LENGTH);
     strType->set_allocated_var_char(varChar.release());
     result->set_allocated_string(strType.release());
     break;
@@ -467,4 +467,4 @@ common::LogicalType GLogicalTypeConverter::convertDataType(
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

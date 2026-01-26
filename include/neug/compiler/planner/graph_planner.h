@@ -23,7 +23,7 @@
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 /**
  * @brief Graph planner interface. Receive the cypher query, and generate the
@@ -66,4 +66,4 @@ class IGraphPlanner {
   virtual AccessMode analyzeMode(const std::string& query) const = 0;
 };
 
-}  // namespace gs
+}  // namespace neug

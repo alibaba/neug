@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct RewriteFunctionBindInput;
@@ -68,4 +68,4 @@ struct CostFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

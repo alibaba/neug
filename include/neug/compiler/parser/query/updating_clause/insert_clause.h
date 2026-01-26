@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 #include "updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class InsertClause final : public UpdatingClause {
@@ -43,4 +43,4 @@ class InsertClause final : public UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

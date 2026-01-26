@@ -24,7 +24,7 @@
 #include "json/json_vfs_reader.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 class JsonStreamingState {
@@ -69,4 +69,4 @@ class JsonStreamingState {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "kuzu_fwd.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 /**
@@ -76,4 +76,4 @@ class QuerySummary {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

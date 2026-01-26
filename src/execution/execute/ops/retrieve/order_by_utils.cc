@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 
 #include "neug/execution/common/columns/vertex_columns.h"
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 template <typename T>
@@ -104,4 +104,4 @@ bool vertex_property_topN(bool asc, size_t limit,
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

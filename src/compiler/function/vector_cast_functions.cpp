@@ -39,10 +39,10 @@
 #include "neug/execution/common/types/value.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CastChildFunctionExecutor {
@@ -308,11 +308,11 @@ static std::unique_ptr<ScalarFunction> bindCastFromStringFunction(
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, gs::common::timestamp_tz_t, CastString, EXECUTOR>;
+        neug_string_t, neug::common::timestamp_tz_t, CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
     execFunc = ScalarFunction::UnaryCastStringExecFunction<
-        neug_string_t, gs::common::timestamp_t, CastString, EXECUTOR>;
+        neug_string_t, neug::common::timestamp_t, CastString, EXECUTOR>;
   } break;
   case LogicalTypeID::INTERVAL: {
     execFunc =
@@ -545,11 +545,11 @@ static std::unique_ptr<ScalarFunction> bindCastToStringFunction(
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
     func = ScalarFunction::UnaryCastExecFunction<
-        gs::common::timestamp_tz_t, neug_string_t, CastToString, EXECUTOR>;
+        neug::common::timestamp_tz_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::TIMESTAMP: {
     func = ScalarFunction::UnaryCastExecFunction<
-        gs::common::timestamp_t, neug_string_t, CastToString, EXECUTOR>;
+        neug::common::timestamp_t, neug_string_t, CastToString, EXECUTOR>;
   } break;
   case LogicalTypeID::INTERVAL: {
     func = ScalarFunction::UnaryCastExecFunction<interval_t, neug_string_t,
@@ -749,7 +749,7 @@ static std::unique_ptr<ScalarFunction> bindCastToDateFunction(
     break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP:
-    func = ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, DST_TYPE,
+    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
                                              CastToDate, EXECUTOR>;
     break;
   // LCOV_EXCL_START
@@ -788,7 +788,7 @@ static std::unique_ptr<ScalarFunction> bindCastToTimestampFunction(
   } break;
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    func = ScalarFunction::UnaryExecFunction<gs::common::timestamp_t, DST_TYPE,
+    func = ScalarFunction::UnaryExecFunction<neug::common::timestamp_t, DST_TYPE,
                                              CastBetweenTimestamp, EXECUTOR>;
   } break;
   default:
@@ -920,7 +920,7 @@ std::unique_ptr<ScalarFunction> CastFunction::bindCastFunction(
   }
   case LogicalTypeID::TIMESTAMP_TZ:
   case LogicalTypeID::TIMESTAMP: {
-    return bindCastToTimestampFunction<EXECUTOR, gs::common::timestamp_t>(
+    return bindCastToTimestampFunction<EXECUTOR, neug::common::timestamp_t>(
         functionName, sourceType, targetType);
   }
   case LogicalTypeID::LIST:
@@ -1018,9 +1018,9 @@ static runtime::Value castFunc(const std::vector<runtime::Value>& args) {
   } else if (type == "STRING") {
     return performCastToString(arg0);
   } else if (type == "DATE") {
-    return performCast<gs::Date>(arg0);
+    return performCast<neug::Date>(arg0);
   } else if (type == "TIMESTAMP") {
-    return performCast<gs::DateTime>(arg0);
+    return performCast<neug::DateTime>(arg0);
   } else if (type == "UINT32") {
     return performCast<uint32_t>(arg0);
   } else if (type == "UINT64") {
@@ -1045,4 +1045,4 @@ function_set CastAnyFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

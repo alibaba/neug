@@ -15,9 +15,10 @@
 
 #include "neug/execution/execute/ops/admin/checkpoint.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
+
 namespace ops {
 
 class CheckpointOpr : public IOperator {
@@ -25,19 +26,19 @@ class CheckpointOpr : public IOperator {
   CheckpointOpr() = default;
   ~CheckpointOpr() override = default;
   std::string get_operator_name() const override { return "CheckpointOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 };
 
-gs::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params, Context&& ctx,
-                                        OprTimer* timer) {
+neug::result<Context> CheckpointOpr::Eval(IStorageInterface& graph_interface,
+                                          const ParamsMap& params,
+                                          Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   graph.CreateCheckpoint();
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> CheckpointOprBuilder::Build(
+neug::result<OpBuildResultT> CheckpointOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   return std::make_pair(std::make_unique<CheckpointOpr>(), ctx_meta);
@@ -47,4 +48,4 @@ gs::result<OpBuildResultT> CheckpointOprBuilder::Build(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

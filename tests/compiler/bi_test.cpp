@@ -15,7 +15,7 @@
  */
 
 #include "gopt_test.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class BITest : public GOptTest {
@@ -110,4 +110,4 @@ TEST_F(BITest, BI_15) {
 // }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

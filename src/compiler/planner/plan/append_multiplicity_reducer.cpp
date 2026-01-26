@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_multiplcity_reducer.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendMultiplicityReducer(LogicalPlan& plan) {
@@ -12,4 +12,4 @@ void Planner::appendMultiplicityReducer(LogicalPlan& plan) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

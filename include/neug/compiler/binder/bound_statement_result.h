@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundStatementResult {
@@ -76,4 +76,4 @@ class BoundStatementResult {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

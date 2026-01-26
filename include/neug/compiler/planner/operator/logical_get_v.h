@@ -29,7 +29,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/schema.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum GetVOpt { START = 0, END = 1, OTHER = 2, BOTH = 3, ITSELF = 4 };
@@ -104,4 +104,4 @@ class LogicalGetV : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

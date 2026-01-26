@@ -22,7 +22,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 enum FusionType {
@@ -66,4 +66,4 @@ class ExpandGetVFusion : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

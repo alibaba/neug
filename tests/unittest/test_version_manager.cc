@@ -22,7 +22,7 @@
 #include <thread>
 #include <vector>
 
-namespace gs {
+namespace neug {
 namespace test {
 
 class APVersionManagerTest : public ::testing::Test {
@@ -442,4 +442,4 @@ TEST_F(APVersionManagerTest, StressTestMixedOperations) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

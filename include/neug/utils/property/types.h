@@ -43,7 +43,7 @@ template <typename T>
 struct convert;
 }  // namespace YAML
 
-namespace gs {
+namespace neug {
 
 struct EmptyType {
   inline bool operator==(const EmptyType& other) const { return true; }
@@ -447,21 +447,21 @@ static const float DEFAULT_FLOAT_VALUE = 0;
 static const Date DEFAULT_DATE_VALUE = Date(0);
 static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
 
-}  // namespace gs
+}  // namespace neug
 
 namespace std {
 
-std::string to_string(gs::DataTypeId type);
+std::string to_string(neug::DataTypeId type);
 
-inline ostream& operator<<(ostream& os, const gs::EdgeStrategy& strategy) {
+inline ostream& operator<<(ostream& os, const neug::EdgeStrategy& strategy) {
   switch (strategy) {
-  case gs::EdgeStrategy::kNone:
+  case neug::EdgeStrategy::kNone:
     os << "None";
     break;
-  case gs::EdgeStrategy::kSingle:
+  case neug::EdgeStrategy::kSingle:
     os << "Single";
     break;
-  case gs::EdgeStrategy::kMultiple:
+  case neug::EdgeStrategy::kMultiple:
     os << "Multiple";
     break;
   default:
@@ -470,32 +470,32 @@ inline ostream& operator<<(ostream& os, const gs::EdgeStrategy& strategy) {
   }
   return os;
 }
-inline ostream& operator<<(ostream& os, const gs::Date& dt) {
+inline ostream& operator<<(ostream& os, const neug::Date& dt) {
   os << dt.to_string();
   return os;
 }
 
-inline ostream& operator<<(ostream& os, const gs::DateTime& dt) {
+inline ostream& operator<<(ostream& os, const neug::DateTime& dt) {
   os << dt.to_string();
   return os;
 }
 
-inline ostream& operator<<(ostream& os, const gs::Interval& interval) {
+inline ostream& operator<<(ostream& os, const neug::Interval& interval) {
   os << interval.to_string();
   return os;
 }
 
-inline ostream& operator<<(ostream& os, gs::DataTypeId pt) {
+inline ostream& operator<<(ostream& os, neug::DataTypeId pt) {
   os << std::to_string(pt);
   return os;
 }
 
-inline ostream& operator<<(ostream& os, const gs::DBMode& mode) {
+inline ostream& operator<<(ostream& os, const neug::DBMode& mode) {
   switch (mode) {
-  case gs::DBMode::READ_ONLY:
+  case neug::DBMode::READ_ONLY:
     os << "READ_ONLY";
     break;
-  case gs::DBMode::READ_WRITE:
+  case neug::DBMode::READ_WRITE:
     os << "READ_WRITE";
     break;
   default:
@@ -506,8 +506,8 @@ inline ostream& operator<<(ostream& os, const gs::DBMode& mode) {
 }
 
 template <>
-struct hash<gs::GlobalId> {
-  size_t operator()(const gs::GlobalId& value) const {
+struct hash<neug::GlobalId> {
+  size_t operator()(const neug::GlobalId& value) const {
     return std::hash<uint64_t>()(value.global_id);
   }
 };
@@ -517,12 +517,12 @@ struct hash<gs::GlobalId> {
 namespace YAML {
 
 template <>
-struct convert<std::shared_ptr<gs::ExtraTypeInfo>> {
-  static Node encode(const std::shared_ptr<gs::ExtraTypeInfo>& type) {
+struct convert<std::shared_ptr<neug::ExtraTypeInfo>> {
+  static Node encode(const std::shared_ptr<neug::ExtraTypeInfo>& type) {
     YAML::Node node;
-    if (type->type == gs::ExtraTypeInfoType::STRING_TYPE_INFO) {
+    if (type->type == neug::ExtraTypeInfoType::STRING_TYPE_INFO) {
       auto string_type_info =
-          std::dynamic_pointer_cast<gs::StringTypeInfo>(type);
+          std::dynamic_pointer_cast<neug::StringTypeInfo>(type);
       if (!string_type_info) {
         THROW_INTERNAL_EXCEPTION("Failed to cast to StringTypeInfo");
       }
@@ -532,19 +532,19 @@ struct convert<std::shared_ptr<gs::ExtraTypeInfo>> {
   }
 
   static bool decode(const Node& node,
-                     std::shared_ptr<gs::ExtraTypeInfo>& rhs) {
+                     std::shared_ptr<neug::ExtraTypeInfo>& rhs) {
     if (node["string"]) {
       if (node["string"]["varchar"] &&
           node["string"]["varchar"]["max_length"]) {
         size_t max_length =
             node["string"]["varchar"]["max_length"].as<size_t>();
-        rhs = std::make_shared<gs::StringTypeInfo>(max_length);
+        rhs = std::make_shared<neug::StringTypeInfo>(max_length);
       } else if (node["string"]["var_char"] &&
                  node["string"]["var_char"]["max_length"]) {
         LOG(WARNING) << "var_char is deprecated, use varchar instead.";
         size_t max_length =
             node["string"]["var_char"]["max_length"].as<size_t>();
-        rhs = std::make_shared<gs::StringTypeInfo>(max_length);
+        rhs = std::make_shared<neug::StringTypeInfo>(max_length);
       }
     }
     return true;
@@ -552,19 +552,19 @@ struct convert<std::shared_ptr<gs::ExtraTypeInfo>> {
 };
 
 template <>
-struct convert<gs::DataTypeId> {
+struct convert<neug::DataTypeId> {
   // concurrently preserve backwards compatibility with old config files
-  static bool decode(const Node& config, gs::DataTypeId& property_type) {
+  static bool decode(const Node& config, neug::DataTypeId& property_type) {
     if (config["primitive_type"]) {
-      property_type = gs::config_parsing::StringToPrimitivePropertyType(
+      property_type = neug::config_parsing::StringToPrimitivePropertyType(
           config["primitive_type"].as<std::string>());
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
         if (config["string"]["long_text"]) {
-          property_type = gs::DataTypeId::kVarchar;
+          property_type = neug::DataTypeId::kVarchar;
         } else if (config["string"]["var_char"]) {
           LOG(WARNING) << "var_char is deprecated, use long_text instead.";
-          property_type = gs::DataTypeId::kVarchar;
+          property_type = neug::DataTypeId::kVarchar;
         } else {
           LOG(ERROR) << "Unrecognized string type";
         }
@@ -574,19 +574,19 @@ struct convert<gs::DataTypeId> {
     } else if (config["temporal"]) {
       auto temporal = config["temporal"];
       if (temporal["date"]) {
-        property_type = gs::DataTypeId::kDate;
+        property_type = neug::DataTypeId::kDate;
       } else if (temporal["datetime"]) {
-        property_type = gs::DataTypeId::kTimestampMs;
+        property_type = neug::DataTypeId::kTimestampMs;
       } else if (temporal["interval"]) {
-        property_type = gs::DataTypeId::kInterval;
+        property_type = neug::DataTypeId::kInterval;
       } else if (temporal["timestamp"]) {
-        property_type = gs::DataTypeId::kTimestampMs;
+        property_type = neug::DataTypeId::kTimestampMs;
       } else {
         THROW_NOT_SUPPORTED_EXCEPTION("Unrecognized temporal type: " +
                                       temporal.as<std::string>());
       }
     } else if (config["date"]) {
-      property_type = gs::DataTypeId::kDate;
+      property_type = neug::DataTypeId::kDate;
     } else {
       LOG(ERROR) << "Unrecognized property type: " << config;
       return false;
@@ -594,17 +594,18 @@ struct convert<gs::DataTypeId> {
     return true;
   }
 
-  static Node encode(const gs::DataTypeId& type) {
+  static Node encode(const neug::DataTypeId& type) {
     YAML::Node node;
-    if (type == gs::DataTypeId::kBoolean || type == gs::DataTypeId::kInt32 ||
-        type == gs::DataTypeId::kUInt32 || type == gs::DataTypeId::kFloat ||
-        type == gs::DataTypeId::kInt64 || type == gs::DataTypeId::kUInt64 ||
-        type == gs::DataTypeId::kDouble) {
+    if (type == neug::DataTypeId::kBoolean ||
+        type == neug::DataTypeId::kInt32 || type == neug::DataTypeId::kUInt32 ||
+        type == neug::DataTypeId::kFloat || type == neug::DataTypeId::kInt64 ||
+        type == neug::DataTypeId::kUInt64 ||
+        type == neug::DataTypeId::kDouble) {
       node["primitive_type"] =
-          gs::config_parsing::PrimitivePropertyTypeToString(type);
-    } else if (type == gs::DataTypeId::kVarchar) {
+          neug::config_parsing::PrimitivePropertyTypeToString(type);
+    } else if (type == neug::DataTypeId::kVarchar) {
       node["string"]["long_text"] = "";
-    } else if (type == gs::DataTypeId::kDate) {
+    } else if (type == neug::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
     } else {
       LOG(ERROR) << "Unrecognized property type: " << type;

@@ -31,7 +31,7 @@
 #include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class Serializer;
 class Deserializer;
@@ -435,4 +435,4 @@ struct RelUpdateRecord final : WALRecord {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

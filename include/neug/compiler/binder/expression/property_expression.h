@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/common/constants.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 class TableCatalogEntry;
 }
@@ -124,4 +124,4 @@ class PropertyExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

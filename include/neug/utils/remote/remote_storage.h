@@ -20,7 +20,7 @@
 
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 class RemoteStorageUploader {
  public:
@@ -91,4 +91,4 @@ class RemoteStorageDownloader {
   virtual Status Close() = 0;
 };
 
-}  // namespace gs
+}  // namespace neug

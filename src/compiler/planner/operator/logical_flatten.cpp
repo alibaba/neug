@@ -1,8 +1,8 @@
 #include "neug/compiler/planner/operator/logical_flatten.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalFlatten::computeFactorizedSchema() {
@@ -16,4 +16,4 @@ void LogicalFlatten::computeFlatSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

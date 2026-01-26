@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-namespace gs {
+namespace neug {
 
 struct OPPrintInfo {
   OPPrintInfo() {}
@@ -16,4 +16,4 @@ struct OPPrintInfo {
   }
 };
 
-}  // namespace gs
+}  // namespace neug

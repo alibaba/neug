@@ -25,7 +25,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListConcat {
@@ -38,4 +38,4 @@ struct ListConcat {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

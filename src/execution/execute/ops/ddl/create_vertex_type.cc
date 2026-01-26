@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/create_vertex_type.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -36,8 +36,8 @@ class CreateVertexTypeOpr : public IOperator {
     return "CreateVertexTypeOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.CreateVertexType(type_name_, properties_, pks_,
@@ -47,7 +47,7 @@ class CreateVertexTypeOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -57,7 +57,7 @@ class CreateVertexTypeOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
+neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   ContextMeta meta = ctx_meta;
@@ -91,4 +91,4 @@ gs::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

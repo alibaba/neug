@@ -26,7 +26,7 @@
 #include "neug/compiler/parser/query/graph_pattern/pattern_element.h"
 #include "reading_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class MatchClause : public ReadingClause {
@@ -58,4 +58,4 @@ class MatchClause : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

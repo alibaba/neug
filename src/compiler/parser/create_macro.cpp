@@ -22,7 +22,7 @@
 
 #include "neug/compiler/parser/create_macro.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::vector<std::pair<std::string, ParsedExpression*>>
@@ -35,4 +35,4 @@ CreateMacro::getDefaultArgs() const {
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

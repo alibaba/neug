@@ -34,7 +34,7 @@
 #include "neug/compiler/common/types/interval_t.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -152,12 +152,14 @@ struct int128_t;
 struct neug_string_t;
 
 template <typename T>
-concept SignedIntegerTypes = std::is_same_v<T, int8_t> ||
-    std::is_same_v<T, int16_t> || std::is_same_v<T, int32_t> ||
-    std::is_same_v<T, int64_t> || std::is_same_v<T, int128_t>;
+concept SignedIntegerTypes =
+    std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
+    std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||
+    std::is_same_v<T, int128_t>;
 
 template <typename T>
-concept IntegerTypes = SignedIntegerTypes<T> || std::is_same_v<T, uint8_t> ||
+concept IntegerTypes =
+    SignedIntegerTypes<T> || std::is_same_v<T, uint8_t> ||
     std::is_same_v<T, uint16_t> || std::is_same_v<T, uint32_t> ||
     std::is_same_v<T, uint64_t>;
 
@@ -169,7 +171,8 @@ template <typename T>
 concept NumericTypes = IntegerTypes<T> || std::floating_point<T>;
 
 template <typename T>
-concept ComparableTypes = NumericTypes<T> || std::is_same_v<T, neug_string_t> ||
+concept ComparableTypes =
+    NumericTypes<T> || std::is_same_v<T, neug_string_t> ||
     std::is_same_v<T, interval_t> || std::is_same_v<T, bool>;
 
 template <typename T>
@@ -404,7 +407,7 @@ class LogicalType {
  private:
   friend struct CAPIHelper;
   friend struct JavaAPIHelper;
-  friend class gs::processor::ParquetReader;
+  friend class neug::processor::ParquetReader;
   explicit LogicalType(LogicalTypeID typeID,
                        std::unique_ptr<ExtraTypeInfo> extraTypeInfo);
 
@@ -706,4 +709,4 @@ struct NEUG_API LogicalTypeUtils {
 enum class FileVersionType : uint8_t { ORIGINAL = 0, WAL_VERSION = 1 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

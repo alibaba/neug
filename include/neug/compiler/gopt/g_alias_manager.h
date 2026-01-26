@@ -24,7 +24,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 const static common::alias_id_t DEFAULT_ALIAS_ID = -1;
@@ -59,4 +59,4 @@ class GAliasManager {
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

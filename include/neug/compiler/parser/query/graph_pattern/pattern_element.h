@@ -26,7 +26,7 @@
 
 #include "pattern_element_chain.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class PatternElement {
@@ -58,4 +58,4 @@ class PatternElement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

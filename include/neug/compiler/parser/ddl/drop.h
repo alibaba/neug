@@ -25,7 +25,7 @@
 #include "drop_info.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class Drop : public Statement {
@@ -42,4 +42,4 @@ class Drop : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

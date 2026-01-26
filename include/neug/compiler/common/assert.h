@@ -25,7 +25,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 [[noreturn]] inline void kuAssertFailureInternal(const char* condition_name,
@@ -42,16 +42,16 @@ namespace common {
 #define NEUG_ASSERT(condition) \
   static_cast<bool>(condition) \
       ? void(0)                \
-      : gs::common::kuAssertFailureInternal(#condition, __FILE__, __LINE__)
+      : neug::common::kuAssertFailureInternal(#condition, __FILE__, __LINE__)
 #else
 #define NEUG_ASSERT(condition) void(0)
 #define RUNTIME_CHECK(code) void(0)
 #endif
 
-#define NEUG_UNREACHABLE                                                  \
-  /* LCOV_EXCL_START */ [[unlikely]] gs::common::kuAssertFailureInternal( \
+#define NEUG_UNREACHABLE                                                    \
+  /* LCOV_EXCL_START */ [[unlikely]] neug::common::kuAssertFailureInternal( \
       "NEUG_UNREACHABLE", __FILE__, __LINE__) /* LCOV_EXCL_STOP */
 #define NEUG_UNUSED(expr) (void) (expr)
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

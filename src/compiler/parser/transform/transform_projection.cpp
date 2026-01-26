@@ -24,9 +24,9 @@
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 WithClause Transformer::transformWith(CypherParser::OC_WithContext& ctx) {
@@ -93,4 +93,4 @@ std::unique_ptr<ParsedExpression> Transformer::transformProjectionItem(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

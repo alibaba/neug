@@ -27,7 +27,7 @@
 #include "neug/server/neug_db_service.h"
 #include "py_connection.h"
 
-namespace gs {
+namespace neug {
 
 class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
  public:
@@ -37,7 +37,7 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
                       const std::string& mode, const std::string& planner,
                       bool checkpoint_on_close = true) {
     db_dir_ = data_dir;
-    gs::DBMode mode_;
+    neug::DBMode mode_;
     if (mode == "read" || mode == "r" || mode == "read-only" ||
         mode == "read_only") {
       mode_ = DBMode::READ_ONLY;
@@ -85,8 +85,8 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   std::recursive_mutex mtx_;
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;
-  std::unique_ptr<server::NeugDBService> service_;
+  std::unique_ptr<neug::NeugDBService> service_;
 };
 
-}  // namespace gs
+}  // namespace neug
 #endif  // TOOLS_PYTHON_BIND_SRC_PY_DATABASE_H_

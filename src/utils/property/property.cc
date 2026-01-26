@@ -17,7 +17,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 Property get_default_value(const DataTypeId& type) {
   Property default_value;
@@ -226,4 +226,4 @@ bool Property::operator<(const Property& other) const {
     return type_ < other.type_;
   }
 }
-}  // namespace gs
+}  // namespace neug

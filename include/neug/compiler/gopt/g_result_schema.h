@@ -30,7 +30,7 @@
 #include "neug/utils/exception/exception.h"
 
 #pragma once
-namespace gs {
+namespace neug {
 namespace gopt {
 class GResultSchema {
  public:
@@ -109,4 +109,4 @@ class GResultSchema {
   }
 };
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

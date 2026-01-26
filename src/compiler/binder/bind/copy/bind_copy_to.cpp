@@ -30,10 +30,10 @@
 #include "neug/compiler/parser/copy.h"
 #include "neug/compiler/parser/query/regular_query.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 /**
@@ -106,4 +106,4 @@ std::unique_ptr<BoundStatement> Binder::bindCopyToClause(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

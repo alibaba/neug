@@ -16,7 +16,7 @@
 
 #include <atomic>
 
-namespace gs {
+namespace neug {
 
 /**
  * @brief A simple implementation of spinlock based on std::atomic.
@@ -27,11 +27,12 @@ class SpinLock {
  public:
   void lock() {
     while (locked.test_and_set(std::memory_order_acquire)) {
-      {}
+      {
+      }
     }
   }
 
   void unlock() { locked.clear(std::memory_order_relaxed); }
 };
 
-}  // namespace gs
+}  // namespace neug

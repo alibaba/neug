@@ -23,8 +23,8 @@
   struct _RegisterYaml_##TYPE_ID {                        \
     _RegisterYaml_##TYPE_ID() {                           \
       YAML::Node node = YAML_NODE_EXPR;                   \
-      gs::common::LogicalTypeRegistry::registerType(      \
-          node, gs::common::LogicalTypeID::TYPE_ID);      \
+      neug::common::LogicalTypeRegistry::registerType(    \
+          node, neug::common::LogicalTypeID::TYPE_ID);    \
     }                                                     \
   };                                                      \
   static _RegisterYaml_##TYPE_ID _registerYaml_##TYPE_ID; \

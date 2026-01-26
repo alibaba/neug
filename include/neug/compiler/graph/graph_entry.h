@@ -30,7 +30,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 class Schema;
 }
@@ -139,4 +139,4 @@ class GraphEntrySet {
 };
 
 }  // namespace graph
-}  // namespace gs
+}  // namespace neug

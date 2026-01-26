@@ -21,7 +21,7 @@
 #include "neug/storages/graph/property_graph.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 
 result<results::CollectiveResults> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
@@ -35,8 +35,8 @@ result<results::CollectiveResults> QueryProcessor::execute(
   LOG(INFO) << "Executing plan with " << num_threads
             << " threads, max_num_threads: " << max_num_threads_;
   if (num_threads < 1) {
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                            "Number of threads must be greater than 0"));
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                              "Number of threads must be greater than 0"));
   }
 
   AccessMode access_mode = user_access_mode.empty()
@@ -73,8 +73,8 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
         flags.create_temp_table() || flags.checkpoint() ||
         flags.procedure_call()) {
       RETURN_ERROR(
-          gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT,
-                     "Write queries are not supported in read-only mode"));
+          neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                       "Write queries are not supported in read-only mode"));
     }
   }
 
@@ -133,4 +133,4 @@ void QueryProcessor::update_compiler_meta_if_needed(
   }
 }
 
-}  // namespace gs
+}  // namespace neug

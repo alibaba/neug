@@ -25,7 +25,7 @@
 #include "neug/compiler/transaction/transaction_action.h"
 #include "statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class TransactionStatement : public Statement {
@@ -46,4 +46,4 @@ class TransactionStatement : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

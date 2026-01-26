@@ -26,7 +26,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/enums/zone_map_check_result.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 
 struct MergedColumnChunkStats;
@@ -87,4 +87,4 @@ struct ColumnPredicateUtil {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

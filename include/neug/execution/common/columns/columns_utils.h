@@ -20,7 +20,7 @@
 #include <vector>
 #include "neug/execution/common/columns/i_context_column.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class ColumnsUtils {
  public:
@@ -87,4 +87,4 @@ class ColumnsUtils {
       const DataType& type);
 };
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

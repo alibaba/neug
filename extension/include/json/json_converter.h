@@ -23,7 +23,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 // Create an Arrow Builder corresponding to the given DataTypeId
@@ -41,4 +41,4 @@ DataTypeId inferPropertyTypeFromValue(const rapidjson::Value& val);
 DataTypeId mergePropertyTypes(DataTypeId a, DataTypeId b);
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

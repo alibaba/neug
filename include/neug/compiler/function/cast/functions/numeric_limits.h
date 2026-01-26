@@ -28,7 +28,7 @@
 
 #include "neug/compiler/common/types/int128_t.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <class T>
@@ -164,4 +164,4 @@ pow10Sequence() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -35,7 +35,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class Expression;
@@ -166,4 +166,4 @@ struct ExpressionEquality {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

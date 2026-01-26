@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace transaction {
 
 std::string TransactionActionUtils::toString(TransactionAction action) {
@@ -50,4 +50,4 @@ std::string TransactionActionUtils::toString(TransactionAction action) {
 }
 
 }  // namespace transaction
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "create_sequence_info.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class CreateSequence final : public Statement {
@@ -43,4 +43,4 @@ class CreateSequence final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

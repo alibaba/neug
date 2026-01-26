@@ -25,7 +25,7 @@
 #include "logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 // This optimizer enables the Accumulated hash join algorithm as introduced in
@@ -45,4 +45,4 @@ class HashJoinSIPOptimizer final : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

@@ -26,9 +26,9 @@
 #include "neug/utils/exception/exception.h"
 
 using namespace antlr4;
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 void ParserErrorListener::syntaxError(Recognizer* recognizer,
@@ -61,4 +61,4 @@ std::string ParserErrorListener::formatUnderLineError(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

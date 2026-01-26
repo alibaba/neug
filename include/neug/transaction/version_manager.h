@@ -23,7 +23,7 @@
 #include "neug/utils/bitset.h"
 #include "neug/utils/spinlock.h"
 
-namespace gs {
+namespace neug {
 
 class IVersionManager {
  public:
@@ -111,4 +111,4 @@ class TPVersionManager : public IVersionManager {
   SpinLock lock_;
 };
 
-}  // namespace gs
+}  // namespace neug

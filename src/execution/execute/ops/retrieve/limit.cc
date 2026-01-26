@@ -19,7 +19,7 @@
 #include "neug/execution/common/operators/retrieve/limit.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -39,10 +39,9 @@ class LimitOpr : public IOperator {
 
   std::string get_operator_name() const override { return "LimitOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     return Limit::limit(std::move(ctx), lower_, upper_);
   }
 
@@ -51,8 +50,8 @@ class LimitOpr : public IOperator {
   size_t upper_;
 };
 
-gs::result<OpBuildResultT> LimitOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> LimitOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   return std::make_pair(
       std::make_unique<LimitOpr>(plan.plan(op_idx).opr().limit()), ctx_meta);
@@ -60,4 +59,4 @@ gs::result<OpBuildResultT> LimitOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -3,7 +3,7 @@
 #include "neug/compiler/optimizer/factorization_rewriter.h"
 #include "neug/compiler/optimizer/remove_factorization_rewriter.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalPathPropertyProbe::computeFactorizedSchema() {
@@ -55,4 +55,4 @@ std::unique_ptr<LogicalOperator> LogicalPathPropertyProbe::copy() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

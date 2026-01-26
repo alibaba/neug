@@ -43,11 +43,11 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
 
-using namespace gs::common;
+using namespace neug::common;
 using std::max;
 using std::min;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct DecimalFunction {
@@ -185,16 +185,16 @@ function_set AddFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::INTERVAL},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t, interval_t,
-                                         gs::common::timestamp_t, Add>));
+      ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
+                                         neug::common::timestamp_t, Add>));
   // interval + timestamp → timestamp
   result.push_back(make_unique<ScalarFunction>(
       name,
       std::vector<LogicalTypeID>{LogicalTypeID::INTERVAL,
                                  LogicalTypeID::TIMESTAMP},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<interval_t, gs::common::timestamp_t,
-                                         gs::common::timestamp_t, Add>));
+      ScalarFunction::BinaryExecFunction<interval_t, neug::common::timestamp_t,
+                                         neug::common::timestamp_t, Add>));
   return result;
 }
 
@@ -229,7 +229,7 @@ function_set SubtractFunction::getFunctionSet() {
                                          Subtract>));
   // timestamp - timestamp → interval
   result.push_back(
-      getBinaryFunction<Subtract, gs::common::timestamp_t, interval_t>(
+      getBinaryFunction<Subtract, neug::common::timestamp_t, interval_t>(
           name, LogicalTypeID::TIMESTAMP, LogicalTypeID::INTERVAL));
   // timestamp - interval → timestamp
   result.push_back(make_unique<ScalarFunction>(
@@ -237,8 +237,8 @@ function_set SubtractFunction::getFunctionSet() {
       std::vector<LogicalTypeID>{LogicalTypeID::TIMESTAMP,
                                  LogicalTypeID::INTERVAL},
       LogicalTypeID::TIMESTAMP,
-      ScalarFunction::BinaryExecFunction<gs::common::timestamp_t, interval_t,
-                                         gs::common::timestamp_t, Subtract>));
+      ScalarFunction::BinaryExecFunction<neug::common::timestamp_t, interval_t,
+                                         neug::common::timestamp_t, Subtract>));
   // interval - interval → interval
   result.push_back(getBinaryFunction<Subtract, interval_t, interval_t>(
       name, LogicalTypeID::INTERVAL, LogicalTypeID::INTERVAL));
@@ -764,4 +764,4 @@ function_set NegateFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

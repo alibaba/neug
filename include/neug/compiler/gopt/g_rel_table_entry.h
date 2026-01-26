@@ -17,7 +17,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 class GRelTableCatalogEntry : public RelTableCatalogEntry {
  public:
@@ -42,4 +42,4 @@ class GRelTableCatalogEntry : public RelTableCatalogEntry {
   common::table_id_t labelId;
 };
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

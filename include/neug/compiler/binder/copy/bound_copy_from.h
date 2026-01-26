@@ -27,11 +27,11 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/column_evaluate_type.h"
 
-namespace gs::catalog {
+namespace neug::catalog {
 class TableCatalogEntry;
-}  // namespace gs::catalog
+}  // namespace neug::catalog
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct ExtraBoundCopyFromInfo {
@@ -127,4 +127,4 @@ class BoundCopyFrom final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

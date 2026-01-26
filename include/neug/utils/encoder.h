@@ -20,7 +20,7 @@
 #include <string_view>
 #include <vector>
 
-namespace gs {
+namespace neug {
 
 class Encoder {
  public:
@@ -106,4 +106,4 @@ class Decoder {
   const char* end_;
 };
 
-}  // namespace gs
+}  // namespace neug

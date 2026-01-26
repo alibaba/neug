@@ -27,7 +27,7 @@
 
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::wstring WindowsUtils::utf8ToUnicode(const char* input) {
@@ -62,5 +62,5 @@ std::string WindowsUtils::unicodeToUTF8(LPCWSTR input) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug
 #endif

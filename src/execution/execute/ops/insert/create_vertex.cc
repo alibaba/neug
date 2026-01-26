@@ -18,7 +18,7 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -30,9 +30,9 @@ class CreateVertexOpr : public IOperator {
           std::vector<std::pair<std::string, common::Expression>>>& properties)
       : labels_(labels), alias_(alias), properties_(properties) {}
 
-  gs::result<Context> Eval(IStorageInterface& graph_interface,
-                           const ParamsMap& params, Context&& ctx,
-                           OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph_interface,
+                             const ParamsMap& params, Context&& ctx,
+                             OprTimer* timer) override {
     // Implementation of vertex creation logic goes here.
 
     const StorageReadInterface* graph_ptr = nullptr;
@@ -62,7 +62,7 @@ class CreateVertexOpr : public IOperator {
       properties_;
 };
 
-gs::result<OpBuildResultT> CreateVertexOprBuilder::Build(
+neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr().create_vertex();
@@ -106,4 +106,4 @@ gs::result<OpBuildResultT> CreateVertexOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

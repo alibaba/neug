@@ -6,10 +6,10 @@
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::unique_ptr<LogicalInsertInfo> Planner::createLogicalInsertInfo(
@@ -85,4 +85,4 @@ void Planner::appendInsertRel(
   plan.setLastOperator(insertRel);
 }
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -52,7 +52,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 std::unique_ptr<::common::Expression> GExprConverter::convert(
@@ -305,7 +305,7 @@ std::unique_ptr<::common::Value> GExprConverter::convertDefaultValue(
 }
 
 std::unique_ptr<::common::Value> GExprConverter::convertValue(
-    const gs::common::Value& value) {
+    const neug::common::Value& value) {
   std::unique_ptr<::common::Value> valuePB =
       std::make_unique<::common::Value>();
   if (value.isNull()) {
@@ -339,15 +339,15 @@ std::unique_ptr<::common::Value> GExprConverter::convertValue(
     break;
   case common::LogicalTypeID::DATE:
     valuePB->set_str(
-        gs::common::Date::toString(value.getValue<gs::common::date_t>()));
+        neug::common::Date::toString(value.getValue<neug::common::date_t>()));
     break;
   case common::LogicalTypeID::TIMESTAMP:
-    valuePB->set_str(gs::common::Timestamp::toString(
-        value.getValue<gs::common::timestamp_t>()));
+    valuePB->set_str(neug::common::Timestamp::toString(
+        value.getValue<neug::common::timestamp_t>()));
     break;
   case common::LogicalTypeID::INTERVAL:
-    valuePB->set_str(gs::common::Interval::toString(
-        value.getValue<gs::common::interval_t>()));
+    valuePB->set_str(neug::common::Interval::toString(
+        value.getValue<neug::common::interval_t>()));
     break;
   case common::LogicalTypeID::ARRAY: {
     auto extraInfo = value.getDataType().getExtraTypeInfo();
@@ -1104,4 +1104,4 @@ std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

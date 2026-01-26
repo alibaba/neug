@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalDistinct::computeFactorizedSchema() {
@@ -39,4 +39,4 @@ binder::expression_vector LogicalDistinct::getKeysAndPayloads() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

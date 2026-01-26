@@ -21,9 +21,9 @@
  */
 
 #include "neug/compiler/common/task_system/task_scheduler.h"
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 #ifndef __SINGLE_THREADED__
@@ -145,4 +145,4 @@ void TaskScheduler::runTask(Task* task) {
   }
 }
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -22,7 +22,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class InArchive {
  public:
@@ -125,4 +125,4 @@ inline InArchive& operator<<(InArchive& in_archive,
   return in_archive;
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -32,7 +32,7 @@
 #include "neug/compiler/parser/statement.h"
 #include "single_query.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class RegularQuery : public Statement {
@@ -91,4 +91,4 @@ class RegularQuery : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

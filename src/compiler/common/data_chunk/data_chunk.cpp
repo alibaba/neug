@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/data_chunk/data_chunk.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void DataChunk::insert(uint32_t pos, std::shared_ptr<ValueVector> valueVector) {
@@ -38,4 +38,4 @@ void DataChunk::resetAuxiliaryBuffer() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

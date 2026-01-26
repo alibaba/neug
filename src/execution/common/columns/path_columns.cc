@@ -17,7 +17,7 @@
 
 #include <limits>
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 std::shared_ptr<IContextColumn> PathColumn::shuffle(
@@ -59,4 +59,4 @@ std::shared_ptr<IContextColumn> OptionalPathColumn::shuffle(
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

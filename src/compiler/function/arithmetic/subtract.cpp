@@ -27,7 +27,7 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 // reference from duckDB subtract.cpp
@@ -205,4 +205,4 @@ void Subtract::operation(int64_t& left, int64_t& right, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

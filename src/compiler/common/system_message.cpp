@@ -28,7 +28,7 @@
 #include <dlfcn.h>
 #endif
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string dlErrMessage() {
@@ -58,4 +58,4 @@ std::string dlErrMessage() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

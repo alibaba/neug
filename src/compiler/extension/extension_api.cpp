@@ -16,7 +16,7 @@
 #include "neug/compiler/extension/extension_api.h"
 #include <iostream>
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 std::unordered_map<std::string, ExtensionInfo> ExtensionAPI::loaded_extensions_;
@@ -33,4 +33,4 @@ const std::unordered_map<std::string, ExtensionInfo>& ExtensionAPI::getLoadedExt
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

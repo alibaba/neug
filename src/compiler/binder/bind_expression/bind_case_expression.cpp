@@ -26,10 +26,10 @@
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/parser/expression/parsed_case_expression.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindCaseExpression(
@@ -96,4 +96,4 @@ std::shared_ptr<Expression> ExpressionBinder::bindCaseExpression(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

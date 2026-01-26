@@ -21,7 +21,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace test {
 class VertexColumnTest : public ::testing::Test {
@@ -1481,4 +1481,4 @@ TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
 
 }  // namespace test
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

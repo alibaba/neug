@@ -3,10 +3,10 @@
 #include "logical_simple.h"
 #include "neug/compiler/extension/extension_action.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
-using namespace gs::extension;
+using namespace neug::extension;
 
 class LogicalExtension final : public LogicalSimple {
  public:
@@ -49,4 +49,4 @@ class LogicalExtension final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

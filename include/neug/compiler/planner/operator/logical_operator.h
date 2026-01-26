@@ -7,7 +7,7 @@
 #include "neug/compiler/planner/operator/operator_print_info.h"
 #include "neug/compiler/planner/operator/schema.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // This ENUM is sorted by alphabetical order.
@@ -171,4 +171,4 @@ class NEUG_API LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

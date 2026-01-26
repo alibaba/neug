@@ -98,7 +98,7 @@
 #include "re2/include/utf.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Keep in sync with string list kOpcodeNames[] in testing/dump.cc
@@ -691,6 +691,6 @@ inline Regexp::ParseFlags operator~(Regexp::ParseFlags a) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_REGEXP_H_

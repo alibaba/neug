@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class LambdaExpression final : public Expression {
@@ -62,4 +62,4 @@ class LambdaExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

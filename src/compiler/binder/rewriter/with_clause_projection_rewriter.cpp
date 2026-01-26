@@ -29,9 +29,9 @@
 #include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/binder/visitor/property_collector.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static void rewrite(std::shared_ptr<Expression> expr,
@@ -127,4 +127,4 @@ void WithClauseProjectionRewriter::visitSingleQueryUnsafe(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

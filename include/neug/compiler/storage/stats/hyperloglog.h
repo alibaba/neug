@@ -30,7 +30,7 @@
 
 #include "neug/compiler/common/utils.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 
 class HyperLogLog {
@@ -77,4 +77,4 @@ class HyperLogLog {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

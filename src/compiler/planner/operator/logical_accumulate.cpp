@@ -3,7 +3,7 @@
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 #include "neug/compiler/planner/operator/factorization/sink_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalAccumulate::computeFactorizedSchema() {
@@ -31,4 +31,4 @@ f_group_pos_set LogicalAccumulate::getGroupPositionsToFlatten() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

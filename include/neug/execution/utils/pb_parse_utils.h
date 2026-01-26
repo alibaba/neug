@@ -27,7 +27,7 @@ namespace algebra {
 class QueryParams;
 }  // namespace algebra
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -48,4 +48,4 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v);
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

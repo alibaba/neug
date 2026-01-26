@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class RelMultiplicity : uint8_t { MANY, ONE };
@@ -37,4 +37,4 @@ struct RelMultiplicityUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

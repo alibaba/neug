@@ -28,7 +28,7 @@
 #include "neug/main/query_result.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 class NeugDB;
 
@@ -134,4 +134,4 @@ class Connection {
   std::atomic<bool> is_closed_{false};
 };
 
-}  // namespace gs
+}  // namespace neug

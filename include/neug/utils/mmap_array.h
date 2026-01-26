@@ -62,7 +62,7 @@ inline size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
 #undef HUGEPAGE_MASK
 #undef ROUND_UP
 
-namespace gs {
+namespace neug {
 
 enum class MemoryStrategy {
   kSyncToFile,
@@ -596,4 +596,4 @@ class mmap_array<std::string_view> {
   bool is_writable_ = true;
 };
 
-}  // namespace gs
+}  // namespace neug

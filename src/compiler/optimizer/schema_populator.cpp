@@ -22,7 +22,7 @@
 
 #include "neug/compiler/optimizer/schema_populator.h"
 
-namespace gs::optimizer {
+namespace neug::optimizer {
 
 static void populateSchemaRecursive(planner::LogicalOperator* op) {
   for (auto i = 0u; i < op->getNumChildren(); ++i) {
@@ -34,4 +34,4 @@ static void populateSchemaRecursive(planner::LogicalOperator* op) {
 void SchemaPopulator::rewrite(planner::LogicalPlan* plan) {
   populateSchemaRecursive(plan->getLastOperator().get());
 }
-}  // namespace gs::optimizer
+}  // namespace neug::optimizer

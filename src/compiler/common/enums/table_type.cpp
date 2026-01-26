@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string TableTypeUtils::toString(TableType tableType) {
@@ -47,4 +47,4 @@ std::string TableTypeUtils::toString(TableType tableType) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "rel_pattern.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class PatternElementChain {
@@ -44,4 +44,4 @@ class PatternElementChain {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

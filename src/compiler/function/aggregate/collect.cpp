@@ -22,12 +22,12 @@
 
 #include "neug/compiler/function/aggregate_function.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::storage;
-using namespace gs::processor;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::storage;
+using namespace neug::processor;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CollectState : public AggregateState {
@@ -91,4 +91,4 @@ function_set CollectFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

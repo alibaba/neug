@@ -30,7 +30,7 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 bool tryCastToBool(const char* input, uint64_t len, bool& result) {
@@ -85,7 +85,7 @@ void castStringToBool(const char* input, uint64_t len, bool& result) {
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result) {
+    const char* input, uint64_t len, neug::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -95,7 +95,7 @@ bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result) {
+    const char* input, uint64_t len, neug::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -105,7 +105,7 @@ bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result) {
+    const char* input, uint64_t len, neug::common::timestamp_t& result) {
   if (!Timestamp::tryConvertTimestamp(input, len, result)) {
     return false;
   }
@@ -256,7 +256,7 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
     return LogicalType::DATE();
   }
   // It might just be quicker to try cast to timestamp.
-  gs::common::timestamp_t tmp;
+  neug::common::timestamp_t tmp;
   if (common::Timestamp::tryConvertTimestamp(cpy.data(), cpy.length(), tmp)) {
     return LogicalType::TIMESTAMP();
   }
@@ -290,4 +290,4 @@ LogicalType inferMinimalTypeFromString(std::string_view str) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

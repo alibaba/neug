@@ -35,7 +35,7 @@
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
 filterInvalidEdges(const std::vector<vid_t>& src_lid,
@@ -81,7 +81,7 @@ std::vector<Property> extract_edge_data(
       if (valid_flags[cur_index++]) {
         // edge_data.emplace_back(casted->GetView(i));
         edge_data.emplace_back(
-            gs::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
+            neug::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
       }
     }
   }
@@ -769,10 +769,10 @@ int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
                            timestamp_t ts, Allocator& alloc) {
   int32_t oe_offset;
   if (meta_->is_bundled()) {
-    assert(
-        edge_data.size() == 1 ||
-        (edge_data.size() == 0 && (meta_->properties.empty() ||
-                                   meta_->properties[0] == DataTypeId::kEmpty)));
+    assert(edge_data.size() == 1 ||
+           (edge_data.size() == 0 &&
+            (meta_->properties.empty() ||
+             meta_->properties[0] == DataTypeId::kEmpty)));
     in_csr_->put_generic_edge(dst_lid, src_lid, edge_data[0], ts, alloc);
     oe_offset =
         out_csr_->put_generic_edge(src_lid, dst_lid, edge_data[0], ts, alloc);
@@ -1012,4 +1012,4 @@ std::string EdgeTable::get_next_csr_path_suffix() {
   return std::string("_v_") + std::to_string(csr_alter_version_.fetch_add(1));
 }
 
-}  // namespace gs
+}  // namespace neug

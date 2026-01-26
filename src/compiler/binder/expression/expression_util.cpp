@@ -30,9 +30,9 @@
 #include "neug/compiler/common/types/value/nested.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 expression_vector ExpressionUtil::getExpressionsWithDataType(
@@ -560,4 +560,4 @@ template NEUG_API bool ExpressionUtil::evaluateLiteral<bool>(
     validate_param_func<bool> validateParamFunc);
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

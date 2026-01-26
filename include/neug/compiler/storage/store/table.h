@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/rel_direction.h"
 #include "neug/compiler/common/mask.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 class ExpressionEvaluator;
 }
@@ -81,4 +81,4 @@ class NEUG_API Table {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

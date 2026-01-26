@@ -26,7 +26,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -122,4 +122,4 @@ class FilterPushDownOptimizer {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

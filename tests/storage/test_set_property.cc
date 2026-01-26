@@ -29,7 +29,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
   }
   // create the directory
   std::filesystem::create_directories(data_path);
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(data_path);
   // Get current directory where the .cc exists
   const char* flex_data_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");

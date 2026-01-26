@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class PathExpression final : public Expression {
@@ -51,4 +51,4 @@ class PathExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

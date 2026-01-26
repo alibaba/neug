@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/function/scalar_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class ScalarFunctionExpression final : public Expression {
@@ -53,4 +53,4 @@ class ScalarFunctionExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

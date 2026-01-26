@@ -25,10 +25,10 @@
 #include "neug/compiler/extension/extension_action.h"
 #include "statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
-using namespace gs::extension;
+using namespace neug::extension;
 
 class ExtensionStatement final : public Statement {
  public:
@@ -42,4 +42,4 @@ class ExtensionStatement final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -29,7 +29,7 @@
 #include "neug/compiler/common/enums/scan_source_type.h"
 #include "neug/compiler/function/table/scan_file_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundBaseScanSource {
@@ -126,4 +126,4 @@ struct BoundQueryScanSource final : BoundBaseScanSource {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

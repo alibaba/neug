@@ -32,7 +32,7 @@
 
 struct ArrowSchema;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // An Arrow Vector(i.e., Array) is defined by a few pieces of metadata and data:
@@ -111,4 +111,4 @@ class ArrowRowBatch {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -49,7 +49,7 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/service_utils.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class Utils {
  public:
@@ -460,4 +460,4 @@ class VerifyFactory {
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

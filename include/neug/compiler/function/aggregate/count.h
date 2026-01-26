@@ -24,7 +24,7 @@
 
 #include "base_count.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct CountFunction : public BaseCountFunction {
@@ -48,4 +48,4 @@ struct CountFunction : public BaseCountFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

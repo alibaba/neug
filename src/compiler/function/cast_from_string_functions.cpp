@@ -28,9 +28,9 @@
 #include "neug/utils/exception/exception.h"
 #include "utf8proc_wrapper.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 // ---------------------- cast String Helper ------------------------------ //
@@ -171,17 +171,17 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   gs::common::timestamp_tz_t& result,
+                                   neug::common::timestamp_tz_t& result,
                                    ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  TryCastStringToTimestamp::cast<gs::common::timestamp_tz_t>(
+  TryCastStringToTimestamp::cast<neug::common::timestamp_tz_t>(
       input, len, result, LogicalTypeID::TIMESTAMP_TZ);
 }
 
 template <>
 inline void CastStringHelper::cast(const char* input, uint64_t len,
-                                   gs::common::timestamp_t& result,
+                                   neug::common::timestamp_t& result,
                                    ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
@@ -193,7 +193,7 @@ inline void CastStringHelper::cast(const char* input, uint64_t len,
                                    interval_t& result, ValueVector* /*vector*/,
                                    uint64_t /*rowToAdd*/,
                                    const CSVOption* /*option*/) {
-  result = gs::common::Interval::fromCString(input, len);
+  result = neug::common::Interval::fromCString(input, len);
 }
 
 // ---------------------- cast String to Blob ------------------------------ //
@@ -898,13 +898,13 @@ static bool tryCastUnionField(ValueVector* vector, uint64_t rowToAdd,
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    gs::common::timestamp_tz_t result;
-    success = TryCastStringToTimestamp::tryCast<gs::common::timestamp_tz_t>(
+    neug::common::timestamp_tz_t result;
+    success = TryCastStringToTimestamp::tryCast<neug::common::timestamp_tz_t>(
         input, len, result);
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    gs::common::timestamp_t result;
+    neug::common::timestamp_t result;
     success = Timestamp::tryConvertTimestamp(input, len, result);
     testAndSetValue(vector, rowToAdd, result, success);
   } break;
@@ -1101,12 +1101,12 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
     vector->setValue(vectorPos, val);
   } break;
   case LogicalTypeID::TIMESTAMP_TZ: {
-    gs::common::timestamp_tz_t val;
+    neug::common::timestamp_tz_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
   case LogicalTypeID::TIMESTAMP: {
-    gs::common::timestamp_t val;
+    neug::common::timestamp_t val;
     CastStringHelper::cast(strVal.data(), strVal.length(), val);
     vector->setValue(vectorPos, val);
   } break;
@@ -1143,4 +1143,4 @@ void CastString::copyStringToVector(ValueVector* vector, uint64_t vectorPos,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -22,9 +22,9 @@
 
 #include "neug/compiler/binder/query/updating_clause/bound_merge_clause.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 bool BoundMergeClause::hasInsertInfo(
@@ -91,4 +91,4 @@ std::vector<BoundSetPropertyInfo> BoundMergeClause::getOnCreateSetInfos(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/copy/index_look_up_info.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // This operator is specifically used to transform primary key to offset during
@@ -37,4 +37,4 @@ class LogicalPrimaryKeyLookup final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

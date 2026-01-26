@@ -25,10 +25,10 @@
 #include "neug/compiler/parser/query/reading_clause/match_clause.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static void collectHintPattern(const BoundJoinHintNode& node,
@@ -158,4 +158,4 @@ void Binder::rewriteMatchPattern(BoundGraphPattern& boundGraphPattern) {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

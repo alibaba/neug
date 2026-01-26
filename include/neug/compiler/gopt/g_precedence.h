@@ -18,7 +18,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class GPrecedence {
  public:
@@ -28,4 +28,4 @@ class GPrecedence {
                  const binder::Expression& child);
 };
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

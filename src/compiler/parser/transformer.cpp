@@ -27,9 +27,9 @@
 #include "neug/compiler/parser/explain_statement.h"
 #include "neug/compiler/parser/query/regular_query.h"  // IWYU pragma: keep (fixes a forward declaration error)
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::vector<std::shared_ptr<Statement>> Transformer::transform() {
@@ -137,4 +137,4 @@ std::string Transformer::transformStringLiteral(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

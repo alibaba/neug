@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
 #include "neug/execution/utils/special_predicates.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -780,4 +780,4 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

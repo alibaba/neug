@@ -32,7 +32,7 @@
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class ExpressionChildrenCollector {
@@ -215,4 +215,4 @@ class VariableCastTypeCollector final : public ExpressionVisitor {
   main::ClientContext* ctx;
 };
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

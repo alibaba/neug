@@ -13,7 +13,7 @@
 #include "re2/include/prefilter_tree.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 FilteredRE2::FilteredRE2()
@@ -115,4 +115,4 @@ void FilteredRE2::PrintPrefilter(int regexpid) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

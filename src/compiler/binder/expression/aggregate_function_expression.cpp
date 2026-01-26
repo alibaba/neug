@@ -24,9 +24,9 @@
 
 #include "neug/compiler/binder/expression/expression_util.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::string AggregateFunctionExpression::toStringInternal() const {
@@ -43,4 +43,4 @@ std::string AggregateFunctionExpression::getUniqueName(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

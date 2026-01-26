@@ -22,7 +22,7 @@
 #include <glog/logging.h>
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   if (type->Equals(arrow::int64())) {
@@ -286,4 +286,4 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

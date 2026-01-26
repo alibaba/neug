@@ -24,7 +24,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_catalog_holder.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 /**
@@ -41,16 +41,16 @@ struct ExtensionInfo {
 
 class ExtensionAPI {
  public:
-  static void setCatalog(gs::catalog::Catalog* catalog);
+  static void setCatalog(neug::catalog::Catalog* catalog);
 
   template <typename T>
   static void registerFunction(catalog::CatalogEntryType entryType) {
     auto gCatalog = catalog::GCatalogHolder::getGCatalog();
-    if (gCatalog->containsFunction(&gs::transaction::DUMMY_TRANSACTION, T::name,
-                                   false)) {
+    if (gCatalog->containsFunction(&neug::transaction::DUMMY_TRANSACTION,
+                                   T::name, false)) {
       return;
     }
-    gCatalog->addFunctionWithSignature(&gs::transaction::DUMMY_TRANSACTION,
+    gCatalog->addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
                                        entryType, T::name, T::getFunctionSet(),
                                        false);
   }
@@ -65,4 +65,4 @@ class ExtensionAPI {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

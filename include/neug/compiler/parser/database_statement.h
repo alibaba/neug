@@ -26,7 +26,7 @@
 
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class DatabaseStatement : public Statement {
@@ -41,4 +41,4 @@ class DatabaseStatement : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

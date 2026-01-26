@@ -28,10 +28,10 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindVariableExpression(
@@ -63,4 +63,4 @@ std::shared_ptr<Expression> ExpressionBinder::createVariableExpression(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

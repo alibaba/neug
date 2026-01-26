@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum class SemiMaskTargetType : uint8_t {
@@ -14,4 +14,4 @@ enum class SemiMaskTargetType : uint8_t {
 };
 
 }
-}  // namespace gs
+}  // namespace neug

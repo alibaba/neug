@@ -24,7 +24,7 @@
 #include "re2/include/sparse_array.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class PrefilterTree {
@@ -135,6 +135,6 @@ class PrefilterTree {
 };
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_PREFILTER_TREE_H_

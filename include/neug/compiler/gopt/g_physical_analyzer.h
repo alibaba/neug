@@ -32,7 +32,7 @@
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/compiler/transaction/transaction_action.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 struct ExecutionFlag {
@@ -204,4 +204,4 @@ class GPhysicalAnalyzer {
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

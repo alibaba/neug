@@ -23,7 +23,7 @@
 #include "neug/compiler/parser/detach_database.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformDetachDatabase(
@@ -33,4 +33,4 @@ std::unique_ptr<Statement> Transformer::transformDetachDatabase(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

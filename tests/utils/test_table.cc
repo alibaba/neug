@@ -29,24 +29,24 @@ static const std::vector<float> float_data = {1.0, 4.5,  -1.3, 2.2, 9.7,
                                               2.4, 4.12, 3.6,  1.8, -2.49};
 static const std::vector<double> double_data = {1.0, 4.5,  -1.3, 2.2, 9.7,
                                                 2.4, 4.12, 3.6,  1.8, -2.49};
-static const std::vector<gs::Date> date_data = {
-    gs::Date(0), gs::Date(5), gs::Date(2), gs::Date(9), gs::Date(3),
-    gs::Date(4), gs::Date(3), gs::Date(5), gs::Date(7), gs::Date(0)};
-static const std::vector<gs::DateTime> datetime_data = {
-    gs::DateTime(0), gs::DateTime(5), gs::DateTime(2), gs::DateTime(9),
-    gs::DateTime(3), gs::DateTime(4), gs::DateTime(3), gs::DateTime(5),
-    gs::DateTime(7), gs::DateTime(0)};
-static const std::vector<gs::Interval> interval_data = {
-    gs::Interval(std::string("0hour")),
-    gs::Interval(std::string("5hours")),
-    gs::Interval(std::string("2minutes")),
-    gs::Interval(std::string("9hours")),
-    gs::Interval(std::string("3seconds")),
-    gs::Interval(std::string("4days")),
-    gs::Interval(std::string("3years")),
-    gs::Interval(std::string("5milliseconds")),
-    gs::Interval(std::string("7minutes")),
-    gs::Interval(std::string("0day"))};
+static const std::vector<neug::Date> date_data = {
+    neug::Date(0), neug::Date(5), neug::Date(2), neug::Date(9), neug::Date(3),
+    neug::Date(4), neug::Date(3), neug::Date(5), neug::Date(7), neug::Date(0)};
+static const std::vector<neug::DateTime> datetime_data = {
+    neug::DateTime(0), neug::DateTime(5), neug::DateTime(2), neug::DateTime(9),
+    neug::DateTime(3), neug::DateTime(4), neug::DateTime(3), neug::DateTime(5),
+    neug::DateTime(7), neug::DateTime(0)};
+static const std::vector<neug::Interval> interval_data = {
+    neug::Interval(std::string("0hour")),
+    neug::Interval(std::string("5hours")),
+    neug::Interval(std::string("2minutes")),
+    neug::Interval(std::string("9hours")),
+    neug::Interval(std::string("3seconds")),
+    neug::Interval(std::string("4days")),
+    neug::Interval(std::string("3years")),
+    neug::Interval(std::string("5milliseconds")),
+    neug::Interval(std::string("7minutes")),
+    neug::Interval(std::string("0day"))};
 
 static const std::vector<std::string> string_data = {
     std::string("0hour"),    std::string("5hours"),
@@ -55,7 +55,7 @@ static const std::vector<std::string> string_data = {
     std::string("3years"),   std::string("5milliseconds"),
     std::string("7minutes"), std::string("0day")};
 
-namespace gs {
+namespace neug {
 namespace test {
 TEST(TableTest, TestTableBasic) {
   if (std::filesystem::exists(TEST_DIR)) {
@@ -73,9 +73,9 @@ TEST(TableTest, TestTableBasic) {
       "datetime_column", "interval_column", "string_column"};
 
   std::vector<DataTypeId> property_types = {
-      DataTypeId::kBoolean,  DataTypeId::kInt32, DataTypeId::kUInt32,
-      DataTypeId::kInt64,   DataTypeId::kUInt64, DataTypeId::kFloat,
-      DataTypeId::kDouble,   DataTypeId::kDate,    DataTypeId::kTimestampMs,
+      DataTypeId::kBoolean,  DataTypeId::kInt32,  DataTypeId::kUInt32,
+      DataTypeId::kInt64,    DataTypeId::kUInt64, DataTypeId::kFloat,
+      DataTypeId::kDouble,   DataTypeId::kDate,   DataTypeId::kTimestampMs,
       DataTypeId::kInterval, DataTypeId::kVarchar};
 
   std::vector<Property> default_values = {
@@ -338,4 +338,4 @@ TEST(TableTest, TestTableBasic) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "reading_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class UnwindClause : public ReadingClause {
@@ -48,4 +48,4 @@ class UnwindClause : public ReadingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

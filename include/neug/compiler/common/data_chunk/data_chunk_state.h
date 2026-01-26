@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/data_chunk/sel_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // F stands for Factorization
@@ -68,4 +68,4 @@ class NEUG_API DataChunkState {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

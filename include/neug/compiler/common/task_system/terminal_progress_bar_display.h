@@ -26,7 +26,7 @@
 
 #include "progress_bar_display.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 /**
@@ -52,4 +52,4 @@ class TerminalProgressBarDisplay final : public ProgressBarDisplay {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

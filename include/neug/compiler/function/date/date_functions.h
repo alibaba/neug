@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/common/types/timestamp_t.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct DatePart {
@@ -39,4 +39,4 @@ struct DatePart {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -26,11 +26,11 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 
-using namespace gs::common;
-using namespace gs::storage;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::storage;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void CountFunction::updateAll(uint8_t* state_, ValueVector* input,
@@ -63,4 +63,4 @@ function_set CountFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

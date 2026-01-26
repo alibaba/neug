@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/ddl/bound_alter_info.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::string BoundAlterInfo::toString() const {
@@ -67,4 +67,4 @@ std::string BoundAlterInfo::toString() const {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

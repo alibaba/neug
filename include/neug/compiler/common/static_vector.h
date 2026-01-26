@@ -29,7 +29,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/copy_constructors.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 template <typename T>
@@ -107,4 +107,4 @@ class StaticVector {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -19,7 +19,7 @@
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 namespace ops {
@@ -80,7 +80,7 @@ struct GKey : public KeyBase {
     std::vector<std::vector<char>> root_list;
     for (size_t i = 0; i < row_num; ++i) {
       std::vector<char> buf;
-      ::gs::Encoder encoder(buf);
+      ::neug::Encoder encoder(buf);
       for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
         auto val = exprs[k_i](i);
         encode_value(val, encoder);
@@ -155,11 +155,11 @@ struct Reducer : public ReducerBase {
 
 class GroupBy {
  public:
-  static gs::result<Context> group_by(
+  static neug::result<Context> group_by(
       Context&& ctx, std::unique_ptr<KeyBase>&& key,
       std::vector<std::unique_ptr<ReducerBase>>&& aggrs);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

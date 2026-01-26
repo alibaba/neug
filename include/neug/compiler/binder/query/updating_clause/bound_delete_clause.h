@@ -25,7 +25,7 @@
 #include "bound_delete_info.h"
 #include "bound_updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundDeleteClause final : public BoundUpdatingClause {
@@ -66,4 +66,4 @@ class BoundDeleteClause final : public BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

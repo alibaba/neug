@@ -40,11 +40,8 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-namespace server {
+namespace neug {
 class NeugDBService;
-}  // namespace server
-
-namespace gs {
 class AppManager;
 class Connection;
 class ConnectionManager;
@@ -186,7 +183,7 @@ class NeugDB {
   void createCheckpoint(bool force_compaction = false);
 
   friend class NeugDBSession;
-  friend class server::NeugDBService;
+  friend class neug::NeugDBService;
 
   timestamp_t last_compaction_ts_;
   timestamp_t last_ts_;
@@ -209,4 +206,4 @@ class NeugDB {
       allocators_;  // Allocators for each thread
 };
 
-}  // namespace gs
+}  // namespace neug

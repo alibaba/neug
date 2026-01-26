@@ -36,7 +36,7 @@ namespace arrow {
 class DataType;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 
 void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
                          std::string& v_file, char delimiter, bool skip_head,
@@ -380,7 +380,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   }
 }
 
-}  // namespace gs
+}  // namespace neug
 
 TEST(DatabaseTest, TestAlterProperty) {
   std::string data_path = "/tmp/alter_property_test";
@@ -395,5 +395,5 @@ TEST(DatabaseTest, TestAlterProperty) {
         "MODERN_GRAPH_DATA_DIR environment variable is not set");
   }
   LOG(INFO) << "Data directory: " << data_dir;
-  gs::testOpenEmptyGraph(data_path, data_dir);
+  neug::testOpenEmptyGraph(data_path, data_dir);
 }

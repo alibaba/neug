@@ -19,7 +19,7 @@
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 struct NbrIterConfig {
   int stride : 16;
@@ -415,4 +415,4 @@ struct GenericView {
   timestamp_t unsorted_since_;
 };
 
-}  // namespace gs
+}  // namespace neug

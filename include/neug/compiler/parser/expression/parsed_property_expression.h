@@ -26,7 +26,7 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedPropertyExpression : public ParsedExpression {
@@ -72,4 +72,4 @@ class ParsedPropertyExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

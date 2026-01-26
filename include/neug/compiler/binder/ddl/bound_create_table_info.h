@@ -29,7 +29,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "property_definition.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 enum class RelMultiplicity : uint8_t;
 }
@@ -169,4 +169,4 @@ struct BoundExtraCreateRelTableGroupInfo final
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

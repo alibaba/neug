@@ -32,7 +32,7 @@
 #include "neug/compiler/common/types/uuid.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 
 namespace common {
 
@@ -884,4 +884,4 @@ NEUG_API inline Value Value::createValue(uint8_t* val) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -27,7 +27,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 void ExtensionInstaller::tryDownloadExtensionFile(
@@ -111,4 +111,4 @@ void ExtensionInstaller::installDependencies() {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

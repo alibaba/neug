@@ -27,7 +27,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "neug/compiler/common/enums/conflict_action.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundCreateSequenceInfo {
@@ -69,4 +69,4 @@ struct BoundCreateSequenceInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -38,25 +38,25 @@
 #include "neug/compiler/gopt/g_vfs_holder.h"
 #include "neug/compiler/storage/stats_manager.h"
 
-using namespace gs::catalog;
-using namespace gs::common;
-using namespace gs::storage;
-using namespace gs::transaction;
+using namespace neug::catalog;
+using namespace neug::common;
+using namespace neug::storage;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace main {
 
 MetadataManager::MetadataManager() {
   this->vfs = std::make_unique<VirtualFileSystem>();
   common::VFSHolder::setVFS(this->vfs.get());
   this->extensionManager = std::make_unique<extension::ExtensionManager>();
-  this->memoryManager = std::make_unique<gs::storage::MemoryManager>();
+  this->memoryManager = std::make_unique<neug::storage::MemoryManager>();
   // the catalog is initialized only once and is empty before data loading
-  this->catalog = std::make_unique<gs::catalog::GCatalog>();
+  this->catalog = std::make_unique<neug::catalog::GCatalog>();
   catalog::GCatalogHolder::setGCatalog(
       this->catalog->ptrCast<catalog::GCatalog>());
   std::string emptyStats = "";
-  this->storageManager = std::make_unique<gs::storage::StatsManager>(
+  this->storageManager = std::make_unique<neug::storage::StatsManager>(
       emptyStats, this, *this->memoryManager);
 }
 
@@ -66,32 +66,32 @@ void MetadataManager::updateSchema(const std::filesystem::path& schemaPath) {
   if (!this->catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
-  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schemaPath);
+  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schemaPath);
 }
 
 void MetadataManager::updateSchema(const std::string& schema) {
   if (!this->catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
-  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schema);
+  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schema);
 }
 
 void MetadataManager::updateSchema(const YAML::Node& schema) {
   if (!this->catalog) {
     THROW_CATALOG_EXCEPTION("Catalog is not set");
   }
-  this->catalog->ptrCast<gs::catalog::GCatalog>()->updateSchema(schema);
+  this->catalog->ptrCast<neug::catalog::GCatalog>()->updateSchema(schema);
 }
 
 void MetadataManager::updateStats(const std::filesystem::path& statsPath) {
-  this->storageManager = std::make_unique<gs::storage::StatsManager>(
+  this->storageManager = std::make_unique<neug::storage::StatsManager>(
       statsPath, this, *this->memoryManager);
 }
 
 void MetadataManager::updateStats(const std::string& stats) {
-  this->storageManager = std::make_unique<gs::storage::StatsManager>(
+  this->storageManager = std::make_unique<neug::storage::StatsManager>(
       stats, this, *this->memoryManager);
 }
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

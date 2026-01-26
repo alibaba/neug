@@ -17,7 +17,7 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 class IStorageInterface;
 namespace runtime {
 class Context;
@@ -25,12 +25,12 @@ class JoinParams;
 
 class Join {
  public:
-  static gs::result<Context> join(Context&& ctx, Context&& ctx2,
-                                  const JoinParams& params);
+  static neug::result<Context> join(Context&& ctx, Context&& ctx2,
+                                    const JoinParams& params);
 
-  static gs::result<Context> pk_join(IStorageInterface&, Context&& ctx,
-                                     const std::vector<label_t>& labels,
-                                     int tag, int alias);
+  static neug::result<Context> pk_join(IStorageInterface&, Context&& ctx,
+                                       const std::vector<label_t>& labels,
+                                       int tag, int alias);
 };
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

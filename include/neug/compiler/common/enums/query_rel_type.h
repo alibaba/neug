@@ -27,7 +27,7 @@
 
 #include "path_semantic.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 class RJAlgorithm;
 }
@@ -61,4 +61,4 @@ struct QueryRelTypeUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 #include "cypher_parser.h"
 #pragma GCC diagnostic pop
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class KuzuCypherParser : public CypherParser {
@@ -50,4 +50,4 @@ class KuzuCypherParser : public CypherParser {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

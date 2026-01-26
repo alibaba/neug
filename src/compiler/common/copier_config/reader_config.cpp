@@ -24,7 +24,7 @@
 #include "neug/compiler/common/copier_config/file_scan_info.h"
 #include "neug/compiler/common/string_utils.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 FileType FileTypeUtils::getFileTypeFromExtension(std::string_view extension) {
@@ -76,4 +76,4 @@ FileType FileTypeUtils::fromString(std::string fileType) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

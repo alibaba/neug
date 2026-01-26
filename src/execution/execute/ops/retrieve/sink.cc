@@ -18,7 +18,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -30,8 +30,8 @@ class SinkOpr : public IOperator {
  public:
   explicit SinkOpr(const std::vector<int>& tag_ids) : tag_ids_(tag_ids) {}
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     ctx.tag_ids = tag_ids_;
     return ctx;
   }
@@ -42,8 +42,8 @@ class SinkOpr : public IOperator {
   std::vector<int> tag_ids_;
 };
 
-gs::result<OpBuildResultT> SinkOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> SinkOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto& opr = plan.plan(op_idx).opr().sink();
   std::vector<int> tag_ids;
@@ -77,4 +77,4 @@ gs::result<OpBuildResultT> SinkOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

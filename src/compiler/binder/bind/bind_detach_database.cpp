@@ -24,7 +24,7 @@
 #include "neug/compiler/binder/bound_detach_database.h"
 #include "neug/compiler/parser/detach_database.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindDetachDatabase(
@@ -34,4 +34,4 @@ std::unique_ptr<BoundStatement> Binder::bindDetachDatabase(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

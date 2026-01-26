@@ -16,16 +16,16 @@
 #include <vector>
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
 
 class Union {
  public:
-  static gs::result<Context> union_op(std::vector<Context>&& ctxs);
+  static neug::result<Context> union_op(std::vector<Context>&& ctxs);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

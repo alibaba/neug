@@ -44,7 +44,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/options.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
@@ -192,7 +192,7 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   auto batch_reader = batch_reader_result.ValueOrDie();
 
   auto batch_supplier =
-      std::make_shared<gs::ArrowRecordBatchStreamSupplier>(batch_reader);
+      std::make_shared<neug::ArrowRecordBatchStreamSupplier>(batch_reader);
 
   int num_cols = sharedState->columnNum();
   output.clear();
@@ -240,17 +240,17 @@ std::shared_ptr<arrow::dataset::DatasetFactory> ArrowReader::createFactory(
 
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
   if (!sharedState) {
-    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+    return arrow::Status::Invalid(neug::StatusCode::ERR_INVALID_ARGUMENT,
                                   "SharedState is null");
   }
 
   if (!fileSystem) {
-    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+    return arrow::Status::Invalid(neug::StatusCode::ERR_INVALID_ARGUMENT,
                                   "FileSystem is null");
   }
 
   if (!optionsBuilder) {
-    return arrow::Status::Invalid(gs::StatusCode::ERR_INVALID_ARGUMENT,
+    return arrow::Status::Invalid(neug::StatusCode::ERR_INVALID_ARGUMENT,
                                   "Options builder is null");
   }
 
@@ -273,4 +273,4 @@ arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
 }
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

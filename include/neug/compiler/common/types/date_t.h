@@ -24,7 +24,7 @@
 
 #include "interval_t.h"
 
-namespace gs {
+namespace neug {
 
 namespace regex {
 class RE2;
@@ -144,4 +144,4 @@ class Date {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

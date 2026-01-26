@@ -2,9 +2,9 @@
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendSetProperty(const std::vector<BoundSetPropertyInfo>& infos,
@@ -21,4 +21,4 @@ void Planner::appendSetProperty(const std::vector<BoundSetPropertyInfo>& infos,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

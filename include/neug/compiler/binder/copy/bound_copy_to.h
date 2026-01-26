@@ -26,7 +26,7 @@
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundCopyTo final : public BoundStatement {
@@ -55,4 +55,4 @@ class BoundCopyTo final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

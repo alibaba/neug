@@ -34,7 +34,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 bool Value::operator==(const Value& rhs) const {
@@ -1012,4 +1012,4 @@ std::string Value::decimalToString() const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -29,7 +29,7 @@
 #include "neug/compiler/common/data_chunk/data_chunk_state.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 // A DataChunk represents tuples as a set of value vectors and a selector array.
@@ -69,4 +69,4 @@ class NEUG_API DataChunk {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

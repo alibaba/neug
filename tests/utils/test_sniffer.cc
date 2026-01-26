@@ -17,7 +17,7 @@
 
 #include "neug/utils/reader/sniffer.h"
 #include "test_reader.h"
-namespace gs {
+namespace neug {
 namespace test {
 
 class SnifferTest : public ReaderTest {};
@@ -52,4 +52,4 @@ TEST_F(SnifferTest, TestSniffBasic) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

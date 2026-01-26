@@ -26,7 +26,7 @@
 
 #include "file_system.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct LocalFileInfo : public FileInfo {
@@ -96,4 +96,4 @@ class NEUG_API LocalFileSystem final : public FileSystem {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

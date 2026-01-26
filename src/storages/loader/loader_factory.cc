@@ -26,14 +26,14 @@
 #include <glog/logging.h>
 
 #include "neug/utils/string_utils.h"
-namespace gs {
+namespace neug {
 class IFragmentLoader;
 }
-namespace gs {
+namespace neug {
 class Schema;
 }
 
-namespace gs {
+namespace neug {
 
 void LoaderFactory::Init() {
   // get env FLEX_OTHER_LOADERS
@@ -97,4 +97,4 @@ LoaderFactory::getKnownLoaders() {
   return *known_loaders_;
 }
 
-}  // namespace gs
+}  // namespace neug

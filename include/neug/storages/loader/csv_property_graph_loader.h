@@ -17,7 +17,7 @@
 #include "neug/storages/loader/abstract_property_graph_loader.h"
 #include "neug/storages/loader/i_fragment_loader.h"
 
-namespace gs {
+namespace neug {
 
 class CSVPropertyGraphLoader : public AbstractPropertyGraphLoader {
  public:
@@ -46,4 +46,4 @@ class CSVPropertyGraphLoader : public AbstractPropertyGraphLoader {
   static const bool registered_;
 };
 
-}  // namespace gs
+}  // namespace neug

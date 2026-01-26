@@ -24,9 +24,9 @@
 
 #include "neug/compiler/common/enums/statement_type.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace main {
 
 double QuerySummary::getCompilingTime() const {
@@ -56,4 +56,4 @@ common::StatementType QuerySummary::getStatementType() const {
 }
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

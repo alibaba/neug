@@ -27,7 +27,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -37,9 +37,9 @@ class IOperator {
 
   virtual std::string get_operator_name() const = 0;
 
-  virtual gs::result<Context> Eval(IStorageInterface& graph,
-                                   const ParamsMap& params, Context&& ctx,
-                                   OprTimer* timer) = 0;
+  virtual neug::result<Context> Eval(IStorageInterface& graph,
+                                     const ParamsMap& params, Context&& ctx,
+                                     OprTimer* timer) = 0;
 };
 
 using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;
@@ -47,10 +47,10 @@ using OpBuildResultT = std::pair<std::unique_ptr<IOperator>, ContextMeta>;
 class IOperatorBuilder {
  public:
   virtual ~IOperatorBuilder() = default;
-  virtual gs::result<OpBuildResultT> Build(const gs::Schema& schema,
-                                           const ContextMeta& ctx_meta,
-                                           const physical::PhysicalPlan& plan,
-                                           int op_idx) = 0;
+  virtual neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                             const ContextMeta& ctx_meta,
+                                             const physical::PhysicalPlan& plan,
+                                             int op_idx) = 0;
   virtual int stepping(int i) { return i + GetOpKinds().size(); }
 
   virtual std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
@@ -59,4 +59,4 @@ class IOperatorBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

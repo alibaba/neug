@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -59,7 +59,7 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static gs::result<Context> order_by_with_limit(
+  static neug::result<Context> order_by_with_limit(
       const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high) {
     std::vector<size_t> offsets;
@@ -69,7 +69,7 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static gs::result<Context> staged_order_by_with_limit(
+  static neug::result<Context> staged_order_by_with_limit(
       const StorageReadInterface& graph, Context&& ctx, const Comparer& cmp,
       size_t low, size_t high, const std::vector<size_t>& indices) {
     std::priority_queue<size_t, std::vector<size_t>, Comparer> queue(cmp);
@@ -96,7 +96,7 @@ class OrderBy {
   }
 
   template <typename Comparer>
-  static gs::result<Context> order_by_with_limit_with_indices(
+  static neug::result<Context> order_by_with_limit_with_indices(
       const StorageReadInterface& graph, Context&& ctx,
       std::function<std::optional<std::vector<size_t>>(
           const StorageReadInterface&, const Context& ctx)>
@@ -117,4 +117,4 @@ class OrderBy {
 };
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

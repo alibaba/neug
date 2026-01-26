@@ -23,7 +23,7 @@
 #include <csignal>
 #include "cxxopts/cxxopts.hpp"
 
-using namespace server;
+using namespace neug;
 
 void signal_handler(int signal) {
   LOG(INFO) << "Received signal " << signal << ", exiting...";
@@ -32,7 +32,7 @@ void signal_handler(int signal) {
       signal == SIGSEGV || signal == SIGABRT) {
     LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
     // remove all files in work_dir
-    gs::FileLock::CleanupAllLocks();
+    neug::FileLock::CleanupAllLocks();
     exit(signal);
   } else {
     LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
@@ -99,8 +99,8 @@ int main(int argc, char** argv) {
   tzset();
 
   auto start = std::chrono::high_resolution_clock::now();
-  gs::NeugDB db;
-  gs::NeugDBConfig config(data_path, shard_num);
+  neug::NeugDB db;
+  neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
   if (config.memory_level >= 2) {
@@ -116,12 +116,12 @@ int main(int argc, char** argv) {
   // start service
   LOG(INFO) << "GraphScope http server start to listen on port " << http_port;
 
-  server::ServiceConfig service_config;
+  neug::ServiceConfig service_config;
   service_config.shard_num = shard_num;
   service_config.host_str =
       vm.count("host") ? vm["host"].as<std::string>() : "127.0.0.1";
   service_config.query_port = http_port;
-  server::NeugDBService service(db, service_config);
+  neug::NeugDBService service(db, service_config);
 
   service.run_and_wait_for_exit();
 

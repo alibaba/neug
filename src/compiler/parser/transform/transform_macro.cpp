@@ -23,7 +23,7 @@
 #include "neug/compiler/parser/create_macro.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::vector<std::string> Transformer::transformPositionalArgs(
@@ -55,4 +55,4 @@ std::unique_ptr<Statement> Transformer::transformCreateMacro(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

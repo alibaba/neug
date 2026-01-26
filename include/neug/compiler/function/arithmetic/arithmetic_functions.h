@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/types/int128_t.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Power {
@@ -254,4 +254,4 @@ struct Pi {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

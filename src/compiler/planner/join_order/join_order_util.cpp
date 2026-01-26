@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/join_order/join_order_util.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 uint64_t JoinOrderUtil::getJoinKeysFlatCardinality(
@@ -22,4 +22,4 @@ uint64_t JoinOrderUtil::getJoinKeysFlatCardinality(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

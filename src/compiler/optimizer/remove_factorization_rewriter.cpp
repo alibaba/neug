@@ -25,10 +25,10 @@
 #include "neug/compiler/optimizer/logical_operator_collector.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::planner;
+using namespace neug::common;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void RemoveFactorizationRewriter::rewrite(planner::LogicalPlan* plan) {
@@ -60,4 +60,4 @@ RemoveFactorizationRewriter::visitFlattenReplace(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

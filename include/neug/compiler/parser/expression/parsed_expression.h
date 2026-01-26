@@ -32,7 +32,7 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace common {
 struct FileInfo;
@@ -130,4 +130,4 @@ using options_t =
     std::unordered_map<std::string, std::unique_ptr<parser::ParsedExpression>>;
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

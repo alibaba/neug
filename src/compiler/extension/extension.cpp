@@ -37,7 +37,7 @@
 #include <dlfcn.h>
 #endif
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 std::string getOS() {
@@ -275,4 +275,4 @@ void* dlsym(void* handle, const char* name) {
 #endif
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

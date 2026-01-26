@@ -27,16 +27,16 @@
 #include "neug/execution/utils/numeric_cast.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 class Property;
 class Encoder;
 
 namespace runtime {
-using timestamp_ms_t = gs::DateTime;
-using interval_t = gs::Interval;
-using date_t = gs::Date;
-using vertex_t = gs::runtime::VertexRecord;
-using edge_t = gs::runtime::EdgeRecord;
+using timestamp_ms_t = neug::DateTime;
+using interval_t = neug::Interval;
+using date_t = neug::Date;
+using vertex_t = neug::runtime::VertexRecord;
+using edge_t = neug::runtime::EdgeRecord;
 struct ExtraValueInfo;
 class Value {
   friend struct StringValue;
@@ -248,11 +248,11 @@ struct ValueConverter<int32_t> {
   template <typename T>
   static bool cast(const T& input, int32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -277,11 +277,11 @@ struct ValueConverter<int64_t> {
       output = input.to_mill_seconds();
       return true;
     } else if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -296,11 +296,11 @@ struct ValueConverter<uint32_t> {
   template <typename T>
   static bool cast(const T& input, uint32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -315,11 +315,11 @@ struct ValueConverter<uint64_t> {
   template <typename T>
   static bool cast(const T& input, uint64_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = gs::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -342,9 +342,9 @@ struct ValueConverter<double> {
   template <typename T>
   static bool cast(const T& input, double& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return gs::runtime::tryDoubleCast(input, output);
+      return neug::runtime::tryDoubleCast(input, output);
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -359,9 +359,9 @@ struct ValueConverter<float> {
   template <typename T>
   static bool cast(const T& input, float& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return gs::runtime::tryDoubleCast(input, output);
+      return neug::runtime::tryDoubleCast(input, output);
     } else {
-      return gs::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::runtime::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -665,7 +665,7 @@ Value performCast(const Value& input) {
 
 template <>
 inline Value performCast<timestamp_t>(const Value& input) {
-  gs::DateTime val;
+  neug::DateTime val;
   bool ret = false;
   if (input.type().id() == DataTypeId::kVarchar) {
     ret = ValueConverter<timestamp_ms_t>::cast(StringValue::Get(input), val);
@@ -684,19 +684,20 @@ inline Value performCast<timestamp_t>(const Value& input) {
 }
 
 template <>
-inline Value performCast<gs::Date>(const Value& input) {
-  gs::Date val;
+inline Value performCast<neug::Date>(const Value& input) {
+  neug::Date val;
   bool ret = false;
   if (input.type().id() == DataTypeId::kVarchar) {
-    ret = ValueConverter<gs::Date>::cast(StringValue::Get(input), val);
+    ret = ValueConverter<neug::Date>::cast(StringValue::Get(input), val);
   } else if (input.type().id() == DataTypeId::kTimestampMs) {
-    ret = ValueConverter<gs::Date>::cast(input.GetValue<timestamp_ms_t>(), val);
+    ret =
+        ValueConverter<neug::Date>::cast(input.GetValue<timestamp_ms_t>(), val);
   } else {
     THROW_CONVERSION_EXCEPTION(
         "Only string type is supported for casting to Date.");
   }
   if (ret) {
-    return Value::CreateValue<gs::Date>(val);
+    return Value::CreateValue<neug::Date>(val);
   } else {
     THROW_CONVERSION_EXCEPTION("Failed to cast value to Date.");
   }
@@ -707,4 +708,4 @@ Value performCastToString(const Value& input);
 
 void encode_value(const Value& val, Encoder& encoder);
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

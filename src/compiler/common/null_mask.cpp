@@ -29,7 +29,7 @@
 #include <bit>
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void NullMask::setNull(uint64_t* nullEntries, uint32_t pos, bool isNull) {
@@ -332,4 +332,4 @@ uint64_t NullMask::countNulls() const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

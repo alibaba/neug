@@ -21,7 +21,7 @@
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 /**
@@ -137,4 +137,4 @@ class ArrowSniffer : public Sniffer {
 };
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

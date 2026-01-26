@@ -6,7 +6,7 @@
 #include "neug/compiler/binder/rewriter/adj_query_graph.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 /**
  * This rewriter is used to set join order heuristically for each subquery in
@@ -38,4 +38,4 @@ class CommonPatReuseRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

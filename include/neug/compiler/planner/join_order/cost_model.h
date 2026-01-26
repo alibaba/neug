@@ -3,7 +3,7 @@
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class CostModel {
@@ -25,7 +25,7 @@ class CostModel {
       const LogicalPlan& probePlan,
       const std::vector<std::unique_ptr<LogicalPlan>>& buildPlans);
   static cardinality_t estimateIntersectCostByCard(
-      const gs::planner::LogicalPlan& probePlan,
+      const neug::planner::LogicalPlan& probePlan,
       const std::vector<cardinality_t>& buildCards);
   static uint64_t computeGetVCost(
       const planner::LogicalRecursiveExtend& extendOp);
@@ -33,4 +33,4 @@ class CostModel {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

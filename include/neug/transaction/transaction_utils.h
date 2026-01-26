@@ -21,7 +21,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 enum class OpType : uint8_t {
   kCreateVertexType = 0,
@@ -53,4 +53,4 @@ inline OutArchive& operator>>(OutArchive& out_archive, OpType& value) {
   return out_archive;
 }
 
-}  // namespace gs
+}  // namespace neug

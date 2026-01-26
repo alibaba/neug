@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class SubqueryType : uint8_t {
@@ -33,4 +33,4 @@ enum class SubqueryType : uint8_t {
 };
 
 }
-}  // namespace gs
+}  // namespace neug

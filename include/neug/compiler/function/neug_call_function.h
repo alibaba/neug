@@ -21,7 +21,7 @@
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 namespace runtime {
 class ContextMeta;
@@ -61,4 +61,4 @@ struct NeugCallFunction : public TableFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

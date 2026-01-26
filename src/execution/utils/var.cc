@@ -24,7 +24,7 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/utils/pb_parse_utils.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 struct LabelTriplet;
@@ -162,4 +162,4 @@ bool Var::graph_related_var(const common::Variable& pb) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

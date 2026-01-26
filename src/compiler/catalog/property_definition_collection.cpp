@@ -29,10 +29,10 @@
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_utils.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 std::vector<binder::PropertyDefinition>
@@ -173,4 +173,4 @@ PropertyDefinitionCollection PropertyDefinitionCollection::deserialize(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

@@ -25,9 +25,9 @@
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/interval_t.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <typename OP>
@@ -259,4 +259,4 @@ void GreaterThan::operation(const struct_entry_t& left,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

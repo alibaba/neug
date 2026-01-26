@@ -1,6 +1,6 @@
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalRecursiveExtend::getExpressionsForPrinting() const {
@@ -39,4 +39,4 @@ void LogicalRecursiveExtend::computeFactorizedSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

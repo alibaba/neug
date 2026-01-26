@@ -3,7 +3,7 @@
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
-namespace gs {
+namespace neug {
 namespace optimizer {
 class FlatJoinToExpandOptimizer : public LogicalOperatorVisitor {
  public:
@@ -22,4 +22,4 @@ class FlatJoinToExpandOptimizer : public LogicalOperatorVisitor {
   void setOptional(std::shared_ptr<planner::LogicalOperator> plan);
 };
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

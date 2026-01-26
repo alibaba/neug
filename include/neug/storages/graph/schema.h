@@ -34,7 +34,7 @@ namespace YAML {
 class Node;
 }
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class Schema;
@@ -593,15 +593,15 @@ class Schema {
 
   void Deserialize(std::istream& is);
 
-  static gs::result<Schema> LoadFromYaml(const std::string& schema_config);
+  static neug::result<Schema> LoadFromYaml(const std::string& schema_config);
 
-  static gs::result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
+  static neug::result<Schema> LoadFromYamlNode(const YAML::Node& schema_node);
 
-  static gs::result<YAML::Node> DumpToYaml(const Schema& schema);
+  static neug::result<YAML::Node> DumpToYaml(const Schema& schema);
 
   bool Equals(const Schema& other) const;
 
-  gs::result<YAML::Node> to_yaml() const;
+  neug::result<YAML::Node> to_yaml() const;
 
   inline void SetGraphName(const std::string& name) { name_ = name; }
 
@@ -670,4 +670,4 @@ InArchive& operator<<(InArchive& arc, const EdgeSchema& schema);
 OutArchive& operator>>(OutArchive& arc, VertexSchema& schema);
 OutArchive& operator>>(OutArchive& arc, EdgeSchema& schema);
 
-}  // namespace gs
+}  // namespace neug

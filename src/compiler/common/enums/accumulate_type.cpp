@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string AccumulateTypeUtil::toString(AccumulateType type) {
@@ -41,4 +41,4 @@ std::string AccumulateTypeUtil::toString(AccumulateType type) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

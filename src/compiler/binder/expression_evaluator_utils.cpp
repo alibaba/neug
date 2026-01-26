@@ -25,10 +25,10 @@
 #include "neug/compiler/binder/expression_mapper.h"
 #include "neug/compiler/common/types/value/value.h"
 
-using namespace gs::common;
-using namespace gs::processor;
+using namespace neug::common;
+using namespace neug::processor;
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 Value ExpressionEvaluatorUtils::evaluateConstantExpression(
@@ -45,4 +45,4 @@ Value ExpressionEvaluatorUtils::evaluateConstantExpression(
 }
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

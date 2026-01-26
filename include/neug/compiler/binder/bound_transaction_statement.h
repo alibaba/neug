@@ -25,7 +25,7 @@
 #include "bound_statement.h"
 #include "neug/compiler/transaction/transaction_action.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundTransactionStatement final : public BoundStatement {
@@ -48,4 +48,4 @@ class BoundTransactionStatement final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

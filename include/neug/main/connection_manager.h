@@ -19,7 +19,7 @@
 #include <mutex>
 #include <vector>
 
-namespace gs {
+namespace neug {
 
 class PropertyGraph;
 class Connection;
@@ -71,4 +71,4 @@ class ConnectionManager {
   std::mutex connection_mutex_;
 };
 
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "neug/common/types.h"
-namespace gs {
+namespace neug {
 enum class ExtraTypeInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
   GENERIC_TYPE_INFO = 1,
@@ -94,4 +94,4 @@ struct StringTypeInfo : public ExtraTypeInfo {
   bool EqualsInternal(ExtraTypeInfo* other_p) const override;
 };
 
-}  // namespace gs
+}  // namespace neug

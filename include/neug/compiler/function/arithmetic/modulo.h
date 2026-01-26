@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/types/int128_t.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Modulo {
@@ -65,4 +65,4 @@ void Modulo::operation(common::int128_t& left, common::int128_t& right,
                        common::int128_t& result);
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

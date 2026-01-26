@@ -21,7 +21,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 class AbstractPropertyGraphLoader : public IFragmentLoader {
  public:
   AbstractPropertyGraphLoader(const std::string& work_dir, const Schema& schema,
@@ -76,4 +76,4 @@ class AbstractPropertyGraphLoader : public IFragmentLoader {
   PropertyGraph graph_;
 };
 
-}  // namespace gs
+}  // namespace neug

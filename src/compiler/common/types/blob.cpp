@@ -25,7 +25,7 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 const int HexFormatConstants::HEX_MAP[256] = {
@@ -131,4 +131,4 @@ void Blob::validateHexCode(const uint8_t* blobStr, uint64_t length,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

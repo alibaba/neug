@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_empty_result.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendEmptyResult(LogicalPlan& plan) {
@@ -11,4 +11,4 @@ void Planner::appendEmptyResult(LogicalPlan& plan) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

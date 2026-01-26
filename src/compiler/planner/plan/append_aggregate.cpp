@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/logical_aggregate.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendAggregate(const expression_vector& expressionsToGroupBy,
@@ -19,4 +19,4 @@ void Planner::appendAggregate(const expression_vector& expressionsToGroupBy,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

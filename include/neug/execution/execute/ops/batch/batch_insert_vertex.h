@@ -26,7 +26,7 @@
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -39,10 +39,10 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
   BatchInsertVertexOprBuilder() = default;
   ~BatchInsertVertexOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -52,4 +52,4 @@ class BatchInsertVertexOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

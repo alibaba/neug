@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class OprTimer;
@@ -40,10 +40,9 @@ class GroupByOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
@@ -56,8 +55,8 @@ class GroupByOpr : public IOperator {
   std::vector<physical::GroupBy_AggFunc> aggrs_;
 };
 
-gs::result<OpBuildResultT> GroupByOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> GroupByOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int mappings_num = plan.plan(op_idx).opr().group_by().mappings_size();
   int func_num = plan.plan(op_idx).opr().group_by().functions_size();
@@ -98,4 +97,4 @@ gs::result<OpBuildResultT> GroupByOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

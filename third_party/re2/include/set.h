@@ -11,14 +11,14 @@
 
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 class Prog;
 class Regexp;
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // An RE2::Set represents a collection of regexps that can
@@ -65,12 +65,12 @@ class RE2::Set {
              ErrorInfo* error_info) const;
 
  private:
-  typedef std::pair<std::string, gs::regex::Regexp*> Elem;
+  typedef std::pair<std::string, neug::regex::Regexp*> Elem;
 
   RE2::Options options_;
   RE2::Anchor anchor_;
   std::vector<Elem> elem_;
-  gs::regex::Prog* prog_;
+  neug::regex::Prog* prog_;
   bool compiled_;
   int size_;
 
@@ -79,6 +79,6 @@ class RE2::Set {
 };
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_SET_H_

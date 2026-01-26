@@ -30,7 +30,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 static void resizeVector(ArrowVector* vector, const LogicalType& type,
@@ -1015,4 +1015,4 @@ ArrowArray ArrowRowBatch::append(main::QueryResult& queryResult,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -18,7 +18,7 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -35,9 +35,9 @@ class CreateEdgeOpr : public IOperator {
         src_dst_tags_(src_dst_tags),
         properties_(properties) {}
 
-  gs::result<Context> Eval(IStorageInterface& graph_interface,
-                           const ParamsMap& params, Context&& ctx,
-                           OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph_interface,
+                             const ParamsMap& params, Context&& ctx,
+                             OprTimer* timer) override {
     const StorageReadInterface* graph_ptr = nullptr;
     if (graph_interface.readable()) {
       graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
@@ -65,7 +65,7 @@ class CreateEdgeOpr : public IOperator {
   std::vector<std::vector<std::pair<std::string, common::Expression>>>
       properties_;
 };
-gs::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
+neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& opr = plan.plan(op_idx).opr().create_edge();
@@ -96,4 +96,4 @@ gs::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

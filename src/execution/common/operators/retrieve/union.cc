@@ -18,11 +18,11 @@
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
-gs::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
+neug::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
   if (ctxs.size() != 2) {
     LOG(ERROR) << "Union: only support two context";
     RETURN_UNSUPPORTED_ERROR("Union: only support two context");
@@ -38,4 +38,4 @@ gs::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

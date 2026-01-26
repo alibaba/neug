@@ -26,9 +26,9 @@
 #include "neug/compiler/common/enums/statement_type.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace main {
 
 bool PreparedStatement::isTransactionStatement() const {
@@ -50,4 +50,4 @@ StatementType PreparedStatement::getStatementType() const {
 PreparedStatement::~PreparedStatement() = default;
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

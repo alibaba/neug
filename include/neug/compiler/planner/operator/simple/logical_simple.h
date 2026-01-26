@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalSimple : public LogicalOperator {
@@ -30,4 +30,4 @@ class LogicalSimple : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

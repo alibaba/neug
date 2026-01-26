@@ -21,7 +21,7 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-namespace gs {
+namespace neug {
 
 class StringViewVector {
  public:
@@ -77,4 +77,4 @@ class StringViewVector {
   std::vector<size_t> offsets_;
 };
 
-}  // namespace gs
+}  // namespace neug

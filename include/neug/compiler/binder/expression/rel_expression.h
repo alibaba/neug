@@ -28,7 +28,7 @@
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "node_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 enum class RelDirectionType : uint8_t {
@@ -153,4 +153,4 @@ class RelExpression final : public NodeOrRelExpression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

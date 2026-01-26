@@ -19,7 +19,7 @@
 
 #include "parallel_hashmap/phmap.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
@@ -295,4 +295,4 @@ std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

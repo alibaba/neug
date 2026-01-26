@@ -18,17 +18,17 @@
 
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
 
 class Dedup {
  public:
-  static gs::result<Context> dedup(Context&& ctx,
-                                   const std::vector<size_t>& cols);
+  static neug::result<Context> dedup(Context&& ctx,
+                                     const std::vector<size_t>& cols);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

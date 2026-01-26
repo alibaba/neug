@@ -22,7 +22,7 @@
 #include "re2/include/utf.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // List of pointers to Inst* that need to be filled in (patched).
@@ -1246,4 +1246,4 @@ Prog* Prog::CompileSet(Regexp* re, RE2::Anchor anchor, int64_t max_mem) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

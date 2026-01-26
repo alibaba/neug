@@ -22,7 +22,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 ScalarMacroCatalogEntry::ScalarMacroCatalogEntry(
@@ -50,4 +50,4 @@ std::string ScalarMacroCatalogEntry::toCypher(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

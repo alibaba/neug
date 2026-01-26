@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <yaml-cpp/node/emit.h>
 #include "gopt_test.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class DMLTest : public GOptTest {
@@ -188,4 +188,4 @@ TEST_F(DMLTest, SET_MAX_COUNT) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

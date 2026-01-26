@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/clause_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class NEUG_API BoundReadingClause {
@@ -70,4 +70,4 @@ class NEUG_API BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

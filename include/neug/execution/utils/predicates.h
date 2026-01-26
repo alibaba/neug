@@ -23,7 +23,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -105,4 +105,4 @@ struct EdgeAndNbrPredicate {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

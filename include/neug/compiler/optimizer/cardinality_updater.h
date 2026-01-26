@@ -23,7 +23,7 @@
 #pragma once
 
 #include "neug/compiler/optimizer/logical_operator_visitor.h"
-namespace gs {
+namespace neug {
 namespace planner {
 class LogicalPlan;
 class CardinalityEstimator;
@@ -62,4 +62,4 @@ class CardinalityUpdater : public LogicalOperatorVisitor {
   const transaction::Transaction* transaction;
 };
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

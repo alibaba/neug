@@ -28,7 +28,7 @@
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class Copy : public Statement {
@@ -98,4 +98,4 @@ class CopyTo : public Copy {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

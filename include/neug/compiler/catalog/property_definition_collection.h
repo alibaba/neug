@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/ddl/property_definition.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 class NEUG_API PropertyDefinitionCollection {
@@ -78,4 +78,4 @@ class NEUG_API PropertyDefinitionCollection {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

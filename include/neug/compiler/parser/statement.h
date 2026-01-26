@@ -25,7 +25,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/enums/statement_type.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class Statement {
@@ -74,4 +74,4 @@ class Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

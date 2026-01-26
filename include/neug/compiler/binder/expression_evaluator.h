@@ -25,7 +25,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/processor/result/result_set.h"
 
-namespace gs {
+namespace neug {
 namespace evaluator {
 
 struct EvaluatorLocalState {
@@ -153,4 +153,4 @@ class ExpressionEvaluator {
 };
 
 }  // namespace evaluator
-}  // namespace gs
+}  // namespace neug

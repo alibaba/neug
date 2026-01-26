@@ -29,7 +29,7 @@
 
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 std::string to_lower_copy(const std::string& str);
 
@@ -186,4 +186,4 @@ std::string to_string(const T& t) {
   return to_string_impl<T>::to_string(t);
 }
 
-}  // namespace gs
+}  // namespace neug

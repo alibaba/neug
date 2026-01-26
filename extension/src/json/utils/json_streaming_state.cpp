@@ -18,7 +18,7 @@
 #include "json/json_converter.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 JsonStreamingState::JsonStreamingState(
@@ -211,4 +211,4 @@ std::vector<std::shared_ptr<arrow::Array>> JsonStreamingState::finishArrays() {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

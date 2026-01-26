@@ -2,7 +2,7 @@
 
 #include "logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 using cardinality_t = uint64_t;
@@ -64,4 +64,4 @@ class NEUG_API LogicalPlan {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

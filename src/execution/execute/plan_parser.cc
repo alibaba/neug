@@ -70,7 +70,7 @@
 #include "neug/execution/execute/pipeline.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -269,9 +269,9 @@ static std::string get_opr_name(
 
 #endif
 
-gs::result<std::pair<Pipeline, ContextMeta>>
+neug::result<std::pair<Pipeline, ContextMeta>>
 PlanParser::parse_execute_pipeline_with_meta(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan) {
   int opr_num = plan.plan_size();
   std::vector<std::unique_ptr<IOperator>> operators;
@@ -285,7 +285,7 @@ PlanParser::parse_execute_pipeline_with_meta(
 
     auto& builders = op_builders_[cur_op_kind];
     int old_i = i;
-    gs::Status status = gs::Status::OK();
+    neug::Status status = neug::Status::OK();
     for (auto& pair : builders) {
       auto pattern = pair.first;
       auto& builder = pair.second;
@@ -300,26 +300,26 @@ PlanParser::parse_execute_pipeline_with_meta(
       }
       if (match) {
         TRY_HANDLE_ALL_WITH_EXCEPTION(
-            gs::result<OpBuildResultT>,
+            neug::result<OpBuildResultT>,
             [&]() { return builder->Build(schema, cur_ctx_meta, plan, i); },
             [&](const auto& _status) {
-              status = gs::Status(
-                  gs::StatusCode::ERR_INTERNAL_ERROR,
+              status = neug::Status(
+                  neug::StatusCode::ERR_INTERNAL_ERROR,
                   "Failed to build operator at index " + std::to_string(i) +
                       ", op_kind: " + get_opr_name(cur_op_kind) +
                       ", error: " + _status.ToString());
             },
-            [&](gs::result<OpBuildResultT>&& res_pair_status) {
+            [&](neug::result<OpBuildResultT>&& res_pair_status) {
               if (res_pair_status.value().first) {
                 operators.emplace_back(
                     std::move(res_pair_status.value().first));
                 cur_ctx_meta = res_pair_status.value().second;
                 i = builder->stepping(i);
                 // Reset status to OK after a successful match.
-                status = gs::Status::OK();
+                status = neug::Status::OK();
               } else {
-                status = gs::Status(
-                    gs::StatusCode::ERR_INTERNAL_ERROR,
+                status = neug::Status(
+                    neug::StatusCode::ERR_INTERNAL_ERROR,
                     "Failed to build operator at index " + std::to_string(i) +
                         ", op_kind: " + get_opr_name(cur_op_kind) +
                         ", error: No operator returned");
@@ -336,7 +336,7 @@ PlanParser::parse_execute_pipeline_with_meta(
          << " failed to parse plan at index " << i << " "
          << plan.plan(i).DebugString() << ": "
          << ", last match error: " << status.ToString();
-      auto err = gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, ss.str());
+      auto err = neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, ss.str());
       LOG(ERROR) << err.ToString();
       RETURN_ERROR(err);
     }
@@ -344,8 +344,8 @@ PlanParser::parse_execute_pipeline_with_meta(
   return std::make_pair(Pipeline(std::move(operators)), cur_ctx_meta);
 }
 
-gs::result<Pipeline> PlanParser::parse_execute_pipeline(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<Pipeline> PlanParser::parse_execute_pipeline(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan) {
   auto ret = parse_execute_pipeline_with_meta(schema, ctx_meta, plan);
   if (!ret) {
@@ -354,14 +354,14 @@ gs::result<Pipeline> PlanParser::parse_execute_pipeline(
   return std::move(ret.value().first);
 }
 
-gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
+neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
     OprTimer* timer) {
   runtime::Context ctx;
-  gs::Status status = Status::OK();
+  neug::Status status = Status::OK();
 
   TRY_HANDLE_ALL_WITH_EXCEPTION(
-      gs::result<runtime::Context>,
+      neug::result<runtime::Context>,
       [&]() {
         return runtime::PlanParser::get()
             .parse_execute_pipeline(graph.schema(), ContextMeta(), plan)
@@ -370,7 +370,7 @@ gs::result<runtime::Context> ParseAndExecuteQueryPipeline(
             });
       },
       [&](const auto& _status) { status = _status; },
-      [&](gs::result<runtime::Context>&& res) {
+      [&](neug::result<runtime::Context>&& res) {
         ctx = std::move(res.value());
       });
   if (!status.ok()) {
@@ -492,4 +492,4 @@ std::map<std::string, DataType> PlanParser::parse_params_type(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

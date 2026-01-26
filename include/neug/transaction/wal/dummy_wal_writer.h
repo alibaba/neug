@@ -19,7 +19,7 @@
 
 #include "neug/transaction/wal/wal.h"
 
-namespace gs {
+namespace neug {
 /**
  * @brief DummyWalWriter is a no-op implementation of the IWalWriter interface.
  * It is used when write-ahead logging is disabled or not required.
@@ -36,4 +36,4 @@ class DummyWalWriter : public IWalWriter {
   void close() override;
   bool append(const char* data, size_t length) override;
 };
-}  // namespace gs
+}  // namespace neug

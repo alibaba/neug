@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/binder_scope.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void BinderScope::addExpression(const std::string& varName,
@@ -47,4 +47,4 @@ void BinderScope::clear() {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

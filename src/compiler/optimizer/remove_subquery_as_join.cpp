@@ -21,7 +21,7 @@
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/operator/logical_hash_join.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void RemoveSubqueryAsJoin::rewrite(planner::LogicalPlan* plan) {
@@ -90,4 +90,4 @@ bool RemoveSubqueryAsJoin::notExistSubQuery(
          expr->getNumChildren() > 0 && existSubQuery(expr->getChild(0));
 }
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

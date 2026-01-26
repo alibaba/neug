@@ -20,6 +20,6 @@
  * Zhou Xiaoli in 2025 to support Neug-specific features.
  */
 
-namespace gs {
+namespace neug {
 namespace common {}
-}  // namespace gs
+}  // namespace neug

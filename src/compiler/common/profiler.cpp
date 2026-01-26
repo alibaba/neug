@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/profiler.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 TimeMetric* Profiler::registerTimeMetric(const std::string& key) {
@@ -71,4 +71,4 @@ void Profiler::addMetric(const std::string& key,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

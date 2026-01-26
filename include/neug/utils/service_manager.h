@@ -23,15 +23,15 @@
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 
-namespace gs {
+namespace neug {
 class Status;
-}  // namespace gs
+}  // namespace neug
 
 namespace results {
 class CollectiveResults;
 }  // namespace results
 
-namespace server {
+namespace neug {
 
 struct ServiceConfig {
   static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
@@ -59,4 +59,4 @@ class IServiceManager {
   virtual void RunAndWaitForExit() = 0;
   virtual bool IsRunning() const = 0;
 };
-}  // namespace server
+}  // namespace neug

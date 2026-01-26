@@ -30,10 +30,10 @@
 #include "neug/compiler/planner/operator/simple/logical_use_database.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendCreateTable(const BoundStatement& statement,
@@ -183,4 +183,4 @@ void Planner::appendUseDatabase(const BoundStatement& statement,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

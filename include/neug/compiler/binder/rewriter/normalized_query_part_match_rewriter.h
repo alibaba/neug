@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_statement_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -50,4 +50,4 @@ class NormalizedQueryPartMatchRewriter final : public BoundStatementVisitor {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

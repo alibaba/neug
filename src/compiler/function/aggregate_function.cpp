@@ -26,10 +26,10 @@
 #include "neug/compiler/function/aggregate/avg.h"
 #include "neug/compiler/function/aggregate/sum.h"
 
-using namespace gs::common;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 AggregateFunction::AggregateFunction(const AggregateFunction& other)
@@ -78,4 +78,4 @@ void AggregateFunctionUtils::appendSumOrAvgFuncs(
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

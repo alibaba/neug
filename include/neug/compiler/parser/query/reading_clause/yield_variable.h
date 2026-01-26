@@ -23,7 +23,7 @@
 #pragma once
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct YieldVariable {
@@ -36,4 +36,4 @@ struct YieldVariable {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

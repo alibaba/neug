@@ -34,11 +34,11 @@
 #include "neug/compiler/parser/expression/parsed_parameter_expression.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::function;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::function;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindExpression(
@@ -174,4 +174,4 @@ std::string ExpressionBinder::getUniqueName(const std::string& name) const {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

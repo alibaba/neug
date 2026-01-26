@@ -35,7 +35,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 namespace config_parsing {
 
@@ -635,46 +635,46 @@ int64_t Interval::to_mill_seconds() const {
   return total_mill_seconds;
 }
 
-}  // namespace gs
+}  // namespace neug
 
 namespace std {
 
-std::string to_string(gs::DataTypeId type) {
+std::string to_string(neug::DataTypeId type) {
   switch (type) {
-  case gs::DataTypeId::kEmpty: {
+  case neug::DataTypeId::kEmpty: {
     return "Empty";
   }
-  case gs::DataTypeId::kBoolean: {
+  case neug::DataTypeId::kBoolean: {
     return "Bool";
   }
-  case gs::DataTypeId::kInt32: {
+  case neug::DataTypeId::kInt32: {
     return "Int32";
   }
-  case gs::DataTypeId::kUInt32: {
+  case neug::DataTypeId::kUInt32: {
     return "UInt32";
   }
-  case gs::DataTypeId::kInt64: {
+  case neug::DataTypeId::kInt64: {
     return "Int64";
   }
-  case gs::DataTypeId::kUInt64: {
+  case neug::DataTypeId::kUInt64: {
     return "UInt64";
   }
-  case gs::DataTypeId::kFloat: {
+  case neug::DataTypeId::kFloat: {
     return "Float";
   }
-  case gs::DataTypeId::kDouble: {
+  case neug::DataTypeId::kDouble: {
     return "Double";
   }
-  case gs::DataTypeId::kVarchar: {
+  case neug::DataTypeId::kVarchar: {
     return "StringView";
   }
-  case gs::DataTypeId::kDate: {
+  case neug::DataTypeId::kDate: {
     return "Date";
   }
-  case gs::DataTypeId::kTimestampMs: {
+  case neug::DataTypeId::kTimestampMs: {
     return "DateTime";
   }
-  case gs::DataTypeId::kInterval: {
+  case neug::DataTypeId::kInterval: {
     return "Interval";
   }
   default: {

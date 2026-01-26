@@ -47,7 +47,7 @@
 #include "neug/compiler/optimizer/union_alias_map_optimizer.h"
 #include "neug/compiler/planner/operator/logical_explain.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void Optimizer::optimize(
@@ -123,4 +123,4 @@ void Optimizer::optimize(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

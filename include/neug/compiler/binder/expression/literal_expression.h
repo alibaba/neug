@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class NEUG_API LiteralExpression final : public Expression {
@@ -52,4 +52,4 @@ class NEUG_API LiteralExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

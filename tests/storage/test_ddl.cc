@@ -24,8 +24,8 @@
 class DDLTestDBFixture : public ::testing::Test {
  protected:
   std::string data_path;
-  std::unique_ptr<gs::NeugDB> db;
-  std::shared_ptr<gs::Connection> conn;
+  std::unique_ptr<neug::NeugDB> db;
+  std::shared_ptr<neug::Connection> conn;
 
   void SetUp() override {
     data_path = std::string("/tmp/test_ddl_") +
@@ -34,7 +34,7 @@ class DDLTestDBFixture : public ::testing::Test {
       std::filesystem::remove_all(data_path);
     }
     std::filesystem::create_directories(data_path);
-    db = std::make_unique<gs::NeugDB>();
+    db = std::make_unique<neug::NeugDB>();
     db->Open(data_path);
     conn = db->Connect();
   }
@@ -188,7 +188,7 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   }
   // create the directory
   std::filesystem::create_directories(data_path);
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(data_path);
   // Get current directory where the .cc exists
   const char* flex_data_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");

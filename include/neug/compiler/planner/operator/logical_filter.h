@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct LogicalFilterPrintInfo final : OPPrintInfo {
@@ -54,4 +54,4 @@ class LogicalFilter final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

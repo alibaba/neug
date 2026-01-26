@@ -28,7 +28,7 @@
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 StructAuxiliaryBuffer::StructAuxiliaryBuffer(
@@ -122,4 +122,4 @@ std::unique_ptr<AuxiliaryBuffer> AuxiliaryBufferFactory::getAuxiliaryBuffer(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -34,7 +34,7 @@
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/reader/type_converter.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 
 static constexpr const char* ARROW_READER_TEST_DIR = "/tmp/arrow_reader_test";
@@ -294,4 +294,4 @@ class ReaderTest : public ::testing::Test {
 };
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

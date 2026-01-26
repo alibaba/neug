@@ -26,9 +26,9 @@
 #include "neug/compiler/planner/operator/scan/logical_expressions_scan.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::planner;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void CorrelatedSubqueryUnnestSolver::solve(planner::LogicalOperator* root_) {
@@ -75,4 +75,4 @@ void CorrelatedSubqueryUnnestSolver::visitExpressionsScan(LogicalOperator* op) {
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

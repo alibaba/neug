@@ -30,7 +30,7 @@
 #include "neug/compiler/binder/query/normalized_query_part.h"
 #include "normalized_single_query.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundRegularQuery final : public BoundStatement {
@@ -101,4 +101,4 @@ class BoundRegularQuery final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

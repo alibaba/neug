@@ -35,7 +35,7 @@
 #include "re2/include/utf.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Controls the maximum count permitted by GlobalReplace(); -1 is unlimited.
@@ -1383,4 +1383,4 @@ DEFINE_HOOK(DFASearchFailure, dfa_search_failure)
 
 }  // namespace hooks
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalFlatten final : public LogicalOperator {
@@ -32,4 +32,4 @@ class LogicalFlatten final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -1,5 +1,5 @@
 #include "gopt_test.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class ParamTest : public GOptTest {
@@ -103,4 +103,4 @@ TEST_F(ParamTest, CAST_PARAM_2) {
       *physical, getParamResource("CAST_PARAM_2_physical"));
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

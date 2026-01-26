@@ -23,14 +23,14 @@
 #include "neug/utils/likely.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
-gs::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
-                                      const ParamsMap& params,
-                                      OprTimer* timer) {
-  gs::Status status = Status::OK();
+neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
+                                        const ParamsMap& params,
+                                        OprTimer* timer) {
+  neug::Status status = Status::OK();
   TimerUnit tu;
   OprTimer* cur_timer = timer;
   std::unique_ptr<OprTimer> next_timer = nullptr;
@@ -39,8 +39,8 @@ gs::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
       tu.start();
     }
     TRY_HANDLE_ALL_WITH_EXCEPTION(
-        gs::result<Context>,
-        [&]() -> gs::result<Context> {
+        neug::result<Context>,
+        [&]() -> neug::result<Context> {
           auto ret =
               operators_[i]->Eval(graph, params, std::move(ctx), cur_timer);
           if (!ret) {
@@ -58,13 +58,13 @@ gs::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
           }
           return ret;
         },
-        [&](const gs::Status& err) {
-          status = gs::Status(err.error_code(),
-                              "Execution failed at operator: [" +
-                                  operators_[i]->get_operator_name() + "], " +
-                                  err.error_message());
+        [&](const neug::Status& err) {
+          status = neug::Status(err.error_code(),
+                                "Execution failed at operator: [" +
+                                    operators_[i]->get_operator_name() + "], " +
+                                    err.error_message());
         },
-        [&ctx](gs::result<Context>&& res) { ctx = std::move(res.value()); });
+        [&ctx](neug::result<Context>&& res) { ctx = std::move(res.value()); });
     if (!status.ok()) {
       RETURN_ERROR(status);
     }
@@ -74,4 +74,4 @@ gs::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

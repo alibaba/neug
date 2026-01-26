@@ -2,7 +2,7 @@
 
 #include "logical_simple.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalImportDatabase : public LogicalSimple {
@@ -34,4 +34,4 @@ class LogicalImportDatabase : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

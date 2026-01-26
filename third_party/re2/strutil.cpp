@@ -12,7 +12,7 @@
 #define vsnprintf _vsnprintf
 #endif
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // ----------------------------------------------------------------------
@@ -181,4 +181,4 @@ void StringAppendF(std::string* dst, const char* format, ...) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class NodePattern {
@@ -55,4 +55,4 @@ class NodePattern {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

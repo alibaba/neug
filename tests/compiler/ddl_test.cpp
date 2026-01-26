@@ -18,7 +18,7 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class GOptDDLTest : public GOptTest {
  public:
@@ -228,4 +228,4 @@ TEST_F(GOptDDLTest, CREATE_KNOWS_IF_NOT_EXISTS) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

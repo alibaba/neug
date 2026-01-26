@@ -26,11 +26,11 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 void SpillToDiskSetting::setContext(ClientContext* context,
                                     const common::Value& parameter) {}
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

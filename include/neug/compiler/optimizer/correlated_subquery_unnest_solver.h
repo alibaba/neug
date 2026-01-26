@@ -24,7 +24,7 @@
 
 #include "logical_operator_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class CorrelatedSubqueryUnnestSolver : public LogicalOperatorVisitor {
@@ -45,4 +45,4 @@ class CorrelatedSubqueryUnnestSolver : public LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

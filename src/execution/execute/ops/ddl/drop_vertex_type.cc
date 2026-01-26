@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/drop_vertex_type.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -26,8 +26,8 @@ class DropVertexTypeOpr : public IOperator {
       : vertex_type_(vertex_type), error_on_conflict_(error_on_conflict) {}
 
   std::string get_operator_name() const override { return "DropVertexTypeOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.DeleteVertexType(vertex_type_, error_on_conflict_);
@@ -36,7 +36,7 @@ class DropVertexTypeOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -44,7 +44,7 @@ class DropVertexTypeOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
+neug::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& drop_vertex = plan.plan(op_id).opr().drop_vertex_schema();
@@ -59,4 +59,4 @@ gs::result<OpBuildResultT> DropVertexTypeOprBuilder::Build(
 }  // namespace ops
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -4,7 +4,7 @@
 #include "neug/compiler/common/enums/join_type.h"
 #include "neug/compiler/planner/operator/sip/side_way_info_passing.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // We only support equality comparison as join condition
@@ -85,4 +85,4 @@ class NEUG_API LogicalHashJoin final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

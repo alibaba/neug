@@ -29,12 +29,12 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::evaluator;
-using namespace gs::planner;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::evaluator;
+using namespace neug::planner;
 
-namespace gs {
+namespace neug {
 namespace processor {
 
 static bool canEvaluateAsFunction(ExpressionType expressionType) {
@@ -123,4 +123,4 @@ ExpressionMapper::getEvaluators(const expression_vector& expressions) {
 }
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

@@ -4,7 +4,7 @@
 
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 using f_group_pos = uint32_t;
@@ -159,4 +159,4 @@ class SchemaUtils {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

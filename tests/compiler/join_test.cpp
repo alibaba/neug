@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class JoinTest : public GOptTest {
@@ -328,4 +328,4 @@ TEST_F(JoinTest, FILTER_AFTER_JOIN) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

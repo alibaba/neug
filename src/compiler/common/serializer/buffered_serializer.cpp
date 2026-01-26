@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 BufferedSerializer::BufferedSerializer(uint64_t maximumSize)
@@ -54,4 +54,4 @@ void BufferedSerializer::write(const uint8_t* buffer, uint64_t len) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

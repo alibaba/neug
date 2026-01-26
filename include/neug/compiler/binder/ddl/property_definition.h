@@ -26,7 +26,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct NEUG_API ColumnDefinition {
@@ -85,4 +85,4 @@ struct NEUG_API PropertyDefinition {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

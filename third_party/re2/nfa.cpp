@@ -41,7 +41,7 @@
 #include "re2/include/sparse_set.h"
 #include "re2/include/strutil.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 static const bool ExtraDebug = false;
@@ -711,4 +711,4 @@ void Prog::Fanout(SparseArray<int>* fanout) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

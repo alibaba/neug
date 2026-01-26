@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/conflict_action.h"
 #include "neug/compiler/common/enums/drop_type.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct DropInfo {
@@ -36,4 +36,4 @@ struct DropInfo {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/expression_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::size_t SubqueryGraphHasher::operator()(const SubqueryGraph& key) const {
@@ -373,4 +373,4 @@ std::vector<std::shared_ptr<RelExpression>> QueryGraphCollection::getQueryRels()
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

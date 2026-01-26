@@ -25,7 +25,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/function/scalar_macro_function.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 class ScalarMacroCatalogEntry final : public CatalogEntry {
@@ -58,4 +58,4 @@ class ScalarMacroCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

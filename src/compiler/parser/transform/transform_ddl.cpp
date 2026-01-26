@@ -29,10 +29,10 @@
 #include "neug/compiler/parser/transformer.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformAlterTable(
@@ -356,4 +356,4 @@ std::string Transformer::transformPrimaryKey(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

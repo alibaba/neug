@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 struct JoinOrderUtil {
@@ -15,4 +15,4 @@ struct JoinOrderUtil {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

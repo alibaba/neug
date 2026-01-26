@@ -25,7 +25,7 @@
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -565,8 +565,8 @@ static Context default_left_outer_join(Context&& ctx, Context&& ctx2,
   return ctx;
 }
 
-gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
-                               const JoinParams& params) {
+neug::result<Context> Join::join(Context&& ctx, Context&& ctx2,
+                                 const JoinParams& params) {
   if (params.left_columns.size() != params.right_columns.size()) {
     LOG(ERROR) << "Join columns size mismatch";
     RETURN_INVALID_ARGUMENT_ERROR(
@@ -625,9 +625,9 @@ gs::result<Context> Join::join(Context&& ctx, Context&& ctx2,
   return ctx;
 }
 
-gs::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
-                                  const std::vector<label_t>& labels, int tag,
-                                  int alias) {
+neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
+                                    const std::vector<label_t>& labels, int tag,
+                                    int alias) {
   size_t row_num = ctx.row_num();
   auto column = ctx.get(tag);
   MSVertexColumnBuilder builder(labels[0]);
@@ -648,4 +648,4 @@ gs::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

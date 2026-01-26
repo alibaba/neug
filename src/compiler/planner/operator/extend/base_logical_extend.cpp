@@ -1,8 +1,8 @@
 #include "neug/compiler/planner/operator/extend/base_logical_extend.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static std::string relToString(const binder::RelExpression& rel) {
@@ -56,4 +56,4 @@ std::string BaseLogicalExtend::getExpressionsForPrinting() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

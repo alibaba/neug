@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void TableFuncBindInput::addLiteralParam(common::Value value) {
@@ -56,4 +56,4 @@ template NEUG_API uint8_t* TableFuncBindInput::getLiteralVal<uint8_t*>(
     common::idx_t idx) const;
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

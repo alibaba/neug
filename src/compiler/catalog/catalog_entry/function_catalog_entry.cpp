@@ -22,7 +22,7 @@
 
 #include "neug/compiler/catalog/catalog_entry/function_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 FunctionCatalogEntry::FunctionCatalogEntry(CatalogEntryType entryType,
@@ -32,4 +32,4 @@ FunctionCatalogEntry::FunctionCatalogEntry(CatalogEntryType entryType,
       functionSet{std::move(functionSet)} {}
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

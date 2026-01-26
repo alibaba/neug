@@ -5,10 +5,10 @@
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
-static uint64_t getLiteralNumber(std::shared_ptr<gs::binder::Expression> expr) {
+static uint64_t getLiteralNumber(std::shared_ptr<neug::binder::Expression> expr) {
   uint64_t number = common::INVALID_LIMIT;
   if (expr == nullptr) {
     return number;
@@ -84,4 +84,4 @@ f_group_pos LogicalLimit::getGroupPosToSelect() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

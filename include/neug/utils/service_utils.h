@@ -56,7 +56,7 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 /// Util functions.
 
@@ -108,7 +108,7 @@ inline bool to_json(rapidjson::Document& j, const DataTypeId& p) {
              p == DataTypeId::kInt64 || p == DataTypeId::kUInt64 ||
              p == DataTypeId::kDouble) {
     j.AddMember("primitive_type",
-                gs::config_parsing::PrimitivePropertyTypeToString(p),
+                neug::config_parsing::PrimitivePropertyTypeToString(p),
                 j.GetAllocator());
   } else if (p == DataTypeId::kDate) {
     rapidjson::Document temporal(rapidjson::kObjectType, &j.GetAllocator());
@@ -198,4 +198,4 @@ std::string memory_to_mb_str(uint64_t mem_bytes);
 
 size_t human_readable_to_bytes(const std::string& human_readable);
 
-}  // namespace gs
+}  // namespace neug

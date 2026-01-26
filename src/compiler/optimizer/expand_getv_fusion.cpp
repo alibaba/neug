@@ -24,7 +24,7 @@
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/planner/operator/extend/logical_recursive_extend.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void ExpandGetVFusion::rewrite(planner::LogicalPlan* plan) {
@@ -70,7 +70,7 @@ ExpandGetVFusion::visitRecursiveExtendReplace(
     return op;
   }
   // todo: handle the case of EXPANDV_GETV
-  extendOp->setFusionType(gs::optimizer::FusionType::EXPANDV);
+  extendOp->setFusionType(neug::optimizer::FusionType::EXPANDV);
   return op;
 }
 
@@ -201,4 +201,4 @@ std::shared_ptr<planner::LogicalOperator> ExpandGetVFusion::perform(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 #include "neug/compiler/common/copy_constructors.h"
 #include "query_part.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class SingleQuery {
@@ -80,4 +80,4 @@ class SingleQuery {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

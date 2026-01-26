@@ -104,7 +104,7 @@
 
 #include "re2/include/pod_array.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 template <typename Value>
@@ -371,5 +371,5 @@ bool SparseArray<Value>::less(const IndexValue& a, const IndexValue& b) {
   return a.index_ < b.index_;
 }
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_SPARSE_ARRAY_H_

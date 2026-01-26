@@ -26,7 +26,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ValueHashFunction {
@@ -62,4 +62,4 @@ struct ListUnique {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

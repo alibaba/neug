@@ -28,11 +28,11 @@
 #include "neug/compiler/planner/planner.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::planner;
-using namespace gs::processor;
+using namespace neug::common;
+using namespace neug::planner;
+using namespace neug::processor;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void TableFuncOutput::resetState() {
@@ -122,4 +122,4 @@ offset_t TableFunction::emptyTableFunc(const TableFuncInput&,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

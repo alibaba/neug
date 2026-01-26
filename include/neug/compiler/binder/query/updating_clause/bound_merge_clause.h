@@ -27,7 +27,7 @@
 #include "bound_updating_clause.h"
 #include "neug/compiler/binder/query/query_graph.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundMergeClause final : public BoundUpdatingClause {
@@ -175,4 +175,4 @@ class BoundMergeClause final : public BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

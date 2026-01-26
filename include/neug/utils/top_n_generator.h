@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace gs {
+namespace neug {
 
 template <typename T>
 struct TopNUnit {
@@ -158,4 +158,4 @@ class InplaceTopNGenerator {
   size_t n_;
 };
 
-}  // namespace gs
+}  // namespace neug

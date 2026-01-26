@@ -27,7 +27,7 @@
 #include "neug/compiler/function/cast/functions/numeric_cast.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Century {
@@ -56,4 +56,4 @@ struct ToTimestamp {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

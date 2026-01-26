@@ -25,7 +25,7 @@
 #include "expression.h"
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct NEUG_API ExpressionUtil {
@@ -107,4 +107,4 @@ struct NEUG_API ExpressionUtil {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

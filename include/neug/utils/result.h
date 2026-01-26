@@ -23,9 +23,9 @@
 #include "neug/generated/proto/plan/error.pb.h"
 #include "tl/expected.hpp"
 
-namespace gs {
+namespace neug {
 
-using StatusCode = gs::neug::interactive::Code;
+using StatusCode = neug::interactive::Code;
 
 class Status {
  public:
@@ -74,12 +74,12 @@ class Status {
   } while (0)
 
 template <typename ReturnType>
-using result = tl::expected<ReturnType, gs::Status>;
+using result = tl::expected<ReturnType, neug::Status>;
 
-}  // namespace gs
+}  // namespace neug
 
 namespace std {
-inline std::string to_string(const gs::neug::interactive::Code& status) {
+inline std::string to_string(const neug::interactive::Code& status) {
   // format the code into 0x-xxxx, where multiple zeros are prepend to the code
   std::stringstream ss;
   ss << std::setw(4) << std::setfill('0') << static_cast<int32_t>(status);
@@ -90,7 +90,7 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
 #define RETURN_ERROR(err) return tl::unexpected(err)
 
 #define RETURN_STATUS_ERROR(code, msg) \
-  return tl::unexpected(gs::Status(code, msg))
+  return tl::unexpected(neug::Status(code, msg))
 
 #define GS_RESULT_CHECK(r)               \
   ({                                     \
@@ -125,19 +125,19 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
   std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
       " func: " + std::string(__FUNCTION__) + ", " + msg
 
-#define RETURN_UNSUPPORTED_ERROR(msg)                                     \
-  return tl::unexpected(::gs::Status(::gs::StatusCode::ERR_NOT_SUPPORTED, \
-                                     PREPEND_LINE_INFO(msg)))
-#define RETURN_INVALID_ARGUMENT_ERROR(msg)                                   \
-  return tl::unexpected(::gs::Status(::gs::StatusCode::ERR_INVALID_ARGUMENT, \
-                                     PREPEND_LINE_INFO(msg)))
-#define RETURN_NOT_IMPLEMENTED_ERROR(msg)                                   \
-  return tl::unexpected(::gs::Status(::gs::StatusCode::ERR_NOT_IMPLEMENTED, \
-                                     PREPEND_LINE_INFO(msg)))
+#define RETURN_UNSUPPORTED_ERROR(msg)                                         \
+  return tl::unexpected(::neug::Status(::neug::StatusCode::ERR_NOT_SUPPORTED, \
+                                       PREPEND_LINE_INFO(msg)))
+#define RETURN_INVALID_ARGUMENT_ERROR(msg) \
+  return tl::unexpected(::neug::Status(    \
+      ::neug::StatusCode::ERR_INVALID_ARGUMENT, PREPEND_LINE_INFO(msg)))
+#define RETURN_NOT_IMPLEMENTED_ERROR(msg) \
+  return tl::unexpected(::neug::Status(   \
+      ::neug::StatusCode::ERR_NOT_IMPLEMENTED, PREPEND_LINE_INFO(msg)))
 
-#define RETURN_CALL_PROCEDURE_ERROR(msg)                                    \
-  return tl::unexpected(::gs::Status(::gs::StatusCode::ERR_QUERY_EXECUTION, \
-                                     PREPEND_LINE_INFO(msg)))
+#define RETURN_CALL_PROCEDURE_ERROR(msg) \
+  return tl::unexpected(::neug::Status(  \
+      ::neug::StatusCode::ERR_QUERY_EXECUTION, PREPEND_LINE_INFO(msg)))
 
 // Define a macro that run a function and catch all exceptions
 #define TRY_HANDLE_ALL_WITH_EXCEPTION(ret_t, func, error_handling,             \
@@ -149,61 +149,77 @@ inline std::string to_string(const gs::neug::interactive::Code& status) {
     } else {                                                                   \
       normal_handling(std::move(_ret));                                        \
     }                                                                          \
-  } catch (const gs::exception::PermissionDeniedException& err) {              \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_PERMISSION, err.what()));      \
-  } catch (const gs::exception::DatabaseLockedException& err) {                \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_DATABASE_LOCKED, err.what())); \
-  } catch (const gs::exception::InvalidArgumentException& err) {               \
+  } catch (const neug::exception::PermissionDeniedException& err) {            \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_PERMISSION, err.what()));  \
+  } catch (const neug::exception::DatabaseLockedException& err) {              \
     RETURN_ERROR(                                                              \
-        gs::Status(gs::StatusCode::ERR_INVALID_ARGUMENT, err.what()));         \
-  } catch (const gs::exception::BinderException& err) {                        \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_COMPILATION, err.what()));     \
-  } catch (const gs::exception::CatalogException& err) {                       \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_COMPILATION, err.what()));     \
-  } catch (const gs::exception::CheckpointException& err) {                    \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::ConnectionException& err) {                    \
+        neug::Status(neug::StatusCode::ERR_DATABASE_LOCKED, err.what()));      \
+  } catch (const neug::exception::InvalidArgumentException& err) {             \
     RETURN_ERROR(                                                              \
-        gs::Status(gs::StatusCode::ERR_CONNECTION_ERROR, err.what()));         \
-  } catch (const gs::exception::ConversionException& err) {                    \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_TYPE_CONVERSION, err.what())); \
-  } catch (const gs::exception::QueryExecutionError& err) {                    \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_QUERY_EXECUTION, err.what())); \
-  } catch (const gs::exception::CopyException& err) {                          \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::RuntimeError& err) {                           \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::IndexException& err) {                         \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INDEX_ERROR, err.what()));     \
-  } catch (const gs::exception::ExtensionException& err) {                     \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_EXTENSION, err.what()));       \
-  } catch (const gs::exception::InternalException& err) {                      \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::InterruptException& err) {                     \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::IOException& err) {                            \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_IO_ERROR, err.what()));        \
-  } catch (const gs::exception::NotImplementedException& err) {                \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_NOT_IMPLEMENTED, err.what())); \
-  } catch (const gs::exception::NotFoundException& err) {                      \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_NOT_FOUND, err.what()));       \
-  } catch (const gs::exception::NotSupportedException& err) {                  \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_NOT_SUPPORTED, err.what()));   \
-  } catch (const gs::exception::OverflowException& err) {                      \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_TYPE_OVERFLOW, err.what()));   \
-  } catch (const gs::exception::SchemaMismatchException& err) {                \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_SCHEMA_MISMATCH, err.what())); \
-  } catch (const gs::exception::ParserException& err) {                        \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_COMPILATION, err.what()));     \
-  } catch (const gs::exception::StorageException& err) {                       \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
-  } catch (const gs::exception::PropertyNotFoundException& err) {              \
+        neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT, err.what()));     \
+  } catch (const neug::exception::BinderException& err) {                      \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_COMPILATION, err.what())); \
+  } catch (const neug::exception::CatalogException& err) {                     \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_COMPILATION, err.what())); \
+  } catch (const neug::exception::CheckpointException& err) {                  \
     RETURN_ERROR(                                                              \
-        gs::Status(gs::StatusCode::ERR_PROPERTY_NOT_FOUND, err.what()));       \
-  } catch (const gs::exception::Exception& err) {                              \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::ConnectionException& err) {                  \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_CONNECTION_ERROR, err.what()));     \
+  } catch (const neug::exception::ConversionException& err) {                  \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_TYPE_CONVERSION, err.what()));      \
+  } catch (const neug::exception::QueryExecutionError& err) {                  \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_QUERY_EXECUTION, err.what()));      \
+  } catch (const neug::exception::CopyException& err) {                        \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::RuntimeError& err) {                         \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::IndexException& err) {                       \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INDEX_ERROR, err.what())); \
+  } catch (const neug::exception::ExtensionException& err) {                   \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_EXTENSION, err.what()));   \
+  } catch (const neug::exception::InternalException& err) {                    \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::InterruptException& err) {                   \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::IOException& err) {                          \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_IO_ERROR, err.what()));    \
+  } catch (const neug::exception::NotImplementedException& err) {              \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_NOT_IMPLEMENTED, err.what()));      \
+  } catch (const neug::exception::NotFoundException& err) {                    \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_NOT_FOUND, err.what()));   \
+  } catch (const neug::exception::NotSupportedException& err) {                \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_NOT_SUPPORTED, err.what()));        \
+  } catch (const neug::exception::OverflowException& err) {                    \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_TYPE_OVERFLOW, err.what()));        \
+  } catch (const neug::exception::SchemaMismatchException& err) {              \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_SCHEMA_MISMATCH, err.what()));      \
+  } catch (const neug::exception::ParserException& err) {                      \
+    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_COMPILATION, err.what())); \
+  } catch (const neug::exception::StorageException& err) {                     \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
+  } catch (const neug::exception::PropertyNotFoundException& err) {            \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_PROPERTY_NOT_FOUND, err.what()));   \
+  } catch (const neug::exception::Exception& err) {                            \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
   } catch (const std::exception& err) {                                        \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_INTERNAL_ERROR, err.what()));  \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR, err.what()));       \
   } catch (...) {                                                              \
-    RETURN_ERROR(gs::Status(gs::StatusCode::ERR_UNKNOWN, "Unknown error"));    \
+    RETURN_ERROR(                                                              \
+        neug::Status(neug::StatusCode::ERR_UNKNOWN, "Unknown error"));         \
   }

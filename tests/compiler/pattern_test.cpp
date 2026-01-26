@@ -15,7 +15,7 @@
  */
 
 #include "gopt_test.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class PatternTest : public GOptTest {
@@ -163,4 +163,4 @@ TEST_F(PatternTest, OPTIONAL_MATCH) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 
 #include "types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class LimitCounter {
@@ -46,4 +46,4 @@ class LimitCounter {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

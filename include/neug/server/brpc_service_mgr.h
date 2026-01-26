@@ -38,9 +38,9 @@
 
 #include "bthread/bthread.h"
 
-namespace server {
+namespace neug {
 
-int32_t status_code_to_http_code(gs::StatusCode code);
+int32_t status_code_to_http_code(neug::StatusCode code);
 
 /**
  * @brief The protocol entry for BRPC service manager. Holding function pointers
@@ -63,16 +63,16 @@ struct BrpcServiceProtocol {
 
   typedef void (*SendQueryResponseFunc)(
       brpc::Controller* cntl,
-      gs::result<results::CollectiveResults>&
+      neug::result<results::CollectiveResults>&
           response);  // make response non-const to allow move
   SendQueryResponseFunc send_query_response;
 
   typedef void (*SendSchemaResponseFunc)(brpc::Controller* cntl,
-                                         gs::result<std::string>& response);
+                                         neug::result<std::string>& response);
   SendSchemaResponseFunc send_schema_response;
 
   typedef void (*SendServiceStatusResponseFunc)(
-      brpc::Controller* cntl, gs::result<std::string>& response);
+      brpc::Controller* cntl, neug::result<std::string>& response);
   SendServiceStatusResponseFunc send_service_status_response;
 
   const char* name;
@@ -131,26 +131,26 @@ void InitializeBrpcServiceProtocols();
  */
 class UnifiedServiceImpl {
  public:
-  explicit UnifiedServiceImpl(gs::NeugDB& neug_db, SessionPool& session_pool)
+  explicit UnifiedServiceImpl(neug::NeugDB& neug_db, SessionPool& session_pool)
       : neug_db_(neug_db),
         session_pool_(session_pool),
         planner_(neug_db_.GetPlanner()) {}
 
   virtual ~UnifiedServiceImpl() {}
 
-  gs::result<std::string> GetSchemaImpl(brpc::Controller* cntl_base);
+  neug::result<std::string> GetSchemaImpl(brpc::Controller* cntl_base);
 
-  gs::result<std::string> GetServiceStatusImpl(brpc::Controller* cntl_base);
+  neug::result<std::string> GetServiceStatusImpl(brpc::Controller* cntl_base);
 
  protected:
-  gs::NeugDB& neug_db_;
+  neug::NeugDB& neug_db_;
   SessionPool& session_pool_;
-  std::shared_ptr<gs::IGraphPlanner> planner_;
+  std::shared_ptr<neug::IGraphPlanner> planner_;
 };
 
-class HttpServiceImpl : public UnifiedServiceImpl, public server::HttpService {
+class HttpServiceImpl : public UnifiedServiceImpl, public neug::HttpService {
  public:
-  explicit HttpServiceImpl(gs::NeugDB& neug_db, SessionPool& session_pool)
+  explicit HttpServiceImpl(neug::NeugDB& neug_db, SessionPool& session_pool)
       : UnifiedServiceImpl(neug_db, session_pool),
         protocol_(GetServiceProtocol(brpc::PROTOCOL_HTTP)) {}
   virtual ~HttpServiceImpl() {}
@@ -173,7 +173,7 @@ class HttpServiceImpl : public UnifiedServiceImpl, public server::HttpService {
 
 class BrpcServiceManager : public IServiceManager {
  public:
-  explicit BrpcServiceManager(gs::NeugDB& neug_db, SessionPool& session_pool);
+  explicit BrpcServiceManager(neug::NeugDB& neug_db, SessionPool& session_pool);
 
   ~BrpcServiceManager();
   void Init(const ServiceConfig& config) override;
@@ -183,7 +183,7 @@ class BrpcServiceManager : public IServiceManager {
   bool IsRunning() const override { return brpc_server_->IsRunning(); }
 
  private:
-  gs::NeugDB& neug_db_;
+  neug::NeugDB& neug_db_;
   SessionPool& session_pool_;
   brpc::ServerOptions get_server_options() const;
 
@@ -192,4 +192,4 @@ class BrpcServiceManager : public IServiceManager {
   std::unique_ptr<brpc::Server> brpc_server_;
 };
 
-}  // namespace server
+}  // namespace neug

@@ -18,10 +18,10 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
-gs::result<Context> CreateEdge::insert_edge(
+neug::result<Context> CreateEdge::insert_edge(
     StorageInsertInterface& graph, Context&& ctx,
     std::vector<LabelTriplet> labels,
     const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
@@ -100,4 +100,4 @@ gs::result<Context> CreateEdge::insert_edge(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

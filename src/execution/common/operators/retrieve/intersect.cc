@@ -24,7 +24,7 @@
 #include "neug/utils/result.h"
 #include "parallel_hashmap/phmap.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -47,9 +47,9 @@ void get_labels(
   labels.push_back(std::move(labels_i));
 }
 
-gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
+neug::result<neug::runtime::Context> Intersect::Multiple_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    gs::runtime::Context&& ctx,
+    neug::runtime::Context&& ctx,
     const std::vector<std::function<bool(label_t, vid_t)>>& preds,
     const std::vector<std::function<bool(label_t, vid_t, label_t, vid_t,
                                          label_t, Direction, const void*)>>&
@@ -202,9 +202,9 @@ gs::result<gs::runtime::Context> Intersect::Multiple_Intersect(
   return std::move(ctx);
 }
 
-gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
+neug::result<neug::runtime::Context> Intersect::Binary_Intersect_With_Edge(
     const StorageReadInterface& graph, const ParamsMap& params,
-    gs::runtime::Context&& ctx,
+    neug::runtime::Context&& ctx,
     const std::function<bool(label_t, vid_t)>& left_pred,
     const std::function<bool(label_t, vid_t)>& right_pred,
     const std::function<bool(label_t, vid_t, label_t, vid_t, label_t, Direction,
@@ -396,4 +396,4 @@ gs::result<gs::runtime::Context> Intersect::Binary_Intersect_With_Edge(
 }
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

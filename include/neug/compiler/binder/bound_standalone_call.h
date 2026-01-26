@@ -26,7 +26,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/main/option_config.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundStandaloneCall final : public BoundStatement {
@@ -48,4 +48,4 @@ class BoundStandaloneCall final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

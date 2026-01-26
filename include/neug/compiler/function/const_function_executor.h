@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ConstFunctionExecutor {
@@ -40,4 +40,4 @@ struct ConstFunctionExecutor {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

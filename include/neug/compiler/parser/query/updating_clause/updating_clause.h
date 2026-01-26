@@ -25,7 +25,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/common/enums/clause_type.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class UpdatingClause {
@@ -46,4 +46,4 @@ class UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

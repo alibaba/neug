@@ -29,7 +29,7 @@
 #include "neug/compiler/common/array_utils.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 constexpr double DEFAULT_HT_LOAD_FACTOR = 1.5;
@@ -263,4 +263,4 @@ static constexpr char LOCAL_DB_NAME[] = "local(gs)";
 constexpr auto DECIMAL_PRECISION_LIMIT = 38;
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

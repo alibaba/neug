@@ -24,9 +24,9 @@
 
 #include "neug/compiler/binder/query/bound_regular_query.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void MatchClausePatternLabelRewriter::visitMatchUnsafe(
@@ -58,4 +58,4 @@ void MatchClausePatternLabelRewriter::visitRegularQueryUnsafe(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

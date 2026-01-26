@@ -27,7 +27,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 RelMultiplicity RelMultiplicityUtils::getFwd(const std::string& str) {
@@ -64,4 +64,4 @@ std::string RelMultiplicityUtils::toString(RelMultiplicity multiplicity) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

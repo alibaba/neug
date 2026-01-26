@@ -20,7 +20,7 @@
 #include "neug/main/neug_db.h"
 #include "unittest/utils.h"
 
-namespace gs {
+namespace neug {
 
 namespace test {
 class ConnectionTest : public ::testing::Test {
@@ -32,8 +32,8 @@ class ConnectionTest : public ::testing::Test {
     }
     std::filesystem::create_directories(DB_DIR);
 
-    std::unique_ptr<gs::NeugDB> db_ = std::make_unique<gs::NeugDB>();
-    gs::NeugDBConfig config;
+    std::unique_ptr<neug::NeugDB> db_ = std::make_unique<neug::NeugDB>();
+    neug::NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
     config.compact_on_close = true;
@@ -138,8 +138,8 @@ TEST_F(ConnectionTest, TestReadWriteConnection) {
   auto conn1 = db.Connect();
   EXPECT_NE(conn1, nullptr);
 
-  EXPECT_THROW(
-      { auto conn2 = db.Connect(); }, gs::exception::TxStateConflictException);
+  EXPECT_THROW({ auto conn2 = db.Connect(); },
+               neug::exception::TxStateConflictException);
 }
 
 TEST_F(ConnectionTest, TestReadOnlyConnections) {
@@ -195,4 +195,4 @@ TEST_F(ConnectionTest, TestParallelExecutionAtomicity) {
 
 }  // namespace test
 
-}  // namespace gs
+}  // namespace neug

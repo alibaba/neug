@@ -25,9 +25,9 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/function/gds/rec_joins.h"
 
-using namespace gs::function;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 PathSemantic QueryRelTypeUtils::getPathSemantic(QueryRelType queryRelType) {
@@ -54,4 +54,4 @@ std::unique_ptr<function::RJAlgorithm> QueryRelTypeUtils::getFunction(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

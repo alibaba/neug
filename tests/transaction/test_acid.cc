@@ -35,20 +35,20 @@
 #define SLEEP_TIME_MILLI_SEC 1
 
 namespace fs = std::filesystem;
-using namespace gs;
-using gs::EdgeStrategy;
-using gs::NeugDB;
-using gs::StorageStrategy;
-using server::NeugDBSession;
+using namespace neug;
+using neug::EdgeStrategy;
+using neug::NeugDB;
+using neug::NeugDBSession;
+using neug::StorageStrategy;
 using oid_t = int64_t;
-using gs::DataTypeId;
-using gs::Schema;
-using gs::vid_t;
+using neug::DataTypeId;
+using neug::Schema;
+using neug::vid_t;
 
 // Utility: Generate unique id (thread-safe)
 static std::atomic<int64_t> neug_current_id(0);
 Property neug_generate_id() {
-  return gs::Property::From(neug_current_id.fetch_add(1));
+  return neug::Property::From(neug_current_id.fetch_add(1));
 }
 
 std::string neug_generate_random_string(int length) {
@@ -86,7 +86,7 @@ class NeugDBACIDTest : public ::testing::Test {
 
 // Parallel helpers
 template <typename FUNC_T>
-void neug_parallel_transaction(std::shared_ptr<server::NeugDBService> svc,
+void neug_parallel_transaction(std::shared_ptr<neug::NeugDBService> svc,
                                const FUNC_T& func, int txn_num) {
   std::vector<int> txn_ids(txn_num);
   std::iota(txn_ids.begin(), txn_ids.end(), 0);
@@ -99,7 +99,7 @@ void neug_parallel_transaction(std::shared_ptr<server::NeugDBService> svc,
     threads.emplace_back(
         [&](int tid) {
           auto guard = svc->AcquireSession();
-          server::NeugDBSession& session = *guard.get();
+          neug::NeugDBSession& session = *guard.get();
           while (true) {
             int txn_id = txn_counter.fetch_add(1);
             if (txn_id >= txn_num)
@@ -114,7 +114,7 @@ void neug_parallel_transaction(std::shared_ptr<server::NeugDBService> svc,
 }
 
 template <typename FUNC_T>
-void neug_parallel_client(std::shared_ptr<server::NeugDBService> svc,
+void neug_parallel_client(std::shared_ptr<neug::NeugDBService> svc,
                           const FUNC_T& func) {
   int thread_num = svc->SessionNum();
   std::vector<std::thread> threads;
@@ -122,7 +122,7 @@ void neug_parallel_client(std::shared_ptr<server::NeugDBService> svc,
     threads.emplace_back(
         [&](int tid) {
           auto guard = svc->AcquireSession();
-          server::NeugDBSession& session = *guard.get();
+          neug::NeugDBSession& session = *guard.get();
           func(session, tid);
         },
         i);
@@ -159,7 +159,7 @@ bool neug_get_random_vertex(const StorageReadInterface& txn, label_t label_id,
 auto neug_get_random_vertex(StorageTPUpdateInterface& gi, label_t label_id) {
   auto vertex_set = gi.GetVertexSet(label_id);
   int num = 0;
-  gs::vid_t vid = 0;
+  neug::vid_t vid = 0;
   for ([[maybe_unused]] auto v : vertex_set) {
     ++num;
   }
@@ -182,7 +182,7 @@ auto neug_get_random_vertex(StorageTPUpdateInterface& gi, label_t label_id) {
 
 // Helper: append string to field
 void neug_append_string_to_field(StorageTPUpdateInterface& gui, label_t label,
-                                 gs::vid_t vit, int col_id,
+                                 neug::vid_t vit, int col_id,
                                  const std::string& str) {
   std::string cur_str =
       std::string(gui.GetVertexProperty(label, vit, col_id).as_string_view());
@@ -196,10 +196,10 @@ void neug_append_string_to_field(StorageTPUpdateInterface& gui, label_t label,
 }
 
 // Atomicity helpers and tests
-std::shared_ptr<server::NeugDBService> neug_AtomicityInit(
+std::shared_ptr<neug::NeugDBService> neug_AtomicityInit(
     NeugDB& db, const std::string& work_dir, int thread_num) {
   db.Open(work_dir, thread_num);
-  auto service = std::make_shared<server::NeugDBService>(db);
+  auto service = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -237,7 +237,7 @@ std::shared_ptr<server::NeugDBService> neug_AtomicityInit(
   return service;
 }
 
-bool neug_AtomicityC(server::NeugDBSession& db, int64_t person2_id,
+bool neug_AtomicityC(neug::NeugDBSession& db, int64_t person2_id,
                      const std::string& new_email, int64_t since) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -266,16 +266,16 @@ bool neug_AtomicityC(server::NeugDBSession& db, int64_t person2_id,
   return true;
 }
 
-bool neug_AtomicityRB(server::NeugDBSession& db, int64_t person2_id,
+bool neug_AtomicityRB(neug::NeugDBSession& db, int64_t person2_id,
                       const std::string& new_email, int64_t since) {
   UpdateTransaction txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto vit1 = neug_get_random_vertex(gui, person_label_id);
   neug_append_string_to_field(gui, person_label_id, vit1, 2, new_email);
-  gs::vid_t vit2;
-  if (gui.GetVertexIndex(person_label_id, gs::Property::from_int64(person2_id),
-                         vit2)) {
+  neug::vid_t vit2;
+  if (gui.GetVertexIndex(person_label_id,
+                         neug::Property::from_int64(person2_id), vit2)) {
     txn.Abort();
     return false;
   }
@@ -303,7 +303,7 @@ int64_t neug_count_email_num(const std::string_view& sv) {
 }
 
 std::pair<int64_t, int64_t> neug_AtomicityCheck(
-    std::shared_ptr<server::NeugDBService> svc) {
+    std::shared_ptr<neug::NeugDBService> svc) {
   auto sess = svc->AcquireSession();
   auto txn = sess->GetReadTransaction();
   const auto& db = svc->db();
@@ -322,11 +322,11 @@ std::pair<int64_t, int64_t> neug_AtomicityCheck(
 
 // Dirty Writes
 
-std::shared_ptr<server::NeugDBService> G0Init(NeugDB& db,
-                                              const std::string& work_dir,
-                                              int thread_num) {
+std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
+                                            const std::string& work_dir,
+                                            int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(
@@ -368,14 +368,14 @@ std::shared_ptr<server::NeugDBService> G0Init(NeugDB& db,
   return svc;
 }
 
-void G0(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
+void G0(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
         int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
 
-  gs::vid_t vit1;
+  neug::vid_t vit1;
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
@@ -390,7 +390,7 @@ void G0(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   neug_append_string_to_field(gui, person_label_id, vit1, 1,
                               std::to_string(txn_id));
 
-  gs::vid_t vit2;
+  neug::vid_t vit2;
   flag = false;
   for (auto v : vertex_set) {
     int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
@@ -435,7 +435,7 @@ void G0(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
 }
 
 std::tuple<std::string, std::string, std::string> G0Check(
-    NeugDB& db, std::shared_ptr<server::NeugDBService> svc, int64_t person1_id,
+    NeugDB& db, std::shared_ptr<neug::NeugDBService> svc, int64_t person1_id,
     int64_t person2_id) {
   auto sess = svc->AcquireSession();
   auto txn = sess->GetReadTransaction();
@@ -484,7 +484,7 @@ std::tuple<std::string, std::string, std::string> G0Check(
 
   CHECK(iter != end);
   Property k_version_history_field = ed_accessor.get_data(iter);
-  CHECK(k_version_history_field.type() == gs::DataTypeId::kVarchar);
+  CHECK(k_version_history_field.type() == neug::DataTypeId::kVarchar);
   std::string k_version_history(k_version_history_field.as_string_view());
 
   return std::make_tuple(p1_version_history, p2_version_history,
@@ -493,11 +493,11 @@ std::tuple<std::string, std::string, std::string> G0Check(
 
 // Intermediate Reads
 
-std::shared_ptr<server::NeugDBService> G1BInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> G1BInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -523,7 +523,7 @@ std::shared_ptr<server::NeugDBService> G1BInit(NeugDB& db,
   return svc;
 }
 
-void G1B1(server::NeugDBSession& db, int64_t even, int64_t odd) {
+void G1B1(neug::NeugDBSession& db, int64_t even, int64_t odd) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -534,7 +534,7 @@ void G1B1(server::NeugDBSession& db, int64_t even, int64_t odd) {
   txn.Commit();
 }
 
-int64_t G1B2(server::NeugDBSession& db) {
+int64_t G1B2(neug::NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
 
@@ -548,11 +548,11 @@ int64_t G1B2(server::NeugDBSession& db) {
 
 // Circular Information Flow
 
-std::shared_ptr<server::NeugDBService> G1CInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> G1CInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -580,12 +580,12 @@ std::shared_ptr<server::NeugDBService> G1CInit(NeugDB& db,
   return svc;
 }
 
-int64_t G1C(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
+int64_t G1C(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
             int64_t txn_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  gs::vid_t person1_vid;
+  neug::vid_t person1_vid;
   bool flag = false;
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
@@ -600,7 +600,7 @@ int64_t G1C(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
                            Property::From(txn_id));
 
   CHECK(flag);
-  gs::vid_t person2_vid;
+  neug::vid_t person2_vid;
   flag = false;
   for (auto v : vertex_set) {
     int64_t v_id = gui.GetVertexProperty(person_label_id, v, 0).as_int64();
@@ -620,11 +620,11 @@ int64_t G1C(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
 
 // Aborted Reads
 
-std::shared_ptr<server::NeugDBService> G1AInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> G1AInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -650,7 +650,7 @@ std::shared_ptr<server::NeugDBService> G1AInit(NeugDB& db,
   return svc;
 }
 
-void G1A1(server::NeugDBSession& db) {
+void G1A1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -665,7 +665,7 @@ void G1A1(server::NeugDBSession& db) {
   txn.Abort();
 }
 
-int64_t G1A2(server::NeugDBSession& db) {
+int64_t G1A2(neug::NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
 
@@ -679,11 +679,11 @@ int64_t G1A2(server::NeugDBSession& db) {
 
 // Item-Many-Preceders
 
-std::shared_ptr<server::NeugDBService> IMPInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> IMPInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -708,7 +708,7 @@ std::shared_ptr<server::NeugDBService> IMPInit(NeugDB& db,
   return svc;
 }
 
-void IMP1(server::NeugDBSession& db) {
+void IMP1(neug::NeugDBSession& db) {
   auto txn = db.GetUpdateTransaction();
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   StorageTPUpdateInterface gui(txn);
@@ -720,8 +720,7 @@ void IMP1(server::NeugDBSession& db) {
   txn.Commit();
 }
 
-std::tuple<int64_t, int64_t> IMP2(server::NeugDBSession& db,
-                                  int64_t person1_id) {
+std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -761,11 +760,11 @@ std::tuple<int64_t, int64_t> IMP2(server::NeugDBSession& db,
 
 // Predicate-Many-Preceders
 
-std::shared_ptr<server::NeugDBService> PMPInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> PMPInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(
@@ -795,13 +794,13 @@ std::shared_ptr<server::NeugDBService> PMPInit(NeugDB& db,
   return svc;
 }
 
-bool PMP1(server::NeugDBSession& db, int64_t person_id, int64_t post_id) {
+bool PMP1(neug::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto post_label_id = db.schema().get_vertex_label_id("POST");
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
-  gs::vid_t person_vid;
+  neug::vid_t person_vid;
   bool found = false;
   auto vertex_set = gui.GetVertexSet(person_label_id);
   for (auto v : vertex_set) {
@@ -813,7 +812,7 @@ bool PMP1(server::NeugDBSession& db, int64_t person_id, int64_t post_id) {
     }
   }
   CHECK(found);
-  gs::vid_t post_vid;
+  neug::vid_t post_vid;
   found = false;
   auto post_vertex_set = gui.GetVertexSet(post_label_id);
   for (auto v : post_vertex_set) {
@@ -834,7 +833,7 @@ bool PMP1(server::NeugDBSession& db, int64_t person_id, int64_t post_id) {
   return true;
 }
 
-std::tuple<int64_t, int64_t> PMP2(server::NeugDBSession& db, int64_t post_id) {
+std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -881,11 +880,11 @@ std::tuple<int64_t, int64_t> PMP2(server::NeugDBSession& db, int64_t post_id) {
 
 // Observed Transaction Vanishes
 
-std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
-                                               const std::string& work_dir,
-                                               int thread_num) {
+std::shared_ptr<neug::NeugDBService> OTVInit(NeugDB& db,
+                                             const std::string& work_dir,
+                                             int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -926,7 +925,7 @@ std::shared_ptr<server::NeugDBService> OTVInit(NeugDB& db,
   return svc;
 }
 
-void OTV1(server::NeugDBSession& db, int64_t person_id) {
+void OTV1(neug::NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -994,7 +993,7 @@ void OTV1(server::NeugDBSession& db, int64_t person_id) {
 
 std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
-OTV2(server::NeugDBSession& db, int64_t person_id) {
+OTV2(neug::NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
@@ -1069,27 +1068,27 @@ OTV2(server::NeugDBSession& db, int64_t person_id) {
 
 // Fractured Reads
 
-std::shared_ptr<server::NeugDBService> FRInit(NeugDB& db,
-                                              const std::string& work_dir,
-                                              int thread_num) {
+std::shared_ptr<neug::NeugDBService> FRInit(NeugDB& db,
+                                            const std::string& work_dir,
+                                            int thread_num) {
   return OTVInit(db, work_dir, thread_num);
 }
 
-void FR1(server::NeugDBSession& db, int64_t person_id) { OTV1(db, person_id); }
+void FR1(neug::NeugDBSession& db, int64_t person_id) { OTV1(db, person_id); }
 
 std::tuple<std::tuple<int64_t, int64_t, int64_t, int64_t>,
            std::tuple<int64_t, int64_t, int64_t, int64_t>>
-FR2(server::NeugDBSession& db, int64_t person_id) {
+FR2(neug::NeugDBSession& db, int64_t person_id) {
   return OTV2(db, person_id);
 }
 
 // Lost Updates
 
-std::shared_ptr<server::NeugDBService> LUInit(NeugDB& db,
-                                              const std::string& work_dir,
-                                              int thread_num) {
+std::shared_ptr<neug::NeugDBService> LUInit(NeugDB& db,
+                                            const std::string& work_dir,
+                                            int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(
@@ -1117,12 +1116,12 @@ std::shared_ptr<server::NeugDBService> LUInit(NeugDB& db,
   return svc;
 }
 
-bool LU1(server::NeugDBSession& db, int64_t person_id) {
+bool LU1(neug::NeugDBSession& db, int64_t person_id) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
 
-  gs::vid_t person_vid;
+  neug::vid_t person_vid;
   const auto& vertex_set = gui.GetVertexSet(person_label_id);
   bool flag = false;
   for (auto v : vertex_set) {
@@ -1144,7 +1143,7 @@ bool LU1(server::NeugDBSession& db, int64_t person_id) {
   return true;
 }
 
-std::map<int64_t, int64_t> LU2(server::NeugDBSession& db) {
+std::map<int64_t, int64_t> LU2(neug::NeugDBSession& db) {
   std::map<int64_t, int64_t> numFriends;
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
@@ -1165,11 +1164,11 @@ std::map<int64_t, int64_t> LU2(server::NeugDBSession& db) {
 
 // Write Skews
 
-std::shared_ptr<server::NeugDBService> WSInit(NeugDB& db,
-                                              const std::string& work_dir,
-                                              int thread_num) {
+std::shared_ptr<neug::NeugDBService> WSInit(NeugDB& db,
+                                            const std::string& work_dir,
+                                            int thread_num) {
   db.Open(work_dir, thread_num);
-  auto svc = std::make_shared<server::NeugDBService>(db);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
   {
     auto conn = db.Connect();
     EXPECT_TRUE(conn->Query(
@@ -1200,7 +1199,7 @@ std::shared_ptr<server::NeugDBService> WSInit(NeugDB& db,
   return svc;
 }
 
-void WS1(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
+void WS1(neug::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
          std::mt19937& gen) {
   auto txn = db.GetUpdateTransaction();
   StorageTPUpdateInterface gui(txn);
@@ -1245,16 +1244,16 @@ void WS1(server::NeugDBSession& db, int64_t person1_id, int64_t person2_id,
   // property
   if (dist(gen)) {
     gui.UpdateVertexProperty(person_label_id, person1_vid, 1,
-                             gs::Property::From(p1_value - 100));
+                             neug::Property::From(p1_value - 100));
   } else {
     gui.UpdateVertexProperty(person_label_id, person2_vid, 1,
-                             gs::Property::From(p2_value - 100));
+                             neug::Property::From(p2_value - 100));
   }
   txn.Commit();
 }
 
 std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
-    server::NeugDBSession& db) {
+    neug::NeugDBSession& db) {
   std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> results;
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
@@ -1289,13 +1288,13 @@ std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
 TEST_F(NeugDBACIDTest, AtomicityC) {
   std::string dir = work_dir_ + "/AtomicityC";
   NeugDB db;
-  std::shared_ptr<server::NeugDBService> svc =
+  std::shared_ptr<neug::NeugDBService> svc =
       neug_AtomicityInit(db, dir, thread_num_);
   auto committed = neug_AtomicityCheck(svc);
   std::atomic<int> num_aborted_txns(0), num_committed_txns(0);
   neug_parallel_transaction(
       svc,
-      [&](server::NeugDBSession& session, int txn_id) {
+      [&](neug::NeugDBSession& session, int txn_id) {
         bool successful =
             neug_AtomicityC(session, 3 + txn_id, "alice@otherdomain.net", 2020);
         if (successful)
@@ -1318,7 +1317,7 @@ TEST_F(NeugDBACIDTest, AtomicityRB) {
   std::atomic<int> num_aborted_txns(0), num_committed_txns(0);
   neug_parallel_transaction(
       svc,
-      [&](server::NeugDBSession& session, int txn_id) {
+      [&](neug::NeugDBSession& session, int txn_id) {
         bool successful;
         if (txn_id % 2 == 0) {
           successful =
@@ -1347,7 +1346,7 @@ TEST_F(NeugDBACIDTest, G0) {
   auto svc = G0Init(db, dir, thread_num_);
   neug_parallel_transaction(
       svc,
-      [&](server::NeugDBSession& db, int txn_id) {
+      [&](neug::NeugDBSession& db, int txn_id) {
         std::random_device rand_dev;
         std::mt19937 gen(rand_dev());
         std::uniform_int_distribution<int> dist(1, 100);
@@ -1369,7 +1368,7 @@ TEST_F(NeugDBACIDTest, G1A) {
   auto svc = G1AInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& db, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& db, int client_id) {
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         auto p_version = G1A2(db);
@@ -1392,7 +1391,7 @@ TEST_F(NeugDBACIDTest, G1B) {
   auto svc = G1BInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     if (client_id < rc) {
       for (int i = 0; i < 100; ++i) {
         auto p_version = G1B2(session);
@@ -1417,7 +1416,7 @@ TEST_F(NeugDBACIDTest, G1C) {
   std::vector<int64_t> results(c);
   neug_parallel_transaction(
       svc,
-      [&](server::NeugDBSession& session, int txn_id) {
+      [&](neug::NeugDBSession& session, int txn_id) {
         std::random_device rand_dev;
         std::mt19937 gen(rand_dev());
         std::uniform_int_distribution<int> dist(1, 100);
@@ -1448,7 +1447,7 @@ TEST_F(NeugDBACIDTest, IMP) {
   auto svc = IMPInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     if (client_id < rc) {
       std::random_device rand_dev;
       std::mt19937 gen(rand_dev());
@@ -1476,7 +1475,7 @@ TEST_F(NeugDBACIDTest, PMP) {
   std::atomic<int64_t> num_incorrect_checks(0);
   std::atomic<int64_t> num_aborted_txns(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
@@ -1507,7 +1506,7 @@ TEST_F(NeugDBACIDTest, OTV) {
   auto svc = OTVInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
@@ -1537,7 +1536,7 @@ TEST_F(NeugDBACIDTest, FR) {
   auto svc = FRInit(db, dir, thread_num_);
   std::atomic<int64_t> num_incorrect_checks(0);
   int rc = thread_num_ / 2;
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
@@ -1564,7 +1563,7 @@ TEST_F(NeugDBACIDTest, LU) {
   std::map<int64_t, int64_t> expNumFriends;
   std::mutex mtx;
   std::atomic<int64_t> num_aborted_txns(0);
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);
@@ -1590,7 +1589,7 @@ TEST_F(NeugDBACIDTest, WS) {
   std::string dir = work_dir_ + "/WS";
   NeugDB db;
   auto svc = WSInit(db, dir, thread_num_);
-  neug_parallel_client(svc, [&](server::NeugDBSession& session, int client_id) {
+  neug_parallel_client(svc, [&](neug::NeugDBSession& session, int client_id) {
     std::random_device rand_dev;
     std::mt19937 gen(rand_dev());
     std::uniform_int_distribution<int> dist(1, 100);

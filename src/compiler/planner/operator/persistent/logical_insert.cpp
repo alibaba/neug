@@ -7,10 +7,10 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalInsert::computeFactorizedSchema() {
@@ -76,4 +76,4 @@ std::vector<gopt::GAliasName> LogicalInsert::getGAliasNames() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

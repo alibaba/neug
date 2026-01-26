@@ -17,11 +17,11 @@
 
 #include "neug/execution/common/context.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
-gs::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
+neug::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
   if (lower == 0 && static_cast<size_t>(upper) >= ctx.row_num()) {
     return std::move(ctx);
   }
@@ -40,4 +40,4 @@ gs::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

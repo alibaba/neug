@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Reader {
@@ -36,4 +36,4 @@ class Reader {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

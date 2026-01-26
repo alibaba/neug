@@ -63,7 +63,7 @@
 
 #include "re2/include/pod_array.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 template <typename Value>
@@ -246,5 +246,5 @@ bool SparseSetT<Value>::less(int a, int b) {
 typedef SparseSetT<void> SparseSet;
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // UTIL_SPARSE_SET_H_

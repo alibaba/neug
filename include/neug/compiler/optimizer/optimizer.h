@@ -24,7 +24,7 @@
 
 #include "neug/compiler/planner/operator/logical_plan.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }
@@ -43,4 +43,4 @@ class Optimizer {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

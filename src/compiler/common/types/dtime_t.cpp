@@ -30,7 +30,7 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 static_assert(sizeof(dtime_t) == sizeof(int64_t), "dtime_t was padded");
@@ -248,4 +248,4 @@ void Time::convert(dtime_t dtime, int32_t& hour, int32_t& min, int32_t& sec,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

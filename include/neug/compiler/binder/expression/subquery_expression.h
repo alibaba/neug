@@ -27,7 +27,7 @@
 #include "neug/compiler/binder/query/reading_clause/bound_join_hint.h"
 #include "neug/compiler/common/enums/subquery_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class SubqueryExpression final : public Expression {
@@ -91,4 +91,4 @@ class SubqueryExpression final : public Expression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

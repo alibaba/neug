@@ -20,7 +20,7 @@
 #include "neug/utils/property/types.h"
 
 #include <datetime.h>
-namespace gs {
+namespace neug {
 
 pybind11::object value_to_pyobject(const ::common::Value& value) {
   switch (value.item_case()) {
@@ -366,4 +366,4 @@ std::string PyQueryResult::get_bolt_response() const {
   return proto_to_bolt_response(query_result_.get_result());
 }
 
-}  // namespace gs
+}  // namespace neug

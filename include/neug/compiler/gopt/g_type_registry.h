@@ -20,7 +20,7 @@
 #include <yaml-cpp/yaml.h>
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class LogicalTypeRegistry {
  public:
@@ -48,4 +48,4 @@ class LogicalTypeRegistry {
   }
 };
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/scan/logical_dummy_scan.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendDummyScan(LogicalPlan& plan, bool updateClause) {
@@ -12,4 +12,4 @@ void Planner::appendDummyScan(LogicalPlan& plan, bool updateClause) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

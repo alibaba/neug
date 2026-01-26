@@ -25,7 +25,7 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 bool CastArrayHelper::checkCompatibleNestedTypes(LogicalTypeID sourceTypeID,
@@ -171,4 +171,4 @@ void CastArrayHelper::validateListEntry(ValueVector* inputVector,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

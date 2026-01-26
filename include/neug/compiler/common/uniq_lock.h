@@ -24,7 +24,7 @@
 
 #include <mutex>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct UniqLock {
@@ -46,4 +46,4 @@ struct UniqLock {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

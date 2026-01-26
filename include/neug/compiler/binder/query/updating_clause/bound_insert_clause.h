@@ -25,7 +25,7 @@
 #include "bound_insert_info.h"
 #include "bound_updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundInsertClause final : public BoundUpdatingClause {
@@ -68,4 +68,4 @@ class BoundInsertClause final : public BoundUpdatingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

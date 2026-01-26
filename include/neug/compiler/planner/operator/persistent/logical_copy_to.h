@@ -4,7 +4,7 @@
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 struct ExportFuncBindData;
 }
@@ -73,4 +73,4 @@ class LogicalCopyTo final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

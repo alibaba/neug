@@ -31,7 +31,7 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/common/case_insensitive_map.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BinderScope {
@@ -113,4 +113,4 @@ class BinderScope {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

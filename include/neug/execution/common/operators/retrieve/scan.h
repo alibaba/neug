@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class SPVertexPredicate;
@@ -30,10 +30,10 @@ class SPVertexPredicate;
 class Scan {
  public:
   template <typename PRED_T>
-  static gs::result<Context> scan_vertex(Context&& ctx,
-                                         const IStorageInterface& gi,
-                                         const ScanParams& params,
-                                         const PRED_T& predicate) {
+  static neug::result<Context> scan_vertex(Context&& ctx,
+                                           const IStorageInterface& gi,
+                                           const ScanParams& params,
+                                           const PRED_T& predicate) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     MSVertexColumnBuilder builder(params.tables[0]);
     for (auto label : params.tables) {
@@ -50,10 +50,9 @@ class Scan {
   }
 
   template <typename PRED_T>
-  static gs::result<Context> scan_vertex_with_limit(Context&& ctx,
-                                                    const IStorageInterface& gi,
-                                                    const ScanParams& params,
-                                                    const PRED_T& predicate) {
+  static neug::result<Context> scan_vertex_with_limit(
+      Context&& ctx, const IStorageInterface& gi, const ScanParams& params,
+      const PRED_T& predicate) {
     int32_t cur_limit = params.limit;
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     if (params.tables.size() == 1) {
@@ -93,17 +92,17 @@ class Scan {
     return ctx;
   }
 
-  static gs::result<Context> scan_vertex_with_special_vertex_predicate(
+  static neug::result<Context> scan_vertex_with_special_vertex_predicate(
       Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
       const SpecialVertexPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename PRED_T>
-  static gs::result<Context> filter_oids(Context&& ctx,
-                                         const IStorageInterface& graph,
-                                         const ScanParams& params,
-                                         const PRED_T& predicate,
-                                         const std::vector<Property>& oids) {
+  static neug::result<Context> filter_oids(Context&& ctx,
+                                           const IStorageInterface& graph,
+                                           const ScanParams& params,
+                                           const PRED_T& predicate,
+                                           const std::vector<Property>& oids) {
     auto limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
@@ -157,11 +156,11 @@ class Scan {
     return ctx;
   }
 
-  static gs::result<Context> find_vertex_with_oid(
+  static neug::result<Context> find_vertex_with_oid(
       Context&& ctx, const IStorageInterface& graph, label_t label,
       const Property& pk, int32_t alias);
 };
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

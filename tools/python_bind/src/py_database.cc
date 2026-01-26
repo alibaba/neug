@@ -15,7 +15,7 @@
 
 #include "py_database.h"
 
-namespace gs {
+namespace neug {
 
 void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
@@ -105,7 +105,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
 
   database->Close();
   database->Open(database->config());
-  server::ServiceConfig config;
+  neug::ServiceConfig config;
   config.query_port = port;
   config.host_str = host;
   config.shard_num =
@@ -116,7 +116,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   }
 #endif
 
-  service_ = std::make_unique<server::NeugDBService>(*database, config);
+  service_ = std::make_unique<neug::NeugDBService>(*database, config);
   if (blocking) {
     service_->run_and_wait_for_exit();
     return "";
@@ -146,4 +146,4 @@ void PyDatabase::close() {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
@@ -595,4 +595,4 @@ default_single_source_shortest_path_impl(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

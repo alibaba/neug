@@ -25,10 +25,10 @@
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::catalog;
-using namespace gs::common;
+using namespace neug::catalog;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 table_id_vector_t NodeOrRelExpression::getTableIDs() const {
@@ -89,4 +89,4 @@ expression_vector NodeOrRelExpression::getPropertyExprs() const {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

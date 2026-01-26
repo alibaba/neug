@@ -26,7 +26,7 @@
 #include "neug/compiler/common/profiler.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace processor {
 
 class FactorizedTable;
@@ -42,4 +42,4 @@ struct NEUG_API ExecutionContext {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

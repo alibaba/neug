@@ -18,7 +18,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 class GCatalogHolder {
@@ -33,4 +33,4 @@ class GCatalogHolder {
   static GCatalog* getGCatalog();
 };
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

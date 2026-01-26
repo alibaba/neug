@@ -27,7 +27,7 @@
 #include "neug/compiler/function/arithmetic/multiply.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 timestamp_t::timestamp_t() : value(0) {}
@@ -360,4 +360,4 @@ timestamp_t Timestamp::getCurrentTimestamp() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

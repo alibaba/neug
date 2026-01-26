@@ -25,7 +25,7 @@
 #include "neug/compiler/common/assert.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedParameterExpression : public ParsedExpression {
@@ -55,4 +55,4 @@ class ParsedParameterExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

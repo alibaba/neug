@@ -36,7 +36,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class EdgeRecord;
@@ -429,4 +429,4 @@ class PropertyGraph {
   int memory_level_;
 };
 
-}  // namespace gs
+}  // namespace neug

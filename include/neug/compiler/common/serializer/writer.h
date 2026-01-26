@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Writer {
@@ -34,4 +34,4 @@ class Writer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

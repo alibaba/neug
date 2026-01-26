@@ -17,7 +17,7 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_result_schema.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class ResultTest : public GOptTest {
  public:
@@ -88,4 +88,4 @@ TEST_F(ResultTest, RETURN_STAR) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

@@ -33,7 +33,7 @@ namespace arrow {
 class Array;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -54,14 +54,13 @@ class DataSourceOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataSourceOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     NEUG_ASSERT(readFunction != nullptr);
     return readFunction->execFunc(sharedState);
   }
-};
+};  // namespace ops
 
 std::shared_ptr<ReadSharedState> ReadStateBuilder::build(
     const ::physical::DataSource& data_source) {
@@ -115,8 +114,8 @@ FileSchema ReadStateBuilder::buildFileSchema(
 // schema info.
 // 2. ReadFunction: can be looked up from catalog, which has been registered in
 // extension.
-gs::result<OpBuildResultT> DataSourceOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> DataSourceOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto sourcePB = plan.plan(op_idx).opr().source();
   auto stateBuilder = ReadStateBuilder();
@@ -134,4 +133,4 @@ gs::result<OpBuildResultT> DataSourceOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

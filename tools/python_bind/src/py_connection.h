@@ -24,7 +24,7 @@
 #include "py_query_result.h"
 #include "pybind11/include/pybind11/pybind11.h"
 
-namespace gs {
+namespace neug {
 
 class PyConnection : public std::enable_shared_from_this<PyConnection> {
  public:
@@ -53,6 +53,6 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
   std::shared_ptr<Connection> conn_;
 };
 
-}  // namespace gs
+}  // namespace neug
 
 #endif  // TOOLS_PYTHON_BIND_SRC_PY_CONNECTION_H_

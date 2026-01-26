@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class AggTest : public GOptTest {
@@ -95,4 +95,4 @@ TEST_F(AggTest, AGGREGATE_AND_ORDER_BY) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

@@ -1,9 +1,9 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 LogicalPlan Planner::getNodePropertyScanPlan(const NodeExpression& node) {
@@ -22,4 +22,4 @@ LogicalPlan Planner::getNodePropertyScanPlan(const NodeExpression& node) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

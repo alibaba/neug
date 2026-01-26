@@ -36,7 +36,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 class Table;
 
 std::string_view truncate_utf8(std::string_view str, size_t length);
@@ -487,4 +487,4 @@ class TypedRefColumn : public RefColumnBase {
 // vertex properties.
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column);
 
-}  // namespace gs
+}  // namespace neug

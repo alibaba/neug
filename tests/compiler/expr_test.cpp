@@ -20,7 +20,7 @@
 #include "neug/compiler/common/types/date_t.h"
 #include "neug/compiler/planner/operator/logical_projection.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class ExprTest : public GOptTest {
@@ -425,4 +425,4 @@ TEST_F(ExprTest, CAST_INTERVAL_TO_INT64) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

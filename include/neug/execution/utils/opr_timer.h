@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -104,4 +104,4 @@ class OprTimer {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

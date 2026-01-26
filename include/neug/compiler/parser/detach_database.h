@@ -26,7 +26,7 @@
 
 #include "neug/compiler/parser/database_statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class DetachDatabase final : public DatabaseStatement {
@@ -39,4 +39,4 @@ class DetachDatabase final : public DatabaseStatement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

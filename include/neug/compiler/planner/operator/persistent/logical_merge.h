@@ -4,7 +4,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalMerge final : public LogicalOperator {
@@ -98,4 +98,4 @@ class LogicalMerge final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

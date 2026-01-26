@@ -26,7 +26,7 @@
 
 #include <atomic>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 /**
@@ -61,4 +61,4 @@ class ProgressBarDisplay {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

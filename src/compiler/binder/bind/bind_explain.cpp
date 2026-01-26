@@ -24,7 +24,7 @@
 #include "neug/compiler/binder/bound_explain.h"
 #include "neug/compiler/parser/explain_statement.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindExplain(
@@ -36,4 +36,4 @@ std::unique_ptr<BoundStatement> Binder::bindExplain(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

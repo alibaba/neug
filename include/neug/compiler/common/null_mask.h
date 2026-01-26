@@ -28,7 +28,7 @@
 #include <span>
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ArrowNullMaskTree;
@@ -388,4 +388,4 @@ class NullMask {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

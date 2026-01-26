@@ -2,10 +2,10 @@
 #include "neug/compiler/planner/operator/logical_unwind.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendUnwind(const BoundReadingClause& readingClause,
@@ -22,4 +22,4 @@ void Planner::appendUnwind(const BoundReadingClause& readingClause,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

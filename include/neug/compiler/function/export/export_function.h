@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/value/value.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ExportFuncLocalState {
@@ -159,4 +159,4 @@ struct ExportCSVBindData : public ExportFuncBindData {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

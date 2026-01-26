@@ -52,7 +52,7 @@
 #pragma warning(disable : 4200)
 #endif
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Controls whether the DFA should bail out early if the NFA would be faster.
@@ -2093,4 +2093,4 @@ bool Prog::PossibleMatchRange(std::string* min, std::string* max, int maxlen) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

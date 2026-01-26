@@ -14,7 +14,7 @@
 #include "re2/include/logging.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class Bitmap256 {
@@ -112,5 +112,5 @@ int Bitmap256::FindNextSetBit(int c) const {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // RE2_BITMAP256_H_

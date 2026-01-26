@@ -24,7 +24,7 @@
 
 #include "logical_operator_visitor.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class LogicalOperatorCollector : public LogicalOperatorVisitor {
@@ -73,4 +73,4 @@ class LogicalRecursiveExtendCollector final : public LogicalOperatorCollector {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

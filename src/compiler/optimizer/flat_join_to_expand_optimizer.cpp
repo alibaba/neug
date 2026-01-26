@@ -24,7 +24,7 @@
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 // get the sequential-parent (the parent cannot be join or union) operator on
@@ -173,4 +173,4 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

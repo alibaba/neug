@@ -27,10 +27,10 @@
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 macro_parameter_value_map ScalarMacroFunction::getDefaultParameterVals() const {
@@ -94,4 +94,4 @@ std::string ScalarMacroFunction::toCypher(const std::string& name) const {
                       expression->toString());
 }
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

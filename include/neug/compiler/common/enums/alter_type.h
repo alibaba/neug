@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class AlterType : uint8_t {
@@ -38,4 +38,4 @@ enum class AlterType : uint8_t {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

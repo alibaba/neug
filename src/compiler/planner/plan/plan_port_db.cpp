@@ -11,13 +11,13 @@
 #include "neug/compiler/planner/operator/simple/logical_import_db.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
-using namespace gs::storage;
-using namespace gs::catalog;
-using namespace gs::common;
-using namespace gs::transaction;
+using namespace neug::binder;
+using namespace neug::storage;
+using namespace neug::catalog;
+using namespace neug::common;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::unique_ptr<LogicalPlan> Planner::planExportDatabase(
@@ -70,4 +70,4 @@ std::unique_ptr<LogicalPlan> Planner::planImportDatabase(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

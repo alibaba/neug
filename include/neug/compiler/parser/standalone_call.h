@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class StandaloneCall : public Statement {
@@ -46,4 +46,4 @@ class StandaloneCall : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

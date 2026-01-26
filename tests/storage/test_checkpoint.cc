@@ -100,7 +100,7 @@ static const std::vector<std::string> delete_edge_result_v = {
     "element { object { i64: 35 } }>"};
 static const std::vector<std::string> delete_edge_result_e = {};
 
-namespace gs {
+namespace neug {
 
 namespace test {
 
@@ -114,8 +114,8 @@ class CheckpointTest : public ::testing::Test {
     }
     std::filesystem::create_directories(DB_DIR);
 
-    std::unique_ptr<gs::NeugDB> db_ = std::make_unique<gs::NeugDB>();
-    gs::NeugDBConfig config;
+    std::unique_ptr<neug::NeugDB> db_ = std::make_unique<neug::NeugDB>();
+    neug::NeugDBConfig config;
     config.data_dir = DB_DIR;
     config.checkpoint_on_close = true;
     config.compact_on_close = true;
@@ -135,7 +135,7 @@ class CheckpointTest : public ::testing::Test {
 };
 
 TEST_F(CheckpointTest, test_basic) {
-  std::unique_ptr<gs::NeugDB> db_ = std::make_unique<gs::NeugDB>();
+  std::unique_ptr<neug::NeugDB> db_ = std::make_unique<neug::NeugDB>();
   db_->Open(DB_DIR);
   auto conn = db_->Connect();
 
@@ -167,7 +167,7 @@ TEST_F(CheckpointTest, test_basic) {
 }
 
 TEST_F(CheckpointTest, test_after_add_vertex_property) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -204,7 +204,7 @@ TEST_F(CheckpointTest, test_after_add_vertex_property) {
 }
 
 TEST_F(CheckpointTest, test_after_delete_vertex_property) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -241,7 +241,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex_property) {
 }
 
 TEST_F(CheckpointTest, test_after_delete_vertex) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -279,7 +279,7 @@ TEST_F(CheckpointTest, test_after_delete_vertex) {
 }
 
 TEST_F(CheckpointTest, test_after_add_edge_property1) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -340,7 +340,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property1) {
 // Add a test test_after_add_edge_property2 which add property to an edge table
 // which already have 2 properties
 TEST_F(CheckpointTest, test_after_add_edge_property2) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -432,7 +432,7 @@ TEST_F(CheckpointTest, test_after_add_edge_property2) {
 }
 
 TEST_F(CheckpointTest, test_after_delete_edge_property) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
 
   {
@@ -470,7 +470,7 @@ TEST_F(CheckpointTest, test_after_delete_edge_property) {
 }
 
 TEST_F(CheckpointTest, test_after_delete_edge) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
 
   {
@@ -514,12 +514,12 @@ TEST_F(CheckpointTest, test_compact) {
   }
   std::filesystem::create_directories(db_path);
   {
-    gs::NeugDB db;
+    neug::NeugDB db;
     db.Open(db_path);
     auto conn = db.Connect();
     load_modern_graph(conn);
     conn->Close();
-    auto svc = std::make_shared<server::NeugDBService>(db);
+    auto svc = std::make_shared<neug::NeugDBService>(db);
 
     auto sess = svc->AcquireSession();
     auto compact_txn = sess->GetCompactTransaction();
@@ -528,9 +528,9 @@ TEST_F(CheckpointTest, test_compact) {
     db.Close();
   }
 
-  gs::NeugDB db2;
+  neug::NeugDB db2;
   db2.Open(db_path);
-  auto svc = std::make_shared<server::NeugDBService>(db2);
+  auto svc = std::make_shared<neug::NeugDBService>(db2);
   auto conn2 = db2.Connect();
   std::vector<std::string> result_v, result_e;
   {
@@ -580,7 +580,7 @@ TEST_F(CheckpointTest, test_compact) {
 }
 
 TEST_F(CheckpointTest, test_recover_from_checkpoint) {
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(DB_DIR);
   auto conn = db.Connect();
 
@@ -636,7 +636,7 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
   db.Close();
 
   // Reopen the db, should recover from checkpoint
-  gs::NeugDB db2;
+  neug::NeugDB db2;
   db2.Open(DB_DIR);
   auto conn2 = db2.Connect();
   {
@@ -661,4 +661,4 @@ TEST_F(CheckpointTest, test_recover_from_checkpoint) {
 
 }  // namespace test
 
-}  // namespace gs
+}  // namespace neug

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace transaction {
 
 enum class TransactionAction : uint8_t {
@@ -20,4 +20,4 @@ class TransactionActionUtils {
 };
 
 }  // namespace transaction
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 #include "neug/compiler/common/constants.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 std::string LogicalGetV::getExpressionsForPrinting() const {
@@ -71,7 +71,7 @@ std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
     catalog::Catalog* catalog) const {
   // get node table from catalog by table ids
   std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   for (auto tableId : getTableIDs()) {
     auto tableEntry = catalog->getTableCatalogEntry(&transaction, tableId);
     auto nodeTableEntry =
@@ -87,4 +87,4 @@ std::unique_ptr<gopt::GNodeType> LogicalGetV::getNodeType(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

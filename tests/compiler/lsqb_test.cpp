@@ -18,7 +18,7 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_result_schema.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class LSQBTest : public GOptTest {
@@ -109,4 +109,4 @@ TEST_F(LSQBTest, LQ_6) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

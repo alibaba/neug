@@ -26,7 +26,7 @@
 
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 class PrefilterTree;
@@ -103,6 +103,6 @@ class FilteredRE2 {
 };
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_FILTERED_RE2_H_

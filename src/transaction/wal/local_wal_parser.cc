@@ -25,7 +25,7 @@
 
 #include "neug/transaction/wal/wal.h"
 
-namespace gs {
+namespace neug {
 
 LocalWalParser::LocalWalParser(const std::string& wal_uri) {
   LocalWalParser::open(wal_uri);
@@ -119,4 +119,4 @@ const bool LocalWalParser::registered_ = WalParserFactory::RegisterWalParser(
     "file", static_cast<WalParserFactory::wal_parser_initializer_t>(
                 &LocalWalParser::Make));
 
-}  // namespace gs
+}  // namespace neug

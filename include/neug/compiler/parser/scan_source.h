@@ -31,7 +31,7 @@
 #include "neug/compiler/common/enums/scan_source_type.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct BaseScanSource {
@@ -87,4 +87,4 @@ struct TableFuncScanSource : public BaseScanSource {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

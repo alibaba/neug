@@ -36,7 +36,7 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "prepared_statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 class StandaloneCallRewriter;
 }  // namespace parser
@@ -179,4 +179,4 @@ class NEUG_API ClientContext {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

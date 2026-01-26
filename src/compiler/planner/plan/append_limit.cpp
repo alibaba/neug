@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_limit.h"
 #include "neug/compiler/planner/planner.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendLimit(std::shared_ptr<binder::Expression> skipNum,
@@ -16,4 +16,4 @@ void Planner::appendLimit(std::shared_ptr<binder::Expression> skipNum,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -20,10 +20,10 @@
 #include "neug/storages/csr/immutable_csr.h"
 #include "unittest/utils.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 using Datatypes =
-    ::testing::Types<gs::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
+    ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
 template <typename EDATA_T>
@@ -55,7 +55,7 @@ class IMMutableCsrTest : public ::testing::Test {
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, false);
     csr.resize(500);
-    std::vector<gs::vid_t> src_list, dst_list;
+    std::vector<neug::vid_t> src_list, dst_list;
     std::vector<EDATA_T> edata_list;
     for (size_t i = 0; i < edges.size(); ++i) {
       src_list.push_back(std::get<0>(edges[i]));
@@ -72,7 +72,7 @@ class IMMutableCsrTest : public ::testing::Test {
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, true);
     csr.resize(500);
-    std::vector<gs::vid_t> src_list, dst_list;
+    std::vector<neug::vid_t> src_list, dst_list;
     std::vector<EDATA_T> edata_list;
     for (size_t i = 0; i < edges.size(); ++i) {
       src_list.push_back(std::get<0>(edges[i]));
@@ -196,7 +196,7 @@ class IMMutableCsrTest : public ::testing::Test {
             cur_value = next_value;
           }
         }
-      } else if constexpr (std::is_same_v<EDATA_T, gs::EmptyType>) {
+      } else if constexpr (std::is_same_v<EDATA_T, neug::EmptyType>) {
         continue;
       } else {
         return false;
@@ -505,4 +505,4 @@ TYPED_TEST(IMMutableCsrTest, TestDeleteRevertEdge) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

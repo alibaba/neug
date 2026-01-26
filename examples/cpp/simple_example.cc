@@ -17,7 +17,7 @@
 #include "neug/neug.h"
 
 int main(int argc, char** argv) {
-  gs::NeugDB db;  // In-memory database
+  neug::NeugDB db;  // In-memory database
   db.Open("");
   auto conn = db.Connect();
   CHECK(

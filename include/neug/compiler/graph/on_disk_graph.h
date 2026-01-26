@@ -40,7 +40,7 @@
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 class MemoryManager;
 }
@@ -163,4 +163,4 @@ class NEUG_API OnDiskGraph final : public Graph {
 };
 
 }  // namespace graph
-}  // namespace gs
+}  // namespace neug

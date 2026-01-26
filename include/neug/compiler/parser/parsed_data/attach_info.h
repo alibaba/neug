@@ -26,7 +26,7 @@
 
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct AttachInfo {
@@ -42,4 +42,4 @@ struct AttachInfo {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

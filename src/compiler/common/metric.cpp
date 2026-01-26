@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/metric.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 TimeMetric::TimeMetric(bool enable) : Metric(enable) {
@@ -72,4 +72,4 @@ void NumericMetric::incrementByOne() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

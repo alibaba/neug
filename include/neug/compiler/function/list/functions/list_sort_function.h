@@ -25,7 +25,7 @@
 #include "base_list_sort_function.h"
 #include "neug/compiler/common/vector/value_vector.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <typename T>
@@ -61,4 +61,4 @@ struct ListSort : BaseListSortOperation {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

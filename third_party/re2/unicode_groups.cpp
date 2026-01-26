@@ -4,7 +4,7 @@
 
 #include "re2/include/unicode_groups.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 static const URange16 Ps_range16[] = {
@@ -2193,4 +2193,4 @@ const UGroup unicode_groups[] = {
 const int num_unicode_groups = 184;
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

@@ -29,7 +29,7 @@
 #include "neug/compiler/common/types/int128_t.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 namespace numeric_utils {
 
@@ -97,4 +97,4 @@ constexpr int bitWidth<int128_t>(int128_t x) {
 }
 }  // namespace numeric_utils
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

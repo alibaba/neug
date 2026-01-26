@@ -27,7 +27,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -37,30 +37,30 @@ namespace ops {
 
 class JoinOpr : public IOperator {
  public:
-  JoinOpr(gs::runtime::Pipeline&& left_pipeline,
-          gs::runtime::Pipeline&& right_pipeline, const JoinParams& join_params)
+  JoinOpr(neug::runtime::Pipeline&& left_pipeline,
+          neug::runtime::Pipeline&& right_pipeline,
+          const JoinParams& join_params)
       : left_pipeline_(std::move(left_pipeline)),
         right_pipeline_(std::move(right_pipeline)),
         params_(join_params) {}
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
-    gs::runtime::Context ret_dup(ctx);
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+    neug::runtime::Context ret_dup(ctx);
 
-    std::unique_ptr<gs::runtime::OprTimer> left_timer =
-        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+    std::unique_ptr<neug::runtime::OprTimer> left_timer =
+        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
                            : nullptr;
     auto left_ctx =
         left_pipeline_.Execute(graph, std::move(ctx), params, left_timer.get());
     if (!left_ctx) {
       return left_ctx;
     }
-    std::unique_ptr<gs::runtime::OprTimer> right_timer =
-        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+    std::unique_ptr<neug::runtime::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
                            : nullptr;
     auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
                                              right_timer.get());
@@ -76,13 +76,13 @@ class JoinOpr : public IOperator {
   }
 
  private:
-  gs::runtime::Pipeline left_pipeline_;
-  gs::runtime::Pipeline right_pipeline_;
+  neug::runtime::Pipeline left_pipeline_;
+  neug::runtime::Pipeline right_pipeline_;
 
   JoinParams params_;
 };
 
-gs::result<OpBuildResultT> JoinOprBuilder::Build(
+neug::result<OpBuildResultT> JoinOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
@@ -164,7 +164,7 @@ gs::result<OpBuildResultT> JoinOprBuilder::Build(
 
 class PrimaryKeyJoinOpr : public IOperator {
  public:
-  PrimaryKeyJoinOpr(gs::runtime::Pipeline&& right_pipeline,
+  PrimaryKeyJoinOpr(neug::runtime::Pipeline&& right_pipeline,
                     const std::vector<label_t>& labels, int tag, int alias)
       : right_pipeline_(std::move(right_pipeline)),
         labels_(labels),
@@ -173,13 +173,12 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
-    gs::runtime::Context ret_dup(ctx);
-    std::unique_ptr<gs::runtime::OprTimer> right_timer =
-        (timer != nullptr) ? std::make_unique<gs::runtime::OprTimer>()
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+    neug::runtime::Context ret_dup(ctx);
+    std::unique_ptr<neug::runtime::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
                            : nullptr;
     auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
                                              right_timer.get());
@@ -194,13 +193,13 @@ class PrimaryKeyJoinOpr : public IOperator {
   }
 
  private:
-  gs::runtime::Pipeline right_pipeline_;
+  neug::runtime::Pipeline right_pipeline_;
   std::vector<label_t> labels_;
   int tag_, alias_;
 };
 
-gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta;
   auto& opr = plan.plan(op_idx).opr().join();
@@ -272,4 +271,4 @@ gs::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

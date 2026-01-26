@@ -29,10 +29,10 @@
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 std::unique_ptr<TableCatalogEntry> TableCatalogEntry::alter(
@@ -195,4 +195,4 @@ BoundCreateTableInfo TableCatalogEntry::getBoundCreateTableInfo(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

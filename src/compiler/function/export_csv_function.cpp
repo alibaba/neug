@@ -26,7 +26,7 @@
 #include "neug/compiler/function/scalar_function.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 using namespace common;
@@ -167,4 +167,4 @@ function_set ExportCSVFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

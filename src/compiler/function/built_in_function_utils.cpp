@@ -27,10 +27,10 @@
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static void validateNonEmptyCandidateFunctions(
@@ -562,4 +562,4 @@ void validateNonEmptyCandidateFunctions(
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 
 #include "fast_float/include/fast_float.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 inline std::pair<const char*, size_t> removeWhiteSpaces(std::string_view sw) {
@@ -493,4 +493,4 @@ struct NumericCast {
 };
 }  // namespace  runtime
 
-}  // namespace gs
+}  // namespace neug

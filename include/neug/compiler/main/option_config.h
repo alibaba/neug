@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/types/value/value.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class Value;
 enum class LogicalTypeID : uint8_t;
@@ -82,4 +82,4 @@ struct ExtensionOption final : Option {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

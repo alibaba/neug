@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class ConflictAction : uint8_t {
@@ -39,4 +39,4 @@ struct ConflictActionUtil {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

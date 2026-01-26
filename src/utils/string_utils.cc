@@ -17,7 +17,7 @@
 
 #include <cctype>
 
-namespace gs {
+namespace neug {
 
 std::string to_lower_copy(const std::string& str) {
   std::string lower_str = str;
@@ -41,4 +41,4 @@ std::vector<std::string> split_string_into_vec(const std::string& str,
   return result;
 }
 
-}  // namespace gs
+}  // namespace neug

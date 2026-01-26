@@ -26,7 +26,7 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/option_config.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 struct ThreadsSetting {
@@ -294,4 +294,4 @@ struct EnableInternalCatalogSetting {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

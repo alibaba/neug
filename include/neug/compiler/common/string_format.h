@@ -28,7 +28,7 @@
 
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 namespace string_format_detail {
@@ -125,4 +125,4 @@ inline std::string stringFormat(std::string_view format, Args... args) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

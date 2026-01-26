@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 enum class ScanSourceType : uint8_t {
@@ -42,4 +42,4 @@ class ScanSourceTypeUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

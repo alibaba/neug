@@ -13,11 +13,11 @@
 #include "neug/compiler/storage/store/node_table.h"
 #include "neug/compiler/storage/store/rel_table.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::transaction;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 static cardinality_t atLeastOne(uint64_t x) { return x == 0 ? 1 : x; }
@@ -210,7 +210,7 @@ uint64_t CardinalityEstimator::estimateFilter(
 // value here.
 cardinality_t CardinalityEstimator::estimateGetV(
     const planner::LogicalExtend& extend) const {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   double extensionRate =
       getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
   CHECK(extend.getNumChildren() > 0)
@@ -222,7 +222,7 @@ cardinality_t CardinalityEstimator::estimateGetV(
 
 cardinality_t CardinalityEstimator::estimateGetV(
     const planner::LogicalRecursiveExtend& extend) const {
-  auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+  auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   double extensionRate =
       getExtensionRate(*extend.getRel(), *extend.getBoundNode(), &transaction);
   CHECK(extend.getNumChildren() > 0)
@@ -293,4 +293,4 @@ double CardinalityEstimator::getExtensionRate(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

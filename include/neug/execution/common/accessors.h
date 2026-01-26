@@ -35,11 +35,12 @@
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class IContextColumnBuilder;
@@ -662,8 +663,7 @@ template <typename T>
 class ParamAccessor : public IAccessor {
  public:
   using elem_t = T;
-  ParamAccessor(const std::map<std::string, std::string>& params,
-                const std::string& key) {
+  ParamAccessor(const ParamsMap& params, const std::string& key) {
     val_ = ValueConverter<T>::typed_from_string(params.at(key));
   }
 
@@ -795,4 +795,4 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -30,7 +30,7 @@
 #include "neug/compiler/parser/standalone_call_function.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::string StandaloneCallRewriter::getRewriteQuery(
@@ -65,4 +65,4 @@ void StandaloneCallRewriter::visitStandaloneCallFunction(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

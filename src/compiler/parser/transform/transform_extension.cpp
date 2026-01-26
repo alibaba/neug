@@ -24,10 +24,10 @@
 #include "neug/compiler/parser/extension_statement.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::common;
-using namespace gs::extension;
+using namespace neug::common;
+using namespace neug::extension;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformExtension(
@@ -65,4 +65,4 @@ std::unique_ptr<Statement> Transformer::transformExtension(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

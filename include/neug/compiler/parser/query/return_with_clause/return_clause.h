@@ -24,7 +24,7 @@
 
 #include "projection_body.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ReturnClause {
@@ -44,4 +44,4 @@ class ReturnClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -28,9 +28,9 @@
 #include "neug/compiler/common/utils.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::string RelExpression::detailsToString() const {
@@ -90,4 +90,4 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -28,10 +28,10 @@
 #include "neug/compiler/function/path/vector_path_functions.h"
 #include "neug/compiler/function/rewrite_function.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 static std::shared_ptr<Expression> rewriteFunc(
@@ -81,4 +81,4 @@ function_set LengthFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -3,9 +3,9 @@
 #include "neug/compiler/binder/expression/literal_expression.h"
 #include "neug/compiler/common/constants.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalDummyScan::computeFactorizedSchema() {
@@ -25,4 +25,4 @@ std::shared_ptr<binder::Expression> LogicalDummyScan::getDummyExpression() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

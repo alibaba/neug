@@ -28,7 +28,7 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class FileSystem;
@@ -83,4 +83,4 @@ struct NEUG_API FileInfo {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

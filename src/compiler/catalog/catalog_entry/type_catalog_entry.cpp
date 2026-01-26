@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/serializer/deserializer.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 void TypeCatalogEntry::serialize(common::Serializer& serializer) const {
@@ -43,4 +43,4 @@ std::unique_ptr<TypeCatalogEntry> TypeCatalogEntry::deserialize(
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

@@ -24,7 +24,7 @@
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/utils/reader/reader.h"
 
-namespace gs {
+namespace neug {
 using namespace reader;
 class IRecordBatchSupplier;
 class Schema;
@@ -51,10 +51,10 @@ class DataSourceOprBuilder : public IOperatorBuilder {
   DataSourceOprBuilder() = default;
   ~DataSourceOprBuilder() = default;
 
-  gs::result<OpBuildResultT> Build(const Schema& schema,
-                                   const ContextMeta& ctx_meta,
-                                   const physical::PhysicalPlan& plan,
-                                   int op_idx) override;
+  neug::result<OpBuildResultT> Build(const Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -64,4 +64,4 @@ class DataSourceOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

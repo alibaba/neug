@@ -27,9 +27,9 @@
 #include "neug/compiler/parser/query/reading_clause/unwind_clause.h"
 #include "neug/compiler/parser/transformer.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<ReadingClause> Transformer::transformReadingClause(
@@ -143,4 +143,4 @@ std::unique_ptr<ReadingClause> Transformer::transformLoadFrom(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

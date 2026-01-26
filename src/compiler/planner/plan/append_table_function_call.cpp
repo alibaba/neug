@@ -6,9 +6,9 @@
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
@@ -38,4 +38,4 @@ std::shared_ptr<LogicalOperator> Planner::getTableFunctionCall(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -30,10 +30,10 @@
 #include "neug/compiler/parser/query/return_with_clause/with_clause.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void validateColumnNamesAreUnique(const std::vector<std::string>& columnNames) {
@@ -349,4 +349,4 @@ std::shared_ptr<Expression> Binder::bindSkipLimitExpression(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

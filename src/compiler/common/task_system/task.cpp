@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/task_system/task.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 Task::Task(uint64_t maxNumThreads)
@@ -59,4 +59,4 @@ void Task::deRegisterThreadAndFinalizeTask() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

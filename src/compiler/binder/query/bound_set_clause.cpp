@@ -22,9 +22,9 @@
 
 #include "neug/compiler/binder/query/updating_clause/bound_set_clause.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 bool BoundSetClause::hasInfo(
@@ -49,4 +49,4 @@ std::vector<BoundSetPropertyInfo> BoundSetClause::getInfos(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

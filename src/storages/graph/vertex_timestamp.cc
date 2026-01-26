@@ -19,7 +19,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 void VertexTimestamp::Open(const std::string& tracker_file_prefix) {
   std::string ts_filename = tracker_file_prefix + ".ts";
@@ -308,4 +308,4 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   }
   inserted_vertices_.swap(new_inserted_vertices);
 }
-}  // namespace gs
+}  // namespace neug

@@ -26,10 +26,10 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
-struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
+struct JsonScanFuncInput : public neug::function::CallFuncInputBase {
   std::string filePath;
   std::vector<DataTypeId> columnTypes;
   JsonFormat format;
@@ -42,34 +42,34 @@ struct JsonScanFuncInput : public gs::function::CallFuncInputBase {
 struct JsonScanFunction {
   static constexpr const char* name = "JSON_SCAN";
 
-  static gs::function::function_set getFunctionSet() {
-    auto function = std::make_unique<gs::function::NeugCallFunction>(
-        name, std::vector<gs::common::LogicalTypeID>{
-                  gs::common::LogicalTypeID::STRING});
+  static neug::function::function_set getFunctionSet() {
+    auto function = std::make_unique<neug::function::NeugCallFunction>(
+        name, std::vector<neug::common::LogicalTypeID>{
+                  neug::common::LogicalTypeID::STRING});
 
     function->bindFunc =
-        [](const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
+        [](const neug::Schema& schema, const neug::runtime::ContextMeta& ctx_meta,
            const ::physical::PhysicalPlan& plan,
-           int op_idx) -> std::unique_ptr<gs::function::CallFuncInputBase> {
+           int op_idx) -> std::unique_ptr<neug::function::CallFuncInputBase> {
       return bindFunc(schema, ctx_meta, plan, op_idx);
     };
 
-    function->execFunc = [](const gs::function::CallFuncInputBase& input)
-        -> gs::runtime::Context {
+    function->execFunc = [](const neug::function::CallFuncInputBase& input)
+        -> neug::runtime::Context {
       const auto& jsonInput = static_cast<const JsonScanFuncInput&>(input);
       return execFunc(jsonInput);
     };
 
-    gs::function::function_set functionSet;
+    neug::function::function_set functionSet;
     functionSet.push_back(std::move(function));
     return functionSet;
   }
 
   static std::unique_ptr<JsonScanFuncInput> bindFunc(
-      const gs::Schema& schema, const gs::runtime::ContextMeta& ctx_meta,
+      const neug::Schema& schema, const neug::runtime::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);
 
-  static gs::runtime::Context execFunc(const JsonScanFuncInput& input);
+  static neug::runtime::Context execFunc(const JsonScanFuncInput& input);
 
  private:
   struct AutoDetectResult {
@@ -100,4 +100,4 @@ struct JsonScanFunction {
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

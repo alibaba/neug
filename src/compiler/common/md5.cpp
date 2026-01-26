@@ -48,7 +48,7 @@
 
 #include <cstring>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void MD5::byteReverse(unsigned char* buf, unsigned longs) {
@@ -253,4 +253,4 @@ void MD5::DigestToBase16(const unsigned char* digest, char* zBuf) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

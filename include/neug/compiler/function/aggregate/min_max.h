@@ -25,7 +25,7 @@
 #include "neug/compiler/common/in_mem_overflow_buffer.h"
 #include "neug/compiler/function/aggregate_function.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <typename T>
@@ -126,4 +126,4 @@ void MinMaxFunction<common::neug_string_t>::MinMaxState::setVal(
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

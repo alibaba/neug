@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/task_system/terminal_progress_bar_display.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void TerminalProgressBarDisplay::updateProgress(
@@ -82,4 +82,4 @@ void TerminalProgressBarDisplay::printProgressBar() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -25,10 +25,10 @@
 #include "neug/compiler/binder/expression_binder.h"
 #include "neug/compiler/parser/expression/parsed_literal_expression.h"
 
-using namespace gs::parser;
-using namespace gs::common;
+using namespace neug::parser;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::shared_ptr<Expression> ExpressionBinder::bindLiteralExpression(
@@ -66,4 +66,4 @@ std::shared_ptr<Expression> ExpressionBinder::createNullLiteralExpression(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

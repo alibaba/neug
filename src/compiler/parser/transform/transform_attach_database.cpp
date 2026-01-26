@@ -23,7 +23,7 @@
 #include "neug/compiler/parser/attach_database.h"
 #include "neug/compiler/parser/transformer.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformAttachDatabase(
@@ -40,4 +40,4 @@ std::unique_ptr<Statement> Transformer::transformAttachDatabase(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

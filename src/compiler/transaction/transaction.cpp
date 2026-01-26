@@ -7,9 +7,9 @@
 #include "neug/compiler/storage/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::catalog;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace transaction {
 
 bool LocalCacheManager::put(std::unique_ptr<LocalCacheObject> object) {
@@ -119,4 +119,4 @@ Transaction DUMMY_CHECKPOINT_TRANSACTION =
                 Transaction::START_TRANSACTION_ID - 1);
 
 }  // namespace transaction
-}  // namespace gs
+}  // namespace neug

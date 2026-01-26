@@ -26,7 +26,7 @@
 #include "neug/compiler/common/enums/clause_type.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ReadingClause {
@@ -55,4 +55,4 @@ class ReadingClause {
   std::unique_ptr<ParsedExpression> wherePredicate;
 };
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

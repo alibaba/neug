@@ -35,7 +35,7 @@
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
 #include "neug/utils/exception/exception.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 GAliasManager::GAliasManager(const planner::LogicalPlan& plan) {
@@ -333,4 +333,4 @@ std::string GAliasManager::printForDebug() {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

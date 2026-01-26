@@ -24,7 +24,7 @@
 
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 void ensure_directory_exists(const std::string& dir_path) {
   if (dir_path.empty()) {
@@ -112,4 +112,4 @@ void remove_directory(const std::string& dir_path) {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

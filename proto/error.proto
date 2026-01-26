@@ -26,7 +26,7 @@
  */
 syntax = "proto3";
 
-package gs.neug.interactive;
+package neug.interactive;
 
 option java_package = "com.alibaba.graphscope.interactive.proto";
 option java_multiple_files = true;

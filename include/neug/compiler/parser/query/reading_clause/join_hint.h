@@ -25,7 +25,7 @@
 #include <memory>
 #include <vector>
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct JoinHintNode {
@@ -41,4 +41,4 @@ struct JoinHintNode {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

@@ -20,7 +20,7 @@
 #include "re2/include/strutil.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 PrefilterTree::PrefilterTree() : compiled_(false), min_atom_len_(3) {}
@@ -394,4 +394,4 @@ std::string PrefilterTree::DebugNodeString(Prefilter* node) const {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

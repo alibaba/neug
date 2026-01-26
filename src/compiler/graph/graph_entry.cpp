@@ -24,12 +24,12 @@
 
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::planner;
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::planner;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace graph {
 
 std::string GraphEntryTableInfo::toString() const {
@@ -104,4 +104,4 @@ void GraphEntry::setRelPredicate(std::shared_ptr<Expression> predicate) {
 }
 
 }  // namespace graph
-}  // namespace gs
+}  // namespace neug

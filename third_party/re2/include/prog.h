@@ -24,7 +24,7 @@
 #include "re2/include/sparse_set.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Opcodes for Inst
@@ -481,6 +481,6 @@ static inline const char* EndPtr(const StringPiece& s) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 
 #endif  // RE2_PROG_H_

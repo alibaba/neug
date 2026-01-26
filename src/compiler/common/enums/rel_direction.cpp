@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 RelDataDirection RelDirectionUtils::getOppositeDirection(
@@ -55,4 +55,4 @@ common::idx_t RelDirectionUtils::relDirectionToKeyIdx(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

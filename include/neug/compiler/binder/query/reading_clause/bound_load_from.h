@@ -25,7 +25,7 @@
 #include "bound_reading_clause.h"
 #include "neug/compiler/binder/bound_table_scan_info.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundLoadFrom final : public BoundReadingClause {
@@ -43,4 +43,4 @@ class BoundLoadFrom final : public BoundReadingClause {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

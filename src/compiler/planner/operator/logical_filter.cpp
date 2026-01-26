@@ -2,7 +2,7 @@
 
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 f_group_pos_set LogicalFilter::getGroupsPosToFlatten() {
@@ -21,4 +21,4 @@ f_group_pos LogicalFilter::getGroupPosToSelect() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

@@ -18,7 +18,7 @@
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 void Bitset::Serialize(std::ostream& os) const {
   InArchive arc;
@@ -48,4 +48,4 @@ void Bitset::Deserialize(std::istream& is) {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

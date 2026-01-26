@@ -25,7 +25,7 @@
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/compiler/function/neug_call_function.h"
 
-namespace gs {
+namespace neug {
 using namespace function;
 namespace gopt {
 
@@ -159,4 +159,4 @@ TEST_F(ExtensionTest, COPY_TO_JSON) {
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

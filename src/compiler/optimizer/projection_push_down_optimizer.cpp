@@ -45,12 +45,12 @@
 #include "neug/compiler/planner/operator/persistent/logical_merge.h"
 #include "neug/compiler/planner/operator/persistent/logical_set.h"
 
-using namespace gs::common;
-using namespace gs::planner;
-using namespace gs::binder;
-using namespace gs::function;
+using namespace neug::common;
+using namespace neug::planner;
+using namespace neug::binder;
+using namespace neug::function;
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 void ProjectionPushDownOptimizer::rewrite(LogicalPlan* plan) {
@@ -407,4 +407,4 @@ void ProjectionPushDownOptimizer::preAppendProjection(
 }
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

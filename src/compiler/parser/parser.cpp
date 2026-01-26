@@ -40,7 +40,7 @@
 
 using namespace antlr4;
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
@@ -76,4 +76,4 @@ std::vector<std::shared_ptr<Statement>> Parser::parseQuery(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

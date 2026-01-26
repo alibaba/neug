@@ -22,7 +22,7 @@ limitations under the License.
 #include "neug/compiler/gopt/g_result_schema.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 
 result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     const std::string& query) {
@@ -53,9 +53,9 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     }
 
     auto aliasManager =
-        std::make_shared<gs::gopt::GAliasManager>(*statement->logicalPlan);
-    gs::gopt::GPhysicalConvertor converter(aliasManager,
-                                           database->getCatalog());
+        std::make_shared<neug::gopt::GAliasManager>(*statement->logicalPlan);
+    neug::gopt::GPhysicalConvertor converter(aliasManager,
+                                             database->getCatalog());
     auto physicalPlan = converter.convert(*statement->logicalPlan);
 
     VLOG(10) << "got plan: " << physicalPlan->DebugString();
@@ -64,30 +64,30 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     auto resultYaml = gopt::GResultSchema::infer(
         *statement->logicalPlan, aliasManager, database->getCatalog());
     return std::make_pair(std::move(*physicalPlan), YAML::Dump(resultYaml));
-  } catch (const gs::exception::InvalidArgumentException& e) {
+  } catch (const neug::exception::InvalidArgumentException& e) {
     // return Status(StatusCode::ERR_INVALID_ARGUMENT, e.what());
     RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT, e.what()));
-  } catch (const gs::exception::BinderException& e) {
+  } catch (const neug::exception::BinderException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
-  } catch (const gs::exception::CatalogException& e) {
+  } catch (const neug::exception::CatalogException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_INVALID_SCHEMA, e.what()));
-  } catch (const gs::exception::ConversionException& e) {
+  } catch (const neug::exception::ConversionException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_TYPE_CONVERSION, e.what()));
-  } catch (const gs::exception::InternalException& e) {
+  } catch (const neug::exception::InternalException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
-  } catch (const gs::exception::NotImplementedException& e) {
+  } catch (const neug::exception::NotImplementedException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_NOT_IMPLEMENTED, e.what()));
-  } catch (const gs::exception::NotSupportedException& e) {
+  } catch (const neug::exception::NotSupportedException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_NOT_SUPPORTED, e.what()));
-  } catch (const gs::exception::RuntimeError& e) {
+  } catch (const neug::exception::RuntimeError& e) {
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
-  } catch (const gs::exception::TransactionManagerException& e) {
+  } catch (const neug::exception::TransactionManagerException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_INTERNAL_ERROR, e.what()));
-  } catch (const gs::exception::OverflowException& e) {
+  } catch (const neug::exception::OverflowException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_TYPE_OVERFLOW, e.what()));
-  } catch (const gs::exception::PropertyNotFoundException& e) {
+  } catch (const neug::exception::PropertyNotFoundException& e) {
     RETURN_ERROR(Status(StatusCode::ERR_PROPERTY_NOT_FOUND, e.what()));
-  } catch (const gs::exception::Exception& e) {
+  } catch (const neug::exception::Exception& e) {
     RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
   } catch (const std::exception& e) {
     RETURN_ERROR(Status(StatusCode::ERR_COMPILATION, e.what()));
@@ -181,4 +181,4 @@ const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
       "checkpoint", "load",   "install", "uninstall", "call"};
   return updateOps;
 }
-}  // namespace gs
+}  // namespace neug

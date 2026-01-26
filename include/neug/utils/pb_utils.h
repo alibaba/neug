@@ -33,7 +33,7 @@ namespace common {
 class Value;
 }  // namespace common
 
-namespace gs {
+namespace neug {
 
 // Helper function to set up JsonPrintOptions with compatibility across protobuf
 // versions
@@ -83,7 +83,7 @@ bool data_type_to_property_type(const ::common::DataType& data_type,
 bool common_value_to_any(const DataTypeId& type, const ::common::Value& value,
                          Property& out_any);
 
-gs::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
+neug::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
 property_defs_to_tuple(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
@@ -91,4 +91,4 @@ property_defs_to_tuple(
 // Convert to a bool representing error_on_conflict.
 bool conflict_action_to_bool(const ::physical::ConflictAction& action);
 
-}  // namespace gs
+}  // namespace neug

@@ -18,13 +18,13 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace graph_interface_impl {
 
-using gs::label_t;
-using gs::timestamp_t;
-using gs::vid_t;
+using neug::label_t;
+using neug::timestamp_t;
+using neug::vid_t;
 
 template <typename T>
 class VertexArray {
@@ -65,7 +65,7 @@ class StorageReadInterface : virtual public IStorageInterface {
   template <typename PROP_T>
   using vertex_column_t = TypedRefColumn<PROP_T>;
 
-  using vertex_set_t = gs::VertexSet;
+  using vertex_set_t = neug::VertexSet;
 
   template <typename T>
   using vertex_array_t = graph_interface_impl::VertexArray<T>;
@@ -168,7 +168,7 @@ class StorageInsertInterface : virtual public IStorageInterface {
 class StorageUpdateInterface : public StorageReadInterface,
                                public StorageInsertInterface {
  public:
-  explicit StorageUpdateInterface(const gs::PropertyGraph& graph,
+  explicit StorageUpdateInterface(const neug::PropertyGraph& graph,
                                   timestamp_t read_ts)
       : StorageReadInterface(graph, read_ts), StorageInsertInterface() {}
   virtual ~StorageUpdateInterface() {}
@@ -267,7 +267,7 @@ class StorageUpdateInterface : public StorageReadInterface,
 class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
   explicit StorageAPUpdateInterface(PropertyGraph& graph, timestamp_t timestamp,
-                                    gs::Allocator& alloc)
+                                    neug::Allocator& alloc)
       : StorageUpdateInterface(graph, timestamp),
         graph_(graph),
         alloc_(alloc),
@@ -351,8 +351,8 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
 
  private:
   PropertyGraph& graph_;
-  gs::Allocator& alloc_;
+  neug::Allocator& alloc_;
   timestamp_t timestamp_;
 };
 
-}  // namespace gs
+}  // namespace neug

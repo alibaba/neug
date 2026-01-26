@@ -5,7 +5,7 @@
 #include <cstring>
 #include <string>
 
-namespace gs {
+namespace neug {
 namespace utf8proc {
 
 enum class UnicodeType { INVALID, ASCII, UNICODE };
@@ -34,4 +34,4 @@ class Utf8Proc {
 };
 
 }  // namespace utf8proc
-}  // namespace gs
+}  // namespace neug

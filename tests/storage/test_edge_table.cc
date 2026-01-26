@@ -23,7 +23,7 @@
 #include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 
 class EdgeTableTest : public ::testing::Test {
@@ -44,29 +44,30 @@ class EdgeTableTest : public ::testing::Test {
     std::filesystem::create_directories(WorkDirectory() / "runtime/tmp");
 
     schema_.AddVertexLabel("person", {}, {},
-                           {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)},
-                           {gs::StorageStrategy::kMem}, {},
+                           {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
+                           {neug::StorageStrategy::kMem}, {},
                            static_cast<size_t>(1) << 32, "person vertex label");
     schema_.AddVertexLabel(
-        "comment", {}, {}, {std::make_tuple(gs::DataTypeId::kInt64, "id", 0)},
-        {gs::StorageStrategy::kMem}, {}, static_cast<size_t>(1) << 32,
+        "comment", {}, {}, {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
+        {neug::StorageStrategy::kMem}, {}, static_cast<size_t>(1) << 32,
         "comment vertex label");
     schema_.AddEdgeLabel(
-        "person", "comment", "create1", {gs::DataTypeId::kInt32}, {"data"},
-        {gs::StorageStrategy::kMem}, {}, gs::EdgeStrategy::kMultiple,
-        gs::EdgeStrategy::kMultiple, true, true, false,
+        "person", "comment", "create1", {neug::DataTypeId::kInt32}, {"data"},
+        {neug::StorageStrategy::kMem}, {}, neug::EdgeStrategy::kMultiple,
+        neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
-        "person", "comment", "create2", {gs::DataTypeId::kVarchar}, {"data"},
-        {gs::StorageStrategy::kMem}, {}, gs::EdgeStrategy::kMultiple,
-        gs::EdgeStrategy::kMultiple, true, true, false,
+        "person", "comment", "create2", {neug::DataTypeId::kVarchar}, {"data"},
+        {neug::StorageStrategy::kMem}, {}, neug::EdgeStrategy::kMultiple,
+        neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create3",
-        {gs::DataTypeId::kVarchar, gs::DataTypeId::kInt32}, {"data0", "data1"},
-        {gs::StorageStrategy::kMem, gs::StorageStrategy::kMem}, {},
-        gs::EdgeStrategy::kMultiple, gs::EdgeStrategy::kMultiple, true, true,
-        false, "person creates comment edge with two properties");
+        {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
+        {"data0", "data1"},
+        {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem}, {},
+        neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
+        true, false, "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_int_ = schema_.get_edge_label_id("create1");
@@ -89,27 +90,27 @@ class EdgeTableTest : public ::testing::Test {
     return WorkDirectory() / "checkpoint";
   }
 
-  void InitIndexers(gs::vid_t src_num, gs::vid_t dst_num) {
-    gs::IdIndexer<int64_t, gs::vid_t> src_input, dst_input;
-    for (gs::vid_t i = 0; i < src_num; ++i) {
-      gs::vid_t lid;
+  void InitIndexers(neug::vid_t src_num, neug::vid_t dst_num) {
+    neug::IdIndexer<int64_t, neug::vid_t> src_input, dst_input;
+    for (neug::vid_t i = 0; i < src_num; ++i) {
+      neug::vid_t lid;
       src_input.add(static_cast<int64_t>(i), lid);
     }
-    for (gs::vid_t i = 0; i < dst_num; ++i) {
-      gs::vid_t lid;
+    for (neug::vid_t i = 0; i < dst_num; ++i) {
+      neug::vid_t lid;
       dst_input.add(static_cast<int64_t>(i), lid);
     }
-    gs::build_lf_indexer<int64_t, gs::vid_t>(
+    neug::build_lf_indexer<int64_t, neug::vid_t>(
         src_input, "src_indexer", src_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), gs::DataTypeId::kInt64);
-    gs::build_lf_indexer<int64_t, gs::vid_t>(
+        WorkDirectory().string(), neug::DataTypeId::kInt64);
+    neug::build_lf_indexer<int64_t, neug::vid_t>(
         dst_input, "dst_indexer", dst_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), gs::DataTypeId::kInt64);
+        WorkDirectory().string(), neug::DataTypeId::kInt64);
   }
 
-  void ConstructEdgeTable(gs::label_t src_label, gs::label_t dst_label,
-                          gs::label_t edge_label) {
-    edge_table = std::make_unique<gs::EdgeTable>(
+  void ConstructEdgeTable(neug::label_t src_label, neug::label_t dst_label,
+                          neug::label_t edge_label) {
+    edge_table = std::make_unique<neug::EdgeTable>(
         schema_.get_edge_schema(src_label, dst_label, edge_label));
   }
 
@@ -127,10 +128,11 @@ class EdgeTableTest : public ::testing::Test {
   }
 
   void OutputOutgoingEndpoints(std::vector<int64_t>& srcs,
-                               std::vector<int64_t>& dsts, gs::timestamp_t ts) {
+                               std::vector<int64_t>& dsts,
+                               neug::timestamp_t ts) {
     auto view = edge_table->get_outgoing_view(ts);
-    gs::vid_t vnum = src_indexer.size();
-    for (gs::vid_t i = 0; i < vnum; ++i) {
+    neug::vid_t vnum = src_indexer.size();
+    for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
       int64_t src_oid = src_indexer.get_key(i).as_int64();
       for (auto it = es.begin(); it != es.end(); ++it) {
@@ -142,10 +144,11 @@ class EdgeTableTest : public ::testing::Test {
   }
 
   void OutputIncomingEndpoints(std::vector<int64_t>& srcs,
-                               std::vector<int64_t>& dsts, gs::timestamp_t ts) {
+                               std::vector<int64_t>& dsts,
+                               neug::timestamp_t ts) {
     auto view = edge_table->get_incoming_view(ts);
-    gs::vid_t vnum = dst_indexer.size();
-    for (gs::vid_t i = 0; i < vnum; ++i) {
+    neug::vid_t vnum = dst_indexer.size();
+    for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
       int64_t dst_oid = dst_indexer.get_key(i).as_int64();
       for (auto it = es.begin(); it != es.end(); ++it) {
@@ -157,12 +160,12 @@ class EdgeTableTest : public ::testing::Test {
   }
 
   template <typename T>
-  void OutputOutgoingEdgeData(std::vector<T>& data, gs::timestamp_t ts,
+  void OutputOutgoingEdgeData(std::vector<T>& data, neug::timestamp_t ts,
                               int prop_id) {
     auto ed_accessor = edge_table->get_edge_data_accessor(prop_id);
     auto view = edge_table->get_outgoing_view(ts);
-    gs::vid_t vnum = src_indexer.size();
-    for (gs::vid_t i = 0; i < vnum; ++i) {
+    neug::vid_t vnum = src_indexer.size();
+    for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
       for (auto it = es.begin(); it != es.end(); ++it) {
         data.push_back(ed_accessor.get_typed_data<T>(it));
@@ -171,12 +174,12 @@ class EdgeTableTest : public ::testing::Test {
   }
 
   template <typename T>
-  void OutputIncomingEdgeData(std::vector<T>& data, gs::timestamp_t ts,
+  void OutputIncomingEdgeData(std::vector<T>& data, neug::timestamp_t ts,
                               int prop_id) {
     auto ed_accessor = edge_table->get_edge_data_accessor(prop_id);
     auto view = edge_table->get_incoming_view(ts);
-    gs::vid_t vnum = dst_indexer.size();
-    for (gs::vid_t i = 0; i < vnum; ++i) {
+    neug::vid_t vnum = dst_indexer.size();
+    for (neug::vid_t i = 0; i < vnum; ++i) {
       auto es = view.get_edges(i);
       for (auto it = es.begin(); it != es.end(); ++it) {
         data.push_back(ed_accessor.get_typed_data<T>(it));
@@ -184,27 +187,27 @@ class EdgeTableTest : public ::testing::Test {
     }
   }
 
-  gs::vid_t GetSrcLid(const gs::Property& src_oid) {
-    gs::vid_t src_lid;
+  neug::vid_t GetSrcLid(const neug::Property& src_oid) {
+    neug::vid_t src_lid;
     if (!src_indexer.get_index(src_oid, src_lid)) {
       LOG(FATAL) << "Cannot find src oid " << src_oid.to_string();
     }
     return src_lid;
   }
 
-  gs::vid_t GetDstLid(const gs::Property& dst_oid) {
-    gs::vid_t dst_lid;
+  neug::vid_t GetDstLid(const neug::Property& dst_oid) {
+    neug::vid_t dst_lid;
     if (!dst_indexer.get_index(dst_oid, dst_lid)) {
       LOG(FATAL) << "Cannot find dst oid " << dst_oid.to_string();
     }
     return dst_lid;
   }
 
-  std::unique_ptr<gs::EdgeTable> edge_table = nullptr;
-  gs::LFIndexer<gs::vid_t> src_indexer;
-  gs::LFIndexer<gs::vid_t> dst_indexer;
-  gs::Schema schema_;
-  gs::label_t src_label_, dst_label_, edge_label_int_, edge_label_str_,
+  std::unique_ptr<neug::EdgeTable> edge_table = nullptr;
+  neug::LFIndexer<neug::vid_t> src_indexer;
+  neug::LFIndexer<neug::vid_t> dst_indexer;
+  neug::Schema schema_;
+  neug::label_t src_label_, dst_label_, edge_label_int_, edge_label_str_,
       edge_label_str_int_;
   std::string allocator_dir_;
 
@@ -547,25 +550,25 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTable();
   this->BatchInsert(std::move(batches));
-  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
 
   size_t delete_count = 0;
   for (size_t i = 0; i < edge_num; ++i) {
     if (i % 10 == 0) {
-      gs::vid_t src_lid = GetSrcLid(gs::Property::from_int64(src_list[i]));
-      gs::vid_t dst_lid = GetDstLid(gs::Property::from_int64(dst_list[i]));
+      neug::vid_t src_lid = GetSrcLid(neug::Property::from_int64(src_list[i]));
+      neug::vid_t dst_lid = GetDstLid(neug::Property::from_int64(dst_list[i]));
       auto es = oe_view.get_edges(src_lid);
       auto is = ie_view.get_edges(dst_lid);
       for (auto it = es.begin(); it != es.end(); ++it) {
         if (it.get_vertex() == dst_lid) {
-          auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+          auto another_offset = neug::fuzzy_search_offset_from_nbr_list(
               is, src_lid, it.get_data_ptr(), DataTypeId::kInt32);
           auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                             reinterpret_cast<const char*>(es.start_ptr)) /
                            es.cfg.stride;
           this->edge_table->DeleteEdge(src_lid, dst_lid, oe_offset,
-                                       another_offset, gs::MAX_TIMESTAMP);
+                                       another_offset, neug::MAX_TIMESTAMP);
           delete_count++;
         }
       }
@@ -573,27 +576,27 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
   }
 
   std::vector<int64_t> srcs, dsts;
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num - delete_count);
   ASSERT_EQ(dsts.size(), edge_num - delete_count);
 
   // Test delete edge with soft delete, and revert.
   size_t soft_delete_todo = std::max(100, (int32_t) srcs.size() / 10);
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> soft_deleted_edges;
-  for (gs::vid_t src_lid = 0; src_lid < this->src_indexer.size() &&
-                              soft_deleted_edges.size() < soft_delete_todo;
+  for (neug::vid_t src_lid = 0; src_lid < this->src_indexer.size() &&
+                                soft_deleted_edges.size() < soft_delete_todo;
        ++src_lid) {
     auto es = oe_view.get_edges(src_lid);
     for (auto it = es.begin(); it != es.end(); ++it) {
       auto dst_lid = it.get_vertex();
       auto is = ie_view.get_edges(dst_lid);
-      auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+      auto another_offset = neug::fuzzy_search_offset_from_nbr_list(
           is, src_lid, it.get_data_ptr(), DataTypeId::kInt32);
       auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                         reinterpret_cast<const char*>(es.start_ptr)) /
                        es.cfg.stride;
       this->edge_table->DeleteEdge(src_lid, dst_lid, oe_offset, another_offset,
-                                   gs::MAX_TIMESTAMP);
+                                   neug::MAX_TIMESTAMP);
       soft_deleted_edges.emplace_back(src_lid, dst_lid, oe_offset,
                                       another_offset);
       break;
@@ -602,7 +605,7 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
 
   {
     std::vector<int64_t> tmp_srcs, tmp_dsts;
-    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, gs::MAX_TIMESTAMP);
+    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, neug::MAX_TIMESTAMP);
     ASSERT_EQ(tmp_srcs.size(),
               edge_num - delete_count - soft_deleted_edges.size());
     ASSERT_EQ(tmp_dsts.size(),
@@ -616,7 +619,7 @@ TEST_F(EdgeTableTest, TestDeleteEdge) {
   }
   {
     std::vector<int64_t> tmp_srcs, tmp_dsts;
-    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, gs::MAX_TIMESTAMP);
+    this->OutputOutgoingEndpoints(tmp_srcs, tmp_dsts, neug::MAX_TIMESTAMP);
     ASSERT_EQ(tmp_srcs.size(), edge_num - delete_count);
     ASSERT_EQ(tmp_dsts.size(), edge_num - delete_count);
   }
@@ -645,21 +648,21 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesBundled) {
 
   // Generate more edges
   int64_t more_edge_num = 50;
-  auto more_src_list = generate_random_vertices<gs::vid_t>(
+  auto more_src_list = generate_random_vertices<neug::vid_t>(
       this->src_indexer.size(), more_edge_num);
-  auto more_dst_list = generate_random_vertices<gs::vid_t>(
+  auto more_dst_list = generate_random_vertices<neug::vid_t>(
       this->dst_indexer.size(), more_edge_num);
   auto more_data_list = generate_random_data<int>(more_edge_num);
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < more_edge_num; ++i) {
-    edge_data.push_back({gs::Property::from_int32(more_data_list[i])});
+    edge_data.push_back({neug::Property::from_int32(more_data_list[i])});
   }
 
   // Insert more edges
 
   this->edge_table->BatchAddEdges(more_src_list, more_dst_list, edge_data);
   std::vector<int64_t> srcs, dsts;
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num + more_edge_num);
   ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
 }
@@ -690,23 +693,23 @@ TEST_F(EdgeTableTest, TestBatchAddEdgesUnbundled) {
 
   // Generate more edges
   int64_t more_edge_num = 50;
-  auto more_src_list = generate_random_vertices<gs::vid_t>(
+  auto more_src_list = generate_random_vertices<neug::vid_t>(
       this->src_indexer.size(), more_edge_num);
-  auto more_dst_list = generate_random_vertices<gs::vid_t>(
+  auto more_dst_list = generate_random_vertices<neug::vid_t>(
       this->dst_indexer.size(), more_edge_num);
   auto more_data_list0 = generate_random_data<std::string>(more_edge_num);
   auto more_data_list1 = generate_random_data<int>(more_edge_num);
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < more_edge_num; ++i) {
-    edge_data.push_back({gs::Property::from_string_view(more_data_list0[i]),
-                         gs::Property::from_int32(more_data_list1[i])});
+    edge_data.push_back({neug::Property::from_string_view(more_data_list0[i]),
+                         neug::Property::from_int32(more_data_list1[i])});
   }
 
   // Insert more edges
 
   this->edge_table->BatchAddEdges(more_src_list, more_dst_list, edge_data);
   std::vector<int64_t> srcs, dsts;
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num + more_edge_num);
   ASSERT_EQ(dsts.size(), edge_num + more_edge_num);
 }
@@ -721,28 +724,28 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   this->InitIndexers(src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTableInMemory(src_num, dst_num);
-  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
       generate_random_vertices<int64_t>(src_num, edge_num);
   std::vector<int64_t> dst_oids =
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
-    gs::vid_t src_lid =
-        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    neug::vid_t src_lid =
+        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
-    gs::vid_t dst_lid =
-        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    neug::vid_t dst_lid =
+        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    edge_data.push_back({gs::Property::from_int32(static_cast<int>(i))});
+    edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
 
   size_t edge_count = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -752,14 +755,14 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   }
   EXPECT_EQ(edge_count, src_lids.size());
   std::vector<int64_t> srcs, dsts;
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
 
-  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> edges_to_delete;
-  for (gs::vid_t vid = 0; vid < this->src_indexer.size(); ++vid) {
+  for (neug::vid_t vid = 0; vid < this->src_indexer.size(); ++vid) {
     auto es = oe_view.get_edges(vid);
     for (auto it = es.begin(); it != es.end(); ++it) {
       if (it.get_vertex() % 2 == 0) {
@@ -767,26 +770,26 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
                           reinterpret_cast<const char*>(es.start_ptr)) /
                          es.cfg.stride;
         auto is = ie_view.get_edges(it.get_vertex());
-        auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+        auto another_offset = neug::fuzzy_search_offset_from_nbr_list(
             is, vid, it.get_data_ptr(), DataTypeId::kInt32);
         edges_to_delete.emplace_back(
             std::make_tuple(vid, it.get_vertex(), oe_offset, another_offset));
         EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
         EXPECT_NE(another_offset, std::numeric_limits<int32_t>::max());
         this->edge_table->DeleteEdge(vid, it.get_vertex(), oe_offset,
-                                     another_offset, gs::MAX_TIMESTAMP);
+                                     another_offset, neug::MAX_TIMESTAMP);
       }
     }
   }
 
   srcs.clear();
   dsts.clear();
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num - edges_to_delete.size());
   ASSERT_EQ(dsts.size(), edge_num - edges_to_delete.size());
   srcs.clear();
   dsts.clear();
-  this->OutputIncomingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputIncomingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num - edges_to_delete.size());
   ASSERT_EQ(dsts.size(), edge_num - edges_to_delete.size());
 
@@ -798,12 +801,12 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   }
   srcs.clear();
   dsts.clear();
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
   srcs.clear();
   dsts.clear();
-  this->OutputIncomingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputIncomingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
 
@@ -814,8 +817,8 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
   std::vector<
       std::pair<std::tuple<vid_t, vid_t, int32_t, int32_t>, timestamp_t>>
       multi_edges_to_delete;
-  oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   auto oes = oe_view.get_edges(0);
   auto ies = ie_view.get_edges(1);
   for (auto it = ies.begin(); it != ies.end(); ++it) {
@@ -823,7 +826,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
       auto ie_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                         reinterpret_cast<const char*>(ies.start_ptr)) /
                        ies.cfg.stride;
-      auto oe_offset = gs::fuzzy_search_offset_from_nbr_list(
+      auto oe_offset = neug::fuzzy_search_offset_from_nbr_list(
           oes, 1, it.get_data_ptr(), DataTypeId::kInt32);
       EXPECT_NE(oe_offset, std::numeric_limits<int32_t>::max());
       EXPECT_NE(ie_offset, std::numeric_limits<int32_t>::max());
@@ -834,7 +837,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
     }
   }
   auto view_after_delete =
-      this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+      this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   auto es_after_delete = view_after_delete.get_edges(1);
   for (auto it = es_after_delete.begin(); it != es_after_delete.end(); ++it) {
     EXPECT_FALSE(it.get_vertex() == 0 && it.get_timestamp() % 2 == 1);
@@ -846,7 +849,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
         std::get<2>(edge_record), std::get<3>(edge_record), pair.second);
   }
   auto view_after_revert =
-      this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+      this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   auto es_after_revert = view_after_revert.get_edges(1);
   size_t revert_count = 0;
   for (auto it = es_after_revert.begin(); it != es_after_revert.end(); ++it) {
@@ -867,29 +870,29 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   this->InitIndexers(src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
   this->OpenEdgeTableInMemory(src_num, dst_num);
-  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
       generate_random_vertices<int64_t>(src_num, edge_num);
   std::vector<int64_t> dst_oids =
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
-    gs::vid_t src_lid =
-        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    neug::vid_t src_lid =
+        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
-    gs::vid_t dst_lid =
-        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    neug::vid_t dst_lid =
+        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    edge_data.push_back({gs::Property::from_string_view("edge_data"),
-                         gs::Property::from_int32(static_cast<int>(i))});
+    edge_data.push_back({neug::Property::from_string_view("edge_data"),
+                         neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
 
   size_t edge_count = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -899,12 +902,12 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   }
   EXPECT_EQ(edge_count, src_lids.size());
   std::vector<int64_t> srcs, dsts;
-  this->OutputOutgoingEndpoints(srcs, dsts, gs::MAX_TIMESTAMP);
+  this->OutputOutgoingEndpoints(srcs, dsts, neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs.size(), edge_num);
   ASSERT_EQ(dsts.size(), edge_num);
 
-  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   std::vector<size_t> deleted_edge_indices;
   size_t cur_index = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -915,10 +918,10 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
         auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                           reinterpret_cast<const char*>(es.start_ptr)) /
                          es.cfg.stride;
-        auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+        auto another_offset = neug::fuzzy_search_offset_from_nbr_list(
             is, src_lids[i], it.get_data_ptr(), DataTypeId::kUInt64);
         this->edge_table->DeleteEdge(src_lids[i], dst_lids[i], oe_offset,
-                                     another_offset, gs::MAX_TIMESTAMP);
+                                     another_offset, neug::MAX_TIMESTAMP);
         deleted_edge_indices.push_back(cur_index);
       }
       cur_index++;
@@ -926,7 +929,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   }
   std::vector<int64_t> srcs_after_delete, dsts_after_delete;
   this->OutputOutgoingEndpoints(srcs_after_delete, dsts_after_delete,
-                                gs::MAX_TIMESTAMP);
+                                neug::MAX_TIMESTAMP);
   ASSERT_EQ(srcs_after_delete.size(), edge_num - deleted_edge_indices.size());
   ASSERT_EQ(dsts_after_delete.size(), edge_num - deleted_edge_indices.size());
   for (size_t i = 0, j = 0; i < edge_num; ++i) {
@@ -948,36 +951,36 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
   this->InitIndexers(src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_int_);
   this->OpenEdgeTableInMemory(src_num, dst_num);
-  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
       generate_random_vertices<int64_t>(src_num, edge_num);
   std::vector<int64_t> dst_oids =
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
-    gs::vid_t src_lid =
-        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    neug::vid_t src_lid =
+        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
-    gs::vid_t dst_lid =
-        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    neug::vid_t dst_lid =
+        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    edge_data.push_back({gs::Property::from_int32(static_cast<int>(i))});
+    edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
   }
-  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   size_t delete_count = 0;
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, int32_t, int32_t>>
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, int32_t, int32_t>>
       edges_to_delete;
   for (size_t i = 0; i < src_lids.size(); i += 3) {
     auto oe_edges = oe_view.get_edges(src_lids[i]);
@@ -986,7 +989,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       auto oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                         reinterpret_cast<const char*>(oe_edges.start_ptr)) /
                        oe_edges.cfg.stride;
-      auto ie_offset = gs::fuzzy_search_offset_from_nbr_list(
+      auto ie_offset = neug::fuzzy_search_offset_from_nbr_list(
           ie_edges, src_lids[i], it.get_data_ptr(), DataTypeId::kInt32);
       if (ie_offset == std::numeric_limits<int32_t>::max()) {
         FAIL() << "Cannot find reverse edge!";
@@ -998,7 +1001,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       delete_count++;
     }
   }
-  this->edge_table->Compact(true, false, gs::MAX_TIMESTAMP);
+  this->edge_table->Compact(true, false, neug::MAX_TIMESTAMP);
   size_t edge_count = 0;
   for (size_t i = 0; i < dst_lids.size(); ++i) {
     auto edges = ie_view.get_edges(dst_lids[i]);
@@ -1018,38 +1021,38 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   this->InitIndexers(src_num, dst_num);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_str_int_);
   this->OpenEdgeTableInMemory(src_num, dst_num);
-  std::vector<gs::vid_t> src_lids, dst_lids;
+  std::vector<neug::vid_t> src_lids, dst_lids;
   std::vector<int64_t> src_oids =
       generate_random_vertices<int64_t>(src_num, edge_num);
   std::vector<int64_t> dst_oids =
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
-    gs::vid_t src_lid =
-        this->src_indexer.insert_safe(gs::Property::from_int64(src_oid));
+    neug::vid_t src_lid =
+        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
-    gs::vid_t dst_lid =
-        this->dst_indexer.insert_safe(gs::Property::from_int64(dst_oid));
+    neug::vid_t dst_lid =
+        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
-  std::vector<std::vector<gs::Property>> edge_data;
+  std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
-    edge_data.push_back({gs::Property::from_string_view("old_data"),
-                         gs::Property::from_int32(static_cast<int>(0))});
+    edge_data.push_back({neug::Property::from_string_view("old_data"),
+                         neug::Property::from_int32(static_cast<int>(0))});
   }
 
-  gs::Allocator allocator(gs::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
   }
-  std::vector<gs::Property> new_data = {
-      gs::Property::from_string_view("new_data"),
-      gs::Property::from_int32(static_cast<int>(1))};
-  auto oe_view = this->edge_table->get_outgoing_view(gs::MAX_TIMESTAMP);
-  auto ie_view = this->edge_table->get_incoming_view(gs::MAX_TIMESTAMP);
+  std::vector<neug::Property> new_data = {
+      neug::Property::from_string_view("new_data"),
+      neug::Property::from_int32(static_cast<int>(1))};
+  auto oe_view = this->edge_table->get_outgoing_view(neug::MAX_TIMESTAMP);
+  auto ie_view = this->edge_table->get_incoming_view(neug::MAX_TIMESTAMP);
   auto ed_accessor_0 = this->edge_table->get_edge_data_accessor(0);
   auto ed_accessor_1 = this->edge_table->get_edge_data_accessor(1);
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -1057,7 +1060,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
     auto ie_edges = ie_view.get_edges(dst_lids[i]);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       assert(reinterpret_cast<const uint64_t*>(it.get_data_ptr()) != nullptr);
-      auto another_offset = gs::fuzzy_search_offset_from_nbr_list(
+      auto another_offset = neug::fuzzy_search_offset_from_nbr_list(
           ie_edges, src_lids[i], it.get_data_ptr(), DataTypeId::kUInt64);
       auto another_iter = ie_edges.begin();
       another_iter += another_offset;
@@ -1092,9 +1095,9 @@ using Datatypes =
                      TypePair<uint64_t, arrow::UInt64Array>,
                      TypePair<float, arrow::FloatArray>,
                      TypePair<double, arrow::DoubleArray>,
-                     TypePair<gs::Date, arrow::Date32Array>,
-                     TypePair<gs::DateTime, arrow::TimestampArray>,
-                     TypePair<gs::Interval, arrow::LargeStringArray>>;
+                     TypePair<neug::Date, arrow::Date32Array>,
+                     TypePair<neug::DateTime, arrow::TimestampArray>,
+                     TypePair<neug::Interval, arrow::LargeStringArray>>;
 
 template <typename T>
 class EdgeTableToolsTest : public ::testing::Test {};
@@ -1270,4 +1273,4 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

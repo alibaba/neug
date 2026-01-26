@@ -15,7 +15,7 @@
  */
 
 #include "gopt_test.h"
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class AdminTest : public GOptTest {
@@ -45,4 +45,4 @@ TEST_F(AdminTest, CHECKPOINT) {
   ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

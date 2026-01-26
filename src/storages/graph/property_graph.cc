@@ -34,7 +34,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 PropertyGraph::PropertyGraph()
     : vertex_label_num_(0), edge_label_num_(0), memory_level_(1) {}
@@ -80,7 +80,7 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
   if (schema_.vertex_label_valid(v_label)) {
     assert(vertex_tables_.size() > v_label);
     if (vertex_tables_[v_label].Capacity() >= vertex_reserve_size) {
-      return gs::Status::OK();
+      return neug::Status::OK();
     }
     vertex_tables_[v_label].Reserve(vertex_reserve_size);
     for (label_t dst_label = 0; dst_label < vertex_label_num_; ++dst_label) {
@@ -97,7 +97,7 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
         }
       }
     }
-    return gs::Status::OK();
+    return neug::Status::OK();
   } else {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex label does not exist.");
@@ -108,7 +108,7 @@ Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
   assert(v_label < vertex_tables_.size());
   vertex_tables_[v_label].insert_vertices(supplier);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::BatchAddEdges(
@@ -122,7 +122,7 @@ Status PropertyGraph::BatchAddEdges(
   edge_tables_.at(index).BatchAddEdges(
       vertex_tables_.at(src_v_label).get_indexer(),
       vertex_tables_.at(dst_v_label).get_indexer(), supplier);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 // TODO(zhanglei): support extra_type_info
@@ -230,7 +230,7 @@ Status PropertyGraph::CreateVertexType(
             << ",properties " << property_names.size()
             << ", primary_key_names: " << primary_key_names[0];
 
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 // TODO(zhanglei): support extra_type_info
@@ -310,7 +310,7 @@ Status PropertyGraph::CreateEdgeType(
                                       dst_v_capacity);
   edge_tables_.at(index).Resize(src_v_capacity, dst_v_capacity);
 
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 // TODO(zhanglei): Support extra_type_info
@@ -358,7 +358,7 @@ Status PropertyGraph::AddVertexProperties(
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
                                         add_default_property_values);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 // TODO(zhanglei): Support extra_type_info
@@ -417,7 +417,7 @@ Status PropertyGraph::AddEdgeProperties(
   edge_table.AddProperties(add_property_names, add_property_types,
                            add_default_property_values);
 
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::RenameVertexProperties(
@@ -449,7 +449,7 @@ Status PropertyGraph::RenameVertexProperties(
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].RenameProperties(update_property_names,
                                            update_property_renames);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::RenameEdgeProperties(
@@ -495,7 +495,7 @@ Status PropertyGraph::RenameEdgeProperties(
   auto& edge_table = edge_tables_.at(index);
 
   edge_table.RenameProperties(update_property_names, update_property_renames);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::delete_vertex_properties_check(
@@ -519,7 +519,7 @@ Status PropertyGraph::delete_vertex_properties_check(
     }
     valid_props.emplace_back(property_name);
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::DeleteVertexProperties(
@@ -536,7 +536,7 @@ Status PropertyGraph::DeleteVertexProperties(
 
   schema_.DeleteVertexProperties(vertex_type_name, delete_property_names);
   vertex_tables_[v_label].DeleteProperties(delete_property_names);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::delete_edge_properties_check(
@@ -565,7 +565,7 @@ Status PropertyGraph::delete_edge_properties_check(
     }
     valid_props.emplace_back(property_name);
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::DeleteEdgeProperties(
@@ -596,7 +596,7 @@ Status PropertyGraph::DeleteEdgeProperties(
   edge_tables_.at(index).DeleteProperties(delete_property_names);
   schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                                delete_property_names);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::DeleteVertexType(const std::string& vertex_type_name,
@@ -635,7 +635,7 @@ Status PropertyGraph::DeleteVertexType(label_t v_label_id,
     }
   }
 
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::DeleteEdgeType(const std::string& src_vertex_type,
@@ -657,7 +657,7 @@ Status PropertyGraph::DeleteEdgeType(label_t src_v_label, label_t dst_v_label,
   if (edge_tables_.count(index) > 0) {
     edge_tables_.erase(index);
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::BatchDeleteVertices(label_t v_label_id,
@@ -1138,7 +1138,7 @@ Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Fail to update vertex property.");
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
@@ -1160,7 +1160,7 @@ Status PropertyGraph::UpdateEdgeProperty(label_t src_v_label, vid_t src_vid,
   }
   edge_tables_.at(index).UpdateEdgeProperty(src_vid, dst_vid, oe_offset,
                                             ie_offset, prop_id, value, ts);
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 std::string PropertyGraph::get_statistics_json() const {
@@ -1283,7 +1283,7 @@ Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name + "] does not exist");
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::edge_triplet_exist(const std::string& src_type_name,
@@ -1298,7 +1298,7 @@ Status PropertyGraph::edge_triplet_exist(const std::string& src_type_name,
                   "Edge [" + edge_type_name + "] from [" + src_type_name +
                       "] to [" + dst_type_name + "] does not exist");
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::vertex_label_check(const std::string& vertex_type_name) {
@@ -1307,7 +1307,7 @@ Status PropertyGraph::vertex_label_check(const std::string& vertex_type_name) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex label[" + vertex_type_name + "] does not exists.");
   }
-  return gs::Status::OK();
+  return neug::Status::OK();
 }
 
-}  // namespace gs
+}  // namespace neug

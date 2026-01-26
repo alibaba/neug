@@ -24,9 +24,9 @@
 
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void Expression::cast(const LogicalType&) {
@@ -51,4 +51,4 @@ expression_vector Expression::splitOnAND() {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

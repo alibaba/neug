@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/serializer/reader.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct BufferReader final : Reader {
@@ -46,4 +46,4 @@ struct BufferReader final : Reader {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

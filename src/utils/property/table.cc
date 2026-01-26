@@ -26,7 +26,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 Table::Table() : touched_(false) {}
 Table::~Table() { close(); }
@@ -420,4 +420,4 @@ void Table::set_name(const std::string& name) { name_ = name; }
 
 void Table::set_work_dir(const std::string& work_dir) { work_dir_ = work_dir; }
 
-}  // namespace gs
+}  // namespace neug

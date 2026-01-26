@@ -16,14 +16,14 @@
 
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
-namespace gs {
+namespace neug {
 namespace runtime {
 class Context;
 class Expr;
 namespace ops {
 class CreateVertex {
  public:
-  static gs::result<Context> insert_vertex(
+  static neug::result<Context> insert_vertex(
       StorageInsertInterface& graph, Context&& ctx,
       const std::vector<label_t>& labels,
       const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
@@ -31,4 +31,4 @@ class CreateVertex {
 };
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

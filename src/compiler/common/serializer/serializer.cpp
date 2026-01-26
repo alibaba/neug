@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 template <>
@@ -44,4 +44,4 @@ void Serializer::writeDebuggingInfo(const std::string& value) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

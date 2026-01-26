@@ -25,7 +25,7 @@
 #include "neug/compiler/function/aggregate_function.h"
 #include "neug/compiler/function/arithmetic/add.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <typename RESULT_TYPE>
@@ -72,4 +72,4 @@ struct SumFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

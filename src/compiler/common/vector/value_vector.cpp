@@ -33,7 +33,7 @@
 #include "neug/compiler/common/vector/auxiliary_buffer.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 ValueVector::ValueVector(LogicalType dataType,
@@ -602,7 +602,7 @@ void StringVector::addString(ValueVector* vector, neug_string_t& dstStr,
   }
 }
 
-void StringVector::addString(gs::common::ValueVector* vector,
+void StringVector::addString(neug::common::ValueVector* vector,
                              neug_string_t& dstStr, const std::string& srcStr) {
   addString(vector, dstStr, srcStr.data(), srcStr.length());
 }
@@ -784,4 +784,4 @@ void StructVector::copyFromVectorData(ValueVector* dstVector,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class Timer {
@@ -69,4 +69,4 @@ class Timer {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

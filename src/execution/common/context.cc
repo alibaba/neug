@@ -19,7 +19,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -229,4 +229,4 @@ size_t Context::col_num() const { return columns.size(); }
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

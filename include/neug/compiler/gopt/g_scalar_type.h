@@ -27,7 +27,7 @@
 #include "neug/compiler/function/string/vector_string_functions.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 enum ScalarType {
@@ -138,4 +138,4 @@ class GScalarType {
   ScalarType type;
 };
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

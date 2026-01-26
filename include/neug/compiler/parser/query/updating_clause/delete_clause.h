@@ -26,7 +26,7 @@
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class DeleteClause final : public UpdatingClause {
@@ -49,4 +49,4 @@ class DeleteClause final : public UpdatingClause {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

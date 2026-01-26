@@ -39,9 +39,9 @@
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
-using gs::function::BuiltInFunctionsUtils;
+using neug::function::BuiltInFunctionsUtils;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 internalID_t::internalID_t()
@@ -103,7 +103,7 @@ std::string DecimalType::insertDecimalPoint(const std::string& value,
   return retval;
 }
 
-bool UDTTypeInfo::operator==(const gs::common::ExtraTypeInfo& other) const {
+bool UDTTypeInfo::operator==(const neug::common::ExtraTypeInfo& other) const {
   return typeName == other.constPtrCast<UDTTypeInfo>()->typeName;
 }
 
@@ -134,7 +134,7 @@ uint32_t DecimalType::getScale(const LogicalType& type) {
   return decimalTypeInfo->getScale();
 }
 
-const LogicalType& ListType::getChildType(const gs::common::LogicalType& type) {
+const LogicalType& ListType::getChildType(const neug::common::LogicalType& type) {
   NEUG_ASSERT(type.getPhysicalType() == PhysicalTypeID::LIST ||
               type.getPhysicalType() == PhysicalTypeID::ARRAY);
   auto listTypeInfo = type.extraTypeInfo->constPtrCast<ListTypeInfo>();
@@ -486,7 +486,7 @@ const StructField& StructTypeInfo::getStructField(
 }
 
 const LogicalType& StructTypeInfo::getChildType(
-    gs::common::struct_field_idx_t idx) const {
+    neug::common::struct_field_idx_t idx) const {
   return fields[idx].getType();
 }
 
@@ -1234,7 +1234,7 @@ bool LogicalTypeUtils::isNested(const LogicalType& dataType) {
   return isNested(dataType.typeID);
 }
 
-bool LogicalTypeUtils::isNested(gs::common::LogicalTypeID logicalTypeID) {
+bool LogicalTypeUtils::isNested(neug::common::LogicalTypeID logicalTypeID) {
   switch (logicalTypeID) {
   case LogicalTypeID::STRUCT:
   case LogicalTypeID::LIST:
@@ -2012,4 +2012,4 @@ LogicalType LogicalTypeUtils::purgeAny(const LogicalType& type,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

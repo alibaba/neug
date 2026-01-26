@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/logical_distinct.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendDistinct(const expression_vector& keys, LogicalPlan& plan) {
@@ -15,4 +15,4 @@ void Planner::appendDistinct(const expression_vector& keys, LogicalPlan& plan) {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

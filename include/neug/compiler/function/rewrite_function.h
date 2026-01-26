@@ -24,7 +24,7 @@
 
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 class ExpressionBinder;
 }
@@ -66,4 +66,4 @@ struct RewriteFunction final : Function {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

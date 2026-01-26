@@ -33,7 +33,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 InsertTransaction::InsertTransaction(PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
@@ -282,4 +282,4 @@ Status StorageTPInsertInterface::BatchAddEdges(
                 "BatchAddEdges is not supported in TP mode currently.");
 }
 
-}  // namespace gs
+}  // namespace neug

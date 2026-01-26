@@ -21,7 +21,7 @@
 #include "neug/compiler/planner/operator/logical_projection.h"
 #include "protobuf/src/google/protobuf/parse_context.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class PathTest : public GOptTest {
@@ -182,4 +182,4 @@ TEST_F(PathTest, WSHORTEST_COST) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

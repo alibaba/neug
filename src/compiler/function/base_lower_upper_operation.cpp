@@ -25,10 +25,10 @@
 #include "neug/utils/exception/exception.h"
 #include "utf8proc.h"
 
-using namespace gs::common;
-using namespace gs::utf8proc;
+using namespace neug::common;
+using namespace neug::utf8proc;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 uint32_t BaseLowerUpperFunction::getResultLen(char* inputStr, uint32_t inputLen,
@@ -91,4 +91,4 @@ void BaseLowerUpperFunction::convertCase(char* result, uint32_t len,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

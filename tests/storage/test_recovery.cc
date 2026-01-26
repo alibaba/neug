@@ -31,15 +31,15 @@
 #include <mach-o/dyld.h>
 #endif
 
-using namespace gs;
+using namespace neug;
 
 class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
  protected:
   std::string data_dir_;
   std::string neugdb_host_ = "127.0.0.1";
   int neugdb_port_ = 7071;
-  std::unique_ptr<gs::NeugDB> db_;
-  std::unique_ptr<server::NeugDBService> service_;
+  std::unique_ptr<neug::NeugDB> db_;
+  std::unique_ptr<neug::NeugDBService> service_;
 
   void SetUp() override {
     data_dir_ = "/tmp/neugdb_recovery_test_" + std::to_string(::getpid());
@@ -53,16 +53,16 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
   }
 
   void StartService() {
-    db_ = std::make_unique<gs::NeugDB>();
+    db_ = std::make_unique<neug::NeugDB>();
     NeugDBConfig db_config(data_dir_, std::thread::hardware_concurrency());
     db_config.checkpoint_on_close = GetParam();
     db_config.mode = DBMode::READ_WRITE;
     db_config.compact_on_close = db_config.checkpoint_on_close;
     ASSERT_TRUE(db_->Open(db_config));
-    server::ServiceConfig config;
+    neug::ServiceConfig config;
     config.host_str = neugdb_host_;
     config.query_port = neugdb_port_;
-    service_ = std::make_unique<server::NeugDBService>(*db_, config);
+    service_ = std::make_unique<neug::NeugDBService>(*db_, config);
     service_->Start();
     // Wait for service to be ready
     for (int i = 0; i < 30; ++i) {
@@ -135,11 +135,11 @@ TEST_P(NeugDBWALRecoveryTest, WALRecoveryViaCypher) {
   StopService();
 
   // Then Open the DB in read-write mode
-  gs::NeugDB db;
-  gs::NeugDBConfig db_config(data_dir(), std::thread::hardware_concurrency());
+  neug::NeugDB db;
+  neug::NeugDBConfig db_config(data_dir(), std::thread::hardware_concurrency());
   db_config.compact_on_close = true;
   db_config.checkpoint_on_close = true;
-  ASSERT_TRUE(db.Open(data_dir(), 4, gs::DBMode::READ_WRITE));
+  ASSERT_TRUE(db.Open(data_dir(), 4, neug::DBMode::READ_WRITE));
   db.Close();
 
   StartService();

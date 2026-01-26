@@ -29,7 +29,7 @@
 #include "neug/utils/exception/exception.h"
 #include "utf8proc_wrapper.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::vector<std::string> StringUtils::splitComma(const std::string& input) {
@@ -297,4 +297,4 @@ std::string StringUtils::rtrimNewlines(const std::string& input) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

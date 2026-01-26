@@ -44,7 +44,7 @@ TEST(StorageDDLTest, ExportTest) {
   // create the directory
   std::filesystem::create_directories(data_path);
 
-  gs::NeugDB db;
+  neug::NeugDB db;
   db.Open(data_path);
   const char* flex_data_dir_ptr = std::getenv("COMPREHENSIVE_GRAPH_DATA_DIR");
   if (flex_data_dir_ptr == nullptr) {

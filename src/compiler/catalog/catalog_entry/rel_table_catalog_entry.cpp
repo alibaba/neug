@@ -30,10 +30,10 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/main/client_context.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 bool RelTableCatalogEntry::isParent(table_id_t tableID) {
@@ -179,4 +179,4 @@ RelTableCatalogEntry::getBoundExtraCreateInfo(transaction::Transaction*) const {
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

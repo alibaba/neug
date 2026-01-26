@@ -26,7 +26,7 @@
 #include "neug/transaction/wal/wal.h"
 #include "neug/utils/likely.h"
 
-namespace gs {
+namespace neug {
 
 std::unique_ptr<IWalWriter> LocalWalWriter::Make(const std::string& wal_uri,
                                                  int thread_id) {
@@ -111,4 +111,4 @@ const bool LocalWalWriter::registered_ = WalWriterFactory::RegisterWalWriter(
     "file", static_cast<WalWriterFactory::wal_writer_initializer_t>(
                 &LocalWalWriter::Make));
 
-}  // namespace gs
+}  // namespace neug

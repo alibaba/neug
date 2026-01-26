@@ -18,7 +18,7 @@
 #include "neug/utils/exception/exception.h"
 #include <algorithm>
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 JsonVFSReader::JsonVFSReader(common::VirtualFileSystem* vfs,
@@ -74,4 +74,4 @@ uint64_t JsonVFSReader::getFileSize() const {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

@@ -22,10 +22,10 @@
 
 #include "neug/compiler/function/aggregate/sum.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
-using namespace gs::common;
+using namespace neug::common;
 
 function_set AggregateSumFunction::getFunctionSet() {
   function_set result;
@@ -37,4 +37,4 @@ function_set AggregateSumFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -6,15 +6,16 @@
 #include "unittest/utils.h"
 
 using CsrTypes = ::testing::Types<
-    gs::MutableCsr<int32_t>, gs::MutableCsr<int64_t>, gs::MutableCsr<float>,
-    gs::MutableCsr<gs::EmptyType>, gs::MutableCsr<gs::DateTime>,
-    gs::ImmutableCsr<uint32_t>, gs::ImmutableCsr<uint64_t>,
-    gs::ImmutableCsr<double>, gs::ImmutableCsr<gs::Date>,
-    gs::SingleImmutableCsr<int32_t>, gs::SingleImmutableCsr<int64_t>,
-    gs::SingleImmutableCsr<float>, gs::SingleImmutableCsr<gs::EmptyType>,
-    gs::SingleImmutableCsr<gs::DateTime>, gs::SingleMutableCsr<uint32_t>,
-    gs::SingleMutableCsr<uint64_t>, gs::SingleMutableCsr<double>,
-    gs::SingleMutableCsr<gs::Date>>;
+    neug::MutableCsr<int32_t>, neug::MutableCsr<int64_t>,
+    neug::MutableCsr<float>, neug::MutableCsr<neug::EmptyType>,
+    neug::MutableCsr<neug::DateTime>, neug::ImmutableCsr<uint32_t>,
+    neug::ImmutableCsr<uint64_t>, neug::ImmutableCsr<double>,
+    neug::ImmutableCsr<neug::Date>, neug::SingleImmutableCsr<int32_t>,
+    neug::SingleImmutableCsr<int64_t>, neug::SingleImmutableCsr<float>,
+    neug::SingleImmutableCsr<neug::EmptyType>,
+    neug::SingleImmutableCsr<neug::DateTime>, neug::SingleMutableCsr<uint32_t>,
+    neug::SingleMutableCsr<uint64_t>, neug::SingleMutableCsr<double>,
+    neug::SingleMutableCsr<neug::Date>>;
 
 template <typename T>
 class CsrBatchTest : public ::testing::Test {
@@ -62,14 +63,14 @@ class CsrBatchTest : public ::testing::Test {
     std::filesystem::create_directories(work_dir);
   }
 
-  void CheckEqual(
-      const std::vector<std::tuple<gs::vid_t, gs::vid_t, typename T::data_t>>&
-          expected) {
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename T::data_t>> actual;
+  void CheckEqual(const std::vector<std::tuple<neug::vid_t, neug::vid_t,
+                                               typename T::data_t>>& expected) {
+    std::vector<std::tuple<neug::vid_t, neug::vid_t, typename T::data_t>>
+        actual;
     auto view = this->csr->get_generic_view(0);
-    auto ed_accessor = gs::EdgeDataAccessor(
-        gs::PropUtils<typename T::data_t>::prop_type(), nullptr);
-    for (gs::vid_t src = 0; src < this->csr->size(); ++src) {
+    auto ed_accessor = neug::EdgeDataAccessor(
+        neug::PropUtils<typename T::data_t>::prop_type(), nullptr);
+    for (neug::vid_t src = 0; src < this->csr->size(); ++src) {
       auto es = view.get_edges(src);
       for (auto it = es.begin(); it != es.end(); ++it) {
         auto edata = ed_accessor.get_typed_data<typename T::data_t>(it);
@@ -106,13 +107,13 @@ TYPED_TEST(CsrBatchTest, OpenInsertScan) {
 
   auto edges0 = generate_random_edges<typename TypeParam::data_t>(
       500, 1000, 10000,
-      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-          this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == neug::CsrType::kSingleMutable);
   auto edges1 = generate_random_edges<typename TypeParam::data_t>(
       500, 1000, 10000,
-      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-          this->csr->csr_type() == gs::CsrType::kSingleMutable);
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+      this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == neug::CsrType::kSingleMutable);
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
       edges2;
   for (auto& e : edges1) {
     std::get<0>(e) += 500;
@@ -130,7 +131,7 @@ TYPED_TEST(CsrBatchTest, OpenInsertScan) {
 
   this->csr->resize(500);
   EXPECT_EQ(this->csr->size(), 500);
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> edata_list;
 
   for (size_t i = 0; i < edges0.size(); ++i) {
@@ -181,12 +182,13 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
     this->csr->open("csr0", snapshot_dir.string(), work_dir.string());
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
-        this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-            this->csr->csr_type() == gs::CsrType::kSingleMutable);
+        this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+            this->csr->csr_type() == neug::CsrType::kSingleMutable);
     this->csr->resize(1000);
-    std::vector<std::vector<gs::vid_t>> src_list(2), dst_list(2);
+    std::vector<std::vector<neug::vid_t>> src_list(2), dst_list(2);
     std::vector<std::vector<typename TypeParam::data_t>> edata_list(2);
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+    std::vector<
+        std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
         edges_part0;
     for (size_t i = 0; i < edges.size(); ++i) {
       size_t idx = i % 2;
@@ -217,12 +219,13 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
     this->csr->open_in_memory(snapshot_dir.string() + "/csr1", 1000);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
-        this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-            this->csr->csr_type() == gs::CsrType::kSingleMutable);
+        this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+            this->csr->csr_type() == neug::CsrType::kSingleMutable);
     this->csr->resize(1000);
-    std::vector<std::vector<gs::vid_t>> src_list(2), dst_list(2);
+    std::vector<std::vector<neug::vid_t>> src_list(2), dst_list(2);
     std::vector<std::vector<typename TypeParam::data_t>> edata_list(2);
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+    std::vector<
+        std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
         edges_part0;
     for (size_t i = 0; i < edges.size(); ++i) {
       size_t idx = i % 2;
@@ -253,12 +256,13 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
     this->csr->open_in_memory(snapshot_dir.string() + "/csr2", 1000);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
-        this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-            this->csr->csr_type() == gs::CsrType::kSingleMutable);
+        this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+            this->csr->csr_type() == neug::CsrType::kSingleMutable);
     this->csr->resize(1000);
-    std::vector<std::vector<gs::vid_t>> src_list(2), dst_list(2);
+    std::vector<std::vector<neug::vid_t>> src_list(2), dst_list(2);
     std::vector<std::vector<typename TypeParam::data_t>> edata_list(2);
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+    std::vector<
+        std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
         edges_part0;
     for (size_t i = 0; i < edges.size(); ++i) {
       size_t idx = i % 2;
@@ -289,12 +293,13 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
     this->csr->open("csr3", snapshot_dir.string(), work_dir.string());
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
-        this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-            this->csr->csr_type() == gs::CsrType::kSingleMutable);
+        this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+            this->csr->csr_type() == neug::CsrType::kSingleMutable);
     this->csr->resize(1000);
-    std::vector<std::vector<gs::vid_t>> src_list(2), dst_list(2);
+    std::vector<std::vector<neug::vid_t>> src_list(2), dst_list(2);
     std::vector<std::vector<typename TypeParam::data_t>> edata_list(2);
-    std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+    std::vector<
+        std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
         edges_part0;
     for (size_t i = 0; i < edges.size(); ++i) {
       size_t idx = i % 2;
@@ -328,22 +333,22 @@ TYPED_TEST(CsrBatchTest, DeleteVertices) {
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
-      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-          this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == neug::CsrType::kSingleMutable);
   this->csr->resize(1000);
   EXPECT_EQ(this->csr->size(), 1000);
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> edata_list;
 
-  std::vector<gs::vid_t> src_del =
-      generate_random_vertices<gs::vid_t>(1000, 100);
-  std::vector<gs::vid_t> dst_del =
-      generate_random_vertices<gs::vid_t>(1000, 100);
+  std::vector<neug::vid_t> src_del =
+      generate_random_vertices<neug::vid_t>(1000, 100);
+  std::vector<neug::vid_t> dst_del =
+      generate_random_vertices<neug::vid_t>(1000, 100);
 
-  std::set<gs::vid_t> src_del_set(src_del.begin(), src_del.end());
-  std::set<gs::vid_t> dst_del_set(dst_del.begin(), dst_del.end());
+  std::set<neug::vid_t> src_del_set(src_del.begin(), src_del.end());
+  std::set<neug::vid_t> dst_del_set(dst_del.begin(), dst_del.end());
 
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
       edges_after_delete;
   for (size_t i = 0; i < edges.size(); ++i) {
     if (src_del_set.count(std::get<0>(edges[i])) == 0 &&
@@ -368,19 +373,19 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
-      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-          this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == neug::CsrType::kSingleMutable);
   this->csr->resize(1000);
   EXPECT_EQ(this->csr->size(), 1000);
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> edata_list;
-  std::set<std::pair<gs::vid_t, gs::vid_t>> delete_edge_set;
+  std::set<std::pair<neug::vid_t, neug::vid_t>> delete_edge_set;
 
   for (size_t i = 0; i < edges.size() * 0.2; ++i) {
     delete_edge_set.insert({std::get<0>(edges[i]), std::get<1>(edges[i])});
   }
 
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
       edges_after_delete;
   for (size_t i = 0; i < edges.size(); ++i) {
     if (delete_edge_set.count({std::get<0>(edges[i]), std::get<1>(edges[i])}) ==
@@ -392,11 +397,11 @@ TYPED_TEST(CsrBatchTest, DeleteEdges) {
     edata_list.push_back(std::get<2>(edges[i]));
   }
   this->csr->batch_put_edges(src_list, dst_list, edata_list, 0);
-  std::vector<std::pair<gs::vid_t, int32_t>> edges_to_delete;
+  std::vector<std::pair<neug::vid_t, int32_t>> edges_to_delete;
   auto view = this->csr->get_generic_view(0);
   for (const auto& edge : delete_edge_set) {
-    gs::vid_t src = edge.first;
-    gs::vid_t dst = edge.second;
+    neug::vid_t src = edge.first;
+    neug::vid_t dst = edge.second;
     auto es = view.get_edges(src);
     for (auto it = es.begin(); it != es.end(); ++it) {
       if (it.get_vertex() == dst) {
@@ -420,19 +425,19 @@ TYPED_TEST(CsrBatchTest, DeleteEdgesAndCompact) {
 
   auto edges = generate_random_edges<typename TypeParam::data_t>(
       1000, 1000, 10000,
-      this->csr->csr_type() == gs::CsrType::kSingleImmutable ||
-          this->csr->csr_type() == gs::CsrType::kSingleMutable);
+      this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
+          this->csr->csr_type() == neug::CsrType::kSingleMutable);
   this->csr->resize(1000);
   EXPECT_EQ(this->csr->size(), 1000);
-  std::vector<gs::vid_t> src_list, dst_list;
+  std::vector<neug::vid_t> src_list, dst_list;
   std::vector<typename TypeParam::data_t> edata_list;
-  std::set<std::pair<gs::vid_t, gs::vid_t>> delete_edge_set;
+  std::set<std::pair<neug::vid_t, neug::vid_t>> delete_edge_set;
 
   for (size_t i = 0; i < edges.size() * 0.2; ++i) {
     delete_edge_set.insert({std::get<0>(edges[i]), std::get<1>(edges[i])});
   }
 
-  std::vector<std::tuple<gs::vid_t, gs::vid_t, typename TypeParam::data_t>>
+  std::vector<std::tuple<neug::vid_t, neug::vid_t, typename TypeParam::data_t>>
       edges_after_delete;
   for (size_t i = 0; i < edges.size(); ++i) {
     if (delete_edge_set.count({std::get<0>(edges[i]), std::get<1>(edges[i])}) ==
@@ -446,8 +451,8 @@ TYPED_TEST(CsrBatchTest, DeleteEdgesAndCompact) {
   this->csr->batch_put_edges(src_list, dst_list, edata_list, 0);
   auto view = this->csr->get_generic_view(0);
   for (const auto& edge : delete_edge_set) {
-    gs::vid_t src = edge.first;
-    gs::vid_t dst = edge.second;
+    neug::vid_t src = edge.first;
+    neug::vid_t dst = edge.second;
     auto es = view.get_edges(src);
     for (auto it = es.begin(); it != es.end(); ++it) {
       if (it.get_vertex() == dst) {

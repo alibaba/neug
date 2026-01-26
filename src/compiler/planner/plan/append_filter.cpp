@@ -1,9 +1,9 @@
 #include "neug/compiler/planner/operator/logical_filter.h"
 #include "neug/compiler/planner/planner.h"
 
-using namespace gs::binder;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void Planner::appendFilters(const expression_vector& predicates,
@@ -27,4 +27,4 @@ void Planner::appendFilter(const std::shared_ptr<Expression>& predicate,
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

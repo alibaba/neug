@@ -26,9 +26,9 @@
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 
-using namespace gs::storage;
+using namespace neug::storage;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 BufferBlock::BufferBlock(std::unique_ptr<storage::MemoryBuffer> block)
@@ -64,4 +64,4 @@ void InMemOverflowBuffer::resetBuffer() {
 void InMemOverflowBuffer::allocateNewBlock(uint64_t size) {}
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

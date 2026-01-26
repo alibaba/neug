@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 std::string CatalogEntryTypeUtils::toString(CatalogEntryType type) {
@@ -82,4 +82,4 @@ std::string FunctionEntryTypeUtils::toString(CatalogEntryType type) {
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

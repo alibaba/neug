@@ -23,7 +23,7 @@ namespace arrow {
 class DataType;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 namespace reader {
 
 /**
@@ -89,4 +89,4 @@ class ArrowTypeConverter : public TypeConverter<arrow::DataType> {
 };
 
 }  // namespace reader
-}  // namespace gs
+}  // namespace neug

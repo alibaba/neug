@@ -1,8 +1,8 @@
 #include "neug/compiler/planner/operator/logical_explain.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalExplain::computeSchema() {
@@ -33,4 +33,4 @@ void LogicalExplain::computeFactorizedSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

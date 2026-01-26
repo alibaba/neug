@@ -27,7 +27,7 @@
 
 #include "neug/compiler/binder/expression/rel_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 constexpr static uint8_t MAX_NUM_QUERY_VARIABLES = 64;
@@ -216,4 +216,4 @@ struct BoundGraphPattern {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

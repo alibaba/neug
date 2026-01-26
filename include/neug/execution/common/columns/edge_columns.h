@@ -20,7 +20,7 @@
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -871,4 +871,4 @@ void foreach_edge(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

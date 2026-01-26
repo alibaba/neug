@@ -30,9 +30,9 @@
 #include "neug/compiler/parser/standalone_call.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
@@ -67,4 +67,4 @@ std::unique_ptr<BoundStatement> Binder::bindStandaloneCall(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

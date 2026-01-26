@@ -3,7 +3,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 // LogicalExpressionsScan scans from an outer factorize table
@@ -40,4 +40,4 @@ class LogicalExpressionsScan final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

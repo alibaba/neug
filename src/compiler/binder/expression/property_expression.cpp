@@ -25,10 +25,10 @@
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 
-using namespace gs::common;
-using namespace gs::catalog;
+using namespace neug::common;
+using namespace neug::catalog;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<PropertyExpression> PropertyExpression::construct(
@@ -80,4 +80,4 @@ column_id_t PropertyExpression::getColumnID(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -26,7 +26,7 @@
 #include "neug/utils/exception/exception.h"
 #include "re2/include/re2.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 void UUID::byteToHex(char byteVal, char* buf, uint64_t& pos) {
@@ -175,4 +175,4 @@ const regex::RE2& UUID::regexPattern() {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -19,13 +19,13 @@
 #include <string>
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 class FunctionSignatureUtil {
  public:
   static std::string getSignatureName(
       const std::string& funcName,
-      const std::vector<gs::common::LogicalTypeID>& params) {
+      const std::vector<neug::common::LogicalTypeID>& params) {
     std::string sig = funcName + "(";
     for (size_t i = 0; i < params.size(); ++i) {
       if (i)
@@ -47,4 +47,4 @@ class FunctionSignatureUtil {
   }
 };
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

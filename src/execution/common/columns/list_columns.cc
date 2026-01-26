@@ -18,7 +18,7 @@
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
@@ -107,4 +107,4 @@ std::shared_ptr<IContextColumn> ListColumn::shuffle(
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

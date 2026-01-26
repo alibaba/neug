@@ -26,7 +26,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -111,10 +111,9 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     return "EdgeExpandVWithEPCmpOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
@@ -145,10 +144,9 @@ class EdgeExpandVOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -177,10 +175,9 @@ class EdgeExpandEWithSPredOpr : public IOperator {
     return "EdgeExpandEWithSPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_edge_with_special_edge_predicate(
@@ -200,10 +197,9 @@ class EdgeExpandEOpr : public IOperator {
 
   std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!pred_.has_value()) {
@@ -231,10 +227,9 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithSPVertexPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_vertex_with_special_vertex_predicate(
@@ -255,10 +250,9 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
     return "EdgeExpandVWithGPVertexPredOpr";
   }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     GeneralVertexPredicate v_pred(graph, ctx, params, pred_);
@@ -276,10 +270,9 @@ class EdgeExpandDegreeOpr : public IOperator {
  public:
   EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);
@@ -293,8 +286,8 @@ class EdgeExpandDegreeOpr : public IOperator {
   EdgeExpandParams eep_;
 };
 
-gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   int alias = -1;
   if (plan.plan(op_idx).opr().edge().has_alias()) {
@@ -361,8 +354,8 @@ gs::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
   return std::make_pair(nullptr, ContextMeta());
 }
 
-gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (edge_expand_get_v_fusable(plan, op_idx, plan.plan(op_idx).meta_data(0))) {
     int alias = -1;
@@ -463,4 +456,4 @@ gs::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
 }  // namespace ops
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

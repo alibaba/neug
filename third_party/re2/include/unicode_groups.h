@@ -23,7 +23,7 @@
 #include "re2/include/utf.h"
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 struct URange16 {
@@ -61,5 +61,5 @@ extern const UGroup perl_groups[];
 extern const int num_perl_groups;
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug
 #endif  // RE2_UNICODE_GROUPS_H_

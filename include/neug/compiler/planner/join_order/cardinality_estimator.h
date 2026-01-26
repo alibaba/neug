@@ -6,7 +6,7 @@
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/storage/stats/table_stats.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 class ClientContext;
 }  // namespace main
@@ -93,4 +93,4 @@ class CardinalityEstimator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

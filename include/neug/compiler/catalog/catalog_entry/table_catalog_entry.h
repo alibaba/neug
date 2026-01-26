@@ -32,7 +32,7 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 struct BoundExtraCreateCatalogEntryInfo;
 }  // namespace binder
@@ -125,4 +125,4 @@ using table_catalog_entry_set_t =
                        TableCatalogEntryEquality>;
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

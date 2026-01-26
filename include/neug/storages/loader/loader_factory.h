@@ -18,14 +18,10 @@
 #include <string>                                 // for string
 #include <unordered_map>                          // for unordered_map
 #include "neug/storages/loader/loading_config.h"  // for LoadingConfig
-namespace gs {
-class IFragmentLoader;
-}
-namespace gs {
-class Schema;
-}
 
-namespace gs {
+namespace neug {
+class IFragmentLoader;
+class Schema;
 
 /**
  * @brief LoaderFactory is a factory class to create IFragmentLoader.
@@ -53,4 +49,4 @@ class LoaderFactory {
   static std::unordered_map<std::string, loader_initializer_t>&
   getKnownLoaders();
 };
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_constants.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 struct GNodeType {
   GNodeType(std::vector<catalog::NodeTableCatalogEntry*> nodeTables_)
@@ -108,7 +108,7 @@ struct GRelType {
     YAML::Node type;
     type["element_opt"] = "EDGE";
     YAML::Node labels = YAML::Node(YAML::NodeType::Sequence);
-    auto& transaction = gs::Constants::DEFAULT_TRANSACTION;
+    auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
     for (auto& relTable : relTables) {
       YAML::Node label;
       label["id"] = relTable->getLabelId();
@@ -142,4 +142,4 @@ struct GRelType {
   std::vector<catalog::GRelTableCatalogEntry*> relTables;
 };
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

@@ -31,7 +31,7 @@
 #include "neug/compiler/function/table/bind_data.h"
 #include "neug/compiler/function/table/table_function.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 class FileSystem;
 }
@@ -108,4 +108,4 @@ struct NEUG_API ScanFileBindData : public TableFuncBindData {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

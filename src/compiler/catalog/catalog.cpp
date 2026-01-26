@@ -45,12 +45,12 @@
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
-using namespace gs::storage;
-using namespace gs::transaction;
+using namespace neug::binder;
+using namespace neug::common;
+using namespace neug::storage;
+using namespace neug::transaction;
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 Catalog::Catalog() : version{0} {
@@ -620,4 +620,4 @@ void Catalog::dropSerialSequence(Transaction* transaction,
 }
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

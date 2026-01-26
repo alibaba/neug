@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/timer.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 /**
@@ -68,4 +68,4 @@ class NumericMetric : public Metric {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

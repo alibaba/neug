@@ -28,10 +28,10 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::binder;
+using namespace neug::common;
+using namespace neug::binder;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 std::unique_ptr<FunctionBindData> StructExtractFunctions::bindFunc(
@@ -101,4 +101,4 @@ function_set StructExtractFunctions::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -4,10 +4,10 @@
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalSetProperty::computeFactorizedSchema() { copyChildSchema(0); }
@@ -57,4 +57,4 @@ common::TableType LogicalSetProperty::getTableType() const {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

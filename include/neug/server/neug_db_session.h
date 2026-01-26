@@ -40,7 +40,7 @@
 #include "neug/utils/result.h"
 #include "neug/utils/service_utils.h"
 
-namespace gs {
+namespace neug {
 
 class NeugDB;
 class IWalWriter;
@@ -50,10 +50,6 @@ class PropertyGraph;
 class RefColumnBase;
 class Schema;
 class AppManager;
-
-}  // namespace gs
-
-namespace server {
 
 /**
  * @brief Database session for executing queries and managing transactions.
@@ -92,11 +88,11 @@ namespace server {
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(gs::PropertyGraph& graph,
-                std::shared_ptr<gs::IGraphPlanner> planner,
-                std::shared_ptr<gs::IVersionManager> vm, gs::Allocator& alloc,
-                gs::IWalWriter& logger, const gs::NeugDBConfig& config_,
-                int thread_id)
+  NeugDBSession(neug::PropertyGraph& graph,
+                std::shared_ptr<neug::IGraphPlanner> planner,
+                std::shared_ptr<neug::IVersionManager> vm,
+                neug::Allocator& alloc, neug::IWalWriter& logger,
+                const neug::NeugDBConfig& config_, int thread_id)
       : graph_(graph),
         planner_(planner),
         version_manager_(vm),
@@ -108,17 +104,17 @@ class NeugDBSession {
         query_num_(0) {}
   ~NeugDBSession() {}
 
-  gs::ReadTransaction GetReadTransaction() const;
+  neug::ReadTransaction GetReadTransaction() const;
 
-  gs::InsertTransaction GetInsertTransaction();
+  neug::InsertTransaction GetInsertTransaction();
 
-  gs::UpdateTransaction GetUpdateTransaction();
+  neug::UpdateTransaction GetUpdateTransaction();
 
-  gs::CompactTransaction GetCompactTransaction();
+  neug::CompactTransaction GetCompactTransaction();
 
-  const gs::PropertyGraph& graph() const;
-  gs::PropertyGraph& graph();
-  const gs::Schema& schema() const;
+  const neug::PropertyGraph& graph() const;
+  neug::PropertyGraph& graph();
+  const neug::Schema& schema() const;
 
   /**
    * @brief Execute a Cypher query within the session. Expect a json format
@@ -128,7 +124,7 @@ class NeugDBSession {
    *  "access_mode": "read/insert/update/schema"
    * }
    */
-  gs::result<results::CollectiveResults> Eval(const std::string& query);
+  neug::result<results::CollectiveResults> Eval(const std::string& query);
 
   int SessionId() const;
 
@@ -137,16 +133,16 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  gs::PropertyGraph& graph_;
-  std::shared_ptr<gs::IGraphPlanner> planner_;
-  std::shared_ptr<gs::IVersionManager> version_manager_;
-  gs::Allocator& alloc_;
-  gs::IWalWriter& logger_;
-  const gs::NeugDBConfig& db_config_;
+  neug::PropertyGraph& graph_;
+  std::shared_ptr<neug::IGraphPlanner> planner_;
+  std::shared_ptr<neug::IVersionManager> version_manager_;
+  neug::Allocator& alloc_;
+  neug::IWalWriter& logger_;
+  const neug::NeugDBConfig& db_config_;
   int thread_id_;
 
   std::atomic<int64_t> eval_duration_;
   std::atomic<int64_t> query_num_;
 };
 
-}  // namespace server
+}  // namespace neug

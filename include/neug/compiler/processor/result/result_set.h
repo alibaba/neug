@@ -28,7 +28,7 @@
 #include "neug/compiler/processor/data_pos.h"
 #include "result_set_descriptor.h"
 
-namespace gs {
+namespace neug {
 namespace processor {
 
 class ResultSet {
@@ -71,4 +71,4 @@ class ResultSet {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

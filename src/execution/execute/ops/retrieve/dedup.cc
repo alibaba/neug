@@ -27,7 +27,7 @@
 #include "neug/execution/utils/var.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 class Schema;
 
 namespace runtime {
@@ -39,18 +39,17 @@ class DedupOpr : public IOperator {
   explicit DedupOpr(const std::vector<size_t>& tag_ids) : tag_ids_(tag_ids) {}
   std::string get_operator_name() const override { return "DedupOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     return Dedup::dedup(std::move(ctx), tag_ids_);
   }
 
   std::vector<size_t> tag_ids_;
 };
 
-gs::result<OpBuildResultT> DedupOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> DedupOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& dedup_opr = plan.plan(op_idx).opr().dedup();
   int keys_num = dedup_opr.keys_size();
@@ -66,4 +65,4 @@ gs::result<OpBuildResultT> DedupOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

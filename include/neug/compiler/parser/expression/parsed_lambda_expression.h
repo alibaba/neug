@@ -25,7 +25,7 @@
 #include "neug/compiler/common/enums/expression_type.h"
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedLambdaExpression : public ParsedExpression {
@@ -55,4 +55,4 @@ class ParsedLambdaExpression : public ParsedExpression {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

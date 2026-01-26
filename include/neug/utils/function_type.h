@@ -20,11 +20,11 @@
 #include <memory>
 #include <vector>
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class Value;
 
 using neug_func_exec_t = Value (*)(const std::vector<Value>&);
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

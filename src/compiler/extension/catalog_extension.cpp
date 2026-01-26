@@ -22,7 +22,7 @@
 
 #include "neug/compiler/extension/catalog_extension.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 void CatalogExtension::invalidateCache() {
@@ -31,4 +31,4 @@ void CatalogExtension::invalidateCache() {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

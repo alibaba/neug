@@ -26,7 +26,7 @@
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/property/property.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class OprTimer;
@@ -44,15 +44,15 @@ class BatchInsertVertexOpr : public IOperator {
     return "BatchInsertVertexOpr";
   }
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   label_t vertex_label_id_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
-gs::result<Context> BatchInsertVertexOpr::Eval(
+neug::result<Context> BatchInsertVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
@@ -62,10 +62,10 @@ gs::result<Context> BatchInsertVertexOpr::Eval(
       THROW_INTERNAL_EXCEPTION("Failed to add vertices");
     }
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
+neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
@@ -101,4 +101,4 @@ gs::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -27,7 +27,7 @@
 #include "neug/compiler/function/function.h"
 #include "unary_function_executor.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 // Evaluate function at compile time, e.g. struct_extraction.
@@ -254,4 +254,4 @@ struct NEUG_API ScalarFunction : public ScalarOrAggregateFunction {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

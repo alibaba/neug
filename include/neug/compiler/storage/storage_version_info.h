@@ -28,7 +28,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 
 using storage_version_t = uint64_t;
@@ -53,4 +53,4 @@ struct StorageVersionInfo {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

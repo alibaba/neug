@@ -23,12 +23,12 @@
 #include "neug/utils/encoder.h"
 #include "parallel_hashmap/phmap.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
-gs::result<Context> Dedup::dedup(Context&& ctx,
-                                 const std::vector<size_t>& cols) {
+neug::result<Context> Dedup::dedup(Context&& ctx,
+                                   const std::vector<size_t>& cols) {
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
   if (cols.size() == 0) {
@@ -99,4 +99,4 @@ gs::result<Context> Dedup::dedup(Context&& ctx,
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

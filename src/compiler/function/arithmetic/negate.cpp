@@ -27,7 +27,7 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 // reference from duckDB arithmetic.cpp
@@ -103,4 +103,4 @@ void Negate::operation(int64_t& input, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

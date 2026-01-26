@@ -24,7 +24,7 @@
 
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct ParsedColumnDefinition {
@@ -63,4 +63,4 @@ struct ParsedPropertyDefinition {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

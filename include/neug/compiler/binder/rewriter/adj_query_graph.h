@@ -6,7 +6,7 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 #include "neug/compiler/binder/expression/rel_expression.h"
 #include "neug/compiler/binder/query/query_graph.h"
-namespace gs {
+namespace neug {
 namespace binder {
 
 class AdjQueryGraph {
@@ -52,4 +52,4 @@ class AdjQueryGraph {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

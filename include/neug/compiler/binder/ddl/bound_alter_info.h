@@ -27,7 +27,7 @@
 #include "neug/compiler/common/enums/alter_type.h"
 #include "neug/compiler/common/enums/conflict_action.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundExtraAlterInfo {
@@ -144,4 +144,4 @@ struct BoundExtraCommentInfo final : BoundExtraAlterInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

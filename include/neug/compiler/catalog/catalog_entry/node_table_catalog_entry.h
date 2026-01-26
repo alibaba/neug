@@ -24,7 +24,7 @@
 
 #include "table_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace transaction {
 class Transaction;
 }  // namespace transaction
@@ -71,4 +71,4 @@ class NEUG_API NodeTableCatalogEntry final : public TableCatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

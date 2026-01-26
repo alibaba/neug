@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/expression/case_expression.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::string CaseExpression::toStringInternal() const {
@@ -36,4 +36,4 @@ std::string CaseExpression::toStringInternal() const {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 #include "neug/compiler/binder/query/return_with_clause/bound_projection_body.h"
 #include "neug/compiler/binder/query/updating_clause/bound_updating_clause.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class NormalizedQueryPart {
@@ -90,4 +90,4 @@ class NormalizedQueryPart {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

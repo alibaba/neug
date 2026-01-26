@@ -25,7 +25,7 @@
 #include "aggregate_function.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace transaction {
 class Transaction;
 }  // namespace transaction
@@ -121,4 +121,4 @@ class BuiltInFunctionsUtils {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

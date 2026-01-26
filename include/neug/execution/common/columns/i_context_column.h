@@ -24,7 +24,7 @@
 
 #include "glog/logging.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -222,4 +222,4 @@ class IContextColumnBuilder {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

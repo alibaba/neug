@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct Offset {
@@ -34,4 +34,4 @@ struct Offset {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/serializer/deserializer.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 template <>
@@ -46,4 +46,4 @@ void Deserializer::validateDebuggingInfo(std::string& value,
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -29,10 +29,10 @@
 #include "neug/compiler/parser/create_macro.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
@@ -56,4 +56,4 @@ std::unique_ptr<BoundStatement> Binder::bindCreateMacro(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

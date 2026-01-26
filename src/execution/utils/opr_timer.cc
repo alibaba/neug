@@ -15,7 +15,7 @@
 
 #include "neug/execution/utils/opr_timer.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -33,4 +33,4 @@ OprTimer& OprTimer::operator+=(const OprTimer& other) {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

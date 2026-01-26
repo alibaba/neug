@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/ddl/drop_edge_type.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -30,8 +30,8 @@ class DropEdgeTypeOpr : public IOperator {
         error_on_conflict_(error_on_conflict) {}
 
   std::string get_operator_name() const override { return "DropEdgeTypeOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override {
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     auto res = storage.DeleteEdgeType(src_type_, dst_type_, edge_type_,
@@ -41,7 +41,7 @@ class DropEdgeTypeOpr : public IOperator {
                  << ", reason: " << res.ToString();
       RETURN_ERROR(res);
     }
-    return gs::result<Context>(std::move(ctx));
+    return neug::result<Context>(std::move(ctx));
   }
 
  private:
@@ -49,7 +49,7 @@ class DropEdgeTypeOpr : public IOperator {
   bool error_on_conflict_;
 };
 
-gs::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
+neug::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& drop_edge = plan.plan(op_id).opr().drop_edge_schema();
@@ -64,4 +64,4 @@ gs::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

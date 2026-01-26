@@ -27,7 +27,7 @@
 
 #include "numeric_limits.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 template <class SRC, class DST>
@@ -194,4 +194,4 @@ inline bool tryCastWithOverflowCheck(double input, float& result) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

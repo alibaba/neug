@@ -26,7 +26,7 @@
 #include "neug/compiler/common/system_config.h"
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 DataChunkState::DataChunkState() : DataChunkState(DEFAULT_VECTOR_CAPACITY) {}
@@ -51,4 +51,4 @@ void DataChunkState::slice(offset_t offset) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

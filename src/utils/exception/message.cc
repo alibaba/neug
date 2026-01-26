@@ -17,7 +17,7 @@
 
 #include "neug/compiler/common/string_format.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string ExceptionMessage::duplicatePKException(
@@ -92,4 +92,4 @@ std::string ExceptionMessage::listFunctionIncompatibleChildrenType(
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

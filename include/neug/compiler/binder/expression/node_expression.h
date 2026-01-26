@@ -27,7 +27,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/enums/expression_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class NEUG_API NodeExpression final : public NodeOrRelExpression {
@@ -73,4 +73,4 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -39,9 +39,9 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/function/uuid/vector_uuid_functions.h"
 
-using namespace gs::processor;
+using namespace neug::processor;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 #define SCALAR_FUNCTION_BASE(_PARAM, _NAME) \
@@ -157,4 +157,4 @@ FunctionCollection* FunctionCollection::getFunctions() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

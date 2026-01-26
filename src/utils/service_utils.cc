@@ -26,7 +26,7 @@
 #include <cstdint>
 #include <unordered_map>
 
-namespace gs {
+namespace neug {
 
 // get current executable's directory
 std::string get_current_dir() {
@@ -141,4 +141,4 @@ size_t human_readable_to_bytes(const std::string& human_readable_bytes) {
   return static_cast<size_t>(number * multipliers[unit]);
 }
 
-}  // namespace gs
+}  // namespace neug

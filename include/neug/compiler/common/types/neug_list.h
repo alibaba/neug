@@ -24,7 +24,7 @@
 
 #include "types.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct neug_list_t {
@@ -44,4 +44,4 @@ struct neug_list_t {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

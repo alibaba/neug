@@ -27,7 +27,7 @@
 
 #include "windows.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct WindowsUtils {
@@ -36,5 +36,5 @@ struct WindowsUtils {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug
 #endif

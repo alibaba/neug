@@ -2,7 +2,7 @@
 
 #include "logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalEmptyResult final : public LogicalOperator {
@@ -36,4 +36,4 @@ class LogicalEmptyResult final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

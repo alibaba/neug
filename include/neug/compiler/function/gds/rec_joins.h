@@ -27,7 +27,7 @@
 #include "neug/compiler/common/enums/path_semantic.h"
 #include "neug/compiler/graph/graph_entry.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct RJBindData {
@@ -96,4 +96,4 @@ class DefaultRJAlgorithm : public RJAlgorithm {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

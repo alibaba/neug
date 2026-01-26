@@ -30,7 +30,7 @@ namespace arrow {
 class ChunkedArray;
 }  // namespace arrow
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class ValueVector;
@@ -150,4 +150,4 @@ class AuxiliaryBufferFactory {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

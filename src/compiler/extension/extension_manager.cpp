@@ -27,7 +27,7 @@
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 static void executeExtensionLoader(main::ClientContext* context,
@@ -97,4 +97,4 @@ void ExtensionManager::autoLoadLinkedExtensions(main::ClientContext* context) {
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

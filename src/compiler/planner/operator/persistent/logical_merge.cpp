@@ -4,10 +4,10 @@
 #include "neug/compiler/common/cast.h"
 #include "neug/compiler/planner/operator/factorization/flatten_resolver.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalMerge::computeFactorizedSchema() {
@@ -50,4 +50,4 @@ std::unique_ptr<LogicalOperator> LogicalMerge::copy() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

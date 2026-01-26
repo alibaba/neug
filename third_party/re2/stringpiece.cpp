@@ -8,7 +8,7 @@
 
 #include "re2/include/util.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 const StringPiece::size_type StringPiece::npos;  // initialized in stringpiece.h
@@ -72,4 +72,4 @@ std::ostream& operator<<(std::ostream& o, const StringPiece& p) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

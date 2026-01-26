@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/bound_statement.h"
 #include "neug/compiler/function/scalar_macro_function.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundCreateMacro final : public BoundStatement {
@@ -51,4 +51,4 @@ class BoundCreateMacro final : public BoundStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

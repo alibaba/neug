@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/assert.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 std::string ScanSourceTypeUtils::toString(ScanSourceType type) {
@@ -47,4 +47,4 @@ std::string ScanSourceTypeUtils::toString(ScanSourceType type) {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

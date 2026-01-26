@@ -33,7 +33,7 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/common/serializer/writer.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class NEUG_API Serializer {
@@ -148,4 +148,4 @@ template <>
 void Serializer::serializeValue(const std::string& value);
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

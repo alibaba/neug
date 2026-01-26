@@ -27,9 +27,9 @@
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 void ListConcat::operation(common::list_entry_t& left,
@@ -56,4 +56,4 @@ void ListConcat::operation(common::list_entry_t& left,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

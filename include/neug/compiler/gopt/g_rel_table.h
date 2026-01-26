@@ -17,7 +17,7 @@
 
 #include "neug/compiler/storage/store/rel_table.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 class GRelTable : public RelTable {
  private:
@@ -45,4 +45,4 @@ class GRelTable : public RelTable {
   common::table_id_t getDstTableId() const { return this->dstTableId; }
 };
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

@@ -20,7 +20,7 @@
 #include <set>
 #include <vector>
 
-namespace gs {
+namespace neug {
 class StorageReadInterface;
 
 namespace runtime {
@@ -106,4 +106,4 @@ class ContextMeta {
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

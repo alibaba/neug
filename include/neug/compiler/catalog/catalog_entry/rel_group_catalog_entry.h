@@ -24,7 +24,7 @@
 
 #include "table_catalog_entry.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 struct RelGroupToCypherInfo : public ToCypherInfo {
@@ -87,4 +87,4 @@ class RelGroupCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

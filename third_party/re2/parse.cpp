@@ -43,7 +43,7 @@
 #include "unicode/utypes.h"
 #endif
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 // Controls the maximum repeat count permitted by the parser.
@@ -2453,4 +2453,4 @@ Regexp* Regexp::Parse(const StringPiece& s, ParseFlags global_flags,
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

@@ -25,12 +25,12 @@
 #include "neug/compiler/planner/operator/operator_print_info.h"
 #include "neug/compiler/processor/result/result_set.h"
 
-namespace gs::common {
+namespace neug::common {
 class Profiler;
 class NumericMetric;
 class TimeMetric;
-}  // namespace gs::common
-namespace gs {
+}  // namespace neug::common
+namespace neug {
 namespace processor {
 struct ExecutionContext;
 
@@ -216,4 +216,4 @@ class NEUG_API PhysicalOperator {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

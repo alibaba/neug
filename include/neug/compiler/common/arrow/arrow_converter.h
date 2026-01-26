@@ -31,7 +31,7 @@
 
 struct ArrowSchema;
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct ArrowSchemaHolder {
@@ -72,4 +72,4 @@ struct ArrowConverter {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

@@ -21,7 +21,7 @@
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -39,9 +39,9 @@ Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
   return ctx;
 }
 
-gs::result<Context> EdgeExpand::expand_degree(const StorageReadInterface& graph,
-                                              Context&& ctx,
-                                              const EdgeExpandParams& params) {
+neug::result<Context> EdgeExpand::expand_degree(
+    const StorageReadInterface& graph, Context&& ctx,
+    const EdgeExpandParams& params) {
   auto vertex_col =
       dynamic_cast<const IVertexColumn*>(ctx.get(params.v_tag).get());
 
@@ -89,7 +89,7 @@ gs::result<Context> EdgeExpand::expand_degree(const StorageReadInterface& graph,
 }
 
 template <typename CMP_T>
-static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
+static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const CMP_T& cmp_value) {
@@ -142,7 +142,7 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl1(
 }
 
 template <typename T>
-static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
+static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
@@ -175,7 +175,7 @@ static gs::result<Context> expand_edge_with_special_edge_predicate_impl0(
   }
 }
 
-gs::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
+neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
     const std::string& target_val_str) {
@@ -268,7 +268,7 @@ void expand_vertex_ep_cmp_impl(
   }
 }
 
-gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
+neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const std::string& ep_val,
     SPPredicateType tp) {
@@ -373,7 +373,7 @@ gs::result<Context> EdgeExpand::expand_vertex_ep_cmp(
 
 struct ExpandVertexSPOp {
   template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(
+  static neug::result<Context> eval_with_predicate(
       const PRED_T& pred, const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params) {
     return EdgeExpand::expand_vertex<EdgeNbrPredicate<PRED_T>>(
@@ -381,7 +381,7 @@ struct ExpandVertexSPOp {
   }
 };
 
-gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
+neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialVertexPredicateConfig& config,
     const ParamsMap& query_params) {
@@ -406,4 +406,4 @@ gs::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -32,9 +32,9 @@
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace function {
 
 bool isAnyType(std::string_view cpy);
@@ -57,7 +57,7 @@ struct IntegerCastOperation {
   static bool handleDigit(T& state, uint8_t digit) {
     using result_t = typename T::Result;
     auto& res_ = state.result;  // Use a alias reference to avoid some compiler
-                                // issues, related to gs::result, which the
+                                // issues, related to neug::result, which the
                                 // issue itself is quite strage
     if constexpr (NEGATIVE) {
       if (res_ < ((std::numeric_limits<result_t>::min() + digit) / 10)) {
@@ -273,11 +273,11 @@ inline void doubleCast(const char* input, uint64_t len, T& result,
 struct TryCastStringToTimestamp {
   template <typename T>
   static bool tryCast(const char* input, uint64_t len,
-                      gs::common::timestamp_t& result);
+                      neug::common::timestamp_t& result);
 
   template <typename T>
   static void cast(const char* input, uint64_t len,
-                   gs::common::timestamp_t& result, LogicalTypeID typeID) {
+                   neug::common::timestamp_t& result, LogicalTypeID typeID) {
     if (!tryCast<T>(input, len, result)) {
       THROW_CONVERSION_EXCEPTION(Timestamp::getTimestampConversionExceptionMsg(
           input, len, LogicalTypeUtils::toString(typeID)));
@@ -287,19 +287,19 @@ struct TryCastStringToTimestamp {
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_ns_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result);
+    const char* input, uint64_t len, neug::common::timestamp_t& result);
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_ms_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result);
+    const char* input, uint64_t len, neug::common::timestamp_t& result);
 
 template <>
 bool TryCastStringToTimestamp::tryCast<timestamp_sec_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result);
+    const char* input, uint64_t len, neug::common::timestamp_t& result);
 
 template <>
-bool inline TryCastStringToTimestamp::tryCast<gs::common::timestamp_tz_t>(
-    const char* input, uint64_t len, gs::common::timestamp_t& result) {
+bool inline TryCastStringToTimestamp::tryCast<neug::common::timestamp_tz_t>(
+    const char* input, uint64_t len, neug::common::timestamp_t& result) {
   return Timestamp::tryConvertTimestamp(input, len, result);
 }
 
@@ -386,4 +386,4 @@ void decimalCast(const char* input, uint64_t len, T& result,
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

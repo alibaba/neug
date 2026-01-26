@@ -36,7 +36,7 @@
 #include "neug/utils/function_type.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 class Context;
@@ -840,4 +840,4 @@ bool graph_related_expr(const ::common::Expression& expr);
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

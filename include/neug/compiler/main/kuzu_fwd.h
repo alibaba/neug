@@ -24,7 +24,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 
 namespace testing {
 class BaseGraphTest;
@@ -83,4 +83,4 @@ class TransactionManager;
 class TransactionContext;
 }  // namespace transaction
 
-}  // namespace gs
+}  // namespace neug

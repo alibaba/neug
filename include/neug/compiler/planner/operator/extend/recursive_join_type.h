@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum class RecursiveJoinType : uint8_t {
@@ -11,4 +11,4 @@ enum class RecursiveJoinType : uint8_t {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

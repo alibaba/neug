@@ -19,7 +19,7 @@
 #include "re2/include/util.h"
 #include "re2/include/walker-inl.h"
 
-namespace gs {
+namespace neug {
 namespace regex {
 
 static const bool ExtraDebug = false;
@@ -689,4 +689,4 @@ Prefilter* Prefilter::FromRE2(const RE2* re2) {
 }
 
 }  // namespace regex
-}  // namespace gs
+}  // namespace neug

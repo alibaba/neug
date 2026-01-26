@@ -25,7 +25,7 @@
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/common/enums/table_type.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 struct BoundSetPropertyInfo {
@@ -55,4 +55,4 @@ struct BoundSetPropertyInfo {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

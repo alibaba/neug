@@ -17,7 +17,7 @@
 #include "glog/logging.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 class ExtensionInstallOpr : public IOperator {
@@ -28,8 +28,8 @@ class ExtensionInstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionInstallOpr";
   }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -41,8 +41,8 @@ class ExtensionLoadOpr : public IOperator {
       : extension_name_(std::move(extension_name)) {}
   ~ExtensionLoadOpr() override = default;
   std::string get_operator_name() const override { return "ExtensionLoadOpr"; }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   std::string extension_name_;
@@ -56,57 +56,58 @@ class ExtensionUninstallOpr : public IOperator {
   std::string get_operator_name() const override {
     return "ExtensionUninstallOpr";
   }
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   std::string extension_name_;
 };
 
-gs::result<Context> ExtensionInstallOpr::Eval(IStorageInterface& graph,
-                                              const ParamsMap& params,
-                                              Context&& ctx, OprTimer* timer) {
+neug::result<Context> ExtensionInstallOpr::Eval(IStorageInterface& graph,
+                                                const ParamsMap& params,
+                                                Context&& ctx,
+                                                OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionInstall for: "
             << extension_name_;
 
-  auto status = gs::extension::install_extension(extension_name_);
+  auto status = neug::extension::install_extension(extension_name_);
   if (!status.ok()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Install failed: " + status.ToString() +
                                    "; ");
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
-                                           const ParamsMap& params,
-                                           Context&& ctx, OprTimer* timer) {
+neug::result<Context> ExtensionLoadOpr::Eval(IStorageInterface& graph,
+                                             const ParamsMap& params,
+                                             Context&& ctx, OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionLoad for: "
             << extension_name_;
 
-  auto status = gs::extension::load_extension(extension_name_);
+  auto status = neug::extension::load_extension(extension_name_);
   if (!status.ok()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Load failed: " + status.ToString() + "; ");
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<Context> ExtensionUninstallOpr::Eval(IStorageInterface& graph,
-                                                const ParamsMap& params,
-                                                Context&& ctx,
-                                                OprTimer* timer) {
+neug::result<Context> ExtensionUninstallOpr::Eval(IStorageInterface& graph,
+                                                  const ParamsMap& params,
+                                                  Context&& ctx,
+                                                  OprTimer* timer) {
   LOG(INFO) << "[Admin Pipeline] Executing ExtensionUninstall for: "
             << extension_name_;
 
-  auto status = gs::extension::uninstall_extension(extension_name_);
+  auto status = neug::extension::uninstall_extension(extension_name_);
   if (!status.ok()) {
     THROW_EXCEPTION_WITH_FILE_LINE("Uninstall failed: " + status.ToString() +
                                    "; ");
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
 // Builders
-gs::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
+neug::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx).opr();
@@ -115,7 +116,7 @@ gs::result<OpBuildResultT> ExtensionInstallOprBuilder::Build(
       ctx_meta);
 }
 
-gs::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
+neug::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx).opr();
@@ -124,7 +125,7 @@ gs::result<OpBuildResultT> ExtensionLoadOprBuilder::Build(
       ctx_meta);
 }
 
-gs::result<OpBuildResultT> ExtensionUninstallOprBuilder::Build(
+neug::result<OpBuildResultT> ExtensionUninstallOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   const auto& op = plan.plan(op_idx).opr();
@@ -135,4 +136,4 @@ gs::result<OpBuildResultT> ExtensionUninstallOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

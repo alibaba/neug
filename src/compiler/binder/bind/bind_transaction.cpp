@@ -24,9 +24,9 @@
 #include "neug/compiler/binder/bound_transaction_statement.h"
 #include "neug/compiler/parser/transaction_statement.h"
 
-using namespace gs::parser;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 std::unique_ptr<BoundStatement> Binder::bindTransaction(
@@ -37,4 +37,4 @@ std::unique_ptr<BoundStatement> Binder::bindTransaction(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -20,7 +20,7 @@
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
@@ -38,10 +38,9 @@ class OrderByOprBeta : public IOperator {
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     int keys_num = keys_.size();
@@ -70,8 +69,8 @@ class OrderByOprBeta : public IOperator {
       func_;
 };
 
-gs::result<OpBuildResultT> OrderByOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> OrderByOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
   const auto opr = plan.plan(op_idx).opr().order_by();
@@ -151,4 +150,4 @@ gs::result<OpBuildResultT> OrderByOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

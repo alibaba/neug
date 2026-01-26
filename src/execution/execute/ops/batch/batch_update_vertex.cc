@@ -18,7 +18,7 @@
 #include "neug/execution/utils/expr.h"
 #include "neug/utils/pb_utils.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 
@@ -34,21 +34,22 @@ class UpdateVertexOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UpdateVertexOpr"; }
 
-  gs::result<Context> eval_impl(StorageUpdateInterface& graph,
-                                const ParamsMap& params, Context&& ctx,
-                                OprTimer* timer);
+  neug::result<Context> eval_impl(StorageUpdateInterface& graph,
+                                  const ParamsMap& params, Context&& ctx,
+                                  OprTimer* timer);
 
-  gs::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
-                           Context&& ctx, OprTimer* timer) override;
+  neug::result<Context> Eval(IStorageInterface& graph, const ParamsMap& params,
+                             Context&& ctx, OprTimer* timer) override;
 
  private:
   // No alias is produced in this operator.
   vertex_prop_vec_t vertex_data_;
 };
 
-gs::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
-                                               const ParamsMap& params,
-                                               Context&& ctx, OprTimer* timer) {
+neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
+                                                 const ParamsMap& params,
+                                                 Context&& ctx,
+                                                 OprTimer* timer) {
   for (const auto& entry : vertex_data_) {
     auto tag_id = std::get<0>(entry);
     const auto& prop_name = std::get<1>(entry);
@@ -109,17 +110,17 @@ gs::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }
   }
-  return gs::result<Context>(std::move(ctx));
+  return neug::result<Context>(std::move(ctx));
 }
 
-gs::result<Context> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
-                                          const ParamsMap& params,
-                                          Context&& ctx, OprTimer* timer) {
+neug::result<Context> UpdateVertexOpr::Eval(IStorageInterface& graph_interface,
+                                            const ParamsMap& params,
+                                            Context&& ctx, OprTimer* timer) {
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   return eval_impl(graph, params, std::move(ctx), timer);
 }
 
-gs::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
+neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   ContextMeta ret_meta = ctx_meta;
@@ -147,4 +148,4 @@ gs::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
 }
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

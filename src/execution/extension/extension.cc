@@ -35,13 +35,13 @@
 #include "neug/execution/extension/extension.h"
 #include "neug/storages/graph/schema.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 std::string getUserExtensionDir(const std::string& extension_name) {
-    const char* home = std::getenv("HOME");
-    std::string base = home ? home : "/tmp";
-    return base + "/.neug/extensions/" + extension_name;
+  const char* home = std::getenv("HOME");
+  std::string base = home ? home : "/tmp";
+  return base + "/.neug/extensions/" + extension_name;
 }
 
 Status install_extension(const std::string& extension_name) {
@@ -55,13 +55,14 @@ Status install_extension(const std::string& extension_name) {
                   "Failed to create extension directory: " + extDir +
                       " ec=" + ec.message());
   }
-  
-  auto fileName = gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
+
+  auto fileName =
+      neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
   auto localLibPath = extDir + "/" + fileName;
 
   const std::string& repo =
-      gs::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
-  auto repoInfo = gs::extension::ExtensionUtils::getExtensionLibRepoInfo(
+      neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+  auto repoInfo = neug::extension::ExtensionUtils::getExtensionLibRepoInfo(
       extension_name, repo);
 
   LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
@@ -81,7 +82,8 @@ Status install_extension(const std::string& extension_name) {
   }
 
   bool checksumChecked = false;
-  auto verifySt = verifyExtensionChecksum(repoInfo, localLibPath, checksumChecked);
+  auto verifySt =
+      verifyExtensionChecksum(repoInfo, localLibPath, checksumChecked);
   if (!verifySt.ok()) {
     std::filesystem::remove(localLibPath);
     return Status(
@@ -246,7 +248,8 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 
 Status load_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
-  auto fileName = gs::extension::ExtensionUtils::getExtensionFileName(extension_name);
+  auto fileName =
+      neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
 
   // 1. User install directory: ~/.neug/extensions/<extension_name>/<libname>
   std::string userExtDir = getUserExtensionDir(extension_name);
@@ -265,9 +268,10 @@ Status load_extension(const std::string& extension_name) {
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
       dlclose(handle);
-      return Status(StatusCode::ERR_IO_ERROR,
-                    "Failed to find 'Init' function in extension: " +
-                        extension_name + ". Error: " + std::string(dlsym_error));
+      return Status(
+          StatusCode::ERR_IO_ERROR,
+          "Failed to find 'Init' function in extension: " + extension_name +
+              ". Error: " + std::string(dlsym_error));
     }
     try {
       (*init_func)();
@@ -288,13 +292,17 @@ Status load_extension(const std::string& extension_name) {
     return Status::OK();
   }
 
-  // 2. Python wheel package directory (NEUG_EXTENSION_WHEEL_DIR environment variable)
+  // 2. Python wheel package directory (NEUG_EXTENSION_WHEEL_DIR environment
+  // variable)
   const char* wheel_dir_env = std::getenv("NEUG_EXTENSION_WHEEL_DIR");
   if (wheel_dir_env) {
-    std::string wheelLibPath = std::string(wheel_dir_env) + "/" + extension_name + "/" + fileName;
+    std::string wheelLibPath =
+        std::string(wheel_dir_env) + "/" + extension_name + "/" + fileName;
     if (std::filesystem::exists(wheelLibPath)) {
-      LOG(INFO) << "[Admin] Loading extension from wheel package: " << wheelLibPath;
-      LOG(INFO) << "[Admin] Extension loaded from wheel package, not from INSTALL channel";
+      LOG(INFO) << "[Admin] Loading extension from wheel package: "
+                << wheelLibPath;
+      LOG(INFO) << "[Admin] Extension loaded from wheel package, not from "
+                   "INSTALL channel";
       void* handle = dlopen(wheelLibPath.c_str(), RTLD_NOW | RTLD_GLOBAL);
       if (!handle) {
         return Status(StatusCode::ERR_IO_ERROR,
@@ -307,9 +315,10 @@ Status load_extension(const std::string& extension_name) {
       const char* dlsym_error = dlerror();
       if (dlsym_error) {
         dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to find 'Init' function in extension: " +
-                          extension_name + ". Error: " + std::string(dlsym_error));
+        return Status(
+            StatusCode::ERR_IO_ERROR,
+            "Failed to find 'Init' function in extension: " + extension_name +
+                ". Error: " + std::string(dlsym_error));
       }
       try {
         (*init_func)();
@@ -326,34 +335,38 @@ Status load_extension(const std::string& extension_name) {
                       "Extension initialization failed with unknown error: " +
                           extension_name);
       }
-      LOG(INFO) << "[Admin] Extension " << extension_name << " is now available";
+      LOG(INFO) << "[Admin] Extension " << extension_name
+                << " is now available";
       return Status::OK();
     }
   }
 
   // 3. Not found
-  LOG(ERROR) << "[Admin] Extension " << extension_name << " not found in user install or wheel package";
+  LOG(ERROR) << "[Admin] Extension " << extension_name
+             << " not found in user install or wheel package";
   return Status(StatusCode::ERR_IO_ERROR,
-                "Extension " + extension_name + " not found in user install or wheel package");
+                "Extension " + extension_name +
+                    " not found in user install or wheel package");
 }
 
 Status uninstall_extension(const std::string& extension_name) {
-    LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
-    std::string extDir = getUserExtensionDir(extension_name);
-    std::error_code ec;
-    if (!std::filesystem::exists(extDir)) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Cannot uninstall extension: " + extension_name +
-                          " since it has not been installed.");
-    }
-    if (!std::filesystem::remove_all(extDir, ec)) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "An error occurred while uninstalling extension: " +
-                          extension_name + ". Error: " + ec.message());
-    }
-    LOG(INFO) << "[Admin] Extension: " << extension_name << " has been uninstalled";
-    return Status::OK();
+  LOG(INFO) << "[Admin] UNINSTALL extension: " << extension_name;
+  std::string extDir = getUserExtensionDir(extension_name);
+  std::error_code ec;
+  if (!std::filesystem::exists(extDir)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Cannot uninstall extension: " + extension_name +
+                      " since it has not been installed.");
+  }
+  if (!std::filesystem::remove_all(extDir, ec)) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "An error occurred while uninstalling extension: " +
+                      extension_name + ". Error: " + ec.message());
+  }
+  LOG(INFO) << "[Admin] Extension: " << extension_name
+            << " has been uninstalled";
+  return Status::OK();
 }
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

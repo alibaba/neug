@@ -4,7 +4,7 @@
 
 using namespace std;
 
-namespace gs {
+namespace neug {
 namespace utf8proc {
 
 static void assignInvalidUtf8Reason(UnicodeInvalidReason* invalidReason,
@@ -125,8 +125,8 @@ int32_t Utf8Proc::utf8ToCodepoint(const char* c, int& size) {
 
 uint32_t Utf8Proc::renderWidth(const char* s, size_t pos) {
   int size;
-  auto codepoint = gs::utf8proc::utf8proc_codepoint(s + pos, size);
-  auto properties = gs::utf8proc::utf8proc_get_property(codepoint);
+  auto codepoint = neug::utf8proc::utf8proc_codepoint(s + pos, size);
+  auto properties = neug::utf8proc::utf8proc_get_property(codepoint);
   return properties->charwidth;
 }
 
@@ -137,4 +137,4 @@ bool Utf8Proc::codepointToUtf8(int cp, int& sz, char* c) {
 }
 
 }  // namespace utf8proc
-}  // namespace gs
+}  // namespace neug

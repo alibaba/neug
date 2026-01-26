@@ -3,7 +3,7 @@
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalStandaloneCall final : public LogicalOperator {
@@ -37,4 +37,4 @@ class LogicalStandaloneCall final : public LogicalOperator {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

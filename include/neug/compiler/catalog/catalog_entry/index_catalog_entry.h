@@ -28,13 +28,13 @@
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "table_catalog_entry.h"
 
-namespace gs::common {
+namespace neug::common {
 struct BufferReader;
 }
-namespace gs::common {
+namespace neug::common {
 class BufferedSerializer;
 }
-namespace gs {
+namespace neug {
 namespace catalog {
 
 struct NEUG_API IndexToCypherInfo : ToCypherInfo {
@@ -143,4 +143,4 @@ class NEUG_API IndexCatalogEntry final : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

@@ -21,7 +21,7 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 class OprTimer;
 
@@ -33,10 +33,9 @@ class SelectIdNeOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     auto tag = expr_.operators(0).var().tag().id();
     auto col = ctx.get(tag);
     const auto& name = expr_.operators(0).var().property().key().name();
@@ -86,10 +85,9 @@ class SelectOpr : public IOperator {
 
   std::string get_operator_name() const override { return "SelectOpr"; }
 
-  gs::result<gs::runtime::Context> Eval(IStorageInterface& graph_interface,
-                                        const ParamsMap& params,
-                                        gs::runtime::Context&& ctx,
-                                        gs::runtime::OprTimer* timer) override {
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     StorageReadInterface* graph = nullptr;
     if (graph_interface.readable()) {
       graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
@@ -103,8 +101,8 @@ class SelectOpr : public IOperator {
   common::Expression expr_;
 };
 
-gs::result<OpBuildResultT> SelectOprBuilder::Build(
-    const gs::Schema& schema, const ContextMeta& ctx_meta,
+neug::result<OpBuildResultT> SelectOprBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   auto opr = plan.plan(op_idx).opr().select();
   auto type = parse_sp_pred(opr.predicate());
@@ -128,4 +126,4 @@ gs::result<OpBuildResultT> SelectOprBuilder::Build(
 
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

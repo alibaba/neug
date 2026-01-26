@@ -6,10 +6,10 @@
 #include "neug/compiler/common/types/types.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::binder;
-using namespace gs::common;
+using namespace neug::binder;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 f_group_pos Schema::createGroup() {
@@ -199,4 +199,4 @@ void SchemaUtils::validateNoUnFlatGroup(
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

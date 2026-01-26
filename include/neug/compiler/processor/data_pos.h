@@ -26,7 +26,7 @@
 
 #include "neug/compiler/common/types/types.h"
 
-namespace gs {
+namespace neug {
 namespace processor {
 
 using data_chunk_pos_t = common::idx_t;
@@ -60,4 +60,4 @@ struct DataPos {
 };
 
 }  // namespace processor
-}  // namespace gs
+}  // namespace neug

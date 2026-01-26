@@ -26,7 +26,7 @@
 #include "neug/compiler/common/file_system/local_file_system.h"
 #include "neug/compiler/main/client_context.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 VirtualFileSystem::VirtualFileSystem() : VirtualFileSystem{""} {}
@@ -146,4 +146,4 @@ FileSystem* VirtualFileSystem::findFileSystem(const std::string& path) const {
 }
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

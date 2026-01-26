@@ -42,7 +42,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
 
-namespace gs {
+namespace neug {
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
@@ -58,7 +58,7 @@ fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
       auto oe_offset =
           (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
       vid_t dst_lid = it.get_vertex();
-      int32_t ie_offset = gs::search_oe_offset_with_ie_offset(
+      int32_t ie_offset = neug::search_oe_offset_with_ie_offset(
           oe, ie, lid, dst_lid, oe_offset, props);
       related_edges.emplace_back(lid, dst_lid, oe_offset, ie_offset);
     }
@@ -70,7 +70,7 @@ fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
       auto ie_offset =
           (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
       vid_t src_lid = it.get_vertex();
-      int32_t oe_offset = gs::search_oe_offset_with_ie_offset(
+      int32_t oe_offset = neug::search_oe_offset_with_ie_offset(
           oe, ie, src_lid, lid, ie_offset, props);
       related_edges.emplace_back(src_lid, lid, oe_offset, ie_offset);
     }
@@ -1322,4 +1322,4 @@ Status StorageTPUpdateInterface::DeleteEdgeType(const std::string& src_type,
   return txn_.DeleteEdgeType(src_type, dst_type, edge_type, error_on_conflict);
 }
 
-}  // namespace gs
+}  // namespace neug

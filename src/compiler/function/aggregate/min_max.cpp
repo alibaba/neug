@@ -25,10 +25,10 @@
 #include "neug/compiler/common/type_utils.h"
 #include "neug/compiler/function/comparison/comparison_functions.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
-using namespace gs::common;
+using namespace neug::common;
 
 template <typename FUNC>
 static void getMinMaxFunction(std::string name, function_set& set) {
@@ -65,4 +65,4 @@ function_set AggregateMaxFunction::getFunctionSet() {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

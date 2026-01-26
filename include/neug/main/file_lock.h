@@ -20,7 +20,7 @@
 #include <string>
 #include "neug/config.h"
 
-namespace gs {
+namespace neug {
 
 /*
 A simple file lock mechanism to ensure that only one instance of the
@@ -57,4 +57,4 @@ class FileLock {
   static std::set<std::string> allLockFiles;
 };
 
-}  // namespace gs
+}  // namespace neug

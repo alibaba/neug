@@ -29,7 +29,7 @@
 #include "neug/compiler/common/enums/conflict_action.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 struct ExtraAlterInfo {
@@ -104,4 +104,4 @@ struct ExtraCommentInfo : public ExtraAlterInfo {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

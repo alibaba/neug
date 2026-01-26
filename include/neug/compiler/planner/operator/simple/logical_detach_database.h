@@ -2,7 +2,7 @@
 
 #include "logical_database.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalDetachDatabase final : public LogicalDatabase {
@@ -18,4 +18,4 @@ class LogicalDetachDatabase final : public LogicalDatabase {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

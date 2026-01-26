@@ -23,7 +23,7 @@
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 
-namespace gs {
+namespace neug {
 
 CompactTransaction::CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
                                        IVersionManager& vm, bool compact_csr,
@@ -75,4 +75,4 @@ void CompactTransaction::Abort() {
   }
 }
 
-}  // namespace gs
+}  // namespace neug

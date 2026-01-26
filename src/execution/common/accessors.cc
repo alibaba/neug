@@ -17,7 +17,7 @@
 
 #include "neug/execution/common/columns/i_context_column.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -213,4 +213,4 @@ template class EdgePropertyEdgeAccessor<double>;
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

@@ -25,7 +25,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/function/cast/cast_function_bind_data.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 /**
@@ -236,4 +236,4 @@ struct UnaryFunctionExecutor {
 };
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

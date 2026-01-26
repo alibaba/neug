@@ -4,7 +4,7 @@
 #include "neug/compiler/common/copier_config/csv_reader_config.h"
 #include "neug/compiler/common/copier_config/file_scan_info.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 class LogicalExportDatabase final : public LogicalSimple {
@@ -45,4 +45,4 @@ class LogicalExportDatabase final : public LogicalSimple {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

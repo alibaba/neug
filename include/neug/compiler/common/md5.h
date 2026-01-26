@@ -48,7 +48,7 @@
 
 #include <cstdint>
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class MD5 {
@@ -118,4 +118,4 @@ class MD5 {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

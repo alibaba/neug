@@ -19,7 +19,7 @@
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/utils/exception/exception.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 class VFSHolder {
@@ -35,4 +35,4 @@ class VFSHolder {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

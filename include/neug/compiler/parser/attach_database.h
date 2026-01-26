@@ -25,7 +25,7 @@
 #include "neug/compiler/parser/statement.h"
 #include "parsed_data/attach_info.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class AttachDatabase final : public Statement {
@@ -41,4 +41,4 @@ class AttachDatabase final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

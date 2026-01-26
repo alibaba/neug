@@ -16,7 +16,7 @@
 
 #include "gopt_test.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 class RBOTest : public GOptTest {
  public:
@@ -91,4 +91,4 @@ TEST_F(RBOTest, EV_FUSION) {
 }
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

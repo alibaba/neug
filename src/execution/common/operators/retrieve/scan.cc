@@ -18,14 +18,14 @@
 #include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
-gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
-                                               const IStorageInterface& graph,
-                                               label_t label,
-                                               const Property& oid,
-                                               int32_t alias) {
+neug::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
+                                                 const IStorageInterface& graph,
+                                                 label_t label,
+                                                 const Property& oid,
+                                                 int32_t alias) {
   MSVertexColumnBuilder builder(label);
   vid_t vid;
   if (graph.GetVertexIndex(label, oid, vid)) {
@@ -37,15 +37,14 @@ gs::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
 
 struct ScanVertexSPOp {
   template <typename PRED_T>
-  static gs::result<Context> eval_with_predicate(const PRED_T& pred,
-                                                 const IStorageInterface& graph,
-                                                 Context&& ctx,
-                                                 const ScanParams& params) {
+  static neug::result<Context> eval_with_predicate(
+      const PRED_T& pred, const IStorageInterface& graph, Context&& ctx,
+      const ScanParams& params) {
     return Scan::scan_vertex<PRED_T>(std::move(ctx), graph, params, pred);
   }
 };
 
-gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
+neug::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
     const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
@@ -59,4 +58,4 @@ gs::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

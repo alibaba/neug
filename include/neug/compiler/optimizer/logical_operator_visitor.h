@@ -24,7 +24,7 @@
 
 #include "neug/compiler/planner/operator/logical_operator.h"
 
-namespace gs {
+namespace neug {
 namespace optimizer {
 
 class LogicalOperatorVisitor {
@@ -207,4 +207,4 @@ class LogicalOperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace gs
+}  // namespace neug

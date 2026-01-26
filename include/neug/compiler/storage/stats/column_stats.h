@@ -29,7 +29,7 @@
 #include "neug/compiler/common/vector/value_vector.h"
 #include "neug/compiler/storage/stats/hyperloglog.h"
 
-namespace gs {
+namespace neug {
 namespace storage {
 
 class ColumnStats {
@@ -83,4 +83,4 @@ class ColumnStats {
 };
 
 }  // namespace storage
-}  // namespace gs
+}  // namespace neug

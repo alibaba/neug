@@ -29,16 +29,16 @@
 #define NEUG_BYTE_SIZE(n) (WORD_SIZE(n) * sizeof(uint64_t))
 
 #define WORD_INDEX(i) ((i) >> 6)
-#define BIT_OFFSET(i) ((i) & 0x3f)
+#define BIT_OFFSET(i) ((i) &0x3f)
 
 #define ROUND_UP(i) (((i) + 63ul) & (~63ul))
 #define ROUND_DOWN(i) ((i) & (~63ul))
 
 // Round up to the nearest multiple of alignment
 #define ROUND_UP_TO_ALIGNMENT(i, alignment) \
-  (((i) + (alignment) - 1) & (~((alignment) - 1)))
+  (((i) + (alignment) -1) & (~((alignment) -1)))
 
-namespace gs {
+namespace neug {
 
 class Bitset {
   static constexpr size_t kAlignment = 64;  // 64-byte alignment
@@ -239,7 +239,7 @@ class Bitset {
   size_t capacity_in_words_;
 };
 
-}  // namespace gs
+}  // namespace neug
 
 #undef WORD_SIZE
 #undef NEUG_BYTE_SIZE

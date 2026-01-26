@@ -22,7 +22,7 @@
  * @brief Build-time configuration macros for NeuG
  */
 
-namespace gs {
+namespace neug {
 
 enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
 
@@ -80,7 +80,7 @@ struct NeugDBConfig {
                                    // from wal.
 };
 
-}  // namespace gs
+}  // namespace neug
 
 // Other build configuration options can be added here
 #cmakedefine BUILD_WITH_OSS

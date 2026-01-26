@@ -24,7 +24,7 @@
 
 #include "neug/compiler/common/types/neug_string.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct blob_t {
@@ -74,4 +74,4 @@ struct Blob {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

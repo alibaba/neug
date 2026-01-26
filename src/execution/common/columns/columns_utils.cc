@@ -20,7 +20,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     const DataType& type) {
@@ -50,4 +50,4 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
   }
 }
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

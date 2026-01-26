@@ -19,7 +19,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 
 #define expand_sv_np_ms(v, v_idx, view, builder, offsets) \
@@ -1097,4 +1097,4 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
 }
 
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

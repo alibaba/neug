@@ -23,7 +23,7 @@
 #include "neug/compiler/parser/transformer.h"
 #include "neug/compiler/parser/use_database.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 std::unique_ptr<Statement> Transformer::transformUseDatabase(
@@ -33,4 +33,4 @@ std::unique_ptr<Statement> Transformer::transformUseDatabase(
 }
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

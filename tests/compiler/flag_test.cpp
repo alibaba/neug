@@ -18,7 +18,7 @@
 #include "gopt_test.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class FlagTest : public GOptTest {
@@ -314,4 +314,4 @@ TEST_F(FlagTest, SetProperty) {
   EXPECT_FALSE(flag.transaction);
 }
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

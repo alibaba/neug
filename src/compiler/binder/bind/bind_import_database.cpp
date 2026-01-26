@@ -30,10 +30,10 @@
 #include "neug/compiler/parser/port_db.h"
 #include "neug/utils/exception/exception.h"
 
-using namespace gs::common;
-using namespace gs::parser;
+using namespace neug::common;
+using namespace neug::parser;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 static std::string getQueryFromFile(VirtualFileSystem* vfs,
@@ -155,4 +155,4 @@ std::unique_ptr<BoundStatement> Binder::bindImportDatabaseClause(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

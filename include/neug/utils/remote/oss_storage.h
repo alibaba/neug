@@ -26,7 +26,7 @@
 #include "neug/utils/remote/remote_storage.h"
 #include "neug/utils/result.h"
 
-namespace gs {
+namespace neug {
 
 struct OSSConf {
   static constexpr const char* kOSSAccessKeyId = "OSS_ACCESS_KEY_ID";
@@ -89,6 +89,6 @@ class OSSRemoteStorageDownloader : public RemoteStorageDownloader {
   OSSConf conf_;
   std::shared_ptr<AlibabaCloud::OSS::OssClient> client_;
 };
-}  // namespace gs
+}  // namespace neug
 
 #endif  // BUILD_WITH_OSS

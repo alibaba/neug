@@ -31,7 +31,7 @@ class DataType;
 class IrDataType;
 }  // namespace common
 
-namespace gs {
+namespace neug {
 enum class DataTypeId : uint8_t {
   kInvalid = 0,
   kNull = 1,
@@ -187,4 +187,4 @@ DataType parse_from_data_type(const ::common::DataType& ddt);
 
 DataType parse_from_ir_data_type(const ::common::IrDataType& dt);
 
-}  // namespace gs
+}  // namespace neug

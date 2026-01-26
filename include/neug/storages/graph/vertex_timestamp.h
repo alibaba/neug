@@ -23,7 +23,7 @@
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 
-namespace gs {
+namespace neug {
 
 class VertexTimestamp {
  public:
@@ -175,4 +175,4 @@ class VertexTimestamp {
   std::unique_ptr<std::set<vid_t>> removed_vertices_;
 };
 
-}  // namespace gs
+}  // namespace neug

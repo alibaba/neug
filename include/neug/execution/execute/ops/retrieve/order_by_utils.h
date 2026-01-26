@@ -19,7 +19,7 @@
 
 #include "neug/execution/utils/var.h"
 
-namespace gs {
+namespace neug {
 namespace runtime {
 namespace ops {
 class GeneralComparer {
@@ -62,4 +62,4 @@ bool vertex_property_topN(bool asc, size_t limit,
                           std::vector<size_t>& offsets);
 }  // namespace ops
 }  // namespace runtime
-}  // namespace gs
+}  // namespace neug

@@ -17,7 +17,7 @@
 #include "neug/storages/loader/loader_factory.h"
 #include "neug/storages/loader/loader_utils.h"
 
-namespace gs {
+namespace neug {
 
 std::shared_ptr<IFragmentLoader> CSVPropertyGraphLoader::Make(
     const std::string& work_dir, const Schema& schema,
@@ -97,4 +97,4 @@ const bool CSVPropertyGraphLoader::registered_ =
                             static_cast<LoaderFactory::loader_initializer_t>(
                                 &CSVPropertyGraphLoader::Make));
 
-}  // namespace gs
+}  // namespace neug

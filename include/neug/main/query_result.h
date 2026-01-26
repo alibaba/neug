@@ -20,7 +20,7 @@
 #include <vector>
 #include "neug/generated/proto/plan/results.pb.h"
 
-namespace gs {
+namespace neug {
 /**
  * @brief We use this class to represent the returned result of the query.
  * No extra memory should
@@ -215,4 +215,4 @@ class QueryResult {
   results::CollectiveResults result_;
 };
 
-}  // namespace gs
+}  // namespace neug

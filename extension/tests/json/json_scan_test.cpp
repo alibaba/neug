@@ -31,12 +31,12 @@
 
 class JsonLoadFunctionTest : public ::testing::Test {
  protected:
-  std::unique_ptr<gs::common::VirtualFileSystem> vfs_;
+  std::unique_ptr<neug::common::VirtualFileSystem> vfs_;
 
   void SetUp() override {
     // Initialize VirtualFileSystem for testing
-    vfs_ = std::make_unique<gs::common::VirtualFileSystem>();
-    gs::common::VFSHolder::setVFS(vfs_.get());
+    vfs_ = std::make_unique<neug::common::VirtualFileSystem>();
+    neug::common::VFSHolder::setVFS(vfs_.get());
 
     std::filesystem::create_directories("/tmp/extension_test_data/json");
     createTestJsonArrayFile();
@@ -60,21 +60,21 @@ class JsonLoadFunctionTest : public ::testing::Test {
 };
 
 TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
-  std::vector<gs::DataTypeId> columnTypes = {
-      gs::DataTypeId::kInt32,  // id
-      gs::DataTypeId::kVarchar,  // name
-      gs::DataTypeId::kInt32,  // age
-      gs::DataTypeId::kDouble,   // height
-      gs::DataTypeId::kDate      // birthday
+  std::vector<neug::DataTypeId> columnTypes = {
+      neug::DataTypeId::kInt32,  // id
+      neug::DataTypeId::kVarchar,  // name
+      neug::DataTypeId::kInt32,  // age
+      neug::DataTypeId::kDouble,   // height
+      neug::DataTypeId::kDate      // birthday
   };
 
   // Create input directly for exec function testing
-  gs::extension::JsonScanFuncInput input(
+  neug::extension::JsonScanFuncInput input(
       "/tmp/extension_test_data/json/test_array.json", columnTypes,
-      gs::extension::JsonFormat::ARRAY);
+      neug::extension::JsonFormat::ARRAY);
 
-  gs::runtime::Context result =
-      gs::extension::JsonScanFunction::execFunc(input);
+  neug::runtime::Context result =
+      neug::extension::JsonScanFunction::execFunc(input);
 
   // Verify context has correct number of columns
   EXPECT_EQ(result.col_num(), 5);
@@ -101,15 +101,15 @@ TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
 
   // Cast to ArrowArrayContextColumn to access underlying Arrow data
   auto arrow_col0 =
-      std::dynamic_pointer_cast<gs::runtime::ArrowArrayContextColumn>(col0);
+      std::dynamic_pointer_cast<neug::runtime::ArrowArrayContextColumn>(col0);
   auto arrow_col1 =
-      std::dynamic_pointer_cast<gs::runtime::ArrowArrayContextColumn>(col1);
+      std::dynamic_pointer_cast<neug::runtime::ArrowArrayContextColumn>(col1);
   auto arrow_col2 =
-      std::dynamic_pointer_cast<gs::runtime::ArrowArrayContextColumn>(col2);
+      std::dynamic_pointer_cast<neug::runtime::ArrowArrayContextColumn>(col2);
   auto arrow_col3 =
-      std::dynamic_pointer_cast<gs::runtime::ArrowArrayContextColumn>(col3);
+      std::dynamic_pointer_cast<neug::runtime::ArrowArrayContextColumn>(col3);
   auto arrow_col4 =
-      std::dynamic_pointer_cast<gs::runtime::ArrowArrayContextColumn>(col4);
+      std::dynamic_pointer_cast<neug::runtime::ArrowArrayContextColumn>(col4);
 
   ASSERT_NE(arrow_col0, nullptr);
   ASSERT_NE(arrow_col1, nullptr);
@@ -202,7 +202,7 @@ TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
     std::vector<int32_t> expected_days;
 
     for (const auto& date_str : date_strings) {
-      gs::Date date(date_str);
+      neug::Date date(date_str);
       expected_days.push_back(date.to_num_days());
     }
 
@@ -219,7 +219,7 @@ TEST_F(JsonLoadFunctionTest, TestExecFuncJsonArray) {
 
 TEST_F(JsonLoadFunctionTest, TestGetFunctionSet) {
   // Test that getFunctionSet works correctly
-  auto functionSet = gs::extension::JsonScanFunction::getFunctionSet();
+  auto functionSet = neug::extension::JsonScanFunction::getFunctionSet();
 
   EXPECT_FALSE(functionSet.empty());
   EXPECT_EQ(functionSet.size(), 1);

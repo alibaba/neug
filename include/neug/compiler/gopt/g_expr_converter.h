@@ -39,7 +39,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 
-namespace gs {
+namespace neug {
 namespace gopt {
 
 class GExprConverter {
@@ -118,7 +118,8 @@ class GExprConverter {
       const std::vector<std::string>& schemaAlias);
 
   // helper functions
-  std::unique_ptr<::common::Value> convertValue(const gs::common::Value& value);
+  std::unique_ptr<::common::Value> convertValue(
+      const neug::common::Value& value);
   std::unique_ptr<::common::Variable> convertVarProperty(
       const std::string& aliasName, const std::string& propertyName,
       common::LogicalType& type);
@@ -161,4 +162,4 @@ class GExprConverter {
 };
 
 }  // namespace gopt
-}  // namespace gs
+}  // namespace neug

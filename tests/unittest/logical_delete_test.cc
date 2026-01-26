@@ -19,7 +19,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
-namespace gs {
+namespace neug {
 
 class PropertyGraphLogicalDeleteTest : public ::testing::Test {
  protected:
@@ -367,12 +367,10 @@ TEST_F(PropertyGraphLogicalDeleteTest, DeletePrimaryKeyProperty_ShouldFail) {
 
   graph_.CreateVertexType("Person", properties, pk_names);
 
-  EXPECT_THROW(
-      { graph_.DeleteVertexProperties("Person", {"id"}); },
-      gs::exception::Exception);
-  EXPECT_THROW(
-      { graph_.DeleteVertexProperties("Person", {"id"}); },
-      gs::exception::RuntimeError);
+  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
+               neug::exception::Exception);
+  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
+               neug::exception::RuntimeError);
 }
 
 // Test physical delete of properties after logical delete
@@ -454,7 +452,7 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   graph_.DeleteEdgeProperties("Person", "Company", "WorksAt", {"years"});
   // Get statistics json string
   auto schema_json_ =
-      gs::get_json_string_from_yaml(graph_.schema().to_yaml().value());
+      neug::get_json_string_from_yaml(graph_.schema().to_yaml().value());
   EXPECT_TRUE(schema_json_);
   auto schema_json = schema_json_.value();
 
@@ -480,9 +478,8 @@ TEST_F(PropertyGraphLogicalDeleteTest,
   auto status = graph_.CreateVertexType("Person", properties, pk_names);
   ASSERT_TRUE(status.ok());
 
-  EXPECT_THROW(
-      { graph_.DeleteVertexProperties("Person", {"id"}); },
-      gs::exception::Exception);
+  EXPECT_THROW({ graph_.DeleteVertexProperties("Person", {"id"}); },
+               neug::exception::Exception);
 }
 
 TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
@@ -519,4 +516,4 @@ TEST_F(PropertyGraphLogicalDeleteTest, TestStatistics) {
             "\"source_vertex\":\"Company\",\"destination_vertex\":\"Location\","
             "\"count\":0}]}],\"total_vertex_count\":0,\"total_edge_count\":0}");
 }
-}  // namespace gs
+}  // namespace neug

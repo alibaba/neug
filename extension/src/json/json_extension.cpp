@@ -28,14 +28,14 @@ void Init() {
     LOG(INFO) << "[json extension] init called";
 
     try {
-        gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonScanFunction>(
-            gs::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+        neug::extension::ExtensionAPI::registerFunction<neug::extension::JsonScanFunction>(
+            neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
-        gs::extension::ExtensionAPI::registerFunction<gs::extension::JsonDummyFunction>(
-            gs::catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
+        neug::extension::ExtensionAPI::registerFunction<neug::extension::JsonDummyFunction>(
+            neug::catalog::CatalogEntryType::SCALAR_FUNCTION_ENTRY);
 
-        gs::extension::ExtensionAPI::registerExtension(
-            gs::extension::ExtensionInfo{
+        neug::extension::ExtensionAPI::registerExtension(
+            neug::extension::ExtensionInfo{
                 "json",
                 "Provides functions to read and write JSON files."
             }

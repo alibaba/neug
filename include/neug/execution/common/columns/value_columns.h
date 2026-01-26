@@ -20,7 +20,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 
-namespace gs {
+namespace neug {
 
 namespace runtime {
 
@@ -274,4 +274,4 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
 
 }  // namespace runtime
 
-}  // namespace gs
+}  // namespace neug

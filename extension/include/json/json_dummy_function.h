@@ -19,16 +19,16 @@
 #include <string>
 #include "neug/compiler/function/scalar_function.h"
 
-namespace gs {
+namespace neug {
 namespace extension {
 
 struct JsonDummyFunction {
   static constexpr const char* name = "JSON_DUMMY";
 
-  static gs::function::function_set getFunctionSet();
+  static neug::function::function_set getFunctionSet();
 
-  static gs::runtime::Value Exec(const std::vector<gs::runtime::Value>& args);
+  static neug::runtime::Value Exec(const std::vector<neug::runtime::Value>& args);
 };
 
 }  // namespace extension
-}  // namespace gs
+}  // namespace neug

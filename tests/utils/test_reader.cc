@@ -15,7 +15,7 @@
 
 #include "test_reader.h"
 
-namespace gs {
+namespace neug {
 namespace test {
 
 // Test 1: Basic CSV reading with default options
@@ -854,4 +854,4 @@ TEST_F(ArrowExpressionConverterTest, Invalid_TooManyValues) {
 }
 
 }  // namespace test
-}  // namespace gs
+}  // namespace neug

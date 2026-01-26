@@ -1,7 +1,7 @@
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/binder/expression/expression.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 void LogicalTableFunctionCall::computeFlatSchema() {
@@ -30,4 +30,4 @@ void LogicalTableFunctionCall::computeFactorizedSchema() {
 }
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

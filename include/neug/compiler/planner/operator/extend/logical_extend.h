@@ -6,7 +6,7 @@
 #include "neug/compiler/planner/operator/extend/base_logical_extend.h"
 #include "neug/compiler/storage/predicate/column_predicate.h"
 
-namespace gs {
+namespace neug {
 namespace planner {
 
 enum ExtendOpt { VERTEX = 0, EDGE = 1, DEGREE = 2 };
@@ -104,4 +104,4 @@ class LogicalExtend final : public BaseLogicalExtend {
 };
 
 }  // namespace planner
-}  // namespace gs
+}  // namespace neug

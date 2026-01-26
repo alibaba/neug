@@ -28,9 +28,9 @@
 #include "neug/compiler/binder/query/bound_regular_query.h"
 #include "neug/compiler/common/cast.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 void BoundStatementVisitor::visit(const BoundStatement& statement) {
@@ -246,4 +246,4 @@ void BoundStatementVisitor::visitUpdatingClause(
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

@@ -28,7 +28,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 namespace common {
 
 struct NEUG_API neug_string_t {
@@ -120,4 +120,4 @@ struct NEUG_API neug_string_t {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

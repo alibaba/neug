@@ -24,7 +24,7 @@
 
 #include "neug/compiler/binder/bound_database_statement.h"
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 class BoundUseDatabase final : public BoundDatabaseStatement {
@@ -35,4 +35,4 @@ class BoundUseDatabase final : public BoundDatabaseStatement {
 };
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

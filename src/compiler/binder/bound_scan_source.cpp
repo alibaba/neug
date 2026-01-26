@@ -22,9 +22,9 @@
 
 #include "neug/compiler/binder/bound_scan_source.h"
 
-using namespace gs::common;
+using namespace neug::common;
 
-namespace gs {
+namespace neug {
 namespace binder {
 
 expression_vector BoundTableScanSource::getWarningColumns() const {
@@ -56,4 +56,4 @@ bool BoundQueryScanSource::getIgnoreErrorsOption() const {
 }
 
 }  // namespace binder
-}  // namespace gs
+}  // namespace neug

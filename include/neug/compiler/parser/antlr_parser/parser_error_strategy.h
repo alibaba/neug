@@ -24,7 +24,7 @@
 
 #include "antlr4-runtime.h"  // IWYU pragma: keep; this is the public header.
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParserErrorStrategy : public antlr4::DefaultErrorStrategy {
@@ -35,4 +35,4 @@ class ParserErrorStrategy : public antlr4::DefaultErrorStrategy {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

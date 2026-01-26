@@ -29,7 +29,7 @@
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/profiler.h"
 
-namespace gs {
+namespace neug {
 namespace main {
 
 class OpProfileBox {
@@ -56,4 +56,4 @@ class OpProfileBox {
 };
 
 }  // namespace main
-}  // namespace gs
+}  // namespace neug

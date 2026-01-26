@@ -27,7 +27,7 @@
 
 #include "neug/utils/api.h"
 
-namespace gs {
+namespace neug {
 
 namespace regex {
 class RE2;
@@ -153,4 +153,4 @@ class Interval {
 };
 
 }  // namespace common
-}  // namespace gs
+}  // namespace neug

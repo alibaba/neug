@@ -25,7 +25,7 @@
 #include "neug/compiler/catalog/catalog_entry/catalog_entry.h"
 #include "neug/compiler/function/function.h"
 
-namespace gs {
+namespace neug {
 namespace catalog {
 
 class NEUG_API FunctionCatalogEntry : public CatalogEntry {
@@ -56,4 +56,4 @@ class NEUG_API FunctionCatalogEntry : public CatalogEntry {
 };
 
 }  // namespace catalog
-}  // namespace gs
+}  // namespace neug

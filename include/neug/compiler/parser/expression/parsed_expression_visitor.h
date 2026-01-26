@@ -24,7 +24,7 @@
 
 #include "parsed_expression.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class ParsedExpressionVisitor {
@@ -104,4 +104,4 @@ class MacroParameterReplacer : public ParsedExpressionVisitor {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

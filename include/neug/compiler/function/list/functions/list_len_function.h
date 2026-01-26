@@ -27,7 +27,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "utf8proc.h"
 
-namespace gs {
+namespace neug {
 namespace function {
 
 struct ListLen {
@@ -61,4 +61,4 @@ inline void ListLen::operation(common::neug_string_t& input, int64_t& result) {
 }
 
 }  // namespace function
-}  // namespace gs
+}  // namespace neug

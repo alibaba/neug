@@ -25,7 +25,7 @@
 #include "create_table_info.h"
 #include "neug/compiler/parser/statement.h"
 
-namespace gs {
+namespace neug {
 namespace parser {
 
 class CreateTable final : public Statement {
@@ -40,4 +40,4 @@ class CreateTable final : public Statement {
 };
 
 }  // namespace parser
-}  // namespace gs
+}  // namespace neug

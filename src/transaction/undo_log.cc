@@ -16,7 +16,7 @@
 #include "neug/transaction/undo_log.h"
 #include "neug/storages/csr/generic_view_utils.h"
 
-namespace gs {
+namespace neug {
 void CreateVertexTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   graph.DeleteVertexType(vertex_type);
 };
@@ -189,4 +189,4 @@ void DeleteEdgeTypeUndo::Undo(PropertyGraph& graph, timestamp_t ts) const {
   // as deleted in txn.
 };
 
-}  // namespace gs
+}  // namespace neug
