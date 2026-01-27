@@ -70,14 +70,10 @@ class Table {
 
   void reset_header(const std::vector<std::string>& col_name);
 
-  void add_column(const std::string& col_name, const DataTypeId& col_types,
-                  const Property& default_value,
-                  std::shared_ptr<ColumnBase> column);
-
   void add_columns(
       const std::vector<std::string>& col_names,
       const std::vector<DataTypeId>& col_types,
-      const std::vector<Property>& default_property_values,
+      const std::vector<Property>& default_property_values, size_t column_size,
       const std::vector<StorageStrategy>& strategies_ = {},
       const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
       int memory_level = 0);
@@ -105,7 +101,6 @@ class Table {
   void delete_column(const std::string& col_name);
 
   size_t col_num() const;
-  size_t row_num() const;
   std::vector<std::shared_ptr<ColumnBase>>& columns();
   std::vector<ColumnBase*>& column_ptrs();
 

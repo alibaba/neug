@@ -490,8 +490,10 @@ void EdgeTable::Open(const std::string& work_dir) {
                  work_dir, meta_->property_names, meta_->properties,
                  meta_->default_property_values, meta_->strategies,
                  meta_->property_extra_infos);
-    table_idx_.store(table_->row_num());
-    table_->resize(std::max(table_->row_num() + (table_->row_num() + 4) / 5,
+    assert(table_->col_num() > 0);
+    size_t property_capacity = table_->get_column_by_id(0)->size();
+    table_idx_.store(property_capacity);
+    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
                             static_cast<size_t>(4096)));
   }
 }
@@ -518,9 +520,11 @@ void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
         work_dir_, meta_->property_names, meta_->properties,
         meta_->default_property_values, meta_->strategies,
         meta_->property_extra_infos);
-    table_idx_.store(table_->row_num());
-    table_->resize(
-        std::max(table_->row_num() + (table_->row_num() + 4) / 5, 4096ul));
+    assert(table_->col_num() > 0);
+    size_t property_capacity = table_->get_column_by_id(0)->size();
+    table_idx_.store(property_capacity);
+    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
+                            static_cast<size_t>(4096)));
   }
 }
 
@@ -546,9 +550,11 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
         checkpoint_dir_path, meta_->property_names, meta_->properties,
         meta_->default_property_values, meta_->strategies,
         meta_->property_extra_infos, (memory_level_ > 2));
-    table_idx_.store(table_->row_num());
-    table_->resize(
-        std::max(table_->row_num() + (table_->row_num() + 4) / 5, 4096ul));
+    assert(table_->col_num() > 0);
+    size_t property_capacity = table_->get_column_by_id(0)->size();
+    table_idx_.store(property_capacity);
+    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
+                            static_cast<size_t>(4096)));
   }
 }
 
@@ -726,8 +732,9 @@ void EdgeTable::AddProperties(
       dropAndCreateNewUnbundledCSR(false);
     }
   } else {
-    table_->add_columns(prop_names, prop_types, default_values, strategies,
-                        extra_type_infos, memory_level_);
+    size_t property_size = table_->get_column_by_id(0)->size();
+    table_->add_columns(prop_names, prop_types, default_values, property_size,
+                        strategies, extra_type_infos, memory_level_);
   }
 }
 

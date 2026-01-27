@@ -139,7 +139,7 @@ bool VertexTable::AddVertex(const Property& id,
   vid = insert_vertex_pk(id, ts);
   assert([&]() {
     if (table_->col_num() > 0) {
-      return vid < table_->row_num();
+      return vid < table_->get_column_by_id(0)->size();
     } else {
       return true;
     }
@@ -250,8 +250,8 @@ void VertexTable::AddProperties(
     const std::vector<Property>& default_values,
     const std::vector<StorageStrategy>& strategies,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
-  table_->add_columns(properties, types, default_values, strategies,
-                      extra_type_infos, memory_level_);
+  table_->add_columns(properties, types, default_values, indexer_.capacity(),
+                      strategies, extra_type_infos, memory_level_);
 }
 
 void VertexTable::Drop() {

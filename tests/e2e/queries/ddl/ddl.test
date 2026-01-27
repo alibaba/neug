@@ -118,6 +118,14 @@ Binder exception: Table movies does not exist.
 ---- error
 Binder exception: Table knows does not exist.
 
+-LOG AddVertexProperty
+-STATEMENT ALTER TABLE person add prox int32;
+---- ok
+-LOG CheckAddedProperty
+-STATEMENT Match (p:person) return SUM(p.prox);
+---- 1
+0
+
 -LOG AddNodeProperty
 -STATEMENT CALL enable_zone_map=true;
 ---- ok
