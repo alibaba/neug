@@ -98,19 +98,9 @@ std::unique_ptr<parser::ParsedExpression> Binder::resolvePropertyDefault(
     ParsedExpression* parsedDefault, const common::LogicalType& type,
     const std::string& tableName, const std::string& propertyName) {
   if (parsedDefault == nullptr) {  // No default provided.
-    if (type.getLogicalTypeID() == LogicalTypeID::SERIAL) {
-      auto serialName =
-          SequenceCatalogEntry::getSerialName(tableName, propertyName);
-      auto literalExpr =
-          std::make_unique<ParsedLiteralExpression>(Value(serialName), "");
-      return std::make_unique<ParsedFunctionExpression>(
-          function::NextValFunction::name, std::move(literalExpr),
-          "" /* rawName */);
-    } else {
-      // set system default value if query default value is not set
-      return std::make_unique<ParsedLiteralExpression>(
-          Value::createDefaultValue(type), "NULL");
-    }
+    // set system default value if query default value is not set
+    return std::make_unique<ParsedLiteralExpression>(
+        Value::createDefaultValue(type), "NULL");
   } else {
     if (type.getLogicalTypeID() == LogicalTypeID::SERIAL) {
       THROW_BINDER_EXCEPTION(

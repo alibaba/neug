@@ -2349,3 +2349,18 @@ def test_optional_match_person_software_with_edge_weight():
     assert records == [[None]]
     conn.close()
     db.close()
+
+
+def test_multi_ddl_queries():
+    db_dir = "/tmp/multi_ddl_queries"
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    with pytest.raises(Exception) as excinfo:
+        conn.execute(
+            """
+       CREATE NODE TABLE N (id SERIAL, PRIMARY KEY(id));
+        """
+        )
+    assert str("Unsupported basic type for conversion: SERIAL") in str(excinfo.value)
+    conn.close()
+    db.close()
