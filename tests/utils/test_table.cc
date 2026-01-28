@@ -167,8 +167,8 @@ TEST(TableTest, TestTableBasic) {
     index++;
   }
 
-  EXPECT_EQ(disk_table.row_num(), 10);
-  EXPECT_EQ(mem_table.row_num(), 10);
+  EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
+  EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
   EXPECT_EQ(disk_table.col_num(), 11);
   EXPECT_EQ(mem_table.col_num(), 11);
 
@@ -316,7 +316,7 @@ TEST(TableTest, TestTableBasic) {
   disk_table.open("disk_table", std::string(TEST_DIR), col_name, property_types,
                   default_values, disk_strategies);
   EXPECT_EQ(disk_table.col_num(), 11);
-  EXPECT_EQ(disk_table.row_num(), 10);
+  EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
   disk_table.reset_header(col_name);
   disk_table.rename_column("bool_column", "renamed_bool_column");
   EXPECT_EQ(disk_table.get_column_id_by_name("renamed_bool_column"), 0);
@@ -330,7 +330,7 @@ TEST(TableTest, TestTableBasic) {
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
                            property_types, default_values, mem_strategies);
   EXPECT_EQ(mem_table.col_num(), 11);
-  EXPECT_EQ(mem_table.row_num(), 10);
+  EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
   const Table& mem_table_ref = mem_table;
   EXPECT_EQ(mem_table_ref.get_column("bool_column")->type(),
             DataTypeId::kBoolean);

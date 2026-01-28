@@ -30,6 +30,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../../tools/python_bind
 
 from neug import Session
 
+_CACHED_TESTS = {}
+
 
 def pytest_addoption(parser):
     # database options
@@ -99,34 +101,33 @@ def pytest_addoption(parser):
     )
 
 
+def _load_tests(query_dir, dataset, test_names, include_skip_tests):
+    cache_key = (query_dir, dataset, test_names, include_skip_tests)
+    if cache_key not in _CACHED_TESTS:
+        test_files = collect_test_files(query_dir)
+        all_tests = collect_tests_from_files(
+            test_files, dataset, test_names, include_skip_tests
+        )
+        skip_keywords = ["call", "p =", "rels(", "nodes(", "unwind", "skip", "drop"]
+        all_tests = [
+            query
+            for query in all_tests
+            if not any(kw in query.query.lower() for kw in skip_keywords)
+        ]
+        _CACHED_TESTS[cache_key] = all_tests
+    return _CACHED_TESTS[cache_key]
+
+
 def pytest_generate_tests(metafunc):
     query_dir = metafunc.config.getoption("query_dir")
     dataset_to_run = metafunc.config.getoption("dataset")
     test_names = metafunc.config.getoption("test_names")
     include_skip_tests = metafunc.config.getoption("include_skip_tests")
 
-    test_files = collect_test_files(query_dir)
-    all_tests = collect_tests_from_files(
-        test_files, dataset_to_run, test_names, include_skip_tests
-    )
-    # skip some tests for the moment, as they are not supported yet (and they will cause engine to crash)
-    skip_keywords = [
-        "call",
-        "p =",
-        # "label(",
-        "rels(",
-        "nodes(",
-        "unwind",
-        "skip",
-        "drop",
-    ]
-    all_tests = [
-        query
-        for query in all_tests
-        if not any(keyword in query.query.lower() for keyword in skip_keywords)
-    ]
-
     if "query_object" in metafunc.fixturenames:
+        all_tests = _load_tests(
+            query_dir, dataset_to_run, test_names, include_skip_tests
+        )
         test_ids = [query.name for query in all_tests]  # use query name as test id
         metafunc.parametrize("query_object", all_tests, ids=test_ids)
 

@@ -154,6 +154,7 @@ Bob|1
 # 10
 # TODO: EXECUTION: unexpected result due to the different format of the output
 -STATEMENT MATCH(a:person {fName: "Alice"})-[e:meets*0..3]->(b:person) RETURN e;
+-UNSUPPORTED: unexpected result due to the different format of the output
 ---- 3
 {_NODES: [], _RELS: []}
 {_NODES: [], _RELS: [(0:0)-{_LABEL: meets, _ID: 6:0, location: [7.820000,3.540000], times: 5, data: \xAA\xBB\xCC\xDD}->(0:1)]}

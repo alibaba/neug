@@ -257,6 +257,7 @@ jobs:
     - name: Run E2E tinysnb Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
+        export NEUG_ROOT_DIRECTORY=${GITHUB_WORKSPACE}
         # tests running on tinysnb
         # in convenience, we use "read-write" model to run all test cases together
         ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb !update true

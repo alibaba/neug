@@ -170,23 +170,10 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_map_.swap(new_col_id_map);
 }
 
-void Table::add_column(const std::string& col_name, const DataTypeId& col_type,
-                       const Property& default_value,
-                       std::shared_ptr<ColumnBase> column) {
-  int col_id = col_names_.size();
-  columns_.emplace_back(column);
-  col_id_map_.insert({col_name, col_id});
-  col_names_.emplace_back(col_name);
-  col_default_values_.emplace_back(default_value);
-  CHECK_EQ(col_id, columns_.size() - 1);
-
-  buildColumnPtrs();
-}
-
 void Table::add_columns(
     const std::vector<std::string>& col_names,
     const std::vector<DataTypeId>& col_types,
-    const std::vector<Property>& default_property_values,
+    const std::vector<Property>& default_property_values, size_t column_size,
     const std::vector<StorageStrategy>& strategies_,
     const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos,
     int memory_level) {
@@ -219,7 +206,7 @@ void Table::add_columns(
     } else {
       THROW_NOT_IMPLEMENTED_EXCEPTION("Unsupported memory level");
     }
-    columns_[i]->resize(row_num());
+    columns_[i]->resize(column_size);
   }
   buildColumnPtrs();
 }
@@ -337,12 +324,6 @@ const std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) const {
 }
 
 size_t Table::col_num() const { return columns_.size(); }
-size_t Table::row_num() const {
-  if (columns_.empty()) {
-    return 0;
-  }
-  return columns_[0]->size();
-}
 std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 // get column pointers
 std::vector<ColumnBase*>& Table::column_ptrs() { return column_ptrs_; }
@@ -381,7 +362,7 @@ void Table::ingest(uint32_t index, OutArchive& arc) {
     return;
   }
 
-  CHECK_GT(row_num(), index);
+  CHECK_GT(column_ptrs_[0]->size(), index);
   uint32_t num_updates;
   arc >> num_updates;
   for (uint32_t i = 0; i < num_updates; ++i) {

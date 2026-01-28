@@ -57,8 +57,8 @@ Dan|
 6|DEsWork|0.520000
 
 -LOG TestTestFrameworkWithVertexResults
--UNSUPPORTED: this test is unsupported because the result schema is not consistent with kuzu (as types like struct, union are not supported in neug), so we cannot directly compare with kuzu results as expected results
 -STATEMENT MATCH (n:organisation) RETURN n
+-UNSUPPORTED: Issue#1476, Issue#1481
 ---- 3
 {_ID: 1:0, _LABEL: organisation, ID: 1, name: ABFsUni, orgCode: 325, mark: 3.700000, score: -2, history: 10 years 5 months 13 hours 24 us, licenseValidInterval: 3 years 5 days, rating: 1.000000, state: {revenue: 138, location: ['toronto','montr,eal'], stock: {price: [96,56], volume: 1000}}, info: 3.120000}
 {_ID: 1:1, _LABEL: organisation, ID: 4, name: CsWork, orgCode: 934, mark: 4.100000, score: -100, history: 2 years 4 days 10 hours, licenseValidInterval: 26 years 52 days 48:00:00, rating: 0.780000, state: {revenue: 152, location: ["vanco,uver north area"], stock: {price: [15,78,671], volume: 432}}, info: abcd}

@@ -128,6 +128,11 @@ def parse_test_file(
     tests = []
     current_dataset = None
 
+    case_name = ""
+    query_name_prefix = ""
+    test_index = 0
+    is_skip = False
+
     for line in lines:
         line = line.strip()
         if line.startswith("-DATASET"):
@@ -135,19 +140,46 @@ def parse_test_file(
             if dataset and current_dataset != dataset:
                 print(f"Skip dataset: {current_dataset}")
                 return []
+        elif line.startswith("-CASE"):
+            case_name = line.split()[1]
+            query_name_prefix = case_name
+            test_index = 0
+        elif line.startswith("-SKIP"):
+            is_skip = True
         elif line.startswith(NAME):
-            test = parse_single_test(
-                lines, line, NAME, STATEMENT, test_names, include_skip_tests
-            )
-            if test:
-                tests.append(test)
+            if not case_name:
+                query_name_prefix = line.split()[1]
+            else:
+                query_name_prefix = case_name + "_" + line.split()[1]
+            test_index = 0
+            is_skip = False
+        elif line.startswith(STATEMENT):
+            if not is_skip:
+                test_name = query_name_prefix + "_" + str(test_index)
+                if test_names and query_name_prefix not in test_names.split(","):
+                    print(
+                        f"Skip test: {test_name} as it is not in the specified test names."
+                    )
+                    return None
+                test = parse_single_test(
+                    lines, line, test_name, STATEMENT, include_skip_tests
+                )
+                if test:
+                    tests.append(test)
+                    test_index += 1
 
     return tests
 
 
-def parse_single_test(
-    lines, name_line, NAME, STATEMENT, test_names=None, include_skip_tests=False
-):
+def expand_env_vars_in_string(s):
+    def replace_match(match):
+        var_name = match.group(1)
+        return os.environ.get(var_name, "")
+
+    return re.sub(r"\$\{([^}]+)\}", replace_match, s)
+
+
+def parse_single_test(lines, head_line, test_name, STATEMENT, include_skip_tests=False):
     CHECK_ORDER, RESULT_PREFIX, SKIP, UNSUPPORTED = (
         "-CHECK_ORDER",
         "----",
@@ -155,24 +187,20 @@ def parse_single_test(
         "-UNSUPPORTED",
     )
     check_order, skip, expected_result = False, False, []
-    current_test_name = name_line.split()[1]
-    if test_names and current_test_name not in test_names.split(","):
-        print(
-            f"Skip test: {current_test_name} as it is not in the specified test names."
-        )
-        return None
-    query_lines, within_statement = [], False
+    query_lines, within_statement = [
+        expand_env_vars_in_string(head_line[len(STATEMENT) :].strip())
+    ], True
 
     for line in lines:
         line = line.strip()
-        if line.startswith((NAME, CHECK_ORDER, RESULT_PREFIX)) and within_statement:
+        if line.startswith((CHECK_ORDER, RESULT_PREFIX)) and within_statement:
             current_query = " ".join(query_lines)
             within_statement = False
             query_lines.clear()
 
         if line.startswith(STATEMENT):
             within_statement = True
-            query_lines = [line[len(STATEMENT) :].strip()]
+            query_lines = [expand_env_vars_in_string(line[len(STATEMENT) :].strip())]
         elif line.startswith(CHECK_ORDER):
             check_order = True
         elif line.startswith(SKIP) and not include_skip_tests:
@@ -182,16 +210,15 @@ def parse_single_test(
         elif line.startswith(RESULT_PREFIX):
             expected_result, result_type = parse_result_block(lines, line)
             if expected_result is None or result_type is None:
-                print(f"Invalid result line: {line} in test {current_test_name}.")
+                print(f"Invalid result line: {line} in test {test_name}.")
                 return None
             elif skip:
-                print(
-                    f"Skipping test: {current_test_name} due to skip or unsupported flag."
-                )
+                print(f"Skipping test: {test_name} due to skip or unsupported flag.")
                 return None
             else:
+                print("Parse " + test_name + " query: " + str(current_query))
                 return Query(
-                    name=current_test_name,
+                    name=test_name,
                     query=current_query,
                     expected_result=expected_result,
                     check_order=check_order,
@@ -199,7 +226,7 @@ def parse_single_test(
                 )
         else:
             if within_statement:
-                query_lines.append(line)
+                query_lines.append(expand_env_vars_in_string(line))
 
     return None
 

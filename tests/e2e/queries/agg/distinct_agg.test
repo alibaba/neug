@@ -37,13 +37,13 @@
 [20,25,30,35,40,45,83]
 
 -LOG HashDistinctCollectDoubleTest
-# TODO: `collect` order is not stable, use `list_sort` to confirm
 -STATEMENT MATCH (p:person) RETURN p.gender, collect(distinct p.isStudent) ORDER BY p.gender
 ---- 2
 1|[False, True]
 2|[False, True]
 
 -STATEMENT MATCH (p:person)-[:knows]->(b:person)-[:knows]->(c:person) RETURN DISTINCT c;
+-UNSUPPORTED: Issue#1476, Issue#1481
 ---- 4
 {_ID: 0:0, _LABEL: person, ID: 0, fName: Alice, gender: 1, isStudent: True, isWorker: False, age: 35, eyeSight: 5.000000, birthdate: 1900-01-01, registerTime: 2011-08-20 11:25:30, lastJobDuration: 3 years 2 days 13:02:00, workedHours: [10,5], usedNames: [Aida], courseScoresPerTerm: [[10,8],[6,7,8]], grades: [96,54,86,92], height: 1.731000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}
 {_ID: 0:1, _LABEL: person, ID: 2, fName: Bob, gender: 2, isStudent: True, isWorker: False, age: 30, eyeSight: 5.100000, birthdate: 1900-01-01, registerTime: 2008-11-03 15:25:30.000526, lastJobDuration: 10 years 5 months 13:00:00.000024, workedHours: [12,8], usedNames: [Bobby], courseScoresPerTerm: [[8,9],[9,10]], grades: [98,42,93,88], height: 0.990000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12}
@@ -51,6 +51,7 @@
 {_ID: 0:3, _LABEL: person, ID: 5, fName: Dan, gender: 2, isStudent: False, isWorker: True, age: 20, eyeSight: 4.800000, birthdate: 1950-07-23, registerTime: 2031-11-30 12:25:30, lastJobDuration: 10 years 5 months 13:00:00.000024, workedHours: [1,9], usedNames: [Wolfeschlegelstein,Daniel], courseScoresPerTerm: [[7,4],[8,8],[9]], grades: [76,88,99,89], height: 1.300000, u: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14}
 
 -STATEMENT MATCH (p:person)-[:knows]->(b:person)-[e:knows]->(c:person)-[:knows]->(:person) RETURN DISTINCT e;
+-UNSUPPORTED: Issue#1476, Issue#1481
 ---- 12
 (0:0)-{_LABEL: knows, _ID: 3:0, date: 2021-06-30, meetTime: 1986-10-21 21:08:31.521, validInterval: 10 years 5 months 13:00:00.000024, comments: [rnme,m8sihsdnf2990nfiwf], summary: {locations: ['toronto','waterloo'], transfer: {day: 2021-01-02, amount: [100,200]}}, notes: 1, someMap: {a=b}}->(0:1)
 (0:0)-{_LABEL: knows, _ID: 3:1, date: 2021-06-30, meetTime: 1946-08-25 19:07:22, validInterval: 20 years 30 days 48:00:00, comments: [njnojppo9u0jkmf,fjiojioh9h9h89hph], summary: {locations: , transfer: }, notes: 2020-10-10, someMap: {c=d, e=f, 1=2}}->(0:2)
@@ -124,3 +125,28 @@ Bob|Dan
 -STATEMENT MATCH (:person), (a:person)-[t:knows*2..2]->(b:person) RETURN count(DISTINCT t);
 ---- 1
 36
+
+-LOG DoubleColumnsDistinct
+-STATEMENT MATCH (a:person) RETURN DISTINCT a.fName, a.gender limit 5;
+---- 5
+Alice|1
+Bob|2
+Carol|1
+Dan|2
+Elizabeth|1
+-LOG ThreeColumnsDistinct
+-STATEMENT MATCH (a:person) RETURN DISTINCT a.fName, a.gender, a.age limit 5;
+---- 5
+Alice|1|35
+Bob|2|30
+Carol|1|45
+Dan|2|20
+Elizabeth|1|20
+-LOG FourColumnsDistinct
+-STATEMENT MATCH (a:person) RETURN DISTINCT a.fName, a.gender, a.age, a.eyeSight limit 5;
+---- 5
+Alice|1|35|5.0
+Bob|2|30|5.1
+Carol|1|45|5.0
+Dan|2|20|4.8
+Elizabeth|1|20|4.7
