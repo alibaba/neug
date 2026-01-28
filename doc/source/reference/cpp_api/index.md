@@ -6,21 +6,11 @@ The NeuG C++ API provides low-level access to graph database functionality, desi
 
 The following classes are the primary entry points and most commonly used components:
 
-- **[Connection](gs#connection)** - Internal connection class for executing queries against the graph database
-- **[InsertTransaction](gs#inserttransaction)** - Transaction for inserting new vertices and edges into the graph
-- **[NeugDB](gs#neugdb)** - Core database engine for NeuG graph database system
-- **[PropertyGraph](gs#propertygraph)** - Core property graph storage engine managing vertices, edges, and schema
-- **[QueryResult](gs#queryresult)** - Container for query execution results with iterator-based access
-- **[ReadTransaction](gs#readtransaction)** - Read-only transaction for consistent snapshot access to graph data
-- **[UpdateTransaction](gs#updatetransaction)** - Transaction for updating existing graph elements (vertices and edges)
-
 ## Namespace Organization
 
 The C++ API is organized into the following namespaces:
 
-- **[gs](gs)** -  (1868 classes)
-- **[results](results)** -  (14 classes)
-- **[server](server)** -  (9 classes)
+- **[neug](neug)** -  (1498 classes)
 
 
 ### Namespace Categories

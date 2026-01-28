@@ -12,14 +12,6 @@ Most database systems excel at either analytics or transactions, but not both. U
 
 This flexibility allows you can use the same database for both data science work and production applications.
 
-## What is NeuG?
-
-NeuG is a graph database that gives you the best of both worlds: **powerful analytics** and **fast transactions**.
-
-NeuG provides **two modes** that you can switch between:
-- **Embedded Mode**: For data processing and analytics  
-- **Service Mode**: For applications and real-time access
-
 ## Quick Example
 
 ```python

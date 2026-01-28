@@ -46,7 +46,7 @@ Close the connection.
 ### execute
 
 ```python
-def execute(query: str, format: str = "proto") -> QueryResult
+def execute(query: str, access_mode="") -> QueryResult
 ```
 
 Execute a cypher query on the database. User could specify multiple queries in a single string,
@@ -90,6 +90,14 @@ database will be changed accordingly.
 - **Parameters:**
   - `query` (str)
     The query to execute.
+  - `access_mode` (str)
+    The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion). User should
+    specify the correct access mode for the query to ensure the correctness of the database.
+    If the access mode is not specified, it will be set to `update` by default.
+    supported access modes are:
+    - `read`,`r`,`READ`,`R`: for read-only queries
+    - `insert`,`i`,`INSERT`,`I`: for insert-only queries
+    - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
 
 - **Returns:**
   - `query_result` (QueryResult)

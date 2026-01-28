@@ -11,14 +11,6 @@ The `neug-cli ui` command starts a Flask web server that serves a React-based fr
 - Visualize query results in tables and graphs
 - Access the database through HTTP REST APIs
 
-## Installation
-
-Make sure you have `NeuG` package installed.
-
-```bash
-pip install neug
-```
-
 ## Basic Usage
 
 ### Starting the Web UI
@@ -95,7 +87,7 @@ Executes a Cypher query and returns results in JSON format.
 ### Port Already in Use
 If port 5000 is already in use, specify a different port:
 ```bash
-neug-cli ui --port 8080
+neug > :ui localhost:8080
 ```
 
 ### Database Connection Issues
@@ -105,7 +97,8 @@ Make sure the database directory exists and is accessible:
 ls -la /path/to/your/database
 
 # Start with correct permissions
-neug-cli ui --db-dir /path/to/your/database
+neug-cli open /path/to/your/database
+neug > :ui
 ```
 
 ### Missing Dependencies
@@ -117,19 +110,9 @@ pip install flask flask-cors
 ## Security Considerations
 
 - The web UI runs on localhost by default for security
-- When using `--host 0.0.0.0`, ensure proper firewall rules are in place
+- When using `0.0.0.0`, ensure proper firewall rules are in place
 - In production environments, consider using a reverse proxy (nginx, Apache)
 - Debug mode should never be used in production
 
-## Development
-
-For developers working on the web UI:
-
-```bash
-# Start in debug mode for hot reloading
-neug-cli ui --debug --db-dir ./test_data
-
-# The UI will automatically reload when files change
-```
 
 The web interface loads resources from CDN by default. For offline development, you may need to download the static assets locally.

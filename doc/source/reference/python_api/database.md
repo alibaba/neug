@@ -4,7 +4,7 @@
 
 The Neug database module.
 
-<a id="neug.database.AsyncConnection"></a>
+<a id="neug.database.time"></a>
 
 ## Database Objects
 
@@ -96,7 +96,7 @@ Connect to the database.
 ### serve
 
 ```python
-def serve(port: int = 10000, host: str = "localhost")
+def serve(port: int = 10000, host: str = "localhost", blocking: bool = True)
 ```
 
 Start the database server for handling remote connections(TP mode).
@@ -112,6 +112,8 @@ documentation of Session.
     The port to listen on. Default is 10000.
   - `host` (str)
     The host to listen on. Default is 'localhost'.
+  - `blocking` (bool)
+    Whether to block the process after starting the database server.
 
 - **Returns:**
   - `uri` (str)

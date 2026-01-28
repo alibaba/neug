@@ -13,7 +13,7 @@ The Python API offers a simple yet powerful way to:
 
 ## Core Classes
 
-- **[Database](database)** - The entrance of the Neug database
+- **[Database](database)** - The entrance of the NeuG database
 - **[Connection](connection)** - Connection represents a logical connection to a database
 - **[Session](session)** - Session is a class that connects to the NeuG server
 - **[QueryResult](query_result)** - QueryResult represents the result of a cypher query

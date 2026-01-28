@@ -77,7 +77,7 @@ Currently, it does not perform any specific actions.
 ### execute
 
 ```python
-def execute(query: str, format: str = "proto")
+def execute(query: str, access_mode: str = "")
 ```
 
 Execute a query on the NeuG server.
@@ -85,9 +85,7 @@ Execute a query on the NeuG server.
 **Arguments**:
 
 - `query`: The query string to be executed.
-- `format`: Output format of query result.
-- 'proto': Return the query result in Protobuf format.
-- 'json': Return the query result in a format compatible with Neo4j.
+- `access_mode`: The access mode for the query.
 
 **Returns**:
 

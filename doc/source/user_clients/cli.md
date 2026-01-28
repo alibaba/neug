@@ -15,7 +15,7 @@ INFO:neug:Adding build directory to sys.path: /workspaces/neug/tools/python_bind
 Opened database at /workspaces/neug_example in rw mode
 INFO:neug.database:Open database /workspaces/neug_example in rw mode
 INFO:neug:Connection established.
-Welcome to the Neug shell. Type :help for usage hints.
+Welcome to the NeuG shell. Type :help for usage hints.
 
 neug > 
 ```
@@ -32,7 +32,7 @@ Connecting to 127.0.0.1:10001
 INFO:neug.session:Opening session at endpoint: http://127.0.0.1:10001/ with timeout: 300, num_threads: 1
 INFO:neug.session:Session initialized with endpoint: http://127.0.0.1:10001/ and timeout: 300
 INFO:neug:Connection established.
-Welcome to the Neug shell. Type :help for usage hints.
+Welcome to the NeuG shell. Type :help for usage hints.
 
 neug > 
 ```
@@ -43,7 +43,7 @@ List all available commands by running `neug-cli --help`
 neug-cli --help
 Usage: neug-cli [OPTIONS] COMMAND [ARGS]...
 
-  Neug CLI Tool.
+  NeuG CLI Tool.
 
 Options:
   --version  Show the version and exit.

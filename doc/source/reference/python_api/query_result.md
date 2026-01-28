@@ -45,3 +45,18 @@ Get the schema of the result.
 - **Returns:**
   - **str**
     The schema of the result, which is a yaml string describing the structure of the result.
+
+<a id="neug.query_result.QueryResult.get_bolt_response"></a>
+
+### get\_bolt\_response
+
+```python
+def get_bolt_response() -> str
+```
+
+Get the result in Bolt response format.
+TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response.
+
+- **Returns:**
+  - **str**
+    The result in Bolt response format.
