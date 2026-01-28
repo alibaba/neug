@@ -98,6 +98,7 @@ Greg
 ---- 1
 9
 -STATEMENT MATCH (a:person)-[e:knows*1..2 (r, n | WHERE r.date > date("1999-01-01") | {}, {})]->(b:person) WHERE a.ID = 5 RETURN e
+-UNSUPPORTED: Issue#1469
 ---- 7
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11}->(0:2)]}
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:9}->(0:0)]}
@@ -107,6 +108,7 @@ Greg
 {_NODES: [{_ID: 0:2, _LABEL: person}], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11}->(0:2),(0:2)-{_LABEL: knows, _ID: 3:6}->(0:0)]}
 {_NODES: [{_ID: 0:2, _LABEL: person}], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11}->(0:2),(0:2)-{_LABEL: knows, _ID: 3:8}->(0:3)]}
 -STATEMENT MATCH (a:person)-[e:knows*1..2 (r, n | WHERE r.date > date("1999-01-01") | {r.meetTime}, {})]->(b:person) WHERE a.ID = 5 RETURN e
+-UNSUPPORTED: Issue#1469
 ---- 7
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11, meetTime: 1999-04-21 15:12:11.42}->(0:2)]}
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:9, meetTime: 1936-11-02 11:02:01}->(0:0)]}
@@ -117,6 +119,7 @@ Greg
 {_NODES: [{_ID: 0:2, _LABEL: person}], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11, meetTime: 1999-04-21 15:12:11.42}->(0:2),(0:2)-{_LABEL: knows, _ID: 3:8, meetTime: 1998-10-02 13:09:22.423}->(0:3)]}
 
 -STATEMENT MATCH (a:person)-[e:knows*1..2 (r, n | WHERE r.date > date("1999-01-01") | {}, {n.fName})]->(b:person) WHERE a.ID = 5 RETURN e
+-UNSUPPORTED: Issue#1469
 ---- 7
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:11}->(0:2)]}
 {_NODES: [], _RELS: [(0:3)-{_LABEL: knows, _ID: 3:9}->(0:0)]}

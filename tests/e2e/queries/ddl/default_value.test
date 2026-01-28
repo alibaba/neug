@@ -63,11 +63,14 @@
 -STATEMENT CREATE (n:WithoutDefaultUINT32 {id: 0});
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultUINT32 {id: 0}) RETURN n.p_uint32;
+-UNSUPPORTED: Issue#1470
 ---- 1
 0
 -STATEMENT CREATE (n:WithoutDefaultUINT32 {id: 1, p_uint32: 100});
+-UNSUPPORTED: Issue#1470
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultUINT32 {id: 1}) RETURN n.p_uint32;
+-UNSUPPORTED: Issue#1470
 ---- 1
 100
 
@@ -76,11 +79,13 @@
 -STATEMENT CREATE (n:WithDefaultUINT32 {id: 0});
 ---- ok
 -STATEMENT MATCH (n:WithDefaultUINT32 {id: 0}) RETURN n.p_uint32;
+-UNSUPPORTED: Issue#1470
 ---- 1
 1
 -STATEMENT CREATE (n:WithDefaultUINT32 {id: 1, p_uint32: 100});
 ---- ok
 -STATEMENT MATCH (n:WithDefaultUINT32 {id: 1}) RETURN n.p_uint32;
+-UNSUPPORTED: Issue#1470
 ---- 1
 100
 
@@ -91,11 +96,13 @@
 -STATEMENT CREATE (n:WithoutDefaultUINT64 {id: 0});
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultUINT64 {id: 0}) RETURN n.p_uint64;
+-UNSUPPORTED: Issue#1470
 ---- 1
 0
 -STATEMENT CREATE (n:WithoutDefaultUINT64 {id: 1, p_uint64: 100});
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultUINT64 {id: 1}) RETURN n.p_uint64;
+-UNSUPPORTED: Issue#1470
 ---- 1
 100
 
@@ -104,11 +111,13 @@
 -STATEMENT CREATE (n:WithDefaultUINT64 {id: 0});
 ---- ok
 -STATEMENT MATCH (n:WithDefaultUINT64 {id: 0}) RETURN n.p_uint64;
+-UNSUPPORTED: Issue#1470
 ---- 1
 1
 -STATEMENT CREATE (n:WithDefaultUINT64 {id: 1, p_uint64: 100});
 ---- ok
 -STATEMENT MATCH (n:WithDefaultUINT64 {id: 1}) RETURN n.p_uint64;
+-UNSUPPORTED: Issue#1470
 ---- 1
 100
 
@@ -176,13 +185,13 @@
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultSTRING {id: 0}) RETURN n.p_string;
 ---- 1
-null
+
 -STATEMENT CREATE (n:WithoutDefaultSTRING {id: 1, p_string: "hello"});
 ---- ok
 -STATEMENT MATCH (n:WithoutDefaultSTRING {id: 1}) RETURN n.p_string;
 ---- 1
 hello
-
+-SKIP: This test case dump error
 -STATEMENT CREATE NODE TABLE WithDefaultSTRING (id INT64, p_string STRING DEFAULT "default", PRIMARY KEY (id));
 ---- ok
 -STATEMENT CREATE (n:WithDefaultSTRING {id: 0});

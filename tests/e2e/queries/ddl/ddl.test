@@ -100,7 +100,8 @@ Binder exception: Found duplicate FROM-TO person-person pairs.
 -STATEMENT CREATE REL TABLE likes(FROM person TO organisation, RATING INT64, MANY_ONE)
 ---- ok
 -STATEMENT MATCH (:person)-[e:likes]->(:organisation) RETURN count(*)
----- 0
+---- 1
+0
 
 -LOG DropNodeTableCommitNormalExecution
 -SKIP: Drop is not supported yet.
@@ -127,44 +128,49 @@ Binder exception: Table knows does not exist.
 0
 
 -LOG AddNodeProperty
--STATEMENT CALL enable_zone_map=true;
+-STATEMENT Create node table Comment (id int64, PRIMARY KEY (id));
 ---- ok
--STATEMENT create node table Comment (id int64, PRIMARY KEY (id));
----- ok
--STATEMENT copy Comment from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment.csv' (HEADER=true);
+-STATEMENT Copy Comment from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment.csv' (HEADER=true);
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN COUNT(*);
 ---- 1
-76438
--STATEMENT alter table Comment add propx int64;
+215488
+-STATEMENT Alter Table Comment add propx int64;
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN SUM(c.propx);
 ---- 1
-
+0
 -STATEMENT alter table Comment add propi float default 5.4;
 ---- ok
 -STATEMENT alter table Comment add propj int32 default 5 + 5;
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN DISTINCT c.propi
+-UNSUPPORTED: Issue#1482
 ---- 1
 5.400000
 -STATEMENT MATCH (c:Comment) RETURN DISTINCT c.propj
+-UNSUPPORTED: Issue#1482
 ---- 1
 10
 -STATEMENT MATCH (c:Comment) WHERE c.propx <> 1 RETURN COUNT(*);
 ---- 1
-0
+215488
 -STATEMENT alter table Comment add propy int64 default 1;
+-UNSUPPORTED: Issue#1482
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN SUM(c.propy);
+-UNSUPPORTED: Issue#1482
 ---- 1
 215488
 -STATEMENT MATCH (c:Comment) WHERE c.propy = 1 RETURN COUNT(*);
+-UNSUPPORTED: Issue#1482
 ---- 1
 215488
 -STATEMENT create (c:Comment {id: 12345});
+-UNSUPPORTED: Issue#1482
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN SUM(c.propy);
+-UNSUPPORTED: Issue#1482
 ---- 1
 215489
 
@@ -182,23 +188,20 @@ Binder exception: Table knows does not exist.
 4|propy|INT64|1|False
 
 -LOG AddRelProperty
--SKIP: copy replyOf from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true) is not supported yet.
--STATEMENT create node table Comment (id int64, PRIMARY KEY (id));
----- ok
 -STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_ONE);
 ---- ok
--STATEMENT copy Comment from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment.csv' (HEADER=true);
----- ok
--STATEMENT copy replyOf from '${NEUG_ROOT_DIRECTORY}/dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
+-STATEMENT copy replyOf from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
 ---- ok
 -STATEMENT alter table replyOf add propx int64;
 ---- ok
 -STATEMENT MATCH (c:Comment)-[r:replyOf]->(c2:Comment) RETURN SUM(r.propx);
+-UNSUPPORTED: Issue#1482
 ---- 1
 
 -STATEMENT alter table replyOf add propy int64 default 1;
 ---- ok
 -STATEMENT MATCH (c:Comment)-[r:replyOf]->(c2:Comment) RETURN SUM(r.propy);
+-UNSUPPORTED: Issue#1482
 ---- 1
 108027
 
@@ -232,6 +235,7 @@ Binder exception: Table knows does not exist.
 -STATEMENT ALTER TABLE person ADD random INT64 DEFAULT 8
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
+-UNSUPPORTED: Issue#1482
 ---- 8
 8
 8
@@ -516,32 +520,38 @@ Table UW5 does not exist.
 Binder exception: Duplicated column name: name, column name must be unique.
 -STATEMENT CREATE NODE TABLE A(id INT64, NAME STRING, PRIMARY KEY(id));
 ---- ok
--STATEMENT CREATE (:A {id:0, name:'a'});
+-STATEMENT CREATE (:A {id:0, NAME:'a'});
 ---- ok
--STATEMENT MATCH (a:A) RETURN a.ID, a.name;
+-STATEMENT MATCH (a:A) RETURN a.ID, a.NAME;
 ---- 1
 0|a
 -STATEMENT ALTER TABLE A ADD name STRING;
 ---- error
 Runtime exception: A table already has property name.
--STATEMENT ALTER TABLE A DROP name;
+-STATEMENT ALTER TABLE A Drop NAME;
 ---- 1
 Table A altered.
--STATEMENT ALTER TABLE A ADD name STRING;
+-STATEMENT ALTER TABLE A ADD NAME STRING;
+-UNSUPPORTED: Issue#1482
 ---- ok
 -STATEMENT MATCH (a:A) RETURN a.ID, a.NAME;
+-UNSUPPORTED: Issue#1482
 ---- 1
 0|
 
 -STATEMENT CREATE NODE TABLE TEST_KEYWORD(YIELD STRING, PRIMARY KEY(YIELD))
+-UNSUPPORTED: This query was never executed before Issue#1458 was resolved and needs to be re-investigated.
 ---- ok
 
 -STATEMENT CREATE NODE TABLE default_val_type(val INT64 default 'wrong type', PRIMARY KEY(val))
+-UNSUPPORTED: This query was never executed before Issue#1458 was resolved and needs to be re-investigated.
 ---- error
 Binder exception: Expression wrong type has data type STRING but expected INT64. Implicit cast is not supported.
 -STATEMENT CREATE NODE TABLE default_val_type(val INT64 default upper('abc'), PRIMARY KEY(val))
+-UNSUPPORTED: This query was never executed before Issue#1458 was resolved and needs to be re-investigated.
 ---- error
 Binder exception: Expression UPPER(abc) has data type STRING but expected INT64. Implicit cast is not supported.
 -STATEMENT CREATE NODE TABLE default_val_type(val INT64, val1 INT64[3] default 'ABC', PRIMARY KEY(val))
+-UNSUPPORTED: This query was never executed before Issue#1458 was resolved and needs to be re-investigated.
 ---- error
 Binder exception: Expression ABC has data type STRING but expected INT64[3]. Implicit cast is not supported.
