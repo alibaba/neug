@@ -33,7 +33,7 @@ NeuG primarily targets Schema-Strict graph data scenarios, where every piece of 
 
 For example, consider the following schema graph:
 
-![Modern Schema Graph](./figures/modern_schema.png)
+![Modern Graph Schema](https://raw.githubusercontent.com/GraphScope/neug/main/doc/source/images/modern_schema.png)
 
 The above schema graph can be created by the following statements:
 
