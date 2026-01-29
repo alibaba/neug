@@ -111,12 +111,16 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
     THROW_INVALID_ARGUMENT_EXCEPTION("File format is null in arrow options");
   }
 
-  // Reuse createFactory() helper method
-  auto factory = createFactory(fs, fileFormat);
+  auto factory = datasetBuilder->buildFactory(sharedState, fs, fileFormat);
 
-  arrow::dataset::FinishOptions finish_options;
-  finish_options.validate_fragments = false;
-  auto dataset_result = factory->Finish(finish_options);
+  arrow::Result<std::shared_ptr<arrow::dataset::Dataset>> dataset_result;
+  if (scan_opts->dataset_schema) {
+    dataset_result = factory->Finish(scan_opts->dataset_schema);
+  } else {
+    arrow::dataset::FinishOptions finish_options;
+    finish_options.validate_fragments = false;
+    dataset_result = factory->Finish(finish_options);
+  }
   if (!dataset_result.ok()) {
     LOG(ERROR) << "Failed to create dataset from factory: "
                << dataset_result.status().message();
@@ -205,39 +209,6 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   }
 }
 
-std::shared_ptr<arrow::dataset::DatasetFactory> ArrowReader::createFactory(
-    std::shared_ptr<arrow::fs::FileSystem> fs,
-    std::shared_ptr<arrow::dataset::FileFormat> fileFormat) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-
-  if (!fs) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FileSystem is null");
-  }
-
-  if (!fileFormat) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("File format is null");
-  }
-
-  const auto& fileSchema = sharedState->schema.file;
-  const std::vector<std::string>& file_paths = fileSchema.paths;
-
-  if (file_paths.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
-  }
-
-  arrow::dataset::FileSystemFactoryOptions factory_options;
-  factory_options.exclude_invalid_files = false;
-  auto factory_result = arrow::dataset::FileSystemDatasetFactory::Make(
-      fs, file_paths, fileFormat, factory_options);
-  if (!factory_result.ok()) {
-    THROW_IO_EXCEPTION("Failed to create FileSystemDatasetFactory: " +
-                       factory_result.status().message());
-  }
-  return factory_result.ValueOrDie();
-}
-
 arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
   if (!sharedState) {
     return arrow::Status::Invalid(neug::StatusCode::ERR_INVALID_ARGUMENT,
@@ -265,8 +236,8 @@ arrow::Result<std::shared_ptr<arrow::Schema>> ArrowReader::inferSchema() {
   }
   auto fileFormat = arrowOptions.fileFormat;
 
-  // Reuse createFactory() helper method
-  auto factory = createFactory(fileSystem, fileFormat);
+  auto factory =
+      datasetBuilder->buildFactory(sharedState, fileSystem, fileFormat);
 
   // Infer schema using Inspect()
   return factory->Inspect();

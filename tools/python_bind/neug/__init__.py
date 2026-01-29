@@ -26,33 +26,6 @@ from neug.version import __version__
 logger = logging.getLogger("neug")
 
 
-def setup_extension_paths():
-    try:
-        neug_package_dir = os.path.dirname(neug.__file__)
-        extensions_dir = os.path.join(neug_package_dir, "extensions")
-
-        logger.info(f"Neug package directory: {neug_package_dir}")
-        logger.info(f"Looking for extensions in: {extensions_dir}")
-
-        if os.path.exists(extensions_dir):
-            logger.info(f"Extensions directory exists, contents:")
-            for item in os.listdir(extensions_dir):
-                item_path = os.path.join(extensions_dir, item)
-                if os.path.isdir(item_path):
-                    logger.info(f"  {item}/")
-                    for subitem in os.listdir(item_path):
-                        logger.info(f"    {subitem}")
-                else:
-                    logger.info(f"  {item}")
-
-            os.environ["NEUG_EXTENSION_WHEEL_DIR"] = extensions_dir
-            logger.info(f"Set NEUG_EXTENSION_WHEEL_DIR to: {extensions_dir}")
-        else:
-            logger.warning(f"Extensions directory not found: {extensions_dir}")
-    except Exception as e:
-        logger.warning(f"Failed to setup extension paths: {e}")
-
-
 def config_logging(log_level):
     """Set log level basic on config.
     Args:
@@ -153,8 +126,6 @@ def get_build_lib_dir() -> str:
 
 config_logging("INFO")
 
-setup_extension_paths()
-
 try:
     # Try to first include the c++ extension directory, if it exists
     # it means we are in development mode.
@@ -174,6 +145,15 @@ try:
             logger.warning("Building docs, skipping C++ extension import.")
         else:
             raise e
+
+    # set home for loading and installing extensions
+    if "EXTENSION_HOME" not in os.environ:
+        if build_dir and os.path.exists(build_dir):
+            os.environ["EXTENSION_HOME"] = build_dir
+        else:
+            cur_dir = os.path.dirname(__file__)
+            os.environ["EXTENSION_HOME"] = os.path.join(cur_dir, "..")
+    logger.info(f"Extension home: {os.environ['EXTENSION_HOME']}")
 
 
 except ImportError as e:

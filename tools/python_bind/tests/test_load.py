@@ -564,6 +564,112 @@ class TestLoadFrom:
             assert isinstance(record[1], float), "age_double should be float"
             assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
 
+    def test_load_from_json_basic_return_all(self):
+        """Test basic LOAD FROM JSON with RETURN *."""
+        json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
+        if not os.path.exists(json_path):
+            pytest.skip(f"JSON file not found: {json_path}")
+
+        # json should be loaded as extension first
+        self.conn.execute("load json")
+
+        query = f"""
+        LOAD FROM "{json_path}"
+        RETURN *
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+
+        # vPerson.json has 8 data rows
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+    def test_load_from_jsonl_return_specific_columns(self):
+        """Test LOAD FROM JSONL with column projection."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        # json should be loaded as extension first
+        self.conn.execute("load json")
+
+        query = f"""
+        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        RETURN fName, age
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check that only specified columns are returned
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return only 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], int), "age should be integer"
+        print(first_record)
+
+    def test_load_from_jsonl_with_multiple_where_conditions(self):
+        """Test LOAD FROM JSONL with multiple WHERE conditions."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        # json should be loaded as extension first
+        self.conn.execute("load json")
+
+        # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
+        query = f"""
+        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        WHERE age > 25 AND age < 40 AND gender = 1
+        RETURN fName, age, gender, eyeSight
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) > 0, "Should return at least one record"
+
+        # Verify all returned records satisfy all conditions
+        for record in records:
+            fname, age, gender, eye_sight = record
+            assert 25 < age < 40, f"Age {age} should be between 25 and 40"
+            assert gender == 1, f"Gender {gender} should be 1"
+            assert isinstance(fname, str), "fName should be string"
+            assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
+
+    def test_load_from_jsonl_with_complex_where_conditions(self):
+        """Test LOAD FROM JSONL with complex WHERE conditions (age, eyeSight, height)."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        # json should be loaded as extension first
+        self.conn.execute("load json")
+
+        # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
+        query = f"""
+        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        WHERE age >= 30 AND eyeSight >= 5.0 AND height > 1.0
+        RETURN fName, age, eyeSight, height
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) > 0, "Should return at least one record"
+        # May return 0 or more records depending on data
+
+        # Verify all returned records satisfy all conditions
+        for record in records:
+            fname, age, eye_sight, height = record
+            assert age >= 30, f"Age {age} should be >= 30"
+            assert eye_sight >= 5.0, f"eyeSight {eye_sight} should be >= 5.0"
+            assert height > 1.0, f"height {height} should be > 1.0"
+            assert isinstance(fname, str), "fName should be string"
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
@@ -669,6 +775,55 @@ class TestCopyFrom:
         assert records[0][1] == 35, "Alice's age should be 35"
         assert records[0][2] == "Alice", "First person name should be Alice"
         assert records[0][3] == 1, "Alice's gender should be 1"
+
+    def test_copy_from_node_jsonl_with_column_remapping(self):
+        """Test COPY FROM for node table with column remapping using JSONL file."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        # Create schema with different property order than JSONL
+        # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...
+        # Schema order: ID, age, fName, gender, eyeSight, isStudent
+        create_schema = """
+        CREATE NODE TABLE person_jsonl_remap (
+            ID INT64,
+            age INT64,
+            fName STRING,
+            gender INT64,
+            eyeSight DOUBLE,
+            isStudent BOOLEAN,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_schema)
+
+        # json should be loaded as extension first
+        self.conn.execute("load json")
+
+        # Copy data with column remapping using LOAD FROM subquery
+        # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...
+        # We want: ID, age, fName, gender, eyeSight, isStudent
+        copy_query = f"""
+        COPY person_jsonl_remap FROM (
+            LOAD FROM "{jsonl_path}" (newline_delimited=true)
+            RETURN ID, age, fName, gender, eyeSight, isStudent
+        )
+        """
+        self.conn.execute(copy_query)
+
+        # Verify data with MATCH query
+        query = "MATCH (p:person_jsonl_remap) RETURN p.ID, p.age, p.fName, p.gender, p.eyeSight ORDER BY p.ID LIMIT 3"
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) >= 3, "Should have loaded at least 3 persons"
+        # Verify first record (ID=0, Alice, age=35, eyeSight=5.0)
+        assert records[0][0] == 0, "First person ID should be 0"
+        assert records[0][1] == 35, "Alice's age should be 35"
+        assert records[0][2] == "Alice", "First person name should be Alice"
+        assert records[0][3] == 1, "Alice's gender should be 1"
+        assert records[0][4] == 5.0, "Alice's eyeSight should be 5.0"
 
     def test_copy_from_edge_basic(self):
         """Test basic COPY FROM for edge/relationship table."""

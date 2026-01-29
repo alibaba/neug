@@ -1,130 +1,73 @@
 message(STATUS "=== Building extensions: ${BUILD_EXTENSIONS} ===")
 
-string(REPLACE ";" " " BUILD_EXTENSIONS_STR "${BUILD_EXTENSIONS}")
-separate_arguments(EXTENSION_LIST UNIX_COMMAND "${BUILD_EXTENSIONS_STR}")
-
-set(EXTENSION_INCLUDE_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
-set(EXTENSION_COMMON_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/common")
-
-file(GLOB_RECURSE EXTENSION_COMMON_SRC 
-    "${EXTENSION_COMMON_SRC_DIR}/*.cpp"
-)
-
-if(DEFINED ENV{HOME})
-    set(USER_HOME $ENV{HOME})
-else()
-    set(USER_HOME "/tmp")
-endif()
-
-foreach(EXT_NAME IN LISTS EXTENSION_LIST)
-    string(STRIP "${EXT_NAME}" EXT_NAME)
-    string(TOLOWER "${EXT_NAME}" EXT_NAME_LOWER)
-    
-    if(NOT EXT_NAME)
-        continue()
+function(set_extension_properties target_name output_name extension_name)
+    # Determine output directory based on build context
+    # If CMAKE_LIBRARY_OUTPUT_DIRECTORY is set (Python build), use it directly like neug_libraries
+    # Otherwise, output to build/extension/ (standalone build)
+    if(DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY AND CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+        get_filename_component(lib_output_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" ABSOLUTE)
+        set(output_dir "${lib_output_dir}")
+        message(STATUS "Extension ${extension_name} output directory (Python build): ${output_dir}")
+    else()
+        get_filename_component(binary_dir "${CMAKE_BINARY_DIR}" ABSOLUTE)
+        set(output_dir "${binary_dir}")
+        message(STATUS "Extension ${extension_name} output directory (standalone): ${output_dir}")
     endif()
     
-    message(STATUS "=== Configuring extension: ${EXT_NAME} ===")
+    set(extension_dir "${output_dir}/extension/${extension_name}")
+    file(MAKE_DIRECTORY "${extension_dir}")
+    message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
     
-    set(EXT_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${EXT_NAME_LOWER}")
-    
-    if(NOT EXISTS "${EXT_SRC_DIR}")
-        message(WARNING "Extension source directory not found: ${EXT_SRC_DIR}")
-        continue()
-    endif()
-    
-    file(GLOB_RECURSE EXT_SRC_FILES
-        "${EXT_SRC_DIR}/*.cpp"
+    set_target_properties(${target_name}
+            PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${extension_dir}"
+            OUTPUT_NAME ${output_name}
+            PREFIX "lib"
+            SUFFIX ".neug_extension"
     )
+endfunction()
+
+function(build_extension_lib ext_name)
+    string(TOUPPER "${ext_name}" ext_name_upper_case)
+    set(var_name "${ext_name_upper_case}_EXTENSION_OBJECT_FILES")
     
-    if(NOT EXT_SRC_FILES)
-        message(WARNING "No source files found for extension: ${EXT_NAME}")
-        continue()
+    if(NOT ${var_name})
+        message(FATAL_ERROR "No sources found for extension ${ext_name}. Variable ${var_name} is empty or not set.")
     endif()
     
-    set(ALL_SRC_FILES ${EXT_SRC_FILES})
-    if(EXTENSION_COMMON_SRC)
-        list(APPEND ALL_SRC_FILES ${EXTENSION_COMMON_SRC})
-        message(STATUS "  Including ${CMAKE_CURRENT_LIST_LENGTH} common source files")
+    add_library(neug_${ext_name}_extension
+            SHARED
+            ${${var_name}})
+    SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
+    SET(EXTENSION_LIB_NAME "${ext_name}")
+    set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})
+endfunction()
+
+function(add_extension_test EXTENSION_NAME)
+    find_package(OpenSSL REQUIRED)
+    set(TEST_NAME ${EXTENSION_NAME}_extension_test)
+    set(SRCS ${ARGN})
+    add_executable(${TEST_NAME} ${SRCS})
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_${EXTENSION_NAME}_extension neug_libraries
+        ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
+        ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
+    if (ENABLE_GCOV)
+        target_compile_options(${TEST_NAME} PRIVATE --coverage)
+        target_link_options(${TEST_NAME} PRIVATE --coverage)
     endif()
-    
-    add_library(${EXT_NAME_LOWER} SHARED ${ALL_SRC_FILES})
-    add_dependencies(${EXT_NAME_LOWER} neug_plan_proto)
-    
-    set_target_properties(${EXT_NAME_LOWER} PROPERTIES
-        OUTPUT_NAME "${EXT_NAME_LOWER}"
-        PREFIX "lib"
-        SUFFIX ".neug_extension"
-        LIBRARY_OUTPUT_DIRECTORY "${USER_HOME}/.neug/extensions/${EXT_NAME_LOWER}"
-    )
-    
-    target_include_directories(${EXT_NAME_LOWER}
-        PRIVATE
-            ${EXTENSION_INCLUDE_BASE_DIR}      # extension/include (包含 common/ 和 json/ 等)
-            ${CMAKE_SOURCE_DIR}/include        # neug/include
-            ${CMAKE_SOURCE_DIR}/third_party    # third_party
-    )
-    
-    target_link_libraries(${EXT_NAME_LOWER}
-        PRIVATE
-            neug_libraries
-            ${ARROW_LIB}
-            ${Protobuf_LIBRARIES}
-            ${GLOG_LIBRARIES}
-    )
-    
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(${EXT_NAME_LOWER} PRIVATE -fvisibility=default)
+    include(GoogleTest)
+	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+endfunction()
+
+function(add_extension_if_enabled extension)
+    if ("${extension}" IN_LIST BUILD_EXTENSIONS)
+        message(STATUS "Adding extension: ${extension}")
+        add_subdirectory(${extension})
     endif()
-    
-    message(STATUS "  Output: ${USER_HOME}/.neug/extensions/${EXT_NAME_LOWER}/lib${EXT_NAME_LOWER}.neug_extension")
-    
-    # ========== Build Test ==========
-    if(BUILD_TEST)
-        set(EXT_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests/${EXT_NAME_LOWER}")
-        
-        if(EXISTS "${EXT_TEST_DIR}")
-            file(GLOB_RECURSE EXT_TEST_FILES "${EXT_TEST_DIR}/*.cpp")
-            
-            if(EXT_TEST_FILES)
-                set(COMMON_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests/common")
-                if(EXISTS "${COMMON_TEST_DIR}")
-                    file(GLOB_RECURSE COMMON_TEST_FILES "${COMMON_TEST_DIR}/*.cpp")
-                    if(COMMON_TEST_FILES)
-                        list(APPEND EXT_TEST_FILES ${COMMON_TEST_FILES})
-                        message(STATUS "  Including common test files")
-                    endif()
-                endif()
-                
-                add_executable(${EXT_NAME_LOWER}_extension_test ${EXT_TEST_FILES})
-                
-                target_include_directories(${EXT_NAME_LOWER}_extension_test
-                    PRIVATE
-                        ${EXTENSION_INCLUDE_BASE_DIR}
-                        ${CMAKE_SOURCE_DIR}/include
-                        ${CMAKE_SOURCE_DIR}/third_party
-                )
-                
-                target_link_libraries(${EXT_NAME_LOWER}_extension_test
-                    PRIVATE
-                        ${EXT_NAME_LOWER}
-                        ${GLOG_LIBRARIES}
-                        neug_libraries
-                        neug::GTest
-                        ${Protobuf_LIBRARIES}
-                        ${OPENSSL_LIBRARIES}
-                        ${CRYPTO_LIB}
-                        ${GFLAGS_LIBRARIES}
-                )
-                
-                include(GoogleTest)
-                gtest_discover_tests(${EXT_NAME_LOWER}_extension_test)
-                
-                message(STATUS "  Tests enabled for ${EXT_NAME} extension")
-            endif()
-        endif()
-    endif()
-    
-endforeach()
+endfunction()
+
+# Add json extension
+add_extension_if_enabled("json")
 
 message(STATUS "=== Extension configuration complete ===")

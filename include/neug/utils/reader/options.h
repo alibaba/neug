@@ -23,11 +23,13 @@
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/reader.h"
+#include "neug/utils/reader/schema.h"
 
 namespace neug {
 namespace reader {
 
 struct ReadSharedState;
+struct EntrySchema;
 
 using options_t = common::case_insensitive_map_t<std::string>;
 
@@ -172,6 +174,8 @@ class OptionsBuilder {
  protected:
   std::shared_ptr<ReadSharedState> state;
 };
+
+std::shared_ptr<arrow::Schema> createSchema(const EntrySchema& entrySchema);
 
 /**
  * @brief Structure containing Arrow dataset scan options and file format

@@ -39,9 +39,9 @@ namespace neug {
 namespace extension {
 
 std::string getUserExtensionDir(const std::string& extension_name) {
-  const char* home = std::getenv("HOME");
+  const char* home = std::getenv("EXTENSION_HOME");
   std::string base = home ? home : "/tmp";
-  return base + "/.neug/extensions/" + extension_name;
+  return base + "/extension/" + extension_name;
 }
 
 Status install_extension(const std::string& extension_name) {
@@ -251,7 +251,6 @@ Status load_extension(const std::string& extension_name) {
   auto fileName =
       neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
 
-  // 1. User install directory: ~/.neug/extensions/<extension_name>/<libname>
   std::string userExtDir = getUserExtensionDir(extension_name);
   std::string userLibPath = userExtDir + "/" + fileName;
   if (std::filesystem::exists(userLibPath)) {
@@ -292,56 +291,7 @@ Status load_extension(const std::string& extension_name) {
     return Status::OK();
   }
 
-  // 2. Python wheel package directory (NEUG_EXTENSION_WHEEL_DIR environment
-  // variable)
-  const char* wheel_dir_env = std::getenv("NEUG_EXTENSION_WHEEL_DIR");
-  if (wheel_dir_env) {
-    std::string wheelLibPath =
-        std::string(wheel_dir_env) + "/" + extension_name + "/" + fileName;
-    if (std::filesystem::exists(wheelLibPath)) {
-      LOG(INFO) << "[Admin] Loading extension from wheel package: "
-                << wheelLibPath;
-      LOG(INFO) << "[Admin] Extension loaded from wheel package, not from "
-                   "INSTALL channel";
-      void* handle = dlopen(wheelLibPath.c_str(), RTLD_NOW | RTLD_GLOBAL);
-      if (!handle) {
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Failed to load extension library: " + wheelLibPath +
-                          ". Error: " + std::string(dlerror()));
-      }
-      dlerror();
-      typedef void (*init_func_t)();
-      init_func_t init_func = (init_func_t) dlsym(handle, "Init");
-      const char* dlsym_error = dlerror();
-      if (dlsym_error) {
-        dlclose(handle);
-        return Status(
-            StatusCode::ERR_IO_ERROR,
-            "Failed to find 'Init' function in extension: " + extension_name +
-                ". Error: " + std::string(dlsym_error));
-      }
-      try {
-        (*init_func)();
-        LOG(INFO) << "[Admin] Extension " << extension_name
-                  << " loaded and initialized successfully";
-      } catch (const std::exception& e) {
-        dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed: " + extension_name +
-                          ". Error: " + std::string(e.what()));
-      } catch (...) {
-        dlclose(handle);
-        return Status(StatusCode::ERR_IO_ERROR,
-                      "Extension initialization failed with unknown error: " +
-                          extension_name);
-      }
-      LOG(INFO) << "[Admin] Extension " << extension_name
-                << " is now available";
-      return Status::OK();
-    }
-  }
-
-  // 3. Not found
+  // Not found
   LOG(ERROR) << "[Admin] Extension " << extension_name
              << " not found in user install or wheel package";
   return Status(StatusCode::ERR_IO_ERROR,

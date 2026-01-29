@@ -55,6 +55,14 @@ class ExtensionAPI {
                                        false);
   }
 
+  template <typename T>
+  static void registerFunctionAlias(catalog::CatalogEntryType entryType) {
+    auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+    gCatalog->addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
+                                       entryType, T::name,
+                                       T::alias::getFunctionSet(), false);
+  }
+
   static void registerExtension(const ExtensionInfo& info);
   static const std::unordered_map<std::string, ExtensionInfo>&
   getLoadedExtensions();

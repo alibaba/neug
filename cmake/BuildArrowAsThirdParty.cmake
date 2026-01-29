@@ -63,7 +63,11 @@ function(build_arrow_as_third_party)
     set(ARROW_GANDIVA OFF CACHE BOOL "" FORCE)
     set(ARROW_HDFS OFF CACHE BOOL "" FORCE)
     set(ARROW_ORC OFF CACHE BOOL "" FORCE)
-    set(ARROW_JSON OFF CACHE BOOL "" FORCE)
+    # ARROW_JSON is set by the main CMakeLists.txt if json extension is enabled
+    # Only set it to ON if not already set
+    if(NOT DEFINED ARROW_JSON)
+        set(ARROW_JSON OFF CACHE BOOL "" FORCE)
+    endif()
     set(ARROW_PARQUET OFF CACHE BOOL "" FORCE)
     set(ARROW_PLASMA OFF CACHE BOOL "" FORCE)
     set(ARROW_PYTHON OFF CACHE BOOL "" FORCE)
@@ -89,6 +93,13 @@ function(build_arrow_as_third_party)
     set(ARROW_RUNTIME_SIMD_LEVEL "NONE" CACHE STRING "" FORCE)
     set(ARROW_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
     set(ARROW_DEPENDENCY_SOURCE "BUNDLED" CACHE STRING "" FORCE)
+    # Use system RapidJSON instead of building it (project already has rapidjson in third_party)
+    # RapidJSON configuration is set by the main CMakeLists.txt if json extension is enabled
+    if(ARROW_JSON AND NOT DEFINED RapidJSON_SOURCE)
+        set(RapidJSON_SOURCE "SYSTEM" CACHE STRING "" FORCE)
+        # Point Arrow to use the project's RapidJSON
+        set(RapidJSON_ROOT "${CMAKE_SOURCE_DIR}/third_party/rapidjson" CACHE PATH "" FORCE)
+    endif()
     set(ARROW_WITH_ZLIB OFF CACHE BOOL "" FORCE)
     set(ARROW_ENABLE_THREADING ON CACHE BOOL "" FORCE)
 

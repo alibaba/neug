@@ -23,6 +23,7 @@
 #include <vector>
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 
@@ -45,6 +46,24 @@ class FileSystemProvider {
   // file_schema
   // TODO: support different file systems by VFS manager in the future.
   virtual FileInfo<FileSystem> provide(const reader::FileSchema& schema) = 0;
+};
+
+class LocalFileSystemProvider
+    : public FileSystemProvider<arrow::fs::FileSystem> {
+ public:
+  // Simple implementation of a local file provider;
+  // TODO: should be replaced with a VFS manager in the future.
+  FileInfo<arrow::fs::FileSystem> provide(
+      const reader::FileSchema& schema) override {
+    auto fs = std::make_shared<arrow::fs::LocalFileSystem>();
+    auto& paths = schema.paths;
+    std::vector<std::string> resolvedPaths;
+    for (auto& path : paths) {
+      auto files = neug::runtime::ops::match_files_with_pattern(path);
+      resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
+    }
+    return FileInfo<arrow::fs::FileSystem>{resolvedPaths, fs};
+  }
 };
 
 // The exec function invoked by data source operators to load data from external

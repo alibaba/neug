@@ -142,6 +142,7 @@ class CMakeBuild(build_ext):
             f"-DBUILD_HTTP_SERVER={build_http_server}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
             f"-DENABLE_GCOV={enable_gcov}",
+            f"-DBUILD_EXTENSIONS={build_extensions}",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
         if build_extensions:
@@ -231,49 +232,6 @@ class CMakeBuild(build_ext):
             cwd=build_temp,
             check=True,
         )
-
-        self._copy_extensions_to_package()
-
-    def copy_extensions_to_source(self):
-        pass
-
-    def _copy_extensions_to_package(self):
-        """Copy extension files into the Python package's extensions directory.
-
-        Search the build directory:
-          $HOME/.neug/extensions/<extension_name>/lib<extension_name>.neug_extension
-        and copy it to package_dir/neug/extensions/<extension_name>/.
-        """
-        build_extensions = os.environ.get("BUILD_EXTENSIONS", "")
-        if not build_extensions:
-            return
-
-        print(f"=== Copying extensions: {build_extensions} ===")
-
-        home = os.environ.get("HOME", "/tmp")
-        print(f"=== HOME directory: {home} ===")
-
-        for extension_name in build_extensions.split(";"):
-            extension_name = extension_name.strip()
-            if not extension_name:
-                continue
-
-            file_name = f"lib{extension_name}.neug_extension"
-            src_home = os.path.join(
-                home, ".neug", "extensions", extension_name, file_name
-            )
-
-            dest_dir = os.path.join(base_dir, "neug", "extensions", extension_name)
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_file = os.path.join(dest_dir, file_name)
-
-            if os.path.exists(src_home):
-                print(
-                    f"Copying {extension_name} extension from {src_home} -> {dest_file}"
-                )
-                shutil.copy2(src_home, dest_file)
-            else:
-                print(f"Warning: {extension_name} extension not found at {src_home}")
 
 
 class BuildProto(Command):
@@ -388,7 +346,7 @@ setup(
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"neug": ["VERSION", "resources/*", "extensions/*/*.neug_extension"]},
+    package_data={"neug": ["VERSION", "resources/*", "extension/*/*.neug_extension"]},
     zip_safe=False,
     include_package_data=True,
     entry_points={

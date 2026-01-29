@@ -137,6 +137,12 @@ class ReaderTest : public ::testing::Test {
     return type;
   }
 
+  std::shared_ptr<::common::DataType> createUInt32Type() {
+    auto type = std::make_shared<::common::DataType>();
+    type->set_primitive_type(::common::PrimitiveType::DT_UNSIGNED_INT32);
+    return type;
+  }
+
   std::shared_ptr<::common::DataType> createStringType() {
     auto type = std::make_shared<::common::DataType>();
     auto strType = std::make_unique<::common::String>();

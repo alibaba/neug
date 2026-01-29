@@ -44,6 +44,7 @@ class Context;
 
 namespace reader {
 class ArrowOptionsBuilder;
+class DatasetBuilder;
 
 /**
  * @brief Base class for local read state
@@ -159,6 +160,26 @@ class Reader {
 };
 
 /**
+ * @brief Builder class for creating DatasetFactory
+ *
+ * This class provides a unified interface for creating DatasetFactory instances
+ * for different file formats.
+ *
+ * Derived classes must implement:
+ * - buildFactory(): creates the appropriate DatasetFactory instance
+ */
+class DatasetBuilder {
+ public:
+  explicit DatasetBuilder() = default;
+  virtual ~DatasetBuilder() = default;
+
+  virtual std::shared_ptr<arrow::dataset::DatasetFactory> buildFactory(
+      std::shared_ptr<ReadSharedState> sharedState,
+      std::shared_ptr<arrow::fs::FileSystem> fs,
+      std::shared_ptr<arrow::dataset::FileFormat> fileFormat);
+};
+
+/**
  * @brief Arrow-based reader implementation for reading data from external files
  *
  * This class provides a concrete implementation of the Reader interface using
@@ -177,7 +198,15 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
                        std::unique_ptr<ArrowOptionsBuilder> optionsBuilder,
                        std::shared_ptr<arrow::fs::FileSystem> fileSystem)
       : Reader(std::move(sharedState), std::move(fileSystem)),
-        optionsBuilder(std::move(optionsBuilder)) {}
+        optionsBuilder(std::move(optionsBuilder)),
+        datasetBuilder(std::make_shared<DatasetBuilder>()) {}
+  explicit ArrowReader(std::shared_ptr<ReadSharedState> sharedState,
+                       std::unique_ptr<ArrowOptionsBuilder> optionsBuilder,
+                       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
+                       std::shared_ptr<DatasetBuilder> datasetBuilder)
+      : Reader(std::move(sharedState), std::move(fileSystem)),
+        optionsBuilder(std::move(optionsBuilder)),
+        datasetBuilder(datasetBuilder) {}
   virtual ~ArrowReader() override = default;
 
   void read(std::shared_ptr<ReadLocalState> localState,
@@ -221,6 +250,7 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
 
  protected:
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;
+  std::shared_ptr<DatasetBuilder> datasetBuilder;
 };
 
 }  // namespace reader

@@ -5,7 +5,6 @@ This mechanism is designed for **lightweight, on-the-fly analysis** of external 
 
 `LOAD FROM` is particularly suitable for exploratory queries, data validation, and one-time analytical workloads.
 
----
 
 ## Basic Syntax
 
@@ -28,7 +27,6 @@ RETURN <column_list>;
   Specifies the columns to return.
   Use `*` to return all columns.
 
----
 
 ## LOAD FROM CSV
 
@@ -47,7 +45,6 @@ The following options control how CSV files are parsed:
 | `quoting`  | bool | `true`  | Whether to enable quote processing                                                           |
 | `escaping` | bool | `true`  | Whether to enable escape character processing                                                |
 
----
 
 ### Query Examples
 
@@ -90,25 +87,21 @@ LOAD FROM "person.csv" (delim=',')
 RETURN name, CAST(age, 'DOUBLE') AS double_age;
 ```
 
----
 
 ## LOAD FROM JSON
 
-<!-- TODO -->
+`LOAD JSON` is supported by extension framework in NeuG, please refer to [JSON Extension](./extensions/load_json.md) for more details.
 
----
 
 ## LOAD FROM PARQUET
 
 <!-- TODO -->
 
----
 
 ## Relational Operators with LOAD FROM
 
 In addition to `RETURN`, `LOAD FROM` can be combined with standard relational operators to express more complex queries.
 
----
 
 ### WHERE Filtering
 
@@ -128,7 +121,6 @@ WHERE age > 25 AND age < 40
 RETURN name, age;
 ```
 
----
 
 ### Aggregate Functions
 
@@ -159,7 +151,6 @@ LOAD FROM "person.csv" (delim=',')
 RETURN name, AVG(age) AS avg_age;
 ```
 
----
 
 ### Sorting and Limiting
 
@@ -180,7 +171,6 @@ ORDER BY age DESC
 LIMIT 10;
 ```
 
----
 
 ## Advanced Features
 

@@ -39,6 +39,33 @@
 namespace neug {
 namespace reader {
 
+std::shared_ptr<arrow::Schema> createSchema(const EntrySchema& entrySchema) {
+  // Build dataset schema from entry schema (column names and types)
+  std::vector<std::shared_ptr<arrow::Field>> fields;
+  fields.reserve(entrySchema.columnNames.size());
+  for (size_t i = 0; i < entrySchema.columnNames.size(); ++i) {
+    const std::string& columnName = entrySchema.columnNames[i];
+    if (!entrySchema.columnTypes[i]) {
+      LOG(ERROR) << "Column type is null for column: " << columnName;
+      THROW_RUNTIME_ERROR("Column type is null for column: " + columnName);
+    }
+    const ::common::DataType& columnType = *entrySchema.columnTypes[i];
+
+    // Convert Protobuf DataType to Arrow DataType
+    ArrowTypeConverter arrowConverter;
+    auto arrowType = arrowConverter.convert(columnType);
+    if (!arrowType) {
+      LOG(ERROR) << "Failed to convert column type for column: " << columnName;
+      THROW_RUNTIME_ERROR("Failed to convert column type for column: " +
+                          columnName);
+    }
+
+    fields.push_back(arrow::field(columnName, arrowType, false));
+  }
+
+  return std::make_shared<arrow::Schema>(fields);
+}
+
 bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
   if (state->skipColumns.empty()) {
     return true;
@@ -70,31 +97,7 @@ bool ArrowOptionsBuilder::skipColumns(ArrowOptions& options) {
         "Empty project columns after column pruning");
   }
 
-  // Build dataset schema from entry schema (column names and types)
-  std::vector<std::shared_ptr<arrow::Field>> fields;
-  fields.reserve(entrySchema.columnNames.size());
-
-  for (size_t i = 0; i < entrySchema.columnNames.size(); ++i) {
-    const std::string& columnName = entrySchema.columnNames[i];
-    if (!entrySchema.columnTypes[i]) {
-      LOG(ERROR) << "Column type is null for column: " << columnName;
-      THROW_RUNTIME_ERROR("Column type is null for column: " + columnName);
-    }
-    const ::common::DataType& columnType = *entrySchema.columnTypes[i];
-
-    // Convert Protobuf DataType to Arrow DataType
-    ArrowTypeConverter arrowConverter;
-    auto arrowType = arrowConverter.convert(columnType);
-    if (!arrowType) {
-      LOG(ERROR) << "Failed to convert column type for column: " << columnName;
-      THROW_RUNTIME_ERROR("Failed to convert column type for column: " +
-                          columnName);
-    }
-
-    fields.push_back(arrow::field(columnName, arrowType, false));
-  }
-
-  auto dataset_schema = std::make_shared<arrow::Schema>(fields);
+  auto dataset_schema = createSchema(entrySchema);
   auto project_desc = arrow::dataset::ProjectionDescr::FromNames(
       project_columns, *dataset_schema);
   if (!project_desc.ok()) {

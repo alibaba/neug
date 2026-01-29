@@ -29,24 +29,6 @@
 #include "neug/utils/reader/sniffer.h"
 namespace neug {
 namespace function {
-
-class LocalFileSystemProvider
-    : public FileSystemProvider<arrow::fs::FileSystem> {
- public:
-  // Simple implementation of a local file provider;
-  // TODO: should be replaced with a VFS manager in the future.
-  FileInfo<arrow::fs::FileSystem> provide(
-      const reader::FileSchema& schema) override {
-    auto fs = std::make_shared<arrow::fs::LocalFileSystem>();
-    auto& paths = schema.paths;
-    std::vector<std::string> resolvedPaths;
-    for (auto& path : paths) {
-      auto files = neug::runtime::ops::match_files_with_pattern(path);
-      resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
-    }
-    return FileInfo<arrow::fs::FileSystem>{resolvedPaths, fs};
-  }
-};
 struct CSVReadFunction {
   static constexpr const char* name = "CSV_SCAN";
 

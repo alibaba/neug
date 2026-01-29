@@ -176,5 +176,15 @@ This allows users to explore multi-hop relationships without materializing the g
 **Current Status**
 
 At present, NeuG fully supports loading external data as **temporary tables** via `LOAD FROM`.
-You can refer to the [Load From](load_from) for detailed usage and supported operations.
+You can refer to the [Load From](load_from.md) for detailed usage and supported operations.
 Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidelines will be released in upcoming versions.
+
+### Extension
+
+The Extension framework in database systems is a mechanism that allows dynamically adding new functionality without modifying the core engine code. NeuG also provides an Extension framework that enables external users to flexibly load new features, with the following key advantages:
+
+- **Core engine remains lean**: Provides essential functionality for query parsing, optimization, and execution
+- **New features developed as plugins**: Offers rich external extension capabilities, such as external data import, graph algorithm analysis, etc.
+- **Reduced maintenance complexity**: Avoids core code bloat, improving readability and stability
+
+Please refer to [Extension](./extensions/overview.md) for more details.
