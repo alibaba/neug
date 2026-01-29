@@ -4,7 +4,7 @@ This guide will walk you through creating your first graph database, performing 
 
 ## Prerequisites
 
-Before you begin, make sure you have NeuG installed. If you haven't installed it yet, please follow the [installation guide](../installation/installation.md).
+Before you begin, make sure you have NeuG installed. If you haven't installed it yet, please follow the [installation guide](../../installation/installation).
 
 ## Database Storage Modes
 
@@ -239,6 +239,6 @@ Loading a builtin dataset into an existing database will fail if there are schem
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Data Import/Export](../import_export/import_data.md)**: Learn how to import large datasets
-2. **[Advanced Cypher Queries](../cypher_manual/index.md)**: Master complex graph patterns
-3. **[Tutorials](../tutorials/tinysnb_tutorial.md)**: Try these interesting tutorials of NeuG
+1. **[Data Import/Export](../../import_export/import_data)**: Learn how to import large datasets
+2. **[Advanced Cypher Queries](../../cypher_manual)**: Master complex graph patterns
+3. **[Tutorials](../../tutorials/tinysnb_tutorial)**: Try these interesting tutorials of NeuG

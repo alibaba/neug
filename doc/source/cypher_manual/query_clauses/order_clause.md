@@ -97,7 +97,7 @@ Order BY label(a);
 
 <!-- todo: label function is not included in current pip package -->
 
-For more Scalar Function operations, see the [Function Section](../expression.md).
+For more Scalar Function operations, see the [Function Section](../../expression).
 
 ## Order with Limit
 

@@ -16,7 +16,7 @@ The dataset contains:
 ## Getting Started
 
 Let's begin by loading the TinySNB dataset and exploring its structure.
-[Install NeuG](../installation/installation.md) if you have not done so. 
+[Install NeuG](../../installation/installation) if you have not done so. 
 
 ### Loading the Dataset
 

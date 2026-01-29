@@ -33,7 +33,7 @@ NeuG primarily targets Schema-Strict graph data scenarios, where every piece of 
 
 For example, consider the following schema graph:
 
-<img src="figures/modern_schema.png" alt="Modern Schema Graph" style="display: block; margin: 2em auto; max-width: 500px;">
+![Modern Schema Graph](./figures/modern_schema.png)
 
 The above schema graph can be created by the following statements:
 
@@ -79,7 +79,7 @@ MATCH (p:person)-[:follows]->(m:person)
 RETURN p.name;
 ```
 
-We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause.md).
+We define a set of syntax for creating schema graphs as shown above, which we call DDL (Data Definition Language). All subsequent data updating and query operations must conform to the schema specifications defined by the current DDL. We will introduce this in detail in the [DDL section](ddl_clause).
 
 ### Data Query (DQL)
 
@@ -95,9 +95,9 @@ WHERE a.name < c.name
 RETURN a.name, b.name, c.name;
 ```
 
-We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses/index.md).
+We refer to each `MATCH`, `WHERE`, and `RETURN` as a Clause, which are the basic units of graph data operations. Here, the `MATCH` operation primarily matches all data that constitutes triangle patterns, `WHERE` further filters the pattern data to guarantee deduplication, and `RETURN` operations perform projection of names and output the final results. The `MATCH` operation mainly completes graph pattern matching, while `WHERE`/`RETURN` operations primarily perform relational operations similar to SQL. These clauses will be introduced in detail in [DQL section](query_clauses).
 
-To further ensure the legality of Clause operations on data, we have defined the data type boundaries that NeuG supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types.md) and [Expressions sections](expression/index.md).
+To further ensure the legality of Clause operations on data, we have defined the data type boundaries that NeuG supports, as well as expression operations based on these data types. These will be introduced in detail in the [Data Types](data_types) and [Expressions sections](expression).
 
 ### Data Management (DML)
 
@@ -132,7 +132,7 @@ MATCH (p:person {name: 'Bob'})
 DELETE p;
 ```
 
-We will introduce these DML operations in detail in the [DML section](dml_clause.md).
+We will introduce these DML operations in detail in the [DML section](dml_clause).
 
 ### Temporary Loading
 
@@ -176,5 +176,5 @@ This allows users to explore multi-hop relationships without materializing the g
 **Current Status**
 
 At present, NeuG fully supports loading external data as **temporary tables** via `LOAD FROM`.
-You can refer to the [Load From](load_from.md) for detailed usage and supported operations.
+You can refer to the [Load From](load_from) for detailed usage and supported operations.
 Loading external data as **temporary graphs** via `LOAD AS` is currently under development, and detailed usage guidelines will be released in upcoming versions.

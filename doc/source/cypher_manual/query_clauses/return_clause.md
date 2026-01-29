@@ -1,6 +1,6 @@
 # Return Clause
 
-Return and With provide similar functionality, both for further aggregation or projection of data. The difference is that Return needs to return and display the processed results. Here we won't go into too much detail about Return's functionality itself, as you can refer to the usage in the [With Section](with_clause.md). We mainly focus on result output and some common Return usage patterns.
+Return and With provide similar functionality, both for further aggregation or projection of data. The difference is that Return needs to return and display the processed results. Here we won't go into too much detail about Return's functionality itself, as you can refer to the usage in the [With Section](../with_clause). We mainly focus on result output and some common Return usage patterns.
 
 ## Return Nodes
 

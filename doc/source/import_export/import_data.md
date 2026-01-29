@@ -272,5 +272,5 @@ These features will provide even more flexibility for data scientists and analys
 ## What's Next?
 
 After successfully importing your data:
-1. **[Query your data](../cypher_manual/index.md)** - Learn Cypher query language
-2. **[Export data](export_data.md)** - Export data when needed
+1. **[Query your data](../../cypher_manual)** - Learn Cypher query language
+2. **[Export data](../export_data)** - Export data when needed

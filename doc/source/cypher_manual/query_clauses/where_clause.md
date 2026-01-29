@@ -1,6 +1,6 @@
 # Where Clause
 
-The WHERE clause is used to further filter the results produced by previous query operations based on predicates or subqueries. The filtering is primarily based on logical expressions, which we will introduce in detail in the [expression section](../expression.md). It only outputs data that meets the specified conditions.
+The WHERE clause is used to further filter the results produced by previous query operations based on predicates or subqueries. The filtering is primarily based on logical expressions, which we will introduce in detail in the [expression section](../../expression). It only outputs data that meets the specified conditions.
 
 ## Filter by Properties
 

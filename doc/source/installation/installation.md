@@ -38,7 +38,7 @@ print("✅ NeuG is ready!")
 
 ### Build from Source
 
-See the [Developer Guide](../development/dev_guide.md) for detailed build instructions. Quick overview:
+See the [Developer Guide](../../development/dev_guide) for detailed build instructions. Quick overview:
 
 ```bash
 git clone https://github.com/GraphScope/neug.git
@@ -105,7 +105,7 @@ neug-cli --version
 neug-cli
 ```
 
-See [CLI Documentation](../user_clients/cli.md) for more details.
+See [CLI Documentation](../../user_clients/cli) for more details.
 
 ## Troubleshooting
 
@@ -123,6 +123,6 @@ pip install --upgrade neug
 
 ## Next Steps
 
-🚀 **[Getting Started Guide](../getting_started/getting_started.md)** - Your first graph database
+🚀 **[Getting Started Guide](../../getting_started/getting_started)** - Your first graph database
 
-📚 **[TinySnb Tutorial](../tutorials/tinysnb_tutorial.md)** - Hands-on examples
+📚 **[TinySnb Tutorial](../../tutorials/tinysnb_tutorial)** - Hands-on examples

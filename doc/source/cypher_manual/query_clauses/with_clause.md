@@ -13,7 +13,7 @@ Aggregation is similar to the GROUP BY operation in SQL, which groups current da
 - MAX
 - AVG
 
-We will introduce these functions in detail in the [Aggregate Function Section](../expression/agg_func.md).
+We will introduce these functions in detail in the [Aggregate Function Section](../../expression/agg_func).
 
 ### Aggregate by Single Property
 ```
