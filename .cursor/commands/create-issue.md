@@ -24,6 +24,7 @@ You **MUST** consider the user input before proceeding (if not empty).
     Assignee: <assignee>
     Labels: bug, <additional labels>
     Project: NeuG v0.1
+    Parent Issue: #<parent-issue-id>
 
     **Describe the bug**
     A clear and concise description of what the bug is.
@@ -83,6 +84,10 @@ You **MUST** consider the user input before proceeding (if not empty).
         --label "<label>" \
         --assignee "<assignee>" \
         --project "<project>"
+    ```
+    - Using the following command to link the parent issue if required:
+    ```
+    gh api graphql -f query='mutation { addSubIssue(input: {issueId: "xxx", subIssueId: "xxx"}) { issue { id title } subIssue { id title } } }'
     ```
 
 6. **Delete Temporary File**: Delete the temporary file After the issue is created.
