@@ -38,6 +38,12 @@ void parse_ids_from_idx_predicate(
     } else if (triplet.const_().item_case() == common::Value::kI64) {
       ret.emplace_back(
           PropUtils<T>::to_prop(static_cast<T>(triplet.const_().i64())));
+    } else if (triplet.const_().item_case() == common::Value::kU32) {
+      ret.emplace_back(
+          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().u32())));
+    } else if (triplet.const_().item_case() == common::Value::kU64) {
+      ret.emplace_back(
+          PropUtils<T>::to_prop(static_cast<T>(triplet.const_().u64())));
     } else if (triplet.const_().item_case() == common::Value::kI64Array) {
       const auto& arr = triplet.const_().i64_array();
       for (int i = 0; i < arr.item_size(); ++i) {
@@ -117,6 +123,12 @@ ScanUtils::parse_ids_with_type(DataTypeId type,
   } break;
   case DataTypeId::kInt32: {
     parse_ids_from_idx_predicate<int32_t>(triplet, ids);
+  } break;
+  case DataTypeId::kUInt64: {
+    parse_ids_from_idx_predicate<uint64_t>(triplet, ids);
+  } break;
+  case DataTypeId::kUInt32: {
+    parse_ids_from_idx_predicate<uint32_t>(triplet, ids);
   } break;
   case DataTypeId::kVarchar: {
     parse_ids_from_idx_predicate(triplet, ids);
