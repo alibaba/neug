@@ -53,8 +53,8 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
     if (vertex_column->vertex_column_type() == VertexColumnType::kSingle) {
       auto sl_vertex_column =
           std::dynamic_pointer_cast<SLVertexColumn>(vertex_column);
-      graph.BatchDeleteVertices(sl_vertex_column->label(),
-                                sl_vertex_column->vertices());
+      RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteVertices(
+          sl_vertex_column->label(), sl_vertex_column->vertices()));
     } else if (vertex_column->vertex_column_type() ==
                    VertexColumnType::kMultiple ||
                vertex_column->vertex_column_type() ==
@@ -70,7 +70,8 @@ neug::result<Context> BatchDeleteVertexOpr::Eval(
         vids_map.at(vertex.label_).emplace_back(vertex.vid_);
       }
       for (auto& vids_pair : vids_map) {
-        graph.BatchDeleteVertices(vids_pair.first, vids_pair.second);
+        RETURN_STATUS_ERROR_IF_NOT_OK(
+            graph.BatchDeleteVertices(vids_pair.first, vids_pair.second));
       }
     } else {
       THROW_RUNTIME_ERROR(

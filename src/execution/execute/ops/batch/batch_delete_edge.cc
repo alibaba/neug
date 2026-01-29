@@ -77,8 +77,8 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
           ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }
       }
-      graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label, oe_to_delete,
-                             ie_to_delete);
+      RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteEdges(
+          src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
     } else {
       std::unordered_map<uint32_t, std::vector<EdgeRecord>> edges_map;
       for (size_t j = 0; j < edge_column->size(); j++) {
@@ -110,8 +110,8 @@ neug::result<Context> BatchDeleteEdgeOpr::Eval(
           oe_to_delete.emplace_back(record.src, offset_pair.first);
           ie_to_delete.emplace_back(record.dst, offset_pair.second);
         }
-        graph.BatchDeleteEdges(src_v_label, dst_v_label, edge_label,
-                               oe_to_delete, ie_to_delete);
+        RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchDeleteEdges(
+            src_v_label, dst_v_label, edge_label, oe_to_delete, ie_to_delete));
       }
     }
     std::vector<size_t> offsets;

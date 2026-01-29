@@ -83,12 +83,8 @@ neug::result<Context> BatchInsertEdgeOpr::Eval(
   auto suppliers = create_record_batch_supplier(ctx, total_mappings);
 
   for (auto& supplier : suppliers) {
-    if (!graph
-             .BatchAddEdges(src_label_id_, dst_label_id_, edge_label_id_,
-                            supplier)
-             .ok()) {
-      THROW_INTERNAL_EXCEPTION("Failed to add edges");
-    }
+    RETURN_STATUS_ERROR_IF_NOT_OK(graph.BatchAddEdges(
+        src_label_id_, dst_label_id_, edge_label_id_, supplier));
   }
   return neug::result<Context>(std::move(ctx));
 }

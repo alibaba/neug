@@ -48,17 +48,20 @@ std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
                                         const GenericView& oe,
                                         const GenericView& ie, vid_t lid,
-                                        bool is_src) {
+                                        bool is_src, timestamp_t ts) {
   std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>> related_edges;
   if (is_src) {
     NbrList nbr_list = oe.get_edges(lid);
     auto stride = nbr_list.cfg.stride;
     auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
     for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
+      if (it.get_timestamp() > ts) {
+        continue;
+      }
       auto oe_offset =
           (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
       vid_t dst_lid = it.get_vertex();
-      int32_t ie_offset = neug::search_oe_offset_with_ie_offset(
+      int32_t ie_offset = neug::search_other_offset_with_cur_offset(
           oe, ie, lid, dst_lid, oe_offset, props);
       related_edges.emplace_back(lid, dst_lid, oe_offset, ie_offset);
     }
@@ -67,11 +70,14 @@ fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
     auto stride = nbr_list.cfg.stride;
     auto start_ptr = static_cast<const char*>(nbr_list.start_ptr);
     for (auto it = nbr_list.begin(); it != nbr_list.end(); ++it) {
+      if (it.get_timestamp() > ts) {
+        continue;
+      }
       auto ie_offset =
           (static_cast<const char*>(it.get_nbr_ptr()) - start_ptr) / stride;
       vid_t src_lid = it.get_vertex();
-      int32_t oe_offset = neug::search_oe_offset_with_ie_offset(
-          oe, ie, src_lid, lid, ie_offset, props);
+      int32_t oe_offset = neug::search_other_offset_with_cur_offset(
+          ie, oe, lid, src_lid, ie_offset, props);
       related_edges.emplace_back(src_lid, lid, oe_offset, ie_offset);
     }
   }
@@ -81,7 +87,7 @@ fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
 std::unordered_map<uint32_t,
                    std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
 fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
-                              vid_t lid) {
+                              vid_t lid, timestamp_t ts) {
   std::unordered_map<uint32_t,
                      std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
       related_edges;  // edge_triplet_id: <src, dst, oe_offset, ie_offset>
@@ -109,7 +115,7 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
 
         related_edges[edge_triplet_id] =
             fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
-                                                    lid, true);
+                                                    lid, true, ts);
       }
       if (other_label_id != v_label &&
           schema.exist(other_label_id, v_label, e_label_id)) {
@@ -123,7 +129,7 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
                                                        e_label_id);
         related_edges[edge_triplet_id] =
             fetch_edges_related_to_vertex_from_view(props, oe_view, ie_view,
-                                                    lid, false);
+                                                    lid, false, ts);
       }
     }
   }
@@ -142,7 +148,7 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
   arc_.Resize(sizeof(WalHeader));
 }
 
-UpdateTransaction::~UpdateTransaction() { release(); }
+UpdateTransaction::~UpdateTransaction() { Abort(); }
 
 timestamp_t UpdateTransaction::timestamp() const { return timestamp_; }
 
@@ -685,7 +691,8 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   // edge_triplet_id: < src, dst, oe_offset, ie_offset>
   std::unordered_map<uint32_t,
                      std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
-      related_edges = fetch_edges_related_to_vertex(*this, label, lid);
+      related_edges =
+          fetch_edges_related_to_vertex(*this, label, lid, timestamp_);
   undo_logs_.push(
       std::make_unique<RemoveVertexUndo>(label, lid, related_edges));
   auto status = graph_.DeleteVertex(label, lid, timestamp_);
@@ -714,7 +721,7 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   op_num_ += 1;
   auto oe_offset = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
                                   edge_label, properties, timestamp_, alloc_);
-  auto ie_offset = search_ie_offset_with_oe_offset(
+  auto ie_offset = search_other_offset_with_cur_offset(
       graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
       graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
       src_lid, dst_lid, oe_offset,
@@ -1217,26 +1224,57 @@ Status StorageTPUpdateInterface::BatchAddEdges(
 
 Status StorageTPUpdateInterface::BatchDeleteVertices(
     label_t v_label_id, const std::vector<vid_t>& vids) {
-  LOG(ERROR) << "BatchDeleteVertices is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchDeleteVertices is not supported in TP mode currently.");
+  for (vid_t lid : vids) {
+    if (!txn_.DeleteVertex(v_label_id, lid)) {
+      LOG(ERROR) << "Failed to delete vertex " << lid << " of label "
+                 << v_label_id << " in batch request.";
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Failed to delete vertex " + std::to_string(lid));
+    }
+  }
+  return Status::OK();
 }
 
 Status StorageTPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::tuple<vid_t, vid_t>>& edges) {
-  LOG(ERROR) << "BatchDeleteEdges is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchDeleteEdges is not supported in TP mode currently.");
+  for (const auto& edge : edges) {
+    vid_t src_lid = std::get<0>(edge);
+    vid_t dst_lid = std::get<1>(edge);
+    if (!txn_.DeleteEdges(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
+                          edge_label_id)) {
+      LOG(ERROR) << "Failed to delete edge from vertex " << src_lid
+                 << " to vertex " << dst_lid << " in batch request.";
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Failed to delete edge from vertex " +
+                        std::to_string(src_lid) + " to vertex " +
+                        std::to_string(dst_lid));
+    }
+  }
+  return Status::OK();
 }
 
 Status StorageTPUpdateInterface::BatchDeleteEdges(
     label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
     const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
     const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
-  LOG(ERROR) << "BatchDeleteEdges is not supported in TP mode currently.";
-  return Status(StatusCode::ERR_NOT_SUPPORTED,
-                "BatchDeleteEdges is not supported in TP mode currently.");
+  assert(oe_edges.size() == ie_edges.size());
+  for (size_t i = 0; i < oe_edges.size(); ++i) {
+    vid_t src_lid = oe_edges[i].first;
+    vid_t dst_lid = ie_edges[i].first;
+    int32_t oe_offset = oe_edges[i].second;
+    int32_t ie_offset = ie_edges[i].second;
+    if (!txn_.DeleteEdge(src_v_label_id, src_lid, dst_v_label_id, dst_lid,
+                         edge_label_id, oe_offset, ie_offset)) {
+      LOG(ERROR) << "Failed to delete edge from vertex " << src_lid
+                 << " to vertex " << dst_lid << " in batch request.";
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Failed to delete edge from vertex " +
+                        std::to_string(src_lid) + " to vertex " +
+                        std::to_string(dst_lid));
+    }
+  }
+  return Status::OK();
 }
 
 Status StorageTPUpdateInterface::CreateVertexType(

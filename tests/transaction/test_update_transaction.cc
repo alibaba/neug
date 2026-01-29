@@ -20,6 +20,8 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/transaction/update_transaction.h"
 
+#include <limits>
+
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
@@ -186,7 +188,7 @@ class UpdateTransactionTest : public ::testing::Test {
     for (auto it = edge_iter.begin(); it != edge_iter.end();
          ++it, ++oe_offset) {
       if (condition(it.get_vertex())) {
-        auto ie_offset = neug::search_ie_offset_with_oe_offset(
+        auto ie_offset = neug::search_other_offset_with_cur_offset(
             oe_view, ie_view, src_vid, it.get_vertex(), oe_offset,
             e_prop_types);
         func(it.get_vertex(), oe_offset, ie_offset);
@@ -1900,7 +1902,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
       auto oe_offset =
           (reinterpret_cast<const char*>(it.get_nbr_ptr()) - begin_ptr) /
           stride;
-      auto ie_offset = neug::search_ie_offset_with_oe_offset(
+      auto ie_offset = neug::search_other_offset_with_cur_offset(
           oe_view, ie_view, p1_vid, p2_vid, oe_offset, props);
       EXPECT_TRUE(txn.DeleteEdge(person_label, p1_vid, software_label, p2_vid,
                                  created_label, oe_offset, ie_offset));
@@ -2045,11 +2047,153 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
               neug::StatusCode::ERR_NOT_SUPPORTED);
     EXPECT_EQ(interface.BatchAddEdges(0, 0, 0, nullptr).error_code(),
               neug::StatusCode::ERR_NOT_SUPPORTED);
-    EXPECT_EQ(interface.BatchDeleteVertices(0, vids).error_code(),
-              neug::StatusCode::ERR_NOT_SUPPORTED);
-    EXPECT_EQ(interface.BatchDeleteEdges(0, 0, 0, edges).error_code(),
-              neug::StatusCode::ERR_NOT_SUPPORTED);
   }
+}
+
+TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t alice_vid, bob_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+                                   alice_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+                                   bob_vid));
+    std::vector<neug::vid_t> lids = {alice_vid, bob_vid};
+    EXPECT_EQ(interface.BatchDeleteVertices(person_label, lids).error_code(),
+              neug::StatusCode::OK);
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 0);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    neug::vid_t p1_vid, p2_vid, s1_vid, s2_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+                                   p1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(2),
+                                   p2_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(software_label,
+                                   neug::Property::from_int64(1), s1_vid));
+    EXPECT_TRUE(txn.GetVertexIndex(software_label,
+                                   neug::Property::from_int64(2), s2_vid));
+    std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges = {
+        std::make_tuple(p1_vid, s1_vid), std::make_tuple(p2_vid, s2_vid)};
+    EXPECT_EQ(interface.BatchDeleteEdges(person_label, software_label,
+                                         created_label, edges)
+                  .error_code(),
+              neug::StatusCode::OK);
+    EXPECT_TRUE(txn.Commit());
+  }
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 0);
+    EXPECT_EQ(
+        count_edges(gi, software_label, person_label, created_label, false), 0);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    neug::vid_t alice_vid;
+    EXPECT_TRUE(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+                                   alice_vid));
+    auto invalid_vid = std::numeric_limits<neug::vid_t>::max();
+    EXPECT_THROW(
+        interface.BatchDeleteVertices(person_label, {alice_vid, invalid_vid}),
+        neug::exception::Exception);
+    txn.Abort();
+  }
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    EXPECT_EQ(count_vertices(gi, person_label), 2);
+  }
+  db.Close();
+}
+
+TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    neug::StorageTPUpdateInterface interface(txn);
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    auto invalid_vid = std::numeric_limits<neug::vid_t>::max();
+    std::vector<std::tuple<neug::vid_t, neug::vid_t>> edges = {
+        std::make_tuple(invalid_vid, invalid_vid)};
+    EXPECT_THROW(interface.BatchDeleteEdges(person_label, software_label,
+                                            created_label, edges),
+                 neug::exception::Exception);
+    txn.Abort();
+  }
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    EXPECT_EQ(
+        count_edges(gi, person_label, software_label, created_label, true), 2);
+    EXPECT_EQ(
+        count_edges(gi, software_label, person_label, created_label, false), 2);
+  }
+  db.Close();
 }
 
 TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
@@ -2157,7 +2301,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
         uint32_t oe_offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
                               reinterpret_cast<const char*>(begin)) /
                              edges.cfg.stride;
-        auto ie_offset = neug::search_ie_offset_with_oe_offset(
+        auto ie_offset = neug::search_other_offset_with_cur_offset(
             oe_view, ie_view, vid, it.get_vertex(), oe_offset, e_prop_types);
         auto prop = ed_accessor.get_data(it).as_string_view();
         std::string updated_review;

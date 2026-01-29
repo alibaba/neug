@@ -92,6 +92,14 @@ inline std::string to_string(const neug::interactive::Code& status) {
 #define RETURN_STATUS_ERROR(code, msg) \
   return tl::unexpected(neug::Status(code, msg))
 
+#define RETURN_STATUS_ERROR_IF_NOT_OK(expr) \
+  do {                                      \
+    auto status = (expr);                   \
+    if (!status.ok()) {                     \
+      return tl::unexpected(status);        \
+    }                                       \
+  } while (0)
+
 #define GS_RESULT_CHECK(r)               \
   ({                                     \
     auto&& _r = (r);                     \
