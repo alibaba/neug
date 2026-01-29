@@ -34,15 +34,9 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const neug::runtime::EdgeRecord& record,
     const std::vector<DataTypeId>& props);
 
-int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
-                                        const GenericView& ie, vid_t src_lid,
-                                        vid_t dst_lid, int32_t oe_offset,
-                                        const std::vector<DataTypeId>& props);
-
-int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
-                                        const GenericView& ie, vid_t src_lid,
-                                        vid_t dst_lid, int32_t ie_offset,
-                                        const std::vector<DataTypeId>& props);
+int32_t search_other_offset_with_cur_offset(
+    const GenericView& cur_view, const GenericView& other_view, vid_t src_lid,
+    vid_t other_lid, int32_t cur_offset, const std::vector<DataTypeId>& props);
 
 // Determine the property type to be used in searching edge offsets
 // For single property edges with non-string type, use that type directly

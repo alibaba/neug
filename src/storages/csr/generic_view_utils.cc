@@ -168,31 +168,19 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   }
 }
 
-int32_t search_ie_offset_with_oe_offset(const GenericView& oe,
-                                        const GenericView& ie, vid_t src_lid,
-                                        vid_t dst_lid, int32_t oe_offset,
-                                        const std::vector<DataTypeId>& props) {
-  NbrList ie_nbr_list = ie.get_edges(dst_lid);
-  auto oe_edges = oe.get_edges(src_lid);
-  auto oe_nbr_it = oe_edges.begin();
-  oe_nbr_it += oe_offset;
-  assert(oe_nbr_it != oe_edges.end());
+int32_t search_other_offset_with_cur_offset(
+    const GenericView& cur_view, const GenericView& other_view, vid_t src_lid,
+    vid_t other_lid, int32_t cur_offset, const std::vector<DataTypeId>& props) {
+  NbrList other_nbr_list = other_view.get_edges(other_lid);
+  auto cur_edges = cur_view.get_edges(src_lid);
+  auto cur_nbr_it = cur_edges.begin();
+  // Here we could not simplely do cur_nbr_it += cur_offset because some edges
+  // may be deleted (timestamp > view.timestamp), we need to skip them.
+  cur_nbr_it.cur = static_cast<const char*>(cur_edges.start_ptr) +
+                   cur_offset * cur_edges.cfg.stride;
+  assert(cur_nbr_it != cur_edges.end());
   return neug::fuzzy_search_offset_from_nbr_list(
-      ie_nbr_list, src_lid, oe_nbr_it.get_data_ptr(),
-      determine_search_prop_type(props));
-}
-
-int32_t search_oe_offset_with_ie_offset(const GenericView& oe,
-                                        const GenericView& ie, vid_t src_lid,
-                                        vid_t dst_lid, int32_t ie_offset,
-                                        const std::vector<DataTypeId>& props) {
-  NbrList oe_nbr_list = oe.get_edges(src_lid);
-  auto ie_edges = ie.get_edges(dst_lid);
-  auto ie_nbr_it = ie_edges.begin();
-  ie_nbr_it += ie_offset;
-  assert(ie_nbr_it != ie_edges.end());
-  return neug::fuzzy_search_offset_from_nbr_list(
-      oe_nbr_list, dst_lid, ie_nbr_it.get_data_ptr(),
+      other_nbr_list, src_lid, cur_nbr_it.get_data_ptr(),
       determine_search_prop_type(props));
 }
 

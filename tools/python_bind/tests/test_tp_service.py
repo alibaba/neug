@@ -256,3 +256,63 @@ def test_invalid_access_mode_in_session():
 
     db.stop_serving()
     db.close()
+
+
+def test_delete_vertices():
+    db_dir = "/tmp/test_delete_vertices"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10004, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
+    session.execute("MATCH (n:Person) DELETE n;")
+
+    session.execute("Create (n:Person {id: 111111, name: 6666})")
+    session.execute("MATCH (n:Person {id: 111111}) DELETE n;")
+
+    db.stop_serving()
+    db.close()
+
+
+def test_delete_edges():
+    db_dir = "/tmp/test_delete_edges"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    uri = db.serve(10005, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    session.execute("CREATE NODE TABLE Person(id INT64, name INT64, PRIMARY KEY (id))")
+    session.execute("CREATE REL TABLE Knows(FROM Person TO Person)")
+
+    session.execute("Create (a:Person {id: 1, name: 1111})")
+    session.execute("Create (b:Person {id: 2, name: 2222})")
+    session.execute("Create (c:Person {id: 3, name: 3333})")
+    session.execute("Create (d:Person {id: 4, name: 4444})")
+    session.execute(
+        "MATCH (a:Person {id: 1}), (b:Person {id: 2}) CREATE (a)-[:Knows]->(b)"
+    )
+    session.execute(
+        "MATCH (a:Person {id: 1}), (c:Person {id: 3}) CREATE (a)-[:Knows]->(c)"
+    )
+    session.execute(
+        "MATCH (a:Person {id: 2}), (d:Person {id: 4}) CREATE (a)-[:Knows]->(d)"
+    )
+    session.execute("MATCH (a:Person {id: 1})-[e:Knows]->(b : Person{id: 2}) DELETE e;")
+    session.execute("MATCH (a:Person {id: 1})-[e:Knows]->(c : Person{id: 3}) DELETE e;")
+    session.execute("MATCH (a:Person {id: 1}) DELETE a;")
+
+    result = session.execute("MATCH (n:Person) RETURN n;")
+    assert len(result) == 3
+    result = session.execute("MATCH ()-[e:Knows]->() RETURN e;")
+    assert len(result) == 1
+    session.execute("MATCH (n:Person {id: 4}) DELETE n;")
+    result = session.execute("MATCH ()-[e:Knows]->() RETURN e;")
+    assert len(result) == 0
+
+    db.stop_serving()
+    db.close()

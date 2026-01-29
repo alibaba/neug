@@ -58,9 +58,8 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
   auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
   for (auto supplier : suppliers) {
-    if (!graph.BatchAddVertices(vertex_label_id_, supplier).ok()) {
-      THROW_INTERNAL_EXCEPTION("Failed to add vertices");
-    }
+    RETURN_STATUS_ERROR_IF_NOT_OK(
+        graph.BatchAddVertices(vertex_label_id_, supplier));
   }
   return neug::result<Context>(std::move(ctx));
 }

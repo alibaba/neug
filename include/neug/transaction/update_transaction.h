@@ -341,31 +341,6 @@ class UpdateTransaction {
     return graph_.BatchDeleteVertices(v_label_id, vids);
   }
 
-  // TODO(zhanglei): Remove batch method from UpdateTransaction after
-  // refactoring GraphInterface.
-  inline Status BatchDeleteEdges(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::tuple<vid_t, vid_t>>& edges_vec) {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(src_v_label_id);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_v_label_id);
-    ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
-                                  edge_label_id);
-    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, edges_vec);
-  }
-
-  inline Status BatchDeleteEdges(
-      label_t src_v_label_id, label_t dst_v_label_id, label_t edge_label_id,
-      const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
-      const std::vector<std::pair<vid_t, int32_t>>& ie_edges) {
-    ENSURE_VERTEX_LABEL_NOT_DELETED(src_v_label_id);
-    ENSURE_VERTEX_LABEL_NOT_DELETED(dst_v_label_id);
-    ENSURE_EDGE_LABEL_NOT_DELETED(src_v_label_id, dst_v_label_id,
-                                  edge_label_id);
-    return graph_.BatchDeleteEdges(src_v_label_id, dst_v_label_id,
-                                   edge_label_id, oe_edges, ie_edges);
-  }
-
  private:
   bool IsValidLid(label_t label, vid_t lid) const;
 

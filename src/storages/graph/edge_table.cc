@@ -609,11 +609,14 @@ void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
     auto begin_ptr = oe_edges.start_ptr;
     auto stride = oe_edges.cfg.stride;
     for (auto iter = oe_edges.begin(); iter != oe_edges.end(); ++iter) {
+      if (iter.get_timestamp() > ts) {
+        continue;
+      }
       int32_t oe_offset = static_cast<int32_t>(
           (reinterpret_cast<const char*>(iter.get_nbr_ptr()) -
            reinterpret_cast<const char*>(begin_ptr)) /
           stride);
-      auto ie_offset = search_ie_offset_with_oe_offset(
+      auto ie_offset = search_other_offset_with_cur_offset(
           oe_view, ie_view, vid, iter.get_vertex(), oe_offset,
           meta_->properties);
       DeleteEdge(vid, iter.get_vertex(), oe_offset, ie_offset, ts);
@@ -623,13 +626,16 @@ void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
     auto begin_ptr = ie_edges.start_ptr;
     auto stride = ie_edges.cfg.stride;
     for (auto iter = ie_edges.begin(); iter != ie_edges.end(); ++iter) {
+      if (iter.get_timestamp() > ts) {
+        continue;
+      }
       int32_t ie_offset = static_cast<int32_t>(
           (reinterpret_cast<const char*>(iter.get_nbr_ptr()) -
            reinterpret_cast<const char*>(begin_ptr)) /
           stride);
-      auto oe_offset =
-          search_oe_offset_with_ie_offset(oe_view, ie_view, iter.get_vertex(),
-                                          vid, ie_offset, meta_->properties);
+      auto oe_offset = search_other_offset_with_cur_offset(
+          ie_view, oe_view, vid, iter.get_vertex(), ie_offset,
+          meta_->properties);
       DeleteEdge(iter.get_vertex(), vid, oe_offset, ie_offset, ts);
     }
   }
