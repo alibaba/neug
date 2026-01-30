@@ -76,10 +76,9 @@ class TCOpr : public IOperator {
   neug::result<neug::runtime::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    const std::string& param_value = params.at(param_name_);
     auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
-                              alias1_, alias2_, is_lt_, param_value);
+                              alias1_, alias2_, is_lt_, params.at(param_name_));
   }
 
  private:

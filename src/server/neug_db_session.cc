@@ -32,11 +32,13 @@
 
 #include "neug/config.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/stored_procedure.pb.h"
+#include "neug/main/query_request.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
@@ -66,12 +68,13 @@ inline bool is_insert_only(const physical::ExecutionFlag flags) {
                              flags.checkpoint() || flags.procedure_call());
 }
 
-neug::result<std::pair<physical::PhysicalPlan, std::string>>
-compile_plan_and_check_consistency(std::shared_ptr<neug::IGraphPlanner> planner,
+result<std::tuple<physical::PhysicalPlan, std::string, runtime::ParamsMap>>
+compile_plan_and_check_consistency(std::shared_ptr<IGraphPlanner> planner,
                                    const std::string& query,
-                                   neug::AccessMode mode) {
-  GS_AUTO(plan_and_resschema, planner->compilePlan(query));
-  const auto& flags = plan_and_resschema.first.flag();
+                                   const rapidjson::Document& param_json_obj,
+                                   AccessMode mode) {
+  GS_AUTO(plan_and_schema, planner->compilePlan(query));
+  const auto& flags = plan_and_schema.first.flag();
   if (flags.batch() || flags.create_temp_table()) {
     RETURN_ERROR(neug::Status(
         neug::StatusCode::ERR_INVALID_ARGUMENT,
@@ -90,7 +93,11 @@ compile_plan_and_check_consistency(std::shared_ptr<neug::IGraphPlanner> planner,
           "Insert-only mode does not support read or update operations."));
     }
   }
-  return plan_and_resschema;
+  auto params_type =
+      runtime::PlanParser::parse_params_type(plan_and_schema.first);
+  auto params_map = ParamsParser::ParseFromJsonObj(params_type, param_json_obj);
+  return std::make_tuple(plan_and_schema.first, plan_and_schema.second,
+                         params_map);
 }
 
 neug::ReadTransaction NeugDBSession::GetReadTransaction() const {
@@ -121,52 +128,46 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
   const auto start = std::chrono::high_resolution_clock::now();
 
   std::string query;
-  rapidjson::Document document;
-  document.Parse(req.c_str(), req.size());
-  if (document.HasParseError()) {
-    LOG(ERROR) << "The format of eval request is incorrect.";
-    RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                              "The format of eval request is incorrect."));
+  AccessMode mode = AccessMode::kUnKnown;
+  rapidjson::Document param_json_obj;
+  auto parse_res =
+      RequestParser::ParseFromString(req, query, mode, param_json_obj);
+  if (!parse_res.ok()) {
+    RETURN_ERROR(parse_res);
   }
-  if (document.HasMember("query") && document["query"].IsString()) {
-    query = document["query"].GetString();
-  }
-  AccessMode access_mode = AccessMode::kUnKnown;
-  if (document.HasMember("access_mode") && document["access_mode"].IsString()) {
-    access_mode = ParseAccessMode(document["access_mode"].GetString());
-  }
-  if (access_mode == AccessMode::kUnKnown) {
-    access_mode = planner_->analyzeMode(query);
+  if (mode == AccessMode::kUnKnown) {
+    mode = planner_->analyzeMode(query);
   }
 
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<neug::runtime::OprTimer> timer = nullptr;
   results::CollectiveResults ret;
-  std::pair<physical::PhysicalPlan, std::string> plan_and_schema;
+  std::tuple<physical::PhysicalPlan, std::string, runtime::ParamsMap>
+      plan_schema_param;
   std::string stats;
   YAML::Node schema_yaml_node;
-  if (access_mode == neug::AccessMode::kRead) {
+  if (mode == AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
-    neug::StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
-    GS_ASSIGN(plan_and_schema,
-              compile_plan_and_check_consistency(planner_, query, access_mode));
-    // TODO(zhanglei): Check whether the mode is correct for the plan.
-    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
-                     gri, plan_and_schema.first, timer.get()));
+    StorageReadInterface gri(read_txn.graph(), read_txn.timestamp());
+    GS_ASSIGN(plan_schema_param, compile_plan_and_check_consistency(
+                                     planner_, query, param_json_obj, mode));
+    GS_AUTO(ctx, runtime::ParseAndExecuteQueryPipeline(
+                     gri, std::get<0>(plan_schema_param),
+                     std::get<2>(plan_schema_param), timer.get()));
     if (!read_txn.Commit()) {
       LOG(ERROR) << "Read transaction commit failed.";
       RETURN_ERROR(
           neug::Status::IntervalError("Read transaction commit failed."));
     }
-    ret = neug::runtime::Sink::sink(ctx, gri);
-  } else if (access_mode == neug::AccessMode::kInsert) {
+    ret = runtime::Sink::sink(ctx, gri);
+  } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
-    neug::StorageTPInsertInterface gii(insert_txn);
-    GS_ASSIGN(plan_and_schema,
-              compile_plan_and_check_consistency(planner_, query, access_mode));
-    // TODO(xiaoli,zhanglei): Need to check whether the plan is insert-only
-    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
-                     gii, plan_and_schema.first, timer.get()));
+    StorageTPInsertInterface gii(insert_txn);
+    GS_ASSIGN(plan_schema_param, compile_plan_and_check_consistency(
+                                     planner_, query, param_json_obj, mode));
+    GS_AUTO(ctx, runtime::ParseAndExecuteQueryPipeline(
+                     gii, std::get<0>(plan_schema_param),
+                     std::get<2>(plan_schema_param), timer.get()));
     // We don't update statistics for insert mode currently, the reason is
     // that Update statistics for each insert cause massive performance
     // overhead.
@@ -176,17 +177,18 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
           neug::Status::IntervalError("Insert transaction commit failed."));
     }
     // TODO(zhanglei,lexiao): enable sink for insert interface
-  } else if (access_mode == neug::AccessMode::kUpdate ||
-             access_mode == neug::AccessMode::kSchema) {  // Update mode
+  } else if (mode == AccessMode::kUpdate ||
+             mode == AccessMode::kSchema) {  // Update mode
     auto update_txn = GetUpdateTransaction();
     neug::StorageTPUpdateInterface gui(update_txn);
     CHECK(planner_ != nullptr);
-    GS_ASSIGN(plan_and_schema,
-              compile_plan_and_check_consistency(planner_, query, access_mode));
+    GS_ASSIGN(plan_schema_param, compile_plan_and_check_consistency(
+                                     planner_, query, param_json_obj, mode));
     // update_planner_meta() and update_planner_stats() are called inside the
     // transaction scope to ensure concurrency safety.
-    GS_AUTO(ctx, neug::runtime::ParseAndExecuteQueryPipeline(
-                     gui, plan_and_schema.first, timer.get()));
+    GS_AUTO(ctx, runtime::ParseAndExecuteQueryPipeline(
+                     gui, std::get<0>(plan_schema_param),
+                     std::get<2>(plan_schema_param), timer.get()));
     if (!update_txn.Commit()) {
       LOG(ERROR) << "Update transaction commit failed.";
       RETURN_ERROR(
@@ -196,11 +198,11 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +
-        std::to_string(static_cast<int>(access_mode)));
+        std::to_string(static_cast<int>(mode)));
   }
   // Update planner meta and statistics after successful transaction commit.
   // Concurrency control is done inside planner.
-  const auto& flags = plan_and_schema.first.flag();
+  const auto& flags = std::get<0>(plan_schema_param).flag();
   if (flags.schema() || flags.procedure_call()) {  // create_temp_table should
                                                    // be rejected earlier
     schema_yaml_node = graph_.schema().to_yaml().value_or(YAML::Node());
@@ -209,7 +211,7 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
     planner_->update_meta(schema_yaml_node);
   }
   // Only update schema, statistics will not changed.
-  ret.set_result_schema(plan_and_schema.second);
+  ret.set_result_schema(std::get<1>(plan_schema_param));
 
   const auto end = std::chrono::high_resolution_clock::now();
   eval_duration_.fetch_add(

@@ -29,7 +29,7 @@ enum class AccessMode {
 };
 inline AccessMode ParseAccessMode(const std::string& access_mode_str) {
   std::string mode_upper = to_lower_copy(access_mode_str);
-  if (mode_upper == "" || mode_upper == "unkown") {
+  if (mode_upper == "" || mode_upper == "unknown") {
     return AccessMode::kUnKnown;
   } else if (mode_upper == "read" || mode_upper == "r") {
     return AccessMode::kRead;

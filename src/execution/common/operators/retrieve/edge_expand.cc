@@ -145,8 +145,8 @@ template <typename T>
 static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
-    const std::string& target_val_str) {
-  T target = ValueConverter<T>::typed_from_string(target_val_str);
+    const Value& target_val) {
+  T target = target_val.GetValue<T>();
   if (config.ptype == SPPredicateType::kPropertyGT) {
     GTCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
@@ -178,16 +178,16 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
 neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const StorageReadInterface& graph, Context&& ctx,
     const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
-    const std::string& target_val_str) {
+    const Value& target_val) {
   if (config.param_type == DataTypeId::kInt32) {
     return expand_edge_with_special_edge_predicate_impl0<int>(
-        graph, std::move(ctx), params, config, target_val_str);
+        graph, std::move(ctx), params, config, target_val);
   } else if (config.param_type == DataTypeId::kInt64) {
     return expand_edge_with_special_edge_predicate_impl0<int64_t>(
-        graph, std::move(ctx), params, config, target_val_str);
+        graph, std::move(ctx), params, config, target_val);
   } else if (config.param_type == DataTypeId::kTimestampMs) {
     return expand_edge_with_special_edge_predicate_impl0<DateTime>(
-        graph, std::move(ctx), params, config, target_val_str);
+        graph, std::move(ctx), params, config, target_val);
   } else {
     LOG(ERROR) << "not support edge property type "
                << static_cast<int>(config.param_type);
@@ -198,12 +198,14 @@ neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
 }
 
 template <typename T>
-void expand_vertex_ep_cmp_impl(
-    const StorageReadInterface& graph, const SLVertexColumn& input_column,
-    MSVertexColumnBuilder& builder, std::vector<size_t>& offsets,
-    label_t input_label, label_t nbr_label, label_t edge_label, Direction dir,
-    const std::string& cmp_value, SPPredicateType tp) {
-  T cmp_val(ValueConverter<T>::typed_from_string(cmp_value));
+void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
+                               const SLVertexColumn& input_column,
+                               MSVertexColumnBuilder& builder,
+                               std::vector<size_t>& offsets,
+                               label_t input_label, label_t nbr_label,
+                               label_t edge_label, Direction dir,
+                               const Value& cmp_value, SPPredicateType tp) {
+  T cmp_val(cmp_value.GetValue<T>());
   auto view = (dir == Direction::kOut)
                   ? graph.GetGenericOutgoingGraphView(input_label, nbr_label,
                                                       edge_label)
@@ -270,8 +272,7 @@ void expand_vertex_ep_cmp_impl(
 
 neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
     const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const std::string& ep_val,
-    SPPredicateType tp) {
+    const EdgeExpandParams& params, const Value& ep_val, SPPredicateType tp) {
   if (params.is_optional) {
     LOG(ERROR) << "not support optional edge expand";
     RETURN_UNSUPPORTED_ERROR("not support optional edge expand");

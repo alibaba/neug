@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_processor.h"
@@ -73,6 +74,10 @@ class Connection {
    * correct access mode for the query to ensure the correctness of the
    * database. If the access mode is not specified, it will be set to `update`
    * by default.
+   * @param parameters The parameters to be used in the query. The parameters
+   * should be a dictionary, where the keys are the parameter names, and the
+   * values are the parameter values. If no parameters are needed, it can be set
+   * to an empty map.
    * @return Result<QueryResult> containing either the query results or an error
    * status
    *
@@ -84,7 +89,8 @@ class Connection {
    * @since v0.1.0
    */
   result<QueryResult> Query(const std::string& query_string,
-                            const std::string& access_mode = "update");
+                            const std::string& access_mode = "update",
+                            const runtime::ParamsMap& parameters = {});
 
   /**
    * @brief Get the database schema.

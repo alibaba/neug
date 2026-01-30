@@ -32,7 +32,7 @@ namespace runtime {
 
 inline bool is_pk_oid_exact_check(
     const neug::Schema& schema, label_t label, const common::Expression& expr,
-    std::function<Property(const std::map<std::string, std::string>&)>& value) {
+    std::function<Property(const ParamsMap&)>& value) {
   if (expr.operators_size() != 3) {
     return false;
   }
@@ -59,8 +59,7 @@ inline bool is_pk_oid_exact_check(
       return false;
     }
     value = [name](const ParamsMap& params) {
-      return Property::from_int64(
-          static_cast<int64_t>(std::stoll(params.at(name))));
+      return Property::from_int64(params.at(name).GetValue<int64_t>());
     };
     return true;
   } else if (expr.operators(2).has_const_()) {
@@ -447,7 +446,10 @@ inline bool is_special_edge_predicate(const common::Expression& expr,
     }
     config.param_name = op2.param().name();
     config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
-    return true;
+    return config.param_type == DataTypeId::kInt32 ||
+           config.param_type == DataTypeId::kInt64 ||
+           config.param_type == DataTypeId::kTimestampMs ||
+           config.param_type == DataTypeId::kVarchar;
   }
   return false;
 }
@@ -514,7 +516,10 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     }
     config.param_names.push_back(op2.param().name());
     config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
-    return true;
+    return config.param_type == DataTypeId::kInt32 ||
+           config.param_type == DataTypeId::kInt64 ||
+           config.param_type == DataTypeId::kTimestampMs ||
+           config.param_type == DataTypeId::kVarchar;
   } else if (expr.operators_size() == 7) {
     // between
     const common::ExprOpr& op0 = expr.operators(0);
@@ -608,7 +613,10 @@ inline bool is_special_vertex_predicate(const common::Expression& expr,
     }
     config.ptype = SPPredicateType::kPropertyBetween;
     config.param_type = type.id();
-    return true;
+    return config.param_type == DataTypeId::kInt32 ||
+           config.param_type == DataTypeId::kInt64 ||
+           config.param_type == DataTypeId::kTimestampMs ||
+           config.param_type == DataTypeId::kVarchar;
   }
   return false;
 }
@@ -646,11 +654,7 @@ static neug::result<Context> dispatch_vertex_predicate_impl_typed(
     const SpecialVertexPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
   auto get_value = [&](const std::string& param_name) -> T {
-    if constexpr (std::is_same_v<T, std::string_view>) {
-      return std::string_view(params.at(param_name));
-    } else {
-      return ValueConverter<T>::typed_from_string(params.at(param_name));
-    }
+    return params.at(param_name).GetValue<T>();
   };
   if (config.ptype == SPPredicateType::kPropertyLT) {
     using CMP_T = LTCmp<T>;

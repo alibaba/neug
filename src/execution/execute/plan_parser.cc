@@ -356,7 +356,7 @@ neug::result<Pipeline> PlanParser::parse_execute_pipeline(
 
 neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer* timer) {
+    const ParamsMap& parameters, OprTimer* timer) {
   runtime::Context ctx;
   neug::Status status = Status::OK();
 
@@ -366,7 +366,7 @@ neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
         return runtime::PlanParser::get()
             .parse_execute_pipeline(graph.schema(), ContextMeta(), plan)
             .and_then([&](Pipeline&& rp) {
-              return rp.Execute(graph, runtime::Context(), {}, timer);
+              return rp.Execute(graph, runtime::Context(), parameters, timer);
             });
       },
       [&](const auto& _status) { status = _status; },
@@ -380,7 +380,7 @@ neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
 }
 
 static void expression_parse(const ::common::Expression& expr,
-                             std::map<std::string, DataType>& params_type) {
+                             ParamsMetaMap& params_type) {
   for (int i = 0; i < expr.operators_size(); ++i) {
     const auto& opr = expr.operators(i);
     if (opr.has_param()) {
@@ -390,12 +390,22 @@ static void expression_parse(const ::common::Expression& expr,
       }
       params_type[param.name()] = parse_from_ir_data_type(param.data_type());
     }
+    if (opr.has_case_()) {
+      const auto& case_expr = opr.case_();
+      for (int j = 0; j < case_expr.when_then_expressions_size(); ++j) {
+        const auto& when_clause = case_expr.when_then_expressions(j);
+        expression_parse(when_clause.when_expression(), params_type);
+        expression_parse(when_clause.then_result_expression(), params_type);
+      }
+      if (case_expr.has_else_result_expression()) {
+        expression_parse(case_expr.else_result_expression(), params_type);
+      }
+    }
   }
 }
 
-static void parse_params_type_impl(
-    const physical::PhysicalPlan& plan,
-    std::map<std::string, DataType>& params_type) {
+static void parse_params_type_impl(const physical::PhysicalPlan& plan,
+                                   ParamsMetaMap& params_type) {
   int opr_num = plan.plan_size();
   for (int i = 0; i < opr_num; ++i) {
     const auto& cur_op_kind = plan.plan(i).opr().op_kind_case();
@@ -477,15 +487,41 @@ static void parse_params_type_impl(
       }
       break;
     }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kCreateEdge: {
+      const auto& create_edge_opr = plan.plan(i).opr().create_edge();
+      for (const auto& entry : create_edge_opr.entries()) {
+        for (const auto& prop : entry.property_mappings()) {
+          expression_parse(prop.data(), params_type);
+        }
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kCreateVertex: {
+      const auto& create_vertex_opr = plan.plan(i).opr().create_vertex();
+      for (const auto& entry : create_vertex_opr.entries()) {
+        for (const auto& prop : entry.property_mappings()) {
+          expression_parse(prop.data(), params_type);
+        }
+      }
+      break;
+    }
+
+    case physical::PhysicalOpr_Operator::OpKindCase::kUnfold: {
+      const auto& unfold_opr = plan.plan(i).opr().unfold();
+      expression_parse(unfold_opr.input_expr(), params_type);
+      break;
+    }
     default: {
       break;
     }
     }
   }
 }
-std::map<std::string, DataType> PlanParser::parse_params_type(
+ParamsMetaMap PlanParser::parse_params_type(
     const physical::PhysicalPlan& plan) {
-  std::map<std::string, DataType> params_type;
+  ParamsMetaMap params_type;
   parse_params_type_impl(plan, params_type);
   return params_type;
 }

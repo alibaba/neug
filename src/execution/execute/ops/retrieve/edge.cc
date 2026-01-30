@@ -117,9 +117,9 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
-      std::string param_value = params.at(config_.param_name);
       auto ret = EdgeExpand::expand_vertex_ep_cmp(graph, std::move(ctx), eep_,
-                                                  param_value, config_.ptype);
+                                                  params.at(config_.param_name),
+                                                  config_.ptype);
       if (ret) {
         return ret.value();
       }

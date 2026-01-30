@@ -18,7 +18,11 @@
 #include <string>
 
 namespace neug {
+
+class DataType;
 namespace runtime {
-using ParamsMap = std::map<std::string, std::string>;
+class Value;
+using ParamsMap = std::map<std::string, Value>;
+using ParamsMetaMap = std::map<std::string, DataType>;
 }  // namespace runtime
 }  // namespace neug

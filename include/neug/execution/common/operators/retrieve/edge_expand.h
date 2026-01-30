@@ -97,7 +97,7 @@ class EdgeExpand {
   static neug::result<Context> expand_edge_with_special_edge_predicate(
       const StorageReadInterface& graph, Context&& ctx,
       const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
-      const std::string& target_val_str);
+      const Value& target_val_str);
 
   template <typename PRED_T>
   static neug::result<Context> expand_vertex(const StorageReadInterface& graph,
@@ -180,8 +180,7 @@ class EdgeExpand {
 
   static neug::result<Context> expand_vertex_ep_cmp(
       const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params, const std::string& ep_val,
-      SPPredicateType tp);
+      const EdgeExpandParams& params, const Value& ep_val, SPPredicateType tp);
 
   static neug::result<Context> expand_vertex_with_special_vertex_predicate(
       const StorageReadInterface& graph, Context&& ctx,
@@ -194,7 +193,7 @@ class EdgeExpand {
       const StorageReadInterface& graph, Context&& ctx,
       const std::array<std::tuple<label_t, label_t, label_t, Direction>, 3>&
           labels,
-      int input_tag, int alias1, int alias2, bool LT, const std::string& val) {
+      int input_tag, int alias1, int alias2, bool LT, const Value& val) {
     std::shared_ptr<IVertexColumn> input_vertex_list =
         std::dynamic_pointer_cast<IVertexColumn>(ctx.get(input_tag));
     if (input_vertex_list->vertex_column_type() != VertexColumnType::kSingle) {
@@ -233,7 +232,7 @@ class EdgeExpand {
                     : graph.GetGenericIncomingGraphView(
                           d1_nbr_label, d2_nbr_label, d2_e_label);
 
-    T1 param = ValueConverter<T1>::typed_from_string(val);
+    T1 param = val.GetValue<T1>();
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);

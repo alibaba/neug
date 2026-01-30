@@ -47,7 +47,8 @@ class SelectIdNeOpr : public IOperator {
           name == graph_interface.schema().get_vertex_primary_key_name(
                       *labels.begin())) {
         auto label = *labels.begin();
-        int64_t oid = std::stoll(params.at(expr_.operators(2).param().name()));
+        int64_t oid =
+            params.at(expr_.operators(2).param().name()).GetValue<int64_t>();
         vid_t vid;
         if (graph_interface.GetVertexIndex(label, Property::from_int64(oid),
                                            vid)) {

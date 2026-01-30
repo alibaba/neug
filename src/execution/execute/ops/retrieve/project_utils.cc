@@ -423,32 +423,32 @@ static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
     int alias) {
   if (type == SPPredicateType::kPropertyLT) {
     using CMP_T = LTCmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGT) {
     using CMP_T = GTCmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyLE) {
     using CMP_T = LECmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyGE) {
     using CMP_T = GECmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyEQ) {
     using CMP_T = EQCmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   } else if (type == SPPredicateType::kPropertyNE) {
     using CMP_T = NECmp<T>;
-    CMP_T cmp(ValueConverter<T>::typed_from_string(params.at(target)));
+    CMP_T cmp(params.at(target).GetValue<T>());
     return create_sp_pred_case_when_impl<T, CMP_T>(
         ctx, graph, vertex, name, cmp, then_value, else_value, alias);
   }
@@ -459,10 +459,9 @@ template <typename T>
 static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
     const IStorageInterface& graph, const Context& ctx, int alias,
     const std::shared_ptr<IVertexColumn>& vertex_col,
-    const std::string& property_name, const std::string& lower_value,
-    const std::string& upper_value, int then_value, int else_value) {
-  BetweenCmp<T> cmp(ValueConverter<T>::typed_from_string(lower_value),
-                    ValueConverter<T>::typed_from_string(upper_value));
+    const std::string& property_name, const Value& lower_value,
+    const Value& upper_value, int then_value, int else_value) {
+  BetweenCmp<T> cmp(lower_value.GetValue<T>(), upper_value.GetValue<T>());
   auto labels = vertex_col->get_labels_set();
   if (labels.size() == 1) {
     label_t label = *labels.begin();

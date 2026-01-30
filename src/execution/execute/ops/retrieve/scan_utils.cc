@@ -61,15 +61,15 @@ void parse_ids_from_idx_predicate(
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
 
-    if (param_type.id() == DataTypeId::kInt32) {
+    if (param_type.id() == DataTypeId::kInt32 ||
+        param_type.id() == DataTypeId::kInt64) {
       ids = [triplet](const ParamsMap& params) {
+        if (params.find(triplet.param().name()) == params.end()) {
+          THROW_INVALID_ARGUMENT_EXCEPTION("Parameter not found: " +
+                                           triplet.param().name());
+        }
         return std::vector<Property>{PropUtils<T>::to_prop(
-            static_cast<T>(std::stoi(params.at(triplet.param().name()))))};
-      };
-    } else if (param_type.id() == DataTypeId::kInt64) {
-      ids = [triplet](const ParamsMap& params) {
-        return std::vector<Property>{PropUtils<T>::to_prop(
-            static_cast<T>(std::stoll(params.at(triplet.param().name()))))};
+            params.at(triplet.param().name()).GetValue<T>())};
       };
     }
   }
@@ -104,8 +104,8 @@ void parse_ids_from_idx_predicate(
 
     if (param_type.id() == DataTypeId::kVarchar) {
       ids = [triplet](const ParamsMap& params) {
-        return std::vector<Property>{
-            Property::from_string_view(params.at(triplet.param().name()))};
+        return std::vector<Property>{Property::from_string_view(
+            params.at(triplet.param().name()).GetValue<std::string>())};
       };
     }
   }

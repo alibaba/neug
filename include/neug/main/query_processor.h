@@ -16,15 +16,19 @@
 
 #include <glog/logging.h>
 
+#include <map>
 #include <shared_mutex>
 #include <string>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/execution/common/params_map.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/utils/access_mode.h"
 #include "neug/utils/allocators.h"
 #include "neug/utils/result.h"
 
@@ -41,16 +45,18 @@ class QueryProcessor {
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
 
-  result<results::CollectiveResults> execute(const std::string& query_string,
-                                             const std::string& access_mode,
-                                             int32_t num_threads = 0);
+  result<results::CollectiveResults> execute(
+      const std::string& query_string, const std::string& access_mode,
+      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
 
  private:
   result<results::CollectiveResults> execute_internal(
-      const std::string& query_string, int32_t num_threads = 0);
+      const std::string& query_string,
+      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
 
   result<results::CollectiveResults> execute_query(
-      const physical::PhysicalPlan& plan, int32_t num_threads);
+      const physical::PhysicalPlan& plan, const runtime::ParamsMap& parameters,
+      int32_t num_threads);
 
   bool need_exclusive_lock(AccessMode access_mode);
 

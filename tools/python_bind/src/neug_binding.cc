@@ -24,6 +24,7 @@
 #include "neug/utils/exception/exception.h"
 #include "py_connection.h"
 #include "py_database.h"
+#include "py_query_request.h"
 #include "py_query_result.h"
 #ifdef NEUG_BACKTRACE
 #include <cpptrace/cpptrace.hpp>
@@ -118,6 +119,7 @@ PYBIND11_MODULE(neug_py_bind, m) {
   neug::PyDatabase::initialize(m);
   neug::PyConnection::initialize(m);
   neug::PyQueryResult::initialize(m);
+  neug::PyQueryRequest::initialize(m);
 
   // Setup signal handling, for cleaning up resources on exit.
   bool is_interactive = get_is_interactive();

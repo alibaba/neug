@@ -664,7 +664,7 @@ class ParamAccessor : public IAccessor {
  public:
   using elem_t = T;
   ParamAccessor(const ParamsMap& params, const std::string& key) {
-    val_ = ValueConverter<T>::typed_from_string(params.at(key));
+    val_ = params.at(key).GetValue<T>();
   }
 
   T typed_eval_path(size_t) const { return val_; }

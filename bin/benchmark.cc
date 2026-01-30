@@ -22,11 +22,14 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
+#include "neug/main/query_request.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/encoder.h"
+#include "neug/utils/exception/exception.h"
 
 #include <glog/logging.h>
 #include "cxxopts/cxxopts.hpp"
@@ -39,6 +42,21 @@ std::vector<std::string> split_string(const std::string& s, char delimiter) {
     tokens.push_back(token);
   }
   return tokens;
+}
+
+neug::runtime::ParamsMap deserialize_string_kv_map(
+    const neug::runtime::ParamsMetaMap& meta_map,
+    const std::map<std::string, std::string>& param_str_map) {
+  neug::runtime::ParamsMap map;
+  for (auto iter : param_str_map) {
+    if (meta_map.count(iter.first) > 0) {
+      map.emplace(iter.first, neug::runtime::Value::FromJson(
+                                  iter.second, meta_map.at(iter.first)));
+    } else {
+      LOG(WARNING) << "Parameter key not found in meta: " << iter.first;
+    }
+  }
+  return map;
 }
 
 class BenchmarkConfig {
@@ -137,9 +155,8 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 
 void benchmark_iteration(
     neug::IStorageInterface& graph, neug::runtime::Pipeline& pipeline,
-    const std::vector<std::map<std::string, std::string>>& parameters,
-    int query_num, std::vector<std::vector<char>>& outputs,
-    neug::runtime::OprTimer& timer) {
+    const std::vector<neug::runtime::ParamsMap>& parameters, int query_num,
+    std::vector<std::vector<char>>& outputs, neug::runtime::OprTimer& timer) {
   outputs.resize(query_num);
   for (int i = 0; i < query_num; ++i) {
     neug::runtime::Context ctx;
@@ -153,15 +170,18 @@ void benchmark_iteration(
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
       neug::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph), output);
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
+          output);
     } else {
       neug::runtime::OprTimer cur_timer;
-      auto ctx = pipeline.Execute(graph, neug::runtime::Context(), m, &cur_timer);
+      auto ctx =
+          pipeline.Execute(graph, neug::runtime::Context(), m, &cur_timer);
 
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
       neug::runtime::Sink::sink(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph), output);
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
+          output);
       timer += cur_timer;
     }
   }
@@ -227,6 +247,11 @@ int main(int argc, char** argv) {
       fout << plan.DebugString();
       fout.close();
     }
+    auto param_meta = neug::runtime::PlanParser::parse_params_type(plan);
+    std::vector<neug::runtime::ParamsMap> params_map;
+    for (const auto& param : parameters) {
+      params_map.emplace_back(deserialize_string_kv_map(param_meta, param));
+    }
     auto pipeline = neug::runtime::PlanParser::get().parse_execute_pipeline(
         txn.graph().schema(), neug::runtime::ContextMeta(), plan);
 
@@ -236,7 +261,7 @@ int main(int argc, char** argv) {
     for (int iter = 0; iter < 3; ++iter) {
       std::unique_ptr<neug::runtime::OprTimer> timer =
           std::make_unique<neug::runtime::OprTimer>();
-      benchmark_iteration(graph, pipeline.value(), parameters, query_num,
+      benchmark_iteration(graph, pipeline.value(), params_map, query_num,
                           outputs, *timer);
       if (timer->elapsed() < best_elapsed) {
         best_timer = std::move(timer);

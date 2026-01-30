@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "py_query_result.h"
@@ -35,6 +36,10 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
 
   void close();
 
+  PyConnection(const PyConnection& other)
+      : db_(other.db_), conn_(other.conn_) {}
+
+  PyConnection(PyConnection&& other) = delete;
   ~PyConnection() = default;
 
   /**
@@ -43,8 +48,8 @@ class PyConnection : public std::enable_shared_from_this<PyConnection> {
    * 2. Execute the execution plan using runtime engine.
    */
   std::unique_ptr<PyQueryResult> execute(
-      const std::string& query_string,
-      const std::string& access_mode = "update");
+      const std::string& query_string, const std::string& access_mode = "",
+      const pybind11::dict& parameters = pybind11::dict());
 
   std::string get_schema() const;
 

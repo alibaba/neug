@@ -117,11 +117,16 @@ class NeugDBSession {
   const neug::Schema& schema() const;
 
   /**
-   * @brief Execute a Cypher query within the session. Expect a json format
-   * string.
+   * @brief Execute a Cypher query within the session.
+   * Expect json format string:
    * {
    *  "query": "MATCH(n) return count(n)",
    *  "access_mode": "read/insert/update/schema"
+   *  "parameters" :  {
+   *    "param1" : "value1",
+   *    "list_param" : [1,2,3],
+   *    "map_param" : {"key1": "value1"}
+   *  }
    * }
    */
   neug::result<results::CollectiveResults> Eval(const std::string& query);

@@ -25,7 +25,7 @@ namespace neug {
 
 result<results::CollectiveResults> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
-    int32_t num_threads) {
+    const runtime::ParamsMap& parameters, int32_t num_threads) {
   if (num_threads == 0) {
     num_threads = max_num_threads_;
   }
@@ -45,16 +45,17 @@ result<results::CollectiveResults> QueryProcessor::execute(
 
   if (need_exclusive_lock(access_mode)) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, num_threads);
+    return execute_internal(query_string, parameters, num_threads);
   } else {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return execute_internal(query_string, num_threads);
+    return execute_internal(query_string, parameters, num_threads);
   }
 }
 
 // The concurrency control is done outside this function.
 result<results::CollectiveResults> QueryProcessor::execute_internal(
-    const std::string& query_string, int32_t num_threads) {
+    const std::string& query_string, const runtime::ParamsMap& parameters,
+    int32_t num_threads) {
   auto plan_res = planner_->compilePlan(query_string);
   if (!plan_res) {
     LOG(ERROR) << "Failed to compile plan for query: " << query_string
@@ -81,7 +82,7 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
   // TODO(zhanglei,lexiao): Implement corresponding operators for these DDL
   // operations
   result<results::CollectiveResults> exec_result =
-      execute_query(plan, num_threads);
+      execute_query(plan, parameters, num_threads);
   if (!exec_result) {
     LOG(ERROR) << "Error in executing query: " << query_string
                << ", error code: " << exec_result.error().error_code()
@@ -94,11 +95,13 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
 }
 
 result<results::CollectiveResults> QueryProcessor::execute_query(
-    const physical::PhysicalPlan& plan, int32_t num_threads) {
+    const physical::PhysicalPlan& plan, const runtime::ParamsMap& parameters,
+    int32_t num_threads) {
   std::unique_ptr<runtime::OprTimer> timer = nullptr;
   StorageAPUpdateInterface gii(g_, 0, allocator_);
   std::unique_ptr<runtime::OprTimer> timer_ptr = nullptr;
-  auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, timer_ptr.get());
+  auto ctx = runtime::ParseAndExecuteQueryPipeline(gii, plan, parameters,
+                                                   timer_ptr.get());
 
   if (!ctx) {
     LOG(ERROR) << "Error: " << ctx.error().ToString();

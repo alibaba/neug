@@ -23,6 +23,7 @@ import requests
 import requests.adapters
 
 try:
+    from neug_py_bind import PyQueryRequest
     from neug_py_bind import PyQueryResult
 except ImportError as e:
     import os
@@ -143,7 +144,9 @@ class Session:
         self._http_session = None
         self._http_adapter = None
 
-    def execute(self, query: str, access_mode: str = ""):
+    def execute(
+        self, query: str, access_mode: str = "", parameters: dict = None
+    ) -> QueryResult:
         """
         Execute a query on the NeuG server.
 
@@ -166,9 +169,15 @@ class Session:
                 f"{valid_access_modes}."
             )
         try:
-            data = {"query": query, "access_mode": access_mode}
+            if parameters is not None:
+                payload = PyQueryRequest.serialize_request(
+                    query, access_mode, parameters
+                )
+            else:
+                payload = PyQueryRequest.serialize_request(query, access_mode)
+            logger.info(f"Payload for query: {query} is {payload}")
             response = self._http_session.post(
-                self._query_endpoint, data=json.dumps(data), timeout=self.timeout
+                self._query_endpoint, data=payload, timeout=self.timeout
             )
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to execute query: {query}. Error: {e}")

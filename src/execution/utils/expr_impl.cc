@@ -482,100 +482,11 @@ static Value parse_param(const ::common::DynamicParam& param,
                          const ParamsMap& input) {
   if (param.data_type().type_case() ==
       ::common::IrDataType::TypeCase::kDataType) {
-    auto type = parse_from_ir_data_type(param.data_type());
-
-    const std::string& name = param.name();
-    if (type.id() == DataTypeId::kDate) {
-      Date val = Date(input.at(name));
-      return Value::DATE(val);
-    } else if (type.id() == DataTypeId::kVarchar) {
-      const std::string& val = input.at(name);
-      return Value::STRING(val);
-    } else if (type.id() == DataTypeId::kInt32) {
-      int val = std::stoi(input.at(name));
-      return Value::INT32(val);
-    } else if (type.id() == DataTypeId::kInt64) {
-      int64_t val = std::stoll(input.at(name));
-      return Value::INT64(val);
-    } else if (type.id() == DataTypeId::kTimestampMs) {
-      DateTime val = DateTime(input.at(name));
-      return Value::TIMESTAMPMS(val);
-    } else if (type.id() == DataTypeId::kInterval) {
-      Interval val = Interval(input.at(name));
-      return Value::INTERVAL(val);
-    } else if (type.id() == DataTypeId::kUInt32) {
-      uint32_t val = std::stoul(input.at(name));
-      return Value::UINT32(val);
-    } else if (type.id() == DataTypeId::kUInt64) {
-      uint64_t val = std::stoull(input.at(name));
-      return Value::UINT64(val);
-    } else if (type.id() == DataTypeId::kBoolean) {
-      bool val = input.at(name) == "true" || input.at(name) == "1";
-      return Value::BOOLEAN(val);
-    } else if (type.id() == DataTypeId::kFloat) {
-      float val = std::stof(input.at(name));
-      return Value::FLOAT(val);
-    } else if (type.id() == DataTypeId::kDouble) {
-      double val = std::stod(input.at(name));
-      return Value::DOUBLE(val);
-    } else if (type.id() == DataTypeId::kList) {
-      auto type = param.data_type().data_type().array().component_type();
-      if (type.has_string()) {
-        std::vector<Value> vec;
-        const auto& val = input.at(name);
-        size_t start = 0;
-        for (size_t i = 0; i <= val.size(); ++i) {
-          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
-            vec.emplace_back(
-                Value::STRING(std::string(val.data() + start, i - start)));
-            start = i + 1;
-          }
-        }
-        return Value::LIST(DataType::VARCHAR, std::move(vec));
-      } else if (type.item_case() ==
-                     ::common::DataType::ItemCase::kPrimitiveType &&
-                 type.primitive_type() ==
-                     ::common::PrimitiveType::DT_SIGNED_INT64) {
-        std::vector<Value> vec;
-        const auto& val = input.at(name);
-        size_t start = 0;
-        for (size_t i = 0; i <= val.size(); ++i) {
-          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
-            vec.emplace_back(Value::INT64(
-                std::stoll(std::string(val.data() + start, i - start))));
-            start = i + 1;
-          }
-        }
-        return Value::LIST(DataType::INT64, std::move(vec));
-      } else if (type.has_array() &&
-                 type.array().component_type().has_primitive_type() &&
-                 type.array().component_type().primitive_type() ==
-                     ::common::PrimitiveType::DT_SIGNED_INT64) {
-        std::vector<Value> vec;
-        const auto& val = input.at(name);
-        size_t start = 0;
-        for (size_t i = 0; i <= val.size(); ++i) {
-          if ((i == val.size() || val[i] == ';') && (i - start > 0)) {
-            std::vector<Value> inner_vec;
-            size_t inner_start = start;
-            for (size_t j = start; j <= i; ++j) {
-              if ((j == i || val[j] == ',') && (j - inner_start > 0)) {
-                inner_vec.emplace_back(Value::INT64(std::stoll(
-                    std::string(val.data() + inner_start, j - inner_start))));
-                inner_start = j + 1;
-              }
-            }
-            vec.emplace_back(
-                Value::LIST(DataType::INT64, std::move(inner_vec)));
-            start = i + 1;
-          }
-        }
-        auto type = DataType::List(DataType::INT64);
-        return Value::LIST(type, std::move(vec));
-      }
+    if (input.count(param.name())) {
+      return input.at(param.name());
+    } else {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Parameter not found: " + param.name());
     }
-
-    LOG(FATAL) << "not support type: " << param.DebugString();
   }
   LOG(FATAL) << "graph data type not expected....";
   return Value(DataType::SQLNULL);

@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime
 import logging
 import os
 import shutil
@@ -314,5 +315,117 @@ def test_delete_edges():
     result = session.execute("MATCH ()-[e:Knows]->() RETURN e;")
     assert len(result) == 0
 
+    db.stop_serving()
+    db.close()
+
+
+def test_parameterized_query():
+    db_dir = "/tmp/test_parameterized_query"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE param_values("
+        "id INT32, bool_prop BOOL, date_prop Date, timestamp_prop Timestamp, "
+        "int32_prop INT32, int64_prop INT64, uint32_prop UINT32, uint64_prop UINT64, "
+        "float_prop FLOAT, double_prop DOUBLE, string_prop STRING, "
+        "PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (p:param_values {"
+        "id: 1, bool_prop: true, date_prop: date('2024-01-01'), "
+        "timestamp_prop: Timestamp('2024-01-02 03:04:05'), "
+        "int32_prop: 42, int64_prop: 1234567890123, "
+        "uint32_prop: 123, uint64_prop: 456, float_prop: 3.14, "
+        "double_prop: 6.28, string_prop: 'parameterized'"
+        "});"
+    )
+
+    res = conn.execute("MATCH (n:param_values) RETURN n;")
+    print(list(res))
+    conn.close()
+    uri = db.serve(10004, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+    cases = [
+        (
+            "MATCH (n:param_values) WHERE n.bool_prop = $value RETURN n.bool_prop;",
+            {"value": True},
+            True,
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.int32_prop = $value RETURN n.int32_prop;",
+            {"value": 42},
+            42,
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.int64_prop = $value RETURN n.int64_prop;",
+            {"value": 1234567890123},
+            1234567890123,
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.uint32_prop = $value RETURN n.uint32_prop;",
+            {"value": 123},
+            123,
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.uint64_prop = $value RETURN n.uint64_prop;",
+            {"value": 456},
+            456,
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.float_prop = $value RETURN n.float_prop;",
+            {"value": 3.14},
+            pytest.approx(3.14),
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.double_prop = $value RETURN n.double_prop;",
+            {"value": 6.28},
+            pytest.approx(6.28),
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.string_prop = $value RETURN n.string_prop;",
+            {"value": "parameterized"},
+            "parameterized",
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.date_prop = $value RETURN n.date_prop;",
+            {"value": datetime.date(2024, 1, 1)},
+            "2024-01-01",
+        ),
+        (
+            "MATCH (n:param_values) WHERE n.timestamp_prop <> $value RETURN n.timestamp_prop;",
+            {"value": "2024-01-02 03:04:05"},
+            "2024-01-02 03:04:05.000",
+        ),
+    ]
+
+    for query, params, expected in cases:
+        res = session.execute(query, parameters=params)
+        assert len(res) == 1, f"Failed for query: {query} with params: {params}"
+        assert res[0][0] == expected
+
+    session.execute(
+        "CREATE (p:param_values {"
+        "id: 2, bool_prop: true, date_prop: date('2024-01-01'), "
+        "timestamp_prop: Timestamp('2024-01-02 03:04:05'), "
+        "int32_prop: 42, int64_prop: 1234567890123, "
+        "uint32_prop: 123, uint64_prop: 456, float_prop: 3.14, "
+        "double_prop: 7.28, string_prop: 'parameterized'"
+        "});"
+    )
+
+    list_values = [1, 2]
+    list_res = list(
+        session.execute(
+            "MATCH(a: param_values) WHERE a.id IN CAST($ids, 'INT32[]') return a.double_prop;",
+            parameters={"ids": list_values},
+        )
+    )
+    assert list_res == [[6.28], [7.28]]
+
+    session.close()
     db.stop_serving()
     db.close()

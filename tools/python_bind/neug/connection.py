@@ -19,6 +19,7 @@
 """The Neug connection module."""
 
 import logging
+from typing import Any
 
 try:
     from neug_py_bind import PyConnection
@@ -98,7 +99,9 @@ class Connection(object):
             self._py_connection.close()
             self._is_open = False
 
-    def execute(self, query: str, access_mode="") -> QueryResult:
+    def execute(
+        self, query: str, access_mode="", parameters: dict[str, Any] | None = None
+    ) -> QueryResult:
         """
         Execute a cypher query on the database. User could specify multiple queries in a single string,
         separated by semicolons. The query will be executed in the order they are specified.
@@ -135,6 +138,9 @@ class Connection(object):
             >>> for record in res:
             >>>    print(record)
             >>> res = conn.execute('MATCH(p:person)-[knows]->(q:person) RETURN p.id, q.id LIMIT 10;')
+            >>> # submitting query with parameters
+            >>> res = conn.execute(
+                'MATCH (n:person) WHERE n.id = $id RETURN n.name', access_mode='r', parameters={'id': 12345})
 
 
         Parameters
@@ -149,6 +155,9 @@ class Connection(object):
             - `read`,`r`,`READ`,`R`: for read-only queries
             - `insert`,`i`,`INSERT`,`I`: for insert-only queries
             - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
+        parameters : dict[str, Any] | None
+            The parameters to be used in the query. The parameters should be a dictionary, where the keys are the
+            parameter names, and the values are the parameter values. If no parameters are needed, it can be set to None.
 
         Returns
         -------
@@ -172,7 +181,9 @@ class Connection(object):
                 f"Invalid access_mode: {access_mode}. Supported access modes are "
                 f"{valid_access_modes}."
             )
-        ret = QueryResult(self._py_connection.execute(query, access_mode))
+        ret = QueryResult(
+            self._py_connection.execute(query, access_mode, parameters or {})
+        )
         status_code = ret._result.status_code()
         try:
             msg = ret._result.status_message()

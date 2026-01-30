@@ -141,6 +141,9 @@ if (WITH_MIMALLOC)
     unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
 endif()
 
+add_subdirectory(third_party/fast_float)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/fast_float/include)
+
 if (BUILD_TEST)
     enable_testing()
     find_package(GTest)
@@ -687,7 +690,6 @@ if (BUILD_COMPILER)
     endif()
     add_subdirectory(third_party/antlr4_cypher)
     add_subdirectory(third_party/antlr4_runtime)
-    add_subdirectory(third_party/fast_float)
     add_subdirectory(third_party/glob)
     add_subdirectory(third_party/re2)
     add_subdirectory(third_party/utf8proc)
@@ -846,6 +848,10 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
             DESTINATION include
             FILES_MATCHING
             PATTERN "*.hpp"
+)
+
+install(FILES ${PROJECT_SOURCE_DIR}/third_party/fast_float/include/fast_float.h
+            DESTINATION include/
 )
 
 install_neug_target(libprotobuf)

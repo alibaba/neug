@@ -193,6 +193,27 @@ TEST_F(ConnectionTest, TestParallelExecutionAtomicity) {
   EXPECT_EQ(committed, finalStatus);
 }
 
+// Test Parameterized Query
+TEST_F(ConnectionTest, TestParameterizedQuery) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_WRITE;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  EXPECT_NE(conn, nullptr);
+  atomicityInit(conn);
+
+  auto res = conn->Query(
+      "MATCH (n:PERSON {id: $person_id}) SET n.id2 = n.id2 + $increment;",
+      "update",
+      {{"person_id", runtime::Value::INT64(1)},
+       {"increment", runtime::Value::INT64(5)}});
+  EXPECT_TRUE(res);
+  LOG(INFO) << res.value().ToString();
+}
+
 }  // namespace test
 
 }  // namespace neug

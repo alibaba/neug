@@ -240,12 +240,7 @@ struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
     using T = typename CMP_T::data_t;
     std::vector<T> values;
     for (auto& param_name : param_names_) {
-      if constexpr (std::is_same_v<T, std::string_view>) {
-        values.push_back(
-            std::string_view(params.at(param_name).data(), params.at(param_name).size()));
-      } else {
-        values.push_back(ValueConverter<T>::typed_from_string(params.at(param_name)));
-      }
+      values.emplace_back(params.at(param_name).GetValue<T>());
     }
     CMP_T cmp;
     cmp.reset(values);

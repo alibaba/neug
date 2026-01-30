@@ -16,9 +16,11 @@
 #include "py_connection.h"
 #include <datetime.h>
 #include <memory>
+#include "neug/execution/common/params_map.h"
 #include "neug/main/neug_db.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/yaml_utils.h"
+#include "py_query_request.h"
 
 namespace neug {
 
@@ -34,7 +36,8 @@ void PyConnection::initialize(pybind11::handle& m) {
       .def("close", &PyConnection::close,
            "Close the connection to the database.\n")
       .def("execute", &PyConnection::execute, pybind11::arg("query_string"),
-           pybind11::arg("access_mode") = "update",
+           pybind11::arg("access_mode") = "",
+           pybind11::arg("parameters") = pybind11::dict(),
            "Execute a query_string on the database. Which is passed to the "
            "query "
            "processor.\n\n"
@@ -47,6 +50,12 @@ void PyConnection::initialize(pybind11::handle& m) {
            "correct access mode for the query to ensure the correctness of the "
            "database. If the access mode is not specified, it will be set to "
            "`update` by default.\n"
+           "    parameters (dict[str, Any], optional): The parameters to be "
+           "used "
+           "in the query. The parameters should be a dictionary, where the "
+           "keys are the parameter names, and the values are the parameter "
+           "values. If no parameters are needed, it can be set to None.\n"
+           "\n"
            "Returns:\n"
            "    PyQueryResult: The result of the query execution.\n")
       .def("get_schema", &PyConnection::get_schema,
@@ -69,8 +78,16 @@ void PyConnection::close() {
 }
 
 std::unique_ptr<PyQueryResult> PyConnection::execute(
-    const std::string& query_string, const std::string& access_mode) {
-  auto query_result = conn_->Query(query_string, access_mode);
+    const std::string& query_string, const std::string& access_mode,
+    const pybind11::dict& parameters) {
+  neug::runtime::ParamsMap params_map;
+  for (auto item : parameters) {
+    std::string key = pybind11::cast<std::string>(item.first);
+    pybind11::object value =
+        pybind11::reinterpret_borrow<pybind11::object>(item.second);
+    params_map.emplace(key, PyParameterSerializer::SerializeParameter(value));
+  }
+  auto query_result = conn_->Query(query_string, access_mode, params_map);
   if (!query_result) {
     return std::make_unique<PyQueryResult>(query_result.error());
   }

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <rapidjson/document.h>
 #include <charconv>
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
@@ -124,6 +125,13 @@ class Value {
 
   std::string to_string() const;
 
+  // Parse from json string, with type info
+  static Value FromJson(const rapidjson::Value& json_value,
+                        const DataType& type);
+  static Value FromJson(const std::string& json_str, const DataType& type);
+  static rapidjson::Value ToJson(const Value& value,
+                                 rapidjson::Document::AllocatorType& allocator);
+
  private:
   DataType type_;
   bool is_null_;
@@ -213,6 +221,10 @@ template <>
 uint64_t Value::GetValue() const;
 template <>
 std::string Value::GetValue() const;
+// TODO(zhanglei,lexiao): Implicit conversion from string to string_view may
+// cause issues
+template <>
+std::string_view Value::GetValue() const;
 template <>
 float Value::GetValue() const;
 template <>

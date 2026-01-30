@@ -14,33 +14,27 @@
  */
 #pragma once
 
-#include <functional>
-#include <map>
 #include <string>
 #include <vector>
 
-#include "neug/execution/execute/operator.h"
-#include "neug/utils/property/types.h"
-
-namespace algebra {
-class IndexPredicate;
-}  // namespace algebra
-namespace physical {
-class Scan;
-}  // namespace physical
+#include "neug/execution/common/types/value.h"
+#include "pybind11/include/pybind11/pybind11.h"
 
 namespace neug {
-namespace runtime {
-namespace ops {
-
-class ScanUtils {
- public:
-  static std::function<std::vector<Property>(const ParamsMap&)>
-  parse_ids_with_type(DataTypeId type, const algebra::IndexPredicate& triplet);
-
-  static bool check_idx_predicate(const physical::Scan& scan_opr);
+/**
+ * A helper struct for serializing parameters from Python objects to strings.
+ */
+struct PyParameterSerializer {
+  static runtime::Value SerializeParameter(const pybind11::object& parameter);
 };
 
-}  // namespace ops
-}  // namespace runtime
+class PyQueryRequest {
+ public:
+  static void initialize(pybind11::handle& m);
+
+  static std::string serialize_request(
+      const std::string& query, const std::string& access_mode = "update",
+      const pybind11::dict& parameters = pybind11::dict());
+};
+
 }  // namespace neug

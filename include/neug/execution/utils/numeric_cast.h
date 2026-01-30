@@ -26,7 +26,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "fast_float/include/fast_float.h"
+#include "fast_float.h"
 
 namespace neug {
 namespace runtime {

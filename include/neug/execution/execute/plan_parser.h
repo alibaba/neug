@@ -56,8 +56,7 @@ class PlanParser {
       const neug::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 
-  static std::map<std::string, DataType> parse_params_type(
-      const physical::PhysicalPlan& plan);
+  static ParamsMetaMap parse_params_type(const physical::PhysicalPlan& plan);
 
  private:
   std::vector<std::vector<
@@ -68,7 +67,7 @@ class PlanParser {
 
 neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
     IStorageInterface& graph, const physical::PhysicalPlan& plan,
-    OprTimer* timer);
+    const ParamsMap& parameters, OprTimer* timer);
 
 }  // namespace runtime
 

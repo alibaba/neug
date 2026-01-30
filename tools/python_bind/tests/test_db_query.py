@@ -2364,3 +2364,24 @@ def test_multi_ddl_queries():
     assert str("Unsupported basic type for conversion: SERIAL") in str(excinfo.value)
     conn.close()
     db.close()
+
+
+def test_parameterized_query():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    params = {"person_id": 1}
+    res = conn.execute(
+        """
+        MATCH (n:PERSON {id: $person_id})-[:KNOWS]->(m:PERSON)
+        RETURN m.name;
+        """,
+        parameters=params,
+    )
+    records = list(res)
+    assert records == [
+        ["vadas"],
+        ["josh"],
+    ], f"Expected value [['vadas'], ['josh']], got {records}"
+    conn.close()
+    db.close()

@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "fast_float/include/fast_float.h"
+#include "fast_float.h"
 #include "neug/compiler/common/constants.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
