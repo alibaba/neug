@@ -1,5 +1,5 @@
 packaging>=24.2
-protobuf<=3.20.3
+protobuf==4.21.9
 setuptools
 requests
 tqdm

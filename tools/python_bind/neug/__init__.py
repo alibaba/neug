@@ -20,10 +20,66 @@ import os
 import platform
 import sys
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
+
 import neug
 from neug.version import __version__
 
 logger = logging.getLogger("neug")
+
+_PROTOBUF_VERSION_OVERRIDE_ENV = "NEUG_EXPECTED_PROTOBUF_VERSION"
+_PROTOBUF_CHECK_SKIP_ENV = "NEUG_SKIP_PROTOBUF_CHECK"
+_EXPECTED_PROTOBUF_VERSION = os.environ.get(_PROTOBUF_VERSION_OVERRIDE_ENV, "4.21.9")
+
+
+def _ensure_protobuf_runtime_matches() -> None:
+    """Fail fast when google.protobuf's Python wheel does not match the bundled C++ runtime."""
+
+    skip_check = os.environ.get(_PROTOBUF_CHECK_SKIP_ENV, "0").upper() in {
+        "1",
+        "TRUE",
+        "ON",
+        "YES",
+    }
+    if skip_check:
+        logger.warning(
+            "Skipping protobuf compatibility guard because %s is set.",
+            _PROTOBUF_CHECK_SKIP_ENV,
+        )
+        return
+
+    try:
+        from google.protobuf import __version__ as protobuf_version  # type: ignore
+    except ImportError as exc:
+        raise ImportError(
+            "NeuG requires the 'protobuf' package. Install it via 'python3 -m pip install protobuf==%s'."
+            % _EXPECTED_PROTOBUF_VERSION
+        ) from exc
+
+    normalized_version = protobuf_version.split("+")[0]
+    try:
+        expected = Version(_EXPECTED_PROTOBUF_VERSION)
+        current = Version(normalized_version)
+    except InvalidVersion:
+        logger.warning(
+            "Unable to parse protobuf versions (expected=%s, installed=%s); proceeding without ABI guard.",
+            _EXPECTED_PROTOBUF_VERSION,
+            protobuf_version,
+        )
+        return
+
+    if current != expected:
+        raise ImportError(
+            "NeuG bundles protobuf %s, but python loaded protobuf %s. "
+            "Install the matching wheel (python3 -m pip install protobuf==%s) or override via %s."
+            % (
+                expected,
+                protobuf_version,
+                expected,
+                _PROTOBUF_VERSION_OVERRIDE_ENV,
+            )
+        )
 
 
 def config_logging(log_level):
@@ -125,6 +181,8 @@ def get_build_lib_dir() -> str:
 
 
 config_logging("INFO")
+
+_ensure_protobuf_runtime_matches()
 
 try:
     # Try to first include the c++ extension directory, if it exists

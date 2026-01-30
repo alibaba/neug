@@ -356,7 +356,7 @@ setup(
     },
     install_requires=[
         "packaging>=24.2",
-        "protobuf<=3.20.3",
+        "protobuf==4.21.9",
         "requests",
         "click>=8.0.0",
         "tabulate>=0.9.0",
