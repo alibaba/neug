@@ -1,0 +1,69 @@
+-DATASET CSV tinysnb
+--
+
+
+-LOG AddNodeProperty
+-STATEMENT Create node table Comment (id int64, PRIMARY KEY (id));
+---- ok
+-STATEMENT Copy Comment from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment.csv' (HEADER=true);
+---- ok
+-STATEMENT MATCH (c:Comment) RETURN COUNT(*);
+---- 1
+215488
+-STATEMENT Alter Table Comment add propx int64;
+---- ok
+-STATEMENT MATCH (c:Comment) RETURN SUM(c.propx);
+---- 1
+0
+-STATEMENT alter table Comment add propi float default 5.4;
+---- ok
+-STATEMENT alter table Comment add propj int32 default 5 + 5;
+---- ok
+-STATEMENT MATCH (c:Comment) RETURN DISTINCT c.propi
+-UNSUPPORTED: Issue#1482
+---- 1
+5.400000
+-STATEMENT MATCH (c:Comment) RETURN DISTINCT c.propj
+-UNSUPPORTED: Issue#1482
+---- 1
+10
+-STATEMENT MATCH (c:Comment) WHERE c.propx <> 1 RETURN COUNT(*);
+---- 1
+215488
+-STATEMENT alter table Comment add propy int64 default 1;
+-UNSUPPORTED: Issue#1482
+---- ok
+-STATEMENT MATCH (c:Comment) RETURN SUM(c.propy);
+-UNSUPPORTED: Issue#1482
+---- 1
+215488
+-STATEMENT MATCH (c:Comment) WHERE c.propy = 1 RETURN COUNT(*);
+-UNSUPPORTED: Issue#1482
+---- 1
+215488
+-STATEMENT create (c:Comment {id: 12345});
+-UNSUPPORTED: Issue#1482
+---- ok
+-STATEMENT MATCH (c:Comment) RETURN SUM(c.propy);
+-UNSUPPORTED: Issue#1482
+---- 1
+215489
+
+
+-LOG AddRelProperty
+-STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_ONE);
+---- ok
+-STATEMENT copy replyOf from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
+---- ok
+-STATEMENT alter table replyOf add propx int64;
+---- ok
+-STATEMENT MATCH (c:Comment)-[r:replyOf]->(c2:Comment) RETURN SUM(r.propx);
+-UNSUPPORTED: Issue#1482
+---- 1
+
+-STATEMENT alter table replyOf add propy int64 default 1;
+---- ok
+-STATEMENT MATCH (c:Comment)-[r:replyOf]->(c2:Comment) RETURN SUM(r.propy);
+-UNSUPPORTED: Issue#1482
+---- 1
+108027

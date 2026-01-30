@@ -16,16 +16,18 @@ if [ $# -lt 1 ]; then
     usage
 fi
 
-DATASET_NAME="$1"
-DB_DIR="${2:-/tmp/${DATASET_NAME}}"
-SUBQUERY_ARG="${3:-}"
-READ_WRITE_FLAG="${4:-false}"
+# neug_ap_test for ap test, neug_tp_test for tp test
+TEST_MARKER="$1"
+DATASET_NAME="$2"
+DB_DIR="${3:-/tmp/${DATASET_NAME}}"
+SUBQUERY_ARG="${4:-}"
+READ_WRITE_FLAG="${5:-false}"
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TEST_DIR="$SCRIPT_DIR/.."
 BASE_QUERY_DIR="$TEST_DIR/queries"
 BASE_REPORT_DIR="$TEST_DIR/report/$DATASET_NAME"
-TEST_MARKER="neug_test"
+
 
 function test_queries_embedded {
     all_dirs=()

@@ -27,9 +27,13 @@ from utils.utils import Query
 
 
 class TestNeug(BaseTest):
-    @pytest.mark.neug_test
+    @pytest.mark.neug_ap_test
     def test_queries(self, neug_conn, query_object):
         self.run_test(neug_conn, query_object)
+
+    @pytest.mark.neug_tp_test
+    def test_queries_tp(self, neug_sess, query_object):
+        self.run_test(neug_sess, query_object)
 
     @pytest.mark.neug_benchmark
     def test_benchmark_queries(self, request, benchmark, neug_sess, query_object):

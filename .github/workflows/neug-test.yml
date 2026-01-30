@@ -252,7 +252,8 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         # tests running on modern_graph
-        ./scripts/run_embed_test.sh modern_graph /tmp/modern_graph basic_test,match,optional_mathch
+        ./scripts/run_e2e_test.sh neug_ap_test modern_graph /tmp/modern_graph basic_test,match,optional_mathch
+        ./scripts/run_e2e_test.sh neug_tp_test modern_graph /tmp/modern_graph basic_test,match,optional_mathch
 
     - name: Run E2E tinysnb Test
       run: |
@@ -260,23 +261,28 @@ jobs:
         export NEUG_ROOT_DIRECTORY=${GITHUB_WORKSPACE}
         # tests running on tinysnb
         # in convenience, we use "read-write" model to run all test cases together
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb !update true
-        ./scripts/run_embed_test.sh tinysnb /tmp/tinysnb update true
+        ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb !update true
+        ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb !update,!copy true
+        ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb update true
+        ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb update true
 
     - name: Run E2E LSQB Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
-        ./scripts/run_embed_test.sh lsqb /tmp/lsqb lsqb
+        ./scripts/run_e2e_test.sh neug_ap_test lsqb /tmp/lsqb lsqb
+        ./scripts/run_e2e_test.sh neug_tp_test lsqb /tmp/lsqb lsqb
 
     - name: Run E2E LDBC Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
-        ./scripts/run_embed_test.sh ldbc /tmp/ldbc agg,match,ldbc
+        ./scripts/run_e2e_test.sh neug_ap_test ldbc /tmp/ldbc agg,match,ldbc
+        ./scripts/run_e2e_test.sh neug_tp_test ldbc /tmp/ldbc agg,match,ldbc
 
     - name: Run E2E COMPREHENSIVE_GRAPH Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
-        ./scripts/run_embed_test.sh comprehensive_graph /tmp/comprehensive_graph path
+        ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path
+        ./scripts/run_e2e_test.sh neug_tp_test comprehensive_graph /tmp/comprehensive_graph path
 
     - name: Test installation c++ sdk
       run: |
