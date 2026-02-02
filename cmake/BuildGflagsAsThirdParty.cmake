@@ -16,7 +16,9 @@
 
 function (build_gflags_as_third_party)
     set(CMAKE_DEBUG_POSTFIX "" FORCE)
-    find_package(gflags)
+    # Force using third_party gflags instead of system version
+    # This avoids version conflicts and include path issues
+    set(gflags_FOUND FALSE)
     if (NOT gflags_FOUND)
         set(GFLAGS_BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
         set(GFLAGS_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
@@ -49,10 +51,13 @@ function (build_gflags_as_third_party)
     endif()
 
     # find glog---------------------------------------------------------------------
-    include("cmake/FindGlog.cmake")
+    # Force using third_party glog instead of system version
+    set(GLOG_FOUND FALSE)
     if (NOT GLOG_FOUND)
-        message(STATUS "glog not found, building glog as third party")
-        set(WITH_GFLAGS ON CACHE BOOL "Build glog without gflags" FORCE)
+        message(STATUS "Building glog from third_party")
+        # Disable gflags in glog to avoid find_package conflicts during build
+        # glog will still work, just without gflags command-line parsing
+        set(WITH_GFLAGS OFF CACHE BOOL "Build glog without gflags" FORCE)
         set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
         set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
         add_subdirectory(third_party/glog)

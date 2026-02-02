@@ -30,7 +30,11 @@
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
 
+<<<<<<< HEAD
 #include "neug/compiler/common/types/types.h"
+=======
+#include "neug/compiler/common/types.h"
+>>>>>>> 63bf526945d8d2ac284a323cdf20980cc5047c76
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"

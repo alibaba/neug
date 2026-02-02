@@ -40,7 +40,15 @@ class ProcedureCallOpr : public IOperator {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
-    return callFunction->execFunc(*callInput);
+    // Prefer execWithGraphFunc if available (for extensions that need graph access)
+    if (callFunction->execWithGraphFunc) {
+      return callFunction->execWithGraphFunc(graph, *callInput);
+    }
+    // Fallback to execFunc for backward compatibility
+    if (callFunction->execFunc) {
+      return callFunction->execFunc(*callInput);
+    }
+    THROW_RUNTIME_ERROR("ProcedureCallOpr: no execFunc or execWithGraphFunc defined");
   }  // namespace ops
 };   // namespace runtime
 

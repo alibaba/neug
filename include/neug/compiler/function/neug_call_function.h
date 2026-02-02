@@ -23,6 +23,8 @@
 
 namespace neug {
 class Schema;
+class IStorageInterface;  // Forward declaration for graph interface
+
 namespace runtime {
 class ContextMeta;
 class Context;
@@ -37,8 +39,13 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
     const Schema& schema, const runtime::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
+// Extended exec function type that receives graph interface
 using call_exec_func_t =
     std::function<runtime::Context(const CallFuncInputBase& input)>;
+
+// New exec function type with graph access for extensions
+using call_exec_with_graph_func_t =
+    std::function<runtime::Context(IStorageInterface& graph, const CallFuncInputBase& input)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;
@@ -47,6 +54,7 @@ struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
+  call_exec_with_graph_func_t execWithGraphFunc = nullptr;  // New: exec with graph access
 
   NeugCallFunction() = default;
 
