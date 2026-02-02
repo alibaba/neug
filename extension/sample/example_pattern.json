@@ -1,0 +1,20 @@
+{
+  "description": "Find two people who know each other",
+  "vertices": [
+    {
+      "id": "a",
+      "label": "person"
+    },
+    {
+      "id": "b", 
+      "label": "person"
+    }
+  ],
+  "edges": [
+    {
+      "src": "a",
+      "dst": "b",
+      "label": "person_knows_person"
+    }
+  ]
+}

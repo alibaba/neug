@@ -1,0 +1,34 @@
+{
+  "description": "Find a triangle of three people who all know each other",
+  "vertices": [
+    {
+      "id": "a",
+      "label": "person"
+    },
+    {
+      "id": "b",
+      "label": "person"
+    },
+    {
+      "id": "c",
+      "label": "person"
+    }
+  ],
+  "edges": [
+    {
+      "src": "a",
+      "dst": "b",
+      "label": "person_knows_person"
+    },
+    {
+      "src": "b",
+      "dst": "c",
+      "label": "person_knows_person"
+    },
+    {
+      "src": "c",
+      "dst": "a",
+      "label": "person_knows_person"
+    }
+  ]
+}
