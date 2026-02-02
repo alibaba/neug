@@ -1,6 +1,8 @@
 set(INCLUDES "")
 set(LOAD_LINKED_EXTENSION "")
 
+find_package(OpenSSL REQUIRED)
+
 foreach(EXT_NAME IN LISTS STATICALLY_LINKED_EXTENSIONS)
     string(TOLOWER "${EXT_NAME}" EXT_NAME_LOWER)
     # Convert to camel case
@@ -62,6 +64,8 @@ add_library(neug_extension
         extension_manager.cpp
         loaded_extension.cpp
         )
+target_include_directories(neug_extension PRIVATE ${OPENSSL_INCLUDE_DIR})
+target_link_libraries(neug_extension PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 add_dependencies(neug_extension neug_plan_proto)
 
 set(ALL_OBJECT_FILES

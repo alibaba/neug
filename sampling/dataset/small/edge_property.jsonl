@@ -1,0 +1,7 @@
+{"src": 0, "dst": 1, "type": "person_knows_person", "creationDate": "1271939457947"}
+{"src": 1, "dst": 2, "type": "person_knows_person", "creationDate": "1289805829104"}
+{"src": 2, "dst": 3, "type": "person_knows_person", "creationDate": "1323916483085"}
+{"src": 3, "dst": 0, "type": "comment_hasCreator_person"}
+{"src": 4, "dst": 1, "type": "post_hasCreator_person"}
+{"src": 5, "dst": 1, "type": "post_hasCreator_person"}
+

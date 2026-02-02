@@ -70,4 +70,7 @@ endfunction()
 # Add json extension
 add_extension_if_enabled("json")
 
+# Add sample extension (subgraph matching)
+add_extension_if_enabled("sample")
+
 message(STATUS "=== Extension configuration complete ===")
