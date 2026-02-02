@@ -194,7 +194,7 @@ void NeugDB::preprocessConfig() {
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();
     ss << "neug_db_"
-       << std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+       << std::chrono::duration_cast<std::chrono::microseconds>(duration)
               .count();
     db_dir = db_dir_prefix + "/" + ss.str();
     is_pure_memory_ = true;

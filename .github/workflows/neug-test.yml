@@ -106,7 +106,8 @@ jobs:
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
-        export BUILD_TYPE=DEBUG
+        # export BUILD_TYPE=DEBUG
+        export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
         export BUILD_EXECUTABLES=ON
         export BUILD_HTTP_SERVER=ON
