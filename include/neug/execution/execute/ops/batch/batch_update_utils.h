@@ -44,7 +44,7 @@ namespace runtime {
 class Context;
 class VertexRecord;
 class EdgeRecord;
-class Path;
+struct Path;
 
 namespace ops {
 

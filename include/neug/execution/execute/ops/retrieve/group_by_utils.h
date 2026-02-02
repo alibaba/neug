@@ -196,7 +196,7 @@ struct TypedVarWrapper {
   using V = T;
   T operator()(size_t idx) const {
     auto v = vars.get(idx);
-    return v.GetValue<T>();
+    return v.template GetValue<T>();
   }
   explicit TypedVarWrapper(Var&& vars) : vars(std::move(vars)) {}
   Var vars;
@@ -210,7 +210,7 @@ struct OptionalTypedVarWrapper {
     if (v.IsNull()) {
       return std::nullopt;
     }
-    return v.GetValue<T>();
+    return v.template GetValue<T>();
   }
   explicit OptionalTypedVarWrapper(Var&& vars) : vars_(std::move(vars)) {}
   Var vars_;

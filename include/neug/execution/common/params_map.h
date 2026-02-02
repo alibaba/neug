@@ -19,7 +19,7 @@
 
 namespace neug {
 
-class DataType;
+struct DataType;
 namespace runtime {
 class Value;
 using ParamsMap = std::map<std::string, Value>;

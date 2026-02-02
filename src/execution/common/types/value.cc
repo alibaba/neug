@@ -184,7 +184,7 @@ Value Value::UINT64(uint64_t value) {
 }
 
 Value Value::DATE(date_t date) {
-  Value result(DataType(DataTypeId::kDate));
+  Value result(DataTypeId::kDate);
   result.value_.date = date;
   result.is_null_ = false;
   return result;
