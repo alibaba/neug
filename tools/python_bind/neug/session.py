@@ -151,7 +151,12 @@ class Session:
         Execute a query on the NeuG server.
 
         :param query: The query string to be executed.
-        :param access_mode: The access mode for the query.
+        :param access_mode: The access mode for the query. Supported modes are:
+            - `read` or `r`: Read-only queries
+            - `insert` or `i`: Insert-only operations
+            - `update` or `u`: Update/delete operations (default)
+            - `schema` or `s`: Schema modification operations
+        :param parameters: Optional dict of query parameters.
         :return: The result of the query execution.
         """
         if self._closed:

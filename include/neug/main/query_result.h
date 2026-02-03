@@ -21,18 +21,46 @@
 #include "neug/generated/proto/plan/results.pb.h"
 
 namespace neug {
-/**
- * @brief We use this class to represent the returned result of the query.
- * No extra memory should
- */
 
-// A single record in the result set.
+/**
+ * @brief A single row/record from query results.
+ *
+ * RecordLine represents one row of query output, containing multiple
+ * column values (entries). Each entry corresponds to a RETURN clause
+ * expression in the Cypher query.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * auto result = conn->Query("MATCH (n:Person) RETURN n.name, n.age", "read");
+ * for (auto& record : result.value()) {
+ *   // Access entries by index
+ *   const auto& entries = record.entries();
+ *   // entries[0] = name, entries[1] = age
+ *   std::cout << record.ToString() << std::endl;
+ * }
+ * @endcode
+ *
+ * @note Entries are pointers to internal data; do not store beyond result lifetime.
+ *
+ * @see QueryResult For iterating over all records
+ *
+ * @since v0.1.0
+ */
 class RecordLine {
  public:
   RecordLine() = default;
+
+  /**
+   * @brief Construct RecordLine from entry pointers.
+   * @param entries Vector of pointers to result entries
+   */
   explicit RecordLine(std::vector<const results::Entry*> entries)
       : entries_(entries) {}
 
+  /**
+   * @brief Convert record to string representation.
+   * @return String representation of all entries
+   */
   std::string ToString() const {
     std::string result;
     result += "<";
@@ -46,6 +74,10 @@ class RecordLine {
     return result;
   }
 
+  /**
+   * @brief Get all entries (column values) in this record.
+   * @return Vector of const pointers to Entry objects
+   */
   const std::vector<const results::Entry*>& entries() const { return entries_; }
 
  private:
@@ -53,18 +85,43 @@ class RecordLine {
 };
 
 /**
- * @brief Container for query execution results with iterator-based access.
+ * @brief Container for Cypher query execution results.
  *
- * QueryResult wraps a CollectiveResults protobuf message and provides
- * convenient C++ iterator-style access to the result records. It maintains an
- * internal cursor for sequential access via hasNext()/next() pattern.
+ * QueryResult provides convenient access to query results through both
+ * iterator-style (hasNext/next) and random access (operator[]) patterns.
+ * Results are returned as RecordLine objects containing Entry pointers.
  *
- * **Internal Structure:**
- * - Wraps results::CollectiveResults protobuf message
- * - Maintains cur_index_ for iteration state
- * - Provides both sequential and random access to records
+ * **Usage Example:**
+ * @code{.cpp}
+ * auto result = conn->Query("MATCH (n:Person) RETURN n.name, n.age LIMIT 100");
  *
- * **Memory Model:** Returns pointers to internal data without copying.
+ * if (result.has_value()) {
+ *   QueryResult& qr = result.value();
+ *
+ *   // Method 1: Range-based for loop
+ *   for (auto& record : qr) {
+ *     std::cout << record.ToString() << std::endl;
+ *   }
+ *
+ *   // Method 2: Random access by index
+ *   for (size_t i = 0; i < qr.length(); ++i) {
+ *     RecordLine record = qr[i];
+ *   }
+ *
+ *   // Get result schema
+ *   std::cout << "Schema: " << qr.get_result_schema() << std::endl;
+ * }
+ * @endcode
+ *
+ * **Memory Model:**
+ * - QueryResult owns the underlying protobuf data
+ * - RecordLine contains pointers to internal data (no copying)
+ * - Do not access records after QueryResult is destroyed
+ *
+ * @note Thread-safe for read-only access after construction.
+ *
+ * @see RecordLine For accessing individual record data
+ * @see Connection::Query For creating QueryResult objects
  *
  * @since v0.1.0
  */

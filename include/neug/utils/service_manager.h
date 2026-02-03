@@ -33,17 +33,47 @@ class CollectiveResults;
 
 namespace neug {
 
+/**
+ * @brief Configuration for NeuG HTTP service.
+ *
+ * ServiceConfig contains settings for the HTTP server that handles
+ * remote Cypher query execution. Use this to configure the service
+ * endpoint before starting NeugDBService.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * neug::ServiceConfig config;
+ * config.query_port = 8080;       // Listen on port 8080
+ * config.host_str = "0.0.0.0";    // Accept connections from any interface
+ *
+ * neug::NeugDBService service(db, config);
+ * service.Start();
+ * @endcode
+ *
+ * @see NeugDBService for HTTP service management
+ * @since v0.1.0
+ */
 struct ServiceConfig {
+  /// Default number of shards for distributed processing
   static constexpr const uint32_t DEFAULT_SHARD_NUM = 1;
+  /// Default HTTP port for query endpoint
   static constexpr const uint32_t DEFAULT_QUERY_PORT = 10000;
 
-  // Those has default value
+  /// HTTP port for the query endpoint (default: 10000)
   uint32_t query_port;
+  /// Number of shards for distributed processing (default: 1)
   uint32_t shard_num;
-
-  // Those has not default value
+  /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all interfaces)
   std::string host_str;
 
+  /**
+   * @brief Constructs ServiceConfig with default values.
+   *
+   * Default configuration:
+   * - query_port: 10000
+   * - shard_num: 1
+   * - host_str: "127.0.0.1" (localhost only)
+   */
   ServiceConfig()
       : query_port(DEFAULT_QUERY_PORT),
         shard_num(DEFAULT_SHARD_NUM),

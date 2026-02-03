@@ -1,70 +1,71 @@
 # C++ API Reference
 
-The NeuG C++ API provides low-level access to graph database functionality, designed for performance-critical applications and advanced graph operations.
+The NeuG C++ API provides high-performance, low-level access to graph database functionality. Designed for performance-critical applications, embedded systems, and advanced graph algorithms.
 
-## Key API Classes ⭐
+## Overview
 
-The following classes are the primary entry points and most commonly used components:
+The C++ API offers powerful capabilities for:
 
-## Namespace Organization
+- **Database Management**: Open, configure, and manage NeuG database instances
+- **Query Execution**: Execute Cypher queries with parameterized inputs
+- **Result Processing**: Iterate over query results with type-safe access
 
-The C++ API is organized into the following namespaces:
+## Core Classes
 
-- **[neug](neug)** -  (1498 classes)
-
-
-### Namespace Categories
-
-- **Core namespaces** (`gs`, `common`): Fundamental database operations and data structures
-- **Query processing** (`algebra`, `cypher`, `physical`): Graph algorithms and query execution
-- **Data management** (`results`, `schema`): Result handling and schema management  
-- **Infrastructure** (`server`): Server and networking components
+- **[NeugDB](neug_db)** - The main entry point for database operations
+- **[Connection](connection)** - Execute Cypher queries against the database
+- **[QueryResult](query_result)** - Container for query results with iterator access
+- **[NeugDBService](service)** - HTTP service for high-throughput scenarios
 
 ## Quick Start
 
 ### Include Headers
 
 ```cpp
-#include <neug/neug.h>
+#include <neug/main/neug_db.h>
+#include <neug/main/connection.h>
 ```
 
 ### Basic Usage
 
 ```cpp
-// Connect to database
-gs::Database db("path/to/database");
-auto session = db.connect();
+#include <neug/main/neug_db.h>
+#include <iostream>
 
-// Execute query
-auto result = session.execute("MATCH (n) RETURN n LIMIT 10");
+int main() {
+  // Create and open database
+  neug::NeugDB db;
+  db.Open("/path/to/graph", 4);  // 4 threads
 
-// Process results
-for (const auto& record : result) {
-    // Handle each record
+  // Create connection and execute query
+  auto conn = db.Connect();
+  auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
+
+  // Process results
+  if (result.has_value()) {
+    for (auto& record : result.value()) {
+      std::cout << record.ToString() << std::endl;
+    }
+  }
+
+  // Close database
+  db.Close();
+  return 0;
 }
 ```
 
-## Building
+## Error Handling
 
-The C++ API requires:
-
-- **C++17 or later**: Modern C++ features for type safety and performance
-- **CMake 3.15+**: Build system configuration
-- **Required dependencies**: See build documentation for complete list
-
-### CMake Integration
-
-```cmake
-find_package(NeuG REQUIRED)
-target_link_libraries(your_target NeuG::neug)
+```cpp
+auto result = conn->Query("INVALID QUERY", "read");
+if (!result.has_value()) {
+  std::cerr << "Query failed: " << result.error().message() << std::endl;
+}
 ```
 
-## Design Principles
+## Thread Safety
 
-The C++ API is designed with the following principles:
-
-- **Performance**: Zero-cost abstractions and efficient memory usage
-- **Type Safety**: Compile-time type checking for graph operations
-- **Extensibility**: Plugin architecture for custom algorithms
-- **Compatibility**: Standard C++ interfaces for easy integration
+- `NeugDB`: Thread-safe for all operations
+- `Connection`: NOT thread-safe; use one connection per thread
+- `QueryResult`: Thread-safe (read-only after creation)
 

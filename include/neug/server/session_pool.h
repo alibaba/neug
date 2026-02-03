@@ -55,6 +55,32 @@ struct SessionLocalContext {
 
 class SessionPool;
 
+/**
+ * @brief RAII guard for session lifecycle management.
+ *
+ * SessionGuard provides automatic session release through RAII pattern.
+ * When the guard goes out of scope, the session is automatically returned
+ * to the SessionPool for reuse.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * {
+ *   // Acquire session - blocks if none available
+ *   auto guard = service.AcquireSession();
+ *
+ *   // Use session for queries
+ *   auto result = guard->Eval(query);
+ *
+ * } // Session automatically released here
+ * @endcode
+ *
+ * **Thread Safety:** SessionGuard is move-only (non-copyable) to ensure
+ * exclusive session ownership. Each guard should be used by a single thread.
+ *
+ * @see SessionPool for session pool management
+ * @see NeugDBSession for query execution
+ * @since v0.1.0
+ */
 class SessionGuard {
  public:
   SessionGuard() : session_(nullptr), pool_(nullptr), session_id_(0) {}
@@ -85,6 +111,31 @@ class SessionGuard {
   size_t session_id_;
 };
 
+/**
+ * @brief Pool of database sessions for concurrent query execution.
+ *
+ * SessionPool manages a fixed-size pool of NeugDBSession instances,
+ * providing efficient session reuse for high-throughput scenarios.
+ * Sessions are pre-allocated during pool construction and recycled
+ * through acquire/release operations.
+ *
+ * SessionPool is used internally by NeugDBService. For most use cases,
+ * access sessions through NeugDBService::AcquireSession() rather than
+ * directly through the pool.
+ *
+ * **Key Features:**
+ * - Pre-allocated sessions for zero-allocation query execution
+ * - Thread-safe acquire/release with bthread synchronization
+ * - Automatic WAL (Write-Ahead Log) management per session
+ * - Memory-aligned session contexts for cache efficiency
+ *
+ * **Pool Size:** Determined by `NeugDBConfig::thread_num`, typically
+ * matching the number of concurrent request handlers.
+ *
+ * @see NeugDBService for HTTP service wrapper
+ * @see SessionGuard for RAII session management
+ * @since v0.1.0
+ */
 class SessionPool {
  public:
   explicit SessionPool(

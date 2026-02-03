@@ -77,7 +77,9 @@ Currently, it does not perform any specific actions.
 ### execute
 
 ```python
-def execute(query: str, access_mode: str = "")
+def execute(query: str,
+            access_mode: str = "",
+            parameters: dict = None) -> QueryResult
 ```
 
 Execute a query on the NeuG server.
@@ -85,7 +87,12 @@ Execute a query on the NeuG server.
 **Arguments**:
 
 - `query`: The query string to be executed.
-- `access_mode`: The access mode for the query.
+- `access_mode`: The access mode for the query. Supported modes are:
+- `read` or `r`: Read-only queries
+- `insert` or `i`: Insert-only operations
+- `update` or `u`: Update/delete operations (default)
+- `schema` or `s`: Schema modification operations
+- `parameters`: Optional dict of query parameters.
 
 **Returns**:
 

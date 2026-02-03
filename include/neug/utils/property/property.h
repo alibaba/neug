@@ -27,6 +27,10 @@
 
 namespace neug {
 
+/**
+ * @brief Internal union for storing property values of different types.
+ * @note This is an implementation detail. Use Property class for API access.
+ */
 union PropValue {
   PropValue() {}
   ~PropValue() {}
@@ -48,8 +52,63 @@ union PropValue {
 template <typename T>
 struct PropUtils;
 
+/**
+ * @brief Generic property value container supporting multiple data types.
+ *
+ * Property is a variant-like container that can hold values of different
+ * types (int, float, string, date, etc.). It is used throughout NeuG to
+ * represent vertex/edge property values and query parameters.
+ *
+ * **Supported Types:**
+ * - `bool` - Boolean values
+ * - `int32_t`, `uint32_t`, `int64_t`, `uint64_t` - Integer types
+ * - `float`, `double` - Floating point types
+ * - `std::string_view` - String values (VARCHAR)
+ * - `Date`, `DateTime`, `Interval` - Temporal types
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Create properties
+ * neug::Property age;
+ * age.set_int32(30);
+ *
+ * neug::Property name;
+ * name.set_string_view("Alice");
+ *
+ * // Read properties
+ * if (age.type() == neug::DataTypeId::kInt32) {
+ *     int32_t val = age.as_int32();
+ * }
+ *
+ * // Use convenience constructors
+ * neug::Property score(95.5);  // double
+ * neug::Property id(12345L);   // int64
+ *
+ * // Convert to string for display
+ * std::string str = prop.to_string();
+ * @endcode
+ *
+ * **Primary Key Usage:**
+ * @code{.cpp}
+ * // Look up vertex by primary key
+ * neug::Property pk;
+ * pk.set_int64(12345);
+ * vid_t vid;
+ * if (graph.get_lid(person_label, pk, vid, timestamp)) {
+ *     // Found vertex with ID vid
+ * }
+ * @endcode
+ *
+ * @note String views must remain valid for the lifetime of the Property.
+ * @note Use appropriate type-checking before accessing values.
+ *
+ * @see DataTypeId For the enumeration of supported data types
+ *
+ * @since v0.1.0
+ */
 class Property {
  public:
+  /** @brief Default constructor creating an empty property. */
   Property() : type_(DataTypeId::kEmpty) {}
   ~Property() = default;
 

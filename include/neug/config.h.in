@@ -24,10 +24,56 @@
 
 namespace neug {
 
-enum class DBMode { READ_ONLY = 0, READ_WRITE = 1 };
+/**
+ * @brief Database access mode enumeration.
+ *
+ * Specifies whether the database is opened for read-only or read-write access.
+ *
+ * @since v0.1.0
+ */
+enum class DBMode {
+  READ_ONLY = 0,   ///< Read-only access for analytics workloads
+  READ_WRITE = 1   ///< Full transactional read-write access
+};
 
+/**
+ * @brief Configuration structure for NeugDB initialization.
+ *
+ * NeugDBConfig provides comprehensive configuration options for
+ * database initialization, including storage settings, threading,
+ * and persistence behavior.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * neug::NeugDBConfig config;
+ * config.data_dir = "/path/to/graph";
+ * config.thread_num = 8;
+ * config.mode = neug::DBMode::READ_WRITE;
+ * config.memory_level = 2;  // Use hugepages
+ * config.enable_auto_compaction = true;
+ * config.checkpoint_on_close = true;
+ *
+ * neug::NeugDB db;
+ * db.Open(config);
+ * @endcode
+ *
+ * **Memory Levels:**
+ * - 0: Sync with disk (lowest memory, highest I/O latency)
+ * - 1: Memory-mapped virtual memory (default, balanced)
+ * - 2: Prefer hugepages (better TLB performance)
+ * - 3: Force hugepages (best performance, requires system config)
+ *
+ * @see NeugDB::Open For using this configuration
+ *
+ * @since v0.1.0
+ */
 struct NeugDBConfig {
+  /// Default CSR reserve ratio for edge storage
   static constexpr const float DEFAULT_RESERVE_RATIO = 1.2;
+
+  /**
+   * @brief Default constructor with sensible defaults.
+   */
   NeugDBConfig()
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         mode(DBMode::READ_WRITE),
@@ -40,6 +86,13 @@ struct NeugDBConfig {
         compact_on_close(true),
         checkpoint_on_close(false),
         checkpoint_after_recovery(false) {}
+
+  /**
+   * @brief Construct with data directory and thread count.
+   *
+   * @param data_dir_ Path to graph data directory
+   * @param thread_num_ Number of threads for concurrent operations
+   */
   NeugDBConfig(const std::string& data_dir_, int thread_num_ = 1)
       : csr_reserve_ratio(DEFAULT_RESERVE_RATIO),
         mode(DBMode::READ_WRITE),
@@ -54,30 +107,48 @@ struct NeugDBConfig {
         checkpoint_on_close(false),
         checkpoint_after_recovery(false) {}
 
+  /// CSR storage reserve ratio for edge insertions (default: 1.2)
   float csr_reserve_ratio;
+
+  /// Database access mode (READ_ONLY or READ_WRITE)
   DBMode mode;
+
+  /// Path to graph data directory
   std::string data_dir;
-  std::string planner_kind;  // currently only gopt
+
+  /// Query planner type: "gopt" (Graph Optimizer) or "greedy"
+  std::string planner_kind;
+
+  /// Number of threads for concurrent operations
   int thread_num;
+
+  /// Enable background auto-compaction thread
   bool enable_auto_compaction;
 
-  /*
-    0 - sync with disk;
-    1 - mmap virtual memory;
-    2 - preferring hugepages;
-    3 - force hugepages;
-  */
+  /**
+   * @brief Memory usage level.
+   *
+   * - 0: Sync with disk
+   * - 1: Memory-mapped virtual memory (default)
+   * - 2: Prefer hugepages
+   * - 3: Force hugepages
+   */
   int memory_level;
-  std::string wal_uri;  // Indicate the where shall we store the wal files.
-  // could be file://{GRAPH_DATA_DIR}/wal or other scheme
-  // that interactive supports
-  bool compact_csr;          // whether compact the csr when doing compaction.
-  bool compact_on_close;     // whether compact the graph when closing the graph
-                             // db.
-  bool checkpoint_on_close;  // whether dump the graph when
-  // closing the graph db.
-  bool checkpoint_after_recovery;  // whether create a checkpoint after recovery
-                                   // from wal.
+
+  /// WAL (Write-Ahead Log) storage URI. Use {GRAPH_DATA_DIR} as placeholder.
+  std::string wal_uri;
+
+  /// Compact CSR structures during compaction
+  bool compact_csr;
+
+  /// Perform compaction when closing database
+  bool compact_on_close;
+
+  /// Create checkpoint (persist all data) when closing database
+  bool checkpoint_on_close;
+
+  /// Create checkpoint after recovering from WAL
+  bool checkpoint_after_recovery;
 };
 
 }  // namespace neug

@@ -43,27 +43,54 @@ class EdgeRecord;
 }
 
 /**
- * @brief Core property graph storage engine managing vertices, edges, and
- * schema.
+ * @brief Core property graph storage engine for vertices, edges, and schema.
  *
- * PropertyGraph provides the fundamental storage layer for graph data in
- * NeuG. It manages vertex and edge tables, schema information, and provides
- * persistence through file-based storage with memory management
- * optimizations.
+ * PropertyGraph is the **fundamental storage layer** for all graph data in NeuG.
+ * It provides low-level access to graph structures, schema management, and
+ * persistence capabilities. Most users interact with graphs through higher-level
+ * APIs (NeugDB, Connection), but PropertyGraph offers direct access for
+ * performance-critical applications.
  *
- * **Key Components:**
- * - Vertex tables for storing vertex data and properties
- * - Edge tables using various CSR (Compressed Sparse Row) formats
- * - Schema management for vertex/edge types and properties
- * - Memory management with configurable memory levels
- * - Persistence with snapshot and compaction support
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Access via NeugDB
+ * neug::NeugDB db;
+ * db.Open("/path/to/graph");
+ * const neug::PropertyGraph& graph = db.graph();
  *
- * **Implementation Details:**
- * - vertex_tables_ stores vertex data indexed by label
- * - edge_tables_ stores edge data in CSR format
- * - schema_ manages type definitions and property schemas
- * - work_dir_ stores the working directory for persistence
- * - memory_level_ controls memory usage vs performance tradeoff
+ * // Get schema information
+ * const neug::Schema& schema = graph.schema();
+ * label_t person_label = schema.get_vertex_label_id("Person");
+ *
+ * // Get vertex count
+ * vid_t vertex_count = graph.VertexNum(person_label);
+ *
+ * // Access vertex properties
+ * auto name_column = graph.GetVertexPropertyColumn(person_label, "name");
+ * @endcode
+ *
+ * **Storage Architecture:**
+ * - **VertexTable**: Per-label vertex storage with properties and primary keys
+ * - **EdgeTable**: CSR (Compressed Sparse Row) format for efficient traversal
+ * - **Schema**: Type definitions, property schemas, and constraints
+ *
+ * **Memory Levels:**
+ * - Level 0: Sync with disk (lowest memory, highest I/O)
+ * - Level 1: Memory-mapped virtual memory (default)
+ * - Level 2: Prefer hugepages for better TLB performance
+ * - Level 3: Force hugepages (highest performance, most memory)
+ *
+ * **Persistence:**
+ * - Snapshot-based persistence to work_dir
+ * - Compaction support for removing deleted data
+ * - Schema stored in `graph.yaml`
+ *
+ * @note For query execution, use Connection::Query() instead of direct PropertyGraph access.
+ * @note PropertyGraph is not thread-safe for writes. Use transactions for concurrent access.
+ *
+ * @see Schema For schema management
+ * @see VertexTable For vertex storage details
+ * @see EdgeTable For edge storage details
  *
  * @since v0.1.0
  */
@@ -145,10 +172,31 @@ class PropertyGraph {
    */
   void Clear();
 
-  // When error_on_conflict is true, it will return an error if the
-  // vertex type or edge type already exists.
-  // When error_on_conflict is false, it will skip the creation if the
-  // vertex type or edge type already exists.
+  /**
+   * @brief Create a new vertex type in the graph schema.
+   *
+   * Defines a new vertex label with its properties and primary key.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * std::vector<std::tuple<DataTypeId, std::string, Property>> props = {
+   *     {DataTypeId::kInt64, "id", Property()},
+   *     {DataTypeId::kVarchar, "name", Property()},
+   *     {DataTypeId::kInt32, "age", Property()}
+   * };
+   * graph.CreateVertexType("Person", props, {"id"});
+   * @endcode
+   *
+   * @param vertex_type_name Name of the new vertex type
+   * @param properties Vector of (type, name, default_value) tuples
+   * @param primary_key_names Names of properties forming the primary key
+   * @param error_on_conflict If true, returns error if type exists;
+   *        if false, silently skips creation
+   *
+   * @return Status indicating success or failure
+   *
+   * @since v0.1.0
+   */
   Status CreateVertexType(
       const std::string& vertex_type_name,
       const std::vector<std::tuple<DataTypeId, std::string, Property>>&
@@ -156,6 +204,32 @@ class PropertyGraph {
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict = true);
 
+  /**
+   * @brief Create a new edge type in the graph schema.
+   *
+   * Defines a new edge label connecting source and destination vertex types.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * std::vector<std::tuple<DataTypeId, std::string, Property>> props = {
+   *     {DataTypeId::kInt64, "since", Property()},
+   *     {DataTypeId::kDouble, "weight", Property()}
+   * };
+   * graph.CreateEdgeType("Person", "Person", "KNOWS", props);
+   * @endcode
+   *
+   * @param src_vertex_type Source vertex type name
+   * @param dst_vertex_type Destination vertex type name
+   * @param edge_type_name Name of the new edge type
+   * @param properties Vector of (type, name, default_value) tuples
+   * @param error_on_conflict If true, returns error if type exists
+   * @param oe_strategy Outgoing edge storage strategy (kMultiple, kSingle, kNone)
+   * @param ie_strategy Incoming edge storage strategy
+   *
+   * @return Status indicating success or failure
+   *
+   * @since v0.1.0
+   */
   Status CreateEdgeType(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
@@ -316,6 +390,43 @@ class PropertyGraph {
                             int32_t ie_offset, int32_t col_id,
                             const Property& new_prop, timestamp_t ts);
 
+  /**
+   * @brief Get a view for traversing outgoing edges.
+   *
+   * Returns a GenericView for efficiently iterating over outgoing edges
+   * from vertices of type v_label to vertices of type neighbor_label.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * // Get view for Person -[KNOWS]-> Person edges
+   * label_t person = schema.get_vertex_label_id("Person");
+   * label_t knows = schema.get_edge_label_id("KNOWS");
+   *
+   * GenericView view = graph.GetGenericOutgoingGraphView(
+   *     person, person, knows, read_ts);
+   *
+   * // Traverse from vertex v
+   * NbrList neighbors = view.get_edges(v);
+   * for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
+   *     vid_t friend_id = *it;
+   *     // Process neighbor...
+   * }
+   * @endcode
+   *
+   * @param v_label Source vertex label
+   * @param neighbor_label Destination vertex label
+   * @param edge_label Edge label connecting them
+   * @param ts Read timestamp for MVCC (default: latest)
+   *
+   * @return GenericView for outgoing edge traversal
+   *
+   * @throws std::invalid_argument if edge triplet doesn't exist
+   *
+   * @see GenericView For traversal operations
+   * @see GetGenericIncomingGraphView For reverse traversal
+   *
+   * @since v0.1.0
+   */
   GenericView GetGenericOutgoingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
@@ -328,6 +439,39 @@ class PropertyGraph {
     return edge_tables_.at(index).get_outgoing_view(ts);
   }
 
+  /**
+   * @brief Get a view for traversing incoming edges.
+   *
+   * Returns a GenericView for efficiently iterating over incoming edges
+   * to vertices of type v_label from vertices of type neighbor_label.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * // Get view for Person <-[KNOWS]- Person edges (reverse direction)
+   * GenericView view = graph.GetGenericIncomingGraphView(
+   *     person, person, knows, read_ts);
+   *
+   * // Find who follows vertex v (incoming edges)
+   * NbrList followers = view.get_edges(v);
+   * for (auto it = followers.begin(); it != followers.end(); ++it) {
+   *     vid_t follower_id = *it;
+   * }
+   * @endcode
+   *
+   * @param v_label Destination vertex label (this vertex type receives edges)
+   * @param neighbor_label Source vertex label (edges come from this type)
+   * @param edge_label Edge label connecting them
+   * @param ts Read timestamp for MVCC (default: latest)
+   *
+   * @return GenericView for incoming edge traversal
+   *
+   * @throws std::invalid_argument if edge triplet doesn't exist
+   *
+   * @see GenericView For traversal operations
+   * @see GetGenericOutgoingGraphView For forward traversal
+   *
+   * @since v0.1.0
+   */
   GenericView GetGenericIncomingGraphView(
       label_t v_label, label_t neighbor_label, label_t edge_label,
       timestamp_t ts = std::numeric_limits<timestamp_t>::max()) const {
@@ -340,6 +484,24 @@ class PropertyGraph {
     return edge_tables_.at(index).get_incoming_view(ts);
   }
 
+  /**
+   * @brief Get accessor for edge property by column index.
+   *
+   * Returns an EdgeDataAccessor for reading edge property values.
+   *
+   * @param src_label Source vertex label
+   * @param dst_label Destination vertex label
+   * @param edge_label Edge label
+   * @param prop_id Property column index (0-based)
+   *
+   * @return EdgeDataAccessor for the specified property
+   *
+   * @throws std::invalid_argument if edge triplet doesn't exist
+   *
+   * @see EdgeDataAccessor For accessing property values
+   *
+   * @since v0.1.0
+   */
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
     size_t index =
@@ -351,6 +513,33 @@ class PropertyGraph {
     return edge_tables_.at(index).get_edge_data_accessor(prop_id);
   }
 
+  /**
+   * @brief Get accessor for edge property by name.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * // Get accessor for "weight" property on KNOWS edges
+   * EdgeDataAccessor weight_accessor = graph.GetEdgeDataAccessor(
+   *     person, person, knows, "weight");
+   *
+   * // Use with edge iteration
+   * GenericView view = graph.GetGenericOutgoingGraphView(...);
+   * for (auto it = view.get_edges(v).begin(); ...; ++it) {
+   *     double weight = weight_accessor.get_typed_data<double>(it);
+   * }
+   * @endcode
+   *
+   * @param src_label Source vertex label
+   * @param dst_label Destination vertex label
+   * @param edge_label Edge label
+   * @param prop Property name
+   *
+   * @return EdgeDataAccessor for the specified property
+   *
+   * @throws std::invalid_argument if edge triplet or property doesn't exist
+   *
+   * @since v0.1.0
+   */
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label,
                                        const std::string& prop) const {

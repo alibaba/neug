@@ -103,6 +103,10 @@ class CppAPIGenerator:
                     config = json.load(f)
                     print(f"📋 Loaded {len(config.get('key_classes', []))} key classes from config")
                     print(f"📋 Target namespaces: {config.get('target_namespaces', [])}")
+                    if 'documentation_categories' in config:
+                        print(f"📋 Documentation categories: {list(config['documentation_categories'].keys())}")
+                    if 'excluded_patterns' in config:
+                        print(f"📋 Exclusion patterns: {len(config['excluded_patterns'])} patterns")
                     return config
             else:
                 print(f"⚠️ Key classes config not found: {KEY_CLASSES_CONFIG}")
@@ -110,6 +114,14 @@ class CppAPIGenerator:
         except Exception as e:
             print(f"❌ Error loading key classes config: {e}")
             return {"key_classes": [], "priority_display": True, "full_documentation": True}
+    
+    def _matches_excluded_pattern(self, class_name: str) -> bool:
+        """Check if a class name matches any exclusion pattern."""
+        excluded_patterns = self.key_classes_config.get('excluded_patterns', [])
+        for pattern in excluded_patterns:
+            if re.match(pattern, class_name):
+                return True
+        return False
     
     def _is_key_class(self, class_name: str) -> bool:
         """Check if a class is in the key classes list."""
@@ -266,12 +278,23 @@ class CppAPIGenerator:
                 for xpath in sections_to_remove:
                     remove_elements_by_xpath(detailed_copy, xpath)
                 
+                # Also remove @see sections (handled separately)
+                for elem in list(detailed_copy.iter()):
+                    if elem.tag == 'simplesect' and elem.get('kind') == 'see':
+                        parent = self._find_parent(detailed_copy, elem)
+                        if parent is not None:
+                            parent.remove(elem)
+                
                 # Convert the cleaned XML to text
                 text = self._xml_to_text(detailed_copy).strip()
                 if text:  # Only return non-empty descriptions
                     # Filter out copyright information
                     text = self._filter_copyright_info(text)
                     if text:  # Check again after filtering
+                        # Add paragraph breaks before bold headers (like **Usage Example:**)
+                        # Match cases where there's no newline or just a single newline before bold headers
+                        text = re.sub(r'([^\n])\n?(\*\*[A-Z][^*]+:\*\*)', r'\1\n\n\2', text)
+                        
                         # Clean up excessive newlines but preserve paragraph structure
                         text = re.sub(r'\n{3,}', '\n\n', text)
                         text = re.sub(r'^\s*\n+', '', text)  # Remove leading empty lines
@@ -578,10 +601,57 @@ class CppAPIGenerator:
             'signature': detailed_signature
         }
     
+    def _extract_code_line_text(self, codeline_element) -> str:
+        """Extract text content from a codeline element, preserving spaces."""
+        text = ""
+        if codeline_element.text:
+            text += codeline_element.text
+        
+        for child in codeline_element:
+            # Handle highlight elements (syntax highlighting from Doxygen)
+            if child.tag == 'highlight':
+                if child.text:
+                    text += child.text
+                for subchild in child:
+                    # Handle <sp/> space elements inside highlight
+                    if subchild.tag == 'sp':
+                        text += " "
+                    elif subchild.tag == 'ref':
+                        if subchild.text:
+                            text += subchild.text
+                    elif subchild.text:
+                        text += subchild.text
+                    if subchild.tail:
+                        text += subchild.tail
+                if child.tail:
+                    text += child.tail
+            elif child.tag == 'sp':
+                # Space element at codeline level
+                text += " "
+                if child.tail:
+                    text += child.tail
+            elif child.tag == 'ref':
+                # Reference to other symbol
+                if child.text:
+                    text += child.text
+                if child.tail:
+                    text += child.tail
+            else:
+                if child.text:
+                    text += child.text
+                if child.tail:
+                    text += child.tail
+        
+        return text
+    
     def _format_text_with_code_detection(self, text: str) -> str:
-        """Automatically detect and format code elements in text."""
+        """Automatically detect and format code elements in text, skipping code blocks."""
         if not text:
             return text
+        
+        # Split text into code blocks and non-code parts
+        # Code blocks are marked by ```...```
+        parts = re.split(r'(```[\s\S]*?```)', text)
         
         # Only detect clearly identifiable code elements
         code_patterns = [
@@ -589,15 +659,26 @@ class CppAPIGenerator:
             r'\b(std::[a-zA-Z_][a-zA-Z0-9_]*)\b',  # std:: types like std::runtime_error
             r'\b[A-Z][a-zA-Z]*::[a-zA-Z_][a-zA-Z0-9_]*\b',  # Namespace::Class like gs::Connection
             r'\b[a-zA-Z_][a-zA-Z0-9_]*_\b',  # Variables ending with underscore (member variables)
-            r'(?<!http:/)/[a-z_]+(?=/|\s|$)',  # URL paths like /cypher, but not after http://
         ]
         
-        # Apply patterns and wrap in backticks
-        formatted_text = text
-        for pattern in code_patterns:
-            formatted_text = re.sub(pattern, r'`\g<0>`', formatted_text)
+        result_parts = []
+        for part in parts:
+            # Skip code blocks (they start with ```)
+            if part.startswith('```'):
+                result_parts.append(part)
+            else:
+                # Apply patterns only to non-code parts
+                formatted_part = part
+                for pattern in code_patterns:
+                    # Don't add backticks if already inside backticks
+                    formatted_part = re.sub(
+                        r'(?<!`)' + pattern + r'(?!`)',
+                        r'`\g<0>`',
+                        formatted_part
+                    )
+                result_parts.append(formatted_part)
         
-        return formatted_text
+        return ''.join(result_parts)
     
     def _xml_to_text(self, element) -> str:
         """Convert XML element to properly formatted plain text."""
@@ -605,7 +686,20 @@ class CppAPIGenerator:
             return ""
         
         # Handle different Doxygen XML elements
-        if element.tag == 'para':
+        if element.tag in ['detaileddescription', 'briefdescription']:
+            # Description containers - don't strip whitespace (preserve code indentation)
+            text = ""
+            if element.text:
+                text += element.text
+            
+            for child in element:
+                text += self._xml_to_text(child)
+                if child.tail:
+                    text += child.tail
+            
+            return text
+        
+        elif element.tag == 'para':
             # Paragraph - should have line breaks around it
             text = ""
             if element.text:
@@ -636,8 +730,22 @@ class CppAPIGenerator:
                 return f"**{text}**"
             return text
         
-        elif element.tag in ['computeroutput', 'code', 'codeline']:
-            # Code formatting elements
+        elif element.tag == 'programlisting':
+            # Code block - format as markdown code fence
+            lines = []
+            for child in element:
+                if child.tag == 'codeline':
+                    line_text = self._extract_code_line_text(child)
+                    lines.append(line_text)
+            code_content = '\n'.join(lines)
+            return f"\n\n```cpp\n{code_content}\n```\n\n"
+        
+        elif element.tag == 'codeline':
+            # Individual code line (handled by programlisting above)
+            return self._extract_code_line_text(element)
+        
+        elif element.tag in ['computeroutput', 'code']:
+            # Inline code formatting elements
             text = ""
             if element.text:
                 text += element.text
@@ -715,6 +823,22 @@ class CppAPIGenerator:
                 if namespace in self.namespaces:
                     self.namespaces[namespace]['classes'].append(class_info)
     
+    def _has_documentation(self, method: Dict[str, Any]) -> bool:
+        """Check if a method has any documentation."""
+        if method.get('brief'):
+            return True
+        if method.get('detailed'):
+            return True
+        # Check if any parameters have descriptions
+        for param in method.get('params', []):
+            if param.get('brief'):
+                return True
+        # Check for return description
+        return_info = method.get('return', {})
+        if return_info and return_info.get('description'):
+            return True
+        return False
+    
     def _add_detailed_class_docs(self, content: str, class_info: Dict[str, Any]) -> str:
         """Add detailed documentation for key classes using pure Markdown."""
         # Add class description
@@ -726,10 +850,12 @@ class CppAPIGenerator:
         if since_info:
             content += f"- **Since:** {since_info}\n\n"
         
-        # Add constructor and destructor information
+        # Add constructor and destructor information (only if documented)
         class_simple_name = class_info['name'].split('::')[-1]
-        constructors = [m for m in class_info.get('methods', []) if m.get('name') == class_simple_name]
-        destructors = [m for m in class_info.get('methods', []) if m.get('name') == f'~{class_simple_name}']
+        constructors = [m for m in class_info.get('methods', []) 
+                       if m.get('name') == class_simple_name and self._has_documentation(m)]
+        destructors = [m for m in class_info.get('methods', []) 
+                      if m.get('name') == f'~{class_simple_name}' and self._has_documentation(m)]
         
         if constructors or destructors:
             content += "### Constructors & Destructors\n\n"
@@ -830,10 +956,12 @@ class CppAPIGenerator:
                     content += f"- **Since:** {since_info}\n\n"
         
         # Add public methods (excluding constructors and destructors)
+        # Also skip methods without any documentation
         methods = [m for m in class_info.get('methods', []) if 
                    m.get('name') != class_simple_name and 
                    m.get('name') != f'~{class_simple_name}' and 
-                   m.get('protection') == 'public']
+                   m.get('protection') == 'public' and
+                   self._has_documentation(m)]
         if methods:
             content += "### Public Methods\n\n"
             for method in methods:
@@ -940,6 +1068,12 @@ class CppAPIGenerator:
         """Determine if a class is a private implementation class that should be excluded."""
         class_simple_name = class_name.split('::')[-1]
         
+        # Check against excluded patterns from config
+        if self._matches_excluded_pattern(class_name):
+            return True
+        if self._matches_excluded_pattern(class_simple_name):
+            return True
+        
         # Filter out private implementation classes
         private_patterns = [
             'Impl_',     # Implementation classes ending with Impl_
@@ -964,6 +1098,12 @@ class CppAPIGenerator:
             
         return False
     
+    def _should_document_class(self, class_name: str) -> bool:
+        """Check if a class should be included in documentation."""
+        # Only document classes that are in key_classes list
+        key_classes = self.key_classes_config.get('key_classes', [])
+        return class_name in key_classes
+    
     def generate_docs(self, skip_cleanup=False):
         """Generate Markdown documentation files."""
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -972,32 +1112,561 @@ class CppAPIGenerator:
         if not skip_cleanup:
             clean_generated_docs(OUTPUT_DIR)
         
-        # Group classes by root namespace (only include non-private classes)
-        namespace_groups = {}
-        for class_name, class_info in self.classes.items():
-            namespace = class_info['namespace']
-            root_ns = namespace.split('::')[0] if namespace else 'global'
+        # Check generation mode
+        if self.key_classes_config.get('generate_separate_files', False):
+            # New mode: one file per class
+            self._generate_separate_class_files()
+        elif self.key_classes_config.get('generate_category_pages', False):
+            self._generate_category_docs()
+        else:
+            # Legacy: Group classes by root namespace (only include key classes)
+            namespace_groups = {}
+            for class_name, class_info in self.classes.items():
+                namespace = class_info['namespace']
+                root_ns = namespace.split('::')[0] if namespace else 'global'
+                
+                if root_ns in self.target_namespaces and self._should_document_class(class_name):
+                    if root_ns not in namespace_groups:
+                        namespace_groups[root_ns] = []
+                    namespace_groups[root_ns].append(class_info)
             
-            if root_ns in self.target_namespaces and not self._is_private_class(class_name):
-                if root_ns not in namespace_groups:
-                    namespace_groups[root_ns] = []
-                namespace_groups[root_ns].append(class_info)
-        
-        # Generate documentation for each namespace
-        for ns_name, classes in namespace_groups.items():
-            self._generate_namespace_doc(ns_name, classes)
-        
-        # Generate index files
-        self._generate_index_rst(namespace_groups)
-        self._generate_index_md(namespace_groups)
-        
-        # Generate _meta.ts for Nextra navigation
-        self._generate_meta_file(namespace_groups)
+            # Generate documentation for each namespace
+            for ns_name, classes in namespace_groups.items():
+                self._generate_namespace_doc(ns_name, classes)
+            
+            # Generate legacy index files
+            self._generate_index_rst(namespace_groups)
+            self._generate_index_md(namespace_groups)
+            self._generate_meta_file(namespace_groups)
         
         # Generate reference-level _meta.ts
         self._generate_reference_meta_file()
         
         print(f"📝 Generated C++ API documentation in {OUTPUT_DIR}")
+    
+    def _generate_separate_class_files(self):
+        """Generate separate markdown files for each key class."""
+        class_files_config = self.key_classes_config.get('class_files', {})
+        key_classes = self.key_classes_config.get('key_classes', [])
+        
+        generated_files = []
+        # Track classes that are included in other files
+        included_classes = set()
+        for class_name, file_config in class_files_config.items():
+            for included in file_config.get('include_classes', []):
+                included_classes.add(included)
+        
+        for class_name in key_classes:
+            # Skip classes that are included in other files
+            if class_name in included_classes:
+                continue
+                
+            if class_name not in self.classes:
+                print(f"⚠️ Class {class_name} not found in parsed classes")
+                continue
+            
+            class_info = self.classes[class_name]
+            file_config = class_files_config.get(class_name, {})
+            
+            # Determine filename
+            simple_name = class_name.split('::')[-1]
+            filename_base = file_config.get('filename', simple_name.lower())
+            title = file_config.get('title', simple_name)
+            
+            # Collect additional classes to include in this file
+            additional_classes = []
+            for included_class in file_config.get('include_classes', []):
+                if included_class in self.classes:
+                    additional_classes.append(self.classes[included_class])
+            
+            # Generate the file
+            self._generate_class_file(filename_base, title, class_info, additional_classes)
+            generated_files.append({
+                'filename': filename_base,
+                'title': title,
+                'class_name': class_name,
+                'description': file_config.get('description', class_info.get('brief', ''))
+            })
+        
+        # Generate index files
+        self._generate_separate_index_rst(generated_files)
+        self._generate_separate_index_md(generated_files)
+        self._generate_separate_meta_file(generated_files)
+    
+    def _generate_class_file(self, filename_base: str, title: str, class_info: Dict[str, Any], additional_classes: list = None):
+        """Generate a markdown file for a single class (optionally with additional related classes)."""
+        filename = OUTPUT_DIR / f"{filename_base}.md"
+        
+        content = f"# {title}\n\n"
+        content += f"**Full name:** `{class_info['name']}`\n\n"
+        
+        if class_info.get('brief'):
+            content += f"{class_info['brief']}\n\n"
+        
+        # Add detailed docs using existing method
+        content = self._add_detailed_class_docs(content, class_info)
+        
+        # Add additional related classes
+        if additional_classes:
+            for additional_class in additional_classes:
+                additional_name = additional_class['name'].split('::')[-1]
+                content += f"\n---\n\n## {additional_name}\n\n"
+                content += f"**Full name:** `{additional_class['name']}`\n\n"
+                
+                if additional_class.get('brief'):
+                    content += f"{additional_class['brief']}\n\n"
+                
+                content = self._add_detailed_class_docs(content, additional_class)
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_separate_index_rst(self, generated_files: list):
+        """Generate index.rst for separate class files."""
+        filename = OUTPUT_DIR / "index.rst"
+        
+        content = """C++ API Reference
+=================
+
+.. toctree::
+   :maxdepth: 2
+   :caption: C++ API
+
+"""
+        for file_info in generated_files:
+            content += f"   {file_info['filename']}\n"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_separate_index_md(self, generated_files: list):
+        """Generate index.md for separate class files."""
+        filename = OUTPUT_DIR / "index.md"
+        
+        content = """# C++ API Reference
+
+The NeuG C++ API provides high-performance, low-level access to graph database functionality. Designed for performance-critical applications, embedded systems, and advanced graph algorithms.
+
+## Overview
+
+The C++ API offers powerful capabilities for:
+
+- **Database Management**: Open, configure, and manage NeuG database instances
+- **Query Execution**: Execute Cypher queries with parameterized inputs
+- **Result Processing**: Iterate over query results with type-safe access
+
+## Core Classes
+
+"""
+        for file_info in generated_files:
+            content += f"- **[{file_info['title']}]({file_info['filename']})** - {file_info['description']}\n"
+        
+        content += """
+## Quick Start
+
+### Include Headers
+
+```cpp
+#include <neug/main/neug_db.h>
+#include <neug/main/connection.h>
+```
+
+### Basic Usage
+
+```cpp
+#include <neug/main/neug_db.h>
+#include <iostream>
+
+int main() {
+  // Create and open database
+  neug::NeugDB db;
+  db.Open("/path/to/graph", 4);  // 4 threads
+
+  // Create connection and execute query
+  auto conn = db.Connect();
+  auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
+
+  // Process results
+  if (result.has_value()) {
+    for (auto& record : result.value()) {
+      std::cout << record.ToString() << std::endl;
+    }
+  }
+
+  // Close database
+  db.Close();
+  return 0;
+}
+```
+
+## Error Handling
+
+```cpp
+auto result = conn->Query("INVALID QUERY", "read");
+if (!result.has_value()) {
+  std::cerr << "Query failed: " << result.error().message() << std::endl;
+}
+```
+
+## Thread Safety
+
+- `NeugDB`: Thread-safe for all operations
+- `Connection`: NOT thread-safe; use one connection per thread
+- `QueryResult`: Thread-safe (read-only after creation)
+
+"""
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_separate_meta_file(self, generated_files: list):
+        """Generate _meta.ts for separate class files."""
+        filename = OUTPUT_DIR / "_meta.ts"
+        
+        content = "export default {\n"
+        content += '  "index": "C++ API Overview",\n'
+        
+        for file_info in generated_files:
+            content += f'  "{file_info["filename"]}": "{file_info["title"]}",\n'
+        
+        content += "}\n"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_category_docs(self):
+        """Generate category-based documentation pages."""
+        categories = self.key_classes_config.get('documentation_categories', {})
+        
+        for category_id, category_info in categories.items():
+            self._generate_category_page(category_id, category_info)
+        
+        # Generate index files for categories
+        self._generate_category_index_rst(categories)
+        self._generate_category_index_md(categories)
+        self._generate_category_meta_file(categories)
+    
+    def _generate_category_page(self, category_id: str, category_info: Dict[str, Any]):
+        """Generate a single category documentation page."""
+        filename = OUTPUT_DIR / f"{category_id}.md"
+        
+        title = category_info.get('title', category_id.title())
+        description = category_info.get('description', '')
+        class_names = category_info.get('classes', [])
+        
+        content = f"# {title}\n\n"
+        
+        if description:
+            content += f"{description}\n\n"
+        
+        # Collect class info for this category
+        category_classes = []
+        for class_name in class_names:
+            if class_name in self.classes:
+                category_classes.append(self.classes[class_name])
+            else:
+                print(f"⚠️ Class {class_name} not found in parsed classes")
+        
+        if not category_classes:
+            content += "*No classes found for this category.*\n"
+        else:
+            for class_info in category_classes:
+                class_simple_name = class_info['name'].split('::')[-1]
+                
+                content += f"## {class_simple_name}\n\n"
+                content += f"**Full name:** `{class_info['name']}`\n\n"
+                
+                if class_info.get('brief'):
+                    content += f"{class_info['brief']}\n\n"
+                
+                # Add detailed documentation for all classes in categories
+                content = self._add_detailed_class_docs(content, class_info)
+                content += "\n---\n\n"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_category_index_rst(self, categories: Dict[str, Any]):
+        """Generate index.rst for category-based documentation."""
+        filename = OUTPUT_DIR / "index.rst"
+        
+        content = """.. _cpp_api_reference:
+
+C++ API Reference
+==================
+
+.. toctree::
+   :maxdepth: 2
+
+"""
+        for category_id in categories.keys():
+            content += f"   {category_id}\n"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_category_index_md(self, categories: Dict[str, Any]):
+        """Generate index.md with rich content for category-based docs."""
+        filename = OUTPUT_DIR / "index.md"
+        
+        content = """# C++ API Reference
+
+The NeuG C++ API provides high-performance, low-level access to graph database functionality. Designed for performance-critical applications, embedded systems, and advanced graph algorithms.
+
+## Overview
+
+The C++ API offers powerful capabilities for:
+
+- **Database Management**: Open, configure, and manage NeuG database instances
+- **Query Execution**: Execute Cypher queries with parameterized inputs
+- **Direct Graph Access**: Low-level access to vertices, edges, and properties
+- **Graph Traversal**: Efficient CSR-based edge iteration for custom algorithms
+
+## Core Classes
+
+"""
+        
+        for category_id, category_info in categories.items():
+            title = category_info.get('title', category_id.title())
+            class_names = category_info.get('classes', [])
+            
+            for class_name in class_names[:3]:  # Show top 3 classes per category
+                simple_name = class_name.split('::')[-1]
+                # Use simple relative link without anchor (like Python docs)
+                content += f"- **[{simple_name}]({category_id})** - "
+                # Add brief description based on class name
+                if simple_name == "NeugDB":
+                    content += "The main entry point for database operations\n"
+                elif simple_name == "Connection":
+                    content += "Execute Cypher queries against the database\n"
+                elif simple_name == "QueryResult":
+                    content += "Container for query results with iterator access\n"
+                elif simple_name == "PropertyGraph":
+                    content += "Low-level graph storage engine\n"
+                elif simple_name == "Schema":
+                    content += "Graph schema management (vertex/edge types)\n"
+                elif simple_name == "GenericView":
+                    content += "Efficient edge traversal in CSR format\n"
+                else:
+                    content += f"{simple_name} class\n"
+        
+        content += """
+## Quick Start
+
+### Include Headers
+
+```cpp
+#include <neug/main/neug_db.h>
+#include <neug/main/connection.h>
+```
+
+### Basic Usage
+
+```cpp
+#include <neug/main/neug_db.h>
+#include <iostream>
+
+int main() {
+    // Create and open database
+    neug::NeugDB db;
+    db.Open("/path/to/graph", 4);  // 4 threads
+
+    // Create connection and execute query
+    auto conn = db.Connect();
+    auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
+
+    // Process results
+    if (result.has_value()) {
+        while (result.value().hasNext()) {
+            auto record = result.value().next();
+            std::cout << record.ToString() << std::endl;
+        }
+    }
+
+    // Close connection and database
+    conn->Close();
+    db.Close();
+    return 0;
+}
+```
+
+### Parameterized Queries
+
+```cpp
+// Safe parameter passing prevents injection
+neug::runtime::ParamsMap params;
+params["min_age"] = neug::runtime::Value(25);
+params["city"] = neug::runtime::Value("Beijing");
+
+auto result = conn->Query(
+    "MATCH (p:Person) WHERE p.age > $min_age AND p.city = $city RETURN p",
+    "read",
+    params
+);
+```
+
+### Write Operations
+
+```cpp
+// Insert data
+conn->Query("CREATE (p:Person {name: 'Alice', age: 30})", "insert");
+
+// Update data
+conn->Query("MATCH (p:Person {name: 'Alice'}) SET p.age = 31", "update");
+
+// Delete data
+conn->Query("MATCH (p:Person {name: 'Bob'}) DELETE p", "update");
+```
+
+## Advanced Usage
+
+### Direct Graph Traversal
+
+For performance-critical graph algorithms, use direct graph access:
+
+```cpp
+#include <neug/storages/graph/property_graph.h>
+#include <neug/storages/csr/generic_view.h>
+
+// Access the underlying property graph
+const neug::PropertyGraph& graph = db.graph();
+const neug::Schema& schema = graph.schema();
+
+// Get label IDs
+label_t person = schema.get_vertex_label_id("Person");
+label_t knows = schema.get_edge_label_id("KNOWS");
+
+// Create edge traversal view
+neug::GenericView view = graph.GetGenericOutgoingGraphView(
+    person, person, knows, neug::MAX_TIMESTAMP);
+
+// Traverse neighbors of vertex v
+vid_t v = 0;  // Internal vertex ID
+neug::NbrList neighbors = view.get_edges(v);
+for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
+    vid_t neighbor_id = *it;
+    // Process neighbor...
+}
+```
+
+### Accessing Edge Properties
+
+```cpp
+// Get edge property accessor
+neug::EdgeDataAccessor weight_accessor = graph.GetEdgeDataAccessor(
+    person, person, knows, "weight");
+
+// Access properties during traversal
+for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
+    double weight = weight_accessor.get_typed_data<double>(it);
+    std::cout << "Edge weight: " << weight << std::endl;
+}
+```
+
+### Accessing Vertex Properties
+
+```cpp
+// Get vertex property column
+auto name_col = graph.GetVertexPropertyColumn(person, "name");
+
+// Access property for a vertex
+neug::Property name_prop = name_col->get_prop(vertex_id);
+std::string_view name = name_prop.as_string_view();
+```
+
+## API Categories
+
+"""
+        
+        for category_id, category_info in categories.items():
+            title = category_info.get('title', category_id.title())
+            description = category_info.get('description', '')
+            class_names = category_info.get('classes', [])
+            
+            # Use simple link format like Python docs
+            content += f"### [{title}]({category_id})\n\n"
+            if description:
+                content += f"{description}\n\n"
+            
+            for class_name in class_names:
+                simple_name = class_name.split('::')[-1]
+                content += f"- `{simple_name}`\n"
+            content += "\n"
+        
+        content += """## Building
+
+### Requirements
+
+- **C++17 or later**: Modern C++ features for type safety and performance
+- **CMake 3.15+**: Build system configuration
+- **Dependencies**: See build documentation for complete list
+
+### CMake Integration
+
+```cmake
+find_package(NeuG REQUIRED)
+target_link_libraries(your_target NeuG::neug)
+```
+
+### Compile Example
+
+```bash
+g++ -std=c++17 -I/path/to/neug/include -L/path/to/neug/lib \\
+    -lneug -o my_app my_app.cpp
+```
+
+## Error Handling
+
+```cpp
+auto result = conn->Query("INVALID QUERY", "read");
+if (!result.has_value()) {
+    std::cerr << "Query failed: " << result.error().message() << std::endl;
+}
+```
+
+## Thread Safety
+
+- `NeugDB`: Thread-safe for all operations
+- `Connection`: NOT thread-safe; use one connection per thread
+- `PropertyGraph`: Thread-safe for reads; writes require synchronization
+- `GenericView`, `NbrList`, `NbrIterator`: Thread-safe (read-only)
+
+"""
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
+    
+    def _generate_category_meta_file(self, categories: Dict[str, Any]):
+        """Generate _meta.ts for category-based documentation."""
+        filename = OUTPUT_DIR / "_meta.ts"
+        
+        content = 'export default {\n'
+        content += '  "index": "C++ API Overview",\n'
+        
+        for category_id, category_info in categories.items():
+            title = category_info.get('title', category_id.title())
+            content += f'  "{category_id}": "{title}",\n'
+        
+        content += "};\n"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"📄 Generated {filename}")
     
     def _generate_namespace_doc(self, namespace: str, classes: List[Dict[str, Any]]):
         """Generate documentation for a namespace."""

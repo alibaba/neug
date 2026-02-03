@@ -1,20 +1,83 @@
 {
   "target_namespaces": [
-    "gs", 
-    "neug", 
-    "results", 
-    "server"
+    "neug"
   ],
   "key_classes": [
-    "gs::NeugDB",
-    "gs::Connection",
-    "gs::QueryResult",
-    "gs::PropertyGraph",
-    "gs::ReadTransaction",
-    "gs::InsertTransaction",
-    "gs::UpdateTransaction"
+    "neug::NeugDB",
+    "neug::Connection",
+    "neug::QueryResult",
+    "neug::RecordLine",
+    "neug::NeugDBService",
+    "neug::NeugDBSession",
+    "neug::SessionPool",
+    "neug::SessionGuard"
   ],
-  "description": "Configuration for C++ API documentation generation",
-  "priority_display": true,
-  "full_documentation": true
+  "class_files": {
+    "neug::NeugDB": {
+      "filename": "neug_db",
+      "title": "NeugDB",
+      "description": "The main entry point for database operations"
+    },
+    "neug::Connection": {
+      "filename": "connection",
+      "title": "Connection",
+      "description": "Execute Cypher queries against the database"
+    },
+    "neug::QueryResult": {
+      "filename": "query_result",
+      "title": "QueryResult",
+      "description": "Container for query results with iterator access",
+      "include_classes": ["neug::RecordLine"]
+    },
+    "neug::NeugDBService": {
+      "filename": "service",
+      "title": "NeugDBService",
+      "description": "HTTP service for high-throughput scenarios",
+      "include_classes": ["neug::NeugDBSession", "neug::SessionPool", "neug::SessionGuard"]
+    }
+  },
+  "excluded_patterns": [
+    ".*Impl_.*",
+    ".*_Impl.*",
+    ".*_Internal.*",
+    ".*Undo$",
+    ".*Redo$",
+    ".*Arena.*",
+    ".*Allocator.*",
+    ".*Parser$",
+    ".*Lexer$",
+    ".*Tokenizer.*",
+    ".*Builder$",
+    ".*Factory$",
+    ".*Helper$",
+    ".*Utils$",
+    ".*proto.*",
+    ".*protobuf.*",
+    ".*grpc.*",
+    ".*Loader$",
+    ".*Manager$",
+    ".*Version.*",
+    ".*Table$",
+    ".*Column.*",
+    ".*Archive.*",
+    ".*Batch.*",
+    ".*Buffer.*",
+    ".*Cache.*",
+    ".*Pool$",
+    ".*Lock$",
+    ".*Mutex.*",
+    ".*Thread.*",
+    ".*Worker.*",
+    ".*Transaction$",
+    ".*View$",
+    ".*Set$",
+    ".*Map$",
+    ".*List$",
+    ".*Array$",
+    ".*Vector$",
+    ".*Indexer$"
+  ],
+  "description": "Configuration for C++ API documentation generation. Each key class gets its own markdown file.",
+  "skip_undocumented_methods": true,
+  "generate_separate_files": true
 }
