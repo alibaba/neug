@@ -1,18 +1,19 @@
-MATCH (person:PERSON { id: 124 })-[:KNOWS*1..3]-(friend)
-WITH friend
-WHERE friend.id <> 124
+MATCH (person:PERSON { id: $personId })-[:KNOWS*1..2]-(friend)
+WITH DISTINCT friend
+WHERE friend.id <> $personId
 CALL (friend) {
   MATCH (friend)<-[membership:HASMEMBER]-(forum)
-  RETURN forum, 0 AS postCount
+  WHERE membership.joinDate > $minDate
+  WITH distinct forum
   ORDER BY forum.id ASC
   LIMIT 20
-
-UNION ALL 
-
-  MATCH (friend)<-[membership2:HASMEMBER]-(forum)
-  WITH friend, collect(distinct forum) as forums
-  
+  RETURN forum, 0 AS postCount
+UNION ALL
+  MATCH (friend)<-[membership:HASMEMBER]-(forum)
+  WHERE membership.joinDate > $minDate
+  WITH friend, collect(distinct forum) AS forums
   MATCH (friend)<-[:HASCREATOR]-(post)<-[:CONTAINEROF]-(forum)
+  WHERE forum IN forums
   WITH forum, count(post) AS postCount
   RETURN forum, postCount
   ORDER BY postCount DESC, forum.id ASC

@@ -1332,8 +1332,8 @@ void GQueryConvertor::convertBatchInsertEdge(
         std::to_string(columnExprs.size()) + ") in COPY FROM operator.");
   }
   neug::gopt::EdgeLabelId edgeLabelId(relEntry->getLabelId(),
-                                    relEntry->getSrcTableID(),
-                                    relEntry->getDstTableID());
+                                      relEntry->getSrcTableID(),
+                                      relEntry->getDstTableID());
   auto batchEdge = std::make_unique<::physical::BatchInsertEdge>();
   batchEdge->set_allocated_edge_type(convertToEdgeType(edgeLabelId).release());
   if (columnIdMap.size() < 2) {
@@ -1820,8 +1820,8 @@ std::shared_ptr<binder::Expression> GQueryConvertor::bindPKExpr(
   }
   // todo: set actual type of primary key
   return std::make_shared<binder::VariableExpression>(
-      std::move(neug::common::LogicalType(neug::common::LogicalTypeID::ANY)), pk,
-      pk);
+      std::move(neug::common::LogicalType(neug::common::LogicalTypeID::ANY)),
+      pk, pk);
 }
 
 void GQueryConvertor::convertBatchInsertVertex(
@@ -1917,6 +1917,10 @@ void GQueryConvertor::convertAliasMap(const planner::LogicalAliasMap& aliasMap,
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_project(projectPB.release());
   physicalPB->set_allocated_opr(oprPB.release());
+
+  // set meta data
+  setMetaData(physicalPB.get(), aliasMap, aliasMap.getDstExprs());
+
   plan->mutable_plan()->AddAllocated(physicalPB.release());
 }
 
