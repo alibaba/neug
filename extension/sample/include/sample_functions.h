@@ -237,7 +237,7 @@ class SampledSubgraphMatcher {
         
         // Build schema_graph: mapping (src_label, dst_label) -> [edge_labels]
         // Iterate directly over e_schemas_ instead of triple loop
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [src_label, dst_label, e_label] = schema.parse_edge_label(key);
             
             const std::string& src_name = schema.get_vertex_label_name(src_label);

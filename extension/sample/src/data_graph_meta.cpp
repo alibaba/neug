@@ -143,7 +143,7 @@ void DataGraphMeta::BuildNeighbors() {
     
     // Iterate through all edge triplets using e_schemas_, compute degrees
     num_edge_ = 0;
-    for (const auto& [key, edge_schema] : schema.e_schemas_) {
+    for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
         auto [src_label, dst_label, e_label] = schema.parse_edge_label(key);
         
         LOG(INFO) << "Processing edge type: src_label=" << (int)src_label 

@@ -211,7 +211,7 @@ public:
         auto [src_label, src_vid] = ToLocalId(global_id);
         const auto& schema = graph_.schema();
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (s_label != src_label || d_label != (label_t)target_dst_label) continue;
             try {
@@ -235,7 +235,7 @@ public:
         auto [dst_label, dst_vid] = ToLocalId(global_id);
         const auto& schema = graph_.schema();
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (s_label != (label_t)target_src_label || d_label != dst_label) continue;
             try {
@@ -259,7 +259,7 @@ public:
         auto [src_label, src_vid] = ToLocalId(global_id);
         const auto& schema = graph_.schema();
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (s_label != src_label) continue;
             try {
@@ -283,7 +283,7 @@ public:
         auto [dst_label, dst_vid] = ToLocalId(global_id);
         const auto& schema = graph_.schema();
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (d_label != dst_label) continue;
             try {
@@ -308,7 +308,7 @@ public:
         const auto& schema = graph_.schema();
         std::unordered_set<int> seen;
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (s_label != src_label) continue;
             try {
@@ -334,7 +334,7 @@ public:
         const auto& schema = graph_.schema();
         std::unordered_set<int> seen;
         // Iterate over all valid edge triplets in e_schemas_
-        for (const auto& [key, edge_schema] : schema.e_schemas_) {
+        for (const auto& [key, edge_schema] : schema.get_all_edge_schemas()) {
             auto [s_label, d_label, e_label] = schema.parse_edge_label(key);
             if (d_label != dst_label) continue;
             try {

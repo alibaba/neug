@@ -23,7 +23,7 @@ sampling/
 
 ```bash
 cd /mnt/lyk/neug/build
-cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug -DBUILD_HTTP_SERVER=ON -DBUILD_EXTENSIONS="sample" -DBUILD_TEST=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug -DBUILD_EXTENSIONS="sample" -DBUILD_TEST=ON
 ```
 
 ### 2. 编译扩展库
