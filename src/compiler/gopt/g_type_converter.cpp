@@ -113,12 +113,12 @@ const binder::Expression* childFunction(const binder::Expression* curExpr,
 }
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
-    const common::LogicalType& type) {
+    const common::LogicalType& type, const binder::Expression& expr) {
   auto typeInfo =
       type.getExtraTypeInfo()->constPtrCast<common::StructTypeInfo>();
   auto tupleType = std::make_unique<::common::Tuple>();
   for (auto& field : typeInfo->getStructFields()) {
-    auto childType = convertLogicalType(field.getType().copy());
+    auto childType = convertLogicalType(field.getType().copy(), expr);
     if (!childType) {
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Failed to convert child type for TUPLE type: " + type.toString());
@@ -136,129 +136,65 @@ std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertStructType(
 }
 
 std::unique_ptr<::common::IrDataType> GPhysicalTypeConverter::convertArrayType(
-    const common::LogicalType& type) {
-  auto result = std::make_unique<::common::IrDataType>();
+    const common::LogicalType& type, const binder::Expression& expr) {
+  auto arrayType = std::make_unique<::common::Array>();
   VLOG(1) << "Converting ARRAY child type: " << type.toString();
-  auto childType = convertLogicalType(type);
+  auto childType = convertLogicalType(type, expr);
   if (!childType) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Failed to convert child type for ARRAY type: " + type.toString());
   }
-  if (childType->has_graph_type()) {
-    auto listType = std::make_unique<::common::GraphTypeList>();
-    listType->set_allocated_component_type(childType->release_graph_type());
-    result->set_allocated_list_type(listType.release());
-  } else if (childType->has_data_type()) {
-    auto arrayType = std::make_unique<::common::Array>();
-    arrayType->set_allocated_component_type(childType->release_data_type());
-    result->mutable_data_type()->set_allocated_array(arrayType.release());
-  } else {
-    LOG(WARNING) << "Component type of Array should be basic or graph element, "
-                    "others are "
+  if (!childType->has_data_type()) {
+    LOG(WARNING) << "Component type of Array should be basic, others are "
                     "unsupported, return ANY instead.";
-    result->mutable_data_type()->set_primitive_type(
+    arrayType->mutable_component_type()->set_primitive_type(
         ::common::PrimitiveType::DT_ANY);
+  } else {
+    // Otherwise, we can directly set the data type
+    arrayType->mutable_component_type()->CopyFrom(childType->data_type());
   }
+  auto result = std::make_unique<::common::IrDataType>();
+  result->mutable_data_type()->set_allocated_array(arrayType.release());
   VLOG(1) << "Converted ARRAY type: " << result->DebugString();
   return result;
 }
 
-GNodeType* convertGNodeType(const common::LogicalType& type) {
-  auto extraTypeInfo = type.getExtraTypeInfo();
-  if (!extraTypeInfo) {
-    return nullptr;
-  }
-  auto nodeTypeInfo =
-      dynamic_cast<const neug::common::GNodeTypeInfo*>(extraTypeInfo);
-  if (!nodeTypeInfo || !nodeTypeInfo->getNodeType()) {
-    return nullptr;
-  }
-  return nodeTypeInfo->getNodeType();
-}
-
-GRelType* convertGRelType(const common::LogicalType& type) {
-  auto extraTypeInfo = type.getExtraTypeInfo();
-  if (!extraTypeInfo) {
-    return nullptr;
-  }
-  auto relTypeInfo =
-      dynamic_cast<const neug::common::GRelTypeInfo*>(extraTypeInfo);
-  if (!relTypeInfo || !relTypeInfo->getRelType()) {
-    return nullptr;
-  }
-  return relTypeInfo->getRelType();
-}
-
 std::unique_ptr<::common::IrDataType>
-GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type) {
+GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type,
+                                           const binder::Expression& expr) {
   switch (type.getLogicalTypeID()) {
   case common::LogicalTypeID::NODE: {
-    auto gNodeType = convertGNodeType(type);
-    if (gNodeType) {
-      return convertNodeType(*gNodeType);
+    auto nodeExpr = dynamic_cast<const binder::NodeExpression*>(&expr);
+    if (nodeExpr) {
+      return convertNodeType(gopt::GNodeType(*nodeExpr));
     } else {
-      LOG(WARNING) << "Expected NodeType for NODE type, "
-                   << "but got: " << type.toString()
+      LOG(WARNING) << "Expected NodeExpression for NODE type, "
+                   << "but got: " << expr.toString()
                    << " , return NODE type with empty label";
       return convertNodeType(gopt::GNodeType({}));
     }
     break;
   }
   case common::LogicalTypeID::REL: {
-    auto gRelType = convertGRelType(type);
-    if (gRelType) {
-      return convertRelType(*gRelType);
+    auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
+    if (relExpr) {
+      return convertRelType(gopt::GRelType(*relExpr));
     } else {
-      LOG(WARNING) << "Expected RelType for REL type, "
-                   << "but got: " << type.toString()
+      LOG(WARNING) << "Expected RelExpression for REL type, "
+                   << "but got: " << expr.toString()
                    << " , return REL type with empty label";
       return convertRelType(gopt::GRelType({}));
     }
     break;
   }
   case common::LogicalTypeID::RECURSIVE_REL: {
-    if (type.getPhysicalType() != common::PhysicalTypeID::STRUCT) {
-      LOG(WARNING) << "Expected StructType for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
-                   << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
-    }
-    auto fieldIdx =
-        common::StructType::getFieldIdx(type, common::InternalKeyword::RELS);
-    if (fieldIdx == common::INVALID_STRUCT_FIELD_IDX) {
-      LOG(WARNING) << "Expected RELS field for RECURSIVE_REL type, "
-                   << "but got: " << type.toString()
-                   << " , return RECURSIVE_REL type with empty label";
-      return convertPathType(gopt::GRelType({}));
-    }
-
-    auto& relsType = common::StructType::getField(type, fieldIdx).getType();
-    if (relsType.getPhysicalType() == common::PhysicalTypeID::LIST) {
-      auto& childType = common::ListType::getChildType(relsType);
-      auto gRelType = convertGRelType(childType);
-      if (gRelType) {
-        return convertPathType(*gRelType);
-      } else {
-        LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
-                     << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
-      }
-    } else if (relsType.getPhysicalType() == common::PhysicalTypeID::ARRAY) {
-      auto& childType = common::ArrayType::getChildType(relsType);
-      auto gRelType = convertGRelType(childType);
-      if (gRelType) {
-        return convertPathType(*gRelType);
-      } else {
-        LOG(WARNING) << "Expected RelType for RECURSIVE_REL type, "
-                     << "but got: " << childType.toString()
-                     << " , return RECURSIVE_REL type with empty label";
-        return convertPathType(gopt::GRelType({}));
-      }
+    auto relExpr = dynamic_cast<const binder::RelExpression*>(&expr);
+    if (relExpr) {
+      return convertPathType(gopt::GRelType(*relExpr));
     } else {
-      LOG(WARNING) << "Expected ListType or ArrayType for RECURSIVE_REL type, "
-                   << "but got: " << relsType.toString()
-                   << " , return RECURSIVE_REL type with empty label";
+      LOG(WARNING) << "Expected RelExpression for REL type, "
+                   << "but got: " << expr.toString()
+                   << " , return REL type with empty label";
       return convertPathType(gopt::GRelType({}));
     }
     break;
@@ -271,11 +207,10 @@ GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type) {
     CHECK(const_off) << "Array type has null extra type info: " +
                             type.toString();
     auto array_type_info =
-        neug::common::neug_dynamic_cast<neug::common::ArrayTypeInfo*>(
-            const_off);
+        neug::common::neug_dynamic_cast<neug::common::ArrayTypeInfo*>(const_off);
     CHECK(array_type_info) << "Expected ArrayTypeInfo for ARRAY type, ";
     auto& child_type = array_type_info->getChildType();
-    return convertArrayType(child_type);
+    return convertArrayType(child_type, expr);
     break;
   }
   case common::LogicalTypeID::LIST: {
@@ -290,11 +225,11 @@ GPhysicalTypeConverter::convertLogicalType(const common::LogicalType& type) {
         neug::common::neug_dynamic_cast<neug::common::ListTypeInfo*>(const_off);
     CHECK(list_type_info) << "Expected ListTypeInfo for LIST type, ";
     auto& child_type = list_type_info->getChildType();
-    return convertArrayType(child_type);
+    return convertArrayType(child_type, expr);
     break;
   }
   case common::LogicalTypeID::STRUCT: {
-    return convertStructType(type);
+    return convertStructType(type, expr);
     break;
   }
   default:

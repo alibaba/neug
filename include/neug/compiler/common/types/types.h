@@ -38,11 +38,6 @@ namespace neug {
 namespace main {
 class ClientContext;
 }
-
-namespace gopt {
-struct GNodeType;
-struct GRelType;
-}  // namespace gopt
 namespace processor {
 class ParquetReader;
 }
@@ -561,7 +556,7 @@ class StructField {
   LogicalType type;
 };
 
-class StructTypeInfo : public ExtraTypeInfo {
+class StructTypeInfo final : public ExtraTypeInfo {
  public:
   StructTypeInfo() = default;
   explicit StructTypeInfo(std::vector<StructField>&& fields);
@@ -591,34 +586,6 @@ class StructTypeInfo : public ExtraTypeInfo {
  private:
   std::vector<StructField> fields;
   std::unordered_map<std::string, struct_field_idx_t> fieldNameToIdxMap;
-};
-
-class GNodeTypeInfo : public StructTypeInfo {
- public:
-  explicit GNodeTypeInfo(std::vector<StructField>&& fields,
-                         std::unique_ptr<gopt::GNodeType> nodeType);
-  ~GNodeTypeInfo();  // Explicitly declared to allow incomplete type in header
-
-  gopt::GNodeType* getNodeType() const { return nodeType.get(); }
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  std::unique_ptr<gopt::GNodeType> nodeType;
-};
-
-class GRelTypeInfo : public StructTypeInfo {
- public:
-  explicit GRelTypeInfo(std::vector<StructField>&& fields,
-                        std::unique_ptr<gopt::GRelType> relType);
-  ~GRelTypeInfo();  // Explicitly declared to allow incomplete type in header
-
-  gopt::GRelType* getRelType() const { return relType.get(); }
-
-  std::unique_ptr<ExtraTypeInfo> copy() const override;
-
- private:
-  std::unique_ptr<gopt::GRelType> relType;
 };
 
 using logical_type_vec_t = std::vector<LogicalType>;

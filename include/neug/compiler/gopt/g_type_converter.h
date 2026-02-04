@@ -40,16 +40,13 @@ class GPhysicalTypeConverter {
   std::unique_ptr<::common::IrDataType> convertRelType(const GRelType& relType);
   std::unique_ptr<::common::IrDataType> convertPathType(
       const GRelType& relType);
-
   std::unique_ptr<::common::IrDataType> convertArrayType(
-      const common::LogicalType& type);
+      const common::LogicalType& type, const binder::Expression& expr);
   std::unique_ptr<::common::IrDataType> convertStructType(
-      const common::LogicalType& type);
-
-  std::unique_ptr<::common::IrDataType> convertSimpleLogicalType(
-      const common::LogicalType& type);
-
+      const common::LogicalType& type, const binder::Expression& expr);
   std::unique_ptr<::common::IrDataType> convertLogicalType(
+      const common::LogicalType& type, const binder::Expression& expr);
+  std::unique_ptr<::common::IrDataType> convertSimpleLogicalType(
       const common::LogicalType& type);
 
  private:
