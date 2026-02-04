@@ -144,22 +144,13 @@ endif()
 add_subdirectory(third_party/fast_float)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/fast_float/include)
 
-if (BUILD_TEST)
+if(BUILD_TEST)
     enable_testing()
-    find_package(GTest)
-    if (GTest_FOUND)
-        message(STATUS "GTest found")
-
-        add_library(neug::GTest INTERFACE IMPORTED)
-        target_link_libraries(neug::GTest INTERFACE GTest::gtest_main)
-        target_link_libraries(neug::GTest INTERFACE GTest::gmock_main)
-    else()
-        add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
-
-        add_library(neug::GTest INTERFACE IMPORTED)
-        target_link_libraries(neug::GTest INTERFACE gtest_main)
-        target_link_libraries(neug::GTest INTERFACE gmock_main)
-    endif()
+    # Always use the bundled googletest to avoid discrepancies in system packages.
+    add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
+    add_library(neug::GTest INTERFACE IMPORTED)
+    target_link_libraries(neug::GTest INTERFACE gtest_main)
+    target_link_libraries(neug::GTest INTERFACE gmock_main)
 endif()
 
 if (ENABLE_BACKTRACES)
