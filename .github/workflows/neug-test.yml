@@ -108,7 +108,8 @@ jobs:
         cd ${GITHUB_WORKSPACE}/
         # export BUILD_TYPE=DEBUG
         export BUILD_TYPE=RELEASE
-        export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+        # list parallelism to 32
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
         export BUILD_EXECUTABLES=ON
         export BUILD_HTTP_SERVER=ON
         export BUILD_TEST=ON
