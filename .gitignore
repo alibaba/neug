@@ -136,3 +136,7 @@ tools/python_bind/neug/extensions/
 
 # Coverage file
 **/.coverage
+
+# sample extension
+sampling/
+db/

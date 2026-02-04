@@ -21,9 +21,9 @@ inline void AddDict(dict &to, dict &from) {
 }
 
 
-static FILE *log_to = stderr;
+[[maybe_unused]] static FILE *log_to = stderr;
 //FILE *log_to = fopen("/dev/null","w");
-static unsigned long long functionCallCounter = 0;
+[[maybe_unused]] static unsigned long long functionCallCounter = 0;
 /**
  * @brief String parsing with specified delimeter
  * @Source Folklore
@@ -44,7 +44,7 @@ inline deque<string> parse(string line, const string& del) {
     return ret;
 }
 
-static std::streampos fileSize(const char *filePath) {
+[[maybe_unused]] static std::streampos fileSize(const char *filePath) {
 
     std::streampos fsize = 0;
     std::ifstream file(filePath, std::ios::binary);

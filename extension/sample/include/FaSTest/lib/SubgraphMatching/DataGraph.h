@@ -46,7 +46,6 @@ namespace GraphLib { namespace SubgraphMatching {
         }
 
         for (int e = 0; e < GetNumEdges(); e++) {
-            int l = edge_label[e];
             num_edge_labels = std::max(num_edge_labels, edge_label[e] + 1);
         }
     }

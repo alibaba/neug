@@ -30,11 +30,7 @@
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
 
-<<<<<<< HEAD
 #include "neug/compiler/common/types/types.h"
-=======
-#include "neug/compiler/common/types.h"
->>>>>>> 63bf526945d8d2ac284a323cdf20980cc5047c76
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
@@ -47,6 +43,55 @@
 
 namespace neug {
 namespace function {
+
+// ============================================================================
+// Helper functions for parsing pattern JSON
+// ============================================================================
+
+// Helper function to parse comparison operator
+inline CompType ParseOperator(const std::string& op) {
+    if (op == "=" || op == "==") return CompType::COMP_EQUAL;
+    if (op == ">") return CompType::COMP_GREATER;
+    if (op == "<") return CompType::COMP_LESS;
+    if (op == ">=") return CompType::COMP_GREATER_EQUAL;
+    if (op == "<=") return CompType::COMP_LESS_EQUAL;
+    if (op == "in") return CompType::COMP_IN;
+    if (op == "not_in") return CompType::COMP_NOT_IN;
+    return CompType::COMP_EQUAL; // default
+}
+
+// Helper function to create Value from rapidjson
+inline Value CreateValueFromRapidjson(const rapidjson::Value& val) {
+    if (val.IsInt()) {
+        return Value::INT32(val.GetInt());
+    } else if (val.IsInt64()) {
+        return Value::INT64(val.GetInt64());
+    } else if (val.IsDouble()) {
+        return Value::DOUBLE(val.GetDouble());
+    } else if (val.IsString()) {
+        return Value::STRING(val.GetString());
+    } else if (val.IsBool()) {
+        return Value::BOOLEAN(val.GetBool());
+    }
+    return Value::INT32(0);
+}
+
+// Helper function to parse constraints from rapidjson
+inline std::vector<PropCons> ParseConstraints(const rapidjson::Value& constraints_json) {
+    std::vector<PropCons> constraints;
+    if (!constraints_json.IsArray()) return constraints;
+    
+    for (rapidjson::SizeType i = 0; i < constraints_json.Size(); i++) {
+        const auto& c = constraints_json[i];
+        std::string prop_name = c.HasMember("property") ? c["property"].GetString() : "";
+        std::string op_str = c.HasMember("operator") ? c["operator"].GetString() : "=";
+        CompType op = ParseOperator(op_str);
+        Value value = c.HasMember("value") ? CreateValueFromRapidjson(c["value"]) : Value::INT32(0);
+        
+        constraints.emplace_back(prop_name, op, std::move(value));
+    }
+    return constraints;
+}
 
 // ============================================================================
 // SampledSubgraphMatcher: Subgraph matching using FaSTest algorithm
@@ -209,7 +254,9 @@ class SampledSubgraphMatcher {
     std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> CreatePatternFromJson(
         const std::string& pattern_file) {
         
-        const auto& schema = graph_.schema();
+        // Use const_cast because vertex_label_to_index/edge_label_to_index are not const
+        // but they should be (they don't modify schema state)
+        auto& schema = const_cast<Schema&>(graph_.schema());
 
         // Read file content
         std::ifstream fin(pattern_file);
@@ -257,6 +304,8 @@ class SampledSubgraphMatcher {
         pattern->in_adj_list.resize(v);
         pattern->edge_to.resize(e);
         pattern->edge_list.resize(e);
+        pattern->vertex_property_constraints.resize(v);
+        pattern->edge_property_constraints.resize(e);
         
         for (rapidjson::SizeType i = 0; i < vertices.Size(); i++) {
             const auto& vertex = vertices[i];
@@ -264,6 +313,11 @@ class SampledSubgraphMatcher {
             std::string label = vertex["label"].GetString();
             
             pattern->vertex_label[id] = schema.vertex_label_to_index(label);
+            
+            // Parse vertex property constraints
+            if (vertex.HasMember("constraints") && vertex["constraints"].IsArray()) {
+                pattern->vertex_property_constraints[id] = ParseConstraints(vertex["constraints"]);
+            }
         }
         
         // Parse edges
@@ -296,6 +350,11 @@ class SampledSubgraphMatcher {
             pattern->max_out_degree = std::max(pattern->max_out_degree, (int)pattern->out_adj_list[src].size());
             pattern->max_in_degree = std::max(pattern->max_in_degree, (int)pattern->in_adj_list[dst].size());
             pattern->max_degree = std::max(pattern->max_degree, (int)std::max(pattern->adj_list[src].size(), pattern->adj_list[dst].size()));
+            
+            // Parse edge property constraints
+            if (edge.HasMember("constraints") && edge["constraints"].IsArray()) {
+                pattern->edge_property_constraints[edge_idx] = ParseConstraints(edge["constraints"]);
+            }
             
             edge_idx++;
         }

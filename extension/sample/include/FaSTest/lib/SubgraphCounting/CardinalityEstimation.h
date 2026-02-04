@@ -6,7 +6,7 @@
 #include "../SubgraphMatching/CandidateSpace.h"
 #include "../SubgraphCounting/CandidateTreeSampling.h"
 #include "../SubgraphCounting/CandidateGraphSampling.h"
-#include "../../../../data_graph_meta.h"
+#include "data_graph_meta.h"
 // #include "SubgraphCounting/TreeRejectionSampling.h"
 /**
  * @brief Subgraph Cardinality Estimation : Given G and P, approximate the number of embeddings of P in G.

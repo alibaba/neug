@@ -119,20 +119,103 @@ cmake -DBUILD_EXTENSIONS="sample" ..
 make -j
 ```
 
+## Python Demo
+
+A Python demo script is provided to demonstrate the full workflow:
+
+```bash
+# Run the demo script
+python3 /mnt/lyk/neug/extension/sample/demo_sampled_match.py
+```
+
+The script demonstrates:
+1. Creating a NeuG database using Python API
+2. Defining graph schema with Cypher (CREATE NODE TABLE, CREATE REL TABLE)
+3. Inserting sample data with Cypher (CREATE, MATCH...CREATE)
+4. Loading the sample extension
+5. Running SAMPLED_MATCH queries
+
+### Python API Usage Example
+
+```python
+import neug
+import json
+
+# Create database
+db = neug.Database("/path/to/database")
+conn = db.connect()
+
+# Create schema
+conn.execute("""
+    CREATE NODE TABLE Person(
+        id INT32 PRIMARY KEY,
+        firstName STRING,
+        lastName STRING
+    )
+""")
+
+conn.execute("""
+    CREATE REL TABLE person_knows_person(
+        FROM Person TO Person,
+        creationDate STRING
+    )
+""")
+
+# Insert data
+conn.execute("""
+    CREATE (n:Person {id: 0, firstName: 'Alice', lastName: 'Anderson'})
+""")
+conn.execute("""
+    CREATE (n:Person {id: 1, firstName: 'Bob', lastName: 'Brown'})
+""")
+conn.execute("""
+    MATCH (a:Person), (b:Person)
+    WHERE a.id = 0 AND b.id = 1
+    CREATE (a)-[:person_knows_person {creationDate: '2020-01-01'}]->(b)
+""")
+
+# Load extension
+conn.execute("LOAD '/path/to/libsample.neug_extension'")
+
+# Create pattern file
+pattern = {
+    "vertices": [
+        {"id": 0, "label": "person"},
+        {"id": 1, "label": "person"}
+    ],
+    "edges": [
+        {"source": 0, "target": 1, "label": "person_knows_person"}
+    ]
+}
+with open("/tmp/pattern.json", "w") as f:
+    json.dump(pattern, f)
+
+# Run SAMPLED_MATCH
+result = conn.execute("CALL SAMPLED_MATCH('/tmp/pattern.json')")
+for row in result:
+    print(row)
+
+conn.close()
+db.close()
+```
+
 ## Files
 
 ```
 extension/sample/
 ├── CMakeLists.txt              # Build configuration
 ├── README.md                   # This file
+├── demo_sampled_match.py       # Python demo script
 ├── example_pattern.json        # Simple edge pattern example
 ├── triangle_pattern.json       # Triangle pattern example
 ├── include/
-│   └── sample_functions.h      # Core implementation
-│       ├── Pattern structures  # PatternVertex, PatternEdge, Pattern
-│       ├── JSON parsing        # parsePatternFromJson()
-│       ├── BruteForceSubgraphMatcher  # Main algorithm
-│       └── SubgraphMatchFunction      # TableFunction wrapper
-└── src/
-    └── sample_extension.cpp    # Extension entry point
+│   ├── sample_functions.h      # Core implementation
+│   ├── data_graph_meta.h       # Data graph metadata
+│   ├── value.h                 # Value comparison operators
+│   └── FaSTest/                # FaSTest library for matching
+├── src/
+│   ├── sample_extension.cpp    # Extension entry point
+│   └── data_graph_meta.cpp     # Data graph metadata impl
+└── test/
+    └── test_sample_match.cc    # C++ test program
 ```

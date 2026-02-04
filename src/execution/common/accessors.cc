@@ -170,6 +170,7 @@ std::shared_ptr<IAccessor> create_edge_property_edge_accessor(
         graph, prop_name);
   default:
     LOG(FATAL) << "not implemented - " << static_cast<int>(type.id());
+    return nullptr;
   }
 }
 

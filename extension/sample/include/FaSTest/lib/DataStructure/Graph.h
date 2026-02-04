@@ -6,14 +6,16 @@
 #include <fstream>
 #include <sstream>
 #include "../Base/Base.h"
-#include "../../../../storage/graph_element.hpp"
 #include "json.hpp"
 
-// 前向声明
-namespace gbi {
-    class GraphStorage;
-    class SchemaGraph;
-}
+// Include neug types
+#include "neug/utils/property/types.h"
+#include <any>
+
+// Forward declarations removed - gbi types not used
+
+// Type aliases for FaSTest compatibility
+using label_t = neug::label_t;
 
 // #define HUGE_GRAPH
 namespace GraphLib {
@@ -46,7 +48,7 @@ namespace GraphLib {
         std::vector<std::vector<int>> all_out_incident_edges;  // All out-edges from v
         std::vector<std::vector<int>> all_in_incident_edges;   // All in-edges to v
         std::vector<std::vector<std::string>> vertex_property_names, edge_property_names;
-        std::vector<std::vector<gbi::Value>> vertex_properties, edge_properties;
+        std::vector<std::vector<std::any>> vertex_properties, edge_properties;
 #ifdef HUGE_GRAPH
         std::vector<std::map<int, std::vector<int>>> incident_edges;
         std::vector<std::map<int, std::vector<int>>> out_incident_edges;  // [v][label] -> out-edges
@@ -71,10 +73,6 @@ namespace GraphLib {
         };
         std::vector<std::vector<std::tuple<int, int, int>>> local_triangles;
         std::vector<std::vector<FourMotif>> local_four_cycles;
-    public:
-        // 指向GraphStorage的指针，用于访问更多图信息
-        gbi::GraphStorage* graph_storage_ptr = nullptr;
-        gbi::PatternGraph* pattern_graph_ptr = nullptr;
 
         Graph() {}
         ~Graph() {}
@@ -142,7 +140,7 @@ namespace GraphLib {
 
         void LoadLabeledGraph(const std::string &filename, bool directed = true);
         void LoadLabeledGraph(const std::string &filename, std::unordered_map<std::string, int> &label2id_mapping, std::unordered_map<int, std::string> &id2label_mapping, bool directed = true);
-        void LoadProperty(const std::string vertex_property_filename, const std::string edge_property_filename, std::unordered_map<std::string, int> &label2id_mapping, std::shared_ptr<gbi::SchemaGraph> schema_graph);
+        // LoadProperty function removed - not needed for subgraph matching
 
         inline std::vector<int>& GetAllIncidentEdges(int v) {return all_incident_edges[v];}
         inline std::vector<int>& GetIncidentEdges(int v, int label) {return incident_edges[v][label];}
@@ -447,143 +445,7 @@ namespace GraphLib {
         }
     }
 
-    inline void Graph::LoadProperty(const std::string vertex_property_filename, const std::string edge_property_filename, std::unordered_map<std::string, int> &label2id_mapping, std::shared_ptr<gbi::SchemaGraph> schema_graph) {
-        using json = nlohmann::json;
-        
-        // 清空现有属性
-        vertex_property_names.clear();
-        edge_property_names.clear();
-        vertex_properties.clear();
-        edge_properties.clear();
-
-        // 初始化数据结构
-        vertex_property_names.resize(num_vertex_labels);
-        vertex_properties.resize(num_vertex);
-        edge_property_names.resize(num_edge_labels);
-        edge_properties.resize(num_edge);
-        
-        // 优化版本：只读取一次文件，同时设置schema和存储值
-        std::ifstream vertex_file(vertex_property_filename);
-        if (vertex_file.is_open()) {
-            std::string line;
-            while (std::getline(vertex_file, line)) {
-                if (line.empty()) continue;
-                try {
-                    json j = json::parse(line);
-                    int vertex_id = j["id"];
-                    int label = label2id_mapping[j["label"]];
-                    
-                    if (vertex_id >= num_vertex || label >= num_vertex_labels) {
-                        continue; // 跳过无效的顶点
-                    }
-                    
-                    // 检查该label是否已经设置过schema
-                    bool is_first_for_this_label = vertex_property_names[label].empty();
-                    
-                    if (is_first_for_this_label) {
-                        // 第一次遇到这个label，设置schema
-                        for (auto& [key, value] : j.items()) {
-                            if (key != "label") {
-                                vertex_property_names[label].push_back(key);
-                            }
-                        }
-                    }
-                    
-                    // 存储属性值
-                    vertex_properties[vertex_id].resize(vertex_property_names[label].size());
-                    
-                    for (size_t i = 0; i < vertex_property_names[label].size(); i++) {
-                        const std::string& prop_name = vertex_property_names[label][i];
-                        if (j.contains(prop_name)) {
-                            auto& val = j[prop_name];
-                            if (val.is_number_integer()) {
-                                vertex_properties[vertex_id][i] = gbi::Value((int32_t)val);
-                            } else if (val.is_number_float()) {
-                                vertex_properties[vertex_id][i] = gbi::Value((double)val);
-                            } else if (val.is_string()) {
-                                vertex_properties[vertex_id][i] = gbi::Value((std::string)val);
-                            } else if (val.is_boolean()) {
-                                vertex_properties[vertex_id][i] = gbi::Value((int32_t)(val ? 1 : 0));
-                            } else if(val.is_null()) {
-                                gbi::EIdType schema_vertex_id = schema_graph->label_vertex[label];
-                                gbi::ValueType value_type = schema_graph->vertex_value_type_map[schema_vertex_id][prop_name];
-                                vertex_properties[vertex_id][i] = gbi::GetDefaultValue(value_type);
-                            }
-                        }
-                    }
-                } catch (const std::exception& e) {
-                    std::cerr << "Error parsing vertex property line: " << line << std::endl;
-                }
-            }
-            vertex_file.close();
-        }
-        
-        // 读取边属性文件，同时设置schema和存储值
-        std::ifstream edge_file(edge_property_filename);
-        if (edge_file.is_open()) {
-            std::string line;
-            int edge_idx = 0;
-            
-            while (std::getline(edge_file, line) && edge_idx < num_edge/2) {
-                if (line.empty()) continue;
-                try {
-                    json j = json::parse(line);
-                    int label = label2id_mapping[j["type"]];
-                    int src_id = j["src"];
-                    int dst_id = j["dst"];
-                    int src_label_id = vertex_label[src_id];
-                    int dst_label_id = vertex_label[dst_id];
-
-                    bool is_first_for_this_label = edge_property_names[label].empty();
-
-                    if (is_first_for_this_label) {
-                        for (auto& [key, value] : j.items()) {
-                            if (key != "src" && key != "dst" && key != "type") {
-                                edge_property_names[label].push_back(key);
-                            }
-                        }
-                    }
-
-                    edge_properties[edge_idx * 2].resize(edge_property_names[label].size());
-                    edge_properties[edge_idx * 2 + 1].resize(edge_property_names[label].size());
-                    
-                    // 处理当前边数据
-                    if (edge_idx * 2 < num_edge) {
-                        for (size_t i = 0; i < edge_property_names[label].size(); i++) {
-                            const std::string& prop_name = edge_property_names[label][i];
-                            if (j.contains(prop_name)) {
-                                auto& val = j[prop_name];
-                                gbi::Value prop_value;
-                                if (val.is_number_integer()) {
-                                    prop_value = gbi::Value((int64_t)val);
-                                } else if (val.is_number_float()) {
-                                    prop_value = gbi::Value((double)val);
-                                } else if (val.is_string()) {
-                                    prop_value = gbi::Value((std::string)val);
-                                } else if (val.is_boolean()) {
-                                    prop_value = gbi::Value::BOOLEAN(val ? 1 : 0);
-                                } else if (val.is_null()) {
-                                    gbi::EIdType schema_edge_id = schema_graph->label_edge[label][{src_label_id, dst_label_id}];
-                                    gbi::ValueType value_type = schema_graph->edge_value_type_map[schema_edge_id][prop_name];
-                                    prop_value = gbi::GetDefaultValue(value_type);
-                                }
-                                
-                                // 对于无向图，两个方向的边具有相同的属性
-                                edge_properties[edge_idx * 2][i] = prop_value;
-                                edge_properties[edge_idx * 2 + 1][i] = prop_value;
-                            }
-                        }
-                    }
-                    edge_idx++;
-                } catch (const std::exception& e) {
-                    std::cerr << "Error parsing edge property line: " << line << std::endl;
-                }
-            }
-            edge_file.close();
-        }
-        
-        std::cout << "Loaded properties for " << num_vertex << " vertices and " << num_edge/2 << " edges." << std::endl;
-    }
+    // LoadProperty function removed - not needed for subgraph matching
 
     inline void Graph::LoadGraph(std::vector<int> &vertex_labels,
                           std::vector<std::pair<int, int>> &edges,
@@ -643,6 +505,7 @@ namespace GraphLib {
         all_incident_edges.resize(num_vertex);
         incident_edges.resize(num_vertex);
         edge_index_map.resize(num_vertex);
+
         
         // Initialize structures for directed edges
         all_out_incident_edges.resize(num_vertex);
@@ -683,8 +546,10 @@ namespace GraphLib {
         }
 
         if (load_no_edge_pairs) {
+            std::cout << "build no edge pairs from schema" << std::endl;
             no_edge_pairs.resize(GetNumVertices());
             BuildNoEdgePairsFromSchema(schema_graph);
+            std::cout << "build no edge pairs from schema done" << std::endl;
         }
 
         // Sort edges by degree of endpoint (using total degree for sorting)

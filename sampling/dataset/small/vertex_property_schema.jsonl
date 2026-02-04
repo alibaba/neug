@@ -1,8 +1,0 @@
-{"label": "comment", "properties": {"id": "int32", "creationDate": "string", "locationIP": "string", "browserUsed": "string", "content": "string", "length": "int32"}}
-{"label": "forum", "properties": {"id": "int32", "title": "string", "creationDate": "string"}}
-{"label": "organisation", "properties": {"id": "int32", "type": "string", "name": "string", "url": "string"}}
-{"label": "person", "properties": {"id": "int32", "firstName": "string", "lastName": "string", "gender": "string", "birthday": "string", "creationDate": "string", "locationIP": "string", "browserUsed": "string", "language": "string", "email": "string"}}
-{"label": "place", "properties": {"id": "int32", "name": "string", "url": "string", "type": "string"}}
-{"label": "post", "properties": {"id": "int32", "imageFile": "string", "creationDate": "string", "locationIP": "string", "browserUsed": "string", "language": "string", "content": "string", "length": "int32"}}
-{"label": "tag", "properties": {"id": "int32", "name": "string", "url": "string"}}
-{"label": "tagclass", "properties": {"id": "int32", "name": "string", "url": "string"}}

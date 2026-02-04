@@ -46,6 +46,7 @@ static void bindLoadExtension(const ExtensionAuxInfo& auxInfo) {
   if (ExtensionUtils::isOfficialExtension(auxInfo.path)) {
     return;
   }
+  return;
   auto localFileSystem = common::LocalFileSystem("");
   if (!localFileSystem.fileOrPathExists(auxInfo.path,
                                         nullptr /* clientContext */)) {

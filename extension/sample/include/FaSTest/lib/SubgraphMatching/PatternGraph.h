@@ -3,16 +3,11 @@
 * @brief Class for subgraph pattern
 */
 #include "../DataStructure/Graph.h"
-#include "../../../../data_graph_meta.h"
-#include "../../../../storage/graph_element.hpp"
+#include "../../../data_graph_meta.h"
 
-// 前向声明，避免循环包含
-namespace gbi {
-    class GraphStorage;
-}
-
-// Use DataGraphMeta from neug namespace
+// Use types from neug namespace
 using neug::function::DataGraphMeta;
+using neug::function::PropCons;
 
 //#include "ortools/linear_solver/linear_solver.h"
 //
@@ -46,15 +41,15 @@ namespace GraphLib::SubgraphMatching {
         std::vector<std::vector<int>> adj_idx;
         inline int GetAdjIdx(int u, int uc) const { return adj_idx[u][uc]; }
 
-        std::vector<std::vector<gbi::PropCons>> vertex_property_constraints;
-        std::vector<std::vector<gbi::PropCons>> edge_property_constraints;
+        std::vector<std::vector<PropCons>> vertex_property_constraints;
+        std::vector<std::vector<PropCons>> edge_property_constraints;
 
 //        void FindFractionalEdgeCover(std::vector<double> &weights);
 //
 //        std::vector<double> fractional_edge_cover;
     };
 
-    void PatternGraph::ProcessPattern(DataGraphMeta &data_meta, std::shared_ptr<std::unordered_map<label_t, std::unordered_map<label_t, std::vector<label_t>>>> schema_graph) {
+    inline void PatternGraph::ProcessPattern(DataGraphMeta &data_meta, std::shared_ptr<std::unordered_map<label_t, std::unordered_map<label_t, std::vector<label_t>>>> schema_graph) {
         // Construct adj list and label frequency
         // Labels are already consecutive integers starting from 0, no transfer needed
         // For directed graph: update max_out_degree, max_in_degree, and max_degree
@@ -70,9 +65,11 @@ namespace GraphLib::SubgraphMatching {
         }
         num_vertex_labels = data_meta.GetNumLabels();
         num_edge_labels = data_meta.GetNumEdgeLabels();
+        std::cout << "build incidence list" << std::endl;
         BuildIncidenceList(true, schema_graph);
+        std::cout << "build incidence list done" << std::endl;
         ComputeCoreNum();
-        
+        std::cout << "compute core num" << std::endl;
         // For directed graph: build separate indices for out-neighbors and in-neighbors
         // out_candidate_neighbors[u][v_idx][out_adj_idx] stores out-edge candidates
         // in_candidate_neighbors[u][v_idx][in_adj_idx] stores in-edge candidates

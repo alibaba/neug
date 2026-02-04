@@ -291,7 +291,7 @@ struct BipartiteMaximumMatching {
     }
 };
 
-void MultiWayIntersection(
+inline void MultiWayIntersection(
         std::vector<std::pair<std::vector<int>::iterator, std::vector<int>::iterator>>& iterators,
         int* results,
         int& results_size
@@ -325,7 +325,7 @@ void MultiWayIntersection(
     }
 }
 
-void VectorIntersection(
+inline void VectorIntersection(
         std::vector<int> &A,
         std::vector<int> &B,
         std::vector<int> &results

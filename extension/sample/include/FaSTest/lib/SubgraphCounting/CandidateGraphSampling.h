@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../../data_graph_meta.h"
+#include "data_graph_meta.h"
 
 // Use DataGraphMeta from neug namespace
 using neug::function::DataGraphMeta;
@@ -143,7 +143,6 @@ namespace GraphLib {
 
                 // For directed graphs: verify all edges (both directions) exist in the data graph
                 if (!removed) {
-                    std::cout << "checking out-edges" << std::endl;
                     for (int qe : query_->GetAllOutIncidentEdges(u)) {
                         int j = query_->GetOppositePoint(qe);
                         int label = query_->GetEdgeLabel(qe);
@@ -157,7 +156,6 @@ namespace GraphLib {
                             break;
                         }
                     }
-                    std::cout << "finished checking out-edges" << std::endl;
                     if (removed) {
                         local_candidates[u][i] = local_candidates[u][local_candidate_size[u]-1];
                         local_candidate_size[u]--;
@@ -166,7 +164,6 @@ namespace GraphLib {
                 }
 
                 if (!removed) {
-                    std::cout << "checking in-edges" << std::endl;
                     for (int qe : query_->GetAllInIncidentEdges(u)) {
                         int j = query_->GetSourcePoint(qe);
                         int label = query_->GetEdgeLabel(qe);
@@ -180,7 +177,6 @@ namespace GraphLib {
                             break;
                         }
                     }
-                    std::cout << "finished checking in-edges" << std::endl;
                     if (removed) {
                         local_candidates[u][i] = local_candidates[u][local_candidate_size[u]-1];
                         local_candidate_size[u]--;
