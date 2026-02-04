@@ -1,197 +1,221 @@
-# Sample Extension: Subgraph Matching
+# Sampling Extension 编译与使用指南
 
-This extension provides brute-force subgraph matching functionality for NeuG.
+本目录包含 NeuG 采样扩展（SAMPLED_MATCH）的测试数据和模式文件。
 
-## Functions
+## 目录结构
 
-### SUBGRAPH_MATCH(pattern_file)
+```
+sampling/
+├── README.md                    # 本文档
+├── dataset/
+│   ├── small/                   # 小规模测试数据集
+│   ├── small_db/                # 已导入的小规模数据库
+│   └── sf01/                    # LDBC SF01 数据集
+├── pattern/
+│   ├── simple_triangle.json     # 简单三角形模式
+│   └── pattern_with_constraints.json  # 带属性约束的模式
+└── FaSTest/                     # FaSTest 子图匹配库
+```
 
-Performs subgraph matching using a pattern defined in a JSON file.
+## 编译指南
 
-**Input**: Path to a JSON file describing the pattern to match.
+### 1. 配置 CMake
 
-**Output**: All subgraph matches found in the graph.
+```bash
+cd /mnt/lyk/neug/build
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug -DBUILD_HTTP_SERVER=ON -DBUILD_EXTENSIONS="sample" -DBUILD_TEST=ON
+```
 
-## Pattern JSON Format
+### 2. 编译扩展库
 
-The pattern file should be a JSON file with the following structure:
+```bash
+# 编译 libsample.neug_extension
+make -j8 neug_sample_extension
+```
+
+编译后的文件位置：
+```
+/mnt/lyk/neug/build/extension/sample/libsample.neug_extension
+```
+
+### 3. 编译测试程序
+
+```bash
+# 编译测试程序
+make -j8 test_sample_match test_sample_match_ldbc
+```
+
+编译后的文件位置：
+```
+/mnt/lyk/neug/build/extension/sample/test/test_sample_match
+/mnt/lyk/neug/build/extension/sample/test/test_sample_match_ldbc
+```
+
+## 环境配置
+
+### EXTENSION_HOME 设置
+
+NeuG 通过 `EXTENSION_HOME` 环境变量查找扩展库。设置方法：
+
+```bash
+# 方法1: 临时设置
+export EXTENSION_HOME=/tmp
+
+# 方法2: 添加到 ~/.bashrc
+echo 'export EXTENSION_HOME=/tmp' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 安装扩展库
+
+将编译好的扩展库复制到 `$EXTENSION_HOME/extension/sample/` 目录：
+
+```bash
+# 创建目录
+mkdir -p $EXTENSION_HOME/extension/sample/
+
+# 复制扩展库
+cp /mnt/lyk/neug/build/extension/sample/libsample.neug_extension $EXTENSION_HOME/extension/sample/
+```
+
+完成后，扩展库路径应为：
+```
+$EXTENSION_HOME/extension/sample/libsample.neug_extension
+```
+
+例如，如果 `EXTENSION_HOME=/tmp`，则路径为：
+```
+/tmp/extension/sample/libsample.neug_extension
+```
+
+## 运行测试
+
+### 运行小规模测试
+
+```bash
+./build/extension/sample/test/test_sample_match
+```
+
+### 运行 LDBC SF01 测试
+
+```bash
+./build/extension/sample/test/test_sample_match_ldbc
+```
+
+## SAMPLED_MATCH 函数说明
+
+### 输入
+
+`SAMPLED_MATCH` 接受一个参数：模式文件的路径（JSON 格式）。
+
+**Cypher 语法：**
+```cypher
+CALL SAMPLED_MATCH('/path/to/pattern.json')
+```
+
+### 模式文件格式
 
 ```json
 {
-  "description": "Optional description of the pattern",
   "vertices": [
     {
-      "id": "a",           // Unique identifier within the pattern
-      "label": "Person"    // Vertex label in the graph
+      "id": 0,
+      "label": "person",
+      "constraints": [
+        {"property": "age", "operator": ">=", "value": 18}
+      ]
     },
     {
-      "id": "b",
-      "label": "Person"
+      "id": 1,
+      "label": "person",
+      "constraints": []
     }
   ],
   "edges": [
     {
-      "src": "a",          // Source vertex id (must match a vertex id above)
-      "dst": "b",          // Destination vertex id
-      "label": "KNOWS"     // Edge label in the graph
+      "source": 0,
+      "target": 1,
+      "label": "person_knows_person",
+      "constraints": []
     }
   ]
 }
 ```
 
-## Example Patterns
+**字段说明：**
 
-### Simple Edge Pattern (example_pattern.json)
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `vertices` | 数组 | 模式中的顶点列表 |
+| `vertices[].id` | 整数 | 顶点在模式中的唯一标识符 |
+| `vertices[].label` | 字符串 | 顶点标签（需与数据库中的 Node Table 名称匹配，小写） |
+| `vertices[].constraints` | 数组 | 顶点属性约束（可选） |
+| `edges` | 数组 | 模式中的边列表 |
+| `edges[].source` | 整数 | 边的源顶点 id |
+| `edges[].target` | 整数 | 边的目标顶点 id |
+| `edges[].label` | 字符串 | 边标签（需与数据库中的 Rel Table 名称匹配，小写） |
+| `edges[].constraints` | 数组 | 边属性约束（可选） |
 
-Find two people who know each other:
-
+**约束格式：**
 ```json
-{
-  "vertices": [
-    {"id": "a", "label": "person"},
-    {"id": "b", "label": "person"}
-  ],
-  "edges": [
-    {"src": "a", "dst": "b", "label": "person_knows_person"}
-  ]
-}
+{"property": "属性名", "operator": "比较运算符", "value": "比较值"}
 ```
 
-### Triangle Pattern (triangle_pattern.json)
+支持的运算符：`=`, `!=`, `<`, `<=`, `>`, `>=`
 
-Find a triangle of three people who all know each other:
+### 输出
 
-```json
-{
-  "vertices": [
-    {"id": "a", "label": "person"},
-    {"id": "b", "label": "person"},
-    {"id": "c", "label": "person"}
-  ],
-  "edges": [
-    {"src": "a", "dst": "b", "label": "person_knows_person"},
-    {"src": "b", "dst": "c", "label": "person_knows_person"},
-    {"src": "c", "dst": "a", "label": "person_knows_person"}
-  ]
-}
+返回所有匹配的子图结果，每个结果包含模式顶点到数据图顶点的映射。
+
+**输出列：**
+- 每个模式顶点对应一列，列名为 `v0`, `v1`, `v2`, ...
+- 每列的值为匹配的数据图顶点 ID
+
+**示例输出：**
+```
+| v0 | v1 | v2 |
+|----|----|----|
+| 0  | 1  | 2  |
+| 1  | 0  | 2  |
+| 2  | 1  | 0  |
 ```
 
-## Usage in Cypher
+## 使用示例
+
+### 1. 在 Cypher 中使用
 
 ```cypher
--- Load the extension
-LOAD EXTENSION sample;
+-- 加载扩展
+LOAD sample;
 
--- Run subgraph matching
-CALL SUBGRAPH_MATCH('/path/to/pattern.json') YIELD *;
-
--- Or use the alias
-CALL MATCH_SUBGRAPH('/path/to/triangle_pattern.json') YIELD *;
+-- 执行子图匹配
+CALL SAMPLED_MATCH('/mnt/lyk/neug/sampling/pattern/simple_triangle.json');
 ```
 
-## Algorithm
+### 2. 使用全路径加载
 
-This extension uses a **brute-force backtracking algorithm** for subgraph isomorphism:
+如果 `EXTENSION_HOME` 未设置或扩展未安装到指定位置，可使用全路径：
 
-1. For the first pattern vertex, try all data graph vertices with the same label
-2. For each subsequent pattern vertex:
-   - Try all candidate vertices with matching label
-   - Check edge constraints with already-matched vertices
-   - If all constraints satisfied, recursively match the next vertex
-3. When all pattern vertices are matched, record the result
-4. Backtrack and try other combinations
+```cypher
+LOAD '/mnt/lyk/neug/build/extension/sample/libsample.neug_extension';
 
-### Complexity
-
-- Time complexity: O(n^k) where n is the number of vertices in the data graph and k is the number of vertices in the pattern
-- This is intentionally simple ("brute-force") and suitable for small patterns on small graphs
-
-### Limitations
-
-- Performs **subgraph isomorphism** (each data vertex can only be matched once per result)
-- Does not support property predicates on vertices/edges (only label matching)
-- Single-threaded execution
-
-## Building
-
-```bash
-cmake -DBUILD_EXTENSIONS="sample" ..
-make -j
+CALL SAMPLED_MATCH('/mnt/lyk/neug/sampling/pattern/simple_triangle.json');
 ```
 
-## Python Demo
-
-A Python demo script is provided to demonstrate the full workflow:
-
-```bash
-# Run the demo script
-python3 /mnt/lyk/neug/extension/sample/demo_sampled_match.py
-```
-
-The script demonstrates:
-1. Creating a NeuG database using Python API
-2. Defining graph schema with Cypher (CREATE NODE TABLE, CREATE REL TABLE)
-3. Inserting sample data with Cypher (CREATE, MATCH...CREATE)
-4. Loading the sample extension
-5. Running SAMPLED_MATCH queries
-
-### Python API Usage Example
+### 3. Python API 使用
 
 ```python
 import neug
-import json
 
-# Create database
+# 创建数据库连接
 db = neug.Database("/path/to/database")
 conn = db.connect()
 
-# Create schema
-conn.execute("""
-    CREATE NODE TABLE Person(
-        id INT32 PRIMARY KEY,
-        firstName STRING,
-        lastName STRING
-    )
-""")
+# 加载扩展
+conn.execute("LOAD sample;")
 
-conn.execute("""
-    CREATE REL TABLE person_knows_person(
-        FROM Person TO Person,
-        creationDate STRING
-    )
-""")
-
-# Insert data
-conn.execute("""
-    CREATE (n:Person {id: 0, firstName: 'Alice', lastName: 'Anderson'})
-""")
-conn.execute("""
-    CREATE (n:Person {id: 1, firstName: 'Bob', lastName: 'Brown'})
-""")
-conn.execute("""
-    MATCH (a:Person), (b:Person)
-    WHERE a.id = 0 AND b.id = 1
-    CREATE (a)-[:person_knows_person {creationDate: '2020-01-01'}]->(b)
-""")
-
-# Load extension
-conn.execute("LOAD '/path/to/libsample.neug_extension'")
-
-# Create pattern file
-pattern = {
-    "vertices": [
-        {"id": 0, "label": "person"},
-        {"id": 1, "label": "person"}
-    ],
-    "edges": [
-        {"source": 0, "target": 1, "label": "person_knows_person"}
-    ]
-}
-with open("/tmp/pattern.json", "w") as f:
-    json.dump(pattern, f)
-
-# Run SAMPLED_MATCH
-result = conn.execute("CALL SAMPLED_MATCH('/tmp/pattern.json')")
+# 执行子图匹配
+result = conn.execute("CALL SAMPLED_MATCH('/mnt/lyk/neug/sampling/pattern/simple_triangle.json')")
 for row in result:
     print(row)
 
@@ -199,23 +223,99 @@ conn.close()
 db.close()
 ```
 
-## Files
+## 模式示例
 
+### 简单三角形模式 (simple_triangle.json)
+
+查找三个互相认识的人：
+
+```json
+{
+  "vertices": [
+    {"id": 0, "label": "person"},
+    {"id": 1, "label": "person"},
+    {"id": 2, "label": "person"}
+  ],
+  "edges": [
+    {"source": 0, "target": 1, "label": "person_knows_person"},
+    {"source": 1, "target": 2, "label": "person_knows_person"},
+    {"source": 2, "target": 0, "label": "person_knows_person"}
+  ]
+}
 ```
-extension/sample/
-├── CMakeLists.txt              # Build configuration
-├── README.md                   # This file
-├── demo_sampled_match.py       # Python demo script
-├── example_pattern.json        # Simple edge pattern example
-├── triangle_pattern.json       # Triangle pattern example
-├── include/
-│   ├── sample_functions.h      # Core implementation
-│   ├── data_graph_meta.h       # Data graph metadata
-│   ├── value.h                 # Value comparison operators
-│   └── FaSTest/                # FaSTest library for matching
-├── src/
-│   ├── sample_extension.cpp    # Extension entry point
-│   └── data_graph_meta.cpp     # Data graph metadata impl
-└── test/
-    └── test_sample_match.cc    # C++ test program
+
+### 带约束的复杂模式 (pattern_with_constraints.json)
+
+查找三个互相认识的人，其中一人发表了评论，另一人发表了帖子（创建时间 >= 某值）：
+
+```json
+{
+  "vertices": [
+    {"id": 0, "label": "person", "constraints": []},
+    {"id": 1, "label": "person", "constraints": []},
+    {"id": 2, "label": "person", "constraints": []},
+    {"id": 3, "label": "comment", "constraints": []},
+    {"id": 4, "label": "post", "constraints": [
+      {"property": "creationDate", "operator": ">=", "value": "2266179421451"}
+    ]}
+  ],
+  "edges": [
+    {"source": 0, "target": 1, "label": "person_knows_person"},
+    {"source": 1, "target": 2, "label": "person_knows_person"},
+    {"source": 2, "target": 0, "label": "person_knows_person"},
+    {"source": 3, "target": 0, "label": "comment_hasCreator_person"},
+    {"source": 4, "target": 1, "label": "post_hasCreator_person"}
+  ]
+}
 ```
+
+## 故障排除
+
+### 1. 扩展加载失败
+
+**错误信息：**
+```
+Extension sample not found in user install or wheel package
+```
+
+**解决方法：**
+1. 确认 `EXTENSION_HOME` 环境变量已设置
+2. 确认扩展库已复制到正确位置
+3. 使用全路径加载扩展
+
+### 2. 模式文件未找到
+
+**错误信息：**
+```
+Error: Cannot open pattern file: /path/to/pattern.json
+```
+
+**解决方法：**
+1. 检查文件路径是否正确
+2. 检查文件是否存在
+3. 检查文件权限
+
+### 3. gflags 链接错误
+
+**错误信息：**
+```
+undefined reference to `google::FlagRegisterer::FlagRegisterer<int>...
+```
+
+**解决方法：**
+确保 `CMakeLists.txt` 中的 `target_link_libraries` 包含 `gflags`：
+```cmake
+target_link_libraries(test_sample_match PRIVATE
+    neug_libraries
+    ${GLOG_LIBRARIES}
+    gflags
+)
+```
+
+## 相关文件
+
+- 扩展源代码：`/mnt/lyk/neug/extension/sample/`
+- 扩展文档：`/mnt/lyk/neug/extension/sample/README.md`
+- Python Demo：`/mnt/lyk/neug/extension/sample/demo_sampled_match.py`
+- C++ 测试：`/mnt/lyk/neug/extension/sample/test/test_sample_match.cc`
+- LDBC 测试：`/mnt/lyk/neug/extension/sample/test/test_sample_match_ldbc.cc`
