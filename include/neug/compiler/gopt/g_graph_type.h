@@ -28,8 +28,8 @@
 namespace neug {
 namespace gopt {
 struct GNodeType {
-  GNodeType(std::vector<catalog::NodeTableCatalogEntry*> nodeTables_)
-      : nodeTables{std::move(nodeTables_)} {}
+  GNodeType(const std::vector<catalog::NodeTableCatalogEntry*>& nodeTables_)
+      : nodeTables{nodeTables_} {}
 
   GNodeType(const binder::NodeExpression& nodeExpr) {
     nodeTables.reserve(nodeExpr.getNumEntries());
@@ -58,6 +58,21 @@ struct GNodeType {
 
   std::vector<catalog::NodeTableCatalogEntry*> nodeTables;
 
+  std::string toString() const {
+    std::stringstream ss;
+    ss << "LABELS(";
+    for (auto& nodeTable : nodeTables) {
+      ss << nodeTable->getName() << ",";
+    }
+    ss << ")";
+    return ss.str();
+  }
+
+  // shadow copy of nodeTables
+  std::unique_ptr<GNodeType> copy() const {
+    return std::make_unique<GNodeType>(nodeTables);
+  }
+
   YAML::Node toYAML() const {
     YAML::Node type;
     type["element_opt"] = "VERTEX";
@@ -78,8 +93,8 @@ struct GNodeType {
 };
 
 struct GRelType {
-  GRelType(std::vector<catalog::GRelTableCatalogEntry*> relTables_)
-      : relTables{std::move(relTables_)} {}
+  GRelType(const std::vector<catalog::GRelTableCatalogEntry*>& relTables_)
+      : relTables{relTables_} {}
   GRelType(const binder::RelExpression& relExpr) {
     relTables.reserve(relExpr.getNumEntries());
     for (auto& table : relExpr.getEntries()) {
@@ -102,6 +117,21 @@ struct GRelType {
       }
     }
     return labelIds;
+  }
+
+  std::string toString() const {
+    std::stringstream ss;
+    ss << "LABELS(";
+    for (auto& relTable : relTables) {
+      ss << relTable->getName() << ",";
+    }
+    ss << ")";
+    return ss.str();
+  }
+
+  // shadow copy of relTables
+  std::unique_ptr<GRelType> copy() const {
+    return std::make_unique<GRelType>(relTables);
   }
 
   YAML::Node toYAML(catalog::Catalog* catalog) const {

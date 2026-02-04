@@ -57,10 +57,22 @@ message GraphDataType {
   repeated GraphElementType graph_data_type = 2;
 }
 
-// IrDataType, which could be either basic DataType or GraphDataType
+// GraphTypeList temporarily supports list types for vertices and edges.
+// A list is a fixed-length array without length restrictions.
+// A more reasonable approach would be to make GraphDataType a oneof type in common.DataType.
+// However, there is no such requirement currently. This will be refactored in the future
+// when we need to support tuple types composed of graph types and basic types,
+// such as: MATCH (a) RETURN [a, a.name];
+message GraphTypeList {
+  GraphDataType component_type = 1;
+}
+
+// IrDataType represents a unified type that can be either a basic DataType
+// or supports graph types and lists of graph types.
 message IrDataType {
   oneof type {
     common.DataType data_type = 1;
     GraphDataType graph_type = 2;
+    GraphTypeList list_type = 3;
   }
 }

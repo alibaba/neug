@@ -36,6 +36,7 @@
 #include "neug/compiler/common/types/neug_string.h"
 #include "neug/compiler/function/built_in_function_utils.h"
 #include "neug/compiler/function/cast/functions/numeric_limits.h"
+#include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
@@ -134,7 +135,8 @@ uint32_t DecimalType::getScale(const LogicalType& type) {
   return decimalTypeInfo->getScale();
 }
 
-const LogicalType& ListType::getChildType(const neug::common::LogicalType& type) {
+const LogicalType& ListType::getChildType(
+    const neug::common::LogicalType& type) {
   NEUG_ASSERT(type.getPhysicalType() == PhysicalTypeID::LIST ||
               type.getPhysicalType() == PhysicalTypeID::ARRAY);
   auto listTypeInfo = type.extraTypeInfo->constPtrCast<ListTypeInfo>();
@@ -667,9 +669,31 @@ std::string LogicalType::toString() const {
            std::to_string(decimalTypeInfo->getScale()) + ")";
   }
   case LogicalTypeID::ANY:
-  case LogicalTypeID::NODE:
-  case LogicalTypeID::REL:
-  case LogicalTypeID::RECURSIVE_REL:
+  case LogicalTypeID::NODE: {
+    auto typeIDString = LogicalTypeUtils::toString(typeID);
+    auto nodeTypeInfo = dynamic_cast<GNodeTypeInfo*>(extraTypeInfo.get());
+    if (nodeTypeInfo && nodeTypeInfo->getNodeType()) {
+      return typeIDString + "(" + nodeTypeInfo->getNodeType()->toString() + ")";
+    }
+    return typeIDString;
+  }
+  case LogicalTypeID::REL: {
+    auto typeIDString = LogicalTypeUtils::toString(typeID);
+    auto relTypeInfo = dynamic_cast<const GRelTypeInfo*>(extraTypeInfo.get());
+    if (relTypeInfo && relTypeInfo->getRelType()) {
+      typeIDString += "(" + relTypeInfo->getRelType()->toString() + ")";
+    }
+    return typeIDString;
+  }
+  case LogicalTypeID::RECURSIVE_REL: {
+    auto typeIDString = LogicalTypeUtils::toString(typeID);
+    auto fieldIdx = StructType::getFieldIdx(*this, InternalKeyword::NODES);
+    if (fieldIdx != INVALID_STRUCT_FIELD_IDX) {
+      auto& relsField = StructType::getField(*this, fieldIdx);
+      typeIDString += "(" + relsField.getType().toString() + ")";
+    }
+    return typeIDString;
+  }
   case LogicalTypeID::INTERNAL_ID:
   case LogicalTypeID::BOOL:
   case LogicalTypeID::INT64:
@@ -2011,5 +2035,37 @@ LogicalType LogicalTypeUtils::purgeAny(const LogicalType& type,
   }
 }
 
+// Implementation of GNodeTypeInfo
+GNodeTypeInfo::GNodeTypeInfo(std::vector<StructField>&& fields,
+                             std::unique_ptr<gopt::GNodeType> nodeType)
+    : StructTypeInfo(std::move(fields)), nodeType(std::move(nodeType)) {}
+
+GNodeTypeInfo::~GNodeTypeInfo() = default;
+
+std::unique_ptr<ExtraTypeInfo> GNodeTypeInfo::copy() const {
+  auto& fields = getStructFields();
+  std::vector<StructField> copyFields{fields.size()};
+  for (auto i = 0u; i < fields.size(); i++) {
+    copyFields[i] = fields[i].copy();
+  }
+  return std::make_unique<GNodeTypeInfo>(std::move(copyFields),
+                                         nodeType->copy());
+}
+
+// Implementation of GRelTypeInfo
+GRelTypeInfo::GRelTypeInfo(std::vector<StructField>&& fields,
+                           std::unique_ptr<gopt::GRelType> relType)
+    : StructTypeInfo(std::move(fields)), relType(std::move(relType)) {}
+
+GRelTypeInfo::~GRelTypeInfo() = default;
+
+std::unique_ptr<ExtraTypeInfo> GRelTypeInfo::copy() const {
+  auto& fields = getStructFields();
+  std::vector<StructField> copyFields{fields.size()};
+  for (auto i = 0u; i < fields.size(); i++) {
+    copyFields[i] = fields[i].copy();
+  }
+  return std::make_unique<GRelTypeInfo>(std::move(copyFields), relType->copy());
+}
 }  // namespace common
 }  // namespace neug
