@@ -27,15 +27,6 @@ TEST_F(LDBCTest, IC_1) {
                                       getLDBCResource("IC_1_physical"));
 }
 
-// TEST_F(LDBCTest, IC_9) {
-//   std::string query =
-//       neug::gopt::Utils::readString(getLDBCResourcePath("ic_9.cypher"));
-//   auto logical = planLogical(query, schemaData, statsData, rules);
-//   auto physical = planPhysical(*logical);
-//   VerifyFactory::verifyPhysicalByJson(*physical,
-//                                       getLDBCResource("IC_9_physical"));
-// }
-
 TEST_F(LDBCTest, IC_11) {
   std::string query =
       neug::gopt::Utils::readString(getLDBCResourcePath("ic_11.cypher"));
@@ -63,14 +54,14 @@ TEST_F(LDBCTest, IC_3) {
   ASSERT_TRUE(physical != nullptr);
 }
 
-// TEST_F(LDBCTest, IC_5) {
-//   std::string query =
-//       neug::gopt::Utils::readString(getLDBCResourcePath("ic_5.cypher"));
-//   auto logical = planLogical(query, schemaData, statsData, rules);
-//   auto physical = planPhysical(*logical);
-//   VerifyFactory::verifyPhysicalByJson(*physical,
-//                                       getLDBCResource("IC_5_physical"));
-// }
+TEST_F(LDBCTest, IC_5) {
+  std::string query =
+      neug::gopt::Utils::readString(getLDBCResourcePath("ic_5.cypher"));
+  auto logical = planLogical(query, schemaData, statsData, rules);
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getLDBCResource("IC_5_physical"));
+}
 
 TEST_F(LDBCTest, IC_14) {
   std::string query =
@@ -117,7 +108,9 @@ TEST_F(LDBCTest, IC_10) {
   std::string query =
       neug::gopt::Utils::readString(getLDBCResourcePath("ic_10.cypher"));
   auto logical = planLogical(query, schemaData, statsData, rules);
-  VerifyFactory::verifyLogicalByStr(*logical, getLDBCResource("IC_10_logical"));
+  auto physical = planPhysical(*logical);
+  VerifyFactory::verifyPhysicalByJson(*physical,
+                                      getLDBCResource("IC_10_physical"));
 }
 
 }  // namespace gopt

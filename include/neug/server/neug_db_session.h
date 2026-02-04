@@ -52,37 +52,50 @@ class Schema;
 class AppManager;
 
 /**
- * @brief Database session for executing queries and managing transactions.
+ * @brief Database session for executing queries in high-throughput scenarios.
  *
  * NeugDBSession provides a session-based interface for interacting with the
  * NeuG database. Each session maintains its own transaction context and
  * application state, enabling concurrent access while ensuring data
  * consistency.
  *
- * **Core Capabilities:**
- * - Transaction management (Read, Insert, Update, Compact)
- * - Query execution with various data sources
- * - Batch operations for performance optimization
- * - Application-specific query processing
+ * Sessions are typically acquired from a SessionPool via NeugDBService, not
+ * created directly. This is the server-side equivalent of Python's Session
+ * class for client connections.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Acquire session from service
+ * auto guard = service.AcquireSession();
+ *
+ * // Execute read query
+ * std::string query = R"({
+ *   "query": "MATCH (n:Person) RETURN n.name LIMIT 10",
+ *   "access_mode": "read"
+ * })";
+ * auto result = guard->Eval(query);
+ *
+ * // Execute write query with parameters
+ * std::string insert_query = R"({
+ *   "query": "CREATE (n:Person {name: $name})",
+ *   "access_mode": "insert",
+ *   "parameters": {"name": "Alice"}
+ * })";
+ * auto write_result = guard->Eval(insert_query);
+ * @endcode
  *
  * **Transaction Types:**
- * - ReadTransaction: Read-only snapshot access
- * - InsertTransaction: Add new vertices and edges
- * - UpdateTransaction: Modify existing graph elements
- * - CompactTransaction: Background compaction operations
+ * - `ReadTransaction`: Read-only snapshot access
+ * - `InsertTransaction`: Add new vertices and edges
+ * - `UpdateTransaction`: Modify existing graph elements
+ * - `CompactTransaction`: Background compaction operations
  *
  * **Thread Safety:** Each session is tied to a specific thread and should
- * not be shared across threads. Sessions are lightweight and can be created
- * per-thread as needed.
+ * not be shared across threads. Sessions are managed by SessionPool to
+ * ensure thread-local access.
  *
- * **Lifecycle:**
- * - Created through NeugDB::CreateSession()
- * - Automatically manages transaction lifecycle
- * - Provides retry mechanisms for failed operations
- *
- * @note This is the primary interface for query execution and transaction
- *       management. Use NeugDB for database lifecycle operations.
- *
+ * @see NeugDBService for HTTP service wrapper
+ * @see SessionPool for session management
  * @since v0.1.0
  */
 class NeugDBSession {
@@ -118,16 +131,51 @@ class NeugDBSession {
 
   /**
    * @brief Execute a Cypher query within the session.
-   * Expect json format string:
+   *
+   * Executes a query specified as a JSON string containing the Cypher query,
+   * access mode, and optional parameters. This is the primary method for
+   * query execution in high-throughput service scenarios.
+   *
+   * **JSON Format:**
+   * @code{.json}
    * {
-   *  "query": "MATCH(n) return count(n)",
-   *  "access_mode": "read/insert/update/schema"
-   *  "parameters" :  {
-   *    "param1" : "value1",
-   *    "list_param" : [1,2,3],
-   *    "map_param" : {"key1": "value1"}
-   *  }
+   *   "query": "MATCH (n:Person) RETURN n.name",
+   *   "access_mode": "read",
+   *   "parameters": {
+   *     "param1": "value1",
+   *     "list_param": [1, 2, 3],
+   *     "map_param": {"key": "value"}
+   *   }
    * }
+   * @endcode
+   *
+   * **Access Modes:**
+   * - `"read"` or `"r"`: Read-only query (MATCH without mutations)
+   * - `"insert"` or `"i"`: Insert-only operations (CREATE)
+   * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
+   * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * auto guard = service.AcquireSession();
+   *
+   * // Simple read query
+   * auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
+   * if (result.has_value()) {
+   *   // Process result
+   * }
+   *
+   * // Parameterized query
+   * std::string query = R"({
+   *   "query": "MATCH (n:Person {age: $age}) RETURN n",
+   *   "access_mode": "read",
+   *   "parameters": {"age": 30}
+   * })";
+   * auto param_result = guard->Eval(query);
+   * @endcode
+   *
+   * @param query JSON string containing query, access_mode, and parameters
+   * @return Result containing CollectiveResults on success, or error status
    */
   neug::result<results::CollectiveResults> Eval(const std::string& query);
 

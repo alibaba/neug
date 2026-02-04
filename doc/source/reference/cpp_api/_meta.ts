@@ -1,6 +1,7 @@
 export default {
   "index": "C++ API Overview",
-  "gs": "Namespace gs",
-  "results": "Namespace results",
-  "server": "Namespace server",
-};
+  "neug_db": "NeugDB",
+  "connection": "Connection",
+  "query_result": "QueryResult",
+  "service": "NeugDBService",
+}

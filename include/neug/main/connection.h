@@ -34,23 +34,49 @@ namespace neug {
 class NeugDB;
 
 /**
- * @brief Internal connection class for executing queries against the graph
- * database.
+ * @brief Database connection for executing Cypher queries.
  *
- * Connection provides the core interface for query execution within a NeuG
- * database. It maintains a reference to the property graph, query planner, and
- * query processor to handle the complete query execution pipeline.
+ * Connection is the primary interface for interacting with a NeuG database.
+ * It provides methods to execute Cypher queries, retrieve schema information,
+ * and manage the connection lifecycle.
  *
- * **Thread Safety:** This class is NOT thread-safe. Each thread should create
- * and manage its own Connection instance.
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get connection from database
+ * auto conn = db.Connect();
+ *
+ * // Execute a read query
+ * auto result = conn->Query("MATCH (n:Person) RETURN n.name LIMIT 10", "read");
+ * for (auto& record : result.value()) {
+ *   // Process record...
+ * }
+ *
+ * // Execute an insert query
+ * conn->Query("CREATE (p:Person {name: 'Alice', age: 30})", "insert");
+ *
+ * // Close connection when done
+ * conn->Close();
+ * @endcode
+ *
+ * **Access Modes:**
+ * - `"read"` or `"r"`: Read-only queries (MATCH, RETURN)
+ * - `"insert"` or `"i"`: Insert-only operations (CREATE)
+ * - `"update"` or `"u"`: Update/delete operations (SET, DELETE, MERGE)
+ * - `"schema"` or `"s"`: Schema modification operations (CREATE/DROP labels)
+ *
+ * **Thread Safety:** This class is NOT thread-safe. Each thread should use
+ * its own Connection instance. Use NeugDB::Connect() to create connections.
  *
  * **Lifecycle:**
- * - Created with references to graph, planner, and query processor
- * - Used to execute queries via Query() method
- * - Must be explicitly closed or will be closed in destructor
+ * - Created via NeugDB::Connect()
+ * - Execute queries via Query() method
+ * - Close via Close() or automatic cleanup in destructor
  *
- * @note This is an internal C++ API class. External users should use the Python
- *       binding classes for database interactions.
+ * @note Connections hold references to shared resources (planner, query processor).
+ * @note For best performance, reuse connections for multiple queries.
+ *
+ * @see NeugDB::Connect For creating connections
+ * @see QueryResult For processing query results
  *
  * @since v0.1.0
  */
@@ -62,29 +88,49 @@ class Connection {
   ~Connection() { Close(); }
 
   /**
-   * @brief Execute a query string and return the results.
+   * @brief Execute a Cypher query and return results.
    *
-   * Processes the query string through the planner and query processor, then
-   * converts the internal CollectiveResults to a QueryResult for user
-   * consumption.
+   * Compiles and executes a Cypher query string against the database.
+   * The query is processed through the planner for optimization, then
+   * executed by the query processor.
    *
-   * @param query_string The query string to execute
-   * @param access_mode The access mode of the query. It could be `read(r)`,
-   * `insert(i)`, `update(u)` (include deletion). User should specify the
-   * correct access mode for the query to ensure the correctness of the
-   * database. If the access mode is not specified, it will be set to `update`
-   * by default.
-   * @param parameters The parameters to be used in the query. The parameters
-   * should be a dictionary, where the keys are the parameter names, and the
-   * values are the parameter values. If no parameters are needed, it can be set
-   * to an empty map.
-   * @return Result<QueryResult> containing either the query results or an error
-   * status
+   * **Usage Example:**
+   * @code{.cpp}
+   * // Simple read query
+   * auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
    *
-   * @throws Logs error and returns error status if connection is closed
+   * // Query with parameters
+   * neug::runtime::ParamsMap params;
+   * params["min_age"] = neug::runtime::Value(18);
+   * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p", "read", params);
    *
-   * Implementation: Calls query_impl() internally, then converts
-   * CollectiveResults to QueryResult using QueryResult::From().
+   * // Process results
+   * if (result.has_value()) {
+   *   for (auto& record : result.value()) {
+   *     // Access columns via record.entries()
+   *   }
+   * } else {
+   *   std::cerr << "Query failed: " << result.error().message() << std::endl;
+   * }
+   * @endcode
+   *
+   * @param query_string The Cypher query to execute
+   * @param access_mode Query access mode:
+   *        - `"read"` or `"r"`: Read-only operations
+   *        - `"insert"` or `"i"`: Insert-only operations (CREATE)
+   *        - `"update"` or `"u"`: Update/delete operations (default)
+   *        - `"schema"` or `"s"`: Schema modification operations
+   * @param parameters Named parameters for parameterized queries.
+   *        Keys are parameter names (without `$`), values are parameter values.
+   *
+   * @return result<QueryResult> containing either:
+   *         - QueryResult with query results on success
+   *         - Error status with message on failure
+   *
+   * @note Use parameterized queries for dynamic values to prevent injection.
+   * @note Specifying correct access_mode ensures proper transaction handling.
+   *
+   * @see QueryResult For iterating over results
    *
    * @since v0.1.0
    */
@@ -93,29 +139,41 @@ class Connection {
                             const runtime::ParamsMap& parameters = {});
 
   /**
-   * @brief Get the database schema.
+   * @brief Get the database schema as a YAML string.
    *
-   * Returns a reference to the schema from the underlying property graph.
+   * Returns the complete graph schema definition in YAML format,
+   * including all vertex types, edge types, and their properties.
    *
-   * @return const Schema& Reference to the database schema
+   * **Usage Example:**
+   * @code{.cpp}
+   * std::string schema_yaml = conn->GetSchema();
+   * std::cout << "Schema:\n" << schema_yaml << std::endl;
+   * @endcode
+   *
+   * @return std::string YAML-formatted schema definition
    *
    * @throws std::runtime_error if the connection is closed
    *
-   * Implementation: Checks if connection is closed, then returns
-   * graph_.schema().
+   * @see Schema For programmatic schema access
    *
    * @since v0.1.0
    */
   std::string GetSchema() const;
 
   /**
-   * @brief Close the connection and mark it as closed.
+   * @brief Close the connection and release resources.
    *
-   * Sets the is_closed_ atomic flag to true. This method is idempotent and
-   * safe to call multiple times.
+   * Marks the connection as closed and releases any held resources.
+   * After closing, any Query() calls will fail.
    *
-   * Implementation: Uses atomic store operation to set is_closed_ flag.
-   * Logs warning if already closed, otherwise logs info message.
+   * **Usage Example:**
+   * @code{.cpp}
+   * conn->Close();
+   * // conn->Query(...) will now return an error
+   * @endcode
+   *
+   * @note This method is idempotent - calling it multiple times is safe.
+   * @note The connection is also automatically closed in the destructor.
    *
    * @since v0.1.0
    */
@@ -124,9 +182,7 @@ class Connection {
   /**
    * @brief Check if the connection is closed.
    *
-   * @return true if the connection has been closed, false otherwise
-   *
-   * Implementation: Uses atomic load operation on is_closed_ flag.
+   * @return true if the connection has been closed, false if still active
    *
    * @since v0.1.0
    */

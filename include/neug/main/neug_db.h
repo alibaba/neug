@@ -55,29 +55,55 @@ class Schema;
 /**
  * @brief Core database engine for NeuG graph database system.
  *
- * NeugDB serves as the main entry point and central management system for the
- * NeuG graph database. It coordinates all major components including storage,
- * transactions, query processing, and application management.
+ * NeugDB serves as the **primary entry point** for all NeuG graph database
+ * operations. It provides a complete lifecycle management API including
+ * database initialization, query execution, and graceful shutdown.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Create and open database
+ * neug::NeugDB db;
+ * db.Open("/path/to/data", 4);  // 4 threads
+ *
+ * // Create connection and execute query
+ * auto conn = db.Connect();
+ * auto result = conn->Query("MATCH (n:Person) RETURN n LIMIT 10");
+ *
+ * // Process results
+ * for (auto& record : result.value()) {
+ *   std::cout << record.ToString() << std::endl;
+ * }
+ *
+ * // Close database (persists data)
+ * db.Close();
+ * @endcode
  *
  * **Key Components:**
- * - PropertyGraph for graph data storage and schema management
- * - QueryProcessor for Cypher query execution
- * - ConnectionManager for client connection handling
+ * - PropertyGraph: Underlying graph data storage engine
+ * - QueryProcessor: Cypher query compilation and execution
+ * - ConnectionManager: Client connection pool management
+ * - IGraphPlanner: Query optimization (GOPT or Greedy planner)
  *
  * **Database Modes:**
- * - READ_ONLY: Read-only access for query operations
- * - READ_WRITE: Full read/write access with transaction support
+ * - `DBMode::READ_ONLY`: Read-only access for analytics workloads
+ * - `DBMode::READ_WRITE`: Full transactional read/write access
  *
- * **Thread Safety:** This class is thread-safe. Multiple sessions can
- * access the database concurrently through the connection manager.
+ * **Thread Safety:** This class is thread-safe. Multiple connections can
+ * execute queries concurrently. The ConnectionManager handles thread
+ * synchronization internally.
  *
  * **Resource Management:**
- * - Handles file locking to prevent concurrent database access
- * - Provides graceful shutdown with optional data dumping
+ * - File locking prevents concurrent database access from multiple processes
+ * - Automatic WAL (Write-Ahead Log) for crash recovery
+ * - Configurable checkpoint and compaction on close
  *
- * @note This is the primary interface for database lifecycle management.
- *       For query execution, use NeugDBSession obtained through
- * CreateSession().
+ * @note For query execution, obtain a Connection via Connect() method.
+ * @note Always call Close() before destroying the NeugDB instance to ensure
+ *       data persistence.
+ *
+ * @see Connection For executing queries against the database
+ * @see PropertyGraph For direct graph storage access
+ * @see NeugDBConfig For configuration options
  *
  * @since v0.1.0
  */
@@ -87,23 +113,48 @@ class NeugDB {
   ~NeugDB();
 
   /**
-   * @brief Load the graph from data directory.
-   * @param data_dir The directory of graph data.
-   * @param max_num_threads The maximum number of threads for graph db
-   * concurrency. If it is 0, it will be set to the number of hardware cores.
-   * @param mode The mode of opening graph db, could be "read_only" or
-   * "read_write".
-   * @param planner_kind The kind of graph planner, could be "gopt" or
-   * "greedy"
-   * @param enable_auto_compaction Whether to enable auto compaction thread.
-   * @param compact_csr Whether to compact the csr when doing auto compaction.
-   * @param compact_on_close Whether to compact the graph when closing the
-   * graph db.
-   * @param checkpoint_on_close Whether to dump the graph when closing the
-   * graph db.
-   * @return true if successed.
+   * @brief Open the database from persistent storage.
    *
-   * @note This function is mainly for python binding.
+   * Initializes and opens the NeuG database from the specified data directory.
+   * This method loads the graph schema, vertex/edge data, and initializes
+   * the query processor and planner.
+   *
+   * **Data Directory Structure:**
+   * The data_dir should contain:
+   * - `graph.yaml`: Schema definition file
+   * - `snapshot/`: Vertex and edge data files
+   * - `wal/`: Write-ahead log files (optional, for recovery)
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * neug::NeugDB db;
+   *
+   * // Simple open with defaults
+   * db.Open("/path/to/graph");
+   *
+   * // Open with custom settings (8 threads, read-write mode, GOPT planner)
+   * db.Open("/path/to/graph", 8, neug::DBMode::READ_WRITE, "gopt");
+   * @endcode
+   *
+   * @param data_dir Path to the graph data directory
+   * @param max_num_threads Maximum threads for concurrent operations.
+   *        If 0, uses hardware concurrency (number of CPU cores)
+   * @param mode Database access mode (READ_ONLY or READ_WRITE)
+   * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or "greedy"
+   * @param enable_auto_compaction Enable background auto-compaction thread
+   * @param compact_csr Compact CSR structures during auto-compaction
+   * @param compact_on_close Perform compaction when closing database
+   * @param checkpoint_on_close Create checkpoint (persist data) when closing
+   *
+   * @return true if database opened successfully, false otherwise
+   *
+   * @note This overload is primarily designed for Python bindings.
+   * @note For C++ usage, prefer the config-based Open(NeugDBConfig&) overload.
+   *
+   * @see NeugDBConfig For detailed configuration options
+   * @see Close For proper database shutdown
+   *
+   * @since v0.1.0
    */
   bool Open(const std::string& data_dir, int32_t max_num_threads = 0,
             const DBMode mode = DBMode::READ_WRITE,
@@ -112,14 +163,61 @@ class NeugDB {
             bool compact_on_close = true, bool checkpoint_on_close = true);
 
   /**
-   * @brief Load the graph from data directory.
-   * @return true if successed.
+   * @brief Open the database with a configuration object.
    *
+   * Opens the database using a NeugDBConfig structure that provides
+   * comprehensive configuration options.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * neug::NeugDBConfig config;
+   * config.data_dir = "/path/to/graph";
+   * config.thread_num = 8;
+   * config.mode = neug::DBMode::READ_WRITE;
+   * config.memory_level = 2;  // Use hugepages
+   * config.enable_auto_compaction = true;
+   *
+   * neug::NeugDB db;
+   * db.Open(config);
+   * @endcode
+   *
+   * @param config Configuration object with all database settings
+   *
+   * @return true if database opened successfully, false otherwise
+   *
+   * @see NeugDBConfig For all available configuration options
+   *
+   * @since v0.1.0
    */
   bool Open(const NeugDBConfig& config);
 
   /**
-   * @brief Close the current opened graph.
+   * @brief Close the database and release all resources.
+   *
+   * Performs a graceful shutdown of the database. Depending on configuration:
+   * - Creates checkpoint if checkpoint_on_close is enabled
+   * - Performs compaction if compact_on_close is enabled
+   * - Closes all open connections
+   * - Releases file locks
+   *
+   * **Important:** Always call Close() before destroying the NeugDB instance
+   * to ensure data integrity and proper resource cleanup.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * neug::NeugDB db;
+   * db.Open("/path/to/data");
+   *
+   * // ... perform operations ...
+   *
+   * db.Close();  // Persist data and cleanup
+   * @endcode
+   *
+   * @note This method is idempotent - calling it multiple times is safe.
+   * @note After closing, the database cannot be reopened. Create a new
+   *       NeugDB instance to open the database again.
+   *
+   * @since v0.1.0
    */
   void Close();
 
@@ -130,14 +228,34 @@ class NeugDB {
   inline bool IsClosed() const { return closed_.load(); }
 
   /**
-   * @brief Open a connection to the database.
-   * @return A Connection object that can be used to interact with the
-   * database.
-   * @note We the mode is read-only, this method could be called multiple
-   * times. But if the mode is read-write, this method should be called only
-   * once.
-   * @note Each connection will hold a shared pointer, which means it will
-   * share the planner with other connections in the same database.
+   * @brief Create a new connection to the database for query execution.
+   *
+   * Creates and returns a Connection object that can be used to execute
+   * Cypher queries against the database. The connection shares the query
+   * planner and processor with other connections from the same database.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * auto conn = db.Connect();
+   * auto result = conn->Query("MATCH (n) RETURN count(n)");
+   * if (result.has_value()) {
+   *     std::cout << "Query succeeded" << std::endl;
+   * }
+   * conn->Close();  // Optional: auto-closed on destruction
+   * @endcode
+   *
+   * @return std::shared_ptr<Connection> A shared pointer to the new Connection
+   *
+   * @note In READ_ONLY mode, multiple connections can be created.
+   * @note In READ_WRITE mode, only one write connection is allowed.
+   * @note Connections share the planner instance for efficiency.
+   *
+   * @throws std::runtime_error if database is not open or closed
+   *
+   * @see Connection::Query For executing Cypher queries
+   * @see Connection::Close For closing the connection
+   *
+   * @since v0.1.0
    */
   std::shared_ptr<Connection> Connect();
 

@@ -51,8 +51,54 @@ inline void process_default_values(
   }
 }
 
+/**
+ * @brief Schema definition for a vertex type (label).
+ *
+ * VertexSchema contains all metadata for a vertex type including:
+ * - Label name and description
+ * - Property definitions (types, names, defaults)
+ * - Primary key specification
+ * - Storage strategies for properties
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get vertex schema from Schema
+ * const neug::Schema& schema = graph.schema();
+ * label_t person_id = schema.get_vertex_label_id("Person");
+ * auto vertex_schema = schema.get_vertex_schema(person_id);
+ *
+ * // Access schema information
+ * std::cout << "Label: " << vertex_schema->label_name << std::endl;
+ * for (size_t i = 0; i < vertex_schema->property_names.size(); ++i) {
+ *     std::cout << "Property: " << vertex_schema->property_names[i] <<
+ * std::endl;
+ * }
+ * @endcode
+ *
+ * @see EdgeSchema For edge type schema
+ * @see Schema For complete graph schema management
+ *
+ * @since v0.1.0
+ */
 struct VertexSchema {
   VertexSchema() = default;
+
+  /**
+   * @brief Construct a VertexSchema with all properties.
+   *
+   * @param label_name_ Name of the vertex label
+   * @param property_types_ Data types for each property
+   * @param property_names_ Names for each property
+   * @param primary_keys_ Primary key specification (type, name, index)
+   * @param storage_strategies_ Storage strategy for each property
+   * @param default_property_values_ Default values for properties
+   * @param property_extra_infos_ Additional type information (e.g., varchar max
+   * length)
+   * @param description_ Human-readable description
+   * @param max_num_ Maximum number of vertices of this type
+   *
+   * @since v0.1.0
+   */
   VertexSchema(const std::string& label_name_,
                const std::vector<DataTypeId>& property_types_,
                const std::vector<std::string>& property_names_,
@@ -155,8 +201,62 @@ struct VertexSchema {
   friend class Schema;
 };
 
+/**
+ * @brief Schema definition for an edge type (relationship).
+ *
+ * EdgeSchema defines an edge type connecting source and destination
+ * vertex types. It includes:
+ * - Edge label name and endpoints (src -> dst)
+ * - Property definitions
+ * - Edge storage strategies (for both directions)
+ * - Mutability settings
+ *
+ * **Edge Strategies:**
+ * - `kMultiple`: Multiple edges allowed between same vertex pair
+ * - `kSingle`: At most one edge between same vertex pair
+ * - `kNone`: No edges stored in this direction
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get edge schema
+ * const neug::Schema& schema = graph.schema();
+ * label_t person = schema.get_vertex_label_id("Person");
+ * label_t knows = schema.get_edge_label_id("KNOWS");
+ * auto edge_schema = schema.get_edge_schema(person, person, knows);
+ *
+ * // Access edge schema info
+ * std::cout << edge_schema->src_label_name << " -> "
+ *           << edge_schema->dst_label_name << std::endl;
+ * @endcode
+ *
+ * @see VertexSchema For vertex type schema
+ * @see Schema For complete graph schema management
+ *
+ * @since v0.1.0
+ */
 struct EdgeSchema {
   EdgeSchema() = default;
+
+  /**
+   * @brief Construct an EdgeSchema with full configuration.
+   *
+   * @param src_label_name_ Source vertex type name
+   * @param dst_label_name_ Destination vertex type name
+   * @param edge_label_name_ Edge label name
+   * @param sort_on_compaction_ Sort edges during compaction
+   * @param description_ Human-readable description
+   * @param ie_mutable_ Incoming edges can be modified
+   * @param oe_mutable_ Outgoing edges can be modified
+   * @param oe_strategy_ Outgoing edge storage strategy
+   * @param ie_strategy_ Incoming edge storage strategy
+   * @param properties_ Data types for edge properties
+   * @param property_names_ Names for edge properties
+   * @param strategies_ Storage strategy for each property
+   * @param default_property_values_ Default values for properties
+   * @param property_extra_infos_ Additional type information
+   *
+   * @since v0.1.0
+   */
   EdgeSchema(const std::string& src_label_name_,
              const std::string& dst_label_name_,
              const std::string& edge_label_name_, bool sort_on_compaction_,
@@ -253,10 +353,70 @@ struct EdgeSchema {
   friend class Schema;
 };
 
+/**
+ * @brief Graph schema manager for vertex and edge type definitions.
+ *
+ * Schema manages the complete type system for a property graph, including:
+ * - Vertex types (labels) with properties and primary keys
+ * - Edge types with source/destination types and properties
+ * - Type lookups and validation
+ * - Serialization to/from YAML format
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Access schema from PropertyGraph
+ * const neug::Schema& schema = graph.schema();
+ *
+ * // Get vertex type information
+ * if (schema.contains_vertex_label("Person")) {
+ *     label_t person_id = schema.get_vertex_label_id("Person");
+ *     auto props = schema.get_vertex_properties(person_id);
+ *     auto names = schema.get_vertex_property_names(person_id);
+ * }
+ *
+ * // Check edge type existence
+ * if (schema.exist("Person", "Person", "KNOWS")) {
+ *     auto edge_props = schema.get_edge_properties("Person", "Person",
+ * "KNOWS");
+ * }
+ *
+ * // Load schema from YAML file
+ * auto result = neug::Schema::LoadFromYaml("/path/to/schema.yaml");
+ * if (result.has_value()) {
+ *     neug::Schema schema = result.value();
+ * }
+ * @endcode
+ *
+ * **Schema File Format (YAML):**
+ * @code{.yaml}
+ * graph:
+ *   vertex_types:
+ *     - type_name: Person
+ *       properties:
+ *         - property_name: id
+ *           property_type: INT64
+ *         - property_name: name
+ *           property_type: VARCHAR
+ *       primary_keys: [id]
+ *   edge_types:
+ *     - type_name: KNOWS
+ *       src_type: Person
+ *       dst_type: Person
+ * @endcode
+ *
+ * @note Schema is immutable during query execution.
+ * @note Use DDL operations (CREATE, DROP) to modify schema.
+ *
+ * @see VertexSchema For vertex type details
+ * @see EdgeSchema For edge type details
+ *
+ * @since v0.1.0
+ */
 class Schema {
  public:
-  // How many built-in plugins are there.
-  // Currently only one builtin plugin, SERVER_APP is supported.
+  /// @name Plugin ID Constants
+  /// @{
+  /// Number of reserved built-in plugins
   static constexpr uint8_t RESERVED_PLUGIN_NUM = 1;
   static constexpr uint8_t MAX_PLUGIN_ID = 245;
   static constexpr uint8_t DDL_PLUGIN_ID = 254;
@@ -285,6 +445,16 @@ class Schema {
 
   bool Empty() const {
     return vlabel_indexer_.empty() && elabel_indexer_.empty();
+  }
+
+  inline const std::vector<std::shared_ptr<VertexSchema>>&
+  get_all_vertex_schemas() const {
+    return v_schemas_;
+  }
+
+  inline const std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>>&
+  get_all_edge_schemas() const {
+    return e_schemas_;
   }
 
   std::shared_ptr<const VertexSchema> get_vertex_schema(label_t label) const {
@@ -638,11 +808,6 @@ class Schema {
    */
   Schema Compact() const;
 
-  // We use shared_ptr to ensure the pointer to VertexSchema will not change
-  // when resizing
-  std::vector<std::shared_ptr<VertexSchema>> v_schemas_;
-  std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>> e_schemas_;
-
  private:
   // Internal methods that do not check tombstone
   label_t get_vertex_label_id_internal(const std::string& label) const;
@@ -656,7 +821,10 @@ class Schema {
   std::string name_, id_;
   IdIndexer<std::string, label_t> vlabel_indexer_;
   IdIndexer<std::string, label_t> elabel_indexer_;
-  
+  // We use shared_ptr to ensure the pointer to VertexSchema will not change
+  // when resizing
+  std::vector<std::shared_ptr<VertexSchema>> v_schemas_;
+  std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>> e_schemas_;
 
   std::string description_;
 

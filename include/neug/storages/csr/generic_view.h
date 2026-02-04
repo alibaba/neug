@@ -21,16 +21,71 @@
 
 namespace neug {
 
+/**
+ * @brief Configuration for neighbor iteration in CSR storage.
+ *
+ * NbrIterConfig defines the memory layout parameters for iterating over
+ * edges in CSR (Compressed Sparse Row) format. It uses bit fields for
+ * compact storage.
+ *
+ * @note This is an internal implementation detail. Users typically don't
+ *       need to interact with this directly.
+ *
+ * @since v0.1.0
+ */
 struct NbrIterConfig {
-  int stride : 16;
-  int ts_offset : 8;
-  int data_offset : 8;
+  int stride : 16;      ///< Byte stride between neighbor entries
+  int ts_offset : 8;    ///< Byte offset to timestamp field (0 if immutable)
+  int data_offset : 8;  ///< Byte offset to edge data field
 };
 
+/**
+ * @brief Iterator for traversing neighbors (edges) in CSR storage.
+ *
+ * NbrIterator provides efficient iteration over edges connected to a vertex.
+ * It supports MVCC (Multi-Version Concurrency Control) by automatically
+ * filtering edges based on timestamp visibility.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get edges from a GenericView
+ * GenericView view = graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label, ts);
+ * NbrList edges = view.get_edges(vertex_id);
+ *
+ * // Iterate over neighbors
+ * for (NbrIterator it = edges.begin(); it != edges.end(); ++it) {
+ *     vid_t neighbor = *it;           // Get neighbor vertex ID
+ *     vid_t neighbor2 = it.get_vertex();  // Alternative way
+ *
+ *     // Access edge data (if any)
+ *     const void* data_ptr = it.get_data_ptr();
+ * }
+ * @endcode
+ *
+ * **MVCC Semantics:**
+ * - Only edges with `timestamp <= read_timestamp` are visible
+ * - Invisible edges are automatically skipped during iteration
+ *
+ * @note This is a low-level iterator. For query execution, use Cypher queries
+ *       through Connection::Query() which handles iteration internally.
+ *
+ * @see NbrList For the container that provides begin()/end() iterators
+ * @see GenericView For obtaining edge lists
+ *
+ * @since v0.1.0
+ */
 struct NbrIterator {
   NbrIterator() = default;
   ~NbrIterator() = default;
 
+  /**
+   * @brief Initialize iterator with range and visibility settings.
+   *
+   * @param ptr Start pointer of neighbor data
+   * @param end End pointer of neighbor data  
+   * @param cfg Memory layout configuration
+   * @param timestamp Read timestamp for MVCC visibility
+   */
   void init(const void* ptr, const void* end, NbrIterConfig cfg,
             timestamp_t timestamp) {
     cur = ptr;
@@ -43,8 +98,10 @@ struct NbrIterator {
     }
   }
 
+  /** @brief Dereference to get neighbor vertex ID. */
   inline vid_t operator*() const { return get_vertex(); }
 
+  /** @brief Advance to next visible neighbor. */
   __attribute__((always_inline)) NbrIterator& operator++() {
     cur = static_cast<const char*>(cur) + cfg.stride;
     while (cur != end && get_timestamp() > timestamp) {
@@ -53,6 +110,7 @@ struct NbrIterator {
     return *this;
   }
 
+  /** @brief Advance by n positions. */
   __attribute__((always_inline)) NbrIterator& operator+=(size_t n) {
     for (size_t i = 0; i < n; ++i) {
       ++(*this);
@@ -68,21 +126,26 @@ struct NbrIterator {
     return (cur != rhs.cur);
   }
 
+  /** @brief Get the timestamp of current edge. */
   inline timestamp_t get_timestamp() const {
     return *(reinterpret_cast<const timestamp_t*>(
         static_cast<const char*>(cur) + cfg.ts_offset));
   }
 
+  /** @brief Get the neighbor (destination) vertex ID. */
   inline vid_t get_vertex() const {
     return *reinterpret_cast<const vid_t*>(cur);
   }
 
+  /** @brief Get pointer to edge property data. */
   inline const void* get_data_ptr() const {
     return static_cast<const char*>(cur) + cfg.data_offset;
   }
 
+  /** @brief Get raw pointer to neighbor entry. */
   inline const void* get_nbr_ptr() const { return cur; }
 
+  /** @brief Get pointer to timestamp field (nullptr if immutable). */
   inline const timestamp_t* get_timestamp_ptr() const {
     return cfg.ts_offset == 0
                ? nullptr
@@ -90,47 +153,127 @@ struct NbrIterator {
                      static_cast<const char*>(cur) + cfg.ts_offset);
   }
 
-  const void* cur;
-  const void* end;
-  NbrIterConfig cfg;
-  timestamp_t timestamp;
+  const void* cur;         ///< Current position pointer
+  const void* end;         ///< End position pointer
+  NbrIterConfig cfg;       ///< Memory layout configuration
+  timestamp_t timestamp;   ///< Read timestamp for visibility
 };
 
 static_assert(std::is_pod<NbrIterator>::value, "NbrIterator should be POD");
+
+/**
+ * @brief Container representing a list of neighbor edges for a vertex.
+ *
+ * NbrList provides an STL-compatible interface for iterating over edges
+ * connected to a specific vertex. It is returned by GenericView::get_edges().
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get outgoing edges for vertex v
+ * GenericView view = graph.GetGenericOutgoingGraphView(
+ *     src_label, dst_label, edge_label, timestamp);
+ * NbrList neighbors = view.get_edges(v);
+ *
+ * // Check if vertex has no outgoing edges
+ * if (neighbors.empty()) {
+ *     std::cout << "No neighbors" << std::endl;
+ *     return;
+ * }
+ *
+ * // Iterate with range-based for
+ * for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
+ *     vid_t neighbor_id = *it;
+ *     // Process neighbor...
+ * }
+ * @endcode
+ *
+ * @see NbrIterator For iterator operations
+ * @see GenericView::get_edges For obtaining NbrList
+ *
+ * @since v0.1.0
+ */
 struct NbrList {
   NbrList() = default;
   ~NbrList() = default;
 
+  /** @brief Get iterator to first visible neighbor. */
   __attribute__((always_inline)) NbrIterator begin() const {
     NbrIterator it;
     it.init(start_ptr, end_ptr, cfg, timestamp);
     return it;
   }
+
+  /** @brief Get iterator to past-the-end position. */
   __attribute__((always_inline)) NbrIterator end() const {
     NbrIterator it;
     it.init(end_ptr, end_ptr, cfg, timestamp);
     return it;
   }
 
+  /** @brief Check if neighbor list is empty. */
   bool empty() const { return start_ptr == end_ptr; }
 
-  const void* start_ptr;
-  const void* end_ptr;
-  NbrIterConfig cfg;
-  timestamp_t timestamp;
+  const void* start_ptr;   ///< Start of neighbor data
+  const void* end_ptr;     ///< End of neighbor data
+  NbrIterConfig cfg;       ///< Memory layout configuration
+  timestamp_t timestamp;   ///< Read timestamp for MVCC
 };
 
 static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
 
+/**
+ * @brief Accessor for reading and writing edge property data.
+ *
+ * EdgeDataAccessor provides unified access to edge properties regardless
+ * of the underlying storage format. Edges can store properties in two ways:
+ * - **Bundled**: Property data stored inline with edge structure
+ * - **Column-based**: Property data stored in separate column storage
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get edge data accessor for a property
+ * EdgeDataAccessor accessor = graph.GetEdgeDataAccessor(
+ *     src_label, dst_label, edge_label, "weight");
+ *
+ * // Get edges and access their properties
+ * GenericView view = graph.GetGenericOutgoingGraphView(...);
+ * NbrList edges = view.get_edges(v);
+ *
+ * for (auto it = edges.begin(); it != edges.end(); ++it) {
+ *     // Get property as generic Property type
+ *     Property prop = accessor.get_data(it);
+ *
+ *     // Or get as typed value (faster if type is known)
+ *     double weight = accessor.get_typed_data<double>(it);
+ * }
+ * @endcode
+ *
+ * @see PropertyGraph::GetEdgeDataAccessor For obtaining accessors
+ * @see NbrIterator For edge iteration
+ *
+ * @since v0.1.0
+ */
 struct EdgeDataAccessor {
   EdgeDataAccessor() : data_type_(DataTypeId::kEmpty), data_column_(nullptr) {}
+
+  /**
+   * @brief Construct accessor with data type and optional column storage.
+   * @param data_type The data type of the edge property
+   * @param data_column Pointer to column storage (nullptr for bundled data)
+   */
   EdgeDataAccessor(DataTypeId data_type, ColumnBase* data_column)
       : data_type_(data_type), data_column_(data_column) {}
   EdgeDataAccessor(const EdgeDataAccessor& other)
       : data_type_(other.data_type_), data_column_(other.data_column_) {}
 
+  /** @brief Check if data is stored inline (bundled) vs column storage. */
   bool is_bundled() const { return data_column_ == nullptr; }
 
+  /**
+   * @brief Get property value for current edge as generic Property.
+   * @param it Iterator pointing to the edge
+   * @return Property containing the edge data
+   */
   inline Property get_data(const NbrIterator& it) const {
     return data_column_ == nullptr
                ? get_generic_bundled_data_from_ptr(it.get_data_ptr())
@@ -332,7 +475,58 @@ struct TypedView<T, CsrViewType::kMultipleMutable> {
   timestamp_t unsorted_since;
 };
 
+/**
+ * @brief Generic view for graph traversal in CSR format.
+ *
+ * GenericView provides efficient access to edges stored in CSR (Compressed
+ * Sparse Row) format. It supports both outgoing and incoming edge traversal
+ * with MVCC (Multi-Version Concurrency Control) for transactional consistency.
+ *
+ * **Usage Example:**
+ * @code{.cpp}
+ * // Get outgoing edges view
+ * GenericView out_view = graph.GetGenericOutgoingGraphView(
+ *     person_label,    // source vertex label
+ *     person_label,    // neighbor vertex label
+ *     knows_label,     // edge label
+ *     read_timestamp   // MVCC read timestamp
+ * );
+ *
+ * // Get incoming edges view
+ * GenericView in_view = graph.GetGenericIncomingGraphView(
+ *     person_label, person_label, knows_label, read_timestamp);
+ *
+ * // Traverse outgoing edges from vertex v
+ * NbrList neighbors = out_view.get_edges(v);
+ * for (auto it = neighbors.begin(); it != neighbors.end(); ++it) {
+ *     vid_t neighbor_id = *it;
+ *     std::cout << "Edge: " << v << " -> " << neighbor_id << std::endl;
+ * }
+ * @endcode
+ *
+ * **CSR View Types:**
+ * - `kSingleMutable`: At most one edge per vertex pair, with timestamps
+ * - `kSingleImmutable`: At most one edge per vertex pair, no timestamps
+ * - `kMultipleMutable`: Multiple edges per vertex pair, with timestamps
+ * - `kMultipleImmutable`: Multiple edges per vertex pair, no timestamps
+ *
+ * **Performance Notes:**
+ * - GenericView is a lightweight wrapper (no memory allocation)
+ * - get_edges() returns a NbrList for efficient iteration
+ * - Use typed views (get_typed_view) for additional optimizations
+ *
+ * @note Obtain GenericView from PropertyGraph or StorageReadInterface.
+ * @note Views are read-only and snapshot-based (MVCC).
+ *
+ * @see PropertyGraph::GetGenericOutgoingGraphView
+ * @see PropertyGraph::GetGenericIncomingGraphView
+ * @see NbrList For iterating over edges
+ * @see EdgeDataAccessor For accessing edge properties
+ *
+ * @since v0.1.0
+ */
 struct GenericView {
+  /** @brief Default constructor creating an empty view. */
   GenericView()
       : adjlists_(nullptr),
         degrees_(nullptr),
@@ -340,6 +534,15 @@ struct GenericView {
         timestamp_(0),
         unsorted_since_(0) {}
 
+  /**
+   * @brief Construct a GenericView for multiple-edge CSR.
+   *
+   * @param adjlists Pointer to adjacency list data
+   * @param degrees Pointer to degree array (edges per vertex)
+   * @param cfg Memory layout configuration
+   * @param timestamp Read timestamp for MVCC visibility
+   * @param unsorted_since Timestamp since edges may be unsorted
+   */
   GenericView(const char* adjlists, const int* degrees, NbrIterConfig cfg,
               timestamp_t timestamp, timestamp_t unsorted_since)
       : adjlists_(adjlists),
@@ -348,6 +551,14 @@ struct GenericView {
         timestamp_(timestamp),
         unsorted_since_(unsorted_since) {}
 
+  /**
+   * @brief Construct a GenericView for single-edge CSR.
+   *
+   * @param adjlists Pointer to adjacency list data
+   * @param cfg Memory layout configuration
+   * @param timestamp Read timestamp for MVCC visibility
+   * @param unsorted_since Timestamp since edges may be unsorted
+   */
   GenericView(const char* adjlists, NbrIterConfig cfg, timestamp_t timestamp,
               timestamp_t unsorted_since)
       : adjlists_(adjlists),
@@ -356,6 +567,11 @@ struct GenericView {
         timestamp_(timestamp),
         unsorted_since_(unsorted_since) {}
 
+  /**
+   * @brief Get the CSR view type.
+   *
+   * @return CsrViewType indicating single/multiple and mutable/immutable
+   */
   CsrViewType type() const {
     if (degrees_ == nullptr) {
       if (cfg_.ts_offset != 0) {
@@ -372,6 +588,19 @@ struct GenericView {
     }
   }
 
+  /**
+   * @brief Get edges (neighbors) for a specific vertex.
+   *
+   * Returns a NbrList containing all visible edges from the specified
+   * vertex. The returned list respects MVCC visibility based on the
+   * view's read timestamp.
+   *
+   * @param v Source vertex internal ID (vid_t)
+   * @return NbrList for iterating over neighbor edges
+   *
+   * @note This is the primary method for graph traversal.
+   * @note Empty NbrList is returned if vertex has no edges.
+   */
   __attribute__((always_inline)) NbrList get_edges(vid_t v) const {
     NbrList ret;
     if (degrees_ == nullptr) {

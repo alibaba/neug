@@ -150,3 +150,12 @@ Bob|2|30|5.1
 Carol|1|45|5.0
 Dan|2|20|4.8
 Elizabeth|1|20|4.7
+
+-LOG PrimaryKeyDistinct
+-STATEMENT MATCH (a:person) RETURN DISTINCT a.id, a.fName, a.gender limit 5;
+---- 5
+0|Alice|1
+2|Bob|2
+3|Carol|1
+5|Dan|2
+7|Elizabeth|1

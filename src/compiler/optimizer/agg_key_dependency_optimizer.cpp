@@ -54,10 +54,7 @@ void AggKeyDependencyOptimizer::visitAggregate(planner::LogicalOperator* op) {
 }
 
 void AggKeyDependencyOptimizer::visitDistinct(planner::LogicalOperator* op) {
-  auto distinct = (LogicalDistinct*) op;
-  auto [keys, dependentKeys] = resolveKeysAndDependentKeys(distinct->getKeys());
-  distinct->setKeys(keys);
-  distinct->setPayloads(dependentKeys);
+  // remove optimizations for distinct primary keys
 }
 
 std::pair<binder::expression_vector, binder::expression_vector>

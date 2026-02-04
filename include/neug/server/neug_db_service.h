@@ -37,18 +37,56 @@
 namespace neug {
 
 /**
- * @brief NeuG database HTTP service wrapper
+ * @brief NeuG database HTTP service for high-throughput scenarios.
  *
- * NeugDBService provides an HTTP interface layer for the NeuG graph database.
- * It manages the lifecycle of a BRPC-based HTTP server that handles Cypher
- * queries, service status requests, and schema queries through RESTful
- * endpoints.
+ * NeugDBService provides an HTTP interface layer for the NeuG graph database,
+ * enabling remote query execution over HTTP. It manages the lifecycle of a
+ * BRPC-based HTTP server that handles Cypher queries, service status requests,
+ * and schema queries through RESTful endpoints.
  *
- * The service configuration is typically read from interactive_config.yaml and
- * contains settings for ports, sharding, logging, and other server options.
+ * This is the C++ equivalent of Python's `Database.serve()` functionality,
+ * designed for high-throughput Transaction Processing (TP) scenarios where
+ * multiple clients need concurrent access to the database.
  *
- * @note This class wraps around the core NeugDB instance and provides HTTP
- * access
+ * **Usage Example:**
+ * @code{.cpp}
+ * #include <neug/main/neug_db.h>
+ * #include <neug/server/neug_db_service.h>
+ *
+ * int main() {
+ *   // 1. Open the database
+ *   neug::NeugDB db;
+ *   db.Open("/path/to/graph", 8);  // 8 threads
+ *
+ *   // 2. Create and configure service
+ *   neug::ServiceConfig config;
+ *   config.query_port = 10000;
+ *   config.host_str = "0.0.0.0";
+ *
+ *   // 3. Start HTTP service
+ *   neug::NeugDBService service(db, config);
+ *   std::string url = service.Start();
+ *   std::cout << "Service running at: " << url << std::endl;
+ *
+ *   // 4. Block until shutdown signal (Ctrl+C)
+ *   service.run_and_wait_for_exit();
+ *
+ *   // 5. Cleanup
+ *   db.Close();
+ *   return 0;
+ * }
+ * @endcode
+ *
+ * **HTTP Endpoints:**
+ * - `POST /cypher` - Execute Cypher queries
+ * - `GET /schema` - Retrieve graph schema
+ * - `GET /status` - Check service status
+ *
+ * **Thread Safety:** All public methods are thread-safe. The service uses
+ * a SessionPool internally to handle concurrent requests efficiently.
+ *
+ * @see NeugDBSession for session-based query execution
+ * @see SessionPool for session management
  * @since v0.1.0
  */
 class NeugDBService {
@@ -117,6 +155,28 @@ class NeugDBService {
    */
   const ServiceConfig& GetServiceConfig() const;
 
+  /**
+   * @brief Acquires a session from the internal session pool.
+   *
+   * Returns a SessionGuard that automatically releases the session back
+   * to the pool when it goes out of scope. Use this for direct query
+   * execution when you need fine-grained control over session lifecycle.
+   *
+   * **Usage Example:**
+   * @code{.cpp}
+   * neug::NeugDBService service(db, config);
+   * service.Start();
+   *
+   * // Acquire session and execute query
+   * auto guard = service.AcquireSession();
+   * auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
+   *
+   * // Session automatically released when guard goes out of scope
+   * @endcode
+   *
+   * @return SessionGuard managing the acquired session
+   * @note Blocks if no session is available in the pool
+   */
   neug::SessionGuard AcquireSession();
 
   /**

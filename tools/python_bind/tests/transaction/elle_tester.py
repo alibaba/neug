@@ -53,17 +53,25 @@ class QueryTriplet:
 
 
 # 定义transaction，包含多个query以及时间戳
+# 如果是删除事务，需要额外一个temp用于提前写入需要删除的元素
 class Transaction:
     id: int
     queries: list[QueryTriplet]
     start_time: datetime
     end_time: datetime
 
+    temp_query: QueryTriplet | None
+    temp_start_time: datetime
+    temp_end_time: datetime
+
     def __init__(self, id: int, queries: list[QueryTriplet]):
         self.id = id
         self.queries = queries
         self.start_time = None
         self.end_time = None
+        self.temp_query = None
+        self.temp_start_time = None
+        self.temp_end_time = None
 
 
 # 发送单条查询，仅用于初始化
@@ -82,22 +90,41 @@ def sends(transaction: Transaction, endpoint: str):
     # 每个线程创建自己的 Connection
     session = Session.open(endpoint)
     # 随机等待，模拟并发
-    time.sleep(random.random() * 0.2)
-    transaction.start_time = datetime.now()
+    time.sleep(random.random() * 0.5)
 
     # 根据查询三元组组装cypher查询并执行
     for query in transaction.queries:
         if query.operator == "Insert":
             query_str = construct_query(query.operator, query.target, query.result[0])
+
+            transaction.start_time = datetime.now()
             session.execute(query_str)
+            transaction.end_time = datetime.now()
 
         elif query.operator == "Read":
             query_str = construct_query(query.operator, query.target, None)
 
+            transaction.start_time = datetime.now()
             result = session.execute(query_str)
+            transaction.end_time = datetime.now()
+
             query.result = [row[0] for row in result]
 
-    transaction.end_time = datetime.now()
+        elif query.operator == "Delete":
+            # 预先插入待删除的元素
+            query_str = construct_query("Insert", query.target, query.result[0])
+            transaction.temp_query = QueryTriplet("Insert", query.target, query.result)
+            transaction.temp_start_time = datetime.now()
+            session.execute(query_str)
+            transaction.temp_end_time = datetime.now()
+
+            time.sleep(random.random() * 0.1)
+
+            query_str = construct_query("Delete", query.target, query.result[0])
+
+            transaction.start_time = datetime.now()
+            session.execute(query_str)
+            transaction.end_time = datetime.now()
 
 
 # 组装cypher查询
@@ -121,6 +148,16 @@ def construct_query(operator: str, target: str, id: int | None):
             query_str = f"""
             MATCH (n: Person {{id: {start_node}}})-[k:Knows]->(m: Person {{id: {end_node}}})
             RETURN k.id;"""
+    elif operator == "Delete":
+        key = target.split("|")
+        if len(key) == 1:
+            query_str = f"""MATCH (n: Person {{id: {id}}}) DELETE n"""
+        else:
+            label, start_node, end_node = key
+            query_str = f"""
+            MATCH (n: Person {{id: {start_node}}})-[k:Knows {{id: {id}}}]->(m: Person {{id: {end_node}}}) DELETE k
+            """
+
     return query_str
 
 
@@ -190,7 +227,11 @@ class ElleTester:
     def connect_linearizability_edges(self):
         print("Final Step: linearizability edge:")
         for i in range(1, self.num_of_trans):
+            if self.transactions[i].queries[0].operator == "Delete":
+                continue
             for j in range(i + 1, self.num_of_trans + 1):
+                if self.transactions[j].queries[0].operator == "Delete":
+                    continue
                 if self.transactions[i].end_time < self.transactions[j].start_time:
                     connect(self.G, "li", i, j, False)
                 if self.transactions[j].end_time < self.transactions[i].start_time:
@@ -200,11 +241,11 @@ class ElleTester:
     def detect_cycle(self):
         try:
             cycle = nx.find_cycle(self.G, orientation="original")
-            assert False, "Cycle detected"
             print("Cycle detected")
             for u, v, d in cycle:
                 edge_type = self.G.edges[u, v].get("type")
                 print(f"edge {u}-{v}: edge_type={edge_type}")
+            assert False, "Cycle detected"
         except nx.NetworkXNoCycle:
             print("No cycle detected")
 
@@ -221,15 +262,52 @@ class ElleTester:
         # 收集所有开始和结束时间，合并后按时间排序
         all_events = []
         for i in range(1, self.num_of_trans + 1):
-            if self.transactions[i].start_time is not None:
-                all_events.append((self.transactions[i].start_time, i, "start"))
-            if self.transactions[i].end_time is not None:
-                all_events.append((self.transactions[i].end_time, i, "finish"))
+            all_events.append(
+                (
+                    self.transactions[i].start_time,
+                    i,
+                    "start",
+                    self.transactions[i].queries[0],
+                )
+            )
+            all_events.append(
+                (
+                    self.transactions[i].end_time,
+                    i,
+                    "finish",
+                    self.transactions[i].queries[0],
+                )
+            )
+            if self.transactions[i].temp_query is not None:
+                all_events.append(
+                    (
+                        self.transactions[i].temp_start_time,
+                        i,
+                        "start",
+                        self.transactions[i].temp_query,
+                    )
+                )
+                all_events.append(
+                    (
+                        self.transactions[i].temp_end_time,
+                        i,
+                        "finish",
+                        self.transactions[i].temp_query,
+                    )
+                )
         all_events.sort(key=lambda x: x[0])
 
         # 输出所有事件（开始和结束合并，按时间排序）
-        for event_time, trans_id, event_type in all_events:
-            print("Transaction", trans_id, event_type, "at:", event_time)
+        for event_time, trans_id, event_type, q in all_events:
+            print(
+                "Transaction",
+                trans_id,
+                event_type,
+                q.operator,
+                q.result,
+                "at:",
+                event_time,
+            )
 
     # 打印强连通分量（对应环）
     def print_sccs(self):

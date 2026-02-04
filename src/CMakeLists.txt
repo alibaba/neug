@@ -50,13 +50,3 @@ install_neug_target(neug_libraries)
 if (ENABLE_BACKTRACES)
     target_link_libraries(neug_libraries PUBLIC cpptrace::cpptrace)
 endif()
-if (BUILD_HTTP_SERVER)
-    find_package(absl QUIET)
-    if (absl_FOUND AND TARGET absl::log_internal_message)
-        # When protobuf is installed on macos with `brew install protobuf`, some absl symbols are not exposed correctly.
-        # https://github.com/protocolbuffers/protobuf/issues/16314
-        target_link_libraries(
-            neug_libraries PRIVATE absl::log_internal_message absl::log_internal_check_op absl::status
-        )
-    endif()
-endif()

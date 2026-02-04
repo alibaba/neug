@@ -1,9 +1,11 @@
-.. _cpp_api_reference:
-
 C++ API Reference
-==================
+=================
 
 .. toctree::
    :maxdepth: 2
+   :caption: C++ API
 
-   neug
+   neug_db
+   connection
+   query_result
+   service

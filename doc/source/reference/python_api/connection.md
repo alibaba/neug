@@ -4,7 +4,7 @@
 
 The Neug connection module.
 
-<a id="neug.connection.QueryResult"></a>
+<a id="neug.connection.Any"></a>
 
 ## Connection Objects
 
@@ -46,7 +46,9 @@ Close the connection.
 ### execute
 
 ```python
-def execute(query: str, access_mode="") -> QueryResult
+def execute(query: str,
+            access_mode="",
+            parameters: dict[str, Any] | None = None) -> QueryResult
 ```
 
 Execute a cypher query on the database. User could specify multiple queries in a single string,
@@ -84,6 +86,9 @@ database will be changed accordingly.
     >>> for record in res:
     >>>    print(record)
     >>> res = conn.execute('MATCH(p:person)-[knows]->(q:person) RETURN p.id, q.id LIMIT 10;')
+    >>> # submitting query with parameters
+    >>> res = conn.execute(
+        'MATCH (n:person) WHERE n.id = $id RETURN n.name', access_mode='r', parameters={'id': 12345})
 
 ```
 
@@ -91,13 +96,17 @@ database will be changed accordingly.
   - `query` (str)
     The query to execute.
   - `access_mode` (str)
-    The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion). User should
-    specify the correct access mode for the query to ensure the correctness of the database.
-    If the access mode is not specified, it will be set to `update` by default.
-    supported access modes are:
+    The access mode of the query. It could be `read(r)`, `insert(i)`, `update(u)` (include deletion),
+    or `schema(s)` for schema modifications. User should specify the correct access mode for the query
+    to ensure the correctness of the database. If the access mode is not specified, it will be set to
+    `update` by default. Supported access modes are:
     - `read`,`r`,`READ`,`R`: for read-only queries
     - `insert`,`i`,`INSERT`,`I`: for insert-only queries
     - `update`,`u`,`UPDATE`,`U`: for update queries (include deletion)
+    - `schema`,`s`,`SCHEMA`,`S`: for schema modification operations
+  - `parameters` (dict[str, Any] | None)
+    The parameters to be used in the query. The parameters should be a dictionary, where the keys are the
+    parameter names, and the values are the parameter values. If no parameters are needed, it can be set to None.
 
 - **Returns:**
   - `query_result` (QueryResult)
