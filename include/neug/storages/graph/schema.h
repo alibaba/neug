@@ -800,6 +800,7 @@ class Schema {
   void ensure_edge_label_valid(label_t label) const;
   void ensure_edge_triplet_valid(label_t src, label_t dst, label_t edge) const;
   label_t vertex_label_to_index(const std::string& label);
+  label_t edge_label_to_index(const std::string& label);
 
   /**
    * @brief Compact the schema by removing soft deleted labels and properties.
@@ -808,7 +809,6 @@ class Schema {
   Schema Compact() const;
 
  private:
-  label_t edge_label_to_index(const std::string& label);
   // Internal methods that do not check tombstone
   label_t get_vertex_label_id_internal(const std::string& label) const;
   label_t get_edge_label_id_internal(const std::string& label) const;
