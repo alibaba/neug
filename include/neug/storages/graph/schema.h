@@ -70,7 +70,8 @@ inline void process_default_values(
  * // Access schema information
  * std::cout << "Label: " << vertex_schema->label_name << std::endl;
  * for (size_t i = 0; i < vertex_schema->property_names.size(); ++i) {
- *     std::cout << "Property: " << vertex_schema->property_names[i] << std::endl;
+ *     std::cout << "Property: " << vertex_schema->property_names[i] <<
+ * std::endl;
  * }
  * @endcode
  *
@@ -91,7 +92,8 @@ struct VertexSchema {
    * @param primary_keys_ Primary key specification (type, name, index)
    * @param storage_strategies_ Storage strategy for each property
    * @param default_property_values_ Default values for properties
-   * @param property_extra_infos_ Additional type information (e.g., varchar max length)
+   * @param property_extra_infos_ Additional type information (e.g., varchar max
+   * length)
    * @param description_ Human-readable description
    * @param max_num_ Maximum number of vertices of this type
    *
@@ -374,7 +376,8 @@ struct EdgeSchema {
  *
  * // Check edge type existence
  * if (schema.exist("Person", "Person", "KNOWS")) {
- *     auto edge_props = schema.get_edge_properties("Person", "Person", "KNOWS");
+ *     auto edge_props = schema.get_edge_properties("Person", "Person",
+ * "KNOWS");
  * }
  *
  * // Load schema from YAML file
@@ -442,6 +445,16 @@ class Schema {
 
   bool Empty() const {
     return vlabel_indexer_.empty() && elabel_indexer_.empty();
+  }
+
+  inline const std::vector<std::shared_ptr<VertexSchema>>&
+  get_all_vertex_schemas() const {
+    return v_schemas_;
+  }
+
+  inline const std::unordered_map<uint32_t, std::shared_ptr<EdgeSchema>>&
+  get_all_edge_schemas() const {
+    return e_schemas_;
   }
 
   std::shared_ptr<const VertexSchema> get_vertex_schema(label_t label) const {
