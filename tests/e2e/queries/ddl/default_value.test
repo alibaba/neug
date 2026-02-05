@@ -182,7 +182,6 @@
 -STATEMENT MATCH (n:WithoutDefaultSTRING {id: 1}) RETURN n.p_string;
 ---- 1
 hello
--SKIP: This test case dump error
 -STATEMENT CREATE NODE TABLE WithDefaultSTRING (id INT64, p_string STRING DEFAULT "default", PRIMARY KEY (id));
 ---- ok
 -STATEMENT CREATE (n:WithDefaultSTRING {id: 0});

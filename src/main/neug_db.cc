@@ -161,7 +161,7 @@ void NeugDB::Close() {
   }
   // -----------Create checkpoint if needed----------------
   if (config_.checkpoint_on_close) {
-    createCheckpoint();
+    createCheckpoint(false, false);
   }
   graph_.Clear();
 
@@ -298,13 +298,13 @@ void NeugDB::initPlannerAndQueryProcessor() {
   global_query_cache_ = std::make_shared<runtime::GlobalQueryCache>(planner_);
 }
 
-void NeugDB::createCheckpoint(bool force_compaction) {
+void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (config_.compact_on_close || force_compaction) {
     graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                    MAX_TIMESTAMP);
   }
-  graph_.Dump();
+  graph_.Dump(reopen);
   VLOG(1) << "Finish checkpoint";
 }
 

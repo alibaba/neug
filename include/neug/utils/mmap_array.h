@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "glog/logging.h"
 #include "neug/storages/file_names.h"
@@ -427,6 +428,8 @@ class mmap_array {
 
   size_t size() const { return size_; }
 
+  bool is_sync_to_file() const { return sync_to_file_; }
+
   void swap(mmap_array<T>& rhs) {
     std::swap(filename_, rhs.filename_);
     std::swap(fd_, rhs.fd_);
@@ -506,6 +509,14 @@ class mmap_array<std::string_view> {
 
   void dump(const std::string& filename) {
     // Compact before dumping to reclaim unused space
+    auto plan = prepare_compaction_plan();
+    bool should_stream =
+        !data_.is_sync_to_file() && plan.total_size < data_.size();
+    if (should_stream) {
+      stream_compact_and_dump(plan, filename + ".data", filename + ".items");
+      return;
+    }
+
     compact();
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
@@ -555,42 +566,120 @@ class mmap_array<std::string_view> {
   // This is an in-place operation that shifts valid string data forward
   // Returns the compacted data size
   size_t compact() {
+    auto plan = prepare_compaction_plan();
     if (items_.size() == 0) {
       return 0;
     }
     size_t size_before_compact = data_.size();
-
-    size_t total_size_need = 0;
-    for (size_t i = 0; i < items_.size(); ++i) {
-      const string_item& item = items_.get(i);
-      total_size_need += item.length;
-    }
-    if (total_size_need == size_before_compact) {
+    if (plan.total_size == size_before_compact) {
       return size_before_compact;
     }
-    // from back to front to avoid overlap
-    size_t write_offset = total_size_need;
-    for (size_t i = items_.size(); i > 0; --i) {
-      const string_item& item = items_.get(i - 1);
-      assert(write_offset >= item.length);
-      write_offset -= item.length;
-      if (item.offset != write_offset) {
-        // Move data to the new offset
-        memmove(data_.data() + write_offset, data_.data() + item.offset,
-                item.length);
-        // Update offset in items_
-        items_.set(i - 1, {static_cast<uint64_t>(write_offset), item.length});
-      }
-    }
-    assert(write_offset == 0);
 
-    data_.resize(total_size_need);
-    VLOG(1) << "Compaction completed. New data size: " << total_size_need
+    std::vector<char> temp_buf(plan.total_size);
+    size_t write_offset = 0;
+    for (const auto& entry : plan.entries) {
+      const char* src = data_.data() + entry.offset;
+      char* dst = temp_buf.data() + write_offset;
+      memcpy(dst, src, entry.length);
+      items_.set(entry.index,
+                 {static_cast<uint64_t>(write_offset), entry.length});
+      write_offset += entry.length;
+    }
+    assert(write_offset == plan.total_size);
+    memcpy(data_.data(), temp_buf.data(), plan.total_size);
+
+    data_.resize(plan.total_size);
+    VLOG(1) << "Compaction completed. New data size: " << plan.total_size
             << ", old data size: " << size_before_compact;
-    return total_size_need;
+    return plan.total_size;
   }
 
  private:
+  struct CompactionPlan {
+    struct Entry {
+      size_t index;
+      uint64_t offset;
+      uint32_t length;
+    };
+    std::vector<Entry> entries;
+    size_t total_size = 0;
+  };
+
+  CompactionPlan prepare_compaction_plan() const {
+    CompactionPlan plan;
+    plan.entries.reserve(items_.size());
+    for (size_t i = 0; i < items_.size(); ++i) {
+      const string_item& item = items_.get(i);
+      plan.total_size += item.length;
+      plan.entries.push_back({i, item.offset, item.length});
+    }
+    return plan;
+  }
+
+  void stream_compact_and_dump(const CompactionPlan& plan,
+                               const std::string& data_filename,
+                               const std::string& items_filename) {
+    size_t size_before_compact = data_.size();
+    FILE* fout = fopen(data_filename.c_str(), "wb");
+    if (fout == NULL) {
+      std::stringstream ss;
+      ss << "Failed to open file [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+
+    size_t write_offset = 0;
+    for (const auto& entry : plan.entries) {
+      if (entry.length > 0) {
+        const char* src = data_.data() + entry.offset;
+        if (fwrite(src, 1, entry.length, fout) != entry.length) {
+          std::stringstream ss;
+          ss << "Failed to fwrite file [ " << data_filename << " ], "
+             << strerror(errno);
+          LOG(ERROR) << ss.str();
+          THROW_RUNTIME_ERROR(ss.str());
+        }
+      }
+      items_.set(entry.index,
+                 {static_cast<uint64_t>(write_offset), entry.length});
+      write_offset += entry.length;
+    }
+    assert(write_offset == plan.total_size);
+
+    if (fflush(fout) != 0) {
+      std::stringstream ss;
+      ss << "Failed to fflush file [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+    if (fclose(fout) != 0) {
+      std::stringstream ss;
+      ss << "Failed to fclose file [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+
+    data_.reset();
+    std::filesystem::perms readPermission = std::filesystem::perms::owner_read;
+    std::error_code errorCode;
+    std::filesystem::permissions(data_filename, readPermission,
+                                 std::filesystem::perm_options::add, errorCode);
+    if (errorCode) {
+      std::stringstream ss;
+      ss << "Failed to set read permission for file: " << data_filename << " "
+         << errorCode.message() << std::endl;
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+
+    VLOG(1) << "Compaction completed. New data size: " << plan.total_size
+            << ", old data size: " << size_before_compact;
+    items_.dump(items_filename);
+  }
+
   mmap_array<string_item> items_;
   mmap_array<char> data_;
   bool is_writable_ = true;

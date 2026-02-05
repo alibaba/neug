@@ -303,7 +303,7 @@ class NeugDB {
    * wals to remove the tombstone type/data, otherwise the graph size will keep
    * growing.
    */
-  void createCheckpoint(bool force_compaction = false);
+  void createCheckpoint(bool force_compaction = false, bool reopen = true);
 
   friend class NeugDBSession;
   friend class neug::NeugDBService;
