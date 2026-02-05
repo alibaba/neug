@@ -7,10 +7,6 @@ set(JSON_EXTENSION_OBJECT_FILES ${JSON_EXTENSION_SOURCES})
 # Use the extension build system (should be called before add_subdirectory(test))
 build_extension_lib("json")
 
-if (${BUILD_TEST})
-    add_subdirectory(test)
-endif ()
-
 # Set include directories
 target_include_directories(neug_json_extension PRIVATE
     ${CMAKE_SOURCE_DIR}

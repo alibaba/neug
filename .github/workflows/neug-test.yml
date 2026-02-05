@@ -171,6 +171,7 @@ jobs:
         ctest -R logical_delete_test -V
         ctest -R test_connection -V
         ctest -R test_request -V 
+        ctest -R json_extension_test -V 
 
     - name: Run Python Test
       run: |
