@@ -81,6 +81,13 @@ We apply an AI-assisted **Spec-Driven** workflow inspired by [GitHub Spec-Kit](h
 
 For more details, see the [AI-Assisted Development Guide](./doc/source/development/ai_coding.md).
 
+## Acknowledgements
+
+NeuG builds upon the excellent work of the open-source community. We would like to acknowledge:
+
+- **[Kùzu](https://github.com/kuzudb/kuzu/)**: Our C++ Cypher compiler is adapted from Kùzu's implementation
+- **[DuckDB](https://duckdb.org/)**: Our runtime value system and extension framework are inspired by DuckDB's architecture
+
 ## License
 
 NeuG is distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
