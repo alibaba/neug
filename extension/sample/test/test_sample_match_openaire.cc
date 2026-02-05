@@ -546,6 +546,9 @@ int main(int argc, char* argv[]) {
         db.Close();
         return 1;
     }
+
+    std::cout << "SAMPLED_MATCH result: " << res.value().ToString() << std::endl;
+    std::cout << res.value().get_result_schema() << std::endl;
     
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

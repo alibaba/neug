@@ -20,6 +20,8 @@
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/generated/proto/plan/physical.pb.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 class Schema;
@@ -41,11 +43,7 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
 
 // Extended exec function type that receives graph interface
 using call_exec_func_t =
-    std::function<runtime::Context(const CallFuncInputBase& input)>;
-
-// New exec function type with graph access for extensions
-using call_exec_with_graph_func_t =
-    std::function<runtime::Context(IStorageInterface& graph, const CallFuncInputBase& input)>;
+    std::function<runtime::Context(const CallFuncInputBase& input, IStorageInterface& graph)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;
@@ -54,8 +52,7 @@ struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
-  call_exec_with_graph_func_t execWithGraphFunc = nullptr;  // New: exec with graph access
-
+  
   NeugCallFunction() = default;
 
   NeugCallFunction(std::string name,

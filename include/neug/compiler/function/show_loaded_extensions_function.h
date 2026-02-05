@@ -20,6 +20,7 @@
 #include <vector>
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
+#include "neug/storages/graph/graph_interface.h" 
 
 namespace neug {
 namespace function {
@@ -38,7 +39,7 @@ struct ShowLoadedExtensionsFunction {
       const ::physical::PhysicalPlan& plan, int op_idx);
 
   static neug::runtime::Context execFunc(
-      const ShowLoadedExtensionsFuncInput& input);
+      const ShowLoadedExtensionsFuncInput& input, neug::IStorageInterface& graph);
 };
 
 }  // namespace function

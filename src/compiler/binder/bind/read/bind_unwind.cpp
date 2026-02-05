@@ -79,7 +79,7 @@ std::unique_ptr<BoundReadingClause> Binder::bindUnwindClause(
   if (!skipDataTypeValidation(*boundExpression)) {
     ExpressionUtil::validateDataType(*boundExpression, LogicalTypeID::LIST);
     alias = createAlias(aliasName,
-                        ListType::getChildType(boundExpression->dataType),
+                        neug::common::ListType::getChildType(boundExpression->dataType),
                         boundExpression);
   } else {
     alias = createAlias(aliasName, LogicalType::ANY(), boundExpression);

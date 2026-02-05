@@ -439,7 +439,7 @@ struct SampledMatchFunction {
     };
     
 
-    func->execWithGraphFunc = [](IStorageInterface& graph, const CallFuncInputBase& input) 
+    func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
         -> runtime::Context {
       auto& matchInput = static_cast<const SampledMatchInput&>(input);
       
@@ -514,12 +514,12 @@ struct SampledMatchFunction {
         ctx.set(2 + v, vertexColBuilder.finish());
       }
       
-      // 设置 tag_ids，告诉系统哪些列应该输出
-      // tag_ids 包含所有需要输出的列索引: 0 (estimated_count), 1 (sample_count), 2 (v0), 3 (v1), ...
-      ctx.tag_ids.clear();
-      for (int i = 0; i < 2 + patternVertexCount; i++) {
-        ctx.tag_ids.push_back(i);
-      }
+    //   // 设置 tag_ids，告诉系统哪些列应该输出
+    //   // tag_ids 包含所有需要输出的列索引: 0 (estimated_count), 1 (sample_count), 2 (v0), 3 (v1), ...
+    //   ctx.tag_ids.clear();
+    //   for (int i = 0; i < 2 + patternVertexCount; i++) {
+    //     ctx.tag_ids.push_back(i);
+    //   }
       
       LOG(INFO) << "[SAMPLED_MATCH] Created context with " << sampleCount << " rows and " 
                 << (2 + patternVertexCount) << " columns";

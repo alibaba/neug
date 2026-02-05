@@ -40,10 +40,11 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
   };
 
   function->execFunc =
-      [](const CallFuncInputBase& input) -> neug::runtime::Context {
+      [](const CallFuncInputBase& input, neug::IStorageInterface& graph) -> neug::runtime::Context {
+    (void)graph;
     const auto& showInput =
         static_cast<const ShowLoadedExtensionsFuncInput&>(input);
-    return execFunc(showInput);
+    return execFunc(showInput, graph);
   };
 
   function_set functionSet;
@@ -60,7 +61,8 @@ ShowLoadedExtensionsFunction::bindFunc(const neug::Schema& schema,
 }
 
 neug::runtime::Context ShowLoadedExtensionsFunction::execFunc(
-    const ShowLoadedExtensionsFuncInput& input) {
+    const ShowLoadedExtensionsFuncInput& input, neug::IStorageInterface& graph) {
+  (void)graph;
   try {
     neug::runtime::Context ctx;
     const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
