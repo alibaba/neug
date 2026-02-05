@@ -13,8 +13,8 @@
 For more information on using NeuG, please refer to the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
 ## News
-- **2026-02**: We officially release NeuG v0.1.0 🎉 
-- **2025-06**: We shatter [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS for declarative queries 🎉
+- **2026-02**: We officially release NeuG v0.1
+- **2025-06**: We shatter [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS for declarative queries
 
 ## Installation
 
@@ -24,7 +24,7 @@ pip install neug
 
 Please note that `neug` requires `Python` version 3.8 or above. The package works on Linux, macOS, and Windows (via WSL2).
 
-For more detailed installation instructions, please refer to the [installation guide](./doc/source/installation/installation.md).
+For more detailed installation instructions, please refer to the [installation guide](https://graphscope.io/neug/en/installation/installation).
 
 ## Quick Example
 
@@ -54,18 +54,6 @@ db.serve(port=8080)
 # Now your application can handle concurrent users
 ```
 
-## Documentation
-
-📚 **[Official Documentation](https://graphscope.io/en/overview/introduction/)** - Comprehensive guides, tutorials, and API reference
-
-📝 **[GraphScope Blog](https://graphscope.io/blog/)** - Latest updates and technical insights
-
-You can also build the documentation locally:
-
-```bash
-cd doc && make dependencies && make html
-python3 -m http.server --directory build/html 8080
-```
 
 ## Development & Contributing
 
