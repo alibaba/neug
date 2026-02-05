@@ -439,7 +439,7 @@ struct SampledMatchFunction {
     };
     
 
-    func->execFunc = [](IStorageInterface& graph, const CallFuncInputBase& input) 
+    func->execWithGraphFunc = [](IStorageInterface& graph, const CallFuncInputBase& input) 
         -> runtime::Context {
       auto& matchInput = static_cast<const SampledMatchInput&>(input);
       
