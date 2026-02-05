@@ -15,6 +15,7 @@
 #pragma once
 
 #include "neug/config.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/server/neug_db_session.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/wal/wal.h"
@@ -26,17 +27,17 @@ namespace neug {
 class NeugDBService;
 
 struct SessionLocalContext {
-  SessionLocalContext(neug::PropertyGraph& graph_,
-                      std::shared_ptr<neug::IGraphPlanner> planner,
-                      std::shared_ptr<neug::Allocator> alloc,
-                      std::shared_ptr<neug::IVersionManager> version_manager,
-                      const std::string& work_dir, int thread_id,
-                      std::unique_ptr<neug::IWalWriter> in_logger,
-                      const neug::NeugDBConfig& config_)
+  SessionLocalContext(
+      PropertyGraph& graph_, std::shared_ptr<IGraphPlanner> planner,
+      std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+      std::shared_ptr<Allocator> alloc,
+      std::shared_ptr<IVersionManager> version_manager,
+      const std::string& work_dir, int thread_id,
+      std::unique_ptr<IWalWriter> in_logger, const NeugDBConfig& config_)
       : allocator(alloc),
         logger(std::move(in_logger)),
-        session(graph_, planner, version_manager, *alloc, *logger, config_,
-                thread_id) {
+        session(graph_, planner, global_query_cache, version_manager, *alloc,
+                *logger, config_, thread_id) {
     logger->open();
   }
   ~SessionLocalContext() {
@@ -44,11 +45,11 @@ struct SessionLocalContext {
       logger->close();
     }
   }
-  std::shared_ptr<neug::Allocator> allocator;
-  char _padding0[128 - sizeof(std::shared_ptr<neug::Allocator>)];
-  std::unique_ptr<neug::IWalWriter> logger;
-  char _padding1[4096 - sizeof(std::unique_ptr<neug::IWalWriter>) -
-                 sizeof(std::shared_ptr<neug::Allocator>) - sizeof(_padding0)];
+  std::shared_ptr<Allocator> allocator;
+  char _padding0[128 - sizeof(std::shared_ptr<Allocator>)];
+  std::unique_ptr<IWalWriter> logger;
+  char _padding1[4096 - sizeof(std::unique_ptr<IWalWriter>) -
+                 sizeof(std::shared_ptr<Allocator>) - sizeof(_padding0)];
   NeugDBSession session;
   char _padding2[(4096 - sizeof(NeugDBSession) % 4096) % 4096];
 };
@@ -139,19 +140,20 @@ class SessionGuard {
 class SessionPool {
  public:
   explicit SessionPool(
-      neug::PropertyGraph& graph, std::shared_ptr<neug::IGraphPlanner> planner,
-      std::shared_ptr<neug::IVersionManager> version_manager,
-      std::vector<std::shared_ptr<neug::Allocator>>& allocators,
-      const neug::NeugDBConfig& config, const std::string& work_dir) {
+      PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+      std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+      std::shared_ptr<IVersionManager> version_manager,
+      std::vector<std::shared_ptr<Allocator>>& allocators,
+      const NeugDBConfig& config, const std::string& work_dir) {
     session_num_ = config.thread_num;
-    auto wal_uri = neug::parse_wal_uri(config.wal_uri, work_dir);
-    neug::WalWriterFactory::Init();
+    auto wal_uri = parse_wal_uri(config.wal_uri, work_dir);
+    WalWriterFactory::Init();
     contexts_ = static_cast<SessionLocalContext*>(
         aligned_alloc(4096, sizeof(SessionLocalContext) * config.thread_num));
     for (int i = 0; i < config.thread_num; ++i) {
       new (&contexts_[i]) SessionLocalContext(
-          graph, planner, allocators[i], version_manager, work_dir, i,
-          neug::WalWriterFactory::CreateWalWriter(wal_uri, i), config);
+          graph, planner, global_query_cache, allocators[i], version_manager,
+          work_dir, i, WalWriterFactory::CreateWalWriter(wal_uri, i), config);
     }
     bthread_cond_init(&cond_, nullptr);
     bthread_mutex_init(&mutex_, nullptr);

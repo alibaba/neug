@@ -28,7 +28,6 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     const std::string& query) {
   LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
   // read access to the planner
-  std::shared_lock<std::shared_mutex> lock(planner_mutex);
 
   if (database->getCatalog() == nullptr) {
     RETURN_ERROR(
@@ -100,7 +99,6 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
 
 void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
   VLOG(1) << "[GOptPlanner] update_meta called";
-  std::unique_lock<std::shared_mutex> lock(planner_mutex);
   if (schema_yaml_node.IsNull()) {
     LOG(ERROR) << "Schema YAML node is null";
     return;
@@ -114,7 +112,6 @@ void GOptPlanner::update_meta(const YAML::Node& schema_yaml_node) {
 
 void GOptPlanner::update_statistics(const std::string& graph_statistic_json) {
   VLOG(1) << "[GOptPlanner] update_statistics called";
-  std::unique_lock<std::shared_mutex> lock(planner_mutex);
   if (graph_statistic_json.empty()) {
     LOG(ERROR) << "Graph statistics JSON is empty";
     return;
@@ -165,6 +162,10 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
 
     std::string token(query.data() + token_start, i - token_start);
 
+    if (getSchemaOpTokens().contains(token)) {
+      return AccessMode::kSchema;
+    }
+
     if (getUpdateOpTokens().contains(token)) {
       return AccessMode::kUpdate;
     }
@@ -177,8 +178,13 @@ AccessMode GOptPlanner::analyzeMode(const std::string& query) const {
 
 const common::case_insensitve_set_t& GOptPlanner::getUpdateOpTokens() const {
   static common::case_insensitve_set_t updateOps = {
-      "create",     "delete", "set",     "drop",      "alter", "copy",
-      "checkpoint", "load",   "install", "uninstall", "call"};
+      "set", "copy", "checkpoint", "load", "install", "uninstall", "call"};
   return updateOps;
+}
+
+const common::case_insensitve_set_t& GOptPlanner::getSchemaOpTokens() const {
+  static common::case_insensitve_set_t schemaOps = {"create", "delete", "drop",
+                                                    "alter", "rename"};
+  return schemaOps;
 }
 }  // namespace neug

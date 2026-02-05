@@ -30,6 +30,7 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
@@ -293,6 +294,8 @@ void NeugDB::initPlannerAndQueryProcessor() {
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       graph_, planner_, query_processor_, config_);
+
+  global_query_cache_ = std::make_shared<runtime::GlobalQueryCache>(planner_);
 }
 
 void NeugDB::createCheckpoint(bool force_compaction) {

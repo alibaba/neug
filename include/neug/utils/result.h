@@ -39,7 +39,7 @@ class Status {
 
   static Status OK();
   static Status RuntimeError(const std::string& error_msg);
-  static Status IntervalError(const std::string& error_msg);
+  static Status InternalError(const std::string& error_msg);
   static Status Unknown(const std::string& error_msg);
   inline operator bool() const { return ok(); }
 

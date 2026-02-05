@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "neug/compiler/planner/graph_planner.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/generated/proto/plan/results.pb.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
@@ -101,13 +102,13 @@ class AppManager;
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(neug::PropertyGraph& graph,
-                std::shared_ptr<neug::IGraphPlanner> planner,
-                std::shared_ptr<neug::IVersionManager> vm,
-                neug::Allocator& alloc, neug::IWalWriter& logger,
-                const neug::NeugDBConfig& config_, int thread_id)
+  NeugDBSession(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+                std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+                std::shared_ptr<IVersionManager> vm, Allocator& alloc,
+                IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
       : graph_(graph),
         planner_(planner),
+        pipeline_cache_(global_query_cache),
         version_manager_(vm),
         alloc_(alloc),
         logger_(logger),
@@ -117,17 +118,17 @@ class NeugDBSession {
         query_num_(0) {}
   ~NeugDBSession() {}
 
-  neug::ReadTransaction GetReadTransaction() const;
+  ReadTransaction GetReadTransaction() const;
 
-  neug::InsertTransaction GetInsertTransaction();
+  InsertTransaction GetInsertTransaction();
 
-  neug::UpdateTransaction GetUpdateTransaction();
+  UpdateTransaction GetUpdateTransaction();
 
-  neug::CompactTransaction GetCompactTransaction();
+  CompactTransaction GetCompactTransaction();
 
-  const neug::PropertyGraph& graph() const;
-  neug::PropertyGraph& graph();
-  const neug::Schema& schema() const;
+  const PropertyGraph& graph() const;
+  PropertyGraph& graph();
+  const Schema& schema() const;
 
   /**
    * @brief Execute a Cypher query within the session.
@@ -177,7 +178,7 @@ class NeugDBSession {
    * @param query JSON string containing query, access_mode, and parameters
    * @return Result containing CollectiveResults on success, or error status
    */
-  neug::result<results::CollectiveResults> Eval(const std::string& query);
+  result<results::CollectiveResults> Eval(const std::string& query);
 
   int SessionId() const;
 
@@ -186,12 +187,13 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  neug::PropertyGraph& graph_;
-  std::shared_ptr<neug::IGraphPlanner> planner_;
-  std::shared_ptr<neug::IVersionManager> version_manager_;
-  neug::Allocator& alloc_;
-  neug::IWalWriter& logger_;
-  const neug::NeugDBConfig& db_config_;
+  PropertyGraph& graph_;
+  std::shared_ptr<IGraphPlanner> planner_;
+  runtime::LocalQueryCache pipeline_cache_;
+  std::shared_ptr<IVersionManager> version_manager_;
+  Allocator& alloc_;
+  IWalWriter& logger_;
+  const NeugDBConfig& db_config_;
   int thread_id_;
 
   std::atomic<int64_t> eval_duration_;

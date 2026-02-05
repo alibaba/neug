@@ -48,10 +48,11 @@ class GOptPlanner : public neug::IGraphPlanner {
  private:
   std::unique_ptr<neug::main::MetadataManager> database;
   std::unique_ptr<neug::main::ClientContext> ctx;
-  std::shared_mutex planner_mutex;  // Protects access to the planner
+
  private:
   // return string pattern of update operators
   const common::case_insensitve_set_t& getUpdateOpTokens() const;
+  const common::case_insensitve_set_t& getSchemaOpTokens() const;
 };
 
 }  // namespace neug

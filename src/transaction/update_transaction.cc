@@ -138,11 +138,13 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
 
 UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
+                                     runtime::LocalQueryCache& cache,
                                      timestamp_t timestamp)
     : graph_(graph),
       alloc_(alloc),
       logger_(logger),
       vm_(vm),
+      pipeline_cache_(cache),
       timestamp_(timestamp),
       op_num_(0) {
   arc_.Resize(sizeof(WalHeader));
@@ -177,6 +179,7 @@ bool UpdateTransaction::Commit() {
   // Apply properties deletions after type deletions
   applyVertexPropDeletion();
   applyEdgePropDeletion();
+  invalidate_query_cache_if_needed();
   release();
   return true;
 }
@@ -226,6 +229,7 @@ Status UpdateTransaction::CreateVertexType(
   if (deleted_vertex_labels_.contains(label_id)) {
     deleted_vertex_labels_.erase(label_id);
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -273,6 +277,7 @@ Status UpdateTransaction::CreateEdgeType(
     deleted_edge_labels_.erase(
         std::make_tuple(src_label_id, dst_label_id, edge_label_id));
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -318,6 +323,7 @@ Status UpdateTransaction::AddVertexProperties(
       }
     }
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -372,6 +378,7 @@ Status UpdateTransaction::AddEdgeProperties(
       }
     }
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -409,6 +416,7 @@ Status UpdateTransaction::RenameVertexProperties(
                << vertex_type_name << ": " << status.ToString();
     undo_logs_.pop();
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -456,6 +464,7 @@ Status UpdateTransaction::RenameEdgeProperties(
                << status.ToString();
     undo_logs_.pop();
   }
+  schema_changed_ = true;
   return status;
 }
 
@@ -497,6 +506,7 @@ Status UpdateTransaction::DeleteVertexProperties(
   for (const auto& prop_name : delete_properties) {
     deleted_vertex_properties_[v_label].emplace(prop_name);
   }
+  schema_changed_ = true;
   return Status::OK();
 }
 
@@ -549,6 +559,7 @@ Status UpdateTransaction::DeleteEdgeProperties(
   for (const auto& prop_name : delete_properties) {
     deleted_edge_properties_[index].emplace(prop_name);
   }
+  schema_changed_ = true;
   return Status::OK();
 }
 
@@ -597,6 +608,7 @@ Status UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
       }
     }
   }
+  schema_changed_ = true;
   return Status::OK();
 }
 
@@ -644,6 +656,7 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
   // Mark the edge table as deleted in this transaction
   deleted_edge_labels_.emplace(
       std::make_tuple(src_label_id, dst_label_id, edge_label_id));
+  schema_changed_ = true;
   return Status::OK();
 }
 
@@ -1203,6 +1216,12 @@ void UpdateTransaction::applyEdgePropDeletion() {
                                 prop_names);
   }
   deleted_edge_properties_.clear();
+}
+
+void UpdateTransaction::invalidate_query_cache_if_needed() {
+  if (schema_changed_) {
+    pipeline_cache_.clearGlobalCache(graph_.schema().to_yaml().value());
+  }
 }
 
 void StorageTPUpdateInterface::CreateCheckpoint() { txn_.CreateCheckpoint(); }

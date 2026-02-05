@@ -40,7 +40,7 @@ Status Status::RuntimeError(const std::string& error_msg) {
   return Status(StatusCode::ERR_QUERY_EXECUTION, error_msg);
 }
 
-Status Status::IntervalError(const std::string& error_msg) {
+Status Status::InternalError(const std::string& error_msg) {
   return Status(StatusCode::ERR_INTERNAL_ERROR, error_msg);
 }
 

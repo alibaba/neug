@@ -23,6 +23,7 @@
 #include <thread>
 
 #include "neug/config.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -280,6 +281,10 @@ class NeugDB {
 
   inline std::shared_ptr<IGraphPlanner> GetPlanner() const { return planner_; }
 
+  inline std::shared_ptr<runtime::GlobalQueryCache> GetQueryCache() const {
+    return global_query_cache_;
+  }
+
   inline const char* Version() const { return TOSTRING(NEUG_VERSION_STRING); }
 
  private:
@@ -318,6 +323,7 @@ class NeugDB {
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;
+  std::shared_ptr<runtime::GlobalQueryCache> global_query_cache_;
 
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>

@@ -314,7 +314,34 @@ def test_delete_edges():
     session.execute("MATCH (n:Person {id: 4}) DELETE n;")
     result = session.execute("MATCH ()-[e:Knows]->() RETURN e;")
     assert len(result) == 0
+    db.stop_serving()
+    db.close()
 
+
+def test_query_cache():
+    db_dir = "/tmp/test_query_cache"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.close()
+    uri = db.serve(10004, "localhost", False)
+    time.sleep(1)
+    session = Session(uri, timeout="10s")
+    session.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    for _ in range(10):
+        session.execute("MATCH (n) return n;")
+    # expect the query has been cached for most sessions
+    session.execute("ALTER TABLE person ADD email STRING;")
+    session.execute("ALTER TABLE person DROP age;")
+    for _ in range(10):
+        session.execute("MATCH (n) return n;")
+    with pytest.raises(Exception):
+        session.execute("MATCH (n) RETURN n.age;")
+    session.close()
     db.stop_serving()
     db.close()
 
