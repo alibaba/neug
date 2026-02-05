@@ -115,7 +115,8 @@ CommonPatternReuseOptimizer::visitHashJoinReplace(
   // set distinct to guarantee the right scan node is not duplicated, distinct
   // key is the unique name of the right scan node
   auto distinctKey = std::make_shared<binder::VariableExpression>(
-      common::LogicalType::NODE(std::make_unique<common::StructTypeInfo>()),
+      common::LogicalType::NODE(std::make_unique<common::GNodeTypeInfo>(
+          std::vector<common::StructField>(), std::move(rightScanType))),
       rightScanUniqueName, rightScanUniqueName);
   // convert right scan node to expression scan, and set expression scan as the
   // child of distinct

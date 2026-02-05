@@ -135,6 +135,8 @@ class RelExpression final : public NodeOrRelExpression {
   // tables
   std::vector<common::ExtendDirection> getExtendDirections() const;
 
+  void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) override;
+
  private:
   // Start node if a directed arrow is given. Left node otherwise.
   std::shared_ptr<NodeExpression> srcNode;

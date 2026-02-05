@@ -1157,12 +1157,17 @@
           },
           {
            "type": {
-            "data_type": {
-             "array": {
-              "component_type": {
-               "primitive_type": "DT_ANY"
-              },
-              "max_length": 0
+            "list_type": {
+             "component_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 4
+                },
+                "props": []
+               }
+              ]
              }
             }
            },
@@ -1223,23 +1228,33 @@
                   "id": 8
                  },
                  "node_type": {
-                  "data_type": {
-                   "array": {
-                    "component_type": {
-                     "primitive_type": "DT_ANY"
-                    },
-                    "max_length": 0
+                  "list_type": {
+                   "component_type": {
+                    "element_opt": "VERTEX",
+                    "graph_data_type": [
+                     {
+                      "label": {
+                       "label": 4
+                      },
+                      "props": []
+                     }
+                    ]
                    }
                   }
                  }
                 },
                 "node_type": {
-                 "data_type": {
-                  "array": {
-                   "component_type": {
-                    "primitive_type": "DT_ANY"
-                   },
-                   "max_length": 0
+                 "list_type": {
+                  "component_type": {
+                   "element_opt": "VERTEX",
+                   "graph_data_type": [
+                    {
+                     "label": {
+                      "label": 4
+                     },
+                     "props": []
+                    }
+                   ]
                   }
                  }
                 }
@@ -1271,12 +1286,17 @@
           },
           {
            "type": {
-            "data_type": {
-             "array": {
-              "component_type": {
-               "primitive_type": "DT_ANY"
-              },
-              "max_length": 0
+            "list_type": {
+             "component_type": {
+              "element_opt": "VERTEX",
+              "graph_data_type": [
+               {
+                "label": {
+                 "label": 4
+                },
+                "props": []
+               }
+              ]
              }
             }
            },
@@ -1465,23 +1485,33 @@
                 "id": 8
                },
                "node_type": {
-                "data_type": {
-                 "array": {
-                  "component_type": {
-                   "primitive_type": "DT_ANY"
-                  },
-                  "max_length": 0
+                "list_type": {
+                 "component_type": {
+                  "element_opt": "VERTEX",
+                  "graph_data_type": [
+                   {
+                    "label": {
+                     "label": 4
+                    },
+                    "props": []
+                   }
+                  ]
                  }
                 }
                }
               },
               "node_type": {
-               "data_type": {
-                "array": {
-                 "component_type": {
-                  "primitive_type": "DT_ANY"
-                 },
-                 "max_length": 0
+               "list_type": {
+                "component_type": {
+                 "element_opt": "VERTEX",
+                 "graph_data_type": [
+                  {
+                   "label": {
+                    "label": 4
+                   },
+                   "props": []
+                  }
+                 ]
                 }
                }
               }

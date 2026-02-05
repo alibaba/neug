@@ -59,7 +59,7 @@ class NEUG_API NodeOrRelExpression : public Expression {
   const std::vector<catalog::TableCatalogEntry*>& getEntries() const {
     return entries;
   }
-  void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) {
+  virtual void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) {
     entries = std::move(entries_);
   }
   void addEntries(const std::vector<catalog::TableCatalogEntry*>& entries_);

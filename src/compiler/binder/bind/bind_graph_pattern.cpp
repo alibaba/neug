@@ -37,6 +37,7 @@
 #include "neug/compiler/function/gds/rec_joins.h"
 #include "neug/compiler/function/rewrite_function.h"
 #include "neug/compiler/function/schema/vector_node_rel_functions.h"
+#include "neug/compiler/gopt/g_graph_type.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/utils/exception/exception.h"
 
@@ -318,10 +319,20 @@ static std::vector<StructField> getBaseNodeStructFields() {
   return fields;
 }
 
-static std::vector<StructField> getBaseRelStructFields() {
+static std::vector<StructField> getBaseRelStructFields(
+    std::shared_ptr<NodeExpression> srcNode,
+    std::shared_ptr<NodeExpression> dstNode) {
   std::vector<StructField> fields;
-  fields.emplace_back(InternalKeyword::SRC, LogicalType::INTERNAL_ID());
-  fields.emplace_back(InternalKeyword::DST, LogicalType::INTERNAL_ID());
+  if (srcNode) {
+    fields.emplace_back(InternalKeyword::SRC, srcNode->getDataType().copy());
+  } else {
+    fields.emplace_back(InternalKeyword::SRC, LogicalType::INTERNAL_ID());
+  }
+  if (dstNode) {
+    fields.emplace_back(InternalKeyword::DST, dstNode->getDataType().copy());
+  } else {
+    fields.emplace_back(InternalKeyword::DST, LogicalType::INTERNAL_ID());
+  }
   fields.emplace_back(InternalKeyword::LABEL, LogicalType::STRING());
   return fields;
 }
@@ -333,8 +344,8 @@ std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
     std::shared_ptr<NodeExpression> dstNode, RelDirectionType directionType) {
   auto queryRel = make_shared<RelExpression>(
       LogicalType(LogicalTypeID::REL), getUniqueExpressionName(parsedName),
-      parsedName, entries, std::move(srcNode), std::move(dstNode),
-      directionType, QueryRelType::NON_RECURSIVE);
+      parsedName, entries, srcNode, dstNode, directionType,
+      QueryRelType::NON_RECURSIVE);
   if (directionType == RelDirectionType::BOTH) {
     queryRel->setDirectionExpr(expressionBinder.createVariableExpression(
         LogicalType::BOOL(),
@@ -347,13 +358,19 @@ std::shared_ptr<RelExpression> Binder::createNonRecursiveQueryRel(
       clientContext, &expressionBinder, {queryRel});
   queryRel->setLabelExpression(function::LabelFunction::rewriteFunc(input));
   // Bind properties.
-  auto fields = getBaseRelStructFields();
+  auto fields = getBaseRelStructFields(srcNode, dstNode);
   for (auto& expression : queryRel->getPropertyExprsRef()) {
     auto& property = expression->constCast<PropertyExpression>();
     fields.emplace_back(property.getPropertyName(),
                         property.getDataType().copy());
   }
-  auto extraInfo = std::make_unique<common::StructTypeInfo>(std::move(fields));
+  std::vector<catalog::GRelTableCatalogEntry*> relEntries;
+  for (auto& entry : entries) {
+    relEntries.emplace_back(entry->ptrCast<GRelTableCatalogEntry>());
+  }
+  auto relType = std::make_unique<gopt::GRelType>(relEntries);
+  auto extraInfo = std::make_unique<common::GRelTypeInfo>(std::move(fields),
+                                                          std::move(relType));
   queryRel->setExtraTypeInfo(std::move(extraInfo));
   return queryRel;
 }
@@ -416,27 +433,17 @@ std::shared_ptr<RelExpression> Binder::createRecursiveQueryRel(
       recursivePatternInfo->nodeName,
       std::vector<TableCatalogEntry*>{entrySet.begin(), entrySet.end()});
   addToScope(node->toString(), node);
-  auto nodeFields = getBaseNodeStructFields();
   auto nodeProjectionList =
       bindRecursivePatternNodeProjectionList(*recursivePatternInfo, *node);
-  bindProjectionListAsStructField(nodeProjectionList, nodeFields);
-  node->setExtraTypeInfo(
-      std::make_unique<common::StructTypeInfo>(std::move(nodeFields)));
   auto nodeCopy = createQueryNode(
       recursivePatternInfo->nodeName,
       std::vector<TableCatalogEntry*>{entrySet.begin(), entrySet.end()});
   // Bind intermediate rel
   auto rel = createNonRecursiveQueryRel(recursivePatternInfo->relName, entries,
-                                        nullptr /* srcNode */,
-                                        nullptr /* dstNode */, directionType);
+                                        srcNode, dstNode, directionType);
   addToScope(rel->toString(), rel);
   auto relProjectionList =
       bindRecursivePatternRelProjectionList(*recursivePatternInfo, *rel);
-  auto relFields = getBaseRelStructFields();
-  relFields.emplace_back(InternalKeyword::ID, LogicalType::INTERNAL_ID());
-  bindProjectionListAsStructField(relProjectionList, relFields);
-  rel->setExtraTypeInfo(
-      std::make_unique<common::StructTypeInfo>(std::move(relFields)));
   // Bind predicates in {}, e.g. [e* {date=1999-01-01}]
   std::shared_ptr<Expression> relPredicate = nullptr;
   for (auto& [propertyName, rhs] : relPattern.getPropertyKeyVals()) {
@@ -713,8 +720,13 @@ std::shared_ptr<NodeExpression> Binder::createQueryNode(
     structFields.emplace_back(property->getPropertyName(),
                               property->getDataType().copy());
   }
-  auto extraInfo =
-      std::make_unique<common::StructTypeInfo>(std::move(structFields));
+  std::vector<catalog::NodeTableCatalogEntry*> nodeEntries;
+  for (auto& entry : entries) {
+    nodeEntries.emplace_back(entry->ptrCast<catalog::NodeTableCatalogEntry>());
+  }
+  auto nodeType = std::make_unique<gopt::GNodeType>(nodeEntries);
+  auto extraInfo = std::make_unique<common::GNodeTypeInfo>(
+      std::move(structFields), std::move(nodeType));
   queryNode->setExtraTypeInfo(std::move(extraInfo));
   return queryNode;
 }

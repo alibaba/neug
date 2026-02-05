@@ -25,7 +25,10 @@
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/table_catalog_entry.h"
 #include "neug/compiler/common/enums/extend_direction_util.h"
+#include "neug/compiler/common/types/types.h"
 #include "neug/compiler/common/utils.h"
+#include "neug/compiler/gopt/g_graph_type.h"
+#include "neug/compiler/gopt/g_rel_table_entry.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::common;
@@ -87,6 +90,25 @@ std::vector<common::ExtendDirection> RelExpression::getExtendDirections()
         toString()));
   }
   return ret;
+}
+
+void RelExpression::setEntries(
+    std::vector<catalog::TableCatalogEntry*> entries_) {
+  entries = std::move(entries_);
+  auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
+  auto relTypeInfo = dynamic_cast<common::GRelTypeInfo*>(extraTypeInfo);
+  if (!relTypeInfo) {
+    return;
+  }
+  // update rel labels using new entries
+  std::vector<catalog::GRelTableCatalogEntry*> relEntries;
+  for (auto& entry : entries) {
+    relEntries.emplace_back(entry->ptrCast<catalog::GRelTableCatalogEntry>());
+  }
+  auto relType = relTypeInfo->getRelType();
+  if (relType) {
+    relType->setRelTables(std::move(relEntries));
+  }
 }
 
 }  // namespace binder
