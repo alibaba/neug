@@ -12,5 +12,6 @@
 
 2. Module 2: Read/Insert/Delete并发依赖关系检测 (优先级: P2)
    - [F003-T201] Read/Insert/Delete并发单查询事务基础测试
-   - [F003-T202] Read/Insert/Delete并发多查询事务复杂测试
+   - [F003-T202] Read/Delete重叠依赖判定
+   - [F003-T203] Read/Insert/Delete并发多查询事务复杂测试
 

@@ -116,6 +116,46 @@ class ElleTesterDelete(elle.ElleTester):
                 for id_2 in dependency.ids[succ_read_id]:
                     elle.connect(self.G, "dr", self.track_id[del_x] + 10000, id_2)
 
+    def solve_overlap_results(self, results):
+        # 解决read和delete操作的时间重叠时，可能存在的先后依赖关系
+        for i in range(len(results)):
+            if results[i].queries[0].operator == "Delete":
+                delete_id = results[i].queries[0].result[0]
+                head = []
+                tail = []
+                # 向后查找，直到另一个Delete操作
+                j = i + 1
+                while j < len(results):
+                    if results[j].queries[0].operator == "Delete":
+                        break
+                    # 如果产生重叠并且存在delete结果，放到head中，否则放到tail中
+                    if (
+                        results[j].queries[0].operator == "Read"
+                        and results[j].start_time < results[i].end_time
+                        and delete_id in results[j].queries[0].result
+                    ):
+                        head.append(results[j])
+                        print("SWAP:")
+                        print(
+                            results[i].id,
+                            results[i].queries[0].operator,
+                            results[i].queries[0].result,
+                            results[i].start_time,
+                            results[i].end_time,
+                        )
+                        print(
+                            results[j].id,
+                            results[j].queries[0].operator,
+                            results[j].queries[0].result,
+                            results[j].start_time,
+                            results[j].end_time,
+                        )
+                    else:
+                        tail.append(results[j])
+                    j += 1
+                # 将head列表-result-i-tail列表合并，放回原来的位置
+                results[i:j] = head + [results[i]] + tail
+
     # 将read的结果排序合并
     def grouping_results(
         self,
@@ -150,6 +190,7 @@ class ElleTesterDelete(elle.ElleTester):
 
             # Step 2.1: 对结果根据时间戳排序
             sorted_results = sorted(results, key=lambda t: t.end_time)
+            self.solve_overlap_results(sorted_results)
 
             # Step 2.2: 根据delete结果分块
             dependency = ReadDependency()
