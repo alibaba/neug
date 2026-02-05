@@ -165,6 +165,24 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
   return DataType(DataTypeId::kUnknown);
 }
 
+DataType parse_graph_data_type_from_ir_data_type(
+    const ::common::GraphDataType& gdt) {
+  switch (gdt.element_opt()) {
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_VERTEX:
+    return DataType(DataTypeId::kVertex);
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_EDGE:
+    return DataType(DataTypeId::kEdge);
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_PATH:
+    return DataType(DataTypeId::kPath);
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
+                                  gdt.DebugString());
+    break;
+  }
+}
 DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   switch (dt.type_case()) {
   case ::common::IrDataType::TypeCase::kDataType: {
@@ -173,22 +191,14 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   }
   case ::common::IrDataType::TypeCase::kGraphType: {
     const ::common::GraphDataType gdt = dt.graph_type();
-    switch (gdt.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return DataType(DataTypeId::kVertex);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return DataType(DataTypeId::kEdge);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_PATH:
-      return DataType(DataTypeId::kPath);
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
-                                    gdt.DebugString());
-      break;
-    }
-  } break;
+    return parse_graph_data_type_from_ir_data_type(gdt);
+  }
+  case ::common::IrDataType::TypeCase::kListType: {
+    const ::common::GraphTypeList gdtl = dt.list_type();
+    std::shared_ptr<ExtraTypeInfo> type_info = std::make_shared<ListTypeInfo>(
+        parse_graph_data_type_from_ir_data_type(gdtl.component_type()));
+    return DataType(DataTypeId::kList, type_info);
+  }
   default:
     break;
   }
