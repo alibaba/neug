@@ -1,18 +1,19 @@
 # NeuG
 
+[![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
+[![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
+[![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
+
+
 **NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. NeuG provides **two modes** that you can switch between based on your needs:
 
 - **Embedded Mode**: Optimized for analytical workloads including bulk data loading, complex pattern matching, and graph analytics
 - **Service Mode**: Optimized for transactional workloads for real-time applications and concurrent user access
 
-[![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
-[![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
-[![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
-
-For more information on using NeuG, please refer to the [NeuG documentation](https://graphscope.io/en/overview/introduction/).
+For more information on using NeuG, please refer to the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
 ## News
-- **2025-09**: We officially release NeuG v0.1.0 🎉
+- **2026-02**: We officially release NeuG v0.1.0 🎉 
 - **2025-06**: We shatter [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS for declarative queries 🎉
 
 ## Installation
