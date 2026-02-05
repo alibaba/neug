@@ -54,7 +54,6 @@ struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
-  call_exec_with_graph_func_t execWithGraphFunc = nullptr;  // New: exec with graph access
 
   NeugCallFunction() = default;
 

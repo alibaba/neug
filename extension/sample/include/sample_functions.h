@@ -34,6 +34,7 @@
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/neug_call_function.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/common/columns/value_columns.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
 
@@ -392,17 +393,30 @@ struct SampledMatchInput : public CallFuncInputBase {
 struct SampledMatchFunction {
   static constexpr const char* name = "SAMPLED_MATCH";
 
+  // 支持的最大模式顶点数
+  static constexpr int MAX_PATTERN_VERTICES = 20;
+  
   static function_set getFunctionSet() {
     function_set functionSet;
+    
+    // 构建输出列定义
+    // 前两列是 estimated_count 和 sample_count
+    // 后续列是 v0, v1, v2, ... 用于存储每个模式顶点对应的数据图顶点ID
+    call_output_columns outputCols{
+        {"estimated_count", common::LogicalTypeID::DOUBLE},
+        {"sample_count", common::LogicalTypeID::INT64}
+    };
+    
+    // 添加最多 MAX_PATTERN_VERTICES 个顶点列
+    for (int i = 0; i < MAX_PATTERN_VERTICES; i++) {
+      outputCols.push_back({"v" + std::to_string(i), common::LogicalTypeID::INT64});
+    }
     
     // 创建 NeugCallFunction
     auto func = std::make_unique<NeugCallFunction>(
         name,
         std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING},
-        call_output_columns{
-            {"estimated_count", common::LogicalTypeID::DOUBLE},
-            {"sample_count", common::LogicalTypeID::INT64}
-        });
+        std::move(outputCols));
     
     // 设置 bindFunc
     func->bindFunc = [](const Schema& schema, const runtime::ContextMeta& ctx_meta,
@@ -424,8 +438,8 @@ struct SampledMatchFunction {
       return std::make_unique<SampledMatchInput>(patternPath);
     };
     
-    // 设置 execWithGraphFunc（带图访问的执行函数）
-    func->execWithGraphFunc = [](IStorageInterface& graph, const CallFuncInputBase& input) 
+
+    func->execFunc = [](IStorageInterface& graph, const CallFuncInputBase& input) 
         -> runtime::Context {
       auto& matchInput = static_cast<const SampledMatchInput&>(input);
       
@@ -454,10 +468,76 @@ struct SampledMatchFunction {
       LOG(INFO) << "[SAMPLED_MATCH] Estimated count: " << (long long)estimatedCount;
       LOG(INFO) << "[SAMPLED_MATCH] Sampled embeddings: " << sampleCount;
       
-      // 创建返回结果
+      // 创建返回结果 Context
       runtime::Context ctx;
-      // TODO: 将结果添加到 context 中
-      // ctx.append(...);
+      
+      if (sampleCount == 0) {
+        // 没有采样结果，返回空 context
+        LOG(INFO) << "[SAMPLED_MATCH] No samples found, returning empty context";
+        return ctx;
+      }
+      
+      // 每一行代表一个采样结果
+      // 列布局:
+      //   col 0: estimated_count (double) - 估计的嵌入总数
+      //   col 1: sample_count (int64) - 采样数量
+      //   col 2 ~ col (2+patternVertexCount-1): v0, v1, v2, ... - 每个模式顶点对应的数据图顶点ID
+      
+      // 创建 estimated_count 列 (所有行都是相同的值)
+      runtime::ValueColumnBuilder<double> estimatedCountBuilder;
+      estimatedCountBuilder.reserve(sampleCount);
+      for (int i = 0; i < sampleCount; i++) {
+        estimatedCountBuilder.push_back_opt(estimatedCount);
+      }
+      ctx.set(0, estimatedCountBuilder.finish());
+      
+      // 创建 sample_count 列 (所有行都是相同的值)
+      runtime::ValueColumnBuilder<int64_t> sampleCountBuilder;
+      sampleCountBuilder.reserve(sampleCount);
+      for (int i = 0; i < sampleCount; i++) {
+        sampleCountBuilder.push_back_opt(static_cast<int64_t>(sampleCount));
+      }
+      ctx.set(1, sampleCountBuilder.finish());
+      
+      // 为每个模式顶点创建一列，包含匹配的数据图顶点ID
+      for (int v = 0; v < patternVertexCount; v++) {
+        runtime::ValueColumnBuilder<int64_t> vertexColBuilder;
+        vertexColBuilder.reserve(sampleCount);
+        
+        for (int s = 0; s < sampleCount; s++) {
+          // sampledResults 是扁平化的数组: [s0_v0, s0_v1, ..., s1_v0, s1_v1, ...]
+          int64_t vertexId = static_cast<int64_t>(sampledResults[s * patternVertexCount + v]);
+          vertexColBuilder.push_back_opt(vertexId);
+        }
+        
+        // 列索引为 2 + v (前两列是 estimated_count 和 sample_count)
+        ctx.set(2 + v, vertexColBuilder.finish());
+      }
+      
+      // 设置 tag_ids，告诉系统哪些列应该输出
+      // tag_ids 包含所有需要输出的列索引: 0 (estimated_count), 1 (sample_count), 2 (v0), 3 (v1), ...
+      ctx.tag_ids.clear();
+      for (int i = 0; i < 2 + patternVertexCount; i++) {
+        ctx.tag_ids.push_back(i);
+      }
+      
+      LOG(INFO) << "[SAMPLED_MATCH] Created context with " << sampleCount << " rows and " 
+                << (2 + patternVertexCount) << " columns";
+      
+      // 调试输出：验证 context 状态
+      LOG(INFO) << "[SAMPLED_MATCH] tag_ids size: " << ctx.tag_ids.size();
+      LOG(INFO) << "[SAMPLED_MATCH] columns size: " << ctx.columns.size();
+      LOG(INFO) << "[SAMPLED_MATCH] row_num: " << ctx.row_num();
+      for (int i = 0; i < static_cast<int>(ctx.tag_ids.size()); i++) {
+        int tag = ctx.tag_ids[i];
+        auto col = ctx.get(tag);
+        if (col) {
+          LOG(INFO) << "[SAMPLED_MATCH] col[" << tag << "]: " << col->column_info()
+                    << ", first elem: " << col->get_elem(0).to_string();
+        } else {
+          LOG(INFO) << "[SAMPLED_MATCH] col[" << tag << "]: nullptr";
+        }
+      }
       
       return ctx;
     };
