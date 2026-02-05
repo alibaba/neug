@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import math
 import re
 
 import pytest
@@ -24,6 +25,7 @@ from neug.query_result import QueryResult
 
 from base_test import BaseTest
 from utils.utils import Query
+from utils.utils import ResultType
 
 
 class TestNeug(BaseTest):
@@ -104,7 +106,7 @@ class TestNeug(BaseTest):
         try:
             f1 = float(v1)
             f2 = float(v2)
-            return abs(f1 - f2) <= float_tol
+            return math.isclose(f1, f2, rel_tol=float_tol)
         except Exception:
             if v1 is None:
                 v1 = ""
@@ -173,6 +175,34 @@ class TestNeug(BaseTest):
                 if not self._value_equal(v1, v2, float_tol):
                     return False
         return True
+
+    def run_test(self, connection, query_object: Query):
+        print("Get query: " + str(query_object))
+        query = query_object.query
+        parameters = query_object.parameters
+        try:
+            result = connection.execute(query, parameters=parameters)
+            if query_object.result_type == ResultType.ERROR:
+                # the query is expected to fail
+                assert (
+                    False
+                ), f"Query {query_object.name} should have failed but passed."
+            elif query_object.result_type == ResultType.OK:
+                # the query is expected to succeed and no validation is needed
+                assert True
+            elif query_object.result_type == ResultType.EXACT:
+                # the query is expected to succeed and the result should be validated
+                self.validate_result(query_object, result)
+            else:
+                raise ValueError(f"Unknown result type: {query_object.result_type}")
+        except Exception as e:
+            # TODO: if the query is expected to fail, we may need to further confirm the error message.
+            # currently, we just check if it raises an exception.
+            if query_object.result_type == ResultType.ERROR:
+                assert True
+            else:
+                # Not expected to fail
+                raise e
 
     def validate_result(self, query: Query, result: QueryResult):
         """Validate the results against expected output."""

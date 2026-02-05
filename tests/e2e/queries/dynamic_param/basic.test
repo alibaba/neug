@@ -1,0 +1,29 @@
+
+-DATASET CSV comprehensive_graph
+--
+
+-CASE TestDynamicParam
+-LOG TestScanPKWithParameters
+-STATEMENT Match (p: node_a {id: $id}) return p.str_property; {"id": 5}
+---- 1
+test_string_5
+
+-LOG TestScanPropertyWithParameters
+-STATEMENT Match (p: node_a) where p.i32_property=$i32_param return p.id; {"i32_param": -123456789}
+---- 1
+0
+
+-LOG TestEdgeExpandWithParameters
+-STATEMENT Match (p: node_a {id: 0})-[e:rel_a]-(q:node_a) where e.i32_weight=$i32_param return q.id; {"i32_param": 42}
+---- 1
+3
+
+-LOG TestArithmeticWithParameters
+-STATEMENT Match (p: node_a {id: 0}) return p.i64_property-$delta; {"delta": 10}
+---- 1
+9223372036854775797
+
+-LOG TestDedupWithParameters
+-STATEMENT Match (p: node_a {id: 0}) return distinct p.id,p.i64_property-$delta; {"delta": 10}
+---- 1
+0|9223372036854775797

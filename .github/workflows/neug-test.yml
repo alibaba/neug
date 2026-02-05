@@ -285,7 +285,7 @@ jobs:
     - name: Run E2E COMPREHENSIVE_GRAPH Test
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
-        ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path
+        ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path,dynamic_param
         ./scripts/run_e2e_test.sh neug_tp_test comprehensive_graph /tmp/comprehensive_graph path
 
     - name: Test installation c++ sdk

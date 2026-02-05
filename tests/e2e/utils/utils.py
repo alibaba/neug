@@ -45,17 +45,19 @@ class Query:
         expected_result=None,
         check_order=False,
         result_type=ResultType.EXACT,
+        parameters={},
     ):
         self.name = name
         self.query = query
         self.expected_result = expected_result
         self.check_order = check_order
         self.result_type = result_type
+        self.parameters = parameters
 
     def __repr__(self):
         return (
             f"Query(name={self.name}, query={self.query}, "
-            f"expected_result={self.expected_result}, check_order={self.check_order})"
+            f"expected_result={self.expected_result}, check_order={self.check_order}, parameters={self.parameters})"
         )
 
 
@@ -191,6 +193,7 @@ def parse_single_test(lines, head_line, test_name, STATEMENT, include_skip_tests
         expand_env_vars_in_string(head_line[len(STATEMENT) :].strip())
     ], True
 
+    parameters = {}
     for line in lines:
         line = line.strip()
         if line.startswith((CHECK_ORDER, RESULT_PREFIX)) and within_statement:
@@ -217,12 +220,17 @@ def parse_single_test(lines, head_line, test_name, STATEMENT, include_skip_tests
                 return None
             else:
                 print("Parse " + test_name + " query: " + str(current_query))
+                parts = current_query.split(";", 1)
+                current_query = parts[0].strip()
+                if len(parts) == 2 and parts[1].strip():
+                    parameters = json.loads(parts[1].strip())
                 return Query(
                     name=test_name,
                     query=current_query,
                     expected_result=expected_result,
                     check_order=check_order,
                     result_type=result_type,
+                    parameters=parameters,
                 )
         else:
             if within_statement:
