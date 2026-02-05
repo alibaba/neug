@@ -33,8 +33,7 @@ conn.execute("""
 """)  
 ```
 
-> [!NOTE]
-> When using multi-statement execution, if any statement fails, the behavior depends on the deployment mode (see ACID Properties below).
+> **Note:** When using multi-statement execution, if any statement fails, the behavior depends on the deployment mode (see ACID Properties below).
 
 ## Deployment Modes Overview
 

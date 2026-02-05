@@ -66,20 +66,20 @@ cd doc && make dependencies && make html
 python3 -m http.server --directory build/html 8080
 ```
 
-## AI-Assisted Development
-
-We apply an AI-assisted workflow called **Spec-Driven** during the development of NeuG. Inspired by [GitHub Spec-Kit](https://github.com/github/spec-kit), the spec-driven workflow standardizes the development process. You can refer to the [AI-Assisted Development Guide](./doc/source/development/ai_coding.md) for more details.
-
-## Development
+## Development & Contributing
 
 For building NeuG from source and development instructions, see the [Development Guide](./doc/source/development/dev_guide.md).
 
-## Contributing
-
 We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting issues or pull requests.
 
-- 🐛 **Bug Reports**: [Submit an issue](https://github.com/GraphScope/neug/issues) 
-- 💻 **Pull Requests**: [Submit a PR](https://github.com/GraphScope/neug/pulls)
+### AI-Assisted Workflow
+
+We apply an AI-assisted **Spec-Driven** workflow inspired by [GitHub Spec-Kit](https://github.com/github/spec-kit). We provide convenient commands for contributions:
+
+- 🐛 **Bug Reports**: Use `/create-issue` command in your IDE, or [submit an issue](https://github.com/GraphScope/neug/issues) manually
+- 💻 **Pull Requests**: Use `/create-pr` command in your IDE, or [submit a PR](https://github.com/GraphScope/neug/pulls) manually
+
+For more details, see the [AI-Assisted Development Guide](./doc/source/development/ai_coding.md).
 
 ## License
 
