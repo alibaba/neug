@@ -18,15 +18,20 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include "neug/compiler/binder/expression/expression.h"
+#include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/common/enums/table_type.h"
 #include "neug/compiler/function/export/export_function.h"
 #include "neug/compiler/function/table/scan_file_function.h"
+#include "neug/compiler/gopt/g_alias_manager.h"
+#include "neug/compiler/planner/operator/logical_hash_join.h"
 #include "neug/compiler/planner/operator/logical_operator.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/logical_table_function_call.h"
 #include "neug/compiler/planner/operator/logical_transaction.h"
+#include "neug/compiler/planner/operator/logical_union.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
@@ -48,7 +53,7 @@ struct ExecutionFlag {
 
 class GPhysicalAnalyzer {
  public:
-  GPhysicalAnalyzer() = default;
+  GPhysicalAnalyzer(catalog::Catalog* catalog) : catalog(catalog) {}
   ExecutionFlag analyze(const planner::LogicalPlan& plan) {
     auto skipScanNames = std::vector<std::string>();
     analyzeOperator(*plan.getLastOperator(), skipScanNames);
@@ -64,6 +69,38 @@ class GPhysicalAnalyzer {
     auto tableFuncOp = op.constPtrCast<planner::LogicalTableFunctionCall>();
     auto bindData = tableFuncOp->getBindData();
     return dynamic_cast<function::ScanFileBindData*>(bindData) != nullptr;
+  }
+
+  std::unordered_set<std::string> collectPrimaryKeys(
+      const planner::LogicalScanNodeTable& scan) {
+    auto tableIds = scan.getTableIDs();
+    auto result = std::unordered_set<std::string>();
+    for (auto& tableId : tableIds) {
+      auto tableEntry = catalog->getTableCatalogEntry(
+          &neug::Constants::DEFAULT_TRANSACTION, tableId);
+      auto nodeTableEntry =
+          dynamic_cast<catalog::NodeTableCatalogEntry*>(tableEntry);
+      if (!nodeTableEntry) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Primary key scan is only supported for node "
+            "tables, but got: " +
+            tableEntry->getName());
+      }
+      result.insert(nodeTableEntry->getPrimaryKeyName());
+    }
+    return result;
+  }
+
+  bool containsAliasName(const planner::LogicalOperator& op,
+                         const binder::Expression& expr) {
+    auto gAliasNames = std::vector<gopt::GAliasName>();
+    GAliasManager::extractGAliasNames(op, gAliasNames);
+    for (auto& gAliasName : gAliasNames) {
+      if (gAliasName.uniqueName == expr.getUniqueName()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void collectAtomicScan(std::shared_ptr<planner::LogicalOperator> child,
@@ -86,6 +123,30 @@ class GPhysicalAnalyzer {
         auto gAliasNames = insert.getGAliasNames();
         for (auto& gAliasName : gAliasNames) {
           result.push_back(gAliasName.uniqueName);
+        }
+      }
+    } else if (child->getOperatorType() ==
+               planner::LogicalOperatorType::HASH_JOIN) {
+      auto join = child->ptrCast<planner::LogicalHashJoin>();
+      auto left = join->getChild(0);
+      auto conditions = join->getJoinConditions();
+      if (join->getJoinType() == common::JoinType::INNER &&
+          conditions.size() == 1) {
+        auto [leftKey, rightKey] = conditions[0];
+        if (leftKey->expressionType == common::ExpressionType::PROPERTY &&
+            !containsAliasName(*left, *leftKey) &&
+            (rightKey->expressionType == common::ExpressionType::VARIABLE ||
+             containsAliasName(*join->getChild(1), *rightKey))) {
+          auto leftProperty =
+              leftKey->ptrCast<binder::PropertyExpression>()->getPropertyName();
+          if (left->getOperatorType() ==
+              planner::LogicalOperatorType::SCAN_NODE_TABLE) {
+            auto scan = left->cast<planner::LogicalScanNodeTable>();
+            auto pks = collectPrimaryKeys(scan);
+            if (pks.size() == 1 && pks.contains(leftProperty)) {
+              result.push_back(scan.getAliasName());
+            }
+          }
         }
       }
     }
@@ -118,6 +179,9 @@ class GPhysicalAnalyzer {
             }
             auto atomicScanNames = std::vector<std::string>();
             collectAtomicScan(insertOp->getChild(0), atomicScanNames);
+            if (preQuery) {
+              collectAtomicScan(preQuery, atomicScanNames);
+            }
             if (std::any_of(
                     boundNodes.begin(), boundNodes.end(),
                     [&](const std::shared_ptr<binder::Expression>& node) {
@@ -170,37 +234,52 @@ class GPhysicalAnalyzer {
       flag.transaction = true;
       break;
     }
-    case planner::LogicalOperatorType::PARTITIONER:
-    case planner::LogicalOperatorType::INDEX_LOOK_UP:
-    case planner::LogicalOperatorType::MULTIPLICITY_REDUCER:
-    case planner::LogicalOperatorType::FLATTEN:
-    case planner::LogicalOperatorType::ACCUMULATE:
-    case planner::LogicalOperatorType::DUMMY_SCAN:
-    case planner::LogicalOperatorType::HASH_JOIN:
-    case planner::LogicalOperatorType::CROSS_PRODUCT:
-    case planner::LogicalOperatorType::UNION_ALL: {
-      break;
-    }
+    // set read to true for graph operators
     case planner::LogicalOperatorType::SCAN_NODE_TABLE: {
       auto scan = op.constPtrCast<planner::LogicalScanNodeTable>();
       if (std::find(skipScanNames.begin(), skipScanNames.end(),
-                    scan->getAliasName()) != skipScanNames.end()) {
-        break;
+                    scan->getAliasName()) == skipScanNames.end()) {
+        flag.read = true;
       }
+      break;
     }
-    default:
-      // Other operators are set to read by default
+    case planner::LogicalOperatorType::RECURSIVE_EXTEND:
+    case planner::LogicalOperatorType::GET_V:
+    case planner::LogicalOperatorType::EXTEND: {
       flag.read = true;
       break;
     }
+    default:
+      // ignore other operators, because they do not interact with the graph
+      // database
+      break;
+    }
 
-    for (auto child : op.getChildren()) {
-      analyzeOperator(*child, skipScanNames);
+    if (op.getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
+      auto& unionOp = op.constCast<planner::LogicalUnion>();
+      if (!unionOp.getChildren().empty()) {
+        auto child0 = unionOp.getChild(0);
+        if (unionOp.getPreQuery()) {
+          preQuery = child0;
+        }
+        for (auto pos = 1; pos < unionOp.getNumChildren(); pos++) {
+          auto child = unionOp.getChild(pos);
+          analyzeOperator(*child, skipScanNames);
+        }
+        preQuery = nullptr;
+        analyzeOperator(*child0, skipScanNames);
+      }
+    } else {
+      for (auto child : op.getChildren()) {
+        analyzeOperator(*child, skipScanNames);
+      }
     }
   }
 
  private:
   ExecutionFlag flag;
+  catalog::Catalog* catalog;
+  std::shared_ptr<planner::LogicalOperator> preQuery;
 };
 
 }  // namespace gopt

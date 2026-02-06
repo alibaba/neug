@@ -41,7 +41,7 @@ class GPhysicalConvertor {
 
   std::unique_ptr<::physical::PhysicalPlan> convert(
       const planner::LogicalPlan& plan, bool skipSink = false) {
-    GPhysicalAnalyzer analyzer;
+    GPhysicalAnalyzer analyzer(catalog);
     auto flagPB = convertExecutionFlag(analyzer.analyze(plan));
     skipSink |= updateClause(plan.getLastOperator());
     skipSink |= ddlClause(plan.getLastOperator());

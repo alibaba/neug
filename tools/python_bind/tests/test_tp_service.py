@@ -456,3 +456,557 @@ def test_parameterized_query():
     session.close()
     db.stop_serving()
     db.close()
+
+
+def test_iu_1():
+    """
+    Test IU_1: Create PERSON with connections to PLACE, TAG, ORGANISATION
+    Corresponds to FlagTest.IU_1 in flag_test.cpp
+    """
+    db_dir = "/tmp/test_iu_1"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        "CREATE NODE TABLE PLACE(id INT64, name STRING, url STRING, type STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE PERSON(id INT64, firstName STRING, lastName STRING, gender STRING, "
+        "birthday DATE, creationDate TIMESTAMP, locationIP STRING, browserUsed STRING, "
+        "language STRING, email STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE TAG(id INT64, name STRING, url STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE ORGANISATION(id INT64, type STRING, name STRING, url STRING, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE ISLOCATEDIN(FROM PERSON TO PLACE);")
+    conn.execute("CREATE REL TABLE HASINTEREST(FROM PERSON TO TAG);")
+    conn.execute(
+        "CREATE REL TABLE STUDYAT(FROM PERSON TO ORGANISATION, classYear INT32);"
+    )
+    conn.execute(
+        "CREATE REL TABLE WORKAT(FROM PERSON TO ORGANISATION, workFrom INT32);"
+    )
+
+    # Create prerequisite data
+    conn.execute("CREATE (c:PLACE {id: 1, name: 'City1', url: 'url1', type: 'City'});")
+    conn.execute("CREATE (t1:TAG {id: 10, name: 'Tag1', url: 'tag1'});")
+    conn.execute("CREATE (t2:TAG {id: 11, name: 'Tag2', url: 'tag2'});")
+    conn.execute(
+        "CREATE (o1:ORGANISATION {id: 100, type: 'University', name: 'Univ1', url: 'univ1'});"
+    )
+    conn.execute(
+        "CREATE (o2:ORGANISATION {id: 101, type: 'Company', name: 'Comp1', url: 'comp1'});"
+    )
+    conn.close()
+
+    uri = db.serve(10009, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+
+    # Execute IU_1 query with parameters
+    query = """
+    MATCH (c:PLACE {id: $cityId})
+    CREATE (p:PERSON {
+      id: $personId,
+      firstName: $personFirstName,
+      lastName: $personLastName,
+      gender: $gender,
+      birthday: $birthday,
+      creationDate: $creationDate,
+      locationIP: $locationIP,
+      browserUsed: $browserUsed,
+      language: $languages,
+      email: $emails
+    })-[:ISLOCATEDIN]->(c)
+    WITH distinct p
+    UNWIND CAST($tagIds, 'INT64[]') AS tagId
+    MATCH (t:TAG {id: tagId})
+    CREATE (p)-[:HASINTEREST]->(t)
+    WITH distinct p
+    UNWIND CAST($studyAt, 'INT64[][]') AS studyAt
+    WITH p, studyAt[0] as studyAt_0, CAST(studyAt[1], 'INT32') as studyAt_1
+    MATCH(u:ORGANISATION {id: studyAt_0})
+    CREATE (p)-[:STUDYAT {classYear:studyAt_1}]->(u)
+    WITH distinct p
+    UNWIND CAST($workAt, 'INT64[][]') AS workAt
+    WITH p, workAt[0] as workAt_0, CAST(workAt[1], 'INT32') as workAt_1
+    MATCH(comp:ORGANISATION {id: workAt_0})
+    CREATE (p)-[:WORKAT {workFrom: workAt_1}]->(comp)
+    """
+
+    import datetime
+
+    session.execute(
+        query,
+        parameters={
+            "cityId": 1,
+            "personId": 1000,
+            "personFirstName": "John",
+            "personLastName": "Doe",
+            "gender": "male",
+            "birthday": datetime.date(1990, 1, 1),
+            "creationDate": "2024-01-01 00:00:00",
+            "locationIP": "192.168.1.1",
+            "browserUsed": "Chrome",
+            "languages": "en",
+            "emails": "john@example.com",
+            "tagIds": [10, 11],
+            "studyAt": [[100, 2020]],
+            "workAt": [[101, 2022]],
+        },
+        access_mode="insert",  # ensure the query is executed in insert mode
+    )
+
+    # Verify the person was created
+    result = session.execute(
+        "MATCH (p:PERSON {id: 1000}) RETURN p.firstName, p.lastName;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == "John"
+    assert result[0][1] == "Doe"
+
+    # Verify relationships
+    result = session.execute(
+        "MATCH (p:PERSON {id: 1000})-[:ISLOCATEDIN]->(c:PLACE) RETURN c.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (p:PERSON {id: 1000})-[:HASINTEREST]->(t:TAG) RETURN count(t) as cnt;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 2
+
+    result = session.execute(
+        "MATCH (p:PERSON {id: 1000})-[:STUDYAT]->(o:ORGANISATION) RETURN o.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 100
+
+    result = session.execute(
+        "MATCH (p:PERSON {id: 1000})-[:WORKAT]->(o:ORGANISATION) RETURN o.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 101
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_iu_4():
+    """
+    Test IU_4: Create FORUM with connections to PERSON and TAG
+    Corresponds to FlagTest.IU_4 in flag_test.cpp
+    """
+    db_dir = "/tmp/test_iu_4"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        "CREATE NODE TABLE PERSON(id INT64, firstName STRING, lastName STRING, gender STRING, "
+        "birthday DATE, creationDate TIMESTAMP, locationIP STRING, browserUsed STRING, "
+        "language STRING, email STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE FORUM(id INT64, title STRING, creationDate TIMESTAMP, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE TAG(id INT64, name STRING, url STRING, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE HASMODERATOR(FROM FORUM TO PERSON);")
+    conn.execute("CREATE REL TABLE HASTAG(FROM FORUM TO TAG);")
+
+    # Create prerequisite data
+    conn.execute(
+        "CREATE (p:PERSON {id: 1, firstName: 'Moderator', lastName: 'User', gender: 'male', "
+        "birthday: date('1990-01-01'), creationDate: timestamp('2024-01-01 00:00:00'), "
+        "locationIP: '192.168.1.1', browserUsed: 'Chrome', language: 'en', email: 'mod@example.com'});"
+    )
+    conn.execute("CREATE (t1:TAG {id: 10, name: 'Tag1', url: 'tag1'});")
+    conn.execute("CREATE (t2:TAG {id: 11, name: 'Tag2', url: 'tag2'});")
+    conn.close()
+
+    uri = db.serve(10010, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+
+    # Execute IU_4 query with parameters
+    query = """
+    MATCH (p:PERSON {id: $moderatorPersonId})
+    CREATE (f:FORUM {id: $forumId, title: $forumTitle, creationDate: $creationDate})-[:HASMODERATOR]->(p)
+    WITH f
+    UNWIND CAST($tagIds, 'INT64[]') AS tagId
+    MATCH (t:TAG {id: tagId} )
+    CREATE (f)-[:HASTAG]->(t)
+    """
+
+    session.execute(
+        query,
+        parameters={
+            "moderatorPersonId": 1,
+            "forumId": 100,
+            "forumTitle": "Test Forum",
+            "creationDate": "2024-01-01 00:00:00",
+            "tagIds": [10, 11],
+        },
+        access_mode="insert",  # ensure the query is executed in insert mode
+    )
+
+    # Verify the forum was created
+    result = session.execute("MATCH (f:FORUM {id: 100}) RETURN f.title;")
+    assert len(result) == 1
+    assert result[0][0] == "Test Forum"
+
+    # Verify relationships
+    result = session.execute(
+        "MATCH (f:FORUM {id: 100})-[:HASMODERATOR]->(p:PERSON) RETURN p.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (f:FORUM {id: 100})-[:HASTAG]->(t:TAG) RETURN count(t) as cnt;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 2
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_iu_6():
+    """
+    Test IU_6: Create POST with connections to PERSON, PLACE, FORUM, TAG
+    Corresponds to FlagTest.IU_6 in flag_test.cpp
+    """
+    db_dir = "/tmp/test_iu_6"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        "CREATE NODE TABLE PERSON(id INT64, firstName STRING, lastName STRING, gender STRING, "
+        "birthday DATE, creationDate TIMESTAMP, locationIP STRING, browserUsed STRING, "
+        "language STRING, email STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE PLACE(id INT64, name STRING, url STRING, type STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE FORUM(id INT64, title STRING, creationDate TIMESTAMP, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE POST(id INT64, imageFile STRING, creationDate TIMESTAMP, locationIP STRING, "
+        "browserUsed STRING, language STRING, content STRING, length INT32, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE TAG(id INT64, name STRING, url STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE REL TABLE HASCREATOR(FROM POST TO PERSON, creationDate TIMESTAMP);"
+    )
+    conn.execute("CREATE REL TABLE CONTAINEROF(FROM FORUM TO POST);")
+    conn.execute("CREATE REL TABLE ISLOCATEDIN(FROM POST TO PLACE);")
+    conn.execute("CREATE REL TABLE HASTAG(FROM POST TO TAG);")
+
+    # Create prerequisite data
+    conn.execute(
+        "CREATE (p:PERSON {id: 1, firstName: 'Author', lastName: 'User', gender: 'male', "
+        "birthday: date('1990-01-01'), creationDate: timestamp('2024-01-01 00:00:00'), "
+        "locationIP: '192.168.1.1', browserUsed: 'Chrome', language: 'en', email: 'author@example.com'});"
+    )
+    conn.execute(
+        "CREATE (country:PLACE {id: 1, name: 'Country1', url: 'country1', type: 'Country'});"
+    )
+    conn.execute(
+        "CREATE (f:FORUM {id: 1, title: 'Forum1', creationDate: timestamp('2024-01-01 00:00:00')});"
+    )
+    conn.execute("CREATE (t1:TAG {id: 10, name: 'Tag1', url: 'tag1'});")
+    conn.execute("CREATE (t2:TAG {id: 11, name: 'Tag2', url: 'tag2'});")
+    conn.close()
+
+    uri = db.serve(10011, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+
+    # Execute IU_6 query with parameters
+    query = """
+    MATCH (author:PERSON {id: $authorPersonId}), (country:PLACE {id: $countryId}), (forum:FORUM {id: $forumId})
+    CREATE (author)<-[:HASCREATOR {creationDate: $creationDate}]-(p:POST {
+        id: $postId,
+        creationDate: $creationDate,
+        locationIP: $locationIP,
+        browserUsed: $browserUsed,
+        language: $language,
+        content: $content,
+        imageFile: $imageFile,
+        length: $length
+      })<-[:CONTAINEROF]-(forum), (p)-[:ISLOCATEDIN]->(country)
+    WITH p
+    UNWIND CAST($tagIds, 'INT64[]') AS tagId
+    MATCH (t:TAG {id: tagId})
+    CREATE (p)-[:HASTAG]->(t)
+    """
+
+    session.execute(
+        query,
+        parameters={
+            "authorPersonId": 1,
+            "countryId": 1,
+            "forumId": 1,
+            "creationDate": "2024-01-01 00:00:00",
+            "postId": 1000,
+            "locationIP": "192.168.1.1",
+            "browserUsed": "Chrome",
+            "language": "en",
+            "content": "Test post content",
+            "imageFile": "image.jpg",
+            "length": 100,
+            "tagIds": [10, 11],
+        },
+        access_mode="insert",  # ensure the query is executed in insert mode
+    )
+
+    # Verify the post was created
+    result = session.execute("MATCH (p:POST {id: 1000}) RETURN p.content, p.length;")
+    assert len(result) == 1
+    assert result[0][0] == "Test post content"
+    assert result[0][1] == 100
+
+    # Verify relationships
+    result = session.execute(
+        "MATCH (p:POST {id: 1000})-[:HASCREATOR]->(author:PERSON) RETURN author.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (f:FORUM)-[:CONTAINEROF]->(p:POST {id: 1000}) RETURN f.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (p:POST {id: 1000})-[:ISLOCATEDIN]->(country:PLACE) RETURN country.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (p:POST {id: 1000})-[:HASTAG]->(t:TAG) RETURN count(t) as cnt;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 2
+
+    session.close()
+    db.stop_serving()
+    db.close()
+
+
+def test_iu_7():
+    """
+    Test IU_7: Create COMMENT with connections to PERSON, PLACE, COMMENT, POST, TAG
+    Corresponds to FlagTest.IU_7 in flag_test.cpp
+    Note: The CALL syntax in the original query may not be supported, so we'll simplify it
+    """
+    db_dir = "/tmp/test_iu_7"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+
+    # Create schema
+    conn.execute(
+        "CREATE NODE TABLE PERSON(id INT64, firstName STRING, lastName STRING, gender STRING, "
+        "birthday DATE, creationDate TIMESTAMP, locationIP STRING, browserUsed STRING, "
+        "language STRING, email STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE PLACE(id INT64, name STRING, url STRING, type STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE COMMENT(id INT64, creationDate TIMESTAMP, locationIP STRING, "
+        "browserUsed STRING, content STRING, length INT32, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE POST(id INT64, imageFile STRING, creationDate TIMESTAMP, locationIP STRING, "
+        "browserUsed STRING, language STRING, content STRING, length INT32, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE NODE TABLE TAG(id INT64, name STRING, url STRING, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE REL TABLE HASCREATOR(FROM COMMENT TO PERSON, creationDate TIMESTAMP);"
+    )
+    conn.execute("CREATE REL TABLE ISLOCATEDIN(FROM COMMENT TO PLACE);")
+    conn.execute(
+        "CREATE REL TABLE REPLYOF(FROM COMMENT TO COMMENT, FROM COMMENT TO POST);"
+    )
+    conn.execute("CREATE REL TABLE HASTAG(FROM COMMENT TO TAG);")
+
+    # Create prerequisite data
+    conn.execute(
+        "CREATE (p:PERSON {id: 1, firstName: 'Author', lastName: 'User', gender: 'male', "
+        "birthday: date('1990-01-01'), creationDate: timestamp('2024-01-01 00:00:00'), "
+        "locationIP: '192.168.1.1', browserUsed: 'Chrome', language: 'en', email: 'author@example.com'});"
+    )
+    conn.execute(
+        "CREATE (country:PLACE {id: 1, name: 'Country1', url: 'country1', type: 'Country'});"
+    )
+    conn.execute(
+        "CREATE (post:POST {id: 100, imageFile: 'img.jpg', creationDate: timestamp('2024-01-01 00:00:00'), "
+        "locationIP: '192.168.1.1', browserUsed: 'Chrome', language: 'en', content: 'Post content', length: 50});"
+    )
+    conn.execute(
+        "CREATE (comment:COMMENT {id: 200, creationDate: timestamp('2024-01-01 00:00:00'), "
+        "locationIP: '192.168.1.1', browserUsed: 'Chrome', content: 'Comment content', length: 30});"
+    )
+    conn.execute("CREATE (t1:TAG {id: 10, name: 'Tag1', url: 'tag1'});")
+    conn.execute("CREATE (t2:TAG {id: 11, name: 'Tag2', url: 'tag2'});")
+    conn.close()
+
+    uri = db.serve(10012, "localhost", False)
+    time.sleep(1)
+
+    session = Session(uri, timeout="10s")
+
+    # Execute IU_7 query with parameters - using the complete union query from flag_test.cpp
+    query = """
+    MATCH (author:PERSON {id: $authorPersonId}),
+          (country:PLACE {id: $countryId})
+    CREATE (author)<-[:HASCREATOR {creationDate: $creationDate}]- (c:COMMENT {
+        id: $commentId,
+        creationDate: $creationDate,
+        locationIP: $locationIP,
+        browserUsed: $browserUsed,
+        content: $content,
+        length: $length
+    })-[:ISLOCATEDIN]->(country)
+    WITH c
+    OPTIONAL MATCH(comment :COMMENT {id: $replyToCommentId})
+    OPTIONAL MATCH(post:POST {id: $replyToPostId})
+    WITH c, comment, post
+    CALL (c, comment, post)  {
+    WITH c, comment, post
+    WHERE comment IS NOT NULL
+    CREATE (c)-[:REPLYOF]->(comment: COMMENT)
+    RETURN c
+
+    UNION ALL
+
+    WITH c, comment, post
+    WHERE post IS NOT NULL
+    CREATE (c)-[:REPLYOF]->(post: POST)
+    RETURN c
+    }
+    WITH c
+    UNWIND CAST($tagIds, 'INT64[]') AS tagId
+    MATCH (t:TAG {id: tagId})
+    CREATE (c)-[:HASTAG]->(t)
+    """
+
+    # Test case 1: Reply to a comment
+    session.execute(
+        query,
+        parameters={
+            "authorPersonId": 1,
+            "countryId": 1,
+            "creationDate": "2024-01-02 00:00:00",
+            "commentId": 1000,
+            "locationIP": "192.168.1.1",
+            "browserUsed": "Chrome",
+            "content": "Reply to comment",
+            "length": 20,
+            "replyToCommentId": 200,
+            "replyToPostId": 0,  # Not used in this case
+            "tagIds": [10, 11],
+        },
+        access_mode="insert",  # ensure the query is executed in insert mode
+    )
+
+    # Verify the comment was created
+    result = session.execute("MATCH (c:COMMENT {id: 1000}) RETURN c.content;")
+    assert len(result) == 1
+    assert result[0][0] == "Reply to comment"
+
+    # Verify relationships
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1000})-[:HASCREATOR]->(author:PERSON) RETURN author.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1000})-[:ISLOCATEDIN]->(country:PLACE) RETURN country.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 1
+
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1000})-[:REPLYOF]->(comment:COMMENT) RETURN comment.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 200
+
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1000})-[:HASTAG]->(t:TAG) RETURN count(t) as cnt;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 2
+
+    # Test case 2: Reply to a post
+    session.execute(
+        query,
+        parameters={
+            "authorPersonId": 1,
+            "countryId": 1,
+            "creationDate": "2024-01-03 00:00:00",
+            "commentId": 1001,
+            "locationIP": "192.168.1.1",
+            "browserUsed": "Chrome",
+            "content": "Reply to post",
+            "length": 25,
+            "replyToCommentId": 0,  # Not used in this case
+            "replyToPostId": 100,
+            "tagIds": [10, 11],
+        },
+        access_mode="insert",  # ensure the query is executed in insert mode
+    )
+
+    # Verify the comment was created and connected to post
+    result = session.execute("MATCH (c:COMMENT {id: 1001}) RETURN c.content;")
+    assert len(result) == 1
+    assert result[0][0] == "Reply to post"
+
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1001})-[:REPLYOF]->(post:POST {id: 100}) RETURN post.id;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 100
+
+    result = session.execute(
+        "MATCH (c:COMMENT {id: 1001})-[:HASTAG]->(t:TAG) RETURN count(t) as cnt;"
+    )
+    assert len(result) == 1
+    assert result[0][0] == 2
+
+    session.close()
+    db.stop_serving()
+    db.close()
