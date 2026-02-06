@@ -14,11 +14,8 @@
  */
 
 #pragma once
-#include <glog/logging.h>
-#include <iostream>
-#include <memory>
-#include <set>
-#include <vector>
+#include <unordered_map>
+#include "neug/common/types.h"
 
 namespace neug {
 class StorageReadInterface;
@@ -72,36 +69,25 @@ class ContextMeta {
   ~ContextMeta() = default;
 
   bool exist(int alias) const {
-    if (alias == -1) {
-      return head_exists_;
-    }
     return alias_set_.find(alias) != alias_set_.end();
   }
 
-  void set(int alias) {
+  void set(int32_t alias, const DataType& type) {
     if (alias >= 0) {
-      head_ = alias;
-      head_exists_ = true;
-      alias_set_.insert(alias);
+      alias_set_.emplace(alias, type);
     }
   }
 
-  const std::set<int>& columns() const { return alias_set_; }
+  DataType get(int32_t alias) const { return alias_set_.at(alias); }
 
-  void desc() const {
-    std::cout << "===============================================" << std::endl;
-    for (auto col : alias_set_) {
-      std::cout << "col - " << col << std::endl;
-    }
-    if (head_exists_) {
-      std::cout << "head - " << head_ << std::endl;
-    }
+  const std::unordered_map<int32_t, DataType>& columns() const {
+    return alias_set_;
   }
+
+  void desc() const;
 
  private:
-  std::set<int> alias_set_;
-  int head_ = -1;
-  bool head_exists_ = false;
+  std::unordered_map<int32_t, DataType> alias_set_;
 };
 
 }  // namespace runtime

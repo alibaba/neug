@@ -16,17 +16,19 @@
 
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
+
 namespace neug {
 namespace runtime {
 class Context;
-class Expr;
+class BindedExprBase;
 namespace ops {
 class CreateVertex {
  public:
   static neug::result<Context> insert_vertex(
       StorageInsertInterface& graph, Context&& ctx,
       const std::vector<label_t>& labels,
-      const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
+      std::vector<std::vector<
+          std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&& props,
       const std::vector<int>& alias);
 };
 }  // namespace ops

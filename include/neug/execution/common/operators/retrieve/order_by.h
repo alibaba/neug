@@ -94,26 +94,6 @@ class OrderBy {
     ctx.reshuffle(offsets);
     return ctx;
   }
-
-  template <typename Comparer>
-  static neug::result<Context> order_by_with_limit_with_indices(
-      const StorageReadInterface& graph, Context&& ctx,
-      std::function<std::optional<std::vector<size_t>>(
-          const StorageReadInterface&, const Context& ctx)>
-          indices,
-      const Comparer& cmp, size_t low, size_t high) {
-    size_t row_num = ctx.row_num();
-    if (row_num <= high) {
-      return order_by_with_limit(graph, std::move(ctx), cmp, low, high);
-    }
-    auto _indices = indices(graph, ctx);
-    if (!_indices.has_value()) {
-      return order_by_with_limit(graph, std::move(ctx), cmp, low, high);
-    } else {
-      return staged_order_by_with_limit(graph, std::move(ctx), cmp, low, high,
-                                        _indices.value());
-    }
-  }
 };
 }  // namespace runtime
 

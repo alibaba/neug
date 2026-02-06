@@ -18,10 +18,9 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/get_v.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/execution/utils/params.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/execution/utils/predicates.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
@@ -33,55 +32,29 @@ class OprTimer;
 
 namespace ops {
 
-class GetVFromVerticesOpr : public IOperator {
- public:
-  GetVFromVerticesOpr(const physical::GetV& opr, const GetVParams& p)
-      : opr_(opr), v_params_(p) {}
-
-  std::string get_operator_name() const override {
-    return "GetVFromVerticesOpr";
-  }
-
-  neug::result<neug::runtime::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    GeneralVertexPredicate pred(graph, ctx, params, opr_.params().predicate());
-    return GetV::get_vertex_from_vertices(graph, std::move(ctx), v_params_,
-                                          pred);
-  }
-
- private:
-  physical::GetV opr_;
-  GetVParams v_params_;
-};
-
 class GetVFromEdgesOpr : public IOperator {
  public:
-  GetVFromEdgesOpr(const physical::GetV& opr, const GetVParams& p)
-      : opr_(opr), v_params_(p) {}
+  GetVFromEdgesOpr(std::unique_ptr<ExprBase>&& pred, const GetVParams& p)
+      : pred_(std::move(pred)), v_params_(p) {}
 
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
   neug::result<neug::runtime::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
+      IStorageInterface& graph, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    if (opr_.params().has_predicate()) {
-      GeneralVertexPredicate pred(graph, ctx, params,
-                                  opr_.params().predicate());
+    if (pred_ != nullptr) {
+      auto expr = pred_->bind(&graph, params);
+      GeneralPred pred(std::move(expr));
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
                                          pred);
     } else {
       return GetV::get_vertex_from_edges(graph, std::move(ctx), v_params_,
-                                         DummyVertexPredicate());
+                                         DummyPred());
     }
   }
 
  private:
-  physical::GetV opr_;
+  std::unique_ptr<ExprBase> pred_;
   GetVParams v_params_;
 };
 
@@ -96,7 +69,7 @@ neug::result<OpBuildResultT> VertexOprBuilder::Build(
   }
 
   ContextMeta ret_meta = ctx_meta;
-  ret_meta.set(alias);
+  ret_meta.set(alias, DataType::VERTEX);
 
   int tag = -1;
   if (vertex.has_tag()) {
@@ -114,35 +87,21 @@ neug::result<OpBuildResultT> VertexOprBuilder::Build(
   p.tables = parse_tables(vertex.params());
   p.alias = alias;
 
+  std::unique_ptr<ExprBase> predicate = nullptr;
   if (vertex.params().has_predicate()) {
-    if (opt == VOpt::kItself) {
-      // general predicate
-      return std::make_pair(std::make_unique<GetVFromVerticesOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ret_meta);
-    } else if (opt == VOpt::kEnd || opt == VOpt::kStart ||
-               opt == VOpt::kOther) {
-      return std::make_pair(std::make_unique<GetVFromEdgesOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ret_meta);
-    } else {
-      THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
-                                      std::to_string(static_cast<int>(opt)) +
-                                      " is not supported yet");
-    }
-  } else {
-    if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
-      return std::make_pair(std::make_unique<GetVFromEdgesOpr>(
-                                plan.plan(op_idx).opr().vertex(), p),
-                            ret_meta);
-    } else {
-      THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
-                                      std::to_string(static_cast<int>(opt)) +
-                                      " is not supported yet");
-    }
+    predicate = parse_expression(vertex.params().predicate(), ctx_meta,
+                                 VarType::kVertex);
   }
 
-  LOG(ERROR) << "not support" << vertex.DebugString();
+  if (opt == VOpt::kEnd || opt == VOpt::kStart || opt == VOpt::kOther) {
+    return std::make_pair(
+        std::make_unique<GetVFromEdgesOpr>(std::move(predicate), p), ret_meta);
+  } else {
+    THROW_NOT_IMPLEMENTED_EXCEPTION(std::string("GetV with opt") +
+                                    std::to_string(static_cast<int>(opt)) +
+                                    " is not supported yet");
+  }
+
   return std::make_pair(nullptr, ContextMeta());
 }
 }  // namespace ops

@@ -26,15 +26,10 @@ class OprTimer;
 
 namespace ops {
 
-class OrderByOprBeta : public IOperator {
+class OrderByOpr : public IOperator {
  public:
-  OrderByOprBeta(
-      std::vector<std::pair<common::Variable, bool>> keys, int lower, int upper,
-      const std::function<
-          std::optional<std::function<std::optional<std::vector<size_t>>(
-              const StorageReadInterface&, const Context&)>>(const Context&)>&
-          func)
-      : keys_(std::move(keys)), lower_(lower), upper_(upper), func_(func) {}
+  OrderByOpr(std::vector<std::pair<int32_t, bool>> keys, int lower, int upper)
+      : keys_(std::move(keys)), lower_(lower), upper_(upper) {}
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
@@ -46,13 +41,14 @@ class OrderByOprBeta : public IOperator {
     int keys_num = keys_.size();
     GeneralComparer cmp;
     for (int i = 0; i < keys_num; ++i) {
-      Var v(&graph, ctx, keys_[i].first, VarType::kPathVar);
-      cmp.add_keys(std::move(v), keys_[i].second);
+      cmp.add_keys(ctx.get(keys_[i].first), keys_[i].second);
     }
-    auto func = func_(ctx);
-    if (func.has_value()) {
-      return OrderBy::order_by_with_limit_with_indices<GeneralComparer>(
-          graph, std::move(ctx), func.value(), cmp, lower_, upper_);
+    std::vector<size_t> indices;
+    int32_t tag = keys_[0].first;
+    bool order = keys_[0].second;
+    if (ctx.get(tag)->order_by_limit(order, upper_, indices)) {
+      return OrderBy::staged_order_by_with_limit<GeneralComparer>(
+          graph, std::move(ctx), cmp, lower_, upper_, indices);
     }
 
     return OrderBy::order_by_with_limit<GeneralComparer>(graph, std::move(ctx),
@@ -60,13 +56,10 @@ class OrderByOprBeta : public IOperator {
   }
 
  private:
-  std::vector<std::pair<common::Variable, bool>> keys_;
+  std::vector<std::pair<int32_t, bool>> keys_;
 
   int lower_;
   int upper_;
-  std::function<std::optional<std::function<std::optional<std::vector<size_t>>(
-      const StorageReadInterface&, const Context&)>>(const Context&)>
-      func_;
 };
 
 neug::result<OpBuildResultT> OrderByOprBuilder::Build(
@@ -85,7 +78,7 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
     LOG(ERROR) << "keys_num should be greater than 0";
     return std::make_pair(nullptr, ret_meta);
   }
-  std::vector<std::pair<common::Variable, bool>> keys;
+  std::vector<std::pair<int32_t, bool>> keys;
 
   for (int i = 0; i < keys_num; ++i) {
     const auto& pair = opr.pairs(i);
@@ -99,53 +92,12 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
     bool asc =
         pair.order() ==
         algebra::OrderBy_OrderingPair_Order::OrderBy_OrderingPair_Order_ASC;
-    keys.emplace_back(pair.key(), asc);
+    int32_t tag_id = pair.key().has_tag() ? pair.key().tag().id() : -1;
+    keys.emplace_back(tag_id, asc);
   }
 
-  const auto key = keys[0].first;
-  const auto order = keys[0].second;
-
-  auto func = [key, order, upper](const Context& ctx)
-      -> std::optional<std::function<std::optional<std::vector<size_t>>(
-          const StorageReadInterface& graph, const Context& ctx)>> {
-    if (key.has_tag() &&
-        key.tag().item_case() == common::NameOrId::ItemCase::kId) {
-      int tag = key.tag().id();
-      auto col = ctx.get(tag);
-      CHECK(col != nullptr);
-      if (!key.has_property()) {
-        if (col->column_type() == ContextColumnType::kValue) {
-          return [=](const StorageReadInterface& graph,
-                     const Context& ctx) -> std::optional<std::vector<size_t>> {
-            std::vector<size_t> indices;
-            if (col->order_by_limit(order, upper, indices)) {
-              return indices;
-            } else {
-              return std::nullopt;
-            }
-          };
-        }
-      } else if (col->column_type() == ContextColumnType::kVertex) {
-        std::string prop_name = key.property().key().name();
-        auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-
-        return [=](const StorageReadInterface& graph,
-                   const Context& ctx) -> std::optional<std::vector<size_t>> {
-          std::vector<size_t> indices;
-          if (vertex_property_topN(order, upper, vertex_col, graph, prop_name,
-                                   indices)) {
-            return indices;
-          } else {
-            return std::nullopt;
-          }
-        };
-      }
-    }
-    return std::nullopt;
-  };
-  return std::make_pair(std::make_unique<OrderByOprBeta>(
-                            std::move(keys), lower, upper, std::move(func)),
-                        ret_meta);
+  return std::make_pair(
+      std::make_unique<OrderByOpr>(std::move(keys), lower, upper), ret_meta);
 }
 
 }  // namespace ops

@@ -14,12 +14,6 @@
  */
 #pragma once
 
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 #include "neug/storages/graph/graph_interface.h"
 

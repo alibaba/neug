@@ -14,19 +14,19 @@
  */
 #pragma once
 
-#include <glog/logging.h>
-#include <stdint.h>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
-#include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/generated/proto/plan/expr.pb.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/property/types.h"
+
+namespace physical {
+class PropertyMapping;
+}
+namespace google {
+namespace protobuf {
+template <typename T>
+class RepeatedPtrField;
+}
+}  // namespace google
 
 namespace arrow {
 namespace csv {

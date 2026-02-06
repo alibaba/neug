@@ -15,8 +15,6 @@
 #pragma once
 
 #include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 
@@ -147,8 +145,22 @@ class OptionalValueColumn : public IValueColumn<T> {
   }
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_optional_dedup_offset(data_, valid_, data_.size(),
-                                                 offsets);
+    std::set<T> st;
+
+    size_t null_index = std::numeric_limits<size_t>::max();
+    for (size_t i = 0; i < data_.size(); ++i) {
+      if (valid_[i]) {
+        if (st.find(data_[i]) == st.end()) {
+          st.insert(data_[i]);
+          offsets.push_back(i);
+        }
+      } else {
+        null_index = i;
+      }
+    }
+    if (null_index != std::numeric_limits<size_t>::max()) {
+      offsets.push_back(null_index);
+    }
   }
 
   bool has_value(size_t idx) const override { return valid_[idx]; }

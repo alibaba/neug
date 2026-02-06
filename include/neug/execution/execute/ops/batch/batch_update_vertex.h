@@ -14,9 +14,6 @@
  */
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {

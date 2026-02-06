@@ -22,12 +22,6 @@
 namespace neug {
 namespace runtime {
 
-namespace ops {
-template <typename REDUCER_T>
-struct IsCountReducer {
-  static constexpr bool value = false;
-};
-}  // namespace ops
 struct KeyBase {
   virtual ~KeyBase() = default;
   virtual std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>>
@@ -66,98 +60,31 @@ struct Key : public KeyBase {
   std::vector<std::pair<int, int>> tag_alias_;
 };
 
-template <typename EXPR>
-struct GKey : public KeyBase {
-  GKey(std::vector<EXPR>&& exprs,
-       const std::vector<std::pair<int, int>>& tag_alias)
-      : exprs(std::move(exprs)), tag_alias_(tag_alias) {}
-  std::pair<std::vector<size_t>, std::vector<std::vector<size_t>>> group(
-      const Context& ctx) override {
-    size_t row_num = ctx.row_num();
-    std::vector<std::vector<size_t>> groups;
-    std::vector<size_t> offsets;
-    std::unordered_map<std::string_view, size_t> sig_to_root;
-    std::vector<std::vector<char>> root_list;
-    for (size_t i = 0; i < row_num; ++i) {
-      std::vector<char> buf;
-      ::neug::Encoder encoder(buf);
-      for (size_t k_i = 0; k_i < exprs.size(); ++k_i) {
-        auto val = exprs[k_i](i);
-        encode_value(val, encoder);
-      }
-      std::string_view sv(buf.data(), buf.size());
-      auto iter = sig_to_root.find(sv);
-      if (iter != sig_to_root.end()) {
-        groups[iter->second].push_back(i);
-      } else {
-        sig_to_root.emplace(sv, groups.size());
-        root_list.emplace_back(std::move(buf));
-        offsets.push_back(i);
-        std::vector<size_t> ret_elem;
-        ret_elem.push_back(i);
-        groups.emplace_back(std::move(ret_elem));
-      }
-    }
-    return std::make_pair(std::move(offsets), std::move(groups));
-  }
-  const std::vector<std::pair<int, int>>& tag_alias() const override {
-    return tag_alias_;
-  }
-  std::vector<EXPR> exprs;
-  std::vector<std::pair<int, int>> tag_alias_;
-};
-
 struct ReducerBase {
   virtual ~ReducerBase() = default;
-  virtual Context reduce(const Context& ctx, Context&& ret,
-                         const std::vector<std::vector<size_t>>& groups,
-                         std::set<size_t>& filter) = 0;
+  virtual std::shared_ptr<IContextColumn> reduce(
+      const std::vector<std::vector<size_t>>& groups) = 0;
 };
 
-template <typename REDUCER_T, typename COLLECTOR_T>
-struct Reducer : public ReducerBase {
-  Reducer(REDUCER_T&& reducer, COLLECTOR_T&& collector, int alias)
-      : reducer_(std::move(reducer)),
-        collector_(std::move(collector)),
-        alias_(alias) {}
+struct ReduceOp {
+  ReduceOp(std::unique_ptr<ReducerBase>&& reducer, int alias)
+      : reducer_(std::move(reducer)), alias_(alias) {}
 
-  Context reduce(const Context& ctx, Context&& ret,
-                 const std::vector<std::vector<size_t>>& groups,
-                 std::set<size_t>& filter) {
-    using T = typename REDUCER_T::V;
-    collector_.init(groups.size());
-    for (size_t i = 0; i < groups.size(); ++i) {
-      const auto& group = groups[i];
-      T val{};
-
-      if (!reducer_(group, val)) {
-        filter.insert(i);
-      }
-      collector_.collect(std::move(val));
-    }
-    // Special logic here for COUNT. When groups size is 0, we need to
-    // set the count to 0.
-    if (groups.size() == 0) {
-      if constexpr (ops::IsCountReducer<REDUCER_T>::value) {
-        T val{};
-        collector_.collect(std::move(val));
-      }
-    }
-
-    ret.set(alias_, collector_.get());
-    return ret;
+  void reduce(const Context& ctx, Context& ret,
+              const std::vector<std::vector<size_t>>& groups) {
+    auto col = reducer_->reduce(groups);
+    ret.set(alias_, col);
   }
 
-  REDUCER_T reducer_;
-  COLLECTOR_T collector_;
+  std::unique_ptr<ReducerBase> reducer_;
   int alias_;
 };
 
 class GroupBy {
  public:
-  static neug::result<Context> group_by(
-      Context&& ctx, std::unique_ptr<KeyBase>&& key,
-      std::vector<std::unique_ptr<ReducerBase>>&& aggrs);
+  static neug::result<Context> group_by(Context&& ctx,
+                                        std::unique_ptr<KeyBase>&& key,
+                                        std::vector<ReduceOp>&& aggrs);
 };
 
 }  // namespace runtime

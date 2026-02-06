@@ -15,9 +15,11 @@
 
 #include "neug/execution/execute/ops/retrieve/scan.h"
 
+#include "neug/execution/common/columns/value_columns.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
 #include "neug/execution/execute/ops/retrieve/scan_utils.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
 #include "neug/utils/property/types.h"
 
@@ -29,33 +31,31 @@ namespace ops {
 
 class FilterOidsGPredOpr : public IOperator {
  public:
-  FilterOidsGPredOpr(
-      ScanParams params,
-      const std::function<std::vector<Property>(const ParamsMap&)>& oids,
-      const std::optional<common::Expression>& pred)
-      : params_(params), oids_(std::move(oids)), pred_(pred) {}
+  FilterOidsGPredOpr(ScanParams params,
+                     const algebra::IndexPredicate_Triplet& oids,
+                     std::unique_ptr<neug::runtime::ExprBase>&& pred)
+      : params_(params), oids_(oids), pred_(std::move(pred)) {}
 
   neug::result<neug::runtime::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
-    std::vector<Property> oids = oids_(params);
+    DataTypeId type = std::get<0>(
+        graph.schema().get_vertex_primary_key(params_.tables[0])[0]);
 
-    if (!pred_.has_value()) {
+    std::vector<Property> oids =
+        ScanUtils::parse_ids_with_type(type, oids_, params);
+
+    if (pred_ == nullptr) {
       if (params_.tables.size() == 1 && oids.size() == 1) {
         return Scan::find_vertex_with_oid(
             std::move(ctx), graph, params_.tables[0], oids[0], params_.alias);
       }
-      return Scan::filter_oids(
-          std::move(ctx), graph, params_, [](label_t, vid_t) { return true; },
-          oids);
+      return Scan::filter_oids(std::move(ctx), graph, params_, DummyPred(),
+                               oids);
     } else {
-      const StorageReadInterface* graph_ptr = nullptr;
-      if (graph.readable()) {
-        graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph);
-      }
-      Expr pred(graph_ptr, ctx, params, pred_.value(), VarType::kVertexVar);
-      PredWrapper predicate_wrapper(std::move(pred));
+      auto pred = pred_->bind(&graph, params);
+      GeneralPred predicate_wrapper(std::move(pred));
       return Scan::filter_oids(std::move(ctx), graph, params_,
                                predicate_wrapper, oids);
     }
@@ -67,75 +67,58 @@ class FilterOidsGPredOpr : public IOperator {
 
  private:
   ScanParams params_;
-  std::function<std::vector<Property>(const ParamsMap&)> oids_;
-  std::optional<common::Expression> pred_;
+  algebra::IndexPredicate_Triplet oids_;
+  std::unique_ptr<neug::runtime::ExprBase> pred_;
 };
 
 class ScanWithSPredOpr : public IOperator {
  public:
   ScanWithSPredOpr(const ScanParams& scan_params,
-                   const SpecialVertexPredicateConfig& config)
+                   const SpecialPredicateConfig& config)
       : scan_params_(scan_params), config_(config) {}
 
   std::string get_operator_name() const override { return "ScanWithSPredOpr"; }
 
   neug::result<neug::runtime::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
+      IStorageInterface& graph, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
+
     return Scan::scan_vertex_with_special_vertex_predicate(
         std::move(ctx), graph, scan_params_, config_, params);
   }
 
  private:
   ScanParams scan_params_;
-  SpecialVertexPredicateConfig config_;
+  SpecialPredicateConfig config_;
 };
 
 class ScanWithGPredOpr : public IOperator {
  public:
   ScanWithGPredOpr(const ScanParams& scan_params,
-                   const std::optional<common::Expression>& pred)
-      : scan_params_(scan_params), pred_(pred) {}
-
+                   std::unique_ptr<neug::runtime::ExprBase> pred)
+      : scan_params_(scan_params), pred_(std::move(pred)) {}
   neug::result<neug::runtime::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
     ctx = Context();
-    if (!pred_.has_value()) {
-      if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
-        return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
-                                 [](label_t, vid_t) { return true; });
-      } else {
-        return Scan::scan_vertex_with_limit(
-            std::move(ctx), graph, scan_params_,
-            [](label_t, vid_t) { return true; });
-      }
+    if (pred_ == nullptr) {
+      return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
+                               DummyPred());
+
     } else {
-      StorageReadInterface* graph_ptr = nullptr;
-      if (graph.readable()) {
-        graph_ptr = dynamic_cast<StorageReadInterface*>(&graph);
-      }
-      Expr pred(graph_ptr, ctx, params, pred_.value(), VarType::kVertexVar);
-      PredWrapper pred_wrapper(std::move(pred));
-      if (scan_params_.limit == std::numeric_limits<int32_t>::max()) {
-        auto ret = Scan::scan_vertex(std::move(ctx), graph, scan_params_,
-                                     pred_wrapper);
-        return ret;
-      } else {
-        auto ret = Scan::scan_vertex_with_limit(std::move(ctx), graph,
-                                                scan_params_, pred_wrapper);
-        return ret;
-      }
+      auto pred = pred_->bind(&graph, params);
+      GeneralPred pred_wrapper(std::move(pred));
+      auto ret =
+          Scan::scan_vertex(std::move(ctx), graph, scan_params_, pred_wrapper);
+      return ret;
     }
   }
   std::string get_operator_name() const override { return "ScanWithGPredOpr"; }
 
  private:
   ScanParams scan_params_;
-  std::optional<common::Expression> pred_;
+  std::unique_ptr<neug::runtime::ExprBase> pred_;
 };
 
 neug::result<OpBuildResultT> ScanOprBuilder::Build(
@@ -146,7 +129,7 @@ neug::result<OpBuildResultT> ScanOprBuilder::Build(
   if (plan.plan(op_idx).opr().scan().has_alias()) {
     alias = plan.plan(op_idx).opr().scan().alias().value();
   }
-  ret_meta.set(alias);
+  ret_meta.set(alias, DataType::VERTEX);
   const auto& scan_opr = plan.plan(op_idx).opr().scan();
   if (scan_opr.scan_opt() != physical::Scan::VERTEX) {
     LOG(ERROR) << "Currently only support scan vertex";
@@ -159,24 +142,11 @@ neug::result<OpBuildResultT> ScanOprBuilder::Build(
 
   ScanParams scan_params;
   scan_params.alias = scan_opr.has_alias() ? scan_opr.alias().value() : -1;
-  scan_params.limit = std::numeric_limits<int32_t>::max();
-  if (scan_opr.params().has_limit()) {
-    auto& limit_range = scan_opr.params().limit();
-    if (limit_range.lower() != 0) {
-      LOG(FATAL) << "Scan with lower limit expect 0, but got "
-                 << limit_range.lower();
-    }
-    if (limit_range.upper() > 0) {
-      scan_params.limit = limit_range.upper();
-    }
-  }
-  for (auto& table : scan_opr.params().tables()) {
-    // bug here, exclude invalid vertex label id
-    if (schema.vertex_label_num() <= table.id()) {
-      continue;
-    }
+
+  for (const auto& table : scan_opr.params().tables()) {
     scan_params.tables.emplace_back(table.id());
   }
+
   if (scan_opr.has_idx_predicate()) {
     if (!ScanUtils::check_idx_predicate(scan_opr)) {
       LOG(ERROR) << "Index predicate is not supported"
@@ -185,36 +155,35 @@ neug::result<OpBuildResultT> ScanOprBuilder::Build(
     }
 
     // without predicate
-    std::optional<::common::Expression> pred = std::nullopt;
+    std::unique_ptr<ExprBase> pred = nullptr;
     if (scan_opr.params().has_predicate()) {
-      pred = scan_opr.params().predicate();
+      pred = parse_expression(scan_opr.params().predicate(), ctx_meta,
+                              VarType::kVertex);
     }
 
-    std::function<std::vector<Property>(const ParamsMap&)> oids;
-    for (auto& table : scan_params.tables) {
-      const auto& pks = schema.get_vertex_primary_key(table);
-      const auto type = std::get<0>(pks[0]);
-      oids = ScanUtils::parse_ids_with_type(type, scan_opr.idx_predicate());
-      break;
-    }
-    return std::make_pair(
-        std::make_unique<FilterOidsGPredOpr>(scan_params, oids, pred),
-        ret_meta);
+    const algebra::IndexPredicate_Triplet& idxs =
+        scan_opr.idx_predicate().or_predicates(0).predicates(0);
+    return std::make_pair(std::make_unique<FilterOidsGPredOpr>(
+                              scan_params, idxs, std::move(pred)),
+                          ret_meta);
 
   } else {
     if (scan_opr.params().has_predicate()) {
-      SpecialVertexPredicateConfig config;
-      if (is_special_vertex_predicate(scan_opr.params().predicate(), config)) {
+      SpecialPredicateConfig config;
+      if (is_special_vertex_predicate(schema, scan_params.tables,
+                                      scan_opr.params().predicate(), config)) {
         return std::make_pair(
             std::make_unique<ScanWithSPredOpr>(scan_params, config), ret_meta);
       }
     }
-    std::optional<::common::Expression> pred = std::nullopt;
+    std::unique_ptr<ExprBase> pred = nullptr;
     if (scan_opr.params().has_predicate()) {
-      pred = scan_opr.params().predicate();
+      pred = parse_expression(scan_opr.params().predicate(), ctx_meta,
+                              VarType::kVertex);
     }
-    return std::make_pair(std::make_unique<ScanWithGPredOpr>(scan_params, pred),
-                          ret_meta);
+    return std::make_pair(
+        std::make_unique<ScanWithGPredOpr>(scan_params, std::move(pred)),
+        ret_meta);
   }
 }
 

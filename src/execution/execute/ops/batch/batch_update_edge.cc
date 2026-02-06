@@ -14,7 +14,8 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_update_edge.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/utils/pb_utils.h"
 
@@ -30,7 +31,7 @@ class UpdateEdgeOpr : public IOperator {
  public:
   using edge_data_t =
       std::tuple<int32_t, std::string,
-                 common::Expression>;  // tag_id, property_name, value
+                 std::unique_ptr<ExprBase>>;  // tag_id, property_name, value
   using edge_data_vec_t = std::vector<edge_data_t>;
 
   explicit UpdateEdgeOpr(edge_data_vec_t&& edge_data)
@@ -69,9 +70,10 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
                           " is not an edge column.");
     }
 
-    Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
+    auto expr = expression->bind(&graph, params);
+    const auto& expr_ref = expr->Cast<RecordExprBase>();
     for (size_t ind = 0; ind < edge_col->size(); ++ind) {
-      auto value = expr.eval_path(ind);
+      auto value = expr_ref.eval_record(ctx, ind);
       auto er = edge_col->get_edge(ind);
       auto label_id = er.label.edge_label;
       auto src_label = er.label.src_label;
@@ -148,8 +150,10 @@ neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
       THROW_RUNTIME_ERROR(
           "Setting edge property without key is not supported.");
     }
+    auto expr =
+        parse_expression(prop_mapping.data(), ctx_meta, VarType::kRecord);
     edge_data_vec.emplace_back(tag_id, prop_mapping.property().key().name(),
-                               prop_mapping.data());
+                               std::move(expr));
   }
   return std::make_pair(
       std::make_unique<UpdateEdgeOpr>(std::move(edge_data_vec)), meta);

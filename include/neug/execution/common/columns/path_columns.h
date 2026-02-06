@@ -94,7 +94,7 @@ class OptionalPathColumn : public IPathColumn {
   inline bool has_value(size_t idx) const override { return valids_[idx]; }
   inline Value get_elem(size_t idx) const override {
     if (!valids_[idx]) {
-      return Value(DataType(DataTypeId::kNull));
+      return Value(DataType(DataTypeId::kPath));
     }
     return Value::PATH(data_[idx]);
   }

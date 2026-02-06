@@ -38,8 +38,12 @@ class IEdgeColumn : public IContextColumn {
   virtual EdgeRecord get_edge(size_t idx) const = 0;
 
   inline Value get_elem(size_t idx) const override {
-    auto er = get_edge(idx);
-    return Value::EDGE(er);
+    if (is_optional() && !has_value(idx)) {
+      return Value(DataType(DataTypeId::kEdge));
+    } else {
+      auto er = get_edge(idx);
+      return Value::EDGE(er);
+    }
   }
 
   virtual Direction dir() const { return Direction::kBoth; }
@@ -109,6 +113,11 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline EdgeColumnType edge_column_type() const override {
     return EdgeColumnType::kSDSL;
+  }
+
+  bool has_value(size_t idx) const override {
+    auto& tup = edges_[idx];
+    return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
   }
 
   inline bool is_optional() const override { return is_optional_; }
@@ -222,6 +231,11 @@ class MSEdgeColumn : public IEdgeColumn {
         ++idx;
       }
     }
+  }
+
+  bool has_value(size_t idx) const override {
+    const auto& tup = get_edge(idx);
+    return tup.src != std::numeric_limits<vid_t>::max();
   }
 
   size_t seg_num() const { return edges_.size(); }
@@ -388,6 +402,11 @@ class BDSLEdgeColumn : public IEdgeColumn {
     }
   }
 
+  bool has_value(size_t idx) const override {
+    const auto& tup = edges_[idx];
+    return std::get<0>(tup) != std::numeric_limits<vid_t>::max();
+  }
+
  private:
   friend class BDSLEdgeColumnBuilder;
   LabelTriplet label_;
@@ -493,6 +512,11 @@ class SDMLEdgeColumn : public IEdgeColumn {
   std::vector<LabelTriplet> get_labels() const override { return labels_; }
 
   Direction dir() const override { return dir_; }
+
+  bool has_value(size_t idx) const override {
+    const auto& tup = edges_[idx];
+    return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
+  }
 
  private:
   friend class SDMLEdgeColumnBuilder;
@@ -612,6 +636,11 @@ class BDMLEdgeColumn : public IEdgeColumn {
   }
 
   std::vector<LabelTriplet> get_labels() const override { return labels_; }
+
+  bool has_value(size_t idx) const override {
+    const auto& tup = edges_[idx];
+    return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
+  }
 
  private:
   friend class BDMLEdgeColumnBuilder;

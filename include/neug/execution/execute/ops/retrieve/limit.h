@@ -14,15 +14,10 @@
  */
 #pragma once
 
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-class Schema;
-
 namespace runtime {
-class ContextMeta;
 
 namespace ops {
 

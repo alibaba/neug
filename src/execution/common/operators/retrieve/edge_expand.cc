@@ -15,10 +15,10 @@
 
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
 
+#include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
+#include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/opr_timer.h"
-#include "neug/execution/utils/predicates.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -91,7 +91,7 @@ neug::result<Context> EdgeExpand::expand_degree(
 template <typename CMP_T>
 static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
     const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const CMP_T& cmp_value) {
   auto input_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));
@@ -144,9 +144,15 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl1(
 template <typename T>
 static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
     const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const Value& target_val) {
-  T target = target_val.GetValue<T>();
+  T target = [&target_val]() -> T {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return StringValue::Get(target_val);
+    } else {
+      return target_val.GetValue<T>();
+    }
+  }();
   if (config.ptype == SPPredicateType::kPropertyGT) {
     GTCmp<T> target_cmp(target);
     return expand_edge_with_special_edge_predicate_impl1(
@@ -177,7 +183,7 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
 
 neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
     const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+    const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const Value& target_val) {
   if (config.param_type == DataTypeId::kInt32) {
     return expand_edge_with_special_edge_predicate_impl0<int>(
@@ -205,7 +211,14 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
                                label_t input_label, label_t nbr_label,
                                label_t edge_label, Direction dir,
                                const Value& cmp_value, SPPredicateType tp) {
-  T cmp_val(cmp_value.GetValue<T>());
+  T cmp_val = [&cmp_value]() -> T {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      return StringValue::Get(cmp_value);
+    } else {
+      return cmp_value.GetValue<T>();
+    }
+  }();
+
   auto view = (dir == Direction::kOut)
                   ? graph.GetGenericOutgoingGraphView(input_label, nbr_label,
                                                       edge_label)
@@ -384,7 +397,7 @@ struct ExpandVertexSPOp {
 
 neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
-    const EdgeExpandParams& params, const SpecialVertexPredicateConfig& config,
+    const EdgeExpandParams& params, const SpecialPredicateConfig& config,
     const ParamsMap& query_params) {
   auto input_col =
       std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.v_tag));

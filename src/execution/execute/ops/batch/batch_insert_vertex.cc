@@ -13,15 +13,10 @@
  * limitations under the License.
  */
 
-#include <glog/logging.h>
-#include <ostream>
-
-#include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_insert_vertex.h"
+#include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/storages/graph/property_graph.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/property/property.h"

@@ -15,20 +15,22 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
-#include "neug/execution/utils/var.h"
+#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/utils/top_n_generator.h"
 
 namespace neug {
+class StorageReadInterface;
 namespace runtime {
+class IVertexColumn;
 namespace ops {
 class GeneralComparer {
  public:
   GeneralComparer() : keys_num_(0) {}
   ~GeneralComparer() {}
 
-  void add_keys(Var&& key, bool asc) {
-    keys_.emplace_back(std::move(key));
+  void add_keys(const std::shared_ptr<IContextColumn>& key, bool asc) {
+    keys_.emplace_back(key);
     order_.push_back(asc);
     ++keys_num_;
   }
@@ -37,8 +39,8 @@ class GeneralComparer {
     for (size_t k = 0; k < keys_num_; ++k) {
       auto& v = keys_[k];
       auto asc = order_[k];
-      Value lhs_val = v.get(lhs);
-      Value rhs_val = v.get(rhs);
+      Value lhs_val = v->get_elem(lhs);
+      Value rhs_val = v->get_elem(rhs);
       if (lhs_val < rhs_val) {
         return asc;
       } else if (rhs_val < lhs_val) {
@@ -50,7 +52,7 @@ class GeneralComparer {
   }
 
  private:
-  std::vector<Var> keys_;
+  std::vector<std::shared_ptr<IContextColumn>> keys_;
   std::vector<bool> order_;
   size_t keys_num_;
 };

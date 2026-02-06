@@ -13,17 +13,9 @@
  * limitations under the License.
  */
 
-#include <glog/logging.h>
-#include <stddef.h>
-
-#include <ostream>
-#include <string_view>
-#include <tuple>
-
-#include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_insert_edge.h"
+#include "neug/execution/common/context.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/transaction/update_transaction.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {

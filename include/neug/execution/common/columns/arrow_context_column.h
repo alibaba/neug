@@ -15,11 +15,6 @@
 
 #pragma once
 
-#include <arrow/array/array_base.h>
-#include <arrow/array/array_binary.h>
-#include <arrow/array/array_nested.h>
-#include <arrow/array/array_primitive.h>
-#include <arrow/type_fwd.h>
 #include <glog/logging.h>
 #include <stddef.h>
 

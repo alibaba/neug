@@ -14,24 +14,13 @@
  */
 #pragma once
 
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Schema;
 
 namespace runtime {
-class Context;
-class OprTimer;
 
 namespace ops {
 

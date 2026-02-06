@@ -17,7 +17,7 @@
 
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
-#include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
 
@@ -1174,8 +1174,8 @@ struct SSSPSPOp {
 neug::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
-    const ShortestPathParams& params,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
+    const ShortestPathParams& params, const SpecialPredicateConfig& config,
+    const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (const auto& label_triplet : params.labels) {
     expected_labels.insert(label_triplet.dst_label);

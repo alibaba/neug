@@ -14,14 +14,12 @@
  */
 #pragma once
 
-#include <map>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/pipeline.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace neug {
 class Schema;

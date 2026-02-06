@@ -184,7 +184,7 @@ Value Value::UINT64(uint64_t value) {
 }
 
 Value Value::DATE(date_t date) {
-  Value result(DataTypeId::kDate);
+  Value result(DataType::DATE);
   result.value_.date = date;
   result.is_null_ = false;
   return result;
@@ -439,11 +439,6 @@ std::string Value::GetValue() const {
 }
 
 template <>
-std::string_view Value::GetValue() const {
-  return std::string_view(value_info_->Get<StringValueInfo>().GetString());
-}
-
-template <>
 float Value::GetValue() const {
   return value_.float_;
 }
@@ -675,7 +670,7 @@ Value Value::FromJson(const rapidjson::Value& json_value,
     const auto list = json_value.GetArray();
     auto child_type = ListType::GetChildType(type);
     for (auto item = list.begin(); item != list.end(); ++item) {
-      values.emplace_back(Value::FromJson(*item, child_type));
+      values.emplace_back(FromJson(*item, child_type));
     }
     return runtime::Value::LIST(child_type, std::move(values));
   }
@@ -693,7 +688,7 @@ Value Value::FromJson(const std::string& json_str, const DataType& type) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Failed to parse JSON string: " +
                                      json_str);
   }
-  return FromJson(document, type);
+  return Value::FromJson(document, type);
 }
 
 rapidjson::Value Value::ToJson(const Value& value,
@@ -711,19 +706,13 @@ rapidjson::Value Value::ToJson(const Value& value,
     return rapidjson::Value(                                \
         static_cast<cpp_type>(value.GetValue<cpp_type>())); \
   }
-    TYPE_DISPATCHER(kInt32, int32_t);
-    TYPE_DISPATCHER(kInt64, int64_t);
-    TYPE_DISPATCHER(kUInt32, uint32_t);
-    TYPE_DISPATCHER(kUInt64, uint64_t);
-    TYPE_DISPATCHER(kFloat, float);
-    TYPE_DISPATCHER(kDouble, double);
-    TYPE_DISPATCHER(kBoolean, bool);
+    FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case neug::DataTypeId::kList: {
     rapidjson::Value list_doc(rapidjson::kArrayType);
     const auto& list = runtime::ListValue::GetChildren(value);
     for (size_t i = 0; i < list.size(); ++i) {
-      list_doc.PushBack(Value::ToJson(list[i], allocator), allocator);
+      list_doc.PushBack(ToJson(list[i], allocator), allocator);
     }
     return list_doc;
   }

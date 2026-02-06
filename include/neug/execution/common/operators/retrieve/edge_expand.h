@@ -18,8 +18,8 @@
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -96,7 +96,7 @@ class EdgeExpand {
 
   static neug::result<Context> expand_edge_with_special_edge_predicate(
       const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+      const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const Value& target_val_str);
 
   template <typename PRED_T>
@@ -184,8 +184,7 @@ class EdgeExpand {
 
   static neug::result<Context> expand_vertex_with_special_vertex_predicate(
       const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params,
-      const SpecialVertexPredicateConfig& config,
+      const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename T1>

@@ -205,4 +205,65 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   return DataType(DataTypeId::kUnknown);
 }
 
+std::string DataType::ToString() const {
+  switch (id_) {
+  case DataTypeId::kInvalid:
+    return "INVALID";
+  case DataTypeId::kBoolean:
+    return "BOOLEAN";
+  case DataTypeId::kInt8:
+    return "INT8";
+  case DataTypeId::kInt16:
+    return "INT16";
+  case DataTypeId::kInt32:
+    return "INT32";
+  case DataTypeId::kInt64:
+    return "INT64";
+  case DataTypeId::kUInt8:
+    return "UINT8";
+  case DataTypeId::kUInt16:
+    return "UINT16";
+  case DataTypeId::kUInt32:
+    return "UINT32";
+  case DataTypeId::kUInt64:
+    return "UINT64";
+  case DataTypeId::kFloat:
+    return "FLOAT";
+  case DataTypeId::kDouble:
+    return "DOUBLE";
+  case DataTypeId::kVarchar:
+    return "VARCHAR";
+  case DataTypeId::kDate:
+    return "DATE";
+  case DataTypeId::kTimestampMs:
+    return "TIMESTAMP_MS";
+  case DataTypeId::kInterval:
+    return "INTERVAL";
+  case DataTypeId::kVertex:
+    return "VERTEX";
+  case DataTypeId::kEdge:
+    return "EDGE";
+  case DataTypeId::kPath:
+    return "PATH";
+  case DataTypeId::kList: {
+    const DataType& child_type = ListType::GetChildType(*this);
+    return "LIST<" + child_type.ToString() + ">";
+  }
+  case DataTypeId::kStruct: {
+    const auto& child_types = StructType::GetChildTypes(*this);
+    std::string result = "STRUCT<";
+    for (size_t i = 0; i < child_types.size(); ++i) {
+      result += child_types[i].ToString();
+      if (i != child_types.size() - 1) {
+        result += ", ";
+      }
+    }
+    result += ">";
+    return result;
+  }
+  default:
+    return "UNKNOWN" + std::to_string(static_cast<uint8_t>(id_));
+  }
+}
+
 }  // namespace neug

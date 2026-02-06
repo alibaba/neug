@@ -14,8 +14,9 @@
  */
 
 #include "neug/execution/common/operators/insert/create_vertex.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
 namespace runtime {
@@ -23,7 +24,9 @@ namespace ops {
 neug::result<Context> CreateVertex::insert_vertex(
     StorageInsertInterface& graph, Context&& ctx,
     const std::vector<label_t>& labels,
-    const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
+    std::vector<
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+        props,
     const std::vector<int>& alias) {
   const auto& schema = graph.schema();
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -59,7 +62,7 @@ neug::result<Context> CreateVertex::insert_vertex(
     for (size_t i = 0; i < ctx.row_num(); ++i) {
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
-        Value value = prop_expr.eval_path(i);
+        Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
         if (prop_name == std::get<1>(pk)) {
           pk_value = value_to_property(value);
         } else {

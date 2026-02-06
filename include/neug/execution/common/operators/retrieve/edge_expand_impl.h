@@ -68,9 +68,9 @@ namespace runtime {
     }                                                                     \
   }
 
-static std::vector<std::tuple<label_t, label_t, Direction>> get_label_dirs(
-    label_t input_label, const Schema& schema,
-    const std::vector<LabelTriplet>& labels, Direction dir) {
+static inline std::vector<std::tuple<label_t, label_t, Direction>>
+get_label_dirs(label_t input_label, const Schema& schema,
+               const std::vector<LabelTriplet>& labels, Direction dir) {
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
     if (!schema.exist(triplet.src_label, triplet.dst_label,
@@ -96,7 +96,7 @@ static std::vector<std::tuple<label_t, label_t, Direction>> get_label_dirs(
   return label_dirs;
 }
 
-static std::vector<std::vector<std::tuple<label_t, label_t, Direction>>>
+static inline std::vector<std::vector<std::tuple<label_t, label_t, Direction>>>
 get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
                     const std::vector<LabelTriplet>& labels, Direction dir) {
   int label_num = schema.vertex_label_num();

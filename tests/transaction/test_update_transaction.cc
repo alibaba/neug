@@ -507,7 +507,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
     auto txn = sess->GetReadTransaction();
     neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
-    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
+    auto vprop_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<int64_t>>(
+        gi.GetVertexPropColumn(person_label, "age"));
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
@@ -671,7 +673,9 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     auto txn = sess->GetReadTransaction();
     neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
-    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
+    auto vprop_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<int64_t>>(
+        gi.GetVertexPropColumn(person_label, "age"));
     auto vertex_set = gi.GetVertexSet(person_label);
     for (neug::vid_t vid : vertex_set) {
       auto oid = gi.GetVertexId(person_label, vid);
@@ -1246,13 +1250,14 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     auto txn = sess->GetReadTransaction();
     neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
-    EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(person_label, "address"),
-              nullptr);
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "address"), nullptr);
 
-    auto email_accessor =
-        gi.GetVertexPropColumn<std::string_view>(person_label, "email");
-    auto height_accessor =
-        gi.GetVertexPropColumn<double>(person_label, "height");
+    auto email_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<std::string_view>>(
+        gi.GetVertexPropColumn(person_label, "email"));
+    auto height_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<double>>(
+        gi.GetVertexPropColumn(person_label, "height"));
     neug::vid_t vid;
     CHECK(gi.GetVertexIndex(person_label, neug::Property::from_int64(1), vid));
     EXPECT_EQ(email_accessor->get(vid).as_string_view(), "eve@example.com");
@@ -1355,13 +1360,10 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
     neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
-    EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
-    EXPECT_NO_THROW(gi.GetVertexPropColumn<int64_t>(person_label, "years"));
-    EXPECT_EQ(
-        gi.GetVertexPropColumn<std::string_view>(software_label, "language"),
-        nullptr);
-    EXPECT_NO_THROW(
-        gi.GetVertexPropColumn<std::string_view>(software_label, "lang"));
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(gi.GetVertexPropColumn(person_label, "years"));
+    EXPECT_EQ(gi.GetVertexPropColumn(software_label, "language"), nullptr);
+    EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "lang"));
   }
   db.Close();
 }
@@ -1527,15 +1529,11 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
     auto person_label = gi.schema().get_vertex_label_id("person");
     auto software_label = gi.schema().get_vertex_label_id("software");
-    EXPECT_EQ(gi.GetVertexPropColumn<int64_t>(person_label, "age"), nullptr);
-    EXPECT_NO_THROW(
-        gi.GetVertexPropColumn<std::string_view>(person_label, "name"));
-    EXPECT_EQ(gi.GetVertexPropColumn<std::string_view>(software_label, "lang"),
-              nullptr);
-    EXPECT_NO_THROW(
-        gi.GetVertexPropColumn<std::string_view>(software_label, "name"));
-    EXPECT_NO_THROW(
-        gi.GetVertexPropColumn<std::string_view>(software_label, "authors"));
+    EXPECT_EQ(gi.GetVertexPropColumn(person_label, "age"), nullptr);
+    EXPECT_NO_THROW(gi.GetVertexPropColumn(person_label, "name"));
+    EXPECT_EQ(gi.GetVertexPropColumn(software_label, "lang"), nullptr);
+    EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "name"));
+    EXPECT_NO_THROW(gi.GetVertexPropColumn(software_label, "authors"));
   }
   db.Close();
 }
@@ -1600,7 +1598,9 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
         gi.GetVertexIndex(person_label, neug::Property::from_int64(1), src_p));
     EXPECT_TRUE(
         gi.GetVertexIndex(person_label, neug::Property::from_int64(2), dst_p));
-    auto vprop_accessor = gi.GetVertexPropColumn<int64_t>(person_label, "age");
+    auto vprop_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<int64_t>>(
+        gi.GetVertexPropColumn(person_label, "age"));
     EXPECT_EQ(vprop_accessor->get(src_p).as_int64(), 29);
     auto knows_label = gi.schema().get_edge_label_id("knows");
     auto ed_accessor =
@@ -2236,8 +2236,9 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
     neug::vid_t p1_vid;
     EXPECT_TRUE(
         gi.GetVertexIndex(person_label, neug::Property::from_int64(1), p1_vid));
-    auto vprop_accessor =
-        gi.GetVertexPropColumn<std::string_view>(person_label, "name");
+    auto vprop_accessor = std::dynamic_pointer_cast<
+        neug::StorageReadInterface::vertex_column_t<std::string_view>>(
+        gi.GetVertexPropColumn(person_label, "name"));
     EXPECT_EQ(vprop_accessor->get(p1_vid).as_string_view(),
               std::string(neug::STRING_DEFAULT_MAX_LENGTH - 10, 'b'));
     EXPECT_TRUE(txn.Commit());

@@ -17,8 +17,6 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 
-#include <string_view>
-
 namespace neug {
 namespace runtime {
 namespace ops {

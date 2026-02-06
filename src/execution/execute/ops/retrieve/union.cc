@@ -65,7 +65,7 @@ neug::result<OpBuildResultT> UnionOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<Pipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
-  ContextMeta ret_meta;
+  ContextMeta ret_meta = ctx_meta;
   for (int i = 0; i < plan.plan(op_idx).opr().union_().sub_plans_size(); ++i) {
     auto& sub_plan = plan.plan(op_idx).opr().union_().sub_plans(i);
     auto pair_res = PlanParser::get().parse_execute_pipeline_with_meta(
@@ -78,7 +78,6 @@ neug::result<OpBuildResultT> UnionOprBuilder::Build(
     sub_metas.push_back(pair.second);
   }
 
-  // TODO(liulexiao): check sub metas consisitency
   return std::make_pair(std::make_unique<UnionOpr>(std::move(sub_plans)),
                         ret_meta);
 }

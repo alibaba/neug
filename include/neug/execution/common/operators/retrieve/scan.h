@@ -17,15 +17,14 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/params_map.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
 namespace runtime {
-class SPVertexPredicate;
 
 class Scan {
  public:
@@ -49,53 +48,9 @@ class Scan {
     return ctx;
   }
 
-  template <typename PRED_T>
-  static neug::result<Context> scan_vertex_with_limit(
-      Context&& ctx, const IStorageInterface& gi, const ScanParams& params,
-      const PRED_T& predicate) {
-    int32_t cur_limit = params.limit;
-    const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
-    if (params.tables.size() == 1) {
-      label_t label = params.tables[0];
-      MSVertexColumnBuilder builder(label);
-      auto vertices = graph.GetVertexSet(label);
-      for (auto vid : vertices) {
-        if (cur_limit <= 0) {
-          break;
-        }
-        if (predicate(label, vid)) {
-          builder.push_back_opt(vid);
-          cur_limit--;
-        }
-      }
-      ctx.set(params.alias, builder.finish());
-    } else if (params.tables.size() > 1) {
-      MSVertexColumnBuilder builder(params.tables[0]);
-      for (auto label : params.tables) {
-        if (cur_limit <= 0) {
-          break;
-        }
-        auto vertices = graph.GetVertexSet(label);
-        builder.start_label(label);
-        for (auto vid : vertices) {
-          if (cur_limit <= 0) {
-            break;
-          }
-          if (predicate(label, vid)) {
-            builder.push_back_opt(vid);
-            cur_limit--;
-          }
-        }
-      }
-      ctx.set(params.alias, builder.finish());
-    }
-    return ctx;
-  }
-
   static neug::result<Context> scan_vertex_with_special_vertex_predicate(
       Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
-      const SpecialVertexPredicateConfig& config,
-      const ParamsMap& query_params);
+      const SpecialPredicateConfig& config, const ParamsMap& query_params);
 
   template <typename PRED_T>
   static neug::result<Context> filter_oids(Context&& ctx,
@@ -103,19 +58,14 @@ class Scan {
                                            const ScanParams& params,
                                            const PRED_T& predicate,
                                            const std::vector<Property>& oids) {
-    auto limit = params.limit;
     if (params.tables.size() == 1) {
       label_t label = params.tables[0];
       MSVertexColumnBuilder builder(label);
       for (auto oid : oids) {
-        if (limit <= 0) {
-          break;
-        }
         vid_t vid;
         if (graph.GetVertexIndex(label, oid, vid)) {
           if (predicate(label, vid)) {
             builder.push_back_opt(vid);
-            --limit;
           }
         }
       }
@@ -125,18 +75,11 @@ class Scan {
       std::vector<std::pair<label_t, vid_t>> vids;
 
       for (auto label : params.tables) {
-        if (limit <= 0) {
-          break;
-        }
         for (auto oid : oids) {
-          if (limit <= 0) {
-            break;
-          }
           vid_t vid;
           if (graph.GetVertexIndex(label, oid, vid)) {
             if (predicate(label, vid)) {
               vids.emplace_back(label, vid);
-              --limit;
             }
           }
         }

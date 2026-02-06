@@ -19,6 +19,7 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
 namespace neug {
@@ -1171,7 +1172,7 @@ TEST_F(PathColumnTest, PathColumnBasic) {
   EXPECT_EQ(col->size(), 2);
   EXPECT_EQ(col->get_path(0), p1);
   EXPECT_EQ(col->get_path(1), p2);
-  EXPECT_EQ(col->path_length(0), 2);
+  EXPECT_EQ(col->path_length(0), 1);
 
   Value elem0 = col->get_elem(0);
   EXPECT_EQ(PathValue::Get(elem0), p1);

@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/scan.h"
 
-#include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/utils/result.h"
 
 namespace neug {
@@ -46,7 +46,7 @@ struct ScanVertexSPOp {
 
 neug::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
     Context&& ctx, const IStorageInterface& graph, const ScanParams& params,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
+    const SpecialPredicateConfig& config, const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (auto label : params.tables) {
     expected_labels.insert(label);

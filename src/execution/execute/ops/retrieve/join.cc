@@ -137,12 +137,12 @@ neug::result<OpBuildResultT> JoinOprBuilder::Build(
   } else if (join_kind == physical::Join_JoinKind::Join_JoinKind_INNER) {
     ret_meta = ctx_meta1;
     for (auto k : ctx_meta2.columns()) {
-      ret_meta.set(k);
+      ret_meta.set(k.first, k.second);
     }
   } else if (join_kind == physical::Join_JoinKind::Join_JoinKind_TIMES) {
     ret_meta = ctx_meta1;
     for (auto k : ctx_meta2.columns()) {
-      ret_meta.set(k);
+      ret_meta.set(k.first, k.second);
     }
   } else {
     if (join_kind != physical::Join_JoinKind::Join_JoinKind_LEFT_OUTER) {
@@ -150,10 +150,10 @@ neug::result<OpBuildResultT> JoinOprBuilder::Build(
       return std::make_pair(nullptr, ContextMeta());
     }
     ret_meta = ctx_meta1;
-    for (auto k : ctx_meta2.columns()) {
-      if (std::find(p.right_columns.begin(), p.right_columns.end(), k) ==
+    for (const auto& k : ctx_meta2.columns()) {
+      if (std::find(p.right_columns.begin(), p.right_columns.end(), k.first) ==
           p.right_columns.end()) {
-        ret_meta.set(k);
+        ret_meta.set(k.first, k.second);
       }
     }
   }
@@ -260,9 +260,9 @@ neug::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
   }
   auto pair = std::move(right_res.value());
   const auto& ctx_meta2 = pair.second;
-  ret_meta.set(alias);
+  ret_meta.set(alias, DataType::VERTEX);
   for (auto k : ctx_meta2.columns()) {
-    ret_meta.set(k);
+    ret_meta.set(k.first, k.second);
   }
   return std::make_pair(std::make_unique<PrimaryKeyJoinOpr>(
                             std::move(pair.first), vec, tag, alias),

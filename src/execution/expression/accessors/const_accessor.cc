@@ -13,25 +13,23 @@
  * limitations under the License.
  */
 
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/accessors/const_accessor.h"
 
 namespace neug {
-
 namespace runtime {
-struct LabelTriplet;
-
-Value Expr::eval_path(size_t idx) const { return expr_->eval_path(idx); }
-
-Value Expr::eval_vertex(label_t label, vid_t v) const {
-  return expr_->eval_vertex(label, v);
-}
-Value Expr::eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
-                      const void* data_ptr) const {
-  return expr_->eval_edge(label, src, dst, data_ptr);
+std::unique_ptr<BindedExprBase> ConstExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  return std::make_unique<ConstExpr>(inner_);
 }
 
-const DataType& Expr::type() const { return expr_->type(); }
+std::unique_ptr<BindedExprBase> ParamExpr::bind(
+    const IStorageInterface* storage, const ParamsMap& params) const {
+  auto it = params.find(name_);
+  if (it != params.end()) {
+    return std::make_unique<ConstExpr>(it->second);
+  }
 
+  return nullptr;
+}
 }  // namespace runtime
-
 }  // namespace neug

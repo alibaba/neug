@@ -21,7 +21,7 @@ namespace neug {
 class IStorageInterface;
 namespace runtime {
 class Context;
-class JoinParams;
+struct JoinParams;
 
 class Join {
  public:

@@ -26,7 +26,6 @@
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/numeric_cast.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Property;
@@ -54,7 +53,7 @@ class Value {
   Value& operator=(const Value& other);
   Value& operator=(Value&& other) noexcept;
 
-  DataType type() const { return type_; }
+  const DataType& type() const { return type_; }
 
   static Value BOOLEAN(bool value);
 
@@ -101,7 +100,10 @@ class Value {
   }
 
   template <class T>
-  T GetValue() const;
+  T GetValue() const {
+    static_assert(sizeof(T) == 0, "Unsupported type for GetValue");
+    return T();
+  }
 
   template <class OP>
   static Value ApplyArithmeticOp(const Value& lhs, const Value& rhs);
@@ -124,11 +126,10 @@ class Value {
   Value operator%(const Value& rhs) const;
 
   std::string to_string() const;
-
   // Parse from json string, with type info
+  static Value FromJson(const std::string& json_str, const DataType& type);
   static Value FromJson(const rapidjson::Value& json_value,
                         const DataType& type);
-  static Value FromJson(const std::string& json_str, const DataType& type);
   static rapidjson::Value ToJson(const Value& value,
                                  rapidjson::Document::AllocatorType& allocator);
 
@@ -221,10 +222,7 @@ template <>
 uint64_t Value::GetValue() const;
 template <>
 std::string Value::GetValue() const;
-// TODO(zhanglei,lexiao): Implicit conversion from string to string_view may
-// cause issues
-template <>
-std::string_view Value::GetValue() const;
+
 template <>
 float Value::GetValue() const;
 template <>
@@ -719,5 +717,6 @@ inline Value performCast<neug::Date>(const Value& input) {
 Value performCastToString(const Value& input);
 
 void encode_value(const Value& val, Encoder& encoder);
+
 }  // namespace runtime
 }  // namespace neug

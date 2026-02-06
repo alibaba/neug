@@ -15,6 +15,7 @@
 
 #include "neug/execution/common/operators/retrieve/union.h"
 
+#include <glog/logging.h>
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 

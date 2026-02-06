@@ -14,23 +14,12 @@
  */
 #pragma once
 
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
-#include "neug/generated/proto/plan/common.pb.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Schema;
 
 namespace runtime {
-class Context;
 
 namespace ops {
 

@@ -20,7 +20,6 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 namespace runtime {

@@ -16,6 +16,7 @@
 #include "neug/execution/common/columns/columns_utils.h"
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/list_columns.h"
+#include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/columns/struct_columns.h"
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
@@ -42,6 +43,13 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
   case DataTypeId::kList: {
     DataType elem_type = ListType::GetChildType(type);
     return std::make_shared<ListColumnBuilder>(elem_type);
+  }
+  case DataTypeId::kPath: {
+    return std::make_shared<PathColumnBuilder>();
+  }
+  // TODO: support null
+  case DataTypeId::kNull: {
+    return std::make_shared<ValueColumnBuilder<std::string>>();
   }
   default:
     LOG(FATAL) << "Unsupported data type for column builder: "

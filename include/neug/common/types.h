@@ -147,6 +147,8 @@ struct DataType {
 
   bool is_edge() const { return id_ == DataTypeId::kEdge; }
 
+  std::string ToString() const;
+
  private:
   DataTypeId id_;
   std::shared_ptr<ExtraTypeInfo> type_info_;

@@ -15,7 +15,7 @@
 
 #include "neug/execution/common/operators/insert/create_edge.h"
 #include "neug/execution/execute/ops/insert/create_edge.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
@@ -28,12 +28,13 @@ class CreateEdgeOpr : public IOperator {
       const std::vector<LabelTriplet>& labels,
       const std::vector<int32_t>& alias,
       const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-      const std::vector<
-          std::vector<std::pair<std::string, common::Expression>>>& properties)
+      std::vector<
+          std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>&&
+          properties)
       : labels_(labels),
         alias_(alias),
         src_dst_tags_(src_dst_tags),
-        properties_(properties) {}
+        properties_(std::move(properties)) {}
 
   neug::result<Context> Eval(IStorageInterface& graph_interface,
                              const ParamsMap& params, Context&& ctx,
@@ -42,19 +43,22 @@ class CreateEdgeOpr : public IOperator {
     if (graph_interface.readable()) {
       graph_ptr = dynamic_cast<const StorageReadInterface*>(&graph_interface);
     }
-    std::vector<std::vector<std::pair<std::string, Expr>>> expr_properties;
+    std::vector<
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>
+        expr_properties;
     for (size_t i = 0; i < labels_.size(); ++i) {
       const auto& props = properties_[i];
-      std::vector<std::pair<std::string, Expr>> expr_props;
+      std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>
+          expr_props;
       for (const auto& [prop, prop_value] : props) {
-        Expr e(graph_ptr, ctx, params, prop_value, VarType::kPathVar);
-        expr_props.emplace_back(prop, std::move(e));
+        auto expr = prop_value->bind(graph_ptr, params);
+        expr_props.emplace_back(prop, std::move(expr));
       }
       expr_properties.emplace_back(std::move(expr_props));
     }
     return CreateEdge::insert_edge(
         dynamic_cast<StorageInsertInterface&>(graph_interface), std::move(ctx),
-        labels_, src_dst_tags_, expr_properties, alias_);
+        labels_, src_dst_tags_, std::move(expr_properties), alias_);
   }
   std::string get_operator_name() const override { return "CreateEdgeOpr"; }
 
@@ -62,17 +66,18 @@ class CreateEdgeOpr : public IOperator {
   std::vector<LabelTriplet> labels_;
   std::vector<int32_t> alias_;
   std::vector<std::pair<int32_t, int32_t>> src_dst_tags_;
-  std::vector<std::vector<std::pair<std::string, common::Expression>>>
+  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties_;
 };
 neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
+  ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().create_edge();
   std::vector<LabelTriplet> labels;
   std::vector<int32_t> alias;
   std::vector<std::pair<int32_t, int32_t>> src_dst_tags;
-  std::vector<std::vector<std::pair<std::string, common::Expression>>>
+  std::vector<std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>>>
       properties;
   for (const auto& edge : opr.entries()) {
     LabelTriplet triplet;
@@ -84,15 +89,18 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     int32_t dst_tag = edge.destination_vertex_binding().id();
     src_dst_tags.emplace_back(src_tag, dst_tag);
     alias.push_back(edge.alias().id());
-    std::vector<std::pair<std::string, common::Expression>> props;
+    ret_meta.set(edge.alias().id(), DataType::EDGE);
+    std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : edge.property_mappings()) {
-      props.emplace_back(prop.property().key().name(), prop.data());
+      auto expr = neug::runtime::parse_expression(
+          prop.data(), ctx_meta, neug::runtime::VarType::kRecord);
+      props.emplace_back(prop.property().key().name(), std::move(expr));
     }
     properties.push_back(std::move(props));
   }
-  return std::make_pair(
-      std::make_unique<CreateEdgeOpr>(labels, alias, src_dst_tags, properties),
-      ctx_meta);
+  return std::make_pair(std::make_unique<CreateEdgeOpr>(
+                            labels, alias, src_dst_tags, std::move(properties)),
+                        ret_meta);
 }
 }  // namespace ops
 }  // namespace runtime

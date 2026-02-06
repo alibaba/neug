@@ -18,8 +18,8 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/retrieve/edge.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
@@ -270,8 +270,8 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
       return std::make_pair(nullptr, ContextMeta());
     }
     ContextMeta meta = ctx_meta;
-    meta.set(alias1);
-    meta.set(alias2);
+    meta.set(alias1, DataType::VERTEX);
+    meta.set(alias2, DataType::VERTEX);
 
     return std::make_pair(std::move(opr), meta);
   } else {

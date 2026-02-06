@@ -15,71 +15,24 @@
  */
 #pragma once
 
-#include <map>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
-
+#include "neug/execution/common/types/value.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/generated/proto/plan/expr.pb.h"
+
+#include "neug/execution/common/context.h"
+#include "neug/execution/common/params_map.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
+
+namespace common {
+class Expression;
+}
 
 namespace neug {
 
 namespace runtime {
 
-inline bool is_pk_oid_exact_check(
-    const neug::Schema& schema, label_t label, const common::Expression& expr,
-    std::function<Property(const ParamsMap&)>& value) {
-  if (expr.operators_size() != 3) {
-    return false;
-  }
-  if (!(expr.operators(0).has_var() && expr.operators(0).var().has_property() &&
-        expr.operators(0).var().property().has_key())) {
-    auto& key = expr.operators(7).var().property().key();
-    if (!(key.item_case() == common::NameOrId::ItemCase::kName &&
-          key.name() == schema.get_vertex_primary_key_name(label))) {
-      return false;
-    }
-    return false;
-  }
-  if (!(expr.operators(1).item_case() == common::ExprOpr::kLogical &&
-        expr.operators(1).logical() == common::Logical::EQ)) {
-    return false;
-  }
-
-  if (expr.operators(2).has_param()) {
-    auto& p = expr.operators(2).param();
-    auto name = p.name();
-    // todo: check data type
-    auto type_ = parse_from_ir_data_type(p.data_type());
-    if (type_.id() != DataTypeId::kInt64 && type_.id() != DataTypeId::kInt32) {
-      return false;
-    }
-    value = [name](const ParamsMap& params) {
-      return Property::from_int64(params.at(name).GetValue<int64_t>());
-    };
-    return true;
-  } else if (expr.operators(2).has_const_()) {
-    auto& c = expr.operators(2).const_();
-    if (c.item_case() == common::Value::kI64) {
-      value = [c](const ParamsMap&) { return Property::from_int64(c.i64()); };
-
-    } else if (c.item_case() == common::Value::kI32) {
-      value = [c](const ParamsMap&) {
-        return Property::from_int64(static_cast<int64_t>(c.i32()));
-      };
-    } else {
-      return false;
-    }
-    return true;
-  } else {
-    return false;
-  }
-  return false;
-}
+bool is_pk_oid_exact_check(const neug::Schema& schema, label_t label,
+                           const common::Expression& expr);
 
 enum class SPPredicateType {
   kPropertyGT,
@@ -93,40 +46,7 @@ enum class SPPredicateType {
   kUnknown
 };
 
-inline SPPredicateType parse_sp_pred(const common::Expression& expr) {
-  if (expr.operators_size() != 3) {
-    return SPPredicateType::kUnknown;
-  }
-
-  if (!(expr.operators(0).has_var() &&
-        expr.operators(0).var().has_property())) {
-    return SPPredicateType::kUnknown;
-  }
-  if (!(expr.operators(1).item_case() == common::ExprOpr::ItemCase::kLogical)) {
-    return SPPredicateType::kUnknown;
-  }
-  if (!expr.operators(2).has_param() && !expr.operators(2).has_const_()) {
-    return SPPredicateType::kUnknown;
-  }
-  switch (expr.operators(1).logical()) {
-  case common::Logical::GT:
-    return SPPredicateType::kPropertyGT;
-  case common::Logical::LT:
-    return SPPredicateType::kPropertyLT;
-  case common::Logical::LE:
-    return SPPredicateType::kPropertyLE;
-  case common::Logical::GE:
-    return SPPredicateType::kPropertyGE;
-  case common::Logical::EQ:
-    return SPPredicateType::kPropertyEQ;
-  case common::Logical::NE:
-    return SPPredicateType::kPropertyNE;
-  case common::Logical::WITHIN:
-    return SPPredicateType::kWithIn;
-  default:
-    return SPPredicateType::kUnknown;
-  }
-}
+SPPredicateType parse_sp_pred(const common::Expression& expr);
 
 template <typename T>
 class SLEdgePropertyGetter {
@@ -201,8 +121,9 @@ class SLVertexPropertyGetter {
   SLVertexPropertyGetter(const IStorageInterface& graph, label_t label,
                          const std::string& property_name) {
     column_ =
-        dynamic_cast<const StorageReadInterface&>(graph).GetVertexPropColumn<T>(
-            label, property_name);
+        std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+            dynamic_cast<const StorageReadInterface&>(graph)
+                .GetVertexPropColumn(label, property_name));
   }
   ~SLVertexPropertyGetter() = default;
 
@@ -219,7 +140,9 @@ class MLVertexPropertyGetter {
                          const std::string& property_name) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
     for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
-      columns_.emplace_back(graph.GetVertexPropColumn<T>(i, property_name));
+      columns_.emplace_back(
+          std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+              graph.GetVertexPropColumn(i, property_name)));
     }
   }
   ~MLVertexPropertyGetter() = default;
@@ -383,248 +306,27 @@ class VertexPropertyCmpPredicate {
   GETTER_T getter_;
   CMP_T cmp_;
 };
-
-struct SpecialEdgePredicateConfig {
-  std::string property_name;
-  SPPredicateType ptype;
-  std::string param_name;
-  DataTypeId param_type;
-};
-
-inline bool is_special_edge_predicate(const common::Expression& expr,
-                                      SpecialEdgePredicateConfig& config) {
-  if (expr.operators_size() == 3) {
-    const common::ExprOpr& op0 = expr.operators(0);
-    if (!op0.has_var()) {
-      return false;
-    }
-    if (!op0.var().has_property()) {
-      return false;
-    }
-    if (!op0.var().property().has_key()) {
-      return false;
-    }
-    if (!(op0.var().property().key().item_case() ==
-          common::NameOrId::ItemCase::kName)) {
-      return false;
-    }
-
-    config.property_name = op0.var().property().key().name();
-
-    const common::ExprOpr& op1 = expr.operators(1);
-    if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return false;
-    }
-    SPPredicateType ptype;
-    if (op1.logical() == common::Logical::LT) {
-      ptype = SPPredicateType::kPropertyLT;
-    } else if (op1.logical() == common::Logical::GT) {
-      ptype = SPPredicateType::kPropertyGT;
-    } else if (op1.logical() == common::Logical::EQ) {
-      ptype = SPPredicateType::kPropertyEQ;
-    } else if (op1.logical() == common::Logical::LE) {
-      ptype = SPPredicateType::kPropertyLE;
-    } else if (op1.logical() == common::Logical::GE) {
-      ptype = SPPredicateType::kPropertyGE;
-    } else if (op1.logical() == common::Logical::NE) {
-      ptype = SPPredicateType::kPropertyNE;
-    } else {
-      return false;
-    }
-    config.ptype = ptype;
-
-    const common::ExprOpr& op2 = expr.operators(2);
-    if (!op2.has_param()) {
-      return false;
-    }
-    if (!op2.param().has_data_type()) {
-      return false;
-    }
-    if (!(op2.param().data_type().type_case() ==
-          common::IrDataType::TypeCase::kDataType)) {
-      return false;
-    }
-    config.param_name = op2.param().name();
-    config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
-    return config.param_type == DataTypeId::kInt32 ||
-           config.param_type == DataTypeId::kInt64 ||
-           config.param_type == DataTypeId::kTimestampMs ||
-           config.param_type == DataTypeId::kVarchar;
-  }
-  return false;
-}
-
-struct SpecialVertexPredicateConfig {
+struct SpecialPredicateConfig {
   std::string property_name;
   SPPredicateType ptype;
   std::vector<std::string> param_names;
   DataTypeId param_type;
 };
 
-inline bool is_special_vertex_predicate(const common::Expression& expr,
-                                        SpecialVertexPredicateConfig& config) {
-  if (expr.operators_size() == 3) {
-    const common::ExprOpr& op0 = expr.operators(0);
-    if (!op0.has_var()) {
-      return false;
-    }
-    if (!op0.var().has_property()) {
-      return false;
-    }
-    if (!op0.var().property().has_key()) {
-      return false;
-    }
-    if (!(op0.var().property().key().item_case() ==
-          common::NameOrId::ItemCase::kName)) {
-      return false;
-    }
+bool is_special_edge_predicate(const Schema& schema,
+                               const std::vector<LabelTriplet>& labels,
+                               const common::Expression& expr,
+                               SpecialPredicateConfig& config);
 
-    config.property_name = op0.var().property().key().name();
-
-    const common::ExprOpr& op1 = expr.operators(1);
-    if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return false;
-    }
-    SPPredicateType ptype;
-    if (op1.logical() == common::Logical::LT) {
-      ptype = SPPredicateType::kPropertyLT;
-    } else if (op1.logical() == common::Logical::GT) {
-      ptype = SPPredicateType::kPropertyGT;
-    } else if (op1.logical() == common::Logical::EQ) {
-      ptype = SPPredicateType::kPropertyEQ;
-    } else if (op1.logical() == common::Logical::LE) {
-      ptype = SPPredicateType::kPropertyLE;
-    } else if (op1.logical() == common::Logical::GE) {
-      ptype = SPPredicateType::kPropertyGE;
-    } else if (op1.logical() == common::Logical::NE) {
-      ptype = SPPredicateType::kPropertyNE;
-    } else {
-      return false;
-    }
-    config.ptype = ptype;
-
-    const common::ExprOpr& op2 = expr.operators(2);
-    if (!op2.has_param()) {
-      return false;
-    }
-    if (!op2.param().has_data_type()) {
-      return false;
-    }
-    if (!(op2.param().data_type().type_case() ==
-          common::IrDataType::TypeCase::kDataType)) {
-      return false;
-    }
-    config.param_names.push_back(op2.param().name());
-    config.param_type = parse_from_ir_data_type(op2.param().data_type()).id();
-    return config.param_type == DataTypeId::kInt32 ||
-           config.param_type == DataTypeId::kInt64 ||
-           config.param_type == DataTypeId::kTimestampMs ||
-           config.param_type == DataTypeId::kVarchar;
-  } else if (expr.operators_size() == 7) {
-    // between
-    const common::ExprOpr& op0 = expr.operators(0);
-    if (!op0.has_var()) {
-      return false;
-    }
-    if (!op0.var().has_property()) {
-      return false;
-    }
-    if (!op0.var().property().has_key()) {
-      return false;
-    }
-    if (!(op0.var().property().key().item_case() ==
-          common::NameOrId::ItemCase::kName)) {
-      return false;
-    }
-    config.property_name = op0.var().property().key().name();
-
-    const common::ExprOpr& op1 = expr.operators(1);
-    if (!(op1.item_case() == common::ExprOpr::kLogical)) {
-      return false;
-    }
-
-    const common::ExprOpr& op2 = expr.operators(2);
-    if (!op2.has_param()) {
-      return false;
-    }
-    if (!op2.param().has_data_type()) {
-      return false;
-    }
-    if (!(op2.param().data_type().type_case() ==
-          common::IrDataType::TypeCase::kDataType)) {
-      return false;
-    }
-    config.param_names.push_back(op2.param().name());
-
-    const common::ExprOpr& op3 = expr.operators(3);
-    if (!(op3.item_case() == common::ExprOpr::kLogical)) {
-      return false;
-    }
-    if (op3.logical() != common::Logical::AND) {
-      return false;
-    }
-
-    const common::ExprOpr& op4 = expr.operators(4);
-    if (!op4.has_var()) {
-      return false;
-    }
-    if (!op4.var().has_property()) {
-      return false;
-    }
-    if (!op4.var().property().has_key()) {
-      return false;
-    }
-    if (!(op4.var().property().key().item_case() ==
-          common::NameOrId::ItemCase::kName)) {
-      return false;
-    }
-    if (config.property_name != op4.var().property().key().name()) {
-      return false;
-    }
-
-    const common::ExprOpr& op5 = expr.operators(5);
-    if (!(op5.item_case() == common::ExprOpr::kLogical)) {
-      return false;
-    }
-    const common::ExprOpr& op6 = expr.operators(6);
-    if (!op6.has_param()) {
-      return false;
-    }
-    if (!op6.param().has_data_type()) {
-      return false;
-    }
-    if (!(op6.param().data_type().type_case() ==
-          common::IrDataType::TypeCase::kDataType)) {
-      return false;
-    }
-    config.param_names.push_back(op6.param().name());
-    if (op1.logical() == common::Logical::LT &&
-        op5.logical() == common::Logical::GE) {
-      std::swap(config.param_names[0], config.param_names[1]);
-    } else if (op1.logical() == common::Logical::GE &&
-               op5.logical() == common::Logical::LT) {
-    } else {
-      return false;
-    }
-    auto type = parse_from_ir_data_type(op2.param().data_type());
-    auto type1 = parse_from_ir_data_type(op6.param().data_type());
-    if (type != type1) {
-      return false;
-    }
-    config.ptype = SPPredicateType::kPropertyBetween;
-    config.param_type = type.id();
-    return config.param_type == DataTypeId::kInt32 ||
-           config.param_type == DataTypeId::kInt64 ||
-           config.param_type == DataTypeId::kTimestampMs ||
-           config.param_type == DataTypeId::kVarchar;
-  }
-  return false;
-}
+bool is_special_vertex_predicate(const Schema& schema,
+                                 const std::vector<label_t>& labels,
+                                 const common::Expression& expr,
+                                 SpecialPredicateConfig& config);
 
 template <typename OP_T, typename CMP_T, typename... Args>
 static neug::result<Context> dispatch_vertex_predicate_impl_cmp_type(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    const SpecialPredicateConfig& config, const ParamsMap& params,
     const CMP_T& cmp_val, Args&&... args) {
   if (expected_labels.size() == 1) {
     // single label
@@ -651,10 +353,15 @@ static neug::result<Context> dispatch_vertex_predicate_impl_cmp_type(
 template <typename OP_T, typename T, typename... Args>
 static neug::result<Context> dispatch_vertex_predicate_impl_typed(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    const SpecialPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
   auto get_value = [&](const std::string& param_name) -> T {
-    return params.at(param_name).GetValue<T>();
+    if constexpr (std::is_same<T, std::string_view>::value) {
+      std::string_view sw = StringValue::Get(params.at(param_name));
+      return sw;
+    } else {
+      return params.at(param_name).GetValue<T>();
+    }
   };
   if (config.ptype == SPPredicateType::kPropertyLT) {
     using CMP_T = LTCmp<T>;
@@ -709,7 +416,7 @@ static neug::result<Context> dispatch_vertex_predicate_impl_typed(
 template <typename OP_T, typename... Args>
 neug::result<Context> dispatch_vertex_predicate(
     const IStorageInterface& graph, const std::set<label_t>& expected_labels,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& params,
+    const SpecialPredicateConfig& config, const ParamsMap& params,
     Args&&... args) {
   switch (config.param_type) {
 #define TYPE_DISPATCHER(enum_val, type)                      \

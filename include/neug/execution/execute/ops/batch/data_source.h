@@ -14,23 +14,14 @@
  */
 #pragma once
 
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/generated/proto/plan/cypher_dml.pb.h"
 #include "neug/utils/reader/reader.h"
 
 namespace neug {
 using namespace reader;
 class IRecordBatchSupplier;
-class Schema;
 namespace runtime {
-class Context;
-class OprTimer;
 
 namespace ops {
 

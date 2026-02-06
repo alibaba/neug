@@ -16,10 +16,12 @@
 
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/select.h"
-#include "neug/execution/utils/expr.h"
-#include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
+
+#include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/execution/expression/predicates.h"
 
 namespace neug {
 namespace runtime {
@@ -29,16 +31,21 @@ namespace ops {
 
 class SelectIdNeOpr : public IOperator {
  public:
-  explicit SelectIdNeOpr(const common::Expression& expr) : expr_(expr) {}
+  explicit SelectIdNeOpr(std::unique_ptr<neug::runtime::ExprBase>&& pred,
+                         int tag, const std::string& prop_name,
+                         const std::string& param_name)
+      : tag_(tag),
+        prop_name_(prop_name),
+        param_name_(param_name),
+        pred_(std::move(pred)) {}
 
   std::string get_operator_name() const override { return "SelectIdNeOpr"; }
 
   neug::result<neug::runtime::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
       neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    auto tag = expr_.operators(0).var().tag().id();
-    auto col = ctx.get(tag);
-    const auto& name = expr_.operators(0).var().property().key().name();
+    auto col = ctx.get(tag_);
+    const auto& name = prop_name_;
     if ((!col->is_optional()) &&
         col->column_type() == ContextColumnType::kVertex) {
       auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
@@ -47,8 +54,7 @@ class SelectIdNeOpr : public IOperator {
           name == graph_interface.schema().get_vertex_primary_key_name(
                       *labels.begin())) {
         auto label = *labels.begin();
-        int64_t oid =
-            params.at(expr_.operators(2).param().name()).GetValue<int64_t>();
+        int64_t oid = params.at(param_name_).GetValue<int64_t>();
         vid_t vid;
         if (graph_interface.GetVertexIndex(label, Property::from_int64(oid),
                                            vid)) {
@@ -57,49 +63,51 @@ class SelectIdNeOpr : public IOperator {
                 *(dynamic_cast<const SLVertexColumn*>(vertex_col.get()));
 
             return Select::select(
-                std::move(ctx), [&sl_vertex_col, vid](size_t i) {
+                std::move(ctx),
+                [&sl_vertex_col, vid](const Context& ctx, size_t i) {
                   return sl_vertex_col.get_vertex(i).vid_ != vid;
                 });
           } else {
-            return Select::select(std::move(ctx), [&vertex_col, vid](size_t i) {
-              return vertex_col->get_vertex(i).vid_ != vid;
-            });
+            return Select::select(
+                std::move(ctx),
+                [&vertex_col, vid](const Context& ctx, size_t i) {
+                  return vertex_col->get_vertex(i).vid_ != vid;
+                });
           }
         }
       }
     }
-    StorageReadInterface* graph = nullptr;
-    if (graph_interface.readable()) {
-      graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
-    }
-    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
-    PredWrapper expr_wrapper(std::move(expr));
 
-    return Select::select(std::move(ctx), expr_wrapper);
-  }
-  common::Expression expr_;
-};
-
-class SelectOpr : public IOperator {
- public:
-  explicit SelectOpr(const common::Expression& expr) : expr_(expr) {}
-
-  std::string get_operator_name() const override { return "SelectOpr"; }
-
-  neug::result<neug::runtime::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    StorageReadInterface* graph = nullptr;
-    if (graph_interface.readable()) {
-      graph = dynamic_cast<StorageReadInterface*>(&graph_interface);
-    }
-    Expr expr(graph, ctx, params, expr_, VarType::kPathVar);
-    PredWrapper expr_wrapper(std::move(expr));
+    auto expr = pred_->bind(&graph_interface, params);
+    neug::runtime::GeneralPred expr_wrapper(std::move(expr));
     return Select::select(std::move(ctx), expr_wrapper);
   }
 
  private:
-  common::Expression expr_;
+  int tag_;
+  std::string prop_name_;
+  std::string param_name_;
+  std::unique_ptr<neug::runtime::ExprBase> pred_;
+};
+
+class SelectOpr : public IOperator {
+ public:
+  explicit SelectOpr(std::unique_ptr<neug::runtime::ExprBase>&& expr)
+      : pred_(std::move(expr)) {}
+
+  std::string get_operator_name() const override { return "SelectOpr"; }
+
+  neug::result<neug::runtime::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+    auto expr = pred_->bind(&graph, params);
+
+    neug::runtime::GeneralPred expr_wrapper(std::move(expr));
+    return Select::select(std::move(ctx), expr_wrapper);
+  }
+
+ private:
+  std::unique_ptr<neug::runtime::ExprBase> pred_;
 };
 
 neug::result<OpBuildResultT> SelectOprBuilder::Build(
@@ -108,21 +116,28 @@ neug::result<OpBuildResultT> SelectOprBuilder::Build(
   auto opr = plan.plan(op_idx).opr().select();
   auto type = parse_sp_pred(opr.predicate());
   const auto& op2 = opr.predicate().operators(2);
+
+  std::unique_ptr<neug::runtime::ExprBase> pred =
+      neug::runtime::parse_expression(opr.predicate(), ctx_meta,
+                                      neug::runtime::VarType::kRecord);
+  ContextMeta ret_meta = ctx_meta;
   if (type == SPPredicateType::kPropertyNE && op2.has_param()) {
     auto var = opr.predicate().operators(0).var();
+    int tag = var.has_tag() ? var.tag().id() : -1;
     if (var.has_property()) {
       auto name = var.property().key().name();
       auto type = parse_from_ir_data_type(
           opr.predicate().operators(2).param().data_type());
+      auto param_name = op2.param().name();
       if (name == "id" && type.id() == DataTypeId::kInt64) {
-        ContextMeta ret_meta = ctx_meta;
-        return std::make_pair(std::make_unique<SelectIdNeOpr>(opr.predicate()),
+        return std::make_pair(std::make_unique<SelectIdNeOpr>(
+                                  std::move(pred), tag, name, param_name),
                               ret_meta);
       }
     }
   }
-  ContextMeta ret_meta = ctx_meta;
-  return std::make_pair(std::make_unique<SelectOpr>(opr.predicate()), ret_meta);
+
+  return std::make_pair(std::make_unique<SelectOpr>(std::move(pred)), ret_meta);
 }
 
 }  // namespace ops

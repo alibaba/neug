@@ -178,7 +178,7 @@ int32_t Path::length() const {
     ++len;
     cur = cur->prev_;
   }
-  return len;
+  return len - 1;
 }
 
 std::vector<VertexRecord> Path::nodes() const {

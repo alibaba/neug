@@ -15,6 +15,8 @@
 
 #include "neug/execution/common/context.h"
 
+#include <iostream>
+
 #include "neug/execution/common/columns/value_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -226,6 +228,13 @@ Context Context::union_ctx(const Context& other) const {
 }
 
 size_t Context::col_num() const { return columns.size(); }
+
+void ContextMeta::desc() const {
+  std::cout << "===============================================" << std::endl;
+  for (const auto& col : alias_set_) {
+    std::cout << "col - " << col.first << std::endl;
+  }
+}
 
 }  // namespace runtime
 
