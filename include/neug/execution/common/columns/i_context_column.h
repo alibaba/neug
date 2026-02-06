@@ -24,7 +24,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 enum class ContextColumnType {
   kVertex,
@@ -218,6 +218,6 @@ class IContextColumnBuilder {
   virtual std::shared_ptr<IContextColumn> finish() = 0;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -16,7 +16,7 @@
 #include "neug/execution/expression/exprs/udfs.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class BindedScalarFunctionExpr : public VertexExprBase,
                                  public EdgeExprBase,
                                  public RecordExprBase {
@@ -71,5 +71,5 @@ std::unique_ptr<BindedExprBase> ScalarFunctionExpr::bind(
   return std::make_unique<BindedScalarFunctionExpr>(func_, ret_type_,
                                                     std::move(bound_children));
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

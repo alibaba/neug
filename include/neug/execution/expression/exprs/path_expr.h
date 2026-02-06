@@ -17,7 +17,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class PathNodesExpr : public ExprBase {
  public:
   PathNodesExpr(std::unique_ptr<ExprBase>&& path_expr)
@@ -94,5 +94,5 @@ class StartEndNodeExpr : public ExprBase {
   std::unique_ptr<ExprBase> path_expr_;
   bool is_start_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -17,7 +17,7 @@
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class DropEdgePropertySchemaOprBuilder : public IOperatorBuilder {
@@ -37,5 +37,5 @@ class DropEdgePropertySchemaOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

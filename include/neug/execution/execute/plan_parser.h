@@ -24,7 +24,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class ContextMeta;
 class Pipeline;
 
@@ -63,6 +63,6 @@ class PlanParser {
       op_builders_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

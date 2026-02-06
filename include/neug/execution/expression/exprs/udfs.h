@@ -18,7 +18,7 @@
 #include "neug/utils/function_type.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class ScalarFunctionExpr : public ExprBase {
  public:
   ScalarFunctionExpr(neug_func_exec_t fn, const DataType& ret_type,
@@ -35,5 +35,5 @@ class ScalarFunctionExpr : public ExprBase {
   DataType ret_type_;
   std::vector<std::unique_ptr<ExprBase>> children_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

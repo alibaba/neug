@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/columns_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 std::shared_ptr<IContextColumn> StructColumn::shuffle(
     const std::vector<size_t>& offsets) const {
   std::vector<std::shared_ptr<IContextColumn>> shuffled_children;
@@ -123,5 +123,5 @@ std::shared_ptr<IContextColumn> StructColumnBuilder::finish() {
   return struct_col;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

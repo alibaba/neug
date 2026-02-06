@@ -20,7 +20,7 @@
 #include "parallel_hashmap/phmap.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
@@ -293,6 +293,6 @@ std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
   return ret;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

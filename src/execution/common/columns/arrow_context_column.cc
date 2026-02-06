@@ -23,7 +23,7 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   if (type->Equals(arrow::int64())) {
     return DataType(DataTypeId::kInt64);
@@ -285,5 +285,5 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

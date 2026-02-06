@@ -25,7 +25,7 @@
 #include "neug/utils/property/types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 static void sink_any(const Property& any, common::Value* value) {
   if (any.type() == DataTypeId::kInt64) {
@@ -417,5 +417,5 @@ void Sink::sink_beta(const Context& ctx, const StorageReadInterface& graph,
   output.put_bytes(res.data(), res.size());
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

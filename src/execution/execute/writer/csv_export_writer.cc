@@ -24,7 +24,7 @@
 #include "neug/execution/execute/writer/csv_export_writer.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 void put_delimiter_option(const std::string& delimiter_str, char& delimeter) {
   LOG(INFO) << "Put delimiter " << delimiter_str;
@@ -184,6 +184,6 @@ const bool CsvExportWriter::registered_ = ExportWriterFactory::Register(
     "csv", static_cast<ExportWriterFactory::writer_initializer_t>(
                &CsvExportWriter::Make));
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

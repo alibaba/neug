@@ -16,7 +16,7 @@
 #include "neug/execution/common/operators/retrieve/group_by.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 neug::result<Context> GroupBy::group_by(Context&& ctx,
                                         std::unique_ptr<KeyBase>&& key,
@@ -33,5 +33,5 @@ neug::result<Context> GroupBy::group_by(Context&& ctx,
   }
   return ret;
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -31,12 +31,12 @@ namespace neug {
 class Property;
 class Encoder;
 
-namespace runtime {
+namespace execution {
 using timestamp_ms_t = neug::DateTime;
 using interval_t = neug::Interval;
 using date_t = neug::Date;
-using vertex_t = neug::runtime::VertexRecord;
-using edge_t = neug::runtime::EdgeRecord;
+using vertex_t = neug::execution::VertexRecord;
+using edge_t = neug::execution::EdgeRecord;
 struct ExtraValueInfo;
 class Value {
   friend struct StringValue;
@@ -258,11 +258,11 @@ struct ValueConverter<int32_t> {
   template <typename T>
   static bool cast(const T& input, int32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -287,11 +287,11 @@ struct ValueConverter<int64_t> {
       output = input.to_mill_seconds();
       return true;
     } else if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -306,11 +306,11 @@ struct ValueConverter<uint32_t> {
   template <typename T>
   static bool cast(const T& input, uint32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -325,11 +325,11 @@ struct ValueConverter<uint64_t> {
   template <typename T>
   static bool cast(const T& input, uint64_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -352,9 +352,9 @@ struct ValueConverter<double> {
   template <typename T>
   static bool cast(const T& input, double& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return neug::runtime::tryDoubleCast(input, output);
+      return neug::execution::tryDoubleCast(input, output);
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -369,9 +369,9 @@ struct ValueConverter<float> {
   template <typename T>
   static bool cast(const T& input, float& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return neug::runtime::tryDoubleCast(input, output);
+      return neug::execution::tryDoubleCast(input, output);
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -718,5 +718,5 @@ Value performCastToString(const Value& input);
 
 void encode_value(const Value& val, Encoder& encoder);
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

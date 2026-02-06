@@ -23,7 +23,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -41,9 +41,9 @@ class IntersectOprMultip : public IOperator {
     return "IntersectOprMultip";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<EdgeAndNbrPredicate> preds;
@@ -92,9 +92,9 @@ class IntersectWithEdgeOpr : public IOperator {
     return "IntersectWithEdgeOpr";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::unique_ptr<BindedExprBase> left_v_pred =
@@ -266,5 +266,5 @@ neug::result<OpBuildResultT> IntersectOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -147,7 +147,7 @@ TEST_F(JsonTest, TestJsonArray) {
       {{"batch_read", "false"}});
   auto reader = createJsonReader(sharedState);
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -155,17 +155,17 @@ TEST_F(JsonTest, TestJsonArray) {
   EXPECT_EQ(ctx.row_num(), 2);
 
   auto col0 = ctx.columns[0];
-  ASSERT_EQ(col0->column_type(), runtime::ContextColumnType::kArrowArray);
+  ASSERT_EQ(col0->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn0 =
-      std::dynamic_pointer_cast<runtime::ArrowArrayContextColumn>(col0);
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col0);
   auto arrowType0 = arrayColumn0->GetArrowType();
   EXPECT_TRUE(arrowType0->Equals(arrow::uint32()))
       << "Expected uint32, but got: " << arrowType0->ToString();
 
   auto col2 = ctx.columns[2];
-  ASSERT_EQ(col2->column_type(), runtime::ContextColumnType::kArrowArray);
+  ASSERT_EQ(col2->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn2 =
-      std::dynamic_pointer_cast<runtime::ArrowArrayContextColumn>(col2);
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(col2);
   auto arrowType2 = arrayColumn2->GetArrowType();
   EXPECT_TRUE(arrowType2->Equals(arrow::float64()))
       << "Expected double, but got: " << arrowType2->ToString();

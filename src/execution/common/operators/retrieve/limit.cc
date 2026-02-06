@@ -19,7 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
   if (lower == 0 && static_cast<size_t>(upper) >= ctx.row_num()) {
@@ -38,6 +38,6 @@ neug::result<Context> Limit::limit(Context&& ctx, size_t lower, size_t upper) {
   return ctx;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -19,7 +19,7 @@
 
 namespace neug {
 class IStorageInterface;
-namespace runtime {
+namespace execution {
 class Context;
 struct JoinParams;
 
@@ -32,5 +32,5 @@ class Join {
                                        const std::vector<label_t>& labels,
                                        int tag, int alias);
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

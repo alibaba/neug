@@ -21,10 +21,10 @@
 #include <vector>
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class Value;
 
 using neug_func_exec_t = Value (*)(const std::vector<Value>&);
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

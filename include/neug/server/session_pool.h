@@ -29,7 +29,7 @@ class NeugDBService;
 struct SessionLocalContext {
   SessionLocalContext(
       PropertyGraph& graph_, std::shared_ptr<IGraphPlanner> planner,
-      std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+      std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<Allocator> alloc,
       std::shared_ptr<IVersionManager> version_manager,
       const std::string& work_dir, int thread_id,
@@ -141,7 +141,7 @@ class SessionPool {
  public:
   explicit SessionPool(
       PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
-      std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+      std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       std::shared_ptr<IVersionManager> version_manager,
       std::vector<std::shared_ptr<Allocator>>& allocators,
       const NeugDBConfig& config, const std::string& work_dir) {

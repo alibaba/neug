@@ -281,7 +281,7 @@ class NeugDB {
 
   inline std::shared_ptr<IGraphPlanner> GetPlanner() const { return planner_; }
 
-  inline std::shared_ptr<runtime::GlobalQueryCache> GetQueryCache() const {
+  inline std::shared_ptr<execution::GlobalQueryCache> GetQueryCache() const {
     return global_query_cache_;
   }
 
@@ -323,7 +323,7 @@ class NeugDB {
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<QueryProcessor> query_processor_;
   std::unique_ptr<ConnectionManager> connection_manager_;
-  std::shared_ptr<runtime::GlobalQueryCache> global_query_cache_;
+  std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
 
   std::mutex mutex_;
   std::vector<std::shared_ptr<Allocator>>

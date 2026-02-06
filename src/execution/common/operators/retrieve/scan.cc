@@ -19,7 +19,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Scan::find_vertex_with_oid(Context&& ctx,
                                                  const IStorageInterface& graph,
@@ -56,6 +56,6 @@ neug::result<Context> Scan::scan_vertex_with_special_vertex_predicate(
                                                    std::move(ctx), params);
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

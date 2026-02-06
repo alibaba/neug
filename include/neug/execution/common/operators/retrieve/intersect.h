@@ -21,31 +21,31 @@
 namespace neug {
 class StorageReadInterface;
 
-namespace runtime {
+namespace execution {
 
 struct EdgeExpandParams;
 
 class Intersect {
  public:
-  static neug::result<neug::runtime::Context> Binary_Intersect(
+  static neug::result<neug::execution::Context> Binary_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+      neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
       EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int alias);
 
-  static neug::result<neug::runtime::Context> Binary_Intersect_With_Edge(
+  static neug::result<neug::execution::Context> Binary_Intersect_With_Edge(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+      neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
       EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
       const EdgeExpandParams& eep1, int vertex_alias,
       const std::vector<int>& edge_alias);
 
-  static neug::result<neug::runtime::Context> Multiple_Intersect(
+  static neug::result<neug::execution::Context> Multiple_Intersect(
       const StorageReadInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
+      neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
       const std::vector<EdgeExpandParams>& eeps, int vertex_alias);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -16,7 +16,7 @@
 #include "neug/execution/expression/exprs/case_when.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedCaseWhenExpr : public VertexExprBase,
                            public EdgeExprBase,
@@ -92,5 +92,5 @@ std::unique_ptr<BindedExprBase> CaseWhenExpr::bind(
   return std::make_unique<BindedCaseWhenExpr>(
       type_, std::move(bound_when_then_exprs), std::move(bound_else_expr));
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

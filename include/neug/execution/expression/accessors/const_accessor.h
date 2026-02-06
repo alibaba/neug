@@ -16,7 +16,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class ConstExpr : public ExprBase,
                   public VertexExprBase,
                   public EdgeExprBase,
@@ -60,5 +60,5 @@ class ParamExpr : public ExprBase {
   std::string name_;
   DataType type_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

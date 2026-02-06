@@ -17,7 +17,7 @@
 #include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 /**
@@ -780,5 +780,5 @@ void create_project_expr_builders(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

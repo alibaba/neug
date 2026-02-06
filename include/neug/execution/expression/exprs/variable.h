@@ -22,7 +22,7 @@ class DynamicParam;
 class Variable;
 };  // namespace common
 namespace neug {
-namespace runtime {
+namespace execution {
 class ContextMeta;
 
 std::unique_ptr<ExprBase> parse_const(const ::common::Value& const_val);
@@ -33,5 +33,5 @@ std::unique_ptr<ExprBase> parse_variable(const ::common::Variable& var,
                                          const ContextMeta& ctx_meta,
                                          VarType var_type);
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

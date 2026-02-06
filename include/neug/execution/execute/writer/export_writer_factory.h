@@ -25,7 +25,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class IExportWriter {
  public:
@@ -54,5 +54,5 @@ class ExportWriterFactory {
   static std::unordered_map<std::string, writer_initializer_t>&
   getKnownWriters();
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

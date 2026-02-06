@@ -136,11 +136,11 @@ size_t get_offset_for_edge_record(const NbrList& nbr_list, vid_t expected_nbr,
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
-    const neug::runtime::EdgeRecord& record,
+    const neug::execution::EdgeRecord& record,
     const std::vector<DataTypeId>& props) {
   NbrList cur_nbr_list, another_nbr_list;
   vid_t src, nbr;
-  if (record.dir == runtime::Direction::kOut) {
+  if (record.dir == execution::Direction::kOut) {
     cur_nbr_list = oe.get_edges(record.src);
     another_nbr_list = ie.get_edges(record.dst);
     src = record.src;
@@ -161,7 +161,7 @@ std::pair<int32_t, int32_t> record_to_csr_offset_pair(
   another_offset = neug::fuzzy_search_offset_from_nbr_list(
       another_nbr_list, src, record.prop, e_prop_type);
   assert(another_offset != std::numeric_limits<int32_t>::max());
-  if (record.dir == runtime::Direction::kOut) {
+  if (record.dir == execution::Direction::kOut) {
     return std::make_pair(cur_offset, another_offset);
   } else {
     return std::make_pair(another_offset, cur_offset);

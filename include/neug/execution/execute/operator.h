@@ -26,7 +26,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class IOperator {
  public:
@@ -54,6 +54,6 @@ class IOperatorBuilder {
       const = 0;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

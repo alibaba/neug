@@ -22,7 +22,7 @@ namespace neug {
 class Encoder;
 class StorageReadInterface;
 
-namespace runtime {
+namespace execution {
 
 class Context;
 class Sink {
@@ -40,5 +40,5 @@ class Sink {
                         Encoder& output);
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

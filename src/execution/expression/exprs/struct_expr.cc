@@ -16,7 +16,7 @@
 #include "neug/execution/expression/exprs/struct_expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class BindedTupleExpr : public VertexExprBase,
                         public EdgeExprBase,
                         public RecordExprBase {
@@ -64,5 +64,5 @@ std::unique_ptr<BindedExprBase> TupleExpr::bind(
   }
   return std::make_unique<BindedTupleExpr>(std::move(bound_exprs), type_);
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

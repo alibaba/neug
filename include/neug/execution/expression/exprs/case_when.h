@@ -17,7 +17,7 @@
 
 #include "neug/execution/expression/expr.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 class CaseWhenExpr : public ExprBase {
  public:
   CaseWhenExpr(
@@ -39,5 +39,5 @@ class CaseWhenExpr : public ExprBase {
       when_then_exprs_;
   std::unique_ptr<ExprBase> else_expr_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

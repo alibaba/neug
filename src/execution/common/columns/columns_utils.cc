@@ -22,7 +22,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     const DataType& type) {
   switch (type.id()) {
@@ -57,5 +57,5 @@ std::shared_ptr<IContextColumnBuilder> ColumnsUtils::create_builder(
     return nullptr;
   }
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

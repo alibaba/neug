@@ -18,7 +18,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -56,6 +56,6 @@ class PrimaryKeyJoinOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

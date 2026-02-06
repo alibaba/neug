@@ -23,7 +23,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class PathExpand {
  public:
@@ -391,6 +391,6 @@ class PathExpand {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

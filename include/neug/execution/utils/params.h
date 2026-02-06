@@ -20,7 +20,7 @@
 #include "neug/execution/common/types/graph_types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 struct ScanParams {
   int alias;
@@ -70,5 +70,5 @@ struct JoinParams {
   JoinKind join_type;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

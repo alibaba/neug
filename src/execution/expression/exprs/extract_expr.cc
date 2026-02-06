@@ -17,7 +17,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedExtractExpr : public VertexExprBase,
                           public EdgeExprBase,
@@ -170,5 +170,5 @@ std::unique_ptr<BindedExprBase> ExtractExpr::bind(
   return std::make_unique<BindedExtractExpr>(std::move(bound_expr),
                                              extract_type_);
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

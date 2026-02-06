@@ -21,7 +21,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 namespace ops {
 
 /**
@@ -161,6 +161,6 @@ neug::result<OpBuildResultT> UpdateEdgeOprBuilder::Build(
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

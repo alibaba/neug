@@ -30,15 +30,15 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
 
 class JoinOpr : public IOperator {
  public:
-  JoinOpr(neug::runtime::Pipeline&& left_pipeline,
-          neug::runtime::Pipeline&& right_pipeline,
+  JoinOpr(neug::execution::Pipeline&& left_pipeline,
+          neug::execution::Pipeline&& right_pipeline,
           const JoinParams& join_params)
       : left_pipeline_(std::move(left_pipeline)),
         right_pipeline_(std::move(right_pipeline)),
@@ -46,21 +46,21 @@ class JoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "JoinOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    neug::runtime::Context ret_dup(ctx);
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+    neug::execution::Context ret_dup(ctx);
 
-    std::unique_ptr<neug::runtime::OprTimer> left_timer =
-        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
+    std::unique_ptr<neug::execution::OprTimer> left_timer =
+        (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
                            : nullptr;
     auto left_ctx =
         left_pipeline_.Execute(graph, std::move(ctx), params, left_timer.get());
     if (!left_ctx) {
       return left_ctx;
     }
-    std::unique_ptr<neug::runtime::OprTimer> right_timer =
-        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
+    std::unique_ptr<neug::execution::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
                            : nullptr;
     auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
                                              right_timer.get());
@@ -76,8 +76,8 @@ class JoinOpr : public IOperator {
   }
 
  private:
-  neug::runtime::Pipeline left_pipeline_;
-  neug::runtime::Pipeline right_pipeline_;
+  neug::execution::Pipeline left_pipeline_;
+  neug::execution::Pipeline right_pipeline_;
 
   JoinParams params_;
 };
@@ -164,7 +164,7 @@ neug::result<OpBuildResultT> JoinOprBuilder::Build(
 
 class PrimaryKeyJoinOpr : public IOperator {
  public:
-  PrimaryKeyJoinOpr(neug::runtime::Pipeline&& right_pipeline,
+  PrimaryKeyJoinOpr(neug::execution::Pipeline&& right_pipeline,
                     const std::vector<label_t>& labels, int tag, int alias)
       : right_pipeline_(std::move(right_pipeline)),
         labels_(labels),
@@ -173,12 +173,12 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   std::string get_operator_name() const override { return "PrimaryJoinOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    neug::runtime::Context ret_dup(ctx);
-    std::unique_ptr<neug::runtime::OprTimer> right_timer =
-        (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+    neug::execution::Context ret_dup(ctx);
+    std::unique_ptr<neug::execution::OprTimer> right_timer =
+        (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
                            : nullptr;
     auto right_ctx = right_pipeline_.Execute(graph, std::move(ret_dup), params,
                                              right_timer.get());
@@ -193,7 +193,7 @@ class PrimaryKeyJoinOpr : public IOperator {
   }
 
  private:
-  neug::runtime::Pipeline right_pipeline_;
+  neug::execution::Pipeline right_pipeline_;
   std::vector<label_t> labels_;
   int tag_, alias_;
 };
@@ -270,5 +270,5 @@ neug::result<OpBuildResultT> PrimaryKeyJoinOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

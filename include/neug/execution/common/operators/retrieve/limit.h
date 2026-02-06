@@ -18,7 +18,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 
 class Limit {
@@ -27,6 +27,6 @@ class Limit {
                                      size_t upper);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

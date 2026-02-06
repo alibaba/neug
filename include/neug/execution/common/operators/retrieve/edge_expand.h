@@ -23,7 +23,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class EdgeExpand {
  public:
@@ -367,5 +367,5 @@ class EdgeExpand {
   static Context remove_null_from_ctx(Context&& ctx, int tag_id);
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -18,7 +18,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -57,6 +57,6 @@ class ProjectOrderByOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

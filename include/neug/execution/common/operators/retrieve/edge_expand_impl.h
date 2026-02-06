@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 #define expand_sv_np_ms(v, v_idx, view, builder, offsets) \
   {                                                       \
@@ -1096,5 +1096,5 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

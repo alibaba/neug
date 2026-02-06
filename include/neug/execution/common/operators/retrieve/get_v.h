@@ -23,7 +23,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 inline std::vector<label_t> extract_labels(
     const std::vector<LabelTriplet>& labels, const std::vector<label_t>& tables,
@@ -349,6 +349,6 @@ class GetV {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

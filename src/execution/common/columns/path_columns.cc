@@ -18,7 +18,7 @@
 #include <limits>
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::shared_ptr<IContextColumn> PathColumn::shuffle(
     const std::vector<size_t>& offsets) const {
@@ -58,5 +58,5 @@ std::shared_ptr<IContextColumn> OptionalPathColumn::shuffle(
   return builder.finish();
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

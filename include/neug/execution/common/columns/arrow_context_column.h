@@ -34,7 +34,7 @@ class RecordBatch;
 namespace neug {
 class IRecordBatchSupplier;
 
-namespace runtime {
+namespace execution {
 
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
@@ -168,7 +168,7 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
-  void push_back_elem(const runtime::Value& val) override {
+  void push_back_elem(const execution::Value& val) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
 
@@ -180,5 +180,5 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

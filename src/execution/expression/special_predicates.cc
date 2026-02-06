@@ -17,7 +17,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 bool is_pk_oid_exact_check(const neug::Schema& schema, label_t label,
                            const common::Expression& expr) {
   if (expr.operators_size() != 3) {
@@ -341,5 +341,5 @@ bool is_special_vertex_predicate(const Schema& schema,
   return false;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

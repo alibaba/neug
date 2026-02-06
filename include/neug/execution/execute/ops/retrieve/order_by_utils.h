@@ -21,7 +21,7 @@
 
 namespace neug {
 class StorageReadInterface;
-namespace runtime {
+namespace execution {
 class IVertexColumn;
 namespace ops {
 class GeneralComparer {
@@ -63,5 +63,5 @@ bool vertex_property_topN(bool asc, size_t limit,
                           const std::string& prop_name,
                           std::vector<size_t>& offsets);
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

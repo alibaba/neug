@@ -17,7 +17,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 OprTimer& OprTimer::operator+=(const OprTimer& other) {
   this->time_ += other.time_;
@@ -31,6 +31,6 @@ OprTimer& OprTimer::operator+=(const OprTimer& other) {
   return *this;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 bool BuildGroupByUtils(const physical::GroupBy& group_by,
@@ -36,5 +36,5 @@ ReduceOp create_reduce_op(const physical::GroupBy_AggFunc& func,
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

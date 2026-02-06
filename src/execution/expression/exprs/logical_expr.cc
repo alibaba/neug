@@ -18,7 +18,7 @@
 #include <regex>
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class BindedUnaryLogicalExpr : public VertexExprBase,
                                public EdgeExprBase,
                                public RecordExprBase {
@@ -301,5 +301,5 @@ std::unique_ptr<BindedExprBase> WithInExpr::bind(
                                             list_expr_->bind(storage, params));
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

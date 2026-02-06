@@ -23,7 +23,7 @@
 
 namespace neug {
 
-result<std::pair<AccessMode, std::shared_ptr<runtime::CacheValue>>>
+result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
 QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
                                             const std::string& user_access_mode,
                                             int32_t num_threads) {
@@ -60,7 +60,7 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
 
 result<results::CollectiveResults> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
-    const runtime::ParamsMap& parameters, int32_t num_threads) {
+    const execution::ParamsMap& parameters, int32_t num_threads) {
   GS_AUTO(
       access_mode_pipeline,
       check_and_retrieve_pipeline(query_string, user_access_mode, num_threads));
@@ -84,7 +84,7 @@ result<results::CollectiveResults> QueryProcessor::execute(
       access_mode_pipeline,
       check_and_retrieve_pipeline(query_string, user_access_mode, num_threads));
   const auto& param_types = access_mode_pipeline.second->params_type;
-  runtime::ParamsMap params_map;
+  execution::ParamsMap params_map;
   if (parameters.IsObject()) {
     for (const auto& member : parameters.GetObject()) {
       std::string key = member.name.GetString();
@@ -94,7 +94,7 @@ result<results::CollectiveResults> QueryProcessor::execute(
                                   "Unexpected parameter: " + key));
       }
       params_map.emplace(key,
-                         runtime::Value::FromJson(member.value, iter->second));
+                         execution::Value::FromJson(member.value, iter->second));
     }
   }
   if (need_exclusive_lock(access_mode_pipeline.first)) {
@@ -113,11 +113,11 @@ result<results::CollectiveResults> QueryProcessor::execute(
 // The concurrency control is done outside this function.
 result<results::CollectiveResults> QueryProcessor::execute_internal(
     const std::string& query_string,
-    std::shared_ptr<runtime::CacheValue> cache_value, AccessMode access_mode,
-    const runtime::ParamsMap& parameters, int32_t num_threads) {
+    std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
+    const execution::ParamsMap& parameters, int32_t num_threads) {
   StorageAPUpdateInterface graph(g_, 0, allocator_);
-  std::unique_ptr<runtime::OprTimer> timer_ptr = nullptr;
-  auto ctx_res = cache_value->pipeline.Execute(graph, runtime::Context(),
+  std::unique_ptr<execution::OprTimer> timer_ptr = nullptr;
+  auto ctx_res = cache_value->pipeline.Execute(graph, execution::Context(),
                                                parameters, timer_ptr.get());
   if (!ctx_res) {
     LOG(ERROR) << "Error in executing query: " << query_string
@@ -125,7 +125,7 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
                << ", message: " << ctx_res.error().error_message();
     RETURN_ERROR(ctx_res.error());
   }
-  auto ret = runtime::Sink::sink(ctx_res.value(), graph);
+  auto ret = execution::Sink::sink(ctx_res.value(), graph);
   ret.set_result_schema(cache_value->result_schema);
   update_compiler_meta_if_needed(cache_value->flags, access_mode);
   return ret;

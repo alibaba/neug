@@ -117,7 +117,7 @@ class UpdateTransaction {
    * @since v0.1.0
    */
   UpdateTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, runtime::LocalQueryCache& cache,
+                    IVersionManager& vm, execution::LocalQueryCache& cache,
                     timestamp_t timestamp);
 
   /**
@@ -365,7 +365,7 @@ class UpdateTransaction {
   Allocator& alloc_;
   IWalWriter& logger_;
   IVersionManager& vm_;
-  runtime::LocalQueryCache& pipeline_cache_;
+  execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
   InArchive arc_;

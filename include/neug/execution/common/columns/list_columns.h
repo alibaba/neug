@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class ListColumnBase : public IContextColumn {
  public:
@@ -136,5 +136,5 @@ class ListColumnBuilder : public IContextColumnBuilder {
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

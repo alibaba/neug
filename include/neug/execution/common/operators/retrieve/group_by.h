@@ -20,7 +20,7 @@
 #include "parallel_hashmap/phmap.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 struct KeyBase {
   virtual ~KeyBase() = default;
@@ -87,6 +87,6 @@ class GroupBy {
                                         std::vector<ReduceOp>&& aggrs);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

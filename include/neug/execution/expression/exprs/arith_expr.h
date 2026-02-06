@@ -17,7 +17,7 @@
 #include "neug/execution/expression/expr.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 class ArithExpr : public ExprBase {
  public:
   ArithExpr(std::unique_ptr<ExprBase>&& lhs, std::unique_ptr<ExprBase>&& rhs,
@@ -38,5 +38,5 @@ class ArithExpr : public ExprBase {
   DataType type_;
   ::common::Arithmetic arith_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

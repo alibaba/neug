@@ -16,7 +16,7 @@
 #include "neug/execution/execute/ops/batch/data_export.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class DataExportOpr : public IOperator {
@@ -31,9 +31,9 @@ class DataExportOpr : public IOperator {
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override;
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override;
 
   std::shared_ptr<IExportWriter> writer_;
   std::string extension_name_;
@@ -42,12 +42,12 @@ class DataExportOpr : public IOperator {
   std::vector<std::pair<int, std::string>> headers_;
 };
 
-neug::result<neug::runtime::Context> DataExportOpr::Eval(
+neug::result<neug::execution::Context> DataExportOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params,
-    neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) {
+    neug::execution::Context&& ctx, neug::execution::OprTimer* timer) {
   const auto& graph =
       dynamic_cast<const StorageReadInterface&>(graph_interface);
-  writer_ = neug::runtime::ExportWriterFactory::CreateExportWriter(
+  writer_ = neug::execution::ExportWriterFactory::CreateExportWriter(
       extension_name_, file_path_, headers_, options_);
   std::vector<std::shared_ptr<IContextColumn>> columns;
   for (size_t i = 0; i < headers_.size(); i++) {
@@ -89,5 +89,5 @@ neug::result<OpBuildResultT> DataExportOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

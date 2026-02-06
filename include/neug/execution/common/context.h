@@ -20,7 +20,7 @@
 namespace neug {
 class StorageReadInterface;
 
-namespace runtime {
+namespace execution {
 class IContextColumn;
 
 class Context {
@@ -90,6 +90,6 @@ class ContextMeta {
   std::unordered_map<int32_t, DataType> alias_set_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

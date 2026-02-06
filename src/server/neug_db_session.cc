@@ -113,10 +113,10 @@ Status validate_flags(AccessMode mode, const physical::ExecutionFlag& flags) {
 }
 
 template <typename Transaction>
-inline neug::result<runtime::Context> ExecutePipelineInTransaction(
-    runtime::LocalQueryCache& pipeline_cache, const Schema& schema,
+inline neug::result<execution::Context> ExecutePipelineInTransaction(
+    execution::LocalQueryCache& pipeline_cache, const Schema& schema,
     const std::string& query, AccessMode mode,
-    const rapidjson::Document& param_json_obj, runtime::OprTimer* timer,
+    const rapidjson::Document& param_json_obj, execution::OprTimer* timer,
     std::string& result_schema, Transaction& txn,
     IStorageInterface& storage_interface) {
   GS_AUTO(cache_value, pipeline_cache.Get(schema, query));
@@ -126,7 +126,7 @@ inline neug::result<runtime::Context> ExecutePipelineInTransaction(
   auto params_map =
       ParamsParser::ParseFromJsonObj(cache_value->params_type, param_json_obj);
   auto ctx_res = cache_value->pipeline.Execute(
-      storage_interface, runtime::Context(), params_map, timer);
+      storage_interface, execution::Context(), params_map, timer);
   result_schema = cache_value->result_schema;
   if (!ctx_res) {
     txn.Abort();
@@ -156,7 +156,7 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
   }
 
   // Acquire different transaction on provided access_mode.;
-  std::unique_ptr<neug::runtime::OprTimer> timer = nullptr;
+  std::unique_ptr<neug::execution::OprTimer> timer = nullptr;
   neug::result<results::CollectiveResults> result;
   std::string result_schema;
   if (mode == neug::AccessMode::kRead) {
@@ -165,7 +165,7 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, read_txn, gri));
-    result = neug::runtime::Sink::sink(ctx, gri);
+    result = neug::execution::Sink::sink(ctx, gri);
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
@@ -181,7 +181,7 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, update_txn, gui));
-    result = neug::runtime::Sink::sink(ctx, gui);
+    result = neug::execution::Sink::sink(ctx, gui);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +

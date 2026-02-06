@@ -16,7 +16,7 @@
 #include "neug/execution/expression/accessors/edge_accessor.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedEdgePropertyAccessor : public EdgeExprBase {
  public:
@@ -110,5 +110,5 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
   }
   return nullptr;
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

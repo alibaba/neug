@@ -38,7 +38,7 @@ namespace neug {
 class QueryProcessor {
  public:
   QueryProcessor(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
-                 std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                  Allocator& alloc, int32_t max_num_threads,
                  bool is_read_only = false)
       : g_(graph),
@@ -50,22 +50,22 @@ class QueryProcessor {
 
   result<results::CollectiveResults> execute(
       const std::string& query_string, const std::string& access_mode,
-      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
+      const execution::ParamsMap& parameters = {}, int32_t num_threads = 0);
 
   result<results::CollectiveResults> execute(
       const std::string& query_string, const std::string& access_mode,
       const rapidjson::Value& parameters_json, int32_t num_threads = 0);
 
  private:
-  result<std::pair<AccessMode, std::shared_ptr<runtime::CacheValue>>>
+  result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
   check_and_retrieve_pipeline(const std::string& query_string,
                               const std::string& access_mode,
                               int32_t num_threads);
 
   result<results::CollectiveResults> execute_internal(
       const std::string& query_string,
-      std::shared_ptr<runtime::CacheValue> cache_value, AccessMode access_mode,
-      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
+      std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
+      const execution::ParamsMap& parameters = {}, int32_t num_threads = 0);
 
   bool need_exclusive_lock(AccessMode access_mode);
 
@@ -74,7 +74,7 @@ class QueryProcessor {
 
   PropertyGraph& g_;
   std::shared_ptr<IGraphPlanner> planner_;
-  std::shared_ptr<runtime::GlobalQueryCache> global_query_cache_;
+  std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;
   int32_t max_num_threads_;
   bool is_read_only_ = false;

@@ -27,7 +27,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 using vertex_pair = std::pair<VertexRecord, VertexRecord>;
 
@@ -647,5 +647,5 @@ neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
   return ctx;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -19,7 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class GeneralPred {
  public:
@@ -123,6 +123,6 @@ struct EdgeAndNbrPredicate {
   std::unique_ptr<BindedExprBase> e_expr_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

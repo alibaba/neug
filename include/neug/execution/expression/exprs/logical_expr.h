@@ -18,7 +18,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class UnaryLogicalExpr : public ExprBase {
  public:
   UnaryLogicalExpr(std::unique_ptr<ExprBase>&& operand,
@@ -75,5 +75,5 @@ class WithInExpr : public ExprBase {
   std::unique_ptr<ExprBase> list_expr_;
   DataType type_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -32,7 +32,7 @@ using namespace neug::common;
 namespace neug {
 namespace function {
 
-static int checkAndGetIndex(const runtime::Value& value) {
+static int checkAndGetIndex(const execution::Value& value) {
   switch (value.type().id()) {
   case neug::DataTypeId::kUInt32:
     return value.GetValue<uint32_t>();
@@ -50,7 +50,7 @@ static int checkAndGetIndex(const runtime::Value& value) {
   }
 }
 
-static runtime::Value execFunc(const std::vector<runtime::Value>& args) {
+static execution::Value execFunc(const std::vector<execution::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): expect exactly 2 argument, got " +
@@ -60,9 +60,9 @@ static runtime::Value execFunc(const std::vector<runtime::Value>& args) {
   const auto& arg0 = args[0];
   switch (arg0.type().id()) {
   case neug::DataTypeId::kStruct:
-    return runtime::StructValue::GetChildren(arg0).at(index);
+    return execution::StructValue::GetChildren(arg0).at(index);
   case neug::DataTypeId::kList:
-    return runtime::ListValue::GetChildren(arg0).at(index);
+    return execution::ListValue::GetChildren(arg0).at(index);
   default:
     THROW_RUNTIME_ERROR(
         "LIST_EXTRACT([], index): the first element should be a tuple or a "

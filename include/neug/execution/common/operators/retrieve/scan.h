@@ -24,7 +24,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class Scan {
  public:
@@ -104,6 +104,6 @@ class Scan {
       const Property& pk, int32_t alias);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

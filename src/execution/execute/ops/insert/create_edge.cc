@@ -19,7 +19,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CreateEdgeOpr : public IOperator {
@@ -92,8 +92,8 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
     ret_meta.set(edge.alias().id(), DataType::EDGE);
     std::vector<std::pair<std::string, std::unique_ptr<ExprBase>>> props;
     for (const auto& prop : edge.property_mappings()) {
-      auto expr = neug::runtime::parse_expression(
-          prop.data(), ctx_meta, neug::runtime::VarType::kRecord);
+      auto expr = neug::execution::parse_expression(
+          prop.data(), ctx_meta, neug::execution::VarType::kRecord);
       props.emplace_back(prop.property().key().name(), std::move(expr));
     }
     properties.push_back(std::move(props));
@@ -103,5 +103,5 @@ neug::result<OpBuildResultT> CreateEdgeOprBuilder::Build(
                         ret_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

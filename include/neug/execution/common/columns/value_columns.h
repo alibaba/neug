@@ -20,7 +20,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 template <typename T>
 class ValueColumnBuilder;
@@ -284,6 +284,6 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
   return true;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

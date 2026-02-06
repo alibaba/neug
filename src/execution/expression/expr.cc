@@ -32,7 +32,7 @@
 #include "neug/generated/proto/plan/expr.pb.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 static std::unique_ptr<ExprBase> build_expr(
     std::stack<::common::ExprOpr>& opr_stack, const ContextMeta& ctx_meta,
@@ -136,7 +136,7 @@ static std::unique_ptr<ExprBase> build_expr(
     case ::common::ExprOpr::kScalarFunc: {
       auto op = opr.scalar_func();
       const std::string& signature = op.unique_name();
-      neug::runtime::neug_func_exec_t fn = nullptr;
+      neug::execution::neug_func_exec_t fn = nullptr;
 
       auto gCatalog = catalog::GCatalogHolder::getGCatalog();
       auto func = gCatalog->getFunctionWithSignature(
@@ -334,5 +334,5 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
   }
   return build_expr(opr_stack2, ctx_meta, var_type);
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

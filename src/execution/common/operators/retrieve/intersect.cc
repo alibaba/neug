@@ -24,7 +24,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 void get_labels(
     const EdgeExpandParams& eep, const StorageReadInterface& graph,
@@ -45,9 +45,9 @@ void get_labels(
   labels.push_back(std::move(labels_i));
 }
 
-static neug::result<neug::runtime::Context> Binary_Intersect_SL_Impl(
+static neug::result<neug::execution::Context> Binary_Intersect_SL_Impl(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   const auto& vertex_col0 =
@@ -139,9 +139,9 @@ static neug::result<neug::runtime::Context> Binary_Intersect_SL_Impl(
   return std::move(ctx);
 }
 
-static neug::result<neug::runtime::Context> Binary_Intersect_ML_Impl(
+static neug::result<neug::execution::Context> Binary_Intersect_ML_Impl(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   const auto& vertex_col0 =
@@ -263,9 +263,9 @@ static neug::result<neug::runtime::Context> Binary_Intersect_ML_Impl(
   return std::move(ctx);
 }
 
-neug::result<neug::runtime::Context> Intersect::Binary_Intersect(
+neug::result<neug::execution::Context> Intersect::Binary_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int alias) {
   if (eep0.labels.size() == 1 && eep1.labels.size() == 1) {
@@ -279,9 +279,9 @@ neug::result<neug::runtime::Context> Intersect::Binary_Intersect(
   }
 }
 
-neug::result<neug::runtime::Context> Intersect::Multiple_Intersect(
+neug::result<neug::execution::Context> Intersect::Multiple_Intersect(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::runtime::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
+    neug::execution::Context&& ctx, std::vector<EdgeAndNbrPredicate>&& preds,
     const std::vector<EdgeExpandParams>& eeps, int vertex_alias) {
   std::vector<IVertexColumn*> vertex_cols;
   for (const auto& eep : eeps) {
@@ -423,9 +423,9 @@ neug::result<neug::runtime::Context> Intersect::Multiple_Intersect(
   return std::move(ctx);
 }
 
-neug::result<neug::runtime::Context> Intersect::Binary_Intersect_With_Edge(
+neug::result<neug::execution::Context> Intersect::Binary_Intersect_With_Edge(
     const StorageReadInterface& graph, const ParamsMap& params,
-    neug::runtime::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
+    neug::execution::Context&& ctx, EdgeAndNbrPredicate&& left_pred,
     EdgeAndNbrPredicate&& right_pred, const EdgeExpandParams& eep0,
     const EdgeExpandParams& eep1, int vertex_alias,
     const std::vector<int>& edge_alias) {
@@ -606,6 +606,6 @@ neug::result<neug::runtime::Context> Intersect::Binary_Intersect_With_Edge(
 
   return std::move(ctx);
 }
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

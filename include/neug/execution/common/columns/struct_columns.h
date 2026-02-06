@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class StructColumnBuilder;
 
 class StructColumn : public IContextColumn {
@@ -95,5 +95,5 @@ class StructColumnBuilder : public IContextColumnBuilder {
   std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

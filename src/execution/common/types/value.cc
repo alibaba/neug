@@ -25,7 +25,7 @@
 #include "neug/utils/property/property.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 enum class ExtraValueInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
   STRING_VALUE_INFO = 1,
@@ -615,64 +615,64 @@ Value Value::FromJson(const rapidjson::Value& json_value,
   case DataTypeId::kBoolean: {
     // If the value is 1/0, treat it as boolean
     if (json_value.IsInt()) {
-      return runtime::Value::BOOLEAN(json_value.GetInt() != 0);
+      return execution::Value::BOOLEAN(json_value.GetInt() != 0);
     }
-    return runtime::Value::BOOLEAN(json_value.GetBool());
+    return execution::Value::BOOLEAN(json_value.GetBool());
   }
   case DataTypeId::kDate: {
     if (json_value.IsInt64()) {
-      return runtime::Value::DATE(Date(json_value.GetInt64()));
+      return execution::Value::DATE(Date(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return runtime::Value::DATE(Date(json_value.GetString()));
+      return execution::Value::DATE(Date(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int/string for Date type");
     }
   }
   case DataTypeId::kDouble: {
-    return runtime::Value::DOUBLE(json_value.GetDouble());
+    return execution::Value::DOUBLE(json_value.GetDouble());
   }
   case DataTypeId::kFloat: {
-    return runtime::Value::FLOAT(json_value.GetFloat());
+    return execution::Value::FLOAT(json_value.GetFloat());
   }
   case DataTypeId::kInt32: {
-    return runtime::Value::INT32(json_value.GetInt());
+    return execution::Value::INT32(json_value.GetInt());
   }
   case DataTypeId::kInt64: {
-    return runtime::Value::INT64(json_value.GetInt64());
+    return execution::Value::INT64(json_value.GetInt64());
   }
   case DataTypeId::kUInt32: {
-    return runtime::Value::UINT32(json_value.GetUint());
+    return execution::Value::UINT32(json_value.GetUint());
   }
   case DataTypeId::kUInt64: {
-    return runtime::Value::UINT64(json_value.GetUint64());
+    return execution::Value::UINT64(json_value.GetUint64());
   }
   case DataTypeId::kVarchar: {
-    return runtime::Value::STRING(json_value.GetString());
+    return execution::Value::STRING(json_value.GetString());
   }
   case DataTypeId::kTimestampMs: {
     if (json_value.IsInt64()) {
-      return runtime::Value::TIMESTAMPMS(
-          runtime::timestamp_ms_t(json_value.GetInt64()));
+      return execution::Value::TIMESTAMPMS(
+          execution::timestamp_ms_t(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return runtime::Value::TIMESTAMPMS(
-          runtime::timestamp_ms_t(std::stoll(json_value.GetString())));
+      return execution::Value::TIMESTAMPMS(
+          execution::timestamp_ms_t(std::stoll(json_value.GetString())));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int64/string for TimestampMs type");
     }
   }
   case DataTypeId::kList: {
-    std::vector<runtime::Value> values;
+    std::vector<execution::Value> values;
     if (!json_value.IsArray()) {
-      return runtime::Value::LIST(DataType::UNKNOWN, std::move(values));
+      return execution::Value::LIST(DataType::UNKNOWN, std::move(values));
     }
     const auto list = json_value.GetArray();
     auto child_type = ListType::GetChildType(type);
     for (auto item = list.begin(); item != list.end(); ++item) {
       values.emplace_back(FromJson(*item, child_type));
     }
-    return runtime::Value::LIST(child_type, std::move(values));
+    return execution::Value::LIST(child_type, std::move(values));
   }
   default:
     THROW_NOT_IMPLEMENTED_EXCEPTION(
@@ -710,7 +710,7 @@ rapidjson::Value Value::ToJson(const Value& value,
 #undef TYPE_DISPATCHER
   case neug::DataTypeId::kList: {
     rapidjson::Value list_doc(rapidjson::kArrayType);
-    const auto& list = runtime::ListValue::GetChildren(value);
+    const auto& list = execution::ListValue::GetChildren(value);
     for (size_t i = 0; i < list.size(); ++i) {
       list_doc.PushBack(ToJson(list[i], allocator), allocator);
     }
@@ -894,5 +894,5 @@ Value performCastToString(const Value& input) {
   return Value::STRING(ret);
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

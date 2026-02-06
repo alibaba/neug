@@ -18,7 +18,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class Context;
 class BindedExprBase;
 namespace ops {
@@ -32,5 +32,5 @@ class CreateVertex {
       const std::vector<int>& alias);
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

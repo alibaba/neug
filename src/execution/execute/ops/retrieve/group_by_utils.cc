@@ -20,7 +20,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 struct GKey : public KeyBase {
@@ -880,5 +880,5 @@ bool BuildGroupByUtils(const physical::GroupBy& group_by,
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

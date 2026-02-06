@@ -20,7 +20,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -41,5 +41,5 @@ class BatchInsertEdgeOprBuilder : public IOperatorBuilder {
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

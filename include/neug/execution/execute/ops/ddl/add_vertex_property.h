@@ -18,7 +18,7 @@
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class AddVertexPropertySchemaOprBuilder : public IOperatorBuilder {
@@ -36,6 +36,6 @@ class AddVertexPropertySchemaOprBuilder : public IOperatorBuilder {
   }
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

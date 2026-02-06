@@ -17,7 +17,7 @@
 #include "neug/utils/result.h"
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 class RecordExprBase;
 
@@ -30,6 +30,6 @@ class Unfold {
                                       int alias);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

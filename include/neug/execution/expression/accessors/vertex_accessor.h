@@ -18,7 +18,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class VertexAccessor : public ExprBase {
  public:
   VertexAccessor(const DataType& type, GraphAccessType access_type,
@@ -64,5 +64,5 @@ class VertexAccessor : public ExprBase {
   GraphAccessType access_type_;
   std::string property_name_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

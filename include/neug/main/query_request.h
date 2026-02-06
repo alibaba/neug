@@ -28,8 +28,8 @@
 
 namespace neug {
 struct ParamsParser {
-  static runtime::ParamsMap ParseFromJsonObj(
-      const runtime::ParamsMetaMap& meta,
+  static execution::ParamsMap ParseFromJsonObj(
+      const execution::ParamsMetaMap& meta,
       const rapidjson::Document& param_json_obj);
 };
 
@@ -44,7 +44,7 @@ struct RequestParser {
 struct RequestSerializer {
   static std::string SerializeRequest(const std::string& query,
                                       const std::string& mode,
-                                      const runtime::ParamsMap& parameters);
+                                      const execution::ParamsMap& parameters);
 };
 
 }  // namespace neug

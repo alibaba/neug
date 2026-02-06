@@ -24,7 +24,7 @@
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
@@ -72,6 +72,6 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
   return ctx;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

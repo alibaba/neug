@@ -17,7 +17,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class TupleExpr : public ExprBase {
  public:
   TupleExpr(std::vector<std::unique_ptr<ExprBase>>&& exprs)
@@ -37,5 +37,5 @@ class TupleExpr : public ExprBase {
   std::vector<std::unique_ptr<ExprBase>> exprs_;
   DataType type_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

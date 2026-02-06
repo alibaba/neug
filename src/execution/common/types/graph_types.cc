@@ -19,7 +19,7 @@
 #include "neug/utils/property/types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 int64_t encode_unique_vertex_id(label_t label_id, vid_t vid) {
   // encode label_id and vid to a unique vid
   GlobalId global_id(label_id, vid);
@@ -240,5 +240,5 @@ VertexRecord Path::end_node() const {
   return VertexRecord{impl_->v_label_, impl_->vid_};
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -25,7 +25,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Dedup::dedup(Context&& ctx,
                                    const std::vector<size_t>& cols) {
@@ -97,6 +97,6 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
   return ret;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

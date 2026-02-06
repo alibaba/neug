@@ -17,7 +17,7 @@
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class DropEdgeTypeOpr : public IOperator {
@@ -63,5 +63,5 @@ neug::result<OpBuildResultT> DropEdgeTypeOprBuilder::Build(
                         ctx_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

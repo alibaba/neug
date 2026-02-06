@@ -22,7 +22,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 enum class EdgeColumnType { kSDSL, kSDML, kBDSL, kBDML, kMS, kUnKnown };
 
@@ -898,6 +898,6 @@ void foreach_edge(
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

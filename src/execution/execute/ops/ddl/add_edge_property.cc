@@ -17,7 +17,7 @@
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class AddEdgePropertySchemaOpr : public IOperator {
@@ -78,6 +78,6 @@ neug::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

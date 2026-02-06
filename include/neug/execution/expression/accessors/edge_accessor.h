@@ -18,7 +18,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class EdgeAccessor : public ExprBase {
  public:
@@ -58,5 +58,5 @@ class EdgeAccessor : public ExprBase {
   GraphAccessType access_type_;
   std::string property_name_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

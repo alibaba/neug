@@ -16,7 +16,7 @@
 #pragma once
 #include "neug/execution/expression/expr.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 class ExtractExpr : public ExprBase {
  public:
   ExtractExpr(std::unique_ptr<ExprBase>&& expr, ::common::Extract extract_type)
@@ -33,5 +33,5 @@ class ExtractExpr : public ExprBase {
   ::common::Extract extract_type_;
   DataType type_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

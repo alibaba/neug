@@ -21,7 +21,7 @@
 #include "neug/execution/expression/accessors/vertex_accessor.h"
 #include "neug/generated/proto/plan/common.pb.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 
 DataType parse_from_data_type(const ::common::DataType& ddt) {
   switch (ddt.item_case()) {
@@ -320,5 +320,5 @@ std::unique_ptr<ExprBase> parse_variable(const common::Variable& var,
     return parse_edge_var(var, type);
   }
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

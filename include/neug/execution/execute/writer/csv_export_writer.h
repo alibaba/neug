@@ -23,7 +23,7 @@
 #include "neug/execution/execute/writer/export_writer_factory.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class CsvExportWriter : public IExportWriter {
  public:
   CsvExportWriter(
@@ -53,5 +53,5 @@ class CsvExportWriter : public IExportWriter {
   static const bool registered_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

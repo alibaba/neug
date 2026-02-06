@@ -16,7 +16,7 @@
 #include "neug/execution/expression/exprs/arith_expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class BindedArithExpr : public VertexExprBase,
                         public EdgeExprBase,
                         public RecordExprBase {
@@ -89,5 +89,5 @@ std::unique_ptr<BindedExprBase> ArithExpr::bind(
                                            std::move(bound_rhs), type_, arith_);
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

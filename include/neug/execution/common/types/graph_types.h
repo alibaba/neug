@@ -26,7 +26,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 int64_t encode_unique_vertex_id(label_t label_id, vid_t vid);
 std::pair<label_t, vid_t> decode_unique_vertex_id(uint64_t unique_id);
@@ -198,13 +198,13 @@ struct Path {
   std::shared_ptr<PathImpl> impl_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug
 
 namespace std {
 template <>
-struct hash<neug::runtime::VertexRecord> {
+struct hash<neug::execution::VertexRecord> {
   // Hash combine functions copied from Boost.ContainerHash
   // https://github.com/boostorg/container_hash/blob/171c012d4723c5e93cc7cffe42919afdf8b27dfa/include/boost/container_hash/hash.hpp#L311
   // that is based on Peter Dimov's proposal
@@ -217,7 +217,7 @@ struct hash<neug::runtime::VertexRecord> {
     seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
 
-  size_t operator()(const neug::runtime::VertexRecord& record) const {
+  size_t operator()(const neug::execution::VertexRecord& record) const {
     std::size_t seed = 0;
     hash_combine(seed, record.vid_);
     hash_combine(seed, record.label_);
@@ -225,7 +225,7 @@ struct hash<neug::runtime::VertexRecord> {
   }
 
   std::size_t operator()(
-      const std::pair<neug::runtime::VertexRecord, neug::runtime::VertexRecord>&
+      const std::pair<neug::execution::VertexRecord, neug::execution::VertexRecord>&
           p) const {
     std::size_t seed = 0;
     hash_combine(seed, p.first.vid_);

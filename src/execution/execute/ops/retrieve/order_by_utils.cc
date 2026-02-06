@@ -18,7 +18,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 template <typename T>
 bool vertex_property_topN_impl(bool asc, size_t limit,
@@ -112,5 +112,5 @@ bool vertex_property_topN(bool asc, size_t limit,
   }
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

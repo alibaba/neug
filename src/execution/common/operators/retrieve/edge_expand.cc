@@ -23,7 +23,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 Context EdgeExpand::remove_null_from_ctx(Context&& ctx, int tag_id) {
   std::shared_ptr<IVertexColumn> vertex_col =
@@ -418,6 +418,6 @@ neug::result<Context> EdgeExpand::expand_vertex_with_special_vertex_predicate(
       params);
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

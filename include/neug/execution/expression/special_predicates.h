@@ -29,7 +29,7 @@ class Expression;
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 bool is_pk_oid_exact_check(const neug::Schema& schema, label_t label,
                            const common::Expression& expr);
@@ -437,6 +437,6 @@ neug::result<Context> dispatch_vertex_predicate(
       "Unsupported param type for special vertex predicate");
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

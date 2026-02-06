@@ -42,7 +42,7 @@ conn->Close();
 Query(
     const std::string &query_string,
     const std::string &access_mode="update",
-    const runtime::ParamsMap &parameters={}
+    const execution::ParamsMap &parameters={}
 )
 ```
 
@@ -55,8 +55,8 @@ Compiles and executes a Cypher query string against the database. The query is p
 // Simple read query
 auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
 // Query with parameters
-neug::runtime::ParamsMap params;
-params["min_age"] = neug::runtime::Value(18);
+neug::execution::ParamsMap params;
+params["min_age"] = neug::execution::Value(18);
 result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p", "read", params);
 // Process results
 if (result.has_value()) {

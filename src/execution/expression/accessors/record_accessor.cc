@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedRecordAccessor : public RecordExprBase {
  public:
@@ -312,5 +312,5 @@ std::unique_ptr<BindedExprBase> RecordPathAccessor::bind(
   return nullptr;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

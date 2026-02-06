@@ -21,7 +21,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 neug::result<Context> CreateEdge::insert_edge(
     StorageInsertInterface& graph, Context&& ctx,
@@ -103,5 +103,5 @@ neug::result<Context> CreateEdge::insert_edge(
   return ctx;
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

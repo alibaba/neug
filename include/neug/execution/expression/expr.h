@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedExprBase;
 
@@ -113,5 +113,5 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
                                            const ContextMeta& ctx_meta,
                                            VarType var_type);
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -20,7 +20,7 @@
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 /**
@@ -143,8 +143,8 @@ neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
       THROW_RUNTIME_ERROR(
           "Setting vertex property without key is not supported.");
     }
-    auto expression = neug::runtime::parse_expression(
-        prop_mapping.data(), ctx_meta, neug::runtime::VarType::kRecord);
+    auto expression = neug::execution::parse_expression(
+        prop_mapping.data(), ctx_meta, neug::execution::VarType::kRecord);
     vertex_data.emplace_back(tag_id, prop_mapping.property().key().name(),
                              std::move(expression));
   }
@@ -152,5 +152,5 @@ neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
       std::make_unique<UpdateVertexOpr>(std::move(vertex_data)), ret_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

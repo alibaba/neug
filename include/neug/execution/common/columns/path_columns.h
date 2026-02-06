@@ -18,7 +18,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class IPathColumn : public IContextColumn {
  public:
@@ -167,5 +167,5 @@ class PathColumnBuilder : public IContextColumnBuilder {
   std::vector<Path> data_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

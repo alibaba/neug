@@ -23,7 +23,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace test {
 class VertexColumnTest : public ::testing::Test {
  protected:
@@ -1481,5 +1481,5 @@ TEST_F(ArrowContextColumnTest, ArrowStreamContextColumnBasic) {
 }
 
 }  // namespace test
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

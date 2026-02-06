@@ -18,7 +18,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class BatchDeleteVertexOprBuilder : public IOperatorBuilder {
@@ -37,5 +37,5 @@ class BatchDeleteVertexOprBuilder : public IOperatorBuilder {
   }
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

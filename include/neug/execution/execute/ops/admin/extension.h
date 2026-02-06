@@ -19,7 +19,7 @@
 #include "neug/execution/extension/extension.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 // Builders
@@ -72,5 +72,5 @@ class ExtensionUninstallOprBuilder : public IOperatorBuilder {
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

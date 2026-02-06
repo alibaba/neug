@@ -73,7 +73,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 
 void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::ScanOprBuilder>());
@@ -501,6 +501,6 @@ ParamsMetaMap PlanParser::parse_params_type(
   return params_type;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

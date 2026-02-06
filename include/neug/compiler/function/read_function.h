@@ -59,7 +59,7 @@ class LocalFileSystemProvider
     auto& paths = schema.paths;
     std::vector<std::string> resolvedPaths;
     for (auto& path : paths) {
-      auto files = neug::runtime::ops::match_files_with_pattern(path);
+      auto files = neug::execution::ops::match_files_with_pattern(path);
       resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
     }
     return FileInfo<arrow::fs::FileSystem>{resolvedPaths, fs};
@@ -68,7 +68,7 @@ class LocalFileSystemProvider
 
 // The exec function invoked by data source operators to load data from external
 // data sources.
-using read_exec_func_t = std::function<runtime::Context(
+using read_exec_func_t = std::function<execution::Context(
     std::shared_ptr<reader::ReadSharedState> state)>;
 
 // The function used to sniff/infer file column names and their types from

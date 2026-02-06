@@ -20,7 +20,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CreateVertexOpr : public IOperator {
@@ -114,5 +114,5 @@ neug::result<OpBuildResultT> CreateVertexOprBuilder::Build(
       ret_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -18,7 +18,7 @@
 #include "neug/execution/expression/expr.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class RecordAccessor : public ExprBase {
  public:
   RecordAccessor(int tag, const DataType& type) : tag_(tag), type_(type) {}
@@ -170,5 +170,5 @@ class RecordPathAccessor : public ExprBase {
   DataType type_;
   std::string property_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

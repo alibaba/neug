@@ -19,7 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class Select {
  public:
@@ -38,6 +38,6 @@ class Select {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

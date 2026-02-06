@@ -20,7 +20,7 @@
 #include "neug/execution/utils/pb_parse_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 template <typename T>
@@ -171,5 +171,5 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

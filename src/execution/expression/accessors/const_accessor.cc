@@ -16,7 +16,7 @@
 #include "neug/execution/expression/accessors/const_accessor.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 std::unique_ptr<BindedExprBase> ConstExpr::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   return std::make_unique<ConstExpr>(inner_);
@@ -31,5 +31,5 @@ std::unique_ptr<BindedExprBase> ParamExpr::bind(
 
   return nullptr;
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

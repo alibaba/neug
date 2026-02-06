@@ -17,7 +17,7 @@
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CreateEdgeTypeOpr : public IOperator {
@@ -121,5 +121,5 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

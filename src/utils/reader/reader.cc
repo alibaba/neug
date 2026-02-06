@@ -48,7 +48,7 @@ namespace neug {
 namespace reader {
 
 void ArrowReader::read(std::shared_ptr<ReadLocalState> localState,
-                       runtime::Context& ctx) {
+                       execution::Context& ctx) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -141,7 +141,7 @@ std::shared_ptr<arrow::dataset::Scanner> ArrowReader::createScanner(
 }
 
 void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                            runtime::Context& output) {
+                            execution::Context& output) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -169,7 +169,7 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
   output.clear();
   for (int i = 0; i < num_cols; ++i) {
     auto chunk_arrays = table->column(i)->chunks();
-    runtime::ArrowArrayContextColumnBuilder builder;
+    execution::ArrowArrayContextColumnBuilder builder;
     for (const auto& array : chunk_arrays) {
       builder.push_back(array);
     }
@@ -178,7 +178,7 @@ void ArrowReader::full_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
 }
 
 void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                             runtime::Context& output) {
+                             execution::Context& output) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
   }
@@ -204,7 +204,7 @@ void ArrowReader::batch_read(std::shared_ptr<arrow::dataset::Scanner> scanner,
     // NOTE: Each column uses the same shared RecordBatch supplier, so columns
     // share access to entire batches rather than being split by column. This
     // design may need refactoring when storage no longer relies on Arrow.
-    runtime::ArrowStreamContextColumnBuilder builder({batch_supplier});
+    execution::ArrowStreamContextColumnBuilder builder({batch_supplier});
     output.set(i, builder.finish());
   }
 }

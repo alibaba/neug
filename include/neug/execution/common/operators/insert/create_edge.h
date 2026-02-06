@@ -18,7 +18,7 @@
 
 namespace neug {
 class StorageInsertInterface;
-namespace runtime {
+namespace execution {
 class Context;
 struct LabelTriplet;
 class BindedExprBase;
@@ -34,5 +34,5 @@ class CreateEdge {
       const std::vector<int>& alias);
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -21,7 +21,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> PathExpand::edge_expand_v(
     const StorageReadInterface& graph, Context&& ctx,
@@ -1186,6 +1186,6 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
                                              std::move(ctx), params);
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -23,7 +23,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 Context::Context() : head(nullptr) {}
 
@@ -236,6 +236,6 @@ void ContextMeta::desc() const {
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

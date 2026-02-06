@@ -138,7 +138,7 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
 
 UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
                                      IWalWriter& logger, IVersionManager& vm,
-                                     runtime::LocalQueryCache& cache,
+                                     execution::LocalQueryCache& cache,
                                      timestamp_t timestamp)
     : graph_(graph),
       alloc_(alloc),

@@ -38,7 +38,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class EdgeRecord;
 }
 

@@ -40,7 +40,7 @@ namespace neug {
 class IRecordBatchSupplier;
 class Schema;
 class StorageReadInterface;
-namespace runtime {
+namespace execution {
 class Context;
 class VertexRecord;
 class EdgeRecord;
@@ -100,6 +100,6 @@ void parse_property_mappings(
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

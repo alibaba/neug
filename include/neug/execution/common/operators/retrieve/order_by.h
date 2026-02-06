@@ -22,7 +22,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class OrderBy {
  public:
@@ -95,6 +95,6 @@ class OrderBy {
     return ctx;
   }
 };
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

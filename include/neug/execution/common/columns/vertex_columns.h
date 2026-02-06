@@ -18,7 +18,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 enum class VertexColumnType {
   kSingle,
@@ -467,6 +467,6 @@ void foreach_vertex(const IVertexColumn& col, const FUNC_T& func) {
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

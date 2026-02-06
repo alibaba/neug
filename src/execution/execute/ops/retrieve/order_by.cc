@@ -21,7 +21,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -33,9 +33,9 @@ class OrderByOpr : public IOperator {
 
   std::string get_operator_name() const override { return "OrderByOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     int keys_num = keys_.size();
@@ -101,5 +101,5 @@ neug::result<OpBuildResultT> OrderByOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

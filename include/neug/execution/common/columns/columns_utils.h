@@ -21,7 +21,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class ColumnsUtils {
  public:
   template <typename T>
@@ -51,5 +51,5 @@ class ColumnsUtils {
   static std::shared_ptr<IContextColumnBuilder> create_builder(
       const DataType& type);
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

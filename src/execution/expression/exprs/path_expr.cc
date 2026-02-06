@@ -18,7 +18,7 @@
 #include "neug/execution/common/context.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class BindedPathNodesExpr : public RecordExprBase {
  public:
   BindedPathNodesExpr(std::unique_ptr<BindedExprBase>&& path_expr)
@@ -203,5 +203,5 @@ std::unique_ptr<BindedExprBase> StartEndNodeExpr::bind(
   return std::make_unique<BindedStartEndNodeExpr>(
       path_expr_->bind(storage, params), is_start_);
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

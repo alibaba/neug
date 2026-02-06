@@ -22,7 +22,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex_on_graph_view(const GenericView& view,
@@ -592,6 +592,6 @@ default_single_source_shortest_path_impl(
                          std::move(offsets));
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

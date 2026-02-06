@@ -22,7 +22,7 @@ namespace neug {
 class IRecordBatchSupplier;
 class PropertyGraph;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -170,5 +170,5 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

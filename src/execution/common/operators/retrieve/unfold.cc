@@ -22,7 +22,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto col = ctxs.get(key);
@@ -92,6 +92,6 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, const RecordExprBase& key,
   return ctxs;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

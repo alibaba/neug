@@ -30,7 +30,7 @@ class Scan;
 }  // namespace physical
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class ScanUtils {
@@ -43,5 +43,5 @@ class ScanUtils {
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

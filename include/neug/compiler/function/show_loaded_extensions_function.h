@@ -34,10 +34,10 @@ struct ShowLoadedExtensionsFunction {
   static function_set getFunctionSet();
 
   static std::unique_ptr<ShowLoadedExtensionsFuncInput> bindFunc(
-      const neug::Schema& schema, const neug::runtime::ContextMeta& ctx_meta,
+      const neug::Schema& schema, const neug::execution::ContextMeta& ctx_meta,
       const ::physical::PhysicalPlan& plan, int op_idx);
 
-  static neug::runtime::Context execFunc(
+  static neug::execution::Context execFunc(
       const ShowLoadedExtensionsFuncInput& input);
 };
 

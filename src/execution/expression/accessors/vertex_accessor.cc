@@ -16,7 +16,7 @@
 #include "neug/execution/expression/accessors/vertex_accessor.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class BindedVertexPropertyAccessor : public VertexExprBase {
  public:
@@ -103,5 +103,5 @@ std::unique_ptr<BindedExprBase> VertexAccessor::bind(
   return nullptr;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

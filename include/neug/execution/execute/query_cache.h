@@ -21,7 +21,7 @@
 #include "neug/utils/access_mode.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 struct CacheValue {
   Pipeline pipeline;
@@ -61,7 +61,7 @@ class GlobalQueryCache {
     GS_AUTO(pipeline_result, PlanParser::get().parse_execute_pipeline(
                                  schema, ctx_meta, plan_result.first));
     auto params_type =
-        runtime::PlanParser::parse_params_type(plan_result.first);
+        execution::PlanParser::parse_params_type(plan_result.first);
     {
       std::unique_lock<std::shared_mutex> write_lock(mutex_);
       auto iter = cache_.find(query);
@@ -131,5 +131,5 @@ class LocalQueryCache {
   uint64_t version_;
   std::unordered_map<std::string, std::shared_ptr<CacheValue>> cache_;
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

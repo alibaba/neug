@@ -23,7 +23,7 @@
 #include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -47,9 +47,9 @@ class ProjectOpr : public IOperator {
 
   ~ProjectOpr() {}
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     if (is_select_columns_) {
       Context ret;
       for (auto& p : select_columns_mapping_) {
@@ -117,7 +117,7 @@ neug::result<OpBuildResultT> ProjectOprBuilder::Build(
       }
       auto expr = m.expr();
       auto expr_ptr =
-          parse_expression(expr, ctx_meta, neug::runtime::VarType::kRecord);
+          parse_expression(expr, ctx_meta, neug::execution::VarType::kRecord);
       expr_infos.emplace_back(expr, alias, std::move(expr_ptr));
     }
   } else {
@@ -177,9 +177,9 @@ class ProjectOrderByOprBeta : public IOperator {
     return "ProjectOrderByOprBeta";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -349,5 +349,5 @@ neug::result<OpBuildResultT> ProjectOrderByOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

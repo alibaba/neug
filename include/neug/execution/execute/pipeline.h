@@ -19,7 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 class OprTimer;
 
@@ -38,6 +38,6 @@ class Pipeline {
   std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

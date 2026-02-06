@@ -18,7 +18,7 @@
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class BatchDeleteEdgeOprBuilder : public IOperatorBuilder {
@@ -38,5 +38,5 @@ class BatchDeleteEdgeOprBuilder : public IOperatorBuilder {
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

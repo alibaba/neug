@@ -19,7 +19,7 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 ListColumn::unfold() const {
@@ -106,5 +106,5 @@ std::shared_ptr<IContextColumn> ListColumn::shuffle(
   return ptr;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

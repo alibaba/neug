@@ -101,8 +101,8 @@ class Connection {
    * auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
    *
    * // Query with parameters
-   * neug::runtime::ParamsMap params;
-   * params["min_age"] = neug::runtime::Value(18);
+   * neug::execution::ParamsMap params;
+   * params["min_age"] = neug::execution::Value(18);
    * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
    * "read", params);
    *
@@ -138,7 +138,7 @@ class Connection {
    */
   result<QueryResult> Query(const std::string& query_string,
                             const std::string& access_mode = "update",
-                            const runtime::ParamsMap& parameters = {});
+                            const execution::ParamsMap& parameters = {});
 
   /**
    * @brief Execute a Cypher query with JSON parameters.

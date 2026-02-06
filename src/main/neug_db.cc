@@ -128,7 +128,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!file_lock_->lock(work_dir_, config.mode)) {
     THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
   }
-  neug::runtime::PlanParser::get().init();
+  neug::execution::PlanParser::get().init();
   initAllocators();
   openGraphAndSchema();
   ingestWals();
@@ -288,7 +288,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_meta(schema().to_yaml().value());
   planner_->update_statistics(graph().get_statistics_json());
 
-  global_query_cache_ = std::make_shared<runtime::GlobalQueryCache>(planner_);
+  global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 
   query_processor_ = std::make_shared<QueryProcessor>(
       graph_, planner_, global_query_cache_, *allocators_[0], thread_num_,

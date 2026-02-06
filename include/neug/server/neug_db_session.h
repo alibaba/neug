@@ -103,7 +103,7 @@ class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
   NeugDBSession(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
-                std::shared_ptr<runtime::GlobalQueryCache> global_query_cache,
+                std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 std::shared_ptr<IVersionManager> vm, Allocator& alloc,
                 IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
       : graph_(graph),
@@ -189,7 +189,7 @@ class NeugDBSession {
  private:
   PropertyGraph& graph_;
   std::shared_ptr<IGraphPlanner> planner_;
-  runtime::LocalQueryCache pipeline_cache_;
+  execution::LocalQueryCache pipeline_cache_;
   std::shared_ptr<IVersionManager> version_manager_;
   Allocator& alloc_;
   IWalWriter& logger_;

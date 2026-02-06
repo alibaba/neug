@@ -19,7 +19,7 @@
 #include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 neug::result<Context> CreateVertex::insert_vertex(
     StorageInsertInterface& graph, Context&& ctx,
@@ -107,5 +107,5 @@ neug::result<Context> CreateVertex::insert_vertex(
   return ctx;
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

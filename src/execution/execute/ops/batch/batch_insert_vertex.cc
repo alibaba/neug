@@ -23,7 +23,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -94,5 +94,5 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -23,7 +23,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 bool is_exchange_index(const common::Expression& expr, int& tag);
@@ -44,5 +44,5 @@ void create_project_expr_builders(
         fallback_expr_builders);
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

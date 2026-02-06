@@ -24,7 +24,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -37,9 +37,9 @@ class GroupByOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     auto key = create_key_func(mappings_, graph, ctx);
     std::vector<ReduceOp> reducers;
     for (auto& aggr : aggrs_) {
@@ -90,5 +90,5 @@ neug::result<OpBuildResultT> GroupByOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

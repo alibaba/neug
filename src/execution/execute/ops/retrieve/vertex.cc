@@ -27,7 +27,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -39,9 +39,9 @@ class GetVFromEdgesOpr : public IOperator {
 
   std::string get_operator_name() const override { return "GetVFromEdgesOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     if (pred_ != nullptr) {
       auto expr = pred_->bind(&graph, params);
       GeneralPred pred(std::move(expr));
@@ -105,5 +105,5 @@ neug::result<OpBuildResultT> VertexOprBuilder::Build(
   return std::make_pair(nullptr, ContextMeta());
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -15,7 +15,7 @@
 #pragma once
 
 namespace neug {
-namespace runtime {
+namespace execution {
 enum class GraphAccessType {
   kGid,
   kLabel,
@@ -23,5 +23,5 @@ enum class GraphAccessType {
   kIdentity,
   kUnknown,
 };
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

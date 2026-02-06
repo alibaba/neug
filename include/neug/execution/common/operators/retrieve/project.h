@@ -22,7 +22,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 struct ProjectExprBase {
   virtual ~ProjectExprBase() = default;
@@ -140,6 +140,6 @@ class Project {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

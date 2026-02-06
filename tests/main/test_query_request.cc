@@ -17,11 +17,11 @@ namespace neug {
 namespace test {
 
 struct NumericParameterScenario {
-  static std::tuple<std::string, std::string, neug::runtime::ParamsMap>
+  static std::tuple<std::string, std::string, neug::execution::ParamsMap>
   MakeRequest() {
-    neug::runtime::ParamsMap params = {
-        {"min_id", runtime::Value::INT64(100)},
-        {"limit", runtime::Value::INT32(10)},
+    neug::execution::ParamsMap params = {
+        {"min_id", execution::Value::INT64(100)},
+        {"limit", execution::Value::INT32(10)},
     };
     return {"MATCH (n) WHERE n.id > $min_id RETURN n.id", "read",
             std::move(params)};
@@ -33,10 +33,10 @@ struct NumericParameterScenario {
 };
 
 struct ListParameterScenario {
-  static std::tuple<std::string, std::string, neug::runtime::ParamsMap>
+  static std::tuple<std::string, std::string, neug::execution::ParamsMap>
   MakeRequest() {
-    neug::runtime::ParamsMap params;
-    params.emplace("id_list", runtime::Value::LIST(ListStorage()));
+    neug::execution::ParamsMap params;
+    params.emplace("id_list", execution::Value::LIST(ListStorage()));
     return {"MATCH (n) WHERE n.id IN $id_list RETURN n.id", "read",
             std::move(params)};
   }
@@ -46,10 +46,10 @@ struct ListParameterScenario {
   }
 
  private:
-  static std::vector<runtime::Value> ListStorage() {
-    static std::vector<runtime::Value> elements;
+  static std::vector<execution::Value> ListStorage() {
+    static std::vector<execution::Value> elements;
     for (int i = 1; i <= 5; ++i) {
-      elements.emplace_back(runtime::Value::INT32(i));
+      elements.emplace_back(execution::Value::INT32(i));
     }
     return elements;
   }

@@ -256,7 +256,7 @@ class ReaderTest : public ::testing::Test {
   // Extracts the first column from context, casts it to
   // ArrowStreamContextColumn, and counts total rows by iterating through all
   // batches from suppliers
-  int64_t count_batch_row_num(const runtime::Context& ctx) {
+  int64_t count_batch_row_num(const execution::Context& ctx) {
     // Get the first column from context
     if (ctx.columns.empty()) {
       return -1;  // Error: no columns
@@ -268,7 +268,7 @@ class ReaderTest : public ::testing::Test {
 
     // Cast to ArrowStreamContextColumn
     auto streamColumn =
-        std::dynamic_pointer_cast<runtime::ArrowStreamContextColumn>(
+        std::dynamic_pointer_cast<execution::ArrowStreamContextColumn>(
             firstColumn);
     if (!streamColumn) {
       return -1;  // Error: not ArrowStreamContextColumn

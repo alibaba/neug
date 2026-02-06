@@ -21,7 +21,7 @@
 namespace neug {
 using namespace reader;
 class IRecordBatchSupplier;
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -54,5 +54,5 @@ class DataSourceOprBuilder : public IOperatorBuilder {
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug
