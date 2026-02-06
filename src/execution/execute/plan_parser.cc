@@ -354,31 +354,6 @@ neug::result<Pipeline> PlanParser::parse_execute_pipeline(
   return std::move(ret.value().first);
 }
 
-neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
-    IStorageInterface& graph, const physical::PhysicalPlan& plan,
-    const ParamsMap& parameters, OprTimer* timer) {
-  runtime::Context ctx;
-  neug::Status status = Status::OK();
-
-  TRY_HANDLE_ALL_WITH_EXCEPTION(
-      neug::result<runtime::Context>,
-      [&]() {
-        return runtime::PlanParser::get()
-            .parse_execute_pipeline(graph.schema(), ContextMeta(), plan)
-            .and_then([&](Pipeline&& rp) {
-              return rp.Execute(graph, runtime::Context(), parameters, timer);
-            });
-      },
-      [&](const auto& _status) { status = _status; },
-      [&](neug::result<runtime::Context>&& res) {
-        ctx = std::move(res.value());
-      });
-  if (!status.ok()) {
-    RETURN_ERROR(status);
-  }
-  return std::move(ctx);
-}
-
 static void expression_parse(const ::common::Expression& expr,
                              ParamsMetaMap& params_type) {
   for (int i = 0; i < expr.operators_size(); ++i) {

@@ -288,14 +288,14 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_meta(schema().to_yaml().value());
   planner_->update_statistics(graph().get_statistics_json());
 
+  global_query_cache_ = std::make_shared<runtime::GlobalQueryCache>(planner_);
+
   query_processor_ = std::make_shared<QueryProcessor>(
-      graph_, planner_, *allocators_[0], thread_num_,
+      graph_, planner_, global_query_cache_, *allocators_[0], thread_num_,
       config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       graph_, planner_, query_processor_, config_);
-
-  global_query_cache_ = std::make_shared<runtime::GlobalQueryCache>(planner_);
 }
 
 void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {

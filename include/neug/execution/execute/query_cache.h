@@ -76,11 +76,16 @@ class GlobalQueryCache {
     }
   }
 
-  void clear(const YAML::Node& schema) {
+  void clear(const YAML::Node& schema, const std::string& statistics = "") {
     std::unique_lock<std::shared_mutex> write_lock(mutex_);
     version_.fetch_add(1);
     cache_.clear();
-    planner_->update_meta(schema);
+    if (!schema.IsNull()) {
+      planner_->update_meta(schema);
+    }
+    if (!statistics.empty()) {
+      planner_->update_statistics(statistics);
+    }
   }
 
  private:
@@ -114,8 +119,9 @@ class LocalQueryCache {
     return cache_.at(query);
   }
 
-  void clearGlobalCache(const YAML::Node& schema) {
-    global_cache_->clear(schema);
+  void clearGlobalCache(const YAML::Node& schema,
+                        const std::string& statistics = "") {
+    global_cache_->clear(schema, statistics);
     version_ = global_cache_->version();
     cache_.clear();
   }

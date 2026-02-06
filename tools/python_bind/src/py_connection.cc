@@ -80,14 +80,14 @@ void PyConnection::close() {
 std::unique_ptr<PyQueryResult> PyConnection::execute(
     const std::string& query_string, const std::string& access_mode,
     const pybind11::dict& parameters) {
-  neug::runtime::ParamsMap params_map;
+  rapidjson::Document params_json;
   for (auto item : parameters) {
     std::string key = pybind11::cast<std::string>(item.first);
     pybind11::object value =
         pybind11::reinterpret_borrow<pybind11::object>(item.second);
-    params_map.emplace(key, PyParameterSerializer::SerializeParameter(value));
+    PyParameterSerializer::SerializeParameter(params_json, key, value);
   }
-  auto query_result = conn_->Query(query_string, access_mode, params_map);
+  auto query_result = conn_->Query(query_string, access_mode, params_json);
   if (!query_result) {
     return std::make_unique<PyQueryResult>(query_result.error());
   }

@@ -455,6 +455,13 @@ def test_parameterized_query():
 
     session.close()
     db.stop_serving()
+
+    conn = db.connect()
+    for query, params, expected in cases:
+        res = conn.execute(query, parameters=params)
+        assert len(res) == 1, f"Failed for query: {query} with params: {params}"
+        assert res[0][0] == expected
+    conn.close()
     db.close()
 
 

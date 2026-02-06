@@ -65,10 +65,6 @@ class PlanParser {
       op_builders_;
 };
 
-neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
-    IStorageInterface& graph, const physical::PhysicalPlan& plan,
-    const ParamsMap& parameters, OprTimer* timer);
-
 }  // namespace runtime
 
 }  // namespace neug
