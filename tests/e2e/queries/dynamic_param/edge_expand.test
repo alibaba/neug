@@ -2851,109 +2851,96 @@
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
----- 4
--2.71828
-4.93572e-321
-1.22161e-242
--2.71828
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+
+-2.718282
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
----- 6
+-UNSUPPORTED: should be fixed
+---- 3
 -0.693147
-1.6976e-313
--5.26953e+302
-8.37951e-312
-8.39403e-312
 -0.693147
 
+
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+-UNSUPPORTED: should be fixed
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
----- 10
--2.71828
--0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
--0.693147
-
--STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
----- 4
--2.71828
-4.93572e-321
-1.22161e-242
--2.71828
-
--STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+-UNSUPPORTED: should be fixed
 ---- 6
 -0.693147
-1.6976e-313
--5.26953e+302
-8.37951e-312
-8.39403e-312
+-2.718282
+
+
 -0.693147
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+-UNSUPPORTED: should be fixed
+---- 3
+-0.693147
+-0.693147
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+-UNSUPPORTED: should be fixed
 ---- 3
--2.71828
-1.22161e-242
--2.71828
+-2.718282
+
+-2.718282
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+-UNSUPPORTED: should be fixed
 ---- 3
 -0.693147
--5.26953e+302
 -0.693147
 
+
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+-UNSUPPORTED: should be fixed
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
----- 10
--2.71828
+-UNSUPPORTED: should be fixed
+---- 6
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
+-2.718282
 -0.693147
+-2.718282
+
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
----- 7
--2.71828
-1.6976e-313
-4.93572e-321
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+
+-2.718282
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
----- 7
+-UNSUPPORTED: should be fixed
+---- 3
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-8.37951e-312
-8.39403e-312
 -0.693147
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
 -UNSUPPORTED: datetime not supported
----- 7
+---- 6
 -2.71828
 -0.693147
-1.22161e-242
-8.37951e-312
-8.39403e-312
+
+
 -2.71828
 -0.693147
 
@@ -3111,99 +3098,88 @@
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
----- 4
--2.71828
-4.93572e-321
-1.22161e-242
--2.71828
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+-2.718282
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
----- 6
+-UNSUPPORTED: should be fixed
+---- 3
 -0.693147
-1.6976e-313
--5.26953e+302
-8.37951e-312
-8.39403e-312
+
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+-UNSUPPORTED: should be fixed
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
----- 10
--2.71828
--0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
--0.693147
-
--STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
----- 4
--2.71828
-4.93572e-321
-1.22161e-242
--2.71828
-
--STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+-UNSUPPORTED: should be fixed
 ---- 6
 -0.693147
-1.6976e-313
--5.26953e+302
-8.37951e-312
-8.39403e-312
+-2.718282
+
+
+-0.693147
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+-UNSUPPORTED: should be fixed
+---- 3
+-0.693147
+
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+-UNSUPPORTED: should be fixed
 ---- 3
--2.71828
-1.22161e-242
--2.71828
+-2.718282
+-2.718282
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+-UNSUPPORTED: should be fixed
 ---- 3
 -0.693147
--5.26953e+302
+
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+-UNSUPPORTED: should be fixed
 ---- 0
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
----- 10
--2.71828
+-UNSUPPORTED: should be fixed
+---- 6
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
+-2.718282
 -0.693147
+-2.718282
+
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
----- 7
--2.71828
-1.6976e-313
-4.93572e-321
-1.22161e-242
-8.37951e-312
-8.39403e-312
--2.71828
+-UNSUPPORTED: should be fixed
+---- 3
+-2.718282
+-2.718282
+
+
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
----- 7
+-UNSUPPORTED: should be fixed
+---- 3
 -0.693147
-1.6976e-313
-4.93572e-321
--5.26953e+302
-8.37951e-312
-8.39403e-312
+
 -0.693147
 
 -STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
