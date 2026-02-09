@@ -83,7 +83,7 @@ Star us on [GitHub](https://github.com/GraphScope/neug) to stay updated on new r
 
 - **[Installation](../../installation/installation)** - Setup guide for Python and C++
 - **[Getting Started](../../getting_started/getting_started)** - Basic operations and examples  
-- **[Data Import](../../import_export/import_data)** - Loading data into your database
+- **[Data Import](../../data_io/import_data)** - Loading data into your database
 - **[Cypher Manual](../../cypher_manual)** - Query language reference
 
 

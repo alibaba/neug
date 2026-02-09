@@ -3,10 +3,11 @@ export default {
   installation: "Installation",
   getting_started: "Getting Started",
   tutorials: "Tutorials",
-  import_export: "Import & Export",
+  data_io: "Data I/O",
+  cypher_manual: "Cypher Manual",
+  extensions: "Extensions",
   transaction: "Transaction",
   user_clients: "User Clients",
-  cypher_manual: "Cypher Manual ",
   reference: "API Reference",
   development: "Development Guide",
 };

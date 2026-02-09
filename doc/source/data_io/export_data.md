@@ -1,7 +1,9 @@
 # Export Data
-The `COPY TO` command enables direct export of query results to various file formats. Currently, CSV export is fully supported, with Parquet and DataFrame formats coming soon. This is useful for persisting the result of a query to be used in other systems or preserving query outputs for archival use.
+
+The `COPY TO` command enables direct export of query results to various file formats. Currently, CSV export is fully supported, with additional formats available through the [Extension](../extensions/index) framework as they are developed.
 
 ## Copy to CSV
+
 The COPY TO clause can export query results to a CSV file and is used as follows:
 ```cypher
 COPY (MATCH (p:person) RETURN p.*) TO 'person.csv' (header=true);
@@ -34,17 +36,16 @@ e
 {'_SRC': '0:0', '_DST': '0:2', '_LABEL': 'knows', 'weight': 1.000000}
 ```
 
-## 🔮 Coming Soon: Additional Export Formats
+## Additional Export Formats
 
-NeuG is expanding export capabilities to support more data formats:
+NeuG is expanding export capabilities through the [Extension](../extensions/index) framework. Planned export formats include:
 
 - **Parquet Export**: High-performance columnar format for analytics and data science workflows
 - **DataFrame Integration**: Direct export to pandas DataFrames and other data science tools
-- **Streaming Export**: Efficient export of large result sets with memory optimization
 
-These enhancements will provide seamless integration with modern data science and analytics pipelines.
+See the [Extensions](../extensions/index) page for the latest supported formats.
 
-## 🎯 Export Best Practices
+## Export Best Practices
 
 - **Large Result Sets**: Use LIMIT clauses to avoid memory issues when exporting large datasets
 - **Data Types**: Complex graph objects (nodes/edges) are exported as JSON strings for maximum compatibility

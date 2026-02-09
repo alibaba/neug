@@ -37,10 +37,12 @@ NeuG documentation
 
 .. toctree::
    :maxdepth: 1
-   :caption: Import & Export
+   :caption: Data I/O
 
-   import_export/import_data
-   import_export/export_data
+   data_io/index
+   data_io/load_data
+   data_io/import_data
+   data_io/export_data
 
 .. toctree::
    :maxdepth: 1
@@ -52,6 +54,13 @@ NeuG documentation
    cypher_manual/dml_clause
    cypher_manual/expression/index
    cypher_manual/query_clauses/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Extensions
+
+   extensions/index
+   extensions/load_json
 
 .. toctree::
    :maxdepth: 1

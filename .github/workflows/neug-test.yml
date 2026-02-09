@@ -228,6 +228,13 @@ jobs:
         # import/export tests
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_import_export.py
 
+    - name: Run Data I/O Documentation Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # data_io doc examples - validates examples from doc/source/data_io/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_data_io_docs.py
+
     - name: Run Complex Query Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/

@@ -1,4 +1,4 @@
-# Extension
+# Overview
 
 The Extension framework in database systems is a mechanism that allows dynamically adding new functionality without modifying the core engine code. NeuG also provides an Extension framework that enables external users to flexibly load new features, with the following key advantages:
 
@@ -12,13 +12,9 @@ The following extensions are currently supported or planned to be supported in N
 
 | Category | Extension | Description | Since Version |
 |----------|-----------|-------------|---------------|
-| Data Import | [JSON](load_json.md) | Import data from JSON file format | v0.1 |
-| Data Import | PARQUET | Import data from PARQUET format files | planned v0.2 |
-| Data Export | JSON | Export data to JSON file format | planned v0.2 |
-| Data Export | PARQUET | Export data to PARQUET file format | planned v0.2 |
-| VFS | HTTP/HTTPS | Download or upload data based on HTTP/HTTPS protocol | planned v0.2 |
-| VFS | S3 | Download or upload data based on S3 protocol | planned v0.2 |
-| VFS | OSS | Download or upload data based on OSS protocol | planned v0.2 |
+| Data Source | [JSON](load_json.md) | Import & export  data from JSON file format | v0.1 |
+| Data Source| PARQUET | Import & Export data from PARQUET format files | planned v0.2 |
+| VFS | HTTP/HTTPS/S3/OSS | Provide data source based on HTTP/HTTPS/S3/OSS protocol | planned v0.2 |
 | Graph Algorithm | K-Core | Find all subgraphs with core number ≥ k. Returns `(node, core_number)` | planned v0.2 |
 | Graph Algorithm | PageRank | Calculate node importance scores. Returns `(node, rank)` | planned v0.2 |
 | Graph Algorithm | Shortest Path (Dijkstra) | Single-source shortest path algorithm | planned v0.2 |

@@ -27,9 +27,7 @@ db_persistent = neug.Database("/path/to/database")
 db_memory = neug.Database("")
 ```
 
-```{note}
-Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the process exits.
-```
+> **Note:** Currently, NeuG's in-memory mode creates a temporary database directory that is automatically cleaned up when the process exits.
 
 ## Connection Modes
 
@@ -230,15 +228,13 @@ db = neug.Database("/path/to/database")
 db.load_builtin_dataset(dataset_name="modern_graph")
 ```
 
-```{note}
-Loading a builtin dataset into an existing database will fail if there are schema conflicts (e.g., existing node/edge types with the same names).
-```
+> **Note:** Loading a builtin dataset into an existing database will fail if there are schema conflicts (e.g., existing node/edge types with the same names).
 
 
 ## Next Steps
 
 Congratulations! You've learned the basics of NeuG. Here's what you can explore next:
 
-1. **[Data Import/Export](../../import_export/import_data)**: Learn how to import large datasets
+1. **[Data Import/Export](../../data_io/import_data)**: Learn how to import large datasets
 2. **[Advanced Cypher Queries](../../cypher_manual)**: Master complex graph patterns
 3. **[Tutorials](../../tutorials/tinysnb_tutorial)**: Try these interesting tutorials of NeuG

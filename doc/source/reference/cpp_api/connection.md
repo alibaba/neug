@@ -57,7 +57,8 @@ auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
 // Query with parameters
 neug::execution::ParamsMap params;
 params["min_age"] = neug::execution::Value(18);
-result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p", "read", params);
+result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
+"read", params);
 // Process results
 if (result.has_value()) {
   for (auto& record : result.value()) {
@@ -88,6 +89,25 @@ if (result.has_value()) {
 - Error status with message on failure
 
 - **Since:** v0.1.0
+
+#### `Query(...)`
+
+```cpp
+Query(
+    const std::string &query_string,
+    const std::string &access_mode,
+    const rapidjson::Value &parameters_json
+)
+```
+
+Execute a Cypher query with JSON parameters.
+
+The parameter values are provided as a JSON object.
+
+- **Parameters:**
+  - `query_string`
+  - `access_mode`
+  - `parameters_json`
 
 #### `GetSchema() const`
 
