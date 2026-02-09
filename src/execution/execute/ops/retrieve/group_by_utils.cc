@@ -91,7 +91,9 @@ template <typename T>
 struct TypedVarWrapper {
   using V = T;
   explicit TypedVarWrapper(const IContextColumn& column) : column(column) {}
-  V operator()(size_t idx) const { return column.get_elem(idx).GetValue<T>(); }
+  V operator()(size_t idx) const {
+    return column.get_elem(idx).template GetValue<T>();
+  }
   bool has_value(size_t idx) const { return column.has_value(idx); }
   const IContextColumn& column;
 };
