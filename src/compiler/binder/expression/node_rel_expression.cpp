@@ -69,7 +69,10 @@ TableCatalogEntry* NodeOrRelExpression::getSingleEntry() const {
 
 void NodeOrRelExpression::addPropertyExpression(
     const std::string& propertyName, std::unique_ptr<Expression> property) {
-  NEUG_ASSERT(!propertyNameToIdx.contains(propertyName));
+  if (propertyNameToIdx.contains(propertyName)) {
+    THROW_EXCEPTION_WITH_FILE_LINE("Property name : " + propertyName +
+                                   " already exists");
+  }
   propertyNameToIdx.insert({propertyName, propertyExprs.size()});
   propertyExprs.push_back(std::move(property));
 }
