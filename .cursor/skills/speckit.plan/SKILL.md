@@ -1,13 +1,7 @@
 ---
+name: speckit.plan
 description: Execute the implementation planning workflow using the plan template to generate design artifacts.
-handoffs: 
-  - label: Create Tasks
-    agent: speckit.tasks
-    prompt: Break the plan into tasks
-    send: true
-  - label: Create Checklist
-    agent: speckit.checklist
-    prompt: Create a checklist for the following domain...
+disable-model-invocation: true
 ---
 
 ## User Input
@@ -21,14 +15,16 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Outline
 
 1. **Locate Feature**:
-   - User must explicitly given the feature name, find the most likely feature in the specs directory, i.e., `./specs/001-feature-name(#id)`
-   - Checkout to a new branch with a `-plan` suffix, e.g., `001-feature-name-plan(#id)`
+   - Extract the feature name from the branch name or user input like `###-feature-name`, e.g., `001-feature-name`.
+   - Find the most likely feature in the specs directory, i.e., `./specs/[###-feature-name]`. The feature id and name must be exact match.
 
-2. **Setup**: Run `.specify/scripts/bash/setup-plan.sh --json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH.
+2. **Pre-check & Load Feature Documents**:
+   - Make sure the feature directory exists, i.e., `./specs/[###-feature-name]`, otherwise ERROR "Feature directory not found: ./specs/[###-feature-name]".
+   - Make sure the spec file exists, i.e., `./specs/[###-feature-name]/spec.md`, otherwise ERROR "Spec file not found: ./specs/[###-feature-name]/spec.md".
 
-3. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+3. **Load Template**: Copy the template`templates/plan-template.md` to the feature directory as `specs/[###-feature-name]/plan.md` and understand required sections.
 
-4. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
+4. **Execute plan workflow**: Follow the structure in `plan.md` to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
    - Phase 1: Plan the project structure.
    - Phase 2: Plan the data model.
@@ -71,10 +67,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Upload to GitHub
 
-**Prerequisites:** Tell the user the following actions that these plan files will be push to the remote repository. Ask for permission to execute and wait for response.
+The generated plan file requires human review. Ask users whether they want to review the plan in the workspace or on the GitHub. We provide the following steps to push the plan to the GitHub. Ask for permission to execute and wait for response.
 
    1. Commit generated files and push this `plan` branch to the remote.
-   2. Create a new issue on the GitHub. This issue has the label `Plan`. The title is `[<N+1>-<short-name>][Plan] <description>`, e.g., `[001-add-frontend][Plan] generate plan for the frontend`. The body is about this plan.
+   2. Create a new issue on the GitHub. This issue has the label `Plan`. The title is `[###-feature-name][Plan] <description>`, e.g., `[001-add-frontend][Plan] generate plan for the frontend`. The body is about this plan.
    3. Make this `plan issue` as the sub-issue of the `feature issue`. The command is:
    ```
    gh api graphql -f query='mutation { addSubIssue(input: {issueId: "xxx", subIssueId: "xxx"}) { issue { id title } subIssue { id title } } }'

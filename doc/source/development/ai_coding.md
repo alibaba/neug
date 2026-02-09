@@ -1,26 +1,26 @@
 # AI-Assisted Development
 
-NeuG provides AI-assisted commands to streamline your development workflow. These commands are integrated with your coding agent (Cursor, Qoder, Qwen Code, etc.) as slash commands.
+NeuG provides AI-assisted skills to streamline your development workflow. These skills are integrated with your coding agent (Cursor, Qoder, Qwen Code, etc.) as agent skills. You can use slash commands to invoke them.
 
 ## Quick Start
 
-**1. Initialize commands for your coding agent:**
+**1. Initialize skills for your coding agent:**
 
 ```bash
-./scripts/init_commands.sh <agent>   # e.g., qoder, qwen
+./scripts/init_skills.sh <agent>   # e.g., qoder, qwen
 ```
 
 > **Note:** Cursor is the default agent and does not require initialization.
 
 See [Supported Agents](#supported-agents) for full list.
 
-**2. Use commands in your chat box with a `/` prefix:**
+**2. Use skills in your chat box with a `/` prefix:**
 
 ```
 /create-issue I encountered a segfault when running this query...
 ```
 
-## Common Commands
+## Common Skills
 
 ### `/create-issue` - Report Bugs or Request Features
 
@@ -110,7 +110,7 @@ Users should be able to register custom algorithms and execute them via Cypher.
 ```
 
 The agent will:
-1. Create a feature branch (e.g., `001-graph-algo-extension-spec`)
+1. Create a feature branch (e.g., `001-graph-algo-extension`)
 2. Generate a specification document in `specs/001-graph-algo-extension/spec.md`
 3. Create a GitHub issue to track the feature
 4. Ask clarifying questions if needed (max 3)
@@ -157,46 +157,49 @@ After creating specs/plans/tasks, sync them to GitHub:
 
 ### Prerequisites
 
-Commands are implemented as slash commands supported by most coding agents.
+Agent skills are implemented by markdown files and can be invoked by coding agent automatically or user explicitly.
 
-### Installing Commands
+To avoid accidental invocation, we set `disable-model-invocation: true` for all skills by default. You can only invoke them by slash commands. You can also customize the skills files to enable model invocation.
 
-We provide commands in Cursor format at `.cursor/commands/`. To convert for your agent:
+### Installing Skills
+
+We provide agent skills in Cursor format at `.cursor/skills/`. To convert for your agent:
 
 ```bash
-./scripts/init_commands.sh <agent-shortcut>
+./scripts/init_skills.sh <agent-shortcut>
 ```
 
 ### Supported Agents
 
-| Shortcut   | Agent               |
-|------------|---------------------|
-| cursor     | Cursor (default)    |
-| amazonq    | Amazon Q            |
-| claude     | Claude Code         |
-| codebuddy  | CodeBuddy           |
-| codex      | Codex               |
-| gemini     | Gemini CLI          |
-| kilocode   | Kilocode            |
-| opencode   | OpenCode            |
-| qoder      | Qoder               |
-| qwen       | Qwen Code           |
-| roo        | RooCode             |
-| windsurf   | Windsurf            |
+| Shortcut   | Agent               | Documents      |
+|------------|---------------------|----------------|
+| cursor     | Cursor (default)    | [Cursor Skills](https://cursor.com/docs/context/skills)               |
+| claude     | Claude Code         | [Claude Code Skills](https://code.claude.com/docs/en/skills)          |
+| codebuddy  | CodeBuddy           | [CodeBuddy Skills](https://www.codebuddy.ai/docs/ide/Features/Skills) |
+| codex      | Codex               | [Codex Skills](https://developers.openai.com/codex/skills/)           |
+| gemini     | Gemini CLI          | [Gemini CLI Skills](https://geminicli.com/docs/cli/skills/)           |
+| kilocode   | Kilocode            | [Kilocode Skills](https://kilo.ai/docs/customize/skills)              |
+| opencode   | OpenCode            | [OpenCode Skills](https://opencode.ai/docs/skills/)                   |
+| qoder      | Qoder               | [Qoder Skills](https://docs.qoder.com/extensions/skills)              |
+| qwen       | Qwen Code           | [Qwen Code Skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/)    |
+| roo        | RooCode             | [RooCode Skills](https://docs.roocode.com/features/skills)            |
+| windsurf   | Windsurf            | [Windsurf Skills](https://docs.windsurf.com/windsurf/cascade/skills)  |
+
+Note: Different agents might have minor differences in the Agent Skills standard. You can refer to the documents for more details.
 
 **Example:**
 ```bash
-./scripts/init_commands.sh qoder
+./scripts/init_skills.sh qoder
 ```
 
-Or manually specify format and output:
+Or manually specify output path:
 ```bash
-./scripts/init_commands.sh --format=toml --output=.qwen/commands
+./scripts/init_skills.sh --output=.qwen/skills
 ```
 
-## Command Reference
+## Skills Reference
 
-| Command | Purpose |
+| Skills | Purpose |
 |---------|---------|
 | `/create-issue` | Create bug reports or feature requests |
 | `/create-pr` | Submit pull requests with auto-summary |

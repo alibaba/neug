@@ -1,5 +1,7 @@
 ---
+name: generate-testcase
 description: Analyze new commits and generate related test cases.
+disable-model-invocation: true
 ---
 ## User Input
 
