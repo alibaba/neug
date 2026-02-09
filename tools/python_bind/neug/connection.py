@@ -20,6 +20,8 @@
 
 import logging
 from typing import Any
+from typing import Dict
+from typing import Optional
 
 try:
     from neug_py_bind import PyConnection
@@ -100,7 +102,7 @@ class Connection(object):
             self._is_open = False
 
     def execute(
-        self, query: str, access_mode="", parameters: dict[str, Any] | None = None
+        self, query: str, access_mode="", parameters: Optional[Dict[str, Any]] = None
     ) -> QueryResult:
         """
         Execute a cypher query on the database. User could specify multiple queries in a single string,
