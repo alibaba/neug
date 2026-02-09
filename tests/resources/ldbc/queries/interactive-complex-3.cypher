@@ -1,9 +1,9 @@
 
 MATCH 
-    (p:PERSON {id: $personId})-[:KNOWS*1..3]-(otherP:PERSON)
+    (p:PERSON {id: $personId})-[:KNOWS*1..2]-(otherP:PERSON)
 WITH distinct otherP
 WHERE otherP.id <> $personId
-MATCH (country:PLACE)<-[:ISLOCATEDIN]-(message : POST | COMMENT)-[:HASCREATOR]->(otherP:PERSON)-[ISLOCATEDIN]->(city:PLACE)-[:ISPARTOF]-> (country2:PLACE)
+MATCH (country:PLACE)<-[:ISLOCATEDIN]-(message : POST : COMMENT)-[:HASCREATOR]->(otherP:PERSON)-[ISLOCATEDIN]->(city:PLACE)-[:ISPARTOF]-> (country2:PLACE)
 WHERE 
      (country.name = $countryXName OR country.name = $countryYName)
       AND message.creationDate >= $startDate

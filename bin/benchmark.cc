@@ -50,10 +50,53 @@ neug::execution::ParamsMap deserialize_string_kv_map(
   neug::execution::ParamsMap map;
   for (auto iter : param_str_map) {
     if (meta_map.count(iter.first) > 0) {
-      map.emplace(iter.first, neug::execution::Value::FromJson(
-                                  iter.second, meta_map.at(iter.first)));
+      auto type = meta_map.at(iter.first);
+      switch (type.id()) {
+      case neug::DataTypeId::kInt32: {
+        map.emplace(iter.first,
+                    neug::execution::Value::INT32(std::stoi(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kInt64: {
+        map.emplace(iter.first,
+                    neug::execution::Value::INT64(std::stoll(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kUInt32: {
+        map.emplace(iter.first,
+                    neug::execution::Value::UINT32(std::stoul(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kUInt64: {
+        map.emplace(iter.first,
+                    neug::execution::Value::UINT64(std::stoull(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kBoolean: {
+        map.emplace(iter.first,
+                    neug::execution::Value::BOOLEAN(iter.second == "true"));
+        break;
+      }
+      case neug::DataTypeId::kVarchar: {
+        map.emplace(iter.first, neug::execution::Value::STRING(iter.second));
+        break;
+      }
+      case neug::DataTypeId::kTimestampMs: {
+        map.emplace(iter.first, neug::execution::Value::TIMESTAMPMS(
+                                    neug::DateTime(std::stoll(iter.second))));
+        break;
+      }
+      case neug::DataTypeId::kDate: {
+        map.emplace(iter.first, neug::execution::Value::DATE(neug::Date(
+                                    int64_t(std::stoll(iter.second)))));
+        break;
+      default:
+        LOG(WARNING) << "Unsupported parameter type for key: " << iter.first
+                     << ", type id: " << static_cast<int>(type.id());
+      }
+      }
     } else {
-      LOG(WARNING) << "Parameter key not found in meta: " << iter.first;
+      continue;
     }
   }
   return map;
@@ -131,7 +174,7 @@ std::vector<std::map<std::string, std::string>> parse_query_file(
   return ret;
 }
 
-physical::PhysicalPlan parse_plan(const std::string& filename) {
+std::string parse_query(const std::string& filename) {
   std::ifstream file(filename, std::ios::binary);
 
   CHECK(file.is_open());
@@ -147,10 +190,7 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 
   file.close();
 
-  physical::PhysicalPlan plan;
-  plan.ParseFromString(buffer);
-
-  return plan;
+  return buffer;
 }
 
 void benchmark_iteration(
@@ -218,6 +258,7 @@ int main(int argc, char** argv) {
 
   config.enable_auto_compaction = false;
   db.Open(config);
+  auto compiler = db.GetPlanner();
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   if (!vm.count("benchmark-config")) {
@@ -241,7 +282,14 @@ int main(int argc, char** argv) {
               << ", repeat: " << query_num;
     std::vector<std::vector<char>> outputs(query_num);
 
-    auto plan = parse_plan(unit.query_pb_path);
+    auto query_str = parse_query(unit.query_pb_path);
+    const auto res = compiler->compilePlan(query_str);
+    if (!res) {
+      LOG(ERROR) << "Failed to compile plan: " << res.error().ToString();
+      continue;
+    }
+    auto plan = res.value().first;
+
     {
       std::ofstream fout("./tmp_physical_plan.pb");
       fout << plan.DebugString();

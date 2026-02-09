@@ -1,12 +1,12 @@
 
-MATCH (p :PERSON {id: $personId})<-[:HASCREATOR]-(message: POST | COMMENT)
+MATCH (p :PERSON {id: $personId})<-[:HASCREATOR]-(message: POST : COMMENT)
 WITH
  message,
  message.id AS messageId,
  message.creationDate AS messageCreationDate
 ORDER BY messageCreationDate DESC, messageId ASC
 LIMIT 10
-MATCH (message: POST | COMMENT)-[:REPLYOF*0..*]->(post:POST)-[:HASCREATOR]->(person:PERSON)
+MATCH (message: POST : COMMENT)-[:REPLYOF*0..]->(post:POST)-[:HASCREATOR]->(person:PERSON)
 RETURN
  messageId,
  messageCreationDate,

@@ -1,17 +1,16 @@
-MATCH (person:PERSON {id: $personId})-[:KNOWS*2..3]-(friend: PERSON)
+MATCH (person:PERSON {id: $personId})-[:KNOWS*2..2]-(friend: PERSON)
 WHERE 
         NOT friend=person 
         AND NOT (friend:PERSON)-[:KNOWS]-(person :PERSON {id: $personId})
 WITH distinct
         friend
 WITH friend,        friend.birthday as birthday
-WHERE  (birthday.month=$month AND birthday.day>=21) OR (birthday.month=($month%12) + 1 AND birthday.day<22)
+WHERE  (date_part('month', birthday)=$month AND date_part('day', birthday)>=21) OR (date_part('month',birthday)=($month%12) + 1 AND date_part('day',birthday)<22)
 
 OPTIONAL MATCH (friend : PERSON)<-[:HASCREATOR]-(post:POST)
 WITH friend,  count(post) as postCount
 
-CALL {
-        WITH friend, postCount
+CALL  (friend, postCount) {
         MATCH (friend: PERSON) <- [:HASCREATOR]- (post: POST) - [:HASTAG] -> (tag:TAG)
         WITH friend, postCount, post, tag
         MATCH (tag:TAG)<-[:HASINTEREST]-(person: PERSON {id: $personId})
@@ -19,10 +18,9 @@ CALL {
         return friend, commonPostCount - (postCount - commonPostCount) AS commonInterestScore, friend.id as friendId
         ORDER BY commonInterestScore DESC, friendId ASC
         LIMIT 10
-}
-UNION 
-CALL {
-        return friend, (0L-postCount) AS commonInterestScore, friend.id as friendId
+
+UNION ALL
+        return friend, (0-postCount) AS commonInterestScore, friend.id as friendId
         ORDER BY commonInterestScore DESC, friendId ASC
         LIMIT 10
 }

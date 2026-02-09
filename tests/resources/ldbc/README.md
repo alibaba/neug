@@ -46,8 +46,8 @@ loading_config:
 export DATA_DIR=
 
 ./tools/utils/bulk_loader \
-    -g ${NEUG_DIR}/example_dataset/ldbc/graph.yaml \
-    -l ${NEUG_DIR}/example_dataset/ldbc/import.yaml \
+    -g ${NEUG_DIR}/tests/resources/ldbc/configs/graph.yaml \
+    -l ${NEUG_DIR}/tests/resources/ldbc/configs/import.yaml \
     -d ${DATA_DIR} \
     -p 64
 ```
@@ -62,19 +62,21 @@ Execute the benchmark using the SF300 configuration file:
 
 ### Benchmark Results
 
+* Alibaba Cloud [ecs.g8a.48xlarge](https://help.aliyun.com/document_detail/25378.html?spm=5176.ecscore_server.0.0.649b4df5BApNwB#g8a)
+
 query | elapsed (us)
 -- | --
-ic1 | 13350.9 
-ic2 | 779.042
-ic3 | 31575.4 
-ic4 | 1655.91
-ic5 | 94661.8 
-ic6 |  3159.9
-ic7 | 48.3869 
-ic8 | 19.2792
-ic9 |  209177 
-ic10 | 15575.2 
-ic11 | 292.339
-ic12 | 4238.39 
-ic13 | 212.271 
-ic14 | 52890.7 
+ic1 | 13102.8
+ic2 | 731.05
+ic3 | 31434.9
+ic4 | 1691.16 
+ic5 | 73313.9
+ic6 | 3062.35 
+ic7 | 54.3914
+ic8 | 16.2358
+ic9 |  189898
+ic10 | 15176
+ic11 | 291.484 
+ic12 | 3551.66
+ic13 | 180.032 
+ic14 | 48077.3 

@@ -2,7 +2,7 @@ graph: ldbc_snb
 loading_config:
   data_source:
     scheme: file
-    location: bi-sf100-composite-projected-fk/graphs/csv/bi/composite-projected-fk/initial_snapshot
+    location: PATH_TO_DATA_DIR
   import_option: init # append, overwrite, only init is supported now
   format:
     type: csv
@@ -11,46 +11,46 @@ loading_config:
 vertex_mappings:
   - type_name: PLACE
     inputs:
-      - static/Place/merged.csv
+      - static/place_0_0.csv
   - type_name: PERSON 
     inputs:
-      - dynamic/Person/merged_with_counts.csv
+      - dynamic/person_0_0.csv
   - type_name: COMMENT
     inputs:
-      - dynamic/Comment/merged.csv
+      - dynamic/comment_0_0.csv.rod
   - type_name: POST
     inputs:
-      - dynamic/Post/merged.csv
+      - dynamic/post_0_0.csv.rod
   - type_name: FORUM
     inputs:
-      - dynamic/Forum/merged_with_counts.csv
+      - dynamic/forum_0_0.csv
   - type_name: ORGANISATION
     inputs:
-      - static/Organisation/merged.csv
+      - static/organisation_0_0.csv
   - type_name: TAGCLASS
     inputs:
-      - static/TagClass/merged.csv
+      - static/tagclass_0_0.csv
   - type_name: TAG
     inputs:
-      - static/Tag/merged.csv
+      - static/tag_0_0.csv
 edge_mappings:
   - type_triplet: 
       edge: HASCREATOR
       source_vertex: COMMENT
       destination_vertex: PERSON
     inputs:
-      - dynamic/Comment_hasCreator_Person/merged.csv
+      - dynamic/comment_hasCreator_person_0_0.csv.creation_date
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 0
+          index: 2
           name: creationDate
         property: creationDate
   - type_triplet:
@@ -58,18 +58,18 @@ edge_mappings:
       source_vertex: POST
       destination_vertex: PERSON
     inputs:
-      - dynamic/Post_hasCreator_Person/merged.csv
+      - dynamic/post_hasCreator_person_0_0.csv.creation_date
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 0
+          index: 2
           name: creationDate
         property: creationDate  
   - type_triplet:
@@ -77,175 +77,175 @@ edge_mappings:
       source_vertex: POST
       destination_vertex: TAG
     inputs:
-      - dynamic/Post_hasTag_Tag/merged.csv
+      - dynamic/post_hasTag_tag_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: HASTAG
       source_vertex: COMMENT
       destination_vertex: TAG
     inputs:
-      - dynamic/Comment_hasTag_Tag/merged.csv
+      - dynamic/comment_hasTag_tag_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: HASTAG
       source_vertex: FORUM
       destination_vertex: TAG
     inputs:
-      - dynamic/Forum_hasTag_Tag/merged.csv
+      - dynamic/forum_hasTag_tag_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: REPLYOF
       source_vertex: COMMENT
       destination_vertex: COMMENT
     inputs:
-      - dynamic/Comment_replyOf_Comment/merged.csv
+      - dynamic/comment_replyOf_comment_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: REPLYOF
       source_vertex: COMMENT
       destination_vertex: POST
     inputs:
-      - dynamic/Comment_replyOf_Post/merged.csv
+      - dynamic/comment_replyOf_post_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: CONTAINEROF
       source_vertex: FORUM
       destination_vertex: POST
     inputs:
-      - dynamic/Forum_containerOf_Post/merged.csv
+      - dynamic/forum_containerOf_post_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: HASMEMBER
       source_vertex: FORUM
       destination_vertex: PERSON
     inputs:
-      - dynamic/Forum_hasMember_Person/merged.csv
+      - dynamic/forum_hasMember_person_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: HASMODERATOR
       source_vertex: FORUM
       destination_vertex: PERSON
     inputs:
-      - dynamic/Forum_hasModerator_Person/merged.csv
+      - dynamic/forum_hasModerator_person_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: HASINTEREST
       source_vertex: PERSON
       destination_vertex: TAG
     inputs:
-      - dynamic/Person_hasInterest_Tag/merged.csv
+      - dynamic/person_hasInterest_tag_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: ISLOCATEDIN
       source_vertex: COMMENT
       destination_vertex: PLACE
     inputs:
-      - dynamic/Comment_isLocatedIn_Country/merged.csv
+      - dynamic/comment_isLocatedIn_place_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: ISLOCATEDIN
       source_vertex: PERSON
       destination_vertex: PLACE
     inputs:
-      - dynamic/Person_isLocatedIn_City/merged.csv
+      - dynamic/person_isLocatedIn_place_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: ISLOCATEDIN
       source_vertex: POST
       destination_vertex: PLACE
     inputs:
-      - dynamic/Post_isLocatedIn_Country/merged.csv
+      - dynamic/post_isLocatedIn_place_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: ISLOCATEDIN
       source_vertex: ORGANISATION
       destination_vertex: PLACE
     inputs:
-      - static/Organisation_isLocatedIn_Place/merged.csv
+      - static/organisation_isLocatedIn_place_0_0.csv
     source_vertex_mappings:
       - column:
           index: 0
@@ -259,32 +259,32 @@ edge_mappings:
       source_vertex: PERSON
       destination_vertex: PERSON
     inputs:
-      - dynamic/Person_knows_Person/merged.csv
+      - dynamic/person_knows_person_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
   - type_triplet:
       edge: LIKES
       source_vertex: PERSON
       destination_vertex: COMMENT
     inputs:
-      - dynamic/Person_likes_Comment/merged.csv
+      - dynamic/person_likes_comment_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 0
+          index: 2
           name: creationDate
         property: creationDate
   - type_triplet:
@@ -292,18 +292,18 @@ edge_mappings:
       source_vertex: PERSON
       destination_vertex: POST
     inputs:
-      - dynamic/Person_likes_Post/merged.csv
+      - dynamic/person_likes_post_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 0
+          index: 2
           name: creationDate
         property: creationDate
   - type_triplet:
@@ -311,18 +311,18 @@ edge_mappings:
       source_vertex: PERSON
       destination_vertex: ORGANISATION
     inputs:
-      - dynamic/Person_workAt_Company/merged.csv
+      - dynamic/person_workAt_organisation_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 3
+          index: 2
           name: workFrom
         property: workFrom
   - type_triplet:
@@ -330,7 +330,7 @@ edge_mappings:
       source_vertex: PLACE
       destination_vertex: PLACE
     inputs:
-      - static/Place_isPartOf_Place/merged.csv
+      - static/place_isPartOf_place_0_0.csv
     source_vertex_mappings:
       - column:
           index: 0
@@ -344,7 +344,7 @@ edge_mappings:
       source_vertex: TAG
       destination_vertex: TAGCLASS
     inputs:
-      - static/Tag_hasType_TagClass/merged.csv
+      - static/tag_hasType_tagclass_0_0.csv
     source_vertex_mappings:
       - column:
           index: 0
@@ -358,7 +358,7 @@ edge_mappings:
       source_vertex: TAGCLASS
       destination_vertex: TAGCLASS
     inputs:
-      - static/TagClass_isSubclassOf_TagClass/merged.csv
+      - static/tagclass_isSubclassOf_tagclass_0_0.csv
     source_vertex_mappings:
       - column:
           index: 0
@@ -372,17 +372,17 @@ edge_mappings:
       source_vertex: PERSON
       destination_vertex: ORGANISATION
     inputs:
-      - dynamic/Person_studyAt_University/merged.csv
+      - dynamic/person_studyAt_organisation_0_0.csv
     source_vertex_mappings:
       - column:
-          index: 1
+          index: 0
           name: id
     destination_vertex_mappings:
       - column:
-          index: 2
+          index: 1
           name: id
     column_mappings:
       - column:
-          index: 3
+          index: 2
           name: classYear
         property: classYear

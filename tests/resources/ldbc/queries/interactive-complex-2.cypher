@@ -1,4 +1,4 @@
-MATCH (p :PERSON {id: $personId})-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(message : POST | COMMENT) 
+MATCH (p :PERSON {id: $personId})-[:KNOWS]-(friend:PERSON)<-[:HASCREATOR]-(message : POST : COMMENT) 
 WHERE 
     message.creationDate <= $maxDate 
 WITH 

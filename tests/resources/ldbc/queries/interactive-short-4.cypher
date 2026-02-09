@@ -1,4 +1,4 @@
-MATCH (m:POST|COMMENT {id: $messageId})
+MATCH (m:POST:COMMENT {id: $messageId})
 RETURN
     m.creationDate as messageCreationDate,
     m.content as messageContent,

@@ -1,7 +1,8 @@
-MATCH shortestPath(p: PERSON {id : $personId}) -[k:KNOWS*1..4]-(f:PERSON {firstName : $firstName})
+MATCH (p: PERSON {id : $personId}) -[k:KNOWS*SHORTEST 1..3]-(f:PERSON {firstName : $firstName})
 where f <> p
 WITH f, length(k) as distance
-ORDER  BY distance ASC, f.lastName ASC, f.id ASC
+WITH f, distance, f.lastName as lastName, f.id as id
+ORDER  BY distance ASC, lastName ASC, id ASC
 LIMIT 20
 
 
@@ -14,7 +15,7 @@ WITH
     END as companies
 WITH f, collect(companies) as company_info, distance
 
-OPTIONAL MATCH (f: PERSON)-[studyAt:STUDYAT]->(university)-[:ISLOCATEDIN]->(universityCity:PLACE)
+OPTIONAL MATCH (f: PERSON)-[studyAt:STUDYAT]->(university:ORGANISATION)-[:ISLOCATEDIN]->(universityCity:PLACE)
 WITH
   f, company_info, distance,
 	CASE 
@@ -37,4 +38,6 @@ return f.id AS friendId,
         f.email AS friendEmail,
         f.language AS friendLanguage,
         university_info AS friendUniversities,
-        company_info AS friendCompanies;
+        company_info AS friendCompanies
+ORDER BY distanceFromPerson ASC, friendLastName ASC, friendId ASC
+LIMIT 20

@@ -1,4 +1,4 @@
-MATCH (p:PERSON {id: $personId})-[:KNOWS*1..3]-(friend:PERSON)
+MATCH (p:PERSON {id: $personId})-[:KNOWS*1..2]-(friend:PERSON)
 WITH distinct friend
 WHERE 
      friend.id <> $personId     
