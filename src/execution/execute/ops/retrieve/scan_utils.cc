@@ -60,10 +60,10 @@ std::vector<Property> parse_ids_from_idx_predicate(
 
     if (param_type.id() == DataTypeId::kInt32) {
       return std::vector<Property>{PropUtils<T>::to_prop(
-          params.at(triplet.param().name()).GetValue<T>())};
+          params.at(triplet.param().name()).template GetValue<T>())};
     } else if (param_type.id() == DataTypeId::kInt64) {
       return std::vector<Property>{PropUtils<T>::to_prop(
-          params.at(triplet.param().name()).GetValue<T>())};
+          params.at(triplet.param().name()).template GetValue<T>())};
     }
   }
   default:

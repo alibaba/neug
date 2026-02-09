@@ -360,7 +360,7 @@ static neug::result<Context> dispatch_vertex_predicate_impl_typed(
       std::string_view sw = StringValue::Get(params.at(param_name));
       return sw;
     } else {
-      return params.at(param_name).GetValue<T>();
+      return params.at(param_name).template GetValue<T>();
     }
   };
   if (config.ptype == SPPredicateType::kPropertyLT) {

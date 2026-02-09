@@ -231,7 +231,7 @@ class EdgeExpand {
                     : graph.GetGenericIncomingGraphView(
                           d1_nbr_label, d2_nbr_label, d2_e_label);
 
-    T1 param = val.GetValue<T1>();
+    T1 param = val.template GetValue<T1>();
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);

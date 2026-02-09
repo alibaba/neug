@@ -187,7 +187,7 @@ class ValueColumnBuilder : public IContextColumnBuilder {
     }
   }
   inline void push_back_elem(const Value& val) override {
-    data_.push_back(val.GetValue<T>());
+    data_.push_back(val.template GetValue<T>());
   }
 
   inline void push_back_opt(const T& val) { data_.push_back(val); }

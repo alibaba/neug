@@ -151,7 +151,7 @@ struct CaseWhenExpr : public ProjectExprBase {
         std::string_view sw = StringValue::Get(val);
         values.push_back(sw);
       } else {
-        values.push_back(val.GetValue<T>());
+        values.push_back(val.template GetValue<T>());
       }
     }
     CMP_T cmp;

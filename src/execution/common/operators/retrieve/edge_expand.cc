@@ -150,7 +150,7 @@ static neug::result<Context> expand_edge_with_special_edge_predicate_impl0(
     if constexpr (std::is_same_v<T, std::string_view>) {
       return StringValue::Get(target_val);
     } else {
-      return target_val.GetValue<T>();
+      return target_val.template GetValue<T>();
     }
   }();
   if (config.ptype == SPPredicateType::kPropertyGT) {
@@ -215,7 +215,7 @@ void expand_vertex_ep_cmp_impl(const StorageReadInterface& graph,
     if constexpr (std::is_same_v<T, std::string_view>) {
       return StringValue::Get(cmp_value);
     } else {
-      return cmp_value.GetValue<T>();
+      return cmp_value.template GetValue<T>();
     }
   }();
 
