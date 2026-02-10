@@ -421,7 +421,7 @@ int main() {
     std::cout << "\n=== Calling SAMPLED_MATCH ===" << std::endl;
     // std::cout << "Pattern: Triangle (3 people who all know each other)" << std::endl;
     
-    std::string query = "CALL SAMPLED_MATCH('" + pattern_file + "')";
+    std::string query = "CALL SAMPLED_MATCH('" + pattern_file + "') RETURN *;";
     std::cout << "Query: " << query << std::endl;
     
     auto res = conn->Query(query);

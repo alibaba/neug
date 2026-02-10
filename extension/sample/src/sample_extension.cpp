@@ -32,19 +32,36 @@
    LOG(INFO) << "[sample extension] init called";
  
   try {
+    // 注册 INITIALIZE 函数 (图初始化)
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::InitializeGraphFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+    
     // 注册 SAMPLED_MATCH 函数 (NeugCallFunction with graph access)
     neug::extension::ExtensionAPI::registerFunction<
         neug::function::SampledMatchFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+    
+    // 注册 GET_VERTEX_PROPERTY 函数
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::GetVertexPropertyFunction>(
+        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+    
+    // 注册 GET_EDGE_PROPERTY 函数
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::GetEdgePropertyFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
     // 注册 extension 元数据
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
             "sample",
-            "Provides subgraph matching functions using FaSTest algorithm. "
-            "Functions: CALL SAMPLED_MATCH(pattern_file). "
-            "Input: JSON file describing the pattern to match. "
-            "Output: Estimated embedding count and sampled results."});
+            "Provides subgraph matching and property access functions. "
+            "Functions: CALL INITIALIZE() - initializes graph data cache, "
+            "CALL SAMPLED_MATCH(pattern_file), "
+            "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, prop_names_json), "
+            "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
+            "SAMPLED_MATCH returns estimated embedding count and sampled results with edge keys."});
 
     LOG(INFO) << "[sample extension] functions registered successfully";
    } catch (const std::exception& e) {
