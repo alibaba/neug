@@ -620,12 +620,17 @@
        "tag": {
         "id": 5
        },
-       "property": {
-        "id": {}
-       },
        "node_type": {
-        "data_type": {
-         "primitive_type": "DT_SIGNED_INT64"
+        "graph_type": {
+         "element_opt": "VERTEX",
+         "graph_data_type": [
+          {
+           "label": {
+            "label": 1
+           },
+           "props": []
+          }
+         ]
         }
        }
       },
@@ -633,12 +638,17 @@
        "tag": {
         "id": 6
        },
-       "property": {
-        "id": {}
-       },
        "node_type": {
-        "data_type": {
-         "primitive_type": "DT_SIGNED_INT64"
+        "graph_type": {
+         "element_opt": "VERTEX",
+         "graph_data_type": [
+          {
+           "label": {
+            "label": 1
+           },
+           "props": []
+          }
+         ]
         }
        }
       }
@@ -648,12 +658,17 @@
        "tag": {
         "id": 5
        },
-       "property": {
-        "id": {}
-       },
        "node_type": {
-        "data_type": {
-         "primitive_type": "DT_SIGNED_INT64"
+        "graph_type": {
+         "element_opt": "VERTEX",
+         "graph_data_type": [
+          {
+           "label": {
+            "label": 1
+           },
+           "props": []
+          }
+         ]
         }
        }
       },
@@ -661,12 +676,17 @@
        "tag": {
         "id": 6
        },
-       "property": {
-        "id": {}
-       },
        "node_type": {
-        "data_type": {
-         "primitive_type": "DT_SIGNED_INT64"
+        "graph_type": {
+         "element_opt": "VERTEX",
+         "graph_data_type": [
+          {
+           "label": {
+            "label": 1
+           },
+           "props": []
+          }
+         ]
         }
        }
       }

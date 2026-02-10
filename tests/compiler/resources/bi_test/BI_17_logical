@@ -27,7 +27,7 @@ PROJECTION[message1,m1_forum1,message2_fold]
 AGGREGATE[Group By [message1, m1_forum1, ], Aggregate [message2_fold, ]]
 PROJECTION[message2,message1,m1_forum1]
 FILTER[LESS_THAN(+(message1.creationDate,TO_INTERVAL(2 hours)),message2.creationDate) Cardinality: 50]
-HASH_JOIN[comment._ID, SIP: NONE, Join Type: INNER, Join Conditions: comment._ID=comment._ID]
+HASH_JOIN[_27_comment=_27_comment, SIP: NONE, Join Type: INNER, Join Conditions: _27_comment=_27_comment]
 CHILD:
     DISTINCT[message1,m1_forum1,comment]
     PROJECTION[message1,m1_forum1,comment]

@@ -6,7 +6,7 @@ PROJECTION[comment,name]
 EXTEND[comment-HASTAG_COMMENT_TAG,->relatedTag Cardinality: 12336]
 DISTINCT[comment]
 PROJECTION[comment]
-HASH_JOIN[comment._ID, SIP: NONE, Join Type: ANTI, Join Conditions: comment._ID=comment._ID]
+HASH_JOIN[_7_comment=_7_comment, SIP: NONE, Join Type: ANTI, Join Conditions: _7_comment=_7_comment]
 CHILD:
     EXTEND[message<-REPLYOF_COMMENT_COMMENT,REPLYOF_COMMENT_POST,-comment Cardinality: 53853]
     GET_V[GET_V() Cardinality: 102236]

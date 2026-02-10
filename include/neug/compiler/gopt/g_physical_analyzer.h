@@ -35,7 +35,6 @@
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
 #include "neug/compiler/planner/operator/persistent/logical_insert.h"
 #include "neug/compiler/planner/operator/scan/logical_scan_node_table.h"
-#include "neug/compiler/transaction/transaction_action.h"
 
 namespace neug {
 namespace gopt {
@@ -60,19 +59,8 @@ class GPhysicalAnalyzer {
     return flag;
   }
 
- private:
-  bool isDataSource(const planner::LogicalOperator& op) {
-    if (op.getOperatorType() !=
-        planner::LogicalOperatorType::TABLE_FUNCTION_CALL) {
-      return false;
-    }
-    auto tableFuncOp = op.constPtrCast<planner::LogicalTableFunctionCall>();
-    auto bindData = tableFuncOp->getBindData();
-    return dynamic_cast<function::ScanFileBindData*>(bindData) != nullptr;
-  }
-
-  std::unordered_set<std::string> collectPrimaryKeys(
-      const planner::LogicalScanNodeTable& scan) {
+  static std::unordered_set<std::string> collectPrimaryKeys(
+      catalog::Catalog* catalog, const planner::LogicalScanNodeTable& scan) {
     auto tableIds = scan.getTableIDs();
     auto result = std::unordered_set<std::string>();
     for (auto& tableId : tableIds) {
@@ -91,8 +79,8 @@ class GPhysicalAnalyzer {
     return result;
   }
 
-  bool containsAliasName(const planner::LogicalOperator& op,
-                         const binder::Expression& expr) {
+  static bool containsAliasName(const planner::LogicalOperator& op,
+                                const binder::Expression& expr) {
     auto gAliasNames = std::vector<gopt::GAliasName>();
     GAliasManager::extractGAliasNames(op, gAliasNames);
     for (auto& gAliasName : gAliasNames) {
@@ -101,6 +89,46 @@ class GPhysicalAnalyzer {
       }
     }
     return false;
+  }
+
+  static planner::LogicalScanNodeTable* getScanFromPKJoin(
+      catalog::Catalog* catalog, planner::LogicalOperator* child) {
+    if (child->getOperatorType() == planner::LogicalOperatorType::HASH_JOIN) {
+      auto join = child->ptrCast<planner::LogicalHashJoin>();
+      auto left = join->getChild(0);
+      auto conditions = join->getJoinConditions();
+      if (join->getJoinType() == common::JoinType::INNER &&
+          conditions.size() == 1) {
+        auto [leftKey, rightKey] = conditions[0];
+        if (leftKey->expressionType == common::ExpressionType::PROPERTY &&
+            !containsAliasName(*left, *leftKey) &&
+            (rightKey->expressionType == common::ExpressionType::VARIABLE ||
+             containsAliasName(*join->getChild(1), *rightKey))) {
+          auto leftProperty =
+              leftKey->ptrCast<binder::PropertyExpression>()->getPropertyName();
+          if (left->getOperatorType() ==
+              planner::LogicalOperatorType::SCAN_NODE_TABLE) {
+            auto scan = left->ptrCast<planner::LogicalScanNodeTable>();
+            auto pks = collectPrimaryKeys(catalog, *scan);
+            if (pks.size() == 1 && pks.contains(leftProperty)) {
+              return scan;
+            }
+          }
+        }
+      }
+    }
+    return nullptr;
+  }
+
+ private:
+  bool isDataSource(const planner::LogicalOperator& op) {
+    if (op.getOperatorType() !=
+        planner::LogicalOperatorType::TABLE_FUNCTION_CALL) {
+      return false;
+    }
+    auto tableFuncOp = op.constPtrCast<planner::LogicalTableFunctionCall>();
+    auto bindData = tableFuncOp->getBindData();
+    return dynamic_cast<function::ScanFileBindData*>(bindData) != nullptr;
   }
 
   void collectAtomicScan(std::shared_ptr<planner::LogicalOperator> child,
@@ -127,27 +155,9 @@ class GPhysicalAnalyzer {
       }
     } else if (child->getOperatorType() ==
                planner::LogicalOperatorType::HASH_JOIN) {
-      auto join = child->ptrCast<planner::LogicalHashJoin>();
-      auto left = join->getChild(0);
-      auto conditions = join->getJoinConditions();
-      if (join->getJoinType() == common::JoinType::INNER &&
-          conditions.size() == 1) {
-        auto [leftKey, rightKey] = conditions[0];
-        if (leftKey->expressionType == common::ExpressionType::PROPERTY &&
-            !containsAliasName(*left, *leftKey) &&
-            (rightKey->expressionType == common::ExpressionType::VARIABLE ||
-             containsAliasName(*join->getChild(1), *rightKey))) {
-          auto leftProperty =
-              leftKey->ptrCast<binder::PropertyExpression>()->getPropertyName();
-          if (left->getOperatorType() ==
-              planner::LogicalOperatorType::SCAN_NODE_TABLE) {
-            auto scan = left->cast<planner::LogicalScanNodeTable>();
-            auto pks = collectPrimaryKeys(scan);
-            if (pks.size() == 1 && pks.contains(leftProperty)) {
-              result.push_back(scan.getAliasName());
-            }
-          }
-        }
+      auto pkJoin = getScanFromPKJoin(catalog, child.get());
+      if (pkJoin) {
+        result.push_back(pkJoin->getAliasName());
       }
     }
     for (auto subChild : child->getChildren()) {

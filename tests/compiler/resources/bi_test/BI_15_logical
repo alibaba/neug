@@ -2,9 +2,9 @@ SET_PROPERTY[knows.score=/(CAST(1, DOUBLE),+(w,CAST(1, DOUBLE)))]
 PROJECTION[pA,pB,knows,w]
 AGGREGATE[Group By [pA, pB, knows, ], Aggregate [w, ]]
 PROJECTION[CASE WHEN EQUALS(IS_NOT_NULL(forum),True) THEN CASE WHEN EQUALS(OR(EQUALS(LABEL(m1._ID,[,,COMMENT,POST]),Post),EQUALS(LABEL(m2._ID,[,,COMMENT,POST]),Post)),True) THEN 1.000000 ELSE 0.500000 ELSE 0.000000,pA,pB,knows]
-HASH_JOIN[m1._ID, SIP: NONE, Join Type: LEFT, Join Conditions: m1._ID=m1._ID]
+HASH_JOIN[_7_m1=_7_m1, SIP: NONE, Join Type: LEFT, Join Conditions: _7_m1=_7_m1]
 CHILD:
-    HASH_JOIN[pA._ID,pB._ID, SIP: NONE, Join Type: LEFT, Join Conditions: pA._ID=pA._ID,pB._ID=pB._ID]
+    HASH_JOIN[_0_pA=_0_pA,_2_pB=_2_pB, SIP: NONE, Join Type: LEFT, Join Conditions: _0_pA=_0_pA,_2_pB=_2_pB]
     CHILD:
         GET_V[GET_V() Cardinality: 14073]
         EXTEND[pA<-knowsKNOWS,->pB Cardinality: 14073]

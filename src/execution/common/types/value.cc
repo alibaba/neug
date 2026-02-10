@@ -855,6 +855,10 @@ void encode_value(const Value& val, Encoder& encoder) {
     }
   } else if (type.id() == DataTypeId::kTimestampMs) {
     encoder.put_long(val.GetValue<timestamp_ms_t>().milli_second);
+  } else if (type.id() == DataTypeId::kDate) {
+    encoder.put_long(val.GetValue<date_t>().to_timestamp());
+  } else if (type.id() == DataTypeId::kInterval) {
+    encoder.put_long(val.GetValue<interval_t>().to_mill_seconds());
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type.id())));

@@ -2,7 +2,7 @@ PROJECTION[personId,personFirstName,personLastName,organizationName,organization
 PROJECTION[friend,com,organizationWorkFromYear]
 ORDER_BY[organizationWorkFromYear,friend.id,com.name SKIP 0 LIMIT 10]
 PROJECTION[friend,com,organizationWorkFromYear,friend.id,com.name]
-HASH_JOIN[friend._ID, SIP: NONE, Join Type: INNER, Join Conditions: friend._ID=friend._ID]
+HASH_JOIN[_2_friend=_2_friend, SIP: NONE, Join Type: INNER, Join Conditions: _2_friend=_2_friend]
 CHILD:
     FILTER[NOT_EQUALS(friend.id,$personId) Cardinality: 1]
     DISTINCT[friend]

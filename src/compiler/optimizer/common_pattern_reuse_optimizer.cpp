@@ -124,6 +124,7 @@ CommonPatternReuseOptimizer::visitHashJoinReplace(
       binder::expression_vector{rightScanNodeID});
   auto distinct = std::make_shared<planner::LogicalDistinct>(
       binder::expression_vector{distinctKey}, expressionScan);
+  distinct->computeFactorizedSchema();
   rightScanParent->setChild(0, distinct);
   return op;
 }

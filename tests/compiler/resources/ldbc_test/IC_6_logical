@@ -7,7 +7,7 @@ AGGREGATE[Group By [otherTag, t, ], Aggregate [postCnt, ]]
 PROJECTION[p,otherTag,t]
 EXTEND[p-HASTAG_POST_TAG,->otherTag Cardinality: 12]
 PROJECTION[p,t]
-HASH_JOIN[other._ID, SIP: NONE, Join Type: INNER, Join Conditions: other._ID=other._ID]
+HASH_JOIN[_2_other=_2_other, SIP: NONE, Join Type: INNER, Join Conditions: _2_other=_2_other]
 CHILD:
     FILTER[NOT_EQUALS(other.id,$personId) Cardinality: 1]
     DISTINCT[other]

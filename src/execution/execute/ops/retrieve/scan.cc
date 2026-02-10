@@ -38,7 +38,8 @@ class FilterOidsGPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     ctx = Context();
     DataTypeId type = std::get<0>(
         graph.schema().get_vertex_primary_key(params_.tables[0])[0]);
@@ -81,7 +82,8 @@ class ScanWithSPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     ctx = Context();
 
     return Scan::scan_vertex_with_special_vertex_predicate(
@@ -100,7 +102,8 @@ class ScanWithGPredOpr : public IOperator {
       : scan_params_(scan_params), pred_(std::move(pred)) {}
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     ctx = Context();
     if (pred_ == nullptr) {
       return Scan::scan_vertex(std::move(ctx), graph, scan_params_,
@@ -193,7 +196,8 @@ class DummySourceOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     ctx = Context();
     ValueColumnBuilder<int32_t> builder;
     builder.push_back_opt(0);

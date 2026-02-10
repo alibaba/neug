@@ -1035,6 +1035,9 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
     return;
   }
   auto projectPB = std::make_unique<::physical::Project>();
+  if (project.append()) {
+    projectPB->set_is_append(true);
+  }
   std::vector<common::alias_id_t> aliasIds;
   auto child = project.getChild(0);
   // set project mappings

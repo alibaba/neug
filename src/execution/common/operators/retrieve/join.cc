@@ -53,10 +53,18 @@ static Context default_semi_join(Context&& ctx, Context&& ctx2,
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     std::vector<char> bytes;
     Encoder encoder(bytes);
+    bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
+      if (val.IsNull()) {
+        has_null = true;
+        break;
+      }
       encode_value(val, encoder);
       encoder.put_byte('#');
+    }
+    if (has_null) {
+      continue;
     }
     std::string cur(bytes.begin(), bytes.end());
     if (params.join_type == JoinKind::kSemiJoin) {
@@ -276,10 +284,18 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
   for (size_t r_i = 0; r_i < right_size; ++r_i) {
     std::vector<char> bytes;
     Encoder encoder(bytes);
+    bool has_null = false;
     for (size_t i = 0; i < params.right_columns.size(); i++) {
       auto val = ctx2.get(params.right_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
+      if (val.IsNull()) {
+        has_null = true;
+        break;
+      }
       encoder.put_byte('#');
+    }
+    if (has_null) {
+      continue;
     }
     std::string cur(bytes.begin(), bytes.end());
     right_set[cur].emplace_back(r_i);
@@ -289,10 +305,18 @@ static Context default_inner_join(Context&& ctx, Context&& ctx2,
   for (size_t r_i = 0; r_i < left_size; ++r_i) {
     std::vector<char> bytes;
     Encoder encoder(bytes);
+    bool has_null = false;
     for (size_t i = 0; i < params.left_columns.size(); i++) {
       auto val = ctx.get(params.left_columns[i])->get_elem(r_i);
       encode_value(val, encoder);
+      if (val.IsNull()) {
+        has_null = true;
+        break;
+      }
       encoder.put_byte('#');
+    }
+    if (has_null) {
+      continue;
     }
     std::string cur(bytes.begin(), bytes.end());
     if (right_set.find(cur) != right_set.end()) {

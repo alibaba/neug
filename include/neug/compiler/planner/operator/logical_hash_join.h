@@ -46,6 +46,11 @@ class NEUG_API LogicalHashJoin final : public LogicalOperator {
   std::vector<join_condition_t> getJoinConditions() const {
     return joinConditions;
   }
+
+  std::vector<join_condition_t>& getJoinConditionsRef() {
+    return joinConditions;
+  }
+
   common::JoinType getJoinType() const { return joinType; }
 
   void setJoinType(common::JoinType joinType) { this->joinType = joinType; }

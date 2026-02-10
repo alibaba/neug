@@ -8,7 +8,7 @@ PROJECTION[messageX,messageY,otherP]
 PROJECTION[otherP,messageX,messageY]
 FILTER[AND(NOT_EQUALS(country2.name,$countryXName),NOT_EQUALS(country2.name,$countryYName)) Cardinality: 93]
 PROJECTION[message,otherP,country,country2]
-HASH_JOIN[otherP._ID, SIP: NONE, Join Type: INNER, Join Conditions: otherP._ID=otherP._ID]
+HASH_JOIN[_2_otherP=_2_otherP, SIP: NONE, Join Type: INNER, Join Conditions: _2_otherP=_2_otherP]
 CHILD:
     FILTER[NOT_EQUALS(otherP.id,$personId) Cardinality: 1]
     DISTINCT[otherP]

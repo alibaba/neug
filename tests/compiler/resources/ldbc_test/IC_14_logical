@@ -9,7 +9,7 @@ PROJECTION[path,nodes_in_path,weight1Count,weight2Count]
 AGGREGATE[Group By [path, nodes_in_path, ], Aggregate [weight1Count, weight2Count, ]]
 PROJECTION[ra,rb,path,nodes_in_path]
 PROJECTION[path,ra,rb]
-HASH_JOIN[rel0._ID,rel1._ID, SIP: NONE, Join Type: LEFT, Join Conditions: rel0._ID=rel0._ID,rel1._ID=rel1._ID, PreQuery]
+HASH_JOIN[STRUCT_EXTRACT(_15_rel,_16__SRC)=STRUCT_EXTRACT(_15_rel,_16__SRC),STRUCT_EXTRACT(_15_rel,_17__DST)=STRUCT_EXTRACT(_15_rel,_17__DST), SIP: NONE, Join Type: LEFT, Join Conditions: STRUCT_EXTRACT(_15_rel,_16__SRC)=STRUCT_EXTRACT(_15_rel,_16__SRC),STRUCT_EXTRACT(_15_rel,_17__DST)=STRUCT_EXTRACT(_15_rel,_17__DST), PreQuery]
 CHILD:
     PROJECTION[path,rel0,rel1]
     UNWIND[rels_in_path]

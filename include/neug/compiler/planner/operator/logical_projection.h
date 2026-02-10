@@ -12,7 +12,8 @@ class LogicalProjection : public LogicalOperator {
   explicit LogicalProjection(binder::expression_vector expressions,
                              std::shared_ptr<LogicalOperator> child)
       : LogicalOperator{LogicalOperatorType::PROJECTION, std::move(child)},
-        expressions{std::move(expressions)} {}
+        expressions{std::move(expressions)},
+        isAppend{false} {}
 
   void computeFactorizedSchema() override;
   void computeFlatSchema() override;
@@ -20,6 +21,9 @@ class LogicalProjection : public LogicalOperator {
   inline std::string getExpressionsForPrinting() const override {
     auto result = binder::ExpressionUtil::toString(expressions);
     // result += ", Cardinality: " + std::to_string(cardinality);
+    if (isAppend) {
+      result += ", APPEND";
+    }
     return result;
   }
 
@@ -34,13 +38,21 @@ class LogicalProjection : public LogicalOperator {
   std::unordered_set<uint32_t> getDiscardedGroupsPos() const;
 
   std::unique_ptr<LogicalOperator> copy() override {
-    return make_unique<LogicalProjection>(expressions, children[0]->copy());
+    auto projection =
+        make_unique<LogicalProjection>(expressions, children[0]->copy());
+    projection->setAppend(isAppend);
+    return projection;
   }
 
   void resetExprUniqueNames();
 
+  void setAppend(bool isAppend) { this->isAppend = isAppend; }
+
+  bool append() const { return isAppend; }
+
  private:
   binder::expression_vector expressions;
+  bool isAppend;
 };
 
 }  // namespace planner

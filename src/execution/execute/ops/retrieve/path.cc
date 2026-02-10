@@ -231,7 +231,8 @@ class SPOrderByLimitOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::set<label_t> expected_labels;
@@ -262,7 +263,8 @@ class SPOrderByLimitWithGPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (pred_) {
@@ -355,7 +357,8 @@ class SPSPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::
@@ -377,7 +380,8 @@ class SPGPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto pred = pred_->bind(&graph, params);
@@ -399,7 +403,8 @@ class SPWithoutPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::single_source_shortest_path(
@@ -437,7 +442,8 @@ class ASPOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     Property oid;
@@ -478,7 +484,8 @@ class SSSDSPOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     Property vertex = [&]() {
@@ -610,7 +617,8 @@ class PathExpandVOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::edge_expand_v(graph, std::move(ctx), pep_);
@@ -707,7 +715,8 @@ class PathExpandOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return PathExpand::edge_expand_p(graph, std::move(ctx), pep_);
@@ -728,7 +737,8 @@ class PathExpandOprWithPred : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto expr = pred_->bind(&graph, params);
@@ -754,7 +764,8 @@ class AnyWeightedShortestPathOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto expr = weight_->bind(&graph, params);

@@ -7,7 +7,7 @@ PROJECTION[message,likeTime,liker,isNew]
 PROJECTION[liker,message,likeTime,isNew]
 ORDER_BY[likeTime,message.id ]
 PROJECTION[liker,message,likeTime,isNew,message.id]
-HASH_JOIN[liker._ID, SIP: PROHIBIT_PROBE_TO_BUILD, Join Type: LEFT, Join Conditions: liker._ID=liker._ID]
+HASH_JOIN[_6_liker=_6_liker, SIP: PROHIBIT_PROBE_TO_BUILD, Join Type: LEFT, Join Conditions: _6_liker=_6_liker]
 CHILD:
     PROJECTION[liker,message,likeTime]
     GET_V[GET_V() Cardinality: 71]

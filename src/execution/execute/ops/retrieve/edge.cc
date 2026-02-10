@@ -108,7 +108,8 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
@@ -142,7 +143,8 @@ class EdgeExpandVOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
@@ -175,7 +177,8 @@ class EdgeExpandEWithSPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_edge_with_special_edge_predicate(
@@ -197,7 +200,8 @@ class EdgeExpandEOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (pred_ == nullptr) {
@@ -229,7 +233,8 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_vertex_with_special_vertex_predicate(
@@ -252,7 +257,8 @@ class EdgeExpandVWithGPVertexPredOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     auto expr = pred_->bind(&graph, params);
@@ -273,7 +279,8 @@ class EdgeExpandDegreeOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);
