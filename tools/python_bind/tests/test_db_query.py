@@ -2385,3 +2385,21 @@ def test_parameterized_query():
     ], f"Expected value [['vadas'], ['josh']], got {records}"
     conn.close()
     db.close()
+
+
+def test_alter_table_add_property_with_default_tinysnb():
+    """Test ALTER TABLE to add property with default value on tinysnb person table."""
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    # Alter table person to add property propy with default value 10
+    conn.execute("ALTER TABLE person ADD propy INT64 DEFAULT 10;")
+
+    # Query to verify the new property exists and has default value
+    result = conn.execute("MATCH (c:person) RETURN c.propy LIMIT 1;")
+    records = list(result)
+    assert records == [[10]]
+
+    conn.close()
+    db.close()

@@ -465,7 +465,8 @@ std::unique_ptr<BoundStatement> Binder::bindAddProperty(
     boundDefault = expressionBinder.foldExpression(boundDefault);
   }
   auto propertyDefinition =
-      PropertyDefinition(std::move(columnDefinition), std::move(defaultExpr));
+      PropertyDefinition(std::move(columnDefinition), std::move(defaultExpr),
+                         std::move(boundDefault));
   auto boundExtraInfo = std::make_unique<BoundExtraAddPropertyInfo>(
       std::move(propertyDefinition), std::move(boundDefault));
   auto boundInfo = BoundAlterInfo(AlterType::ADD_PROPERTY, tableName,

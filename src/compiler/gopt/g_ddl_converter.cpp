@@ -406,6 +406,8 @@ GDDLConverter::convertToAddVertexPropertySchema(
   property->set_name(propertyDef.getName());
   auto irType = typeConverter.convertSimpleLogicalType(propertyDef.getType());
   *property->mutable_type() = std::move(*irType->mutable_data_type());
+  property->set_allocated_default_value(
+      exprConverter.convertDefaultValue(propertyDef).release());
 
   // Set conflict action
   add_property->set_conflict_action(
