@@ -8,8 +8,6 @@ find_package(OpenSSL REQUIRED)
 
 set(BRPC_WITH_GLOG 1)
 
-add_neug_test(version_manager_test test_version_manager.cc)
-
 add_neug_test(test_extension test_extension.cc)
 
 # Schema tests

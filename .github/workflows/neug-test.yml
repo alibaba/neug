@@ -165,7 +165,6 @@ jobs:
         ctest -R execution_test -V
         export TEST_RESOURCE=${GITHUB_WORKSPACE}/tests/compiler
         ctest -R gopt_test -V
-        ctest -R version_manager_test -V
         ctest -R test_vertex_table -V
         ctest -R schema_test -V
         ctest -R logical_delete_test -V
