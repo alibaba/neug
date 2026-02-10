@@ -723,14 +723,15 @@ void Planner::planInnerJoin(uint32_t leftLevel, uint32_t rightLevel) {
                                  joinNodes.size())) {
         continue;
       }
+      if (tryPlanSelfLoopEdge(rightSubgraph, nbrSubgraph, joinNodes)) {
+        continue;
+      }
       if (joinNodes.size() > 1) {
         continue;
       }
       if (tryPlanINLJoin(rightSubgraph, nbrSubgraph, joinNodes)) {
         continue;
       }
-      // planInnerHashJoin(rightSubgraph, nbrSubgraph, joinNodes,
-      //                   leftLevel != rightLevel);
       planGetV(rightSubgraph, nbrSubgraph, joinNodes);
     }
   }
@@ -779,6 +780,53 @@ bool Planner::tryPlanINLJoin(
     hasAppliedINLJoin = true;
   }
   return hasAppliedINLJoin;
+}
+
+bool Planner::tryPlanSelfLoopEdge(
+    const SubqueryGraph& subgraph, const SubqueryGraph& otherSubgraph,
+    const std::vector<std::shared_ptr<NodeExpression>>& joinNodes) {
+  if (joinNodes.size() < 2) {
+    return false;
+  }
+
+  if (subgraph.getNumQueryRels() != 1 || otherSubgraph.getNumQueryRels() != 1) {
+    return false;
+  }
+
+  if (!subgraph.isSingleRel() && !otherSubgraph.isSingleRel()) {
+    return false;
+  }
+
+  if (!otherSubgraph.isSingleRel()) {
+    return tryPlanSelfLoopEdge(otherSubgraph, subgraph, joinNodes);
+  }
+
+  auto relPos = UINT32_MAX;
+  for (auto i = 0u; i < context.queryGraph->getNumQueryRels(); ++i) {
+    if (otherSubgraph.queryRelsSelector[i]) {
+      relPos = i;
+      break;
+    }
+  }
+  NEUG_ASSERT(relPos != UINT32_MAX);
+
+  const auto& queryGraph = context.queryGraph;
+  auto rel = queryGraph->getQueryRel(relPos);
+  auto srcNodePos = queryGraph->getQueryNodeIdx(rel->getSrcNodeName());
+  auto dstNodePos = queryGraph->getQueryNodeIdx(rel->getDstNodeName());
+  auto isSrcConnected = subgraph.queryNodesSelector[srcNodePos];
+  auto isDstConnected = subgraph.queryNodesSelector[dstNodePos];
+  if (!isSrcConnected || !isDstConnected) {
+    return false;
+  }
+  // contains self-loop edge, i.e. Match (a)-[]->(b), (b)-[]->(a)
+  // convert to inner join
+  auto otherCopy = context.getEmptySubqueryGraph();
+  otherCopy.addSubqueryGraph(otherSubgraph);
+  otherCopy.addQueryNode(srcNodePos);
+  otherCopy.addQueryNode(dstNodePos);
+  planInnerHashJoin(otherCopy, subgraph, joinNodes, true);
+  return true;
 }
 
 void Planner::planInnerHashJoin(

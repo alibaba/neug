@@ -30,6 +30,7 @@ on:
       - 'scripts/install_deps.sh'
       - 'include/**'
       - 'CMakeLists.txt'
+      - 'doc/source/tutorials/**'
   push:
     branches:
       - main
@@ -41,8 +42,10 @@ on:
       - 'tools/python_bind/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
+      - 'scripts/install_deps.sh'
       - 'include/**'
       - 'CMakeLists.txt'
+      - 'doc/source/tutorials/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -73,16 +76,19 @@ jobs:
         rm -rf /__w/_tool/Python
 
     - name: Cache CCache
-      if: false
       uses: actions/cache@v4
       with:
-        path: ~/.cache
-        # use timestamp as cache key to avoid cache miss
-        key: ${{ runner.os }}-ccache-${{ github.run_id }}-${{ github.sha }}
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-ccache-${{ github.run_id }}-
           ${{ runner.os }}-ccache-
-    
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
+
     - name: Increase the maximum number of opened files
       run: |
         ulimit -n 65535
@@ -119,12 +125,13 @@ jobs:
         export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
-        # export CC="ccache gcc"
-        # export CXX="ccache g++"
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd tools/python_bind
         make clean
         make requirements
         make build
+        ccache --show-stats
 
     - name: Test examples
       run: |
@@ -214,6 +221,12 @@ jobs:
         # ddl & dml & query tests
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_query.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
+
+    - name: Run TinySNB Tutorial Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        # tutorial tests - validate examples from doc/source/tutorials/tinysnb_tutorial.md
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tinysnb_tutorial.py
 
     - name: Run Transaction Test
       run: |

@@ -179,8 +179,6 @@ for record in result:
 ### Mutual Connections
 
 ```python
-# Find mutual friendships (bidirectional relationships)
-# TODO: Issue #797
 print("\n=== Mutual friendships ===")
 result = conn.execute("""
     MATCH (p1:person)-[k1:knows]->(p2:person),
@@ -317,9 +315,6 @@ print(f"Network density: {density:.2f}%")
 
 ```python
 # Find the most connected individuals (network hubs)
-# TODO: this query still has error:
-# ERR_COMPILATION: Number of expressions to project does not match the number 
-# of schema expressions
 print("\n=== Network Hubs (most connected individuals) ===")
 result = conn.execute("""
     MATCH (p:person)
