@@ -4,6 +4,9 @@ on:
     pull_request:
       branches:
         - main
+      paths:
+        - 'doc/**'
+        - '.github/workflows/docs.yml'
 
 
 concurrency:

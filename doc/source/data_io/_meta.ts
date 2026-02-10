@@ -1,6 +1,6 @@
 export default {
   index: "Overview",
-  load_data: "LOAD FROM",
-  import_data: "COPY FROM",
-  export_data: "COPY TO",
+  load_data: "Load Data",
+  import_data: "Import Data",
+  export_data: "Export Data",
 };

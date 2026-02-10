@@ -576,3 +576,12 @@ class TestCopyToDocs:
         lines = content.strip().split("\n")
         # No header, just 4 data rows
         assert len(lines) == 4
+
+    def test_ccache_ci_validation(self):
+        """Trivial test to trigger CI rebuild and verify ccache hit rate.
+
+        This test will be removed after CI optimization is validated.
+        Since no C++ code changed, ccache should achieve near 100% hit rate,
+        significantly reducing the Build NeuG step time.
+        """
+        assert True

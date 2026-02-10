@@ -10,26 +10,28 @@ on:
     paths:
       - 'cmake/**'
       - 'src/**'
+      - 'include/**'
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tools/shell/**'
-      - 'tests/**'
       - '.github/workflows/build-wheel.yml'
       - 'scripts/install_deps.sh'
+      - 'CMakeLists.txt'
   pull_request:
     branches:
       - main
     paths:
       - 'cmake/**'
       - 'src/**'
+      - 'include/**'
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tools/shell/**'
-      - 'tests/**'
       - '.github/workflows/build-wheel.yml'
       - 'scripts/install_deps.sh'
+      - 'CMakeLists.txt'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}

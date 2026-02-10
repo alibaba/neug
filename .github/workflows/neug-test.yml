@@ -42,6 +42,7 @@ on:
       - 'tools/python_bind/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
+      - 'scripts/install_deps.sh'
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
@@ -75,16 +76,19 @@ jobs:
         rm -rf /__w/_tool/Python
 
     - name: Cache CCache
-      if: false
       uses: actions/cache@v4
       with:
-        path: ~/.cache
-        # use timestamp as cache key to avoid cache miss
-        key: ${{ runner.os }}-ccache-${{ github.run_id }}-${{ github.sha }}
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-ccache-${{ github.run_id }}-
           ${{ runner.os }}-ccache-
-    
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
+
     - name: Increase the maximum number of opened files
       run: |
         ulimit -n 65535
@@ -121,12 +125,13 @@ jobs:
         export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
-        # export CC="ccache gcc"
-        # export CXX="ccache g++"
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd tools/python_bind
         make clean
         make requirements
         make build
+        ccache --show-stats
 
     - name: Test examples
       run: |
