@@ -19,10 +19,18 @@ endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
 # Link libraries
-if(ARROW_LIB)
-    target_link_libraries(neug_json_extension PRIVATE ${ARROW_LIB})
-endif()
+# Core Arrow symbols are already in neug_libraries. Only link the Arrow JSON-specific
+# object files (arrow::json::* and arrow::dataset::JsonFileFormat) that are NOT
+# part of the core Arrow build in neug_libraries, to avoid duplicating the entire
+# Arrow static library (~44MB) and bloating the extension binary.
+set(ARROW_JSON_OBJ_DIR "${CMAKE_BINARY_DIR}/_deps/arrow-build/src/arrow/CMakeFiles/arrow_json.dir/json")
+set(ARROW_DATASET_JSON_OBJ_DIR "${CMAKE_BINARY_DIR}/_deps/arrow-build/src/arrow/dataset/CMakeFiles/arrow_dataset_objlib.dir")
+file(GLOB ARROW_JSON_OBJS "${ARROW_JSON_OBJ_DIR}/*.o")
+file(GLOB ARROW_DATASET_JSON_OBJS "${ARROW_DATASET_JSON_OBJ_DIR}/file_json.cc.o")
+
 target_link_libraries(neug_json_extension PRIVATE
+    ${ARROW_JSON_OBJS}
+    ${ARROW_DATASET_JSON_OBJS}
     ${Protobuf_LIBRARIES}
     ${GLOG_LIBRARIES}
     neug_libraries

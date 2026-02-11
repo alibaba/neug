@@ -17,23 +17,15 @@ Rather than implementing a one-size-fits-all transaction system with high comple
 NeuG implements an **implicit transaction model** with auto-commit semantics:
 
 - **No explicit transaction primitives**: NeuG does not currently expose `BEGIN`, `COMMIT`, or `ABORT` commands
-- **Auto-commit semantics**: Each `execute()` call automatically forms its own transaction
-- **Multi-statement support**: Multiple statements can be included in a single `execute()` call, separated by `;`. All statements in one `execute()` call share the same transaction boundary.
+- **Auto-commit semantics**: Each `execute()` call automatically forms its own transaction — one statement per call
 
 ```python
-# Single statement per execute() - each is an independent transaction
+# Each execute() is an independent, auto-committed transaction
 conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
 conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
-
-# Multi-statement in one execute() - all share the same transaction
-conn.execute("""
-    CREATE (p:Person {name: 'Alice'});
-    CREATE (p:Person {name: 'Bob'});
-    CREATE (p:Person {name: 'Charlie'})
-""")  
 ```
 
-> **Note:** When using multi-statement execution, if any statement fails, the behavior depends on the deployment mode (see ACID Properties below).
+> **Coming in v0.2:** Multi-statement execution (multiple statements separated by `;` in a single `execute()` call) and explicit transaction control (`BEGIN`/`COMMIT`/`ABORT`) will be supported in NeuG v0.2.
 
 ## Deployment Modes Overview
 
@@ -365,9 +357,9 @@ finally:
 
 ## Roadmap
 
-
-**Transaction Control**
-- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for multi-statement atomic operations
+**v0.2: Transaction Control**
+- Multi-statement execution: multiple statements separated by `;` in a single `execute()` call, sharing the same transaction boundary
+- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for fine-grained transaction control
 - Savepoint support for partial rollback within transactions
 
 **Recovery & Durability**
