@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/create_vertex_type.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -24,8 +25,7 @@ class CreateVertexTypeOpr : public IOperator {
  public:
   CreateVertexTypeOpr(
       const std::string& type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-          properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       const std::vector<std::string>& pks, bool error_on_conflict)
       : type_name_(type_name),
         properties_(properties),
@@ -40,7 +40,12 @@ class CreateVertexTypeOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.CreateVertexType(type_name_, properties_, pks_,
+    std::vector<std::tuple<DataTypeId, std::string, Property>> property_tuples;
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type().id(), prop_name,
+                                   value_to_property(prop_value));
+    }
+    auto res = storage.CreateVertexType(type_name_, property_tuples, pks_,
                                         error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to create vertex type: " << type_name_
@@ -52,7 +57,7 @@ class CreateVertexTypeOpr : public IOperator {
 
  private:
   std::string type_name_;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
   bool error_on_conflict_;
 };
@@ -63,7 +68,7 @@ neug::result<OpBuildResultT> CreateVertexTypeOprBuilder::Build(
   ContextMeta meta = ctx_meta;
   const auto& create_vertex = plan.plan(op_id).opr().create_vertex_schema();
   auto vertex_type_name = create_vertex.vertex_type().name();
-  auto tuple_res = property_defs_to_tuple(create_vertex.properties());
+  auto tuple_res = property_defs_to_value(create_vertex.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }

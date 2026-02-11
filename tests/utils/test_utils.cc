@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/encoder.h"
@@ -1101,212 +1102,11 @@ TEST_F(PBUtilsTest, MultiplicityToStorageStrategy) {
       static_cast<physical::CreateEdgeSchema::Multiplicity>(999), oe, ie));
 }
 
-TEST_F(PBUtilsTest, PrimitiveType_Valid) {
-  DataTypeId out;
-  EXPECT_TRUE(primitive_type_to_property_type(
-      ::common::PrimitiveType::DT_SIGNED_INT32, out));
-  EXPECT_EQ(out, DataTypeId::kInt32);
-
-  EXPECT_TRUE(primitive_type_to_property_type(
-      ::common::PrimitiveType::DT_SIGNED_INT64, out));
-  EXPECT_EQ(out, DataTypeId::kInt64);
-
-  EXPECT_TRUE(primitive_type_to_property_type(
-      ::common::PrimitiveType::DT_UNSIGNED_INT32, out));
-  EXPECT_EQ(out, DataTypeId::kUInt32);
-
-  EXPECT_TRUE(primitive_type_to_property_type(
-      ::common::PrimitiveType::DT_UNSIGNED_INT64, out));
-  EXPECT_EQ(out, DataTypeId::kUInt64);
-
-  EXPECT_TRUE(
-      primitive_type_to_property_type(::common::PrimitiveType::DT_DOUBLE, out));
-  EXPECT_EQ(out, DataTypeId::kDouble);
-
-  EXPECT_TRUE(
-      primitive_type_to_property_type(::common::PrimitiveType::DT_BOOL, out));
-  EXPECT_EQ(out, DataTypeId::kBoolean);
-
-  EXPECT_TRUE(
-      primitive_type_to_property_type(::common::PrimitiveType::DT_NULL, out));
-  EXPECT_EQ(out, DataTypeId::kEmpty);
-}
-
-TEST_F(PBUtilsTest, PrimitiveType_Invalid) {
-  DataTypeId out;
-  EXPECT_FALSE(
-      primitive_type_to_property_type(::common::PrimitiveType::DT_ANY, out));
-
-  EXPECT_FALSE(primitive_type_to_property_type(
-      static_cast<::common::PrimitiveType>(999), out));
-}
-
-TEST_F(PBUtilsTest, StringType_Valid) {
-  DataTypeId out;
-  ::common::String s;
-
-  s.mutable_var_char();
-  EXPECT_TRUE(string_type_to_property_type(s, out));
-  EXPECT_EQ(out, DataTypeId::kVarchar);
-
-  s.Clear();
-  s.mutable_long_text();
-  EXPECT_TRUE(string_type_to_property_type(s, out));
-  EXPECT_EQ(out, DataTypeId::kVarchar);
-}
-
-TEST_F(PBUtilsTest, StringType_Invalid) {
-  DataTypeId out;
-  ::common::String s;
-
-  s.mutable_char_();
-  EXPECT_THROW(string_type_to_property_type(s, out),
-               exception::NotSupportedException);
-  s.Clear();
-  EXPECT_FALSE(string_type_to_property_type(s, out));
-}
-
-TEST_F(PBUtilsTest, TemporalType_Valid) {
-  DataTypeId out;
-  ::common::Temporal t;
-
-  t.mutable_date32();
-  EXPECT_TRUE(temporal_type_to_property_type(t, out));
-  EXPECT_EQ(out, DataTypeId::kDate);
-
-  t.Clear();
-  t.mutable_date_time();
-  EXPECT_TRUE(temporal_type_to_property_type(t, out));
-  EXPECT_EQ(out, DataTypeId::kTimestampMs);
-
-  t.Clear();
-  t.mutable_timestamp();
-  EXPECT_TRUE(temporal_type_to_property_type(t, out));
-  EXPECT_EQ(out, DataTypeId::kTimestampMs);
-
-  t.Clear();
-  t.mutable_date();
-  EXPECT_TRUE(temporal_type_to_property_type(t, out));
-  EXPECT_EQ(out, DataTypeId::kDate);
-
-  t.Clear();
-  t.mutable_interval();
-  EXPECT_TRUE(temporal_type_to_property_type(t, out));
-  EXPECT_EQ(out, DataTypeId::kInterval);
-}
-
-TEST_F(PBUtilsTest, TemporalType_Invalid) {
-  DataTypeId out;
-  ::common::Temporal t;
-  EXPECT_FALSE(temporal_type_to_property_type(t, out));
-}
-
-TEST_F(PBUtilsTest, DataType_Primitive) {
-  DataTypeId out;
-  ::common::DataType dt;
-  dt.set_primitive_type(::common::PrimitiveType::DT_FLOAT);
-  EXPECT_TRUE(data_type_to_property_type(dt, out));
-  EXPECT_EQ(out, DataTypeId::kFloat);
-}
-
-TEST_F(PBUtilsTest, DataType_String) {
-  DataTypeId out;
-  ::common::DataType dt;
-  dt.mutable_string()->mutable_var_char();
-  EXPECT_TRUE(data_type_to_property_type(dt, out));
-  EXPECT_EQ(out, DataTypeId::kVarchar);
-}
-
-TEST_F(PBUtilsTest, DataType_Temporal) {
-  DataTypeId out;
-  ::common::DataType dt;
-  dt.mutable_temporal()->mutable_date();
-  EXPECT_TRUE(data_type_to_property_type(dt, out));
-  EXPECT_EQ(out, DataTypeId::kDate);
-}
-
-TEST_F(PBUtilsTest, DataType_Unsupported) {
-  DataTypeId out;
-  ::common::DataType dt;
-
-  dt.mutable_decimal();
-  EXPECT_FALSE(data_type_to_property_type(dt, out));
-
-  dt.mutable_array();
-  EXPECT_FALSE(data_type_to_property_type(dt, out));
-
-  dt.mutable_map();
-  EXPECT_FALSE(data_type_to_property_type(dt, out));
-
-  dt.Clear();
-  EXPECT_FALSE(data_type_to_property_type(dt, out));
-}
-
 TEST_F(PBUtilsTest, ConflictActionToBool) {
   EXPECT_TRUE(
       conflict_action_to_bool(::physical::ConflictAction::ON_CONFLICT_THROW));
   EXPECT_FALSE(conflict_action_to_bool(
       ::physical::ConflictAction::ON_CONFLICT_DO_NOTHING));
-}
-
-TEST_F(PBUtilsTest, CommonValueToAny_Numeric) {
-  Property p;
-  ::common::Value v;
-
-  v.set_boolean(false);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kBoolean, v, p));
-  EXPECT_EQ(p.as_bool(), false);
-
-  v.set_i32(42);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kInt32, v, p));
-  EXPECT_EQ(p.as_int32(), 42);
-
-  v.set_i64(1000000000000LL);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kInt64, v, p));
-  EXPECT_EQ(p.as_int64(), 1000000000000LL);
-
-  v.set_u32(42);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kUInt32, v, p));
-  EXPECT_EQ(p.as_uint32(), 42);
-
-  v.set_u64(1000000000000ULL);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kUInt64, v, p));
-  EXPECT_EQ(p.as_uint64(), 1000000000000ULL);
-
-  v.set_f32(3.14);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kFloat, v, p));
-  EXPECT_FLOAT_EQ(p.as_float(), 3.14);
-
-  v.set_f64(3.14);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kDouble, v, p));
-  EXPECT_DOUBLE_EQ(p.as_double(), 3.14);
-
-  v.mutable_date()->set_item(10);
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kDate, v, p));
-  EXPECT_EQ(p.as_date(), Date(10));
-}
-
-TEST_F(PBUtilsTest, CommonValueToAny_StringAsSpecialType) {
-  Property p;
-  ::common::Value v;
-  v.set_str("2023-01-01");
-
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kDate, v, p));
-
-  v.set_str("2023-01-01 12:00:00");
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kTimestampMs, v, p));
-
-  v.set_str("1years3months2days");
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kInterval, v, p));
-}
-
-TEST_F(PBUtilsTest, CommonValueToAny_StringAsVarchar) {
-  Property p;
-  ::common::Value v;
-  v.set_str("hello");
-
-  EXPECT_TRUE(common_value_to_any(DataTypeId::kVarchar, v, p));
-  EXPECT_EQ(p.as_string_view(), "hello");
 }
 
 TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
@@ -1322,24 +1122,17 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
   prop2->set_name("name");
   prop2->mutable_type()->mutable_string()->mutable_var_char();
 
-  auto result = property_defs_to_tuple(props);
+  auto result = property_defs_to_value(props);
   auto& tuples = result.value();
   ASSERT_EQ(tuples.size(), 2U);
 
-  EXPECT_EQ(std::get<0>(tuples[0]), DataTypeId::kInt32);
-  EXPECT_EQ(std::get<1>(tuples[0]), "age");
-  EXPECT_EQ(std::get<2>(tuples[0]).as_int32(), 18);
+  EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kInt32);
+  EXPECT_EQ(tuples[0].first, "age");
+  EXPECT_EQ(tuples[0].second.GetValue<int32_t>(), 18);
 
-  EXPECT_EQ(std::get<0>(tuples[1]), DataTypeId::kVarchar);
-  EXPECT_EQ(std::get<1>(tuples[1]), "name");
-  EXPECT_EQ(std::get<2>(tuples[1]).as_string_view(), "");
-}
-
-TEST_F(PBUtilsTest, CommonValueToAny_Invalid) {
-  Property p;
-  ::common::Value v;
-
-  EXPECT_FALSE(common_value_to_any(DataTypeId::kInt32, v, p));
+  EXPECT_EQ(tuples[1].second.type().id(), DataTypeId::kVarchar);
+  EXPECT_EQ(tuples[1].first, "name");
+  EXPECT_EQ(tuples[1].second.GetValue<std::string>(), "");
 }
 
 TEST_F(PBUtilsTest, ProtoToJsonTest) {

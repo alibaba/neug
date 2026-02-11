@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
+#include "neug/execution/common/types/value.h"
 #include "neug/generated/proto/plan/common.pb.h"
 #include "neug/generated/proto/plan/expr.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -876,58 +877,54 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_any(const DataTypeId& type, const common::Value& value,
-                         Property& out_any) {
-  if (value.item_case() == common::Value::ITEM_NOT_SET) {
-    LOG(ERROR) << "Value is not set: " << value.DebugString();
-    return false;
-  }
+bool common_value_to_value(const DataTypeId type, const common::Value& value,
+                           execution::Value& out_value) {
   switch (value.item_case()) {
   case common::Value::kBoolean:
-    out_any.set_bool(value.boolean());
+    out_value = execution::Value::BOOLEAN(value.boolean());
     break;
   case common::Value::kI32:
-    out_any.set_int32(value.i32());
+    out_value = execution::Value::INT32(value.i32());
     break;
   case common::Value::kI64:
-    out_any.set_int64(value.i64());
+    out_value = execution::Value::INT64(value.i64());
     break;
   case common::Value::kU32:
-    out_any.set_uint32(value.u32());
+    out_value = execution::Value::UINT32(value.u32());
     break;
   case common::Value::kU64:
-    out_any.set_uint64(value.u64());
+    out_value = execution::Value::UINT64(value.u64());
     break;
   case common::Value::kF32:
-    out_any.set_float(value.f32());
+    out_value = execution::Value::FLOAT(value.f32());
     break;
   case common::Value::kF64:
-    out_any.set_double(value.f64());
+    out_value = execution::Value::DOUBLE(value.f64());
     break;
   case common::Value::kStr:
     if (type == DataTypeId::kDate) {
       // Special handling for date stored as string
       Date date(value.str());
-      out_any.set_date(date);
+      out_value = execution::Value::DATE(date);
       break;
     } else if (type == DataTypeId::kTimestampMs) {
       // Special handling for datetime stored as string
       DateTime datetime(value.str());
-      out_any.set_datetime(datetime);
+      out_value = execution::Value::TIMESTAMPMS(datetime);
       break;
     } else if (type == DataTypeId::kInterval) {
       // Special handling for interval stored as string
       Interval interval(value.str());
-      out_any.set_interval(interval);
+      out_value = execution::Value::INTERVAL(interval);
       break;
     } else {
       LOG(INFO) << "Setting string value: " << value.str()
                 << " for type: " << std::to_string(type);
-      out_any.set_string_view(value.str());
+      out_value = execution::Value::STRING(value.str());
     }
     break;
   case common::Value::kDate:
-    out_any.set_date(Date(value.date().item()));
+    out_value = execution::Value::DATE(Date(value.date().item()));
     break;
   default:
     LOG(ERROR) << "Unknown value type: " << value.DebugString();
@@ -936,21 +933,23 @@ bool common_value_to_any(const DataTypeId& type, const common::Value& value,
   return true;
 }
 
-neug::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
-property_defs_to_tuple(
+neug::result<std::vector<std::pair<std::string, execution::Value>>>
+property_defs_to_value(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::tuple<DataTypeId, std::string, Property>> result;
+  std::vector<std::pair<std::string, execution::Value>> result;
   for (const auto& property : properties) {
-    std::tuple<DataTypeId, std::string, Property> tuple;
-    std::get<1>(tuple) = property.name();
-    if (!data_type_to_property_type(property.type(), std::get<0>(tuple))) {
+    const auto& name = property.name();
+    execution::Value default_value(DataType::SQLNULL);
+    DataTypeId type;
+    if (!data_type_to_property_type(property.type(), type)) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
                           "Invalid property type: " + property.DebugString()));
     }
+
     if (property.has_default_value()) {
-      if (!common_value_to_any(std::get<0>(tuple), property.default_value(),
-                               std::get<2>(tuple))) {
+      if (!common_value_to_value(type, property.default_value(),
+                                 default_value)) {
         RETURN_ERROR(
             Status(StatusCode::ERR_INVALID_ARGUMENT,
                    "Invalid default value: " + property.DebugString()));
@@ -959,12 +958,12 @@ property_defs_to_tuple(
                  << property.default_value().DebugString();
       }
     } else {
-      std::get<2>(tuple) = get_default_value(std::get<0>(tuple));
+      default_value = execution::property_to_value(get_default_value(type));
       VLOG(1) << "No default value, use type default:"
-              << std::get<2>(tuple).to_string()
-              << " type: " << std::to_string(std::get<2>(tuple).type());
+              << default_value.to_string()
+              << " type: " << default_value.type().ToString();
     }
-    result.emplace_back(std::move(tuple));
+    result.emplace_back(name, default_value);
   }
   return result;
 }
