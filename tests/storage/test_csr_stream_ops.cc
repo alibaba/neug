@@ -91,10 +91,15 @@ class CsrStreamTest : public ::testing::Test {
     }
     EXPECT_EQ(expected.size(), actual.size());
     std::sort(actual.begin(), actual.end());
+    using V = typename T::data_t;
     for (size_t i = 0; i < expected.size(); ++i) {
       EXPECT_EQ(std::get<0>(expected[i]), std::get<0>(actual[i]));
       EXPECT_EQ(std::get<1>(expected[i]), std::get<1>(actual[i]));
-      EXPECT_EQ(std::get<2>(expected[i]), std::get<2>(actual[i]));
+      if constexpr (std::is_floating_point<V>::value) {
+        EXPECT_FLOAT_EQ(std::get<2>(expected[i]), std::get<2>(actual[i]));
+      } else {
+        EXPECT_EQ(std::get<2>(expected[i]), std::get<2>(actual[i]));
+      }
     }
   }
 
