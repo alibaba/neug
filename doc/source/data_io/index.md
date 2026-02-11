@@ -41,5 +41,3 @@ External Files (CSV, JSON, Parquet, ...)
 - **[LOAD FROM](load_data)** — Read external files into temporary tables with relational operations
 - **[COPY FROM](import_data)** — Persist external data into graph storage
 - **[COPY TO](export_data)** — Export query results to external files
-
-<!-- CI path filter validation: doc-only change should only trigger docs.yml -->

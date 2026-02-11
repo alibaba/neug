@@ -18,6 +18,7 @@ if(ARROW_INCLUDE_DIRS)
 endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
+# Link libraries
 # Core Arrow symbols are already in neug_libraries (which links arrow_static,
 # arrow_dataset_static, etc.). However, the linker strips unreferenced symbols
 # from static archives — both arrow::json::* and arrow::dataset::Json* symbols
