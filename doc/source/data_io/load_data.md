@@ -82,6 +82,22 @@ LOAD FROM "knows.csv" (delim=',')
 RETURN src_name AS src, dst_name AS dst, weight AS score;
 ```
 
+### Distinct Values
+
+Use `RETURN DISTINCT` to remove duplicate rows from the result:
+
+```cypher
+LOAD FROM "person.csv" (delim=',')
+RETURN DISTINCT name;
+```
+
+You can also use `DISTINCT` with multiple columns:
+
+```cypher
+LOAD FROM "person.csv" (delim=',')
+RETURN DISTINCT name, age;
+```
+
 ### Type Casting
 
 Use the `CAST` function to convert column values to a specific type:

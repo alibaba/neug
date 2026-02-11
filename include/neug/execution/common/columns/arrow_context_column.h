@@ -89,10 +89,11 @@ class ArrowArrayContextColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
 
- private:
-  // Helper function to locate which array and offset for a given index
-  std::pair<size_t, size_t> locate_array_and_offset(size_t idx) const;
+  ISigColumn* generate_signature() const override;
 
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
+
+ private:
   std::vector<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
   DataType type_;

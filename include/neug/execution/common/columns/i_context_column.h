@@ -14,13 +14,18 @@
  */
 #pragma once
 
+#include <arrow/array/array_base.h>
+#include <arrow/array/array_binary.h>
+#include <arrow/array/array_primitive.h>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "neug/execution/common/types/value.h"
 
 #include "glog/logging.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
 
@@ -35,6 +40,24 @@ enum class ContextColumnType {
   kArrowStream,
   kNone,
 };
+
+inline std::pair<size_t, size_t> locate_array_and_offset(
+    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    size_t idx) {
+  CHECK(idx < size) << "Index out of range: " << idx << " >= " << size;
+
+  size_t accumulated_size = 0;
+  for (size_t i = 0; i < columns.size(); ++i) {
+    size_t array_length = columns[i]->length();
+    if (idx < accumulated_size + array_length) {
+      size_t offset = idx - accumulated_size;
+      return {i, offset};
+    }
+    accumulated_size += array_length;
+  }
+  LOG(FATAL) << "Should not reach here";
+  return {0, 0};
+}
 
 class ISigColumn {
  public:
@@ -130,6 +153,96 @@ class SigColumn<std::string> : public ISigColumn {
     }
   }
   ~SigColumn() = default;
+  inline size_t get_sig(size_t idx) const override { return sig_list_[idx]; }
+
+ private:
+  std::vector<size_t> sig_list_;
+};
+
+// Including primitive and temporal types
+template <typename ArrowArrayType>
+class ArrowArraySigColumn : public ISigColumn {
+ public:
+  explicit ArrowArraySigColumn(
+      const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size)
+      : columns_(columns), size_(size) {}
+
+  ~ArrowArraySigColumn() = default;
+
+  inline size_t get_sig(size_t idx) const override {
+    auto [array_idx, local_offset] =
+        locate_array_and_offset(columns_, size_, idx);
+    auto casted = std::static_pointer_cast<ArrowArrayType>(columns_[array_idx]);
+    return static_cast<size_t>(casted->Value(local_offset));
+  }
+
+ private:
+  const std::vector<std::shared_ptr<arrow::Array>>& columns_;
+  size_t size_;
+};
+
+template <>
+class ArrowArraySigColumn<arrow::StringArray> : public ISigColumn {
+ public:
+  explicit ArrowArraySigColumn(
+      const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size) {
+    std::unordered_map<std::string, size_t> table;
+    sig_list_.reserve(size);
+
+    // Iterate through all columns and extract strings
+    for (const auto& array : columns) {
+      auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+      for (int64_t i = 0; i < casted->length(); ++i) {
+        auto str_view = casted->GetView(i);
+        std::string str(str_view);
+
+        auto iter = table.find(str);
+        if (iter == table.end()) {
+          size_t idx = table.size();
+          table.emplace(str, idx);
+          sig_list_.push_back(idx);
+        } else {
+          sig_list_.push_back(iter->second);
+        }
+      }
+    }
+  }
+
+  ~ArrowArraySigColumn() = default;
+  inline size_t get_sig(size_t idx) const override { return sig_list_[idx]; }
+
+ private:
+  std::vector<size_t> sig_list_;
+};
+
+template <>
+class ArrowArraySigColumn<arrow::LargeStringArray> : public ISigColumn {
+ public:
+  explicit ArrowArraySigColumn(
+      const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size) {
+    std::unordered_map<std::string, size_t> table;
+    sig_list_.reserve(size);
+
+    // Iterate through all columns and extract strings
+    for (const auto& array : columns) {
+      auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+      for (int64_t i = 0; i < casted->length(); ++i) {
+        auto str_view = casted->GetView(i);
+        std::string str(str_view);
+
+        auto iter = table.find(str);
+        if (iter == table.end()) {
+          size_t idx = table.size();
+          table.emplace(str, idx);
+          sig_list_.push_back(idx);
+        } else {
+          sig_list_.push_back(iter->second);
+        }
+      }
+    }
+  }
+
+  ~ArrowArraySigColumn() = default;
   inline size_t get_sig(size_t idx) const override { return sig_list_[idx]; }
 
  private:
