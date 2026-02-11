@@ -27,6 +27,24 @@
 namespace neug {
 namespace execution {
 
+std::pair<size_t, size_t> locate_array_and_offset(
+    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    size_t idx) {
+  CHECK(idx < size) << "Index out of range: " << idx << " >= " << size;
+
+  size_t accumulated_size = 0;
+  for (size_t i = 0; i < columns.size(); ++i) {
+    size_t array_length = columns[i]->length();
+    if (idx < accumulated_size + array_length) {
+      size_t offset = idx - accumulated_size;
+      return {i, offset};
+    }
+    accumulated_size += array_length;
+  }
+  LOG(FATAL) << "Should not reach here";
+  return {0, 0};
+}
+
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
   if (type->Equals(arrow::int64())) {
     return DataType(DataTypeId::kInt64);
@@ -281,39 +299,6 @@ static void generate_dedup_offset(
   }
 }
 
-// Define DISPATCH macro to generate signature based on Arrow type
-ISigColumn* dispatch_generate_signature(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::shared_ptr<arrow::DataType>& arrow_type) {
-  // Use Arrow type ID for dispatch
-  switch (arrow_type->id()) {
-#define ARROW_TYPE_DISPATCHER_SIGNATURE(arrow_type_id, arrow_array_type) \
-  case arrow::Type::arrow_type_id: {                                     \
-    return new ArrowArraySigColumn<arrow_array_type>(columns, size);     \
-  }
-
-    ARROW_TYPE_DISPATCHER_SIGNATURE(BOOL, arrow::BooleanArray)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(INT64, arrow::Int64Array)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(INT32, arrow::Int32Array)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(UINT32, arrow::UInt32Array)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(UINT64, arrow::UInt64Array)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(FLOAT, arrow::FloatArray)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(DOUBLE, arrow::DoubleArray)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(STRING, arrow::StringArray)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(LARGE_STRING, arrow::LargeStringArray)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(DATE32, arrow::Date32Array)
-    ARROW_TYPE_DISPATCHER_SIGNATURE(TIMESTAMP, arrow::TimestampArray)
-    // Interval type has been converted to arrow string type
-
-#undef ARROW_TYPE_DISPATCHER_SIGNATURE
-  default:
-    LOG(FATAL) << "Unsupported arrow type for signature: " +
-                      arrow_type->ToString();
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type for signature: " +
-                                  arrow_type->ToString());
-  }
-}
-
 // Define DISPATCH macro to generate dedup offsets based on Arrow type
 void dispatch_generate_dedup_offset(
     const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
@@ -471,15 +456,6 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());
   }
-}
-
-ISigColumn* ArrowArrayContextColumn::generate_signature() const {
-  if (columns_.empty()) {
-    THROW_RUNTIME_ERROR("Cannot generate signature for empty columns");
-  }
-
-  auto arrow_type = columns_[0]->type();
-  return dispatch_generate_signature(columns_, size_, arrow_type);
 }
 
 void ArrowArrayContextColumn::generate_dedup_offset(

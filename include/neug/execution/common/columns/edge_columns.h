@@ -83,11 +83,6 @@ class SDSLEdgeColumn : public IEdgeColumn {
     ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
-  }
-
   std::string column_info() const override {
     std::string is_optional_str = is_optional_ ? "Optional " : "";
     return is_optional_str + "SDSLEdgeColumn: label = " + label_.to_string() +
@@ -192,11 +187,6 @@ class MSEdgeColumn : public IEdgeColumn {
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
     LOG(FATAL) << "not implemented for " << this->column_info();
-  }
-
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
   }
 
   std::string column_info() const override {
@@ -366,11 +356,6 @@ class BDSLEdgeColumn : public IEdgeColumn {
     ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
-  }
-
   std::string column_info() const override {
     std::string is_optional_str = is_optional_ ? "Optional" : "";
     return is_optional_str + "BDSLEdgeColumn: label = " + label_.to_string() +
@@ -476,11 +461,6 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
-  }
-
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
   }
 
   std::string column_info() const override {
@@ -602,11 +582,6 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
     ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
-  }
-
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
   }
 
   std::string column_info() const override {

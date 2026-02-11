@@ -137,8 +137,6 @@ class SLVertexColumn : public IVertexColumn {
 
   __attribute__((always_inline)) label_t label() const { return label_; }
 
-  ISigColumn* generate_signature() const override;
-
   __attribute__((always_inline)) const std::vector<vid_t>& vertices() const {
     return vertices_;
   }
@@ -222,8 +220,6 @@ class MSVertexColumn : public IVertexColumn {
   }
 
   std::set<label_t> get_labels_set() const override { return labels_; }
-
-  ISigColumn* generate_signature() const override;
 
   __attribute__((always_inline)) size_t seg_num() const {
     return vertices_.size();
@@ -357,9 +353,7 @@ class MLVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-  ISigColumn* generate_signature() const override;
-
-  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
+    void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;

@@ -91,9 +91,6 @@ TEST_F(VertexColumnTest, SLVertexColumnBasic) {
   std::set<label_t> labels = sl_col->get_labels_set();
   EXPECT_EQ(labels.size(), 1);
   EXPECT_EQ(*labels.begin(), kLabel0);
-
-  ISigColumn* generate_signature_col = sl_col->generate_signature();
-  delete generate_signature_col;
 }
 
 TEST_F(VertexColumnTest, SLVertexColumnOptional) {
@@ -243,8 +240,6 @@ TEST_F(VertexColumnTest, MSVertexColumnBasic) {
   EXPECT_EQ(ms_col->get_vertex(1), (VertexRecord{kLabel0, kVid1}));
   EXPECT_EQ(ms_col->get_vertex(2), (VertexRecord{kLabel1, kVid1}));
   EXPECT_EQ(ms_col->get_vertex(3), (VertexRecord{kLabel1, kVid2}));
-
-  EXPECT_DEATH(ms_col->generate_signature(), "not implemented...");
 }
 
 TEST_F(VertexColumnTest, MSVertexColumnForeach) {
