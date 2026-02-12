@@ -36,7 +36,7 @@ execution::ParamsMap ParamsParser::ParseFromJsonObj(
        itr != param_json_obj.MemberEnd(); ++itr) {
     auto key = itr->name.GetString();
     if (meta.count(key) <= 0) {
-      LOG(WARNING) << "Parameter key not found in meta: " << key;
+      VLOG(1) << "Parameter key not found in meta: " << key;
     } else {
       param_map.emplace(key,
                         execution::Value::FromJson(itr->value, meta.at(key)));
