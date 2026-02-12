@@ -114,6 +114,202 @@ class TestLoadFrom:
         assert isinstance(first_record[0], str), "fName should be string"
         assert isinstance(first_record[1], int), "age should be integer"
 
+    def test_load_from_return_distinct_single_column_bool(self):
+        """Test DISTINCT with single boolean column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(isStudent, 'BOOL')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct boolean values (True, False)
+        assert len(records) > 0, "Should return at least one distinct value"
+        assert len(records) <= 2, "Boolean should have at most 2 distinct values"
+
+        # Verify all values are boolean
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], bool
+            ), f"isStudent should be boolean, got {type(record[0])}"
+
+    def test_load_from_return_distinct_single_column_numeric(self):
+        """Test DISTINCT with single numeric column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT age
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct age values
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are numeric and distinct
+        ages = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], int
+            ), f"age should be integer, got {type(record[0])}"
+            ages.append(record[0])
+
+        # Verify distinctness
+        assert len(ages) == len(set(ages)), "All returned ages should be distinct"
+
+    def test_load_from_return_distinct_single_column_string(self):
+        """Test DISTINCT with single string column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT fName
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct names
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are strings and distinct
+        names = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], str
+            ), f"fName should be string, got {type(record[0])}"
+            names.append(record[0])
+
+        # Verify distinctness
+        assert len(names) == len(set(names)), "All returned names should be distinct"
+
+    def test_load_from_return_distinct_single_column_date(self):
+        """Test DISTINCT with single date column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(birthdate, 'DATE')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct birthdates
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are dates and distinct
+        dates = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            # Date can be returned as date object or string depending on implementation
+            dates.append(record[0])
+
+        # Verify distinctness
+        assert len(dates) == len(set(dates)), "All returned dates should be distinct"
+
+    def test_load_from_return_distinct_single_column_datetime(self):
+        """Test DISTINCT with single datetime/timestamp column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(registerTime, 'TIMESTAMP')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct timestamps
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are distinct
+        timestamps = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            timestamps.append(record[0])
+
+        # Verify distinctness
+        assert len(timestamps) == len(
+            set(timestamps)
+        ), "All returned timestamps should be distinct"
+
+    def test_load_from_return_distinct_two_columns(self):
+        """Test DISTINCT with two columns: boolean and numeric."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT isStudent, age
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct combinations
+        assert len(records) > 0, "Should return at least one distinct combination"
+
+        # Verify all combinations are distinct
+        combinations = []
+        for record in records:
+            assert len(record) == 2, "Should return 2 columns"
+            assert isinstance(
+                record[0], bool
+            ), f"isStudent should be boolean, got {type(record[0])}"
+            assert isinstance(
+                record[1], int
+            ), f"age should be integer, got {type(record[1])}"
+            combinations.append((record[0], record[1]))
+
+        # Verify distinctness
+        assert len(combinations) == len(
+            set(combinations)
+        ), "All returned combinations should be distinct"
+
+    def test_load_from_return_distinct_multiple_columns(self):
+        """Test DISTINCT with multiple columns: string, date, datetime."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT fName, CAST(birthdate, 'DATE'), CAST(registerTime, 'TIMESTAMP')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct combinations
+        assert len(records) > 0, "Should return at least one distinct combination"
+
+        # Verify all combinations are distinct
+        combinations = []
+        for record in records:
+            assert len(record) == 3, "Should return 3 columns"
+            assert isinstance(
+                record[0], str
+            ), f"fName should be string, got {type(record[0])}"
+            combinations.append((record[0], record[1], record[2]))
+
+        # Verify distinctness
+        assert len(combinations) == len(
+            set(combinations)
+        ), "All returned combinations should be distinct"
+
     def test_load_from_with_where(self):
         """Test LOAD FROM with WHERE clause filtering."""
         csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")

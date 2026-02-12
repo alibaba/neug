@@ -16,7 +16,6 @@ on:
       - 'tools/python_bind/**'
       - 'tools/shell/**'
       - '.github/workflows/build-wheel.yml'
-      - 'scripts/install_deps.sh'
       - 'CMakeLists.txt'
   pull_request:
     branches:

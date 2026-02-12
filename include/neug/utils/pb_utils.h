@@ -34,6 +34,9 @@ class Value;
 }  // namespace common
 
 namespace neug {
+namespace execution {
+class Value;
+}
 
 // Helper function to set up JsonPrintOptions with compatibility across protobuf
 // versions
@@ -68,23 +71,8 @@ bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
-bool primitive_type_to_property_type(
-    const ::common::PrimitiveType& primitive_type, DataTypeId& out_type);
-
-bool string_type_to_property_type(const ::common::String& string_type,
-                                  DataTypeId& out_type);
-
-bool temporal_type_to_property_type(const ::common::Temporal& temporal_type,
-                                    DataTypeId& out_type);
-
-bool data_type_to_property_type(const ::common::DataType& data_type,
-                                DataTypeId& out_type);
-
-bool common_value_to_any(const DataTypeId& type, const ::common::Value& value,
-                         Property& out_any);
-
-neug::result<std::vector<std::tuple<DataTypeId, std::string, Property>>>
-property_defs_to_tuple(
+neug::result<std::vector<std::pair<std::string, execution::Value>>>
+property_defs_to_value(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
 

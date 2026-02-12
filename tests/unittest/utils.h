@@ -61,9 +61,7 @@ std::vector<EDATA_T> generate_random_data(size_t len) {
     std::vector<EDATA_T> data;
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<EDATA_T> dis(
-        std::numeric_limits<EDATA_T>::lowest(),
-        std::numeric_limits<EDATA_T>::max());
+    std::uniform_real_distribution<EDATA_T> dis(-1.0, 1.0);
     for (size_t i = 0; i < len; ++i) {
       data.push_back(dis(gen));
     }

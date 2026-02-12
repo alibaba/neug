@@ -36,6 +36,10 @@ class IRecordBatchSupplier;
 
 namespace execution {
 
+std::pair<size_t, size_t> locate_array_and_offset(
+    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    size_t idx);
+
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
 /**
@@ -89,10 +93,9 @@ class ArrowArrayContextColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
 
- private:
-  // Helper function to locate which array and offset for a given index
-  std::pair<size_t, size_t> locate_array_and_offset(size_t idx) const;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
+ private:
   std::vector<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
   DataType type_;

@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/ddl/add_edge_property.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
@@ -25,8 +26,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   AddEdgePropertySchemaOpr(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-          properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       bool error_on_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
@@ -40,8 +40,13 @@ class AddEdgePropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
+    std::vector<std::tuple<DataTypeId, std::string, Property>> property_tuples;
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type().id(), prop_name,
+                                   value_to_property(prop_value));
+    }
     auto res = storage.AddEdgeProperties(src_type_, dst_type_, edge_type_,
-                                         properties_, error_on_conflict_);
+                                         property_tuples, error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to add edge property to type: " << edge_type_
                  << ", reason: " << res.ToString();
@@ -54,7 +59,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   std::string src_type_;
   std::string dst_type_;
   std::string edge_type_;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   bool error_on_conflict_;
 };
 
@@ -66,7 +71,7 @@ neug::result<OpBuildResultT> AddEdgePropertySchemaOprBuilder::Build(
   auto src_name = add_edge_property.edge_type().src_type_name().name();
   auto dst_name = add_edge_property.edge_type().dst_type_name().name();
   auto edge_name = add_edge_property.edge_type().type_name().name();
-  auto tuple_res = property_defs_to_tuple(add_edge_property.properties());
+  auto tuple_res = property_defs_to_value(add_edge_property.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
