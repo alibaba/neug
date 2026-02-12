@@ -77,6 +77,7 @@ PyConnection PyDatabase::connect() {
 
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t num_thread, bool blocking) {
+                                #ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -114,11 +115,15 @@ std::string PyDatabase::serve(int port, const std::string& host,
     return "";
   }
   return service_->Start();
+#else
+  THROW_RUNTIME_ERROR("HTTP server is not enabled in this build.");
+#endif
 }
 
 void PyDatabase::stop_serving() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   VLOG(1) << "Stopping server if running.";
+#ifdef BUILD_HTTP_SERVER
   if (!service_) {
     return;
   }
@@ -126,6 +131,7 @@ void PyDatabase::stop_serving() {
     service_->Stop();
     service_.reset();
   }
+#endif
 }
 
 void PyDatabase::close() {

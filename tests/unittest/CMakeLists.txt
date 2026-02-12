@@ -18,4 +18,6 @@ add_neug_test(logical_delete_test logical_delete_test.cc)
 
 add_neug_test(test_connection test_connection.cc)
 
-add_neug_test(test_http_server test_http_server.cc)
+if (BUILD_HTTP_SERVER)
+    add_neug_test(test_http_server test_http_server.cc)
+endif()
