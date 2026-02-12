@@ -760,7 +760,7 @@ Property value_to_property(const Value& value) {
     return Property::from_interval(value.GetValue<interval_t>());
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected RTAny type: " +
+        "Unexpected type: " +
         std::to_string(static_cast<int>(value.type().id())));
   }
 }

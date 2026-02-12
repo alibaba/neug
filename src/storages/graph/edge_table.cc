@@ -79,7 +79,6 @@ std::vector<Property> extract_edge_data(
     auto casted = std::static_pointer_cast<ARROW_COL_T>(array);
     for (int64_t i = 0; i < casted->length(); ++i) {
       if (valid_flags[cur_index++]) {
-        // edge_data.emplace_back(casted->GetView(i));
         edge_data.emplace_back(
             neug::PropUtils<EDATA_T>::to_prop(casted->Value(i)));
       }
@@ -88,6 +87,10 @@ std::vector<Property> extract_edge_data(
   return edge_data;
 }
 
+// Helper alias to resolve the Arrow array type for a property type.
+template <typename T>
+using ExtractEdgeArrowArray = typename TypeConverter<T>::ArrowArrayType;
+
 std::vector<Property> extract_bundled_edge_data_from_batches(
     std::shared_ptr<const EdgeSchema> meta,
     const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
@@ -95,34 +98,24 @@ std::vector<Property> extract_bundled_edge_data_from_batches(
   assert(meta->is_bundled());
   if (meta->properties.empty() || meta->properties[0] == DataTypeId::kEmpty) {
     return std::vector<Property>();
-  } else if (meta->properties[0] == DataTypeId::kInt32) {
-    return extract_edge_data<int32_t, arrow::Int32Array>(data_batches,
-                                                         valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kUInt32) {
-    return extract_edge_data<uint32_t, arrow::UInt32Array>(data_batches,
-                                                           valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kInt64) {
-    return extract_edge_data<int64_t, arrow::Int64Array>(data_batches,
-                                                         valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kUInt64) {
-    return extract_edge_data<uint64_t, arrow::UInt64Array>(data_batches,
-                                                           valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kFloat) {
-    return extract_edge_data<float, arrow::FloatArray>(data_batches,
-                                                       valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kDouble) {
-    return extract_edge_data<double, arrow::DoubleArray>(data_batches,
-                                                         valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kDate) {
+  }
+  switch (meta->properties[0]) {
+#define EXTRACT_EDGE_DATA_CASE(enum_val, type)                                \
+  case DataTypeId::enum_val:                                                  \
+    return extract_edge_data<type, ExtractEdgeArrowArray<type>>(data_batches, \
+                                                                valid_flags);
+    FOR_EACH_DATA_TYPE_PRIMITIVE(EXTRACT_EDGE_DATA_CASE)
+  case DataTypeId::kDate:
     return extract_edge_data<Date, arrow::Date32Array>(data_batches,
                                                        valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kTimestampMs) {
+  case DataTypeId::kTimestampMs:
     return extract_edge_data<DateTime, arrow::TimestampArray>(data_batches,
                                                               valid_flags);
-  } else if (meta->properties[0] == DataTypeId::kInterval) {
+  case DataTypeId::kInterval:
     return extract_edge_data<Interval, arrow::LargeStringArray>(data_batches,
                                                                 valid_flags);
-  } else {
+#undef EXTRACT_EDGE_DATA_CASE
+  default:
     THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
                                   std::to_string(meta->properties[0]));
   }
@@ -315,25 +308,18 @@ static std::vector<Property> get_row_from_recordbatch(
     if (array->IsNull(row_idx)) {
       row.push_back(Property());
       continue;
-    } else if (prop_types[i] == DataTypeId::kInt32) {
-      auto casted = std::static_pointer_cast<arrow::Int32Array>(array);
-      row.push_back(Property::from_int32(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kInt64) {
-      auto casted = std::static_pointer_cast<arrow::Int64Array>(array);
-      row.push_back(Property::from_int64(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kUInt32) {
-      auto casted = std::static_pointer_cast<arrow::UInt32Array>(array);
-      row.push_back(Property::from_uint32(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kUInt64) {
-      auto casted = std::static_pointer_cast<arrow::UInt64Array>(array);
-      row.push_back(Property::from_uint64(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kFloat) {
-      auto casted = std::static_pointer_cast<arrow::FloatArray>(array);
-      row.push_back(Property::from_float(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kDouble) {
-      auto casted = std::static_pointer_cast<arrow::DoubleArray>(array);
-      row.push_back(Property::from_double(casted->Value(row_idx)));
-    } else if (prop_types[i] == DataTypeId::kVarchar) {
+    }
+    switch (prop_types[i]) {
+#define GET_PRIMITIVE_PROPERTY_CASE(enum_val, type)                   \
+  case DataTypeId::enum_val: {                                        \
+    auto casted =                                                     \
+        std::static_pointer_cast<ExtractEdgeArrowArray<type>>(array); \
+    row.push_back(PropUtils<type>::to_prop(casted->Value(row_idx)));  \
+    break;                                                            \
+  }
+      FOR_EACH_DATA_TYPE_PRIMITIVE(GET_PRIMITIVE_PROPERTY_CASE)
+#undef GET_PRIMITIVE_PROPERTY_CASE
+    case DataTypeId::kVarchar: {
       if (array->type()->Equals(arrow::utf8())) {
         auto casted = std::static_pointer_cast<arrow::StringArray>(array);
         auto str = casted->GetView(row_idx);
@@ -345,19 +331,36 @@ static std::vector<Property> get_row_from_recordbatch(
       } else {
         LOG(FATAL) << "not support type " << array->type()->ToString();
       }
-    } else if (prop_types[i] == DataTypeId::kDate) {
+      break;
+    }
+    case DataTypeId::kDate: {
       auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
       Date d;
       d.from_num_days(casted->Value(row_idx));
       row.push_back(Property::from_date(d));
-    } else if (prop_types[i] == DataTypeId::kTimestampMs) {
+      break;
+    }
+    case DataTypeId::kTimestampMs: {
       auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
       row.push_back(Property::from_datetime(DateTime(casted->Value(row_idx))));
-    } else if (prop_types[i] == DataTypeId::kInterval) {
-      auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
-      row.push_back(
-          Property::from_interval(Interval(casted->GetView(row_idx))));
-    } else {
+      break;
+    }
+    case DataTypeId::kInterval: {
+      if (array->type()->id() == arrow::Type::STRING) {
+        auto casted = std::static_pointer_cast<arrow::StringArray>(array);
+        row.push_back(
+            Property::from_interval(Interval(casted->GetView(row_idx))));
+      } else if (array->type()->id() == arrow::Type::LARGE_STRING) {
+        auto casted = std::static_pointer_cast<arrow::LargeStringArray>(array);
+        row.push_back(
+            Property::from_interval(Interval(casted->GetView(row_idx))));
+      } else {
+        THROW_NOT_IMPLEMENTED_EXCEPTION("Not support typed: " +
+                                        array->type()->ToString());
+      }
+      break;
+    }
+    default:
       LOG(FATAL) << "not support type " << array->type()->ToString();
     }
   }

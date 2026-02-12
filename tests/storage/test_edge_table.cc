@@ -1088,16 +1088,18 @@ struct TypePair {
   using EdType = EDATA_T;
   using ArrowType = ARROW_COL_T;
 };
-using Datatypes =
-    ::testing::Types<TypePair<int32_t, arrow::Int32Array>,
-                     TypePair<uint32_t, arrow::UInt32Array>,
-                     TypePair<int64_t, arrow::Int64Array>,
-                     TypePair<uint64_t, arrow::UInt64Array>,
-                     TypePair<float, arrow::FloatArray>,
-                     TypePair<double, arrow::DoubleArray>,
-                     TypePair<neug::Date, arrow::Date32Array>,
-                     TypePair<neug::DateTime, arrow::TimestampArray>,
-                     TypePair<neug::Interval, arrow::LargeStringArray>>;
+using Datatypes = ::testing::Types<
+    TypePair<int32_t, typename TypeConverter<int32_t>::ArrowArrayType>,
+    TypePair<uint32_t, typename TypeConverter<uint32_t>::ArrowArrayType>,
+    TypePair<int64_t, typename TypeConverter<int64_t>::ArrowArrayType>,
+    TypePair<uint64_t, typename TypeConverter<uint64_t>::ArrowArrayType>,
+    TypePair<float, typename TypeConverter<float>::ArrowArrayType>,
+    TypePair<double, typename TypeConverter<double>::ArrowArrayType>,
+    TypePair<neug::Date, typename TypeConverter<neug::Date>::ArrowArrayType>,
+    TypePair<neug::DateTime,
+             typename TypeConverter<neug::DateTime>::ArrowArrayType>,
+    TypePair<neug::Interval,
+             typename TypeConverter<neug::Interval>::ArrowArrayType>>;
 
 template <typename T>
 class EdgeTableToolsTest : public ::testing::Test {};

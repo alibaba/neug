@@ -370,3 +370,107 @@ class TestBachLoading(unittest.TestCase):
         db.close()
         del db
         del conn
+
+    def test_bulk_loading_for_different_types(self):
+        # Bulk load edges that cover every supported property type.
+        tmp_path = os.environ.get("TMPDIR", "/tmp")
+        db_dir = tmp_path + "/test_bulk_loading_for_different_types"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        os.makedirs(db_dir, exist_ok=True)
+        db = Database(db_dir, "w")
+        conn = db.connect()
+        conn.execute("CREATE NODE TABLE person(id INT64, PRIMARY KEY(id));")
+        conn.execute("CREATE (n:person {id: 1});")
+        conn.execute("CREATE (n:person {id: 2});")
+
+        def write_edge_csv(table_name, header, rows):
+            path = os.path.join(db_dir, f"{table_name}.csv")
+            with open(path, "w") as handle:
+                handle.write("|".join(header) + "\n")
+                for row in rows:
+                    handle.write("|".join(row) + "\n")
+            return path
+
+        single_type_cases = [
+            ("bool", "BOOL", "true"),
+            ("int32", "INT32", "123"),
+            ("int64", "INT64", "1234567890123"),
+            ("uint32", "UINT32", "4000000000"),
+            ("uint64", "UINT64", "9000000000000000000"),
+            ("float", "FLOAT", "1.5"),
+            ("double", "DOUBLE", "2.5"),
+        ]
+
+        for suffix, type_literal, value in single_type_cases:
+            rel_name = f"single_{suffix}"
+            conn.execute(
+                f"CREATE REL TABLE {rel_name}(FROM person TO person, value {type_literal});"
+            )
+            csv_file = write_edge_csv(
+                rel_name,
+                ["from", "to", "value"],
+                [["1", "2", value], ["2", "1", value]],
+            )
+            conn.execute(
+                f'COPY {rel_name} from "{csv_file}" (from="person", to="person")'
+            )
+            res = list(conn.execute(f"MATCH ()-[e:{rel_name}]->() RETURN count(e);"))
+            assert res[0] == [2]
+
+        mixed_rel = "bulk_all_types"
+        conn.execute(
+            "CREATE REL TABLE bulk_all_types("
+            "FROM person TO person, "
+            "bool_prop BOOL, int32_prop INT32, int64_prop INT64, "
+            "uint32_prop UINT32, uint64_prop UINT64, float_prop FLOAT, "
+            "double_prop DOUBLE, string_prop STRING);"
+        )
+        mixed_headers = [
+            "from",
+            "to",
+            "bool_prop",
+            "int32_prop",
+            "int64_prop",
+            "uint32_prop",
+            "uint64_prop",
+            "float_prop",
+            "double_prop",
+            "string_prop",
+        ]
+        mixed_rows = [
+            [
+                "1",
+                "2",
+                "true",
+                "-123",
+                "1234567890123",
+                "123",
+                "456",
+                "1.5",
+                "2.5",
+                "mixed",
+            ],
+            [
+                "2",
+                "1",
+                "false",
+                "321",
+                "9876543210",
+                "789",
+                "101112",
+                "3.75",
+                "4.25",
+                "values",
+            ],
+        ]
+        mixed_csv = write_edge_csv(mixed_rel, mixed_headers, mixed_rows)
+        conn.execute(
+            f'COPY {mixed_rel} from "{mixed_csv}" (from="person", to="person")'
+        )
+        mixed_result = list(
+            conn.execute(f"MATCH ()-[e:{mixed_rel}]->() RETURN count(e);")
+        )
+        assert mixed_result[0] == [2]
+
+        conn.close()
+        db.close()

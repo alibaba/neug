@@ -268,7 +268,7 @@ jobs:
         GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
         git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
-        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb
+        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb && rm -rf /tmp/comprehensive_graph
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph

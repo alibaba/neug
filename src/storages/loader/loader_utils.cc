@@ -721,21 +721,29 @@ void set_interval_column_from_string_array(
     const std::vector<vid_t>& vids) {
   auto type = array->type();
   auto col_type = col->type();
-  if (type->Equals(arrow::large_utf8())) {
-    for (auto j = 0; j < array->num_chunks(); ++j) {
-      auto casted =
-          std::static_pointer_cast<arrow::LargeStringArray>(array->chunk(j));
-      for (auto k = 0; k < casted->length(); ++k) {
-        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
-          continue;
-        }
-        col->set_any(vids[k], std::move(PropUtils<Interval>::to_prop(
-                                  Interval(casted->GetView(k)))));
-      }
-    }
-  } else {
+  switch (type->id()) {
+#define SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(ARROW_TYPE, ARROW_ARRAY_TYPE) \
+  case ARROW_TYPE:                                                           \
+    for (auto j = 0; j < array->num_chunks(); ++j) {                         \
+      auto casted =                                                          \
+          std::static_pointer_cast<ARROW_ARRAY_TYPE>(array->chunk(j));       \
+      for (auto k = 0; k < casted->length(); ++k) {                          \
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {                  \
+          continue;                                                          \
+        }                                                                    \
+        col->set_any(vids[k], std::move(PropUtils<Interval>::to_prop(        \
+                                  Interval(casted->GetView(k)))));           \
+      }                                                                      \
+    }                                                                        \
+    break;
+    SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(arrow::Type::LARGE_STRING,
+                                           arrow::LargeStringArray)
+    SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY(arrow::Type::STRING,
+                                           arrow::StringArray)
+  default:
     LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
                << col_type;
+#undef SET_ANY_FOR_INTERVAL_FROM_STRING_ARRAY
   }
 }
 

@@ -21,36 +21,27 @@
 namespace neug {
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
-  if (type == DataTypeId::kBoolean) {
-    return arrow::boolean();
-  } else if (type == DataTypeId::kInt32) {
-    return arrow::int32();
-  } else if (type == DataTypeId::kInt64) {
-    return arrow::int64();
-  } else if (type == DataTypeId::kUInt32) {
-    return arrow::uint32();
-  } else if (type == DataTypeId::kUInt64) {
-    return arrow::uint64();
-  } else if (type == DataTypeId::kDouble) {
-    return arrow::float64();
-  } else if (type == DataTypeId::kFloat) {
-    return arrow::float32();
-  } else if (type == DataTypeId::kDate) {
+  switch (type) {
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return TypeConverter<type>::ArrowTypeValue();
+    FOR_EACH_DATA_TYPE_PRIMITIVE(TYPE_DISPATCHER)
+#undef TYPE_DISPATCHER
+  case DataTypeId::kVarchar:
+    return TypeConverter<std::string_view>::ArrowTypeValue();
+  case DataTypeId::kDate:
     return arrow::date32();
-  } else if (type == DataTypeId::kVarchar) {
-    return arrow::large_utf8();
-  } else if (type == DataTypeId::kEmpty) {
-    return arrow::null();
-  } else if (type == DataTypeId::kTimestampMs) {
+  case DataTypeId::kTimestampMs:
     return arrow::timestamp(arrow::TimeUnit::MILLI);
-  } else if (type == DataTypeId::kInterval) {
-    return arrow::large_utf8();  // Use large_utf8 for interval, use
-                                 // PropUtils to handle it
-  } else {
+  case DataTypeId::kInterval:
+    return arrow::large_utf8();
+  case DataTypeId::kEmpty:
+    return arrow::null();
+  default:
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   std::to_string(type));
-    return nullptr;
   }
+  return nullptr;
 }
 
 template <typename T>
