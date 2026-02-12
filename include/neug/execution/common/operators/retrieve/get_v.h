@@ -294,7 +294,8 @@ class GetV {
   static neug::result<Context> get_vertex_from_path(
       const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
       const PRED_T& pred) {
-    std::vector<bool> required_label(graph.schema().vertex_label_num(), false);
+    std::vector<bool> required_label(graph.schema().vertex_label_frontier(),
+                                     false);
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     std::set<label_t> required_label_set;

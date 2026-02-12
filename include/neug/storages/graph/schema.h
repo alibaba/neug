@@ -606,7 +606,27 @@ class Schema {
 
   label_t vertex_label_num() const;
 
+  /**
+   * @brief Get the next vertex label id to be assigned.
+   * Vertex label ids in the schema are monotonically incremented,
+   * and label ids are not recycled upon vertex label deletion.
+   * Each new vertex label is assigned an id one greater than the previous.
+   * This method returns the size of vlabel_indexer_, which equals
+   * the label id that will be used for the next newly created vertex label.
+   */
+  label_t vertex_label_frontier() const;
+
   label_t edge_label_num() const;
+
+  /**
+   * @brief Get the next edge label id to be assigned.
+   * Edge label ids in the schema are monotonically incremented,
+   * and label ids are not recycled upon edge label deletion.
+   * Each new edge label is assigned an id one greater than the previous.
+   * This method returns the size of vlabel_indexer_, which equals
+   * the label id that will be used for the next newly created edge label.
+   */
+  label_t edge_label_frontier() const;
 
   bool contains_vertex_label(const std::string& label) const;
 

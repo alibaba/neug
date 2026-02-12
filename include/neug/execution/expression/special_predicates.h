@@ -139,7 +139,10 @@ class MLVertexPropertyGetter {
   MLVertexPropertyGetter(const IStorageInterface& gi,
                          const std::string& property_name) {
     const auto& graph = dynamic_cast<const StorageReadInterface&>(gi);
-    for (label_t i = 0; i < graph.schema().vertex_label_num(); ++i) {
+    for (label_t i = 0; i < graph.schema().vertex_label_frontier(); ++i) {
+      if (!graph.schema().vertex_label_valid(i)) {
+        continue;
+      }
       columns_.emplace_back(
           std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
               graph.GetVertexPropColumn(i, property_name)));

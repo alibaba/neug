@@ -24,8 +24,11 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
                                const std::string& prop_name,
                                const DataType& type)
       : type_(type) {
-    int32_t label_num = graph.schema().vertex_label_num();
+    int32_t label_num = graph.schema().vertex_label_frontier();
     for (label_t label = 0; label < label_num; ++label) {
+      if (!graph.schema().vertex_label_valid(label)) {
+        continue;
+      }
       property_columns_.emplace_back(
           graph.GetVertexPropColumn(static_cast<label_t>(label), prop_name));
     }

@@ -23,10 +23,16 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
   BindedEdgePropertyAccessor(const StorageReadInterface& graph,
                              const std::string& prop_name, const DataType& type)
       : type_(type) {
-    label_t edge_label_num = graph.schema().edge_label_num();
-    label_t vertex_label_num = graph.schema().vertex_label_num();
+    label_t edge_label_num = graph.schema().edge_label_frontier();
+    label_t vertex_label_num = graph.schema().vertex_label_frontier();
     for (label_t src_label = 0; src_label < vertex_label_num; ++src_label) {
+      if (!graph.schema().vertex_label_valid(src_label)) {
+        continue;
+      }
       for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
+        if (!graph.schema().vertex_label_valid(dst_label)) {
+          continue;
+        }
         for (label_t edge_label = 0; edge_label < edge_label_num;
              ++edge_label) {
           if (!graph.schema().exist(src_label, dst_label, edge_label)) {

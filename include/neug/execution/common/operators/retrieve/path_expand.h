@@ -118,8 +118,8 @@ class PathExpand {
     auto label_sets = input_vertex_list.get_labels_set();
     auto labels = params.labels;
     std::vector<std::vector<LabelTriplet>> out_labels_map(
-        graph.schema().vertex_label_num()),
-        in_labels_map(graph.schema().vertex_label_num());
+        graph.schema().vertex_label_frontier()),
+        in_labels_map(graph.schema().vertex_label_frontier());
     for (const auto& triplet : labels) {
       out_labels_map[triplet.src_label].emplace_back(triplet);
       in_labels_map[triplet.dst_label].emplace_back(triplet);

@@ -45,11 +45,11 @@ class EdgeRecord;
 /**
  * @brief Core property graph storage engine for vertices, edges, and schema.
  *
- * PropertyGraph is the **fundamental storage layer** for all graph data in NeuG.
- * It provides low-level access to graph structures, schema management, and
- * persistence capabilities. Most users interact with graphs through higher-level
- * APIs (NeugDB, Connection), but PropertyGraph offers direct access for
- * performance-critical applications.
+ * PropertyGraph is the **fundamental storage layer** for all graph data in
+ * NeuG. It provides low-level access to graph structures, schema management,
+ * and persistence capabilities. Most users interact with graphs through
+ * higher-level APIs (NeugDB, Connection), but PropertyGraph offers direct
+ * access for performance-critical applications.
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -85,8 +85,10 @@ class EdgeRecord;
  * - Compaction support for removing deleted data
  * - Schema stored in `graph.yaml`
  *
- * @note For query execution, use Connection::Query() instead of direct PropertyGraph access.
- * @note PropertyGraph is not thread-safe for writes. Use transactions for concurrent access.
+ * @note For query execution, use Connection::Query() instead of direct
+ * PropertyGraph access.
+ * @note PropertyGraph is not thread-safe for writes. Use transactions for
+ * concurrent access.
  *
  * @see Schema For schema management
  * @see VertexTable For vertex storage details
@@ -99,8 +101,8 @@ class PropertyGraph {
   /**
    * @brief Construct PropertyGraph with default settings.
    *
-   * Implementation: Initializes vertex_label_num_=0, edge_label_num_=0,
-   * memory_level_=1.
+   * Implementation: Initializes vertex_label_total_count_=0,
+   * edge_label_total_count_=0, memory_level_=1.
    *
    * @since v0.1.0
    */
@@ -223,7 +225,8 @@ class PropertyGraph {
    * @param edge_type_name Name of the new edge type
    * @param properties Vector of (type, name, default_value) tuples
    * @param error_on_conflict If true, returns error if type exists
-   * @param oe_strategy Outgoing edge storage strategy (kMultiple, kSingle, kNone)
+   * @param oe_strategy Outgoing edge storage strategy (kMultiple, kSingle,
+   * kNone)
    * @param ie_strategy Incoming edge storage strategy
    *
    * @return Status indicating success or failure
@@ -614,7 +617,7 @@ class PropertyGraph {
   std::vector<VertexTable> vertex_tables_;
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
-  size_t vertex_label_num_, edge_label_num_;
+  size_t vertex_label_total_count_, edge_label_total_count_;
   int memory_level_;
 };
 

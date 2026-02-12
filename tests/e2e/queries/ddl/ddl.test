@@ -170,7 +170,6 @@ Binder exception: Table knows does not exist.
 -STATEMENT ALTER TABLE person ADD random INT64 DEFAULT 8
 ---- ok
 -STATEMENT MATCH (p:person) return p.random
--UNSUPPORTED: Issue#1482
 ---- 8
 8
 8
@@ -406,18 +405,18 @@ VERY LONG STRING!!
 83
 
 -LOG RenamePropertyNormalExecution
--STATEMENT ALTER TABLE person RENAME fName TO name
+-STATEMENT ALTER TABLE person RENAME age TO Age
 ---- ok
--STATEMENT MATCH (p:person) return p.name order by p.name
+-STATEMENT MATCH (p:person) return p.Age order by p.Age
 ---- 8
-Alice
-Bob
-Carol
-Dan
-Elizabeth
-Farooq
-Greg
-Hubert Blaine Wolfeschlegelsteinhausenbergerdorff
+20
+20
+25
+30
+35
+40
+45
+83
 
 -LOG CreateTableIfNotExists
 -SKIP:  IF NOT EXISTS is not supported (TODO: zhanglei)
@@ -449,7 +448,7 @@ Table UW1 has been created.
 ---- 1
 Table UW5 does not exist.
 
--LOG CaseInsensitiveProperty
+-LOG CaseSensitiveProperty
 -STATEMENT CREATE NODE TABLE Wrong(id INT64, NAME STRING, name INT64, PRIMARY KEY(id));
 ---- error
 Binder exception: Duplicated column name: name, column name must be unique.
@@ -461,16 +460,12 @@ Binder exception: Duplicated column name: name, column name must be unique.
 ---- 1
 0|a
 -STATEMENT ALTER TABLE A ADD name STRING;
----- error
-Runtime exception: A table already has property name.
+---- ok
 -STATEMENT ALTER TABLE A Drop NAME;
----- 1
-Table A altered.
+---- ok
 -STATEMENT ALTER TABLE A ADD NAME STRING;
--UNSUPPORTED: Issue#1482
 ---- ok
 -STATEMENT MATCH (a:A) RETURN a.ID, a.NAME;
--UNSUPPORTED: Issue#1482
 ---- 1
 0|
 

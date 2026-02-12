@@ -96,7 +96,7 @@ static void sink_property(const Property& prop, common::Value* value) {
 
 static bool sink_vertex(const StorageReadInterface& graph,
                         const VertexRecord& vertex, results::Vertex* v) {
-  if (vertex.label_ >= graph.schema().vertex_label_num() ||
+  if (vertex.label_ >= graph.schema().vertex_label_frontier() ||
       vertex.vid_ == std::numeric_limits<vid_t>::max()) {
     return false;
   }

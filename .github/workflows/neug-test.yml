@@ -455,7 +455,7 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tests/e2e
         export NEUG_ROOT_DIRECTORY=${GITHUB_WORKSPACE}
         ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb !update true
-        ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb !update,!copy true
+        ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb !update,!copy,!ddl true
         ./scripts/run_e2e_test.sh neug_ap_test tinysnb /tmp/tinysnb update true
         ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb update true
 

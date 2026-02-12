@@ -28,8 +28,11 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
                                std::vector<size_t>& offsets) {
   std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
-  label_t label_num = graph.schema().vertex_label_num();
+  label_t label_num = graph.schema().vertex_label_frontier();
   for (label_t i = 0; i < label_num; ++i) {
+    if (!graph.schema().vertex_label_valid(i)) {
+      continue;
+    }
     property_columns.emplace_back(
         std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
             graph.GetVertexPropColumn(i, prop_name)));

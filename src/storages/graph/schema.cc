@@ -472,8 +472,16 @@ label_t Schema::vertex_label_num() const {
   return static_cast<label_t>(vlabel_indexer_.size() - vlabel_tomb_.count());
 }
 
+label_t Schema::vertex_label_frontier() const {
+  return static_cast<label_t>(vlabel_indexer_.size());
+}
+
 label_t Schema::edge_label_num() const {
   return static_cast<label_t>(elabel_indexer_.size() - elabel_tomb_.count());
+}
+
+label_t Schema::edge_label_frontier() const {
+  return static_cast<label_t>(elabel_indexer_.size());
 }
 
 bool Schema::contains_vertex_label(const std::string& label) const {
@@ -893,7 +901,13 @@ bool Schema::Equals(const Schema& other) const {
       edge_label_num() != other.edge_label_num()) {
     return false;
   }
-  for (label_t i = 0; i < vertex_label_num(); ++i) {
+  for (label_t i = 0; i < vertex_label_frontier(); ++i) {
+    if (vertex_label_valid(i) ^ other.vertex_label_valid(i)) {
+      return false;
+    }
+    if (!vertex_label_valid(i)) {
+      continue;
+    }
     std::string label_name = get_vertex_label_name(i);
     {
       auto lhs = get_vertex_properties(label_name);
@@ -913,9 +927,17 @@ bool Schema::Equals(const Schema& other) const {
       return false;
     }
   }
-  for (label_t src_label = 0; src_label < vertex_label_num(); ++src_label) {
-    for (label_t dst_label = 0; dst_label < vertex_label_num(); ++dst_label) {
-      for (label_t edge_label = 0; edge_label < edge_label_num();
+  for (label_t src_label = 0; src_label < vertex_label_frontier();
+       ++src_label) {
+    if (!vertex_label_valid(src_label)) {
+      continue;
+    }
+    for (label_t dst_label = 0; dst_label < vertex_label_frontier();
+         ++dst_label) {
+      if (!vertex_label_valid(dst_label)) {
+        continue;
+      }
+      for (label_t edge_label = 0; edge_label < edge_label_frontier();
            ++edge_label) {
         std::string src_label_name = get_vertex_label_name(src_label);
         std::string dst_label_name = get_vertex_label_name(dst_label);
@@ -1247,7 +1269,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
   if (!get_scalar(node, "type_id", type_id)) {
     LOG(WARNING) << "type_id is not set properly for type: " << label_name
                  << ", try to use incremental id";
-    type_id = schema.vertex_label_num() - 1;
+    type_id = schema.vertex_label_frontier() - 1;
   }
   auto label_id = schema.get_vertex_label_id(label_name);
   if (label_id != type_id) {
@@ -1480,7 +1502,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
   if (!get_scalar(node, "type_id", type_id)) {
     LOG(WARNING) << "type_id is not set properly for type: " << edge_label_name
                  << ", try to use incremental id";
-    type_id = schema.edge_label_num() - 1;
+    type_id = schema.edge_label_frontier() - 1;
   }
   auto label_id = schema.get_edge_label_id(edge_label_name);
   if (label_id != type_id) {

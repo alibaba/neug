@@ -91,8 +91,8 @@ fetch_edges_related_to_vertex(UpdateTransaction& txn, label_t v_label,
   std::unordered_map<uint32_t,
                      std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
       related_edges;  // edge_triplet_id: <src, dst, oe_offset, ie_offset>
-  auto v_label_num = txn.schema().vertex_label_num();
-  auto e_label_num = txn.schema().edge_label_num();
+  auto v_label_num = txn.schema().vertex_label_frontier();
+  auto e_label_num = txn.schema().edge_label_frontier();
   auto& schema = txn.schema();
   for (auto other_label_id = 0; other_label_id < v_label_num;
        ++other_label_id) {
@@ -594,9 +594,12 @@ Status UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
   graph_.mutable_schema().DeleteVertexLabel(vertex_type_name, true);
   // Mark the vertex table as deleted in this transaction
   deleted_vertex_labels_.emplace(v_label);
-  auto vertex_label_num = graph_.schema().vertex_label_num();
-  auto edge_label_num = graph_.schema().edge_label_num();
+  auto vertex_label_num = graph_.schema().vertex_label_frontier();
+  auto edge_label_num = graph_.schema().edge_label_frontier();
   for (label_t dst_label = 0; dst_label < vertex_label_num; ++dst_label) {
+    if (!graph_.schema().vertex_label_valid(dst_label)) {
+      continue;
+    }
     for (label_t edge_label = 0; edge_label < edge_label_num; ++edge_label) {
       if (graph_.schema().exist(v_label, dst_label, edge_label)) {
         deleted_edge_labels_.emplace(

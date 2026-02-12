@@ -421,7 +421,7 @@ default_single_source_shortest_path_impl(
     const StorageReadInterface& graph, const IVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper, const PRED_T& pred) {
-  label_t label_num = graph.schema().vertex_label_num();
+  label_t label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> labels_map(
       label_num);
   const auto& input_labels_set = input.get_labels_set();
