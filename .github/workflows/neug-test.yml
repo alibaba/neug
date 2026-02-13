@@ -491,3 +491,78 @@ jobs:
         export CMAKE_PREFIX_PATH=/opt/neug/:/opt/neug-install/
         cmake .. && make -j1
         ./test
+
+  # ============================================================
+  # Job 4: E2E Tests — bulk load data, run end-to-end tests
+  # ============================================================
+  test-java-client:
+    needs: build
+    runs-on: [self-hosted, X64]
+    container:
+      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Mark directory safe
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
+
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
+    - name: Increase the maximum number of opened files
+      run: |
+        ulimit -n 65535
+        sudo chmod -R 777 /etc/security/*
+        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin' # Recommended distribution
+        cache: 'maven' # Enables caching for Maven dependencies
+
+    - name: Set up Maven
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.8.2
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: neug-build-${{ github.sha }}
+        path: /tmp/
+
+    - name: Extract build artifacts
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind
+        tar xzf /tmp/neug-build.tar.gz
+
+    - name: Install Python requirements
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        pip3 install -r requirements.txt
+        pip3 install -r requirements_dev.txt
+        
+    - name: Build Java client
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/java
+        mvn clean package -DskipTests
+
+    - name: Run Java client tests
+      run: |
+        cd ${GITHUB_WORKSPACE}/tests/e2e/scripts
+        ./run_java_test.sh
