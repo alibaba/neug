@@ -7,15 +7,20 @@
 #  NEUG_LIBRARIES           - libraries to link against
 
 set(NEUG_HOME "${CMAKE_CURRENT_LIST_DIR}/../../..")
+
+include(CMakeFindDependencyMacro)
+
+# Propagate dependencies required by the exported targets so consumers
+# automatically pick them up when calling find_package(neug).
+find_dependency(Threads)
+find_dependency(ZLIB)
+find_dependency(OpenSSL)
+
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 
 set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
-
-find_package(Threads REQUIRED)
-find_package(Protobuf)
-find_package(ZLIB) # Brought by protobuf WITH_ZLIB option
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)

@@ -29,11 +29,11 @@ add_library(neug_libraries SHARED ${ALL_OBJECT_FILES})
 if (ENABLE_GCOV)
     target_link_options(neug_libraries PRIVATE --coverage)
 endif()
-target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES})
+target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(neug_libraries PRIVATE ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES} ${ARROW_LIB})
 if (BUILD_HTTP_SERVER)
     target_link_libraries(neug_libraries PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
-    target_link_libraries(neug_libraries PUBLIC ${OPENSSL_LIBRARIES} ${CRYPTO_LIB}) #${PROTOC_LIB}
+    target_link_libraries(neug_libraries PUBLIC ${CRYPTO_LIB}) #${PROTOC_LIB}
 endif()
 if (APPLE)
     target_link_libraries(neug_libraries PUBLIC ${MACOS_DYLIBS})

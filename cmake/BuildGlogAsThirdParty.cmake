@@ -19,11 +19,6 @@ function (build_glog_as_third_party)
     set(WITH_GFLAGS OFF CACHE BOOL "Build glog without gflags" FORCE)
     set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
-    execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glog.patch
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glog
-                RESULT_VARIABLE result
-                OUTPUT_VARIABLE output
-                ERROR_VARIABLE error_output)
     add_subdirectory(third_party/glog)
     include_directories(SYSTEM third_party/glog/src)
     include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers

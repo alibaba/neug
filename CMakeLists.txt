@@ -106,31 +106,47 @@ add_definitions(-DNEUG_EXTENSION_VERSION="0.1.0")
 include(CheckCXXCompilerFlag)
 
 macro(install_neug_target target)
-    if (TARGET ${target})
-        get_target_property(actual_target ${target} ALIASED_TARGET)
-        if (NOT actual_target)
-            install(TARGETS ${target}
-                EXPORT neug-targets
-                RUNTIME DESTINATION bin
-                LIBRARY DESTINATION lib
-                ARCHIVE DESTINATION lib
-            )
-        else()
-            # If the target is an alias, install the actual target it points to
-            if (TARGET ${actual_target})
-                install(TARGETS ${actual_target}
-                    EXPORT neug-targets
-                    RUNTIME DESTINATION bin
-                    LIBRARY DESTINATION lib
-                    ARCHIVE DESTINATION lib
-                )
-            else()
-                message(WARNING "Aliased target ${target} points to ${actual_target}, which does not exist. Cannot be installed.")
-            endif()
-        endif()
-    else()
+    if (NOT TARGET ${target})
         message(WARNING "Target ${target} does not exist, cannot be installed.")
+        return()
     endif()
+
+    get_target_property(actual_target ${target} ALIASED_TARGET)
+    if(actual_target)
+        if(NOT TARGET ${actual_target})
+            message(WARNING "Aliased target ${target} points to ${actual_target}, which does not exist. Cannot be installed.")
+            return()
+        endif()
+        set(_neug_install_target ${actual_target})
+    else()
+        set(_neug_install_target ${target})
+    endif()
+
+    get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
+    get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    if(_neug_public_headers AND NOT _neug_public_headers STREQUAL "_neug_public_headers-NOTFOUND" AND NOT _neug_public_headers STREQUAL "NOTFOUND")
+        set(_neug_public_header_abs)
+        foreach(_hdr IN LISTS _neug_public_headers)
+            if(NOT IS_ABSOLUTE "${_hdr}" AND _neug_target_source_dir)
+                list(APPEND _neug_public_header_abs "${_neug_target_source_dir}/${_hdr}")
+            else()
+                list(APPEND _neug_public_header_abs "${_hdr}")
+            endif()
+        endforeach()
+        # Update the target property so install(TARGETS) can rely on it
+        set_target_properties(${_neug_install_target} PROPERTIES PUBLIC_HEADER "${_neug_public_header_abs}")
+        set(_neug_public_header_args PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    else()
+        set(_neug_public_header_args)
+    endif()
+
+    install(TARGETS ${_neug_install_target}
+        EXPORT neug-targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ${_neug_public_header_args}
+    )
 endmacro()
 
 if (BUILD_HTTP_SERVER)
@@ -317,6 +333,11 @@ if(HAVE_COPY_FILE_RANGE_COMPILES)
 endif()
 
 find_package(Threads REQUIRED)
+find_package(OpenSSL)
+if (NOT OpenSSL_FOUND)
+    message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+endif()
+include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
 # if os is macos, 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -571,11 +592,6 @@ if (BUILD_HTTP_SERVER)
     set(LEVELDB_LIB leveldb)
     include_directories(${LEVELDB_INCLUDE_PATH})
 
-    find_package(OpenSSL)
-    if (NOT OpenSSL_FOUND)
-        message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
-    endif()
-    include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
     find_library(CRYPTO_LIB NAMES crypto)
     if (NOT CRYPTO_LIB)
         message(FATAL_ERROR "Fail to find crypto lib")
@@ -796,8 +812,9 @@ if (ENABLE_GCOV)
             '*/external/*'
             '*/generated/*'
             '*/_deps/*'
+            '/usr/lib/*'
+            '*/compiler/*'
             --output-file coverage_filtered.info
-        COMMAND lcov --list coverage_filtered.info
     )
 endif()
 
@@ -856,7 +873,6 @@ if (NOT RapidJSON_FOUND)
 endif()
 
 include(CPack)
-
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
         DESTINATION include

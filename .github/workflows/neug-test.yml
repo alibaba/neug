@@ -58,7 +58,7 @@ jobs:
   # Job 1: Build NeuG — compile C++ and Python bindings
   # ============================================================
   build:
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -124,7 +124,6 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=ON
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
@@ -161,7 +160,7 @@ jobs:
   # ============================================================
   test-cpp:
     needs: build
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -216,12 +215,29 @@ jobs:
         ctest -R test_request -V
         ctest -R sink_test -V
 
+    - name: Generate Coverage Report
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      run: |
+        pip3 install fastcov
+        sudo apt update
+        sudo apt install lcov -y
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        make coverage
+        mv coverage_filtered.info coverage_cpp.info
+
+    - name: Upload coverage report as artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage_report
+        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_cpp.info
+
   # ============================================================
   # Job 3: Python Tests — bulk load data, run all pytest suites
   # ============================================================
   test-python:
     needs: build
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -370,16 +386,26 @@ jobs:
     - name: Generate Coverage Report
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        coverage report
-        coverage xml -o coverage_report.xml
+        pip3 install fastcov
+        sudo apt update
+        sudo apt install lcov -y
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        make coverage
+        mv coverage_filtered.info coverage_py.info
+
+    - name: Upload coverage report as artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage_report
+        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_py.info
 
   # ============================================================
   # Job 4: E2E Tests — bulk load data, run end-to-end tests
   # ============================================================
   test-e2e:
     needs: build
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -492,12 +518,29 @@ jobs:
         cmake .. && make -j1
         ./test
 
+    - name: Generate Coverage Report
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      run: |
+        pip3 install fastcov
+        sudo apt update
+        sudo apt install lcov -y
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
+        make coverage
+        mv coverage_filtered.info coverage_e2e.info
+
+    - name: Upload coverage report as artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage_report
+        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
+
   # ============================================================
-  # Job 4: E2E Tests — bulk load data, run end-to-end tests
+  # Job 5: Java test
   # ============================================================
   test-java-client:
     needs: build
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -566,3 +609,34 @@ jobs:
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e/scripts
         ./run_java_test.sh
+
+  # ============================================================
+  # Job 6: Coverage — generate and upload the coverage report.
+  # ============================================================
+  coverage-report:
+  needs: [test-cpp, test-python, test-e2e]
+
+    - name: Download coverage report artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage_report
+        path: .
+
+    - name: Generate Coverage Report
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      run: |
+        sudo apt update
+        sudo apt install lcov -y
+        lcov \
+          --add-tracefile ./coverage/coverage_cpp.info \
+          --add-tracefile ./coverage/coverage_py.info \
+          --add-tracefile ./coverage/coverage_e2e.info \
+          --output-file coverage.info 
+
+    - name: Upload coverage to Codecov
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: codecov/codecov-action@v4
+      with:
+        file: ${GITHUB_WORKSPACE}/coverage.info
+

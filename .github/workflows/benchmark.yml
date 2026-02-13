@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   test-py-neug:
-    runs-on: [self-hosted, x64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
       # options: --user root

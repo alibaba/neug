@@ -41,9 +41,9 @@ function (build_gflags_as_third_party)
 
     set(GFLAGS_LIBRARY gflags::gflags PARENT_SCOPE)
     set(GFLAGS_LIBRARIES gflags::gflags PARENT_SCOPE)
-    set(gflags_FOUND TRUE CACHE BOOL PARENT_SCOPE)
-    set(GFLAGS_FOUND TRUE CACHE BOOL PARENT_SCOPE)
-    set(GFLAGS_IS_SUBPROJECT TRUE  CACHE BOOL PARENT_SCOPE)
+    set(gflags_FOUND TRUE PARENT_SCOPE)
+    set(GFLAGS_FOUND TRUE PARENT_SCOPE)
+    set(GFLAGS_IS_SUBPROJECT TRUE  PARENT_SCOPE)
     set(gflags_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/lib/cmake/gflags"
     CACHE PATH "gflags config path" FORCE PARENT_SCOPE)
 endfunction()

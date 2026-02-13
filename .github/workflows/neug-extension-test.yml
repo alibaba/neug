@@ -40,7 +40,7 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   build:
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -130,7 +130,7 @@ jobs:
   # ============================================================
   test-extension:
     needs: build
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted]
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:

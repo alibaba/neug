@@ -3,6 +3,7 @@
 [![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
 [![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
 [![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
+[![Coverage](https://codecov.io/gh/GraphScope/neug/branch/main/graph/badge.svg)](https://codecov.io/gh/GraphScope/neug)
 
 
 **NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. NeuG provides **two modes** that you can switch between based on your needs:
