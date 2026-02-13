@@ -109,59 +109,6 @@ jobs:
         make build
         ccache --show-stats
 
-    - name: Package build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar czf /tmp/neug-ext-build.tar.gz \
-          --exclude='*.o.d' \
-          --exclude='build/neug_py_bind/_deps' \
-          build/
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: neug-ext-build-${{ github.sha }}
-        path: /tmp/neug-ext-build.tar.gz
-        retention-days: 1
-        compression-level: 0
-
-  # ============================================================
-  # Job 2: Extension C++ Tests
-  # ============================================================
-  test-extension:
-    needs: build
-    runs-on: [self-hosted]
-    container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: neug-ext-build-${{ github.sha }}
-        path: /tmp/
-
-    - name: Extract build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar xzf /tmp/neug-ext-build.tar.gz
-
     - name: Run Extension C++ Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
