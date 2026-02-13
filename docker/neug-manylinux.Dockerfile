@@ -1,6 +1,7 @@
 ARG ARCH=x86_64
 ARG REGISTRY=registry.cn-hongkong.aliyuncs.com
-FROM quay.io/pypa/manylinux2014_$ARCH:latest AS builder
+ARG MANYLINUXVERSION=2014
+FROM quay.io/pypa/manylinux${MANYLINUXVERSION}_$ARCH:latest AS builder
 # Got issue with manylinux2014: https://github.com/grpc/grpc/issues/30218, upgrade to manylinux_2_28
 
 ENV DEBIAN_FRONTEND=noninteractive
