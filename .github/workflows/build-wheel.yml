@@ -64,6 +64,7 @@ jobs:
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
@@ -133,6 +134,7 @@ jobs:
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
@@ -210,6 +212,7 @@ jobs:
           source ~/.neug_env
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
@@ -287,6 +290,7 @@ jobs:
           source ~/.neug_env
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4

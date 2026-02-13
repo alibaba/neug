@@ -106,12 +106,31 @@ add_definitions(-DNEUG_EXTENSION_VERSION="0.1.0")
 include(CheckCXXCompilerFlag)
 
 macro(install_neug_target target)
-    install(TARGETS ${target}
-            EXPORT neug-targets
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION lib
-            ARCHIVE DESTINATION lib
-    )
+    if (TARGET ${target})
+        get_target_property(actual_target ${target} ALIASED_TARGET)
+        if (NOT actual_target)
+            install(TARGETS ${target}
+                EXPORT neug-targets
+                RUNTIME DESTINATION bin
+                LIBRARY DESTINATION lib
+                ARCHIVE DESTINATION lib
+            )
+        else()
+            # If the target is an alias, install the actual target it points to
+            if (TARGET ${actual_target})
+                install(TARGETS ${actual_target}
+                    EXPORT neug-targets
+                    RUNTIME DESTINATION bin
+                    LIBRARY DESTINATION lib
+                    ARCHIVE DESTINATION lib
+                )
+            else()
+                message(WARNING "Aliased target ${target} points to ${actual_target}, which does not exist. Cannot be installed.")
+            endif()
+        endif()
+    else()
+        message(WARNING "Target ${target} does not exist, cannot be installed.")
+    endif()
 endmacro()
 
 if (BUILD_HTTP_SERVER)
@@ -336,7 +355,18 @@ endif()
 if (BUILD_PYTHON)
     message("Build python embedded")
     # To build wheel in manylinux docker, we should not link to a specific python library.
-    set(PYBIND11_FINDPYTHON OFF)
+    # Get environment variable PYBIND11_FINDPYTHON, if it is set to ON, we will set PYBIND11_FINDPYTHON to ON, otherwise, we will not set it, and let pybind11 find python by itself.
+    set(PYBIND11_FINDPYTHON ON)
+    if (DEFINED ENV{PYBIND11_FINDPYTHON}) 
+        if ($ENV{PYBIND11_FINDPYTHON} STREQUAL "OFF")
+            message(STATUS "Environment variable PYBIND11_FINDPYTHON is set to OFF")
+            set(PYBIND11_FINDPYTHON OFF)
+        elseif (NOT ( $ENV{PYBIND11_FINDPYTHON} STREQUAL "ON"))
+            message(WARNING "Environment variable PYBIND11_FINDPYTHON is set to ${ENV{PYBIND11_FINDPYTHON}}, which is not ON or OFF, by default is ON")
+        endif()
+    else()
+        message(STATUS "Environment variable PYBIND11_FINDPYTHON is not set, by default is ON")
+    endif()
     add_subdirectory(third_party/pybind11)
 endif()
 
@@ -458,7 +488,16 @@ find_package(Threads REQUIRED)
 include(cmake/BuildGflagsAsThirdParty.cmake)
 build_gflags_as_third_party()
 include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
+include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include)
 message(STATUS "gflags libraries: ${GFLAGS_LIBRARIES}")
+message(STATUS "gflags found: ${gflags_FOUND}")
+message(STATUS "gflags dir: ${gflags_DIR}")
+
+#find glog
+include(cmake/BuildGlogAsThirdParty.cmake)
+build_glog_as_third_party()
+include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 
 # find yaml-cpp-----------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
@@ -852,6 +891,9 @@ install_neug_target(libprotoc)
 if (WITH_MIMALLOC)
 	install_neug_target(mimalloc)
 endif()
+
+install_neug_target(${GLOG_LIBRARIES})
+install_neug_target(${GFLAGS_LIBRARIES})
 
 if(BUILD_EXTENSIONS)
     message(STATUS "Building extensions: ${BUILD_EXTENSIONS}")

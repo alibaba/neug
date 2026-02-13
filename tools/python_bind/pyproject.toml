@@ -46,14 +46,14 @@ test = [
 [tool.cibuildwheel]
 build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = ["*-musllinux_*", "*i686*"]
-environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET"]
+environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET", "PYBIND11_FINDPYTHON"]
 manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-x86_64-debug"
 manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-brpc-arm64-debug"
 
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init"]
 before-build = [". /root/.neug_env"]
-environment = {CMAKE_PREFIX_PATH="/opt/neug/", OPENSSL_ROOT_DIR="/opt/neug", LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64", LD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$LD_LIBRARY_PATH",  DYLD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$DYLD_LIBRARY_PATH"}
+environment = {CMAKE_PREFIX_PATH="/opt/neug/", OPENSSL_ROOT_DIR="/opt/neug", LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64", LD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$LD_LIBRARY_PATH",  DYLD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64:$DYLD_LIBRARY_PATH", PYBIND11_FINDPYTHON="OFF"}
 
 [tool.cibuildwheel.macos]
 before-all = ["git submodule update --init"]

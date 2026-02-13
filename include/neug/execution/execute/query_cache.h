@@ -28,6 +28,17 @@ struct CacheValue {
   ParamsMetaMap params_type;
   std::string result_schema;
   physical::ExecutionFlag flags;
+
+  CacheValue(
+    Pipeline pipeline,
+    ParamsMetaMap params_type,
+    const std::string& result_schema,      // ← 注意：const&
+    physical::ExecutionFlag flags
+  ) : pipeline(std::move(pipeline)),
+      params_type(std::move(params_type)),
+      result_schema(result_schema),
+      flags(flags)
+  {}
 };
 
 /**
