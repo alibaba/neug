@@ -420,12 +420,12 @@ def test_parameterized_query():
         (
             "MATCH (n:param_values) WHERE n.date_prop = $value RETURN n.date_prop;",
             {"value": datetime.date(2024, 1, 1)},
-            "2024-01-01",
+            datetime.date(2024, 1, 1),
         ),
         (
             "MATCH (n:param_values) WHERE n.timestamp_prop <> $value RETURN n.timestamp_prop;",
             {"value": "2024-01-02 03:04:05"},
-            "2024-01-02 03:04:05.000",
+            datetime.datetime(2024, 1, 2, 3, 4, 5),
         ),
     ]
 

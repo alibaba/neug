@@ -41,6 +41,31 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
     THROW_NOT_SUPPORTED_EXCEPTION("Unexpected property type: " +
                                   std::to_string(type));
   }
+}
+
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type) {
+  auto id = type.id();
+  switch (id) {
+  case DataTypeId::kStruct: {
+    std::vector<std::shared_ptr<arrow::Field>> field_types;
+    auto casted = dynamic_cast<const StructTypeInfo*>(type.AuxInfo());
+    assert(casted != nullptr);
+    for (int i = 0; i < casted->child_types.size(); ++i) {
+      field_types.push_back(
+          arrow::field("f" + std::to_string(i),
+                       PropertyTypeToArrowType(casted->child_types[i])));
+    }
+    return arrow::struct_(field_types);
+  }
+  case DataTypeId::kList: {
+    auto casted = dynamic_cast<const ListTypeInfo*>(type.AuxInfo());
+    assert(casted != nullptr);
+    auto value_type = PropertyTypeToArrowType(casted->child_type);
+    return arrow::list(value_type);
+  }
+  default:
+    return PropertyTypeToArrowType(id);
+  }
   return nullptr;
 }
 

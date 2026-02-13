@@ -38,6 +38,9 @@ namespace execution {
 class Value;
 }
 
+std::vector<std::string> parse_result_schema_column_names(
+    const std::string& result_schema);
+
 // Helper function to set up JsonPrintOptions with compatibility across protobuf
 // versions
 inline void configure_json_print_options_for_all_fields(

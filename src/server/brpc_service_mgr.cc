@@ -73,11 +73,11 @@ bool ParseHttpQueryRequest(brpc::Controller* cntl, void* request,
 }
 
 void SendHttpQueryResponse(brpc::Controller* cntl,
-                           neug::result<results::CollectiveResults>& response) {
+                           neug::result<QueryResult>& response) {
   if (response) {
     cntl->http_response().set_status_code(brpc::HTTP_STATUS_OK);
-    const auto& results_pb = response.value();
-    auto response_str = results_pb.SerializeAsString();
+    const auto& results = response.value();
+    auto response_str = results.Serialize();
     cntl->response_attachment().append(response_str.data(),
                                        response_str.size());
   } else {

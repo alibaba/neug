@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "arrow_column_assertions.h"
 #include "neug/main/connection.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
@@ -253,7 +254,7 @@ TEST(DatabaseTest, TestCompaction) {
     EXPECT_TRUE(conn->Query("MATCH (a: person) WHERE a.id = 1 DELETE a;"));
     auto res = conn->Query("MATCH (n: person) return COUNT(n);");
     EXPECT_TRUE(res);
-    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
+    neug::test::AssertInt64Column(res.value().table(), 0, {3});
     conn->Close();
     db.Close();
     // Should do the compaction.
@@ -262,13 +263,13 @@ TEST(DatabaseTest, TestCompaction) {
     neug::NeugDB db2;
     db2.Open(db_dir, 1, neug::DBMode::READ_ONLY);
     auto conn = db2.Connect();
-    auto res = conn->Query("MATCH (n: person) return COUNT(n);");
+    const auto& res = conn->Query("MATCH (n: person) return COUNT(n);");
     EXPECT_TRUE(res);
-    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 3 } }>");
-    res = conn->Query(
+    neug::test::AssertInt64Column(res.value().table(), 0, {3});
+    const auto& res2 = conn->Query(
         "MATCH (a: person)-[r: knows]->(b: person) return COUNT(r);");
-    EXPECT_TRUE(res);
-    EXPECT_EQ(res.value().next().ToString(), "<element { object { i64: 0 } }>");
+    EXPECT_TRUE(res2);
+    neug::test::AssertInt64Column(res2.value().table(), 0, {0});
     conn->Close();
     db2.Close();
   }

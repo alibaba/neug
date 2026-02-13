@@ -879,6 +879,9 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/expected/
             FILES_MATCHING
             PATTERN "*.hpp"
 )
+install(FILES ${PROJECT_SOURCE_DIR}/third_party/fast_float/include/fast_float.h
+            DESTINATION include/
+)
 
 install(FILES ${PROJECT_SOURCE_DIR}/third_party/fast_float/include/fast_float.h
             DESTINATION include/

@@ -58,7 +58,7 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
   return std::make_pair(access_mode, cache_value);
 }
 
-result<results::CollectiveResults> QueryProcessor::execute(
+result<QueryResult> QueryProcessor::execute(
     const std::string& query_string, const std::string& user_access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
   GS_AUTO(
@@ -77,9 +77,10 @@ result<results::CollectiveResults> QueryProcessor::execute(
   }
 }
 
-result<results::CollectiveResults> QueryProcessor::execute(
-    const std::string& query_string, const std::string& user_access_mode,
-    const rapidjson::Value& parameters, int32_t num_threads) {
+result<QueryResult> QueryProcessor::execute(const std::string& query_string,
+                                            const std::string& user_access_mode,
+                                            const rapidjson::Value& parameters,
+                                            int32_t num_threads) {
   GS_AUTO(
       access_mode_pipeline,
       check_and_retrieve_pipeline(query_string, user_access_mode, num_threads));
@@ -93,8 +94,8 @@ result<results::CollectiveResults> QueryProcessor::execute(
         RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                                   "Unexpected parameter: " + key));
       }
-      params_map.emplace(key,
-                         execution::Value::FromJson(member.value, iter->second));
+      params_map.emplace(
+          key, execution::Value::FromJson(member.value, iter->second));
     }
   }
   if (need_exclusive_lock(access_mode_pipeline.first)) {
@@ -111,7 +112,7 @@ result<results::CollectiveResults> QueryProcessor::execute(
 }
 
 // The concurrency control is done outside this function.
-result<results::CollectiveResults> QueryProcessor::execute_internal(
+result<QueryResult> QueryProcessor::execute_internal(
     const std::string& query_string,
     std::shared_ptr<execution::CacheValue> cache_value, AccessMode access_mode,
     const execution::ParamsMap& parameters, int32_t num_threads) {
@@ -125,7 +126,7 @@ result<results::CollectiveResults> QueryProcessor::execute_internal(
                << ", message: " << ctx_res.error().error_message();
     RETURN_ERROR(ctx_res.error());
   }
-  auto ret = execution::Sink::sink(ctx_res.value(), graph);
+  auto ret = execution::Sink::sink_neug_serial(ctx_res.value(), graph);
   ret.set_result_schema(cache_value->result_schema);
   update_compiler_meta_if_needed(cache_value->flags, access_mode);
   return ret;

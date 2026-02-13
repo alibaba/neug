@@ -64,6 +64,8 @@ DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type) {
     return DataType(DataTypeId::kVarchar);
   } else if (type->Equals(arrow::date32())) {
     return DataType(DataTypeId::kDate);
+  } else if (type->Equals(arrow::date64())) {
+    return DataType(DataTypeId::kDate);
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::SECOND))) {
     return DataType(DataTypeId::kTimestampMs);
   } else if (type->Equals(arrow::timestamp(arrow::TimeUnit::MILLI))) {
@@ -449,6 +451,9 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
     Date d;
     d.from_num_days(casted->Value(offset));
     return Value::DATE(d);
+  } else if (arrow_type->Equals(arrow::date64())) {
+    auto casted = std::static_pointer_cast<arrow::Date64Array>(array);
+    return Value::DATE(Date(casted->Value(offset)));
   } else if (arrow_type->id() == arrow::Type::TIMESTAMP) {
     auto casted = std::static_pointer_cast<arrow::TimestampArray>(array);
     return Value::TIMESTAMPMS(DateTime(casted->Value(offset)));

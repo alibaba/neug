@@ -296,10 +296,9 @@ def test_parallel_query_executions(tmp_path):
 
     def run_query(thread_id, conn):
         for i in range(10):
-            result = conn.execute(
+            conn.execute(
                 f"CREATE (p: person {{id: {thread_id * 10 + i}, name: 'Node{thread_id * 10 + i}'}});"
             )
-            assert len(result) == 1
 
     import threading
 

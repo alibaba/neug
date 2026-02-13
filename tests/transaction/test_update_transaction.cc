@@ -22,6 +22,7 @@
 
 #include <limits>
 
+#include "arrow_column_assertions.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
@@ -599,7 +600,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
     auto conn = db.Connect();
     auto result = conn->Query(
         "MATCH (n:person {id: 4}) RETURN n.name AS name, n.age AS age;");
-    EXPECT_TRUE(result.value().length() == 0) << result.value().ToString();
+    EXPECT_EQ(result.value().length(), 0);
   }
   db.Close();
 }
@@ -688,11 +689,10 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
     auto conn = db.Connect();
     auto result = conn->Query(
         "MATCH (n:person {id: 2}) RETURN n.name AS name, n.age AS age;");
-    EXPECT_TRUE(result && result.value().hasNext());
-    auto record = result.value().next();
-    EXPECT_EQ(record.ToString(),
-              "<element { object { str: \"Bob\" } }, element { object { i64: "
-              "25 } }>");
+    EXPECT_TRUE(result);
+    auto& value = result.value();
+    neug::test::AssertStringColumn(value.table(), 0, {"Bob"});
+    neug::test::AssertInt64Column(value.table(), 1, {25});
   }
   db.Close();
 }
@@ -752,18 +752,20 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
       }
     }
   }
+  db.Close();
   {
-    auto conn = db.Connect();
+    neug::NeugDB db2;
+    neug::NeugDBConfig config2(db_dir);
+    config2.memory_level = 1;
+    db2.Open(config2);
+    auto conn = db2.Connect();
     auto result = conn->Query(
-        "MATCH (a:person {id: 1})-[r:created]->(b:software {id: 1}) "
+        "MATCH (a:person {id: 1})-[r:created]->(b:software) "
         "RETURN r.weight AS weight, r.since AS since;");
+    EXPECT_TRUE(result);
     auto& value = result.value();
-    while (value.hasNext()) {
-      auto record = value.next();
-      EXPECT_EQ(record.ToString(),
-                "<element { object { f64: 0.8 } }, element { object { i64: "
-                "2021 } }>");
-    }
+    neug::test::AssertDoubleColumn(value.table(), 0, {0.8});
+    neug::test::AssertInt64Column(value.table(), 1, {2021});
   }
   db.Close();
 }
@@ -816,16 +818,19 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
       }
     }
   }
+  db.Close();
   {
-    auto conn = db.Connect();
+    neug::NeugDB db2;
+    neug::NeugDBConfig config2(db_dir);
+    config2.memory_level = 1;
+    db2.Open(config2);
+    auto conn = db2.Connect();
     auto result = conn->Query(
         "MATCH (a:person {id: 1})-[r:knows]->(b:person {id: 2}) "
         "RETURN r.closeness AS closeness;");
+    EXPECT_TRUE(result);
     auto& value = result.value();
-    while (value.hasNext()) {
-      auto record = value.next();
-      EXPECT_EQ(record.ToString(), "<element { object { f64: 0.9 } }>");
-    }
+    neug::test::AssertDoubleColumn(value.table(), 0, {0.9});
   }
 }
 

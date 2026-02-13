@@ -29,6 +29,7 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/generated/proto/plan/results.pb.h"
+#include "neug/main/query_result.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
@@ -176,9 +177,9 @@ class NeugDBSession {
    * @endcode
    *
    * @param query JSON string containing query, access_mode, and parameters
-   * @return Result containing CollectiveResults on success, or error status
+   * @return Result containing QueryResult on success, or error status
    */
-  result<results::CollectiveResults> Eval(const std::string& query);
+  result<QueryResult> Eval(const std::string& query);
 
   int SessionId() const;
 

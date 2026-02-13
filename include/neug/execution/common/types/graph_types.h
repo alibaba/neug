@@ -203,6 +203,12 @@ struct Path {
 }  // namespace neug
 
 namespace std {
+
+template <typename T>
+static inline void hash_combine(std::size_t& seed, const T& val) {
+  std::hash<T> hasher;
+  seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
 template <>
 struct hash<neug::execution::VertexRecord> {
   // Hash combine functions copied from Boost.ContainerHash
@@ -210,12 +216,6 @@ struct hash<neug::execution::VertexRecord> {
   // that is based on Peter Dimov's proposal
   // http://www.open-std.org/JTC1/SC22/WG21/docs/papers/2005/n1756.pdf
   // issue 6.18.
-
-  template <typename T>
-  static inline void hash_combine(std::size_t& seed, const T& val) {
-    std::hash<T> hasher;
-    seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-  }
 
   size_t operator()(const neug::execution::VertexRecord& record) const {
     std::size_t seed = 0;
@@ -225,8 +225,8 @@ struct hash<neug::execution::VertexRecord> {
   }
 
   std::size_t operator()(
-      const std::pair<neug::execution::VertexRecord, neug::execution::VertexRecord>&
-          p) const {
+      const std::pair<neug::execution::VertexRecord,
+                      neug::execution::VertexRecord>& p) const {
     std::size_t seed = 0;
     hash_combine(seed, p.first.vid_);
     hash_combine(seed, p.first.label_);
@@ -240,6 +240,17 @@ template <>
 struct hash<neug::DateTime> {
   size_t operator()(const neug::DateTime& date) const {
     return std::hash<int64_t>()(date.milli_second);
+  }
+};
+
+template <>
+struct hash<neug::execution::LabelTriplet> {
+  size_t operator()(const neug::execution::LabelTriplet& lt) const {
+    size_t seed = 0;
+    hash_combine(seed, lt.src_label);
+    hash_combine(seed, lt.dst_label);
+    hash_combine(seed, lt.edge_label);
+    return seed;
   }
 };
 

@@ -15,261 +15,121 @@
 #pragma once
 
 #include <stddef.h>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
+#include "neug/execution/common/columns/i_context_column.h"
+#include "neug/execution/common/context.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/generated/proto/plan/results.pb.h"
+#include "neug/main/serialization_protocol.h"
+
+#include <arrow/api.h>
 
 namespace neug {
 
 /**
- * @brief A single row/record from query results.
+ * @brief QueryResult purely based on C++ Arrow Table.
  *
- * RecordLine represents one row of query output, containing multiple
- * column values (entries). Each entry corresponds to a RETURN clause
- * expression in the Cypher query.
+ * Provides iterator-style access to query results stored in Arrow format.
+ * Supports hasNext()/next() pattern for sequential iteration and random
+ * access via operator[].
  *
- * **Usage Example:**
- * @code{.cpp}
- * auto result = conn->Query("MATCH (n:Person) RETURN n.name, n.age", "read");
- * for (auto& record : result.value()) {
- *   // Access entries by index
- *   const auto& entries = record.entries();
- *   // entries[0] = name, entries[1] = age
- *   std::cout << record.ToString() << std::endl;
- * }
- * @endcode
- *
- * @note Entries are pointers to internal data; do not store beyond result lifetime.
- *
- * @see QueryResult For iterating over all records
- *
- * @since v0.1.0
- */
-class RecordLine {
- public:
-  RecordLine() = default;
-
-  /**
-   * @brief Construct RecordLine from entry pointers.
-   * @param entries Vector of pointers to result entries
-   */
-  explicit RecordLine(std::vector<const results::Entry*> entries)
-      : entries_(entries) {}
-
-  /**
-   * @brief Convert record to string representation.
-   * @return String representation of all entries
-   */
-  std::string ToString() const {
-    std::string result;
-    result += "<";
-    for (size_t i = 0; i < entries_.size(); ++i) {
-      if (i != 0) {
-        result += ", ";
-      }
-      result += entries_[i]->ShortDebugString();
-    }
-    result += ">";
-    return result;
-  }
-
-  /**
-   * @brief Get all entries (column values) in this record.
-   * @return Vector of const pointers to Entry objects
-   */
-  const std::vector<const results::Entry*>& entries() const { return entries_; }
-
- private:
-  std::vector<const results::Entry*> entries_;
-};
-
-/**
- * @brief Container for Cypher query execution results.
- *
- * QueryResult provides convenient access to query results through both
- * iterator-style (hasNext/next) and random access (operator[]) patterns.
- * Results are returned as RecordLine objects containing Entry pointers.
- *
- * **Usage Example:**
- * @code{.cpp}
- * auto result = conn->Query("MATCH (n:Person) RETURN n.name, n.age LIMIT 100");
- *
- * if (result.has_value()) {
- *   QueryResult& qr = result.value();
- *
- *   // Method 1: Range-based for loop
- *   for (auto& record : qr) {
- *     std::cout << record.ToString() << std::endl;
- *   }
- *
- *   // Method 2: Random access by index
- *   for (size_t i = 0; i < qr.length(); ++i) {
- *     RecordLine record = qr[i];
- *   }
- *
- *   // Get result schema
- *   std::cout << "Schema: " << qr.get_result_schema() << std::endl;
- * }
- * @endcode
- *
- * **Memory Model:**
- * - QueryResult owns the underlying protobuf data
- * - RecordLine contains pointers to internal data (no copying)
- * - Do not access records after QueryResult is destroyed
- *
- * @note Thread-safe for read-only access after construction.
- *
- * @see RecordLine For accessing individual record data
- * @see Connection::Query For creating QueryResult objects
- *
- * @since v0.1.0
+ * The underlying Arrow Table may have chunked columns. This implementation
+ * combines chunks for easier access.
  */
 class QueryResult {
  public:
-  /**
-   * @brief Create QueryResult from CollectiveResults (move semantics).
-   *
-   * Factory method that creates a QueryResult by moving a CollectiveResults.
-   *
-   * @param result CollectiveResults to be moved into the QueryResult
-   * @return QueryResult containing the moved results
-   *
-   * Implementation: Simply calls QueryResult constructor with std::move.
-   *
-   * @since v0.1.0
-   */
-  static QueryResult From(results::CollectiveResults&& result);
+  static QueryResult From(std::string&& serialized_table);
+  static QueryResult From(const std::string& serialized_table);
 
-  /**
-   * @brief Create QueryResult by deserializing from a string.
-   *
-   * Deserializes a CollectiveResults protobuf from string format.
-   *
-   * @param result_str Serialized CollectiveResults string
-   * @return QueryResult containing the deserialized results
-   *
-   * @throws std::runtime_error if parsing fails
-   *
-   * Implementation: Calls CollectiveResults::ParseFromString() then moves
-   * result.
-   *
-   * @since v0.1.0
-   */
-  static QueryResult From(const std::string& result_str);
-
-  /**
-   * @brief Default constructor creating empty result.
-   *
-   * @since v0.1.0
-   */
   QueryResult() = default;
 
-  /**
-   * @brief Construct QueryResult from CollectiveResults.
-   *
-   * @param res CollectiveResults to be moved and stored
-   *
-   * Implementation: Initializes cur_index_ to 0 and moves res to result_.
-   *
-   * @since v0.1.0
-   */
-  explicit QueryResult(results::CollectiveResults&& res)
-      : cur_index_(0), result_(std::move(res)) {}
+  QueryResult(QueryResult&& other) noexcept = default;
 
-  /**
-   * @brief Destructor.
-   *
-   * @since v0.1.0
-   */
+  QueryResult(const QueryResult& other) = delete;
+  QueryResult& operator=(const QueryResult& other) = delete;
+
+  QueryResult(
+      std::vector<std::shared_ptr<arrow::Field>>&& fields,
+      std::vector<std::shared_ptr<arrow::Array>>&& arrays,
+      std::vector<std::shared_ptr<execution::IContextColumn>>&& columns = {},
+      SerializationProtocol protocol = SerializationProtocol::kArrowIPC)
+      : fields_(std::move(fields)),
+        arrays_(std::move(arrays)),
+        columns_(std::move(columns)),
+        serialization_protocol_(protocol) {}
+
+  QueryResult(const std::vector<std::shared_ptr<arrow::Field>>& fields,
+              const std::vector<std::shared_ptr<arrow::Array>>& arrays,
+              const std::vector<std::shared_ptr<execution::IContextColumn>>&
+                  columns = {},
+              SerializationProtocol protocol = SerializationProtocol::kArrowIPC)
+      : fields_(fields),
+        arrays_(arrays),
+        columns_(columns),
+        serialization_protocol_(protocol) {}
+
+  void Swap(QueryResult& other) noexcept {
+    fields_.swap(other.fields_);
+    arrays_.swap(other.arrays_);
+    columns_.swap(other.columns_);
+    std::swap(serialization_protocol_, other.serialization_protocol_);
+  }
+
+  void Swap(QueryResult&& other) noexcept {
+    fields_.swap(other.fields_);
+    arrays_.swap(other.arrays_);
+    columns_.swap(other.columns_);
+    std::swap(serialization_protocol_, other.serialization_protocol_);
+  }
+
   ~QueryResult() {}
 
   /**
-   * @brief Check if there are more records to iterate.
-   *
-   * @return true if cur_index_ < result_.results_size(), false otherwise
-   *
-   * Implementation: Compares cur_index_ with result_.results_size().
-   *
-   * @since v0.1.0
-   */
-  bool hasNext() const;
-
-  /**
-   * @brief Get the next result record and advance iterator.
-   *
-   * Returns a RecordLine containing pointers to Entry objects from the current
-   * record. Advances cur_index_ after retrieving the record.
-   *
-   * @return RecordLine containing const Entry* pointers to record columns
-   *
-   * @note Returns pointers to internal data - no memory allocation or copying
-   * @note Returns empty RecordLine if no more records (logs error)
-   * @note Caller should check hasNext() before calling this method
-   *
-   * Implementation: Gets mutable_results(cur_index_++), extracts Entry pointers
-   * via record_to_entries_vec helper function.
-   *
-   * @since v0.1.0
-   */
-  RecordLine next();
-
-  /**
-   * @brief Get a record by index (random access).
-   *
-   * @param index Zero-based index of the record to retrieve
-   * @return RecordLine containing const Entry* pointers to record columns
-   *
-   * @note Does not affect iterator state (cur_index_)
-   * @note Returns pointers to internal data - no copying
-   *
-   * Implementation: Gets mutable_results(index), extracts Entry pointers.
-   *
-   * @since v0.1.0
-   */
-  RecordLine operator[](int index) const;
-
-  /**
-   * @brief Get total number of records in the result set.
-   *
-   * @return Total number of result records
-   *
-   * Implementation: Returns result_.results_size().
-   *
-   * @since v0.1.0
-   */
-  size_t length() const;
-
-  /* Convert the QueryResult to a string representation.
-   *
-   * @return std::string String representation of the QueryResult
-   *
-   * Implementation: Iterates over all records and calls ToString() on each
-   * RecordLine, concatenating results.
-   *
-   * @since v0.1.0
+   * @brief Convert entire result set to string.
    */
   std::string ToString() const;
 
   /**
-   * @brief Get the result schema as a string.
-   *
-   * @return const std::string& Reference to the schema string from
-   * CollectiveResults
-   *
-   * Implementation: Returns result_.result_schema().
-   *
-   * @since v0.1.0
+   * @brief Get total number of rows.
    */
-  const std::string& get_result_schema() const;
+  size_t length() const { return arrays_.empty() ? 0 : arrays_[0]->length(); }
 
-  inline const results::CollectiveResults& get_result() const {
-    return result_;
+  /**
+   * @brief Access underlying Arrow table without copy.
+   */
+  inline std::shared_ptr<arrow::Table> table() const {
+    if (arrays_.empty()) {
+      return nullptr;
+    }
+    return arrow::Table::Make(arrow::schema(fields_), arrays_);
+  }
+
+  inline const std::vector<std::shared_ptr<arrow::Field>>& fields() const {
+    return fields_;
+  }
+  inline const std::vector<std::shared_ptr<arrow::Array>>& arrays() const {
+    return arrays_;
+  }
+
+  std::vector<char> Serialize() const;
+
+  void set_result_schema(const std::string& schema);
+
+  inline void set_serialization_protocol(SerializationProtocol protocol) {
+    serialization_protocol_ = protocol;
   }
 
  private:
-  size_t cur_index_;
-  results::CollectiveResults result_;
+  std::vector<std::shared_ptr<arrow::Field>> fields_;
+  std::vector<std::shared_ptr<arrow::Array>> arrays_;
+  // Holding the primitive context columns, since the corresponding array is
+  // wrapped from them
+  std::vector<std::shared_ptr<execution::IContextColumn>> columns_;
+  SerializationProtocol serialization_protocol_ =
+      SerializationProtocol::kArrowIPC;
 };
 
 }  // namespace neug

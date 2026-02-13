@@ -14,8 +14,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
+#include "arrow_column_assertions.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
@@ -241,17 +244,15 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   EXPECT_TRUE(conn->Query("DROP TABLE knows;"));
   {
     auto res = conn->Query("MATCH (v:person) RETURN v;");
-    EXPECT_TRUE(res);
-    auto res_val = res.value();
-    EXPECT_FALSE(res_val.hasNext());
+    EXPECT_EQ(res.value().length(), 0);
   }
   {
     auto res = conn->Query(
         "MATCH (v:software)<-[e:created]-(:person) "
         "RETURN e;");
     EXPECT_TRUE(res);
-    auto res_val = res.value();
-    EXPECT_FALSE(res_val.hasNext());
+    const auto& res_val = res.value();
+    EXPECT_EQ(res_val.length(), 0);
   }
   {
     auto res = conn->Query("COPY person from \"" + flex_data_dir +
@@ -261,9 +262,10 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   {
     auto res = conn->Query("MATCH (v:person) RETURN count(v);");
     EXPECT_TRUE(res);
-    auto res_val = res.value();
-    EXPECT_TRUE(res_val.hasNext());
-    auto row = res_val.next();
-    EXPECT_EQ(row.ToString(), "<element { object { i64: 4 } }>");
+    auto table = res.value().table();
+    ASSERT_NE(table, nullptr);
+    EXPECT_EQ(table->num_rows(), 1);
+    EXPECT_EQ(table->num_columns(), 1);
+    neug::test::AssertInt64Column(table, 0, {4});
   }
 }

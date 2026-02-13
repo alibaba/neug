@@ -22,11 +22,7 @@
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/stringbuffer.h>
 #include <stddef.h>
-#include <yaml-cpp/exceptions.h>
-#include <yaml-cpp/node/impl.h>
-#include <yaml-cpp/node/iterator.h>
-#include <yaml-cpp/node/node.h>
-#include <yaml-cpp/node/parse.h>
+
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -604,7 +600,6 @@ rapidjson::Value process_entry_recursive(
   return null_val;
 }
 
-// Helper function to parse result schema and extract column names
 std::vector<std::string> parse_result_schema_column_names(
     const std::string& result_schema) {
   std::vector<std::string> column_names;

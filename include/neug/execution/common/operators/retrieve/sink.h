@@ -14,9 +14,8 @@
  */
 #pragma once
 
-namespace results {
-class CollectiveResults;
-}  // namespace results
+#include "neug/main/query_result.h"
+
 namespace neug {
 
 class Encoder;
@@ -29,6 +28,9 @@ class Sink {
  public:
   static results::CollectiveResults sink(const Context& ctx,
                                          const StorageReadInterface& graph);
+
+  static QueryResult sink_neug_serial(const Context& ctx,
+                                      const StorageReadInterface& graph);
 
   static void sink(const Context& ctx, const StorageReadInterface& graph,
                    Encoder& output);

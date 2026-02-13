@@ -95,16 +95,15 @@ class TestBachLoading(unittest.TestCase):
         res_data = list(res)
         assert res_data[0] == [4]
 
-        # get the schema
-        result_schema = res.get_result_schema()
-        logger.info(f"result schema: {result_schema}")
+        # get the projected columns for debugging
+        column_names = res.column_names()
+        logger.info(f"columns: {column_names}")
 
         res = conn2.execute("MATCH (n)-[e:knows]->(m) return count(e);")
         assert list(res)[0] == [2]
 
-        # get the schema
-        result_schema = res.get_result_schema()
-        logger.info(f"result schema: {result_schema}")
+        column_names = res.column_names()
+        logger.info(f"columns: {column_names}")
         db2.close()
 
     def test_open_close(self):

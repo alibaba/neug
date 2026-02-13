@@ -113,6 +113,7 @@ def test_session_create_schema_basic_types(tmp_path):
         "n.bool_prop, n.float_prop, n.double_prop;"
     )
     record = result.__next__()
+    logger.info(f"Record: {record}")
     assert record[0] == 1
     assert record[1] == 2
     assert record[2] == 3
@@ -265,7 +266,7 @@ def test_return_expression():
     assert len(result) == 1
     row = result.__next__()
     assert row[0] == 3  # 1 + 2
-    assert row[1] == "2023-01-01"  # Date
+    assert str(row[1]) == "2023-01-01"  # Date
     assert row[2] == "1 year 2 days"  # Interval
     conn.close()
     db.close()
@@ -1005,140 +1006,100 @@ def test_path_expand():
     assert result is not None
     expected_result = [
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 1,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 1,
-                },
-                {"_ID": 1, "_LABEL": "person"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 1},
+                ],
+                "edges": [{"label": "knows", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 2,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 2,
-                },
-                {"_ID": 2, "_LABEL": "person"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 2},
+                ],
+                "edges": [{"label": "knows", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 4294967296,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 72057594037927936,
-                },
-                {"_ID": 72057594037927936, "_LABEL": "software"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "software", "id": 72057594037927936},
+                ],
+                "edges": [{"label": "created", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 2, "_LABEL": "person"},
-                {
-                    "_ID": 4297064448,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 2,
-                    "_DST_ID": 72057594037927936,
-                },
-                {"_ID": 72057594037927936, "_LABEL": "software"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 2},
+                    {"label": "software", "id": 72057594037927936},
+                ],
+                "edges": [{"label": "created", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 2, "_LABEL": "person"},
-                {
-                    "_ID": 4297064449,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 2,
-                    "_DST_ID": 72057594037927937,
-                },
-                {"_ID": 72057594037927937, "_LABEL": "software"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 2},
+                    {"label": "software", "id": 72057594037927937},
+                ],
+                "edges": [{"label": "created", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 3, "_LABEL": "person"},
-                {
-                    "_ID": 4298113024,
-                    "_LABEL": "created",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "software",
-                    "_SRC_ID": 3,
-                    "_DST_ID": 72057594037927936,
-                },
-                {"_ID": 72057594037927936, "_LABEL": "software"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 3},
+                    {"label": "software", "id": 72057594037927936},
+                ],
+                "edges": [{"label": "created", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 2,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 2,
-                },
-                {"_ID": 2, "_LABEL": "person"},
-                {
-                    "_DST_ID": 72057594037927936,
-                    "_DST_LABEL": "software",
-                    "_ID": 4297064448,
-                    "_LABEL": "created",
-                    "_SRC_ID": 2,
-                    "_SRC_LABEL": "person",
-                },
-                {
-                    "_ID": 72057594037927936,
-                    "_LABEL": "software",
-                },
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 2},
+                    {"label": "software", "id": 72057594037927936},
+                ],
+                "edges": [
+                    {"label": "knows", "direction": "OUT"},
+                    {"label": "created", "direction": "OUT"},
+                ],
+                "weight": 0.0,
+                "length": 2,
+            }
         ],
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 2,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 2,
-                },
-                {"_ID": 2, "_LABEL": "person"},
-                {
-                    "_DST_ID": 72057594037927937,
-                    "_DST_LABEL": "software",
-                    "_ID": 4297064449,
-                    "_LABEL": "created",
-                    "_SRC_ID": 2,
-                    "_SRC_LABEL": "person",
-                },
-                {
-                    "_ID": 72057594037927937,
-                    "_LABEL": "software",
-                },
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 2},
+                    {"label": "software", "id": 72057594037927937},
+                ],
+                "edges": [
+                    {"label": "knows", "direction": "OUT"},
+                    {"label": "created", "direction": "OUT"},
+                ],
+                "weight": 0.0,
+                "length": 2,
+            }
         ],
     ]
     for i, record in enumerate(result):
@@ -1152,35 +1113,28 @@ def test_path_expand():
     assert result is not None
     expected_result = [
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 1,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 1,
-                },
-                {"_ID": 1, "_LABEL": "person"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 1},
+                ],
+                "edges": [{"label": "knows", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
         [
-            [
-                {"_ID": 0, "_LABEL": "person"},
-                {
-                    "_ID": 2,
-                    "_LABEL": "knows",
-                    "_SRC_LABEL": "person",
-                    "_DST_LABEL": "person",
-                    "_SRC_ID": 0,
-                    "_DST_ID": 2,
-                },
-                {"_ID": 2, "_LABEL": "person"},
-            ]
+            {
+                "vertices": [
+                    {"label": "person", "id": 0},
+                    {"label": "person", "id": 2},
+                ],
+                "edges": [{"label": "knows", "direction": "OUT"}],
+                "weight": 0.0,
+                "length": 1,
+            }
         ],
     ]
-
     for i, record in enumerate(result):
         assert (
             record == expected_result[i]
@@ -1286,12 +1240,12 @@ def test_list_return_basic(tmp_path):
 
     records = list(result)
     assert len(records) == 3
-    assert records[0][0][0] == "Alice"
-    assert records[1][0][0] == "Bob"
-    assert records[2][0][0] == "Charlie"
-    assert abs(records[0][0][1] - 1.11) < 1e-5
-    assert abs(records[1][0][1] - 2.22) < 1e-5
-    assert abs(records[2][0][1] - 3.33) < 1e-5
+    assert records[0][0]["f0"] == "Alice"
+    assert records[1][0]["f0"] == "Bob"
+    assert records[2][0]["f0"] == "Charlie"
+    assert abs(records[0][0]["f1"] - 1.11) < 1e-5
+    assert abs(records[1][0]["f1"] - 2.22) < 1e-5
+    assert abs(records[2][0]["f1"] - 3.33) < 1e-5
 
     conn.close()
     db.close()
@@ -1611,10 +1565,10 @@ def test_nested_tuple():
     conn = db.connect()
     result = conn.execute("Match (n {name: 'marko'}) Return [[n.name, n.age], n.id]")
     for record in result:
-        assert record[0] == [
-            ["marko", 29],
-            1,
-        ], f"Expected value '[['marko', 29], 1]', got {record[0]}"
+        assert record[0] == {
+            "f0": {"f0": "marko", "f1": 29},
+            "f1": 1,
+        }, f"Expected value '(('marko', 29), 1)', got {record[0]}"
     conn.close()
     db.close()
 
@@ -1625,10 +1579,10 @@ def test_null_value_tuple():
     conn = db.connect()
     result = conn.execute("Match (n {name: 'lop'}) Return [n.name, n.age]")
     for record in result:
-        assert record[0] == [
-            "lop",
-            None,
-        ], f"Expected value '['lop', None]', got {record[0]}"
+        assert record[0] == {
+            "f0": "lop",
+            "f1": None,
+        }, f"Expected value '['lop', None]', got {record[0]}"
     conn.close()
     db.close()
 
@@ -1685,7 +1639,10 @@ def test_date_time_to_string():
     """
     )
     result = list(result)
-    assert result == [["photo1030792332314.jpg", "2012-07-23 02:25:02.068"]]
+    from datetime import datetime
+
+    datetime_obj = datetime.strptime("2012-07-23 02:25:02.068", "%Y-%m-%d %H:%M:%S.%f")
+    assert result == [["photo1030792332314.jpg", datetime_obj]]
 
 
 def test_create_interval():
@@ -2309,16 +2266,18 @@ def test_optional_match_person_software():
         """
     )
     records = list(res)
+    print(records)
+    # TODO(zhanglei): fix the output format
     assert records == [
-        [{"_ID": 1, "_LABEL": "person", "id": 2, "name": "vadas", "age": 27}],
-        [{"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32}],
+        [{"_ID": 1, "id": 2, "name": "vadas", "age": 27, "_LABEL": "person"}],
+        [{"_ID": 2, "id": 4, "name": "josh", "age": 32, "_LABEL": "person"}],
         [
             {
                 "_ID": 72057594037927936,
-                "_LABEL": "software",
                 "id": 3,
                 "name": "lop",
                 "lang": "java",
+                "_LABEL": "software",
             }
         ],
     ]
@@ -2390,7 +2349,7 @@ def test_parameterized_query():
 def test_alter_table_add_property_with_default_tinysnb():
     """Test ALTER TABLE to add property with default value on tinysnb person table."""
     db_dir = "/tmp/tinysnb"
-    db = Database(db_path=str(db_dir), mode="w")
+    db = Database(db_path=str(db_dir), mode="w", checkpoint_on_close=False)
     conn = db.connect()
 
     # Alter table person to add property propy with default value 10
@@ -2403,3 +2362,25 @@ def test_alter_table_add_property_with_default_tinysnb():
 
     conn.close()
     db.close()
+
+
+def test_filtering():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(
+        "MATCH (a:person)-[e1:knows]->(b:person) WHERE a.age > 35 RETURN b.fName"
+    )
+    records = list(result)
+    assert records == [["Alice"], ["Bob"], ["Dan"]]
+    conn.close()
+    db.close()
+
+
+def test_result():
+    db_dir = "/tmp/modern_graph"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute("Match (n: person) return n")
+    logger.info(list(result))
+    logger.info(result.column_names())

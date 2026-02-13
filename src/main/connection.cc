@@ -50,13 +50,7 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  auto result =
-      query_processor_->execute(query_string, access_mode, parameters);
-  if (result) {
-    return QueryResult::From(std::move(result.value()));
-  } else {
-    RETURN_ERROR(result.error());
-  }
+  return query_processor_->execute(query_string, access_mode, parameters);
 }
 
 result<QueryResult> Connection::Query(const std::string& query_string,
@@ -68,13 +62,7 @@ result<QueryResult> Connection::Query(const std::string& query_string,
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  auto result =
-      query_processor_->execute(query_string, access_mode, parameters_json);
-  if (result) {
-    return QueryResult::From(std::move(result.value()));
-  } else {
-    RETURN_ERROR(result.error());
-  }
+  return query_processor_->execute(query_string, access_mode, parameters_json);
 }
 
 }  // namespace neug

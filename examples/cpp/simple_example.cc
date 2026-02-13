@@ -25,12 +25,18 @@ int main(int argc, char** argv) {
                   "INT64, PRIMARY KEY(id));"));
   CHECK(conn->Query("CREATE (a: person {id: 1, name: 'Alice', age: 30});"));
   CHECK(conn->Query("CREATE (b: person {id: 2, name: 'Bob', age: 25});"));
-  auto result = conn->Query("MATCH (n: person) WHERE n.age > 26 RETURN n.name");
+  auto result =
+      conn->Query("MATCH (n: person) WHERE n.age > 26 RETURN n.name;");
   CHECK(result);
-  CHECK(result.value().hasNext());
-  auto record = result.value().next();
-  CHECK(record.ToString() == "<element { object { str: \"Alice\" } }>")
-      << record.ToString();
-  CHECK(!result.value().hasNext());
+  LOG(INFO) << result.value().ToString();
+  CHECK(result.value().table()->num_rows() == 1);
+  CHECK(result.value()
+            .table()
+            ->column(0)
+            ->chunk(0)
+            ->GetScalar(0)
+            .ValueOrDie()
+            ->ToString() == "Alice");
+  db.Close();
   return 0;
 }

@@ -88,6 +88,10 @@ class OptionalValueColumn : public IValueColumn<T> {
 
   inline size_t size() const override { return data_.size(); }
 
+  inline const std::vector<bool>& validity_bitmap() const { return valid_; }
+
+  inline const std::vector<T>& data() const { return data_; }
+
   std::string column_info() const override {
     return "OptionalValueColumn<" + ValueConverter<T>::name() + ">[" +
            std::to_string(size()) + "]";

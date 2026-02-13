@@ -61,10 +61,8 @@ struct BrpcServiceProtocol {
                                         std::string& query_request);
   ParseQueryRequestFunc parse_query_request;
 
-  typedef void (*SendQueryResponseFunc)(
-      brpc::Controller* cntl,
-      neug::result<results::CollectiveResults>&
-          response);  // make response non-const to allow move
+  typedef void (*SendQueryResponseFunc)(brpc::Controller* cntl,
+                                        neug::result<QueryResult>& response);
   SendQueryResponseFunc send_query_response;
 
   typedef void (*SendSchemaResponseFunc)(brpc::Controller* cntl,

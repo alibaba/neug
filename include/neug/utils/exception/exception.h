@@ -335,3 +335,11 @@ class NEUG_API PropertyNotFoundException : public Exception {
 
 #define THROW_PROPERTY_NOT_FOUND(msg) \
   THROW_EXCEPTION_WITH_FILE_LINE_AND_TYPE(PropertyNotFoundException, msg)
+
+#define THROW_IF_ARROW_NOT_OK(expr)                             \
+  do {                                                          \
+    auto status = (expr);                                       \
+    if (!status.ok()) {                                         \
+      THROW_RUNTIME_ERROR("Arrow error: " + status.ToString()); \
+    }                                                           \
+  } while (0)

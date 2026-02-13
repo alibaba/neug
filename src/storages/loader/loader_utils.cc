@@ -684,6 +684,19 @@ void set_column_from_date_array(std::shared_ptr<neug::ColumnBase> col,
             std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))));
       }
     }
+  } else if (type->Equals(arrow::date64())) {
+    for (auto j = 0; j < array->num_chunks(); ++j) {
+      auto casted =
+          std::static_pointer_cast<arrow::Date64Array>(array->chunk(j));
+      for (auto k = 0; k < casted->length(); ++k) {
+        if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+          continue;
+        }
+        col->set_any(
+            vids[k],
+            std::move(PropUtils<Date>::to_prop(Date(casted->Value(k)))));
+      }
+    }
   } else {
     LOG(FATAL) << "Not implemented: converting " << type->ToString() << " to "
                << col_type;

@@ -118,13 +118,8 @@ TEST(StorageDDLTest, ExportTest) {
         "MATCH (v:node_a)-[e:rel_a]->(v2:node_a) "
         "RETURN e;");
     ASSERT_TRUE(res);
-    auto query_result = res.value();
-    int count = 0;
-    while (query_result.hasNext()) {
-      auto record = query_result.next();
-      LOG(INFO) << "record: " << record.ToString();
-      count++;
-    }
+    const auto& query_result = res.value();
+    int count = query_result.length();
     LOG(INFO) << "Total knows relationships: " << count;
   }
 

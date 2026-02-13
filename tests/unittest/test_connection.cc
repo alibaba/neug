@@ -75,19 +75,14 @@ class ConnectionTest : public ::testing::Test {
     EXPECT_TRUE(res);
     size_t person_count = 0;
     int64_t id2_sum = 0;
-    auto res_value = res.value();
-    while (res_value.hasNext()) {
-      auto record = res_value.next();
-      ++person_count;
-      EXPECT_TRUE(record.entries().size() == 1);
-      auto email_field = record.entries()[0];
-      id2_sum += get_id2_field(email_field);
+    const auto& res_value = res.value().table();
+    person_count = res_value->num_rows();
+    auto id2_column = res_value->column(0)->chunk(0);
+    for (int64_t i = 0; i < id2_column->length(); ++i) {
+      auto scalar = id2_column->GetScalar(i).ValueOrDie();
+      id2_sum += std::dynamic_pointer_cast<arrow::Int64Scalar>(scalar)->value;
     }
     return {person_count, id2_sum};
-  }
-
-  int64_t get_id2_field(const results::Entry* entry) {
-    return entry->element().object().i64();
   }
 
   int32_t parallel_execute(std::shared_ptr<Connection> conn,
@@ -160,10 +155,11 @@ TEST_F(ConnectionTest, TestReadOnlyConnections) {
   auto res = connections[0]->Query(
       "CREATE NODE TABLE test_node (id INT64 PRIMARY KEY, name STRING);");
   EXPECT_FALSE(res);
-  res = connections[0]->Query("MATCH(n) return count(n);");
-  EXPECT_TRUE(res);
-  res = connections[0]->Query("MATCH(n) where n.id = 1 SET n.name = 'Alice';");
-  EXPECT_FALSE(res);
+  auto res2 = connections[0]->Query("MATCH(n) return count(n);");
+  EXPECT_TRUE(res2);
+  auto res3 =
+      connections[0]->Query("MATCH(n) where n.id = 1 SET n.name = 'Alice';");
+  EXPECT_FALSE(res3);
 }
 
 // Test Parallel Execution
@@ -199,10 +195,12 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
   NeugDBConfig config;
   config.data_dir = DB_DIR;
   config.mode = DBMode::READ_WRITE;
+
   db.Open(config);
 
   auto conn = db.Connect();
   EXPECT_NE(conn, nullptr);
+
   atomicityInit(conn);
 
   auto res = conn->Query(
@@ -213,6 +211,31 @@ TEST_F(ConnectionTest, TestParameterizedQuery) {
   EXPECT_TRUE(res);
   LOG(INFO) << res.value().ToString();
 }
+
+TEST_F(ConnectionTest, TestConnectionQueryResult) {
+  NeugDB db;
+  NeugDBConfig config;
+  config.data_dir = DB_DIR;
+  config.mode = DBMode::READ_ONLY;
+  db.Open(config);
+
+  auto conn = db.Connect();
+  EXPECT_NE(conn, nullptr);
+
+  auto res = conn->Query("MATCH (n:person) RETURN n.id ORDER BY n.id;");
+  EXPECT_TRUE(res);
+  const auto& res_value = res.value();
+  std::vector<int64_t> ids;
+  auto table = res_value.table();
+  auto id_column = table->column(0)->chunk(0);
+  for (int64_t i = 0; i < id_column->length(); ++i) {
+    auto scalar = id_column->GetScalar(i).ValueOrDie();
+    ids.push_back(std::dynamic_pointer_cast<arrow::Int64Scalar>(scalar)->value);
+  }
+  EXPECT_EQ(ids.size(), 4);
+  std::vector<int64_t> expected_ids = {1, 2, 4, 6};
+  EXPECT_EQ(ids, expected_ids);
+}  // namespace test
 
 }  // namespace test
 

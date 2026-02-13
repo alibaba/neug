@@ -419,20 +419,20 @@ TEST_F(ArrowUtilsTest, TypeConverter_Float) {
 TEST_F(ArrowUtilsTest, TypeConverter_String) {
   EXPECT_EQ(TypeConverter<std::string>::property_type(), DataTypeId::kVarchar);
   auto arrow_type = TypeConverter<std::string>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::large_utf8()));
+  EXPECT_TRUE(arrow_type->Equals(arrow::utf8()));
 }
 
 TEST_F(ArrowUtilsTest, TypeConverter_StringView) {
   EXPECT_EQ(TypeConverter<std::string_view>::property_type(),
             DataTypeId::kVarchar);
   auto arrow_type = TypeConverter<std::string_view>::ArrowTypeValue();
-  EXPECT_TRUE(arrow_type->Equals(arrow::large_utf8()));
+  EXPECT_TRUE(arrow_type->Equals(arrow::utf8()));
 }
 
 TEST_F(ArrowUtilsTest, TypeConverter_Date) {
   EXPECT_EQ(TypeConverter<Date>::property_type(), DataTypeId::kDate);
   auto arrow_type = TypeConverter<Date>::ArrowTypeValue();
-  auto expected = arrow::timestamp(arrow::TimeUnit::MILLI);
+  auto expected = arrow::date64();
   EXPECT_TRUE(arrow_type->Equals(expected));
 }
 
@@ -446,7 +446,7 @@ TEST_F(ArrowUtilsTest, TypeConverter_DateTime) {
 TEST_F(ArrowUtilsTest, TypeConverter_Interval) {
   EXPECT_EQ(TypeConverter<Interval>::property_type(), DataTypeId::kInterval);
   auto arrow_type = TypeConverter<Interval>::ArrowTypeValue();
-  auto expected = arrow::duration(arrow::TimeUnit::MILLI);
+  auto expected = arrow::utf8();
   EXPECT_TRUE(arrow_type->Equals(expected));
 }
 
@@ -478,7 +478,7 @@ TEST_F(ArrowUtilsTest, PropertyTypeToArrowType_Function) {
   EXPECT_TRUE(date_type->Equals(arrow::date32()));
 
   auto string_type = PropertyTypeToArrowType(DataTypeId::kVarchar);
-  EXPECT_TRUE(string_type->Equals(arrow::large_utf8()));
+  EXPECT_TRUE(string_type->Equals(arrow::utf8()));
 }
 
 // =============== Parser Metadata Tests ===============

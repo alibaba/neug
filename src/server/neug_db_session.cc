@@ -39,6 +39,7 @@
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/stored_procedure.pb.h"
 #include "neug/main/query_request.h"
+#include "neug/main/query_result.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
@@ -139,8 +140,7 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
   return ctx_res;
 }
 
-neug::result<results::CollectiveResults> NeugDBSession::Eval(
-    const std::string& req) {
+neug::result<QueryResult> NeugDBSession::Eval(const std::string& req) {
   const auto start = std::chrono::high_resolution_clock::now();
 
   std::string query;
@@ -157,7 +157,7 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
 
   // Acquire different transaction on provided access_mode.;
   std::unique_ptr<neug::execution::OprTimer> timer = nullptr;
-  neug::result<results::CollectiveResults> result;
+  QueryResult result;
   std::string result_schema;
   if (mode == neug::AccessMode::kRead) {
     auto read_txn = GetReadTransaction();
@@ -165,14 +165,13 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, read_txn, gri));
-    result = neug::execution::Sink::sink(ctx, gri);
+    result.Swap(execution::Sink::sink_neug_serial(ctx, gri));
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, insert_txn, gii));
-    result = results::CollectiveResults();
   } else if (mode == AccessMode::kUpdate ||
              mode == AccessMode::kSchema) {  // Update mode
     CHECK(planner_ != nullptr);
@@ -181,14 +180,14 @@ neug::result<results::CollectiveResults> NeugDBSession::Eval(
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, update_txn, gui));
-    result = neug::execution::Sink::sink(ctx, gui);
+    result.Swap(execution::Sink::sink_neug_serial(ctx, gui));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +
         std::to_string(static_cast<int>(mode)));
   }
   // Only update schema, statistics will not changed.
-  result->set_result_schema(result_schema);
+  result.set_result_schema(result_schema);
 
   const auto end = std::chrono::high_resolution_clock::now();
   eval_duration_.fetch_add(

@@ -16,22 +16,9 @@
 # limitations under the License.
 #
 
-import yaml
 from tabulate import tabulate
 
 from neug.query_result import QueryResult
-
-
-def parse_header(result_schema: str):
-    """
-    Parse the header of the result schema, extracting the column names.
-    """
-    headers = []
-    if result_schema:
-        schema = yaml.safe_load(result_schema)
-        if "returns" in schema:
-            headers = [col["name"] for col in schema["returns"]]
-    return headers
 
 
 def parse_and_format_results(pyquery_result: QueryResult, max_rows=20):
@@ -45,7 +32,7 @@ def parse_and_format_results(pyquery_result: QueryResult, max_rows=20):
     max_rows : int
         Maximum number of rows to print (default: 20).
     """
-    headers = parse_header(pyquery_result.get_result_schema())
+    headers = pyquery_result.column_names()
     rows = []
 
     total_records = len(pyquery_result)

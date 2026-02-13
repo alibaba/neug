@@ -17,6 +17,9 @@
 
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <vector>
+#include "arrow_column_assertions.h"
 #include "neug/main/neug_db.h"
 
 class MemoryLevelPersistenceTest : public ::testing::TestWithParam<int> {
@@ -71,28 +74,25 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   auto res =
       conn2->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
   ASSERT_TRUE(res);
-  auto val = res.value();
-  ASSERT_TRUE(val.hasNext());
-  auto row1 = val.next();
-  ASSERT_EQ(
-      row1.ToString(),
-      "<element { object { i64: 1 } }, element { object { str: \"Alice\" } }>");
-  ASSERT_TRUE(val.hasNext());
-  auto row2 = val.next();
-  ASSERT_EQ(
-      row2.ToString(),
-      "<element { object { i64: 2 } }, element { object { str: \"Bob\" } }>");
-  ASSERT_FALSE(val.hasNext());
+  const auto& val = res.value();
+  auto table = val.table();
+  ASSERT_NE(table, nullptr);
+  ASSERT_EQ(table->num_rows(), 2);
+  ASSERT_EQ(table->num_columns(), 2);
+  neug::test::AssertInt64Column(table, 0, {1, 2});
+  neug::test::AssertStringColumn(table, 1, {"Alice", "Bob"});
+
   auto res1 = conn2->Query(
       "MATCH (a:person)-[r:knows]->(b:person) RETURN a.id, b.id, r.since;");
   ASSERT_TRUE(res1);
-  auto val1 = res1.value();
-  ASSERT_TRUE(val1.hasNext());
-  auto row3 = val1.next();
-  ASSERT_EQ(row3.ToString(),
-            "<element { object { i64: 1 } }, element { object { i64: 2 } }, "
-            "element { object { i64: 2021 } }>");
-  ASSERT_FALSE(val1.hasNext());
+  const auto& val1 = res1.value();
+  auto table1 = val1.table();
+  ASSERT_NE(table1, nullptr);
+  ASSERT_EQ(table1->num_rows(), 1);
+  ASSERT_EQ(table1->num_columns(), 3);
+  neug::test::AssertInt64Column(table1, 0, {1});
+  neug::test::AssertInt64Column(table1, 1, {2});
+  neug::test::AssertInt64Column(table1, 2, {2021});
 
   // 3. Do more DML/DDL
   ASSERT_TRUE(conn2->Query("CREATE (n:person {id: 3, name: 'Carol'});"));
@@ -116,37 +116,35 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   auto res2 =
       conn3->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
   ASSERT_TRUE(res2);
-  auto val2 = res2.value();
-  ASSERT_TRUE(val2.length() == 3);
-  ASSERT_EQ(
-      val2[0].ToString(),
-      "<element { object { i64: 1 } }, element { object { str: \"Alice\" } }>");
-  ASSERT_EQ(
-      val2[1].ToString(),
-      "<element { object { i64: 2 } }, element { object { str: \"Bob\" } }>");
-  ASSERT_EQ(
-      val2[2].ToString(),
-      "<element { object { i64: 3 } }, element { object { str: \"Carol\" } }>");
-
+  const auto& val2 = res2.value();
+  auto table2 = val2.table();
+  ASSERT_NE(table2, nullptr);
+  ASSERT_EQ(table2->num_rows(), 3);
+  ASSERT_EQ(table2->num_columns(), 2);
+  neug::test::AssertInt64Column(table2, 0, {1, 2, 3});
+  neug::test::AssertStringColumn(table2, 1, {"Alice", "Bob", "Carol"});
   auto res3 = conn3->Query(
       "MATCH (p:person)-[r:lives_in]->(c:city) RETURN p.id, c.id, r.since;");
   ASSERT_TRUE(res3);
-  auto val3 = res3.value();
-  ASSERT_TRUE(val3.length() == 1);
-  ASSERT_EQ(val3[0].ToString(),
-            "<element { object { i64: 1 } }, element { object { i64: 1 } }, "
-            "element { object { i64: 2020 } }>");
+  const auto& val3 = res3.value();
+  auto table3 = val3.table();
+  ASSERT_NE(table3, nullptr);
+  ASSERT_EQ(table3->num_rows(), 1);
+  ASSERT_EQ(table3->num_columns(), 3);
+  neug::test::AssertInt64Column(table3, 0, {1});
+  neug::test::AssertInt64Column(table3, 1, {1});
+  neug::test::AssertInt64Column(table3, 2, {2020});
   auto res4 = conn3->Query(
       "MATCH (a:person)-[r:knows]->(b:person) RETURN a.id, b.id, r.since ORDER "
       "BY a.id, b.id;");
   ASSERT_TRUE(res4);
-  auto val4 = res4.value();
-  ASSERT_TRUE(val4.length() == 2);
-  ASSERT_EQ(val4[0].ToString(),
-            "<element { object { i64: 1 } }, element { object { i64: 2 } }, "
-            "element { object { i64: 2021 } }>");
-  ASSERT_EQ(val4[1].ToString(),
-            "<element { object { i64: 2 } }, element { object { i64: 3 } }, "
-            "element { object { i64: 2022 } }>");
+  const auto& val4 = res4.value();
+  auto table4 = val4.table();
+  ASSERT_NE(table4, nullptr);
+  ASSERT_EQ(table4->num_rows(), 2);
+  ASSERT_EQ(table4->num_columns(), 3);
+  neug::test::AssertInt64Column(table4, 0, {1, 2});
+  neug::test::AssertInt64Column(table4, 1, {2, 3});
+  neug::test::AssertInt64Column(table4, 2, {2021, 2022});
   db3.Close();
 }
