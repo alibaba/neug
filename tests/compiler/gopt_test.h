@@ -73,7 +73,7 @@ class Utils {
     options.preserve_proto_field_names =
         true;  // Optional: use proto field names instead of camelCase
     std::string json;
-    google::protobuf::util::MessageToJsonString(plan, &json, options);
+    (void) google::protobuf::util::MessageToJsonString(plan, &json, options);
     return json;
   }
 

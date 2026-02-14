@@ -164,6 +164,17 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml-cpp/CMakeLists.txt"
     endif()
 endif()
 
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf/third_party/abseil-cpp/CMakeLists.txt")
+    execute_process(
+        COMMAND git submodule update --init
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf
+        RESULT_VARIABLE result
+    )
+    if(result)
+        message(FATAL_ERROR "Failed to update protobuf git submodule: ${result}")
+    endif()
+endif()
+
 if (WITH_MIMALLOC)
     set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
     set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
@@ -466,7 +477,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #if compiler is gcc
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess -Wno-maybe-uninitialized")
+    # -Wno-missing-requires: protobuf v29.6 headers use C++20 concepts in port.h
+    # that trigger this warning on GCC 13+, which becomes an error with -Werror.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-memaccess -Wno-maybe-uninitialized -Wno-missing-requires -Wno-ignored-attributes")
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-uninitialized")
 endif()
@@ -537,32 +550,6 @@ build_protobuf_as_third_party()
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
-
-# Check protobuf version for conditional patching
-if(Protobuf_FOUND AND Protobuf_VERSION)
-    message(STATUS "protobuf version: ${Protobuf_VERSION}")
-    # Convert version to comparable format (e.g., "31.0.0" becomes 31000000)
-    string(REPLACE "." ";" VERSION_LIST ${Protobuf_VERSION})
-    list(LENGTH VERSION_LIST VERSION_LIST_LENGTH)
-    # It seems that Protobuf_VERSION is not correct, for example, 32.1 become 6.32.1
-    if(VERSION_LIST_LENGTH GREATER 1)
-        list(GET VERSION_LIST 1 PROTOBUF_MINOR)
-    endif()
-    # Only check the protobuf_minor version for now
-    message(STATUS "PROTOBUF_MAJOR: ${PROTOBUF_MAJOR}, PROTOBUF_MINOR: ${PROTOBUF_MINOR}, PROTOBUF_PATCH: ${PROTOBUF_PATCH}")
-    
-    if(PROTOBUF_MINOR GREATER_EQUAL 31)
-        set(APPLY_BRPC_PATCH TRUE)
-        message(STATUS "protobuf version ${Protobuf_VERSION} >= 31.0, will apply brpc patch if needed")
-    else()
-        set(APPLY_BRPC_PATCH FALSE)
-        message(STATUS "protobuf version ${Protobuf_VERSION} < 31.0, will not apply brpc patch")
-    endif()
-else()
-    # If version is not available or protobuf is built from source, default to applying patch
-    set(APPLY_BRPC_PATCH TRUE)
-    message(STATUS "protobuf version not available, defaulting to applying brpc patch if needed")
-endif()
 
 # Generate config header. Need to placed after protobuf find_package
 configure_file(

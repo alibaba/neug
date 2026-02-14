@@ -127,11 +127,11 @@ void add_entry_value_to_table(rapidjson::Value& table, size_t index,
   if (entry.has_element()) {
     const auto& element = entry.element();
     if (element.has_vertex()) {
-      google::protobuf::util::MessageToJsonString(element.vertex(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.vertex(), &value);
     } else if (element.has_edge()) {
-      google::protobuf::util::MessageToJsonString(element.edge(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.edge(), &value);
     } else if (element.has_graph_path()) {
-      google::protobuf::util::MessageToJsonString(element.graph_path(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.graph_path(), &value);
     } else if (element.has_object()) {
       value = convert_object_to_string(element.object());
     }
@@ -141,15 +141,15 @@ void add_entry_value_to_table(rapidjson::Value& table, size_t index,
       auto item = e.element();
       if (item.has_vertex()) {
         std::string v;
-        google::protobuf::util::MessageToJsonString(item.vertex(), &v);
+       (void) google::protobuf::util::MessageToJsonString(item.vertex(), &v);
         v_collection.emplace_back(v);
       } else if (item.has_edge()) {
         std::string v;
-        google::protobuf::util::MessageToJsonString(item.edge(), &v);
+        (void) google::protobuf::util::MessageToJsonString(item.edge(), &v);
         v_collection.emplace_back(v);
       } else if (item.has_graph_path()) {
         std::string v;
-        google::protobuf::util::MessageToJsonString(item.graph_path(), &v);
+        (void) google::protobuf::util::MessageToJsonString(item.graph_path(), &v);
         v_collection.emplace_back(v);
       } else if (item.has_object()) {
         v_collection.emplace_back(convert_object_to_string(item.object()));

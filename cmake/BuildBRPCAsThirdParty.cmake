@@ -31,31 +31,22 @@ function(build_brpc_as_third_party)
                 OUTPUT_VARIABLE output
                 ERROR_VARIABLE error_output)
 
-    if (APPLY_BRPC_PATCH)
-        if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc.patch")
-            message(FATAL_ERROR "brpc.patch not found in third_party")
-        endif()
-        message(STATUS "Applying brpc patch due to protobuf version >= 31.0")
-        execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc.patch
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc
-                    RESULT_VARIABLE result
-                    OUTPUT_VARIABLE output
-                    ERROR_VARIABLE error_output)
-    else()
-        message(STATUS "Skipping brpc patch application due to protobuf version < 31.0")
-    endif()
-
     add_subdirectory(third_party/brpc)
     
     # Apply warning suppression flags to brpc targets
     if (TARGET brpc-static)
-        target_compile_options(brpc-static PRIVATE -Wno-deprecated-declarations -Wno-nonnull)
+        target_compile_options(brpc-static PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
     endif()
     if (TARGET SOURCES_LIB)
-        target_compile_options(SOURCES_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull)
+        target_compile_options(SOURCES_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
     endif()
     if (TARGET BUTIL_LIB)
-        target_compile_options(BUTIL_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull)
+        message(STATUS "Applying warning suppression flags to BUTIL_LIB")
+        target_compile_options(BUTIL_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
+    endif()
+    if (TARGET PROTO_LIB)
+        message(STATUS "Applying warning suppression flags to PROTO_LIB")
+        target_compile_options(PROTO_LIB PRIVATE -Wno-deprecated-declarations -Wno-nonnull -DDYNAMIC_ANNOTATIONS_ENABLED=0)
     endif()
     
     set(BRPC_LIB brpc-static PARENT_SCOPE)

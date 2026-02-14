@@ -43,6 +43,8 @@ jobs:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Clean the tool directory for self-hosted runner
         run: |
@@ -112,6 +114,8 @@ jobs:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Clean the tool directory for self-hosted runner
         run: |
@@ -182,6 +186,8 @@ jobs:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Clean the tool directory for self-hosted runner
         run: |
@@ -260,6 +266,8 @@ jobs:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Clean the tool directory for self-hosted runner
         run: |
