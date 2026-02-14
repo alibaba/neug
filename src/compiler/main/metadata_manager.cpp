@@ -56,11 +56,21 @@ MetadataManager::MetadataManager() {
   catalog::GCatalogHolder::setGCatalog(
       this->catalog->ptrCast<catalog::GCatalog>());
   std::string emptyStats = "";
-  this->storageManager = std::make_unique<neug::storage::StatsManager>(
+  auto statsManager = std::make_shared<neug::storage::StatsManager>(
       emptyStats, this, *this->memoryManager);
+  this->statsManager = std::move(statsManager);
 }
 
 MetadataManager::~MetadataManager() = default;
+
+std::shared_ptr<storage::StatsManager> MetadataManager::getStatsManager()
+    const {
+  // spin until we own the lock
+  while (statsManagerLock.test_and_set(std::memory_order_acquire)) {}
+  std::shared_ptr<storage::StatsManager> copy = statsManager;
+  statsManagerLock.clear(std::memory_order_release);
+  return copy;
+}
 
 void MetadataManager::updateSchema(const std::filesystem::path& schemaPath) {
   if (!this->catalog) {
@@ -84,13 +94,19 @@ void MetadataManager::updateSchema(const YAML::Node& schema) {
 }
 
 void MetadataManager::updateStats(const std::filesystem::path& statsPath) {
-  this->storageManager = std::make_unique<neug::storage::StatsManager>(
+  auto newManager = std::make_shared<neug::storage::StatsManager>(
       statsPath, this, *this->memoryManager);
+  while (this->statsManagerLock.test_and_set(std::memory_order_acquire)) {}
+  this->statsManager = std::move(newManager);
+  this->statsManagerLock.clear(std::memory_order_release);
 }
 
 void MetadataManager::updateStats(const std::string& stats) {
-  this->storageManager = std::make_unique<neug::storage::StatsManager>(
+  auto newManager = std::make_shared<neug::storage::StatsManager>(
       stats, this, *this->memoryManager);
+  while (this->statsManagerLock.test_and_set(std::memory_order_acquire)) {}
+  this->statsManager = std::move(newManager);
+  this->statsManagerLock.clear(std::memory_order_release);
 }
 
 }  // namespace main

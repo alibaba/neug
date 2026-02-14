@@ -139,8 +139,8 @@ std::string ClientContext::getExtensionDir() const {
                       NEUG_EXTENSION_VERSION, extension::getPlatform());
 }
 
-storage::StatsManager* ClientContext::getStatsManager() const {
-  return localDatabase->storageManager.get();
+std::shared_ptr<storage::StatsManager> ClientContext::getStatsManager() const {
+  return localDatabase->getStatsManager();
 }
 
 storage::MemoryManager* ClientContext::getMemoryManager() const {

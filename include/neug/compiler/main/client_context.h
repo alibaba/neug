@@ -120,7 +120,7 @@ class NEUG_API ClientContext {
   std::string getExtensionDir() const;
 
   MetadataManager* getMetadataManager() const { return localDatabase; }
-  storage::StatsManager* getStatsManager() const;
+  std::shared_ptr<storage::StatsManager> getStatsManager() const;
   storage::MemoryManager* getMemoryManager() const;
   extension::ExtensionManager* getExtensionManager() const;
   catalog::Catalog* getCatalog() const;

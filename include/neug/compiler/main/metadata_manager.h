@@ -23,6 +23,7 @@
 #pragma once
 
 #include <yaml-cpp/node/node.h>
+#include <atomic>
 #include <filesystem>
 #include <memory>
 
@@ -51,8 +52,9 @@ class ExtensionManager;
 }  // namespace extension
 
 namespace storage {
+class StatsManager;
 class StorageExtension;
-}
+}  // namespace storage
 
 namespace main {
 struct ExtensionOption;
@@ -92,9 +94,14 @@ class MetadataManager {
 
   void updateStats(const std::string& stats);
 
+  /** Thread-safe (spinlock + atomic): returns a copy of the current
+   * StatsManager. */
+  std::shared_ptr<storage::StatsManager> getStatsManager() const;
+
  private:
   std::unique_ptr<catalog::Catalog> catalog;
-  std::unique_ptr<storage::StatsManager> storageManager;
+  mutable std::atomic_flag statsManagerLock = ATOMIC_FLAG_INIT;
+  std::shared_ptr<storage::StatsManager> statsManager;
   std::unique_ptr<storage::MemoryManager> memoryManager;
   std::unique_ptr<common::VirtualFileSystem> vfs;
   std::unique_ptr<extension::ExtensionManager> extensionManager;
