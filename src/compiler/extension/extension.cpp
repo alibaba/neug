@@ -56,11 +56,15 @@ std::string getOS() {
 }
 
 std::string getArch() {
-  std::string arch = "amd64";
-#if defined(__i386__) || defined(_M_IX86)
+  std::string arch = "x86_64";
+#if defined(__x86_64__) || defined(_M_X64)
+  arch = "x86_64";
+#elif defined(__i386__) || defined(_M_IX86)
   arch = "x86";
-#elif defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64)
+#elif defined(__aarch64__) || defined(__ARM_ARCH_ISA_A64) || defined(_M_ARM64)
   arch = "arm64";
+#elif defined(__arm__) || defined(_M_ARM)
+  arch = "arm";
 #endif
   return arch;
 }
