@@ -1073,7 +1073,6 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   }
   for (size_t i = 0; i < src_lids.size(); ++i) {
     auto oe_edges = oe_view.get_edges(src_lids[i]);
-    auto ie_edges = ie_view.get_edges(dst_lids[i]);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       auto str_data = ed_accessor_0.get_data(it);
       auto int_data = ed_accessor_1.get_data(it);
@@ -1230,8 +1229,8 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  suppliers = execution::ops::create_csv_record_suppliers(file_path, column_types,
-                                                        csv_options);
+  suppliers = execution::ops::create_csv_record_suppliers(
+      file_path, column_types, csv_options);
   EXPECT_EQ(suppliers.size(), 1);
 
   LFIndexer<vid_t> indexer;

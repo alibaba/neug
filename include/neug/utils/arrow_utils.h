@@ -36,7 +36,7 @@ namespace neug {
 namespace execution {
 class EdgeRecord;
 class VertexRecord;
-class Path;
+struct Path;
 }  // namespace execution
 
 // arrow related;

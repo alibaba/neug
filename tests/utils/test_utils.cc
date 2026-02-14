@@ -156,9 +156,9 @@ TEST_F(BitsetTest, SelfAssignment) {
   bs.resize(50);
   bs.set(20);
 
-  bs = bs;
-  EXPECT_EQ(bs.size(), 50);
-  EXPECT_TRUE(bs.get(20));
+  Bitset bs2 = bs;
+  EXPECT_EQ(bs2.size(), 50);
+  EXPECT_TRUE(bs2.get(20));
 }
 
 TEST_F(BitsetTest, AtomicOperations) {
