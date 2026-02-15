@@ -767,7 +767,7 @@ class TestLoadFrom:
             pytest.skip(f"JSON file not found: {json_path}")
 
         # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -784,14 +784,89 @@ class TestLoadFrom:
         first_record = records[0]
         assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
 
+    def test_load_from_json_return_specific_columns(self):
+        """Test LOAD FROM JSON Array with column projection."""
+        json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
+        if not os.path.exists(json_path):
+            pytest.skip(f"JSON file not found: {json_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{json_path}"
+        RETURN fName, age
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return only 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], int), "age should be integer"
+
+    def test_load_from_json_with_column_alias(self):
+        """Test LOAD FROM JSON Array with column aliases in RETURN.
+
+        Regression test: column aliases (e.g., fName AS name) must not be used
+        as the physical column name when reading the JSON file. The entry schema
+        sent to the Arrow JSON reader must use the original field names.
+        """
+        json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
+        if not os.path.exists(json_path):
+            pytest.skip(f"JSON file not found: {json_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{json_path}"
+        RETURN fName AS name, age AS years
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "name (aliased fName) should be string"
+        assert isinstance(first_record[1], int), "years (aliased age) should be integer"
+        # Verify actual data: first person is Alice, age 35
+        assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
+        assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
+
+    def test_load_from_jsonl_with_column_alias(self):
+        """Test LOAD FROM JSONL with column aliases in RETURN."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        RETURN fName AS name, age AS years
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "name (aliased fName) should be string"
+        assert isinstance(first_record[1], int), "years (aliased age) should be integer"
+        assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
+        assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
+
     def test_load_from_jsonl_return_specific_columns(self):
         """Test LOAD FROM JSONL with column projection."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}" (newline_delimited=true)
@@ -815,8 +890,7 @@ class TestLoadFrom:
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
@@ -843,8 +917,7 @@ class TestLoadFrom:
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
@@ -994,8 +1067,7 @@ class TestCopyFrom:
         """
         self.conn.execute(create_schema)
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Copy data with column remapping using LOAD FROM subquery
         # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...

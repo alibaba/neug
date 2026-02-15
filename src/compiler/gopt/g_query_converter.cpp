@@ -1110,10 +1110,13 @@ std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
   common::alias_id_t columnId = 0;
   auto entryPB = std::make_unique<::physical::EntrySchema>();
   for (auto& column : scanBindData->columns) {
-    if (skipColumn(column->toString())) {
+    // Use rawName() to get the original column name without alias.
+    // When RETURN clause uses aliases (e.g., RETURN fName AS name),
+    // toString() returns the alias which doesn't match data source fields.
+    if (skipColumn(column->rawName())) {
       continue;  // skip internal columns
     }
-    entryPB->add_column_names(column->toString());
+    entryPB->add_column_names(column->rawName());
     auto typePB = typeConverter->convertLogicalType(column->getDataType());
     entryPB->mutable_column_types()->AddAllocated(typePB->release_data_type());
   }
@@ -1152,7 +1155,7 @@ void GQueryConvertor::convertDataSource(
   for (auto idx = 0; idx < scanBindData->columns.size(); idx++) {
     if (columnSkips[idx]) {
       sourcePB->mutable_skip_columns()->Add(
-          scanBindData->columns[idx]->toString());
+          scanBindData->columns[idx]->rawName());
     }
   }
 
