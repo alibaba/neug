@@ -62,6 +62,10 @@ jobs:
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
+      - name: Limit builds to CPython 3.8 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+
       - name: Build wheels
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
@@ -133,6 +137,10 @@ jobs:
       - name: Prepare for linux
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.8 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
         run: |
@@ -212,6 +220,10 @@ jobs:
           echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.8 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
         run: |
@@ -293,6 +305,10 @@ jobs:
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
+      - name: Limit builds to CPython 3.8 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+
       - name: Build wheels
         run: |
           source ~/.neug_env
@@ -338,48 +354,3 @@ jobs:
         run: |
           neug-cli --help
           neug-cli --version
-
-  # build_ngcli_wheel:
-  #   runs-on: [self-hosted, linux, x64] # ngclid should not be built on arm64 self-hosted runners, since the GLIBC version is too low
-  #   steps:
-  #     - name: checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: Clean the tool directory for self-hosted runner
-  #       run: |
-  #         rm -rf /__w/_tool/Python
-
-  #     - name: Setup Python 3.13
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.13'
-
-  #     - name: Build ngcli wheel
-  #       run: |
-  #         cd tools/shell
-  #         python3 -m pip install build
-  #         python3 -m build
-
-  #     - uses: actions/upload-artifact@v4
-  #       if: false
-  #       with:
-  #         name: neug-cli-wheel-${{ github.sha }}
-  #         path: tools/shell/dist/neug-cli-*.whl
-
-  #     - name: Publish distribution to PyPI
-  #       uses: pypa/gh-action-pypi-publish@v1.4.2
-  #       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'GraphScope/neug')
-  #       with:
-  #         user: __token__
-  #         password: ${{ secrets.PYPI_PASSWORD }}
-  #         packages_dir: tools/shell/dist/
-  #         verbose: true
-  #         skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
-  #         # update it manually
-
-  #     - name: Test neug-cli wheel install and CLI
-  #       run: |
-  #         cd tools/shell/dist
-  #         NGCLI_WHL=$(ls neug_cli-*.whl | head -n 1)
-  #         python3 -m pip install --force-reinstall $NGCLI_WHL
-  #         neug-cli --help
