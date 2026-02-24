@@ -333,8 +333,9 @@ inline bool DoGraphInitialization(const StorageReadInterface& graph, bool verbos
 class SampledSubgraphMatcher {
  public:
   SampledSubgraphMatcher(const StorageReadInterface& graph,
-                            const std::string& pattern_file)
-    : graph_(graph), pattern_file_(pattern_file) {
+                            const std::string& pattern_file,
+                            long long sample_size)
+    : graph_(graph), pattern_file_(pattern_file), sample_size_(sample_size) {
     }
   
   /**
@@ -403,11 +404,10 @@ class SampledSubgraphMatcher {
     
     // Step 5: Run cardinality estimation
     std::cout << "[5] Running cardinality estimation..." << std::endl;
-    int sample_size = 1000000;
-    std::cout << "  Sample size: " << sample_size << std::endl;
+    std::cout << "  Sample size: " << sample_size_ << std::endl;
     
     GraphLib::CardinalityEstimation::FaSTestCardinalityEstimation estimator(graph_, *cached_data.data_meta, opt);
-    double est = estimator.EstimateEmbeddings(pattern_graph_.get(), sample_size);
+    double est = estimator.EstimateEmbeddings(pattern_graph_.get(), sample_size_);
     
     std::cout << std::endl;
     std::cout << "=== Results ===" << std::endl;
@@ -635,6 +635,7 @@ class SampledSubgraphMatcher {
     const StorageReadInterface& graph_;
     std::string pattern_file_;
     std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> pattern_graph_;
+    long long sample_size_;
     
     // Results (per-call, not cached)
     std::vector<int> sampled_results_;
@@ -648,24 +649,53 @@ class SampledSubgraphMatcher {
     
   public:
     /**
+     * @brief Convert NeuG DataTypeId to a portable type string for biagent.
+     *
+     * Mapping: kInt32->"int32", kInt64->"int64", kDouble->"double",
+     *          kFloat->"float", kBoolean->"boolean", kVarchar->"string",
+     *          kDate/kTimestampMs/kInterval->"string", others->"string".
+     */
+    static std::string DataTypeIdToString(DataTypeId type) {
+        switch (type) {
+            case DataTypeId::kInt8:    return "int8";
+            case DataTypeId::kInt16:   return "int16";
+            case DataTypeId::kInt32:   return "int32";
+            case DataTypeId::kUInt32:  return "uint32";
+            case DataTypeId::kInt64:   return "int64";
+            case DataTypeId::kUInt64:  return "uint64";
+            case DataTypeId::kFloat:   return "float";
+            case DataTypeId::kDouble:  return "double";
+            case DataTypeId::kBoolean: return "boolean";
+            case DataTypeId::kVarchar: return "string";
+            default:                   return "string";
+        }
+    }
+    
+    /**
      * @brief After match(), fetch required properties for all sampled results
-     *        and write to a deduplicated JSON file.
+     *        and write to a deduplicated JSON file with schema information.
      * @return Path to the JSON properties file, or "" if no properties needed.
      * 
-     * JSON format (deduplicated — each unique vertex/edge stored only once):
+     * JSON format:
      * {
+     *   "schema": {
+     *     "vertices": [
+     *       {"label": "Publication", "properties": {"year": "int64", "title": "string"}}
+     *     ],
+     *     "edges": [
+     *       {"label": "knows", "src_label": "Person", "dst_label": "Person",
+     *        "properties": {"weight": "double"}}
+     *     ]
+     *   },
      *   "vertices": [
-     *     {"id": 12345, "props": {"prop1": "val1", "prop2": "val2"}},
-     *     {"id": 67890, "props": {"propA": "valA"}}
+     *     {"id": 12345, "props": {"year": 2021, "title": "Paper A"}},
+     *     ...
      *   ],
      *   "edges": [
-     *     {"id": "100:200:3", "props": {"prop1": "val1"}},
-     *     {"id": "300:400:5", "props": {"propB": "valB"}}
+     *     {"id": "100:200:3", "props": {"weight": 0.5}},
+     *     ...
      *   ]
      * }
-     * 
-     * The "id" for vertices is the global vertex ID (int).
-     * The "id" for edges is the edge key string "src_global:dst_global:edge_label".
      */
     std::string FetchAndWriteProperties() {
         if (!pattern_graph_) return "";
@@ -877,7 +907,7 @@ class SampledSubgraphMatcher {
         }
         
         // ================================================================
-        // Step 3: Write deduplicated JSON
+        // Step 3: Write deduplicated JSON with schema
         // ================================================================
         std::string propsFile = GenerateOutputFilePath("sampled_props") + ".json";
         std::filesystem::create_directories(std::filesystem::path(propsFile).parent_path());
@@ -888,7 +918,93 @@ class SampledSubgraphMatcher {
             return "";
         }
         
-        ofs << "{\"vertices\":[\n";
+        ofs << "{";
+        
+        // ---- Write "schema" section ----
+        // Merge all needed property names per vertex label and edge triplet,
+        // then look up types from NeuG schema.
+        
+        // vertex label -> merged set of property names
+        std::unordered_map<label_t, std::unordered_set<std::string>> vlabel_props;
+        for (const auto& [gid, uv] : unique_vertices) {
+            for (const auto& pname : uv.ordered_prop_names) {
+                vlabel_props[uv.label_id].insert(pname);
+            }
+        }
+        
+        // edge triplet key -> (src_label, dst_label, edge_label, merged props)
+        struct EdgeTripletSchema {
+            label_t src_label, dst_label, edge_label;
+            std::unordered_set<std::string> props;
+        };
+        std::unordered_map<uint32_t, EdgeTripletSchema> elabel_props;
+        for (const auto& [key, ue] : unique_edges) {
+            uint32_t triplet = schema.generate_edge_label(ue.src_label, ue.dst_label, ue.edge_label);
+            auto& ets = elabel_props[triplet];
+            ets.src_label = ue.src_label;
+            ets.dst_label = ue.dst_label;
+            ets.edge_label = ue.edge_label;
+            for (const auto& pname : ue.ordered_prop_names) {
+                ets.props.insert(pname);
+            }
+        }
+        
+        ofs << "\"schema\":{\"vertices\":[";
+        bool first_sl = true;
+        for (const auto& [vlabel, pnames] : vlabel_props) {
+            if (pnames.empty()) continue;
+            if (!first_sl) ofs << ",";
+            first_sl = false;
+            
+            std::string label_name = schema.get_vertex_label_name(vlabel);
+            auto v_schema = schema.get_vertex_schema(vlabel);
+            
+            ofs << "{\"label\":\"" << EscapeJsonString(label_name) << "\",\"properties\":{";
+            bool first_prop = true;
+            for (const auto& pname : pnames) {
+                auto it = std::find(v_schema->property_names.begin(), v_schema->property_names.end(), pname);
+                if (it != v_schema->property_names.end()) {
+                    size_t idx = std::distance(v_schema->property_names.begin(), it);
+                    if (!first_prop) ofs << ",";
+                    first_prop = false;
+                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(v_schema->property_types[idx]) << "\"";
+                }
+            }
+            ofs << "}}";
+        }
+        
+        ofs << "],\"edges\":[";
+        first_sl = true;
+        for (const auto& [triplet, ets] : elabel_props) {
+            if (ets.props.empty()) continue;
+            if (!first_sl) ofs << ",";
+            first_sl = false;
+            
+            std::string src_name = schema.get_vertex_label_name(ets.src_label);
+            std::string dst_name = schema.get_vertex_label_name(ets.dst_label);
+            std::string edge_name = schema.get_edge_label_name(ets.edge_label);
+            auto e_schema = schema.get_edge_schema(ets.src_label, ets.dst_label, ets.edge_label);
+            
+            ofs << "{\"label\":\"" << EscapeJsonString(edge_name) 
+                << "\",\"src_label\":\"" << EscapeJsonString(src_name) 
+                << "\",\"dst_label\":\"" << EscapeJsonString(dst_name) 
+                << "\",\"properties\":{";
+            bool first_prop = true;
+            for (const auto& pname : ets.props) {
+                auto it = std::find(e_schema->property_names.begin(), e_schema->property_names.end(), pname);
+                if (it != e_schema->property_names.end()) {
+                    size_t idx = std::distance(e_schema->property_names.begin(), it);
+                    if (!first_prop) ofs << ",";
+                    first_prop = false;
+                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(e_schema->properties[idx]) << "\"";
+                }
+            }
+            ofs << "}}";
+        }
+        ofs << "]},";
+        // ---- End schema section ----
+        
+        ofs << "\"vertices\":[\n";
         
         // Write each unique vertex once
         bool first_v = true;
@@ -1073,8 +1189,8 @@ struct InitializeGraphFunction {
 // 函数输入数据结构
 struct SampledMatchInput : public CallFuncInputBase {
   std::string patternFilePath;
-  
-  SampledMatchInput(std::string path) : patternFilePath(std::move(path)) {}
+  long long sampleSize;
+  SampledMatchInput(std::string path, long long sample_size) : patternFilePath(std::move(path)), sampleSize(sample_size) {}
   ~SampledMatchInput() override = default;
 };
 
@@ -1100,7 +1216,7 @@ struct SampledMatchFunction {
     // 创建 NeugCallFunction
     auto func = std::make_unique<NeugCallFunction>(
         name,
-        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING},
+        std::vector<common::LogicalTypeID>{common::LogicalTypeID::STRING, common::LogicalTypeID::INT64},
         std::move(outputCols));
     
     // 设置 bindFunc
@@ -1109,16 +1225,33 @@ struct SampledMatchFunction {
         -> std::unique_ptr<CallFuncInputBase> {
       auto& procedure = plan.plan(op_idx).opr().procedure_call();
       std::string patternPath;
+      long long sampleSize = 1000000;
       
-      if (procedure.query().arguments_size() > 0) {
-        const auto& arg = procedure.query().arguments(0);
-        if (arg.has_const_()) {
+      if (procedure.query().arguments_size() >= 2) {
+        if (procedure.query().arguments(0).has_const_()) {
+          const auto& arg = procedure.query().arguments(0);
           patternPath = arg.const_().str();
+        }
+        if (procedure.query().arguments(1).has_const_()) {
+          const auto& arg = procedure.query().arguments(1);
+          try { 
+            sampleSize = arg.const_().i64();
+            LOG(WARNING) << "[SAMPLED_MATCH] Sample size: " << sampleSize;
+          } catch (const std::invalid_argument&) {
+            sampleSize = 1000000;
+            LOG(WARNING) << "[SAMPLED_MATCH] Invalid sample size: " << arg.const_().str()
+                          << ", using default: " << sampleSize;
+          } catch (const std::out_of_range&) {
+            sampleSize = 1000000;
+            LOG(WARNING) << "[SAMPLED_MATCH] Sample size out of range: " << arg.const_().str()
+                          << ", using default: " << sampleSize;
+          }
         }
       }
       
       LOG(INFO) << "[SAMPLED_MATCH] Bind: pattern file = " << patternPath;
-      return std::make_unique<SampledMatchInput>(patternPath);
+      LOG(INFO) << "[SAMPLED_MATCH] Bind: sample size = " << sampleSize;
+      return std::make_unique<SampledMatchInput>(patternPath, sampleSize);
     };
     
     func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
@@ -1137,7 +1270,7 @@ struct SampledMatchFunction {
       LOG(INFO) << "[SAMPLED_MATCH] Starting subgraph matching...";
       
       // 执行子图匹配
-      SampledSubgraphMatcher matcher(*readInterface, matchInput.patternFilePath);
+      SampledSubgraphMatcher matcher(*readInterface, matchInput.patternFilePath, matchInput.sampleSize);
       double estimatedCount = matcher.match();
       
       const auto& sampledResults = matcher.GetSampledResults();

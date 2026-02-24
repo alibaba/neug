@@ -536,7 +536,7 @@ int main(int argc, char* argv[]) {
     
     auto start = std::chrono::high_resolution_clock::now();
     
-    std::string query = "CALL SAMPLED_MATCH('" + pattern_file + "') RETURN *;";
+    std::string query = "CALL SAMPLED_MATCH('" + pattern_file + "', 1000000) RETURN *;";
     std::cout << "Query: " << query << std::endl;
     
     

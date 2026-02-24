@@ -58,7 +58,7 @@
             "sample",
             "Provides subgraph matching and property access functions. "
             "Functions: CALL INITIALIZE() - initializes graph data cache, "
-            "CALL SAMPLED_MATCH(pattern_file), "
+            "CALL SAMPLED_MATCH(pattern_file, sample_size), "
             "CALL GET_VERTEX_PROPERTY(vertex_ids_json, vertex_label, prop_names_json), "
             "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
             "SAMPLED_MATCH returns estimated embedding count and sampled results with edge keys."});

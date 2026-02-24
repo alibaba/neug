@@ -110,7 +110,7 @@ $EXTENSION_HOME/extension/sample/libsample.neug_extension
 
 **Cypher 语法：**
 ```cypher
-CALL SAMPLED_MATCH('/path/to/pattern.json')
+CALL SAMPLED_MATCH('/path/to/pattern.json', sample_size)
 ```
 
 ### 模式文件格式
