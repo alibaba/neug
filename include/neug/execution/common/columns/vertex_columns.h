@@ -353,7 +353,7 @@ class MLVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-    void generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;

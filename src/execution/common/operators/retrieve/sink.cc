@@ -861,7 +861,7 @@ std::shared_ptr<arrow::Array> visit_and_build_path_column(
         "builder type " +
         std::string(typeid(*array_builder).name()));
   }
-  auto path_col = std::dynamic_pointer_cast<IPathColumn>(col);
+  auto path_col = std::dynamic_pointer_cast<PathColumn>(col);
   assert(path_col);
   for (int i = 0; i < path_col->size(); ++i) {
     const auto& path = path_col->get_path(i);
