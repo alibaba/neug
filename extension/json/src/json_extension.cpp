@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 
-#include "glog/logging.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/utils/exception/exception.h"
 
@@ -22,8 +21,6 @@
 extern "C" {
 
 void Init() {
-  LOG(INFO) << "[json extension] init called";
-
   try {
     // Register JSON read functions (based on ReadFunction pattern)
     neug::extension::ExtensionAPI::registerFunction<
@@ -37,8 +34,6 @@ void Init() {
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
             "json", "Provides functions to read and write JSON files."});
-
-    LOG(INFO) << "[json extension] functions registered successfully";
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE("[json extension] registration failed: " +
                                    std::string(e.what()));

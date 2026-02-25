@@ -34,6 +34,5 @@ target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR
 target_link_libraries(neug_json_extension PRIVATE
     arrow_json
     arrow_dataset_objlib
-    ${GLOG_LIBRARIES}
     neug_libraries
 )
