@@ -162,7 +162,7 @@ class EdgeRecord {
 struct PathImpl;
 struct Path {
  public:
-  Path() = default;
+  Path() : impl_(nullptr) {}
 
   Path(std::shared_ptr<PathImpl> impl) : impl_(impl) {}
 
@@ -193,6 +193,8 @@ struct Path {
   void set_weight(double weight);
 
   VertexRecord end_node() const;
+
+  bool is_null() const { return impl_ == nullptr; }
 
  private:
   std::shared_ptr<PathImpl> impl_;

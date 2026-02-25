@@ -1167,7 +1167,7 @@ TEST_F(PathColumnTest, PathColumnBasic) {
   EXPECT_EQ(col->size(), 2);
   EXPECT_EQ(col->get_path(0), p1);
   EXPECT_EQ(col->get_path(1), p2);
-  EXPECT_EQ(col->path_length(0), 1);
+  EXPECT_EQ(col->get_path(0).length(), 2);
 
   Value elem0 = col->get_elem(0);
   EXPECT_EQ(PathValue::Get(elem0), p1);
@@ -1229,7 +1229,7 @@ TEST_F(PathColumnTest, PathColumnOptionalShuffle) {
   auto shuffled = base_col->optional_shuffle(offsets);
   ASSERT_EQ(shuffled->size(), 3);
 
-  auto opt_col = std::dynamic_pointer_cast<OptionalPathColumn>(shuffled);
+  auto opt_col = std::dynamic_pointer_cast<PathColumn>(shuffled);
   ASSERT_NE(opt_col, nullptr);
   EXPECT_TRUE(opt_col->has_value(0));
   EXPECT_FALSE(opt_col->has_value(1));
@@ -1297,11 +1297,11 @@ TEST_F(PathColumnTest, OptionalPathColumnBasic) {
   builder.push_back_null();
   builder.push_back_elem(Value::PATH(p2));
 
-  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalPathColumn[3]");
+  EXPECT_EQ(col->column_info(), "PathColumn[3]");
   EXPECT_EQ(col->column_type(), ContextColumnType::kPath);
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kPath);
   EXPECT_TRUE(col->is_optional());
@@ -1330,12 +1330,11 @@ TEST_F(PathColumnTest, OptionalPathColumnShuffle) {
   builder.push_back_opt(p);
   builder.push_back_null();
 
-  auto base_col =
-      std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
+  auto base_col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   std::vector<size_t> offsets = {1, 0};
   auto shuffled = base_col->shuffle(offsets);
-  auto opt_col = std::dynamic_pointer_cast<OptionalPathColumn>(shuffled);
+  auto opt_col = std::dynamic_pointer_cast<PathColumn>(shuffled);
 
   ASSERT_NE(opt_col, nullptr);
   EXPECT_FALSE(opt_col->has_value(0));
@@ -1359,7 +1358,7 @@ TEST_F(PathColumnTest, OptionalPathColumnPushBackNull) {
   builder.push_back_opt(p);
   builder.push_back_null();
 
-  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 2);
@@ -1419,7 +1418,7 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   builder.push_back_opt(p1);
   builder.push_back_null();
 
-  auto col = std::dynamic_pointer_cast<OptionalPathColumn>(builder.finish());
+  auto col = std::dynamic_pointer_cast<PathColumn>(builder.finish());
 
   std::vector<std::pair<size_t, Path>> collected;
   col->foreach_path(
@@ -1428,7 +1427,6 @@ TEST_F(PathColumnTest, OptionalPathColumnForeach) {
   // foreach_path iterates over all, regardless of validity
   ASSERT_EQ(collected.size(), 2);
   EXPECT_EQ(collected[0].second, p1);
-  // EXPECT_EQ(collected[1].second, p2);  // even though it's marked invalid
 }
 
 class ArrowContextColumnTest : public ::testing::Test {
