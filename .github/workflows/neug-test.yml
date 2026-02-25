@@ -339,8 +339,8 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+        export FLEX_DATA_DIR=${GS_TEST_DIR}/neug/lsqb-sf01
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
@@ -528,8 +528,8 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/lsqb-sf01
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/lsqb-sf01/graph.yaml -l ../../example_dataset/lsqb-sf01/import.yaml -d /tmp/lsqb
+        export FLEX_DATA_DIR=${GS_TEST_DIR}/neug/lsqb-sf01
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
         export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
@@ -544,6 +544,8 @@ jobs:
         ./scripts/run_e2e_test.sh neug_tp_test modern_graph /tmp/modern_graph basic_test,match,optional_match
 
     - name: Run E2E tinysnb Test
+      env:
+        GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         export NEUG_ROOT_DIRECTORY=${GITHUB_WORKSPACE}
@@ -553,6 +555,8 @@ jobs:
         ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb update true
 
     - name: Run E2E LSQB Test
+      env:
+        GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_e2e_test.sh neug_ap_test lsqb /tmp/lsqb lsqb
