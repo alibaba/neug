@@ -201,6 +201,20 @@ jobs:
       with:
         python-version: '3.13'
 
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
+
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
@@ -249,8 +263,8 @@ jobs:
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: actions/upload-artifact@v4
       with:
-        name: coverage_report
-        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_cpp.info
+        name: coverage_report-${{ github.sha }}-cpp-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_cpp.info
 
   # ============================================================
   # Job 3: Python Tests — bulk load data, run all pytest suites
@@ -283,6 +297,20 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
 
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -419,8 +447,8 @@ jobs:
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: actions/upload-artifact@v4
       with:
-        name: coverage_report
-        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_py.info
+        name: coverage_report-${{ github.sha }}-python-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_py.info
 
   # ============================================================
   # Job 4: E2E Tests — bulk load data, run end-to-end tests
@@ -459,6 +487,20 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
 
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -556,8 +598,8 @@ jobs:
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: actions/upload-artifact@v4
       with:
-        name: coverage_report
-        path: ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
+        name: coverage_report-${{ github.sha }}-e2e-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
 
   # ============================================================
   # Job 5: Java test
@@ -640,15 +682,29 @@ jobs:
   # Job 6: Coverage — generate and upload the coverage report.
   # ============================================================
   coverage-report:
-    needs: [test-cpp, test-python, test-e2e]
+    needs: [build, test-cpp, test-python, test-e2e]
     runs-on: ubuntu-latest
     steps:
-    - name: Download coverage report artifact
+    - name: Download cpp coverage report artifact
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: actions/download-artifact@v4
       with:
-        name: coverage_report
-        path: .
+        name: coverage_report-${{ github.sha }}-cpp-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}
+
+    - name: Download python coverage report artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage_report-${{ github.sha }}-python-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}
+
+    - name: Download e2e coverage report artifact
+      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage_report-${{ github.sha }}-e2e-${{ needs.build.outputs.runner-arch }}
+        path: ${{ github.workspace }}
 
     - name: Generate Coverage Report
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
@@ -656,14 +712,14 @@ jobs:
         sudo apt update
         sudo apt install lcov -y
         lcov \
-          --add-tracefile ./coverage/coverage_cpp.info \
-          --add-tracefile ./coverage/coverage_py.info \
-          --add-tracefile ./coverage/coverage_e2e.info \
-          --output-file coverage.info 
+          --add-tracefile ./coverage_cpp.info \
+          --add-tracefile ./coverage_py.info \
+          --add-tracefile ./coverage_e2e.info \
+          --output-file coverage.info
 
     - name: Upload coverage to Codecov
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: codecov/codecov-action@v4
       with:
-        file: ${GITHUB_WORKSPACE}/coverage.info
+        file: ${{ github.workspace }}/coverage.info
 
