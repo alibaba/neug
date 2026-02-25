@@ -41,18 +41,15 @@ namespace neug {
 namespace extension {
 
 std::string getOS() {
-  std::string os = "linux";
-#if !defined(_GLIBCXX_USE_CXX11_ABI) || _GLIBCXX_USE_CXX11_ABI == 0
-  if (os == "linux") {
-    os = "linux_old";
-  }
-#endif
-#ifdef _WIN32
-  os = "win";
+#if defined(_WIN32)
+  return "win";
 #elif defined(__APPLE__)
-  os = "osx";
+  return "osx";
+#elif defined(__linux__)
+  return "linux";
+#else
+  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported operating system");
 #endif
-  return os;
 }
 
 std::string getArch() {
