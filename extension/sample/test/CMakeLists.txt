@@ -45,7 +45,21 @@ target_link_libraries(test_sample_match_openaire PRIVATE
     gflags
 )
 
+add_executable(test_install test_install.cc)
+
+target_include_directories(test_install PRIVATE
+    ${CMAKE_SOURCE_DIR}/extension/sample/include
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include
+)
+
+target_link_libraries(test_install PRIVATE
+    neug_libraries
+    ${GLOG_LIBRARIES}
+    gflags
+)
+
 # Install the test executables
-install(TARGETS test_sample_match test_sample_match_ldbc test_sample_match_openaire
+install(TARGETS test_sample_match test_sample_match_ldbc test_sample_match_openaire test_install
     RUNTIME DESTINATION bin
 )

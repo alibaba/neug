@@ -196,6 +196,7 @@ inline std::string GenerateOutputFilePath(const std::string& prefix) {
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
       now.time_since_epoch()).count();
+  std::filesystem::create_directories("/tmp/p/neug_sample");
   return "/tmp/p/neug_sample/" + prefix + "_" + std::to_string(timestamp) + ".csv";
 }
 

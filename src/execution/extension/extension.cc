@@ -60,11 +60,15 @@ Status install_extension(const std::string& extension_name) {
       neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
   auto localLibPath = extDir + "/" + fileName;
 
-  const std::string& repo =
-      neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+  const std::string& repo = neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
   auto repoInfo = neug::extension::ExtensionUtils::getExtensionLibRepoInfo(
       extension_name, repo);
 
+  repoInfo.hostURL = "artifacts-and-materials.oss-cn-hangzhou.aliyuncs.com";
+
+  repoInfo.hostPath = "/neug_extension/v0.1.0/linux_amd64/sample/libsample.neug_extension";
+  
+  repoInfo.repoURL = "https://graphscope.oss-cn-hangzhou.aliyuncs.com/neug_extension/v0.1.0/linux_amd64/sample/libsample.neug_extension";
   LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
             << " path=" << repoInfo.hostPath << " full=" << repoInfo.repoURL;
 

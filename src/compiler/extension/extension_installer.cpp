@@ -62,6 +62,7 @@ void ExtensionInstaller::tryDownloadExtensionFile(
 }
 
 void ExtensionInstaller::install() {
+  std::cout << "################ Installing extension: " << info.name << std::endl;
   installExtension();
   installDependencies();
 }

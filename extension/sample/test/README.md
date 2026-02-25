@@ -9,7 +9,7 @@ This directory contains tests for the subgraph matching functionality using the 
 ```bash
 cd /path/to/neug
 mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXTENSIONS="sample"
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=ON -DBUILD_EXTENSIONS="sample" -DBUILD_HTTP_SERVER=ON
 make -j$(nproc)
 ```
 
