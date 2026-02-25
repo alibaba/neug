@@ -14,6 +14,7 @@
  */
 
 #include "neug/execution/execute/ops/batch/data_export.h"
+#include "neug/execution/execute/ops/batch/writer/export_writer_factory.h"
 
 namespace neug {
 namespace execution {
@@ -33,7 +34,8 @@ class DataExportOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override;
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override;
 
   std::shared_ptr<IExportWriter> writer_;
   std::string extension_name_;

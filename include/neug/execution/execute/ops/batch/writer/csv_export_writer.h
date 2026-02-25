@@ -20,39 +20,38 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/result.h"
+#include "neug/execution/execute/ops/batch/writer/export_writer_factory.h"
 
 namespace neug {
 namespace execution {
-
-class IExportWriter {
+class CsvExportWriter : public IExportWriter {
  public:
-  virtual ~IExportWriter() = default;
-  virtual Status Write(
-      const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-      const StorageReadInterface& graph) = 0;
-};
-
-class ExportWriterFactory {
- public:
-  using writer_initializer_t = std::shared_ptr<IExportWriter> (*)(
+  CsvExportWriter(
       const std::string& file_path,
       const std::vector<std::pair<int, std::string>>& header,
       const std::unordered_map<std::string, std::string>& write_config);
 
-  static std::shared_ptr<IExportWriter> CreateExportWriter(
-      const std::string& name, const std::string& file_path,
+  ~CsvExportWriter() {}
+
+  static std::shared_ptr<IExportWriter> Make(
+      const std::string& file_path,
       const std::vector<std::pair<int, std::string>>& header,
       const std::unordered_map<std::string, std::string>& write_config);
 
-  static bool Register(const std::string& name,
-                       writer_initializer_t initializer);
+  Status Write(const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
+               const StorageReadInterface& graph) override;
 
  private:
-  static std::unordered_map<std::string, writer_initializer_t>&
-  getKnownWriters();
+  void parse_csv_options(
+      const std::unordered_map<std::string, std::string>& csv_options);
+
+  std::string file_path_;
+  std::vector<std::pair<int, std::string>> header_;
+
+  bool write_header_;
+  char delimeter_;
+  static const bool registered_;
 };
+
 }  // namespace execution
 }  // namespace neug

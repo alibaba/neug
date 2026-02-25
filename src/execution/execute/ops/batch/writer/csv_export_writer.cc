@@ -18,10 +18,12 @@
 #include <arrow/csv/options.h>
 
 #include <cerrno>
-#include <iostream>
+#include <fstream>
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/execution/execute/writer/csv_export_writer.h"
+#include "neug/execution/execute/ops/batch/writer/csv_export_writer.h"
+
+#include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
 namespace execution {

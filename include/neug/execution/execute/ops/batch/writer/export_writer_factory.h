@@ -20,38 +20,39 @@
 #include <utility>
 #include <vector>
 
-#include "neug/execution/execute/writer/export_writer_factory.h"
+#include "neug/utils/result.h"
 
 namespace neug {
+class StorageReadInterface;
 namespace execution {
-class CsvExportWriter : public IExportWriter {
+class IContextColumn;
+
+class IExportWriter {
  public:
-  CsvExportWriter(
-      const std::string& file_path,
-      const std::vector<std::pair<int, std::string>>& header,
-      const std::unordered_map<std::string, std::string>& write_config);
-
-  ~CsvExportWriter() {}
-
-  static std::shared_ptr<IExportWriter> Make(
-      const std::string& file_path,
-      const std::vector<std::pair<int, std::string>>& header,
-      const std::unordered_map<std::string, std::string>& write_config);
-
-  Status Write(const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
-               const StorageReadInterface& graph) override;
-
- private:
-  void parse_csv_options(
-      const std::unordered_map<std::string, std::string>& csv_options);
-
-  std::string file_path_;
-  std::vector<std::pair<int, std::string>> header_;
-
-  bool write_header_;
-  char delimeter_;
-  static const bool registered_;
+  virtual ~IExportWriter() = default;
+  virtual Status Write(
+      const std::vector<std::shared_ptr<IContextColumn>>& columns_map,
+      const StorageReadInterface& graph) = 0;
 };
 
+class ExportWriterFactory {
+ public:
+  using writer_initializer_t = std::shared_ptr<IExportWriter> (*)(
+      const std::string& file_path,
+      const std::vector<std::pair<int, std::string>>& header,
+      const std::unordered_map<std::string, std::string>& write_config);
+
+  static std::shared_ptr<IExportWriter> CreateExportWriter(
+      const std::string& name, const std::string& file_path,
+      const std::vector<std::pair<int, std::string>>& header,
+      const std::unordered_map<std::string, std::string>& write_config);
+
+  static bool Register(const std::string& name,
+                       writer_initializer_t initializer);
+
+ private:
+  static std::unordered_map<std::string, writer_initializer_t>&
+  getKnownWriters();
+};
 }  // namespace execution
 }  // namespace neug

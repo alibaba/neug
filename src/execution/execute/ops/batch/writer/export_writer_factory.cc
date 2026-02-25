@@ -15,7 +15,8 @@
 
 #include <unordered_map>
 
-#include "neug/execution/execute/writer/export_writer_factory.h"
+#include "neug/execution/execute/ops/batch/writer/export_writer_factory.h"
+#include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 namespace execution {

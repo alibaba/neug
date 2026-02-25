@@ -15,7 +15,6 @@
 #pragma once
 
 #include "neug/execution/execute/operator.h"
-#include "neug/execution/execute/writer/export_writer_factory.h"
 
 namespace neug {
 namespace execution {
