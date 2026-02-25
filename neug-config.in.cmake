@@ -15,6 +15,7 @@ include(CMakeFindDependencyMacro)
 find_dependency(Threads)
 find_dependency(ZLIB)
 find_dependency(OpenSSL)
+find_package(absl REQUIRED CONFIG)
 
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 

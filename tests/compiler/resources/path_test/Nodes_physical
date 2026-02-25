@@ -5,6 +5,7 @@
    "opr": {
     "scan": {
      "scan_opt": "VERTEX",
+     "alias": 0,
      "params": {
       "tables": [
        {
@@ -16,8 +17,7 @@
       "sample_ratio": 0,
       "extra": {}
      },
-     "is_count_only": false,
-     "alias": 0
+     "is_count_only": false
     }
    },
    "meta_data": [
@@ -60,15 +60,15 @@
        "is_optional": false
       }
      },
+     "start_tag": 0,
+     "alias": 1,
      "hop_range": {
       "lower": 1,
       "upper": 4
      },
      "path_opt": "ARBITRARY",
      "result_opt": "ALL_V",
-     "is_optional": false,
-     "start_tag": 0,
-     "alias": 1
+     "is_optional": false
     }
    },
    "meta_data": [

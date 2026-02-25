@@ -1,75 +1,67 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_WRITE",
-  "plan": [
-   {
-    "opr": {
-     "root": {}
-    },
-    "meta_data": []
+ "plan": [
+  {
+   "opr": {
+    "root": {}
    },
-   {
-    "opr": {
-     "unfold": {
-      "input_expr": {
-       "operators": [
-        {
-         "param": {
-          "name": "ids",
-          "index": 0,
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "unfold": {
+     "alias": 0,
+     "input_expr": {
+      "operators": [
+       {
+        "param": {
+         "name": "ids",
+         "index": 0,
+         "data_type": {
           "data_type": {
-           "data_type": {
-            "array": {
-             "component_type": {
-              "array": {
-               "component_type": {
-                "primitive_type": "DT_SIGNED_INT64"
-               },
-               "max_length": 0
-              }
-             },
-             "max_length": 0
-            }
+           "array": {
+            "component_type": {
+             "array": {
+              "component_type": {
+               "primitive_type": "DT_SIGNED_INT64"
+              },
+              "max_length": 0
+             }
+            },
+            "max_length": 0
            }
           }
          }
         }
-       ]
-      },
-      "alias": 0
+       }
+      ]
      }
-    },
-    "meta_data": []
+    }
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "scalar_func": {
-            "unique_name": "LIST_EXTRACT(LIST,INT64)",
-            "parameters": [
-             {
-              "operators": [
-               {
-                "var": {
-                 "tag": {
-                  "id": 0
-                 },
-                 "node_type": {
-                  "data_type": {
-                   "array": {
-                    "component_type": {
-                     "primitive_type": "DT_SIGNED_INT64"
-                    },
-                    "max_length": 0
-                   }
-                  }
-                 }
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
+          },
+          "scalar_func": {
+           "unique_name": "LIST_EXTRACT(LIST,INT64)",
+           "parameters": [
+            {
+             "operators": [
+              {
+               "var": {
+                "tag": {
+                 "id": 0
                 },
                 "node_type": {
                  "data_type": {
@@ -81,54 +73,54 @@
                   }
                  }
                 }
-               }
-              ]
-             },
-             {
-              "operators": [
-               {
-                "const": {
-                 "i64": "0"
+               },
+               "node_type": {
+                "data_type": {
+                 "array": {
+                  "component_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  },
+                  "max_length": 0
+                 }
                 }
                }
-              ]
-             }
-            ]
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
+              }
+             ]
+            },
+            {
+             "operators": [
+              {
+               "const": {
+                "i64": "0"
+               }
+              }
+             ]
             }
-           }
+           ]
           }
-         ]
-        },
-        "alias": 1
+         }
+        ]
        },
-       {
-        "expr": {
-         "operators": [
-          {
-           "scalar_func": {
-            "unique_name": "LIST_EXTRACT(LIST,INT64)",
-            "parameters": [
-             {
-              "operators": [
-               {
-                "var": {
-                 "tag": {
-                  "id": 0
-                 },
-                 "node_type": {
-                  "data_type": {
-                   "array": {
-                    "component_type": {
-                     "primitive_type": "DT_SIGNED_INT64"
-                    },
-                    "max_length": 0
-                   }
-                  }
-                 }
+       "alias": 1
+      },
+      {
+       "expr": {
+        "operators": [
+         {
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
+          },
+          "scalar_func": {
+           "unique_name": "LIST_EXTRACT(LIST,INT64)",
+           "parameters": [
+            {
+             "operators": [
+              {
+               "var": {
+                "tag": {
+                 "id": 0
                 },
                 "node_type": {
                  "data_type": {
@@ -140,574 +132,589 @@
                   }
                  }
                 }
-               }
-              ]
-             },
-             {
-              "operators": [
-               {
-                "const": {
-                 "i64": "1"
+               },
+               "node_type": {
+                "data_type": {
+                 "array": {
+                  "component_type": {
+                   "primitive_type": "DT_SIGNED_INT64"
+                  },
+                  "max_length": 0
+                 }
                 }
                }
-              ]
-             }
-            ]
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
+              }
+             ]
+            },
+            {
+             "operators": [
+              {
+               "const": {
+                "i64": "1"
+               }
+              }
+             ]
             }
-           }
+           ]
           }
-         ]
-        },
-        "alias": 2
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 1
+         }
+        ]
+       },
+       "alias": 2
+      }
+     ],
+     "is_append": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT64"
+      }
      },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 2
-     }
-    ]
-   },
-   {
-    "opr": {
-     "create_vertex": {
-      "entries": [
-       {
-        "vertex_type": {
-         "id": 0
-        },
-        "property_mappings": [
-         {
-          "property": {
-           "key": {
-            "name": "prop_int32"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_uint32"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_int64"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "var": {
-              "tag": {
-               "id": 1
-              },
-              "node_type": {
-               "data_type": {
-                "primitive_type": "DT_SIGNED_INT64"
-               }
-              }
-             },
-             "node_type": {
-              "data_type": {
-               "primitive_type": "DT_SIGNED_INT64"
-              }
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_uint64"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_bool"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_float"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_double"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_text"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_varchar"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_date"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_datetime"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_interval"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_array"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         }
-        ],
-        "alias": {
-         "id": 3
-        },
-        "conflict_action": "ON_CONFLICT_THROW"
+     "alias": 1
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT64"
+      }
+     },
+     "alias": 2
+    }
+   ]
+  },
+  {
+   "opr": {
+    "create_vertex": {
+     "entries": [
+      {
+       "vertex_type": {
+        "id": 0
        },
-       {
-        "vertex_type": {
-         "id": 0
+       "property_mappings": [
+        {
+         "property": {
+          "key": {
+           "name": "prop_int32"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
         },
-        "property_mappings": [
-         {
-          "property": {
-           "key": {
-            "name": "prop_int32"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
+        {
+         "property": {
+          "key": {
+           "name": "prop_uint32"
           }
          },
-         {
-          "property": {
-           "key": {
-            "name": "prop_uint32"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
             }
-           ]
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_int64"
           }
          },
-         {
-          "property": {
-           "key": {
-            "name": "prop_int64"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "var": {
-              "tag": {
-               "id": 2
-              },
-              "node_type": {
-               "data_type": {
-                "primitive_type": "DT_SIGNED_INT64"
-               }
-              }
+         "data": {
+          "operators": [
+           {
+            "var": {
+             "tag": {
+              "id": 1
              },
              "node_type": {
               "data_type": {
                "primitive_type": "DT_SIGNED_INT64"
               }
              }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_uint64"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
              }
             }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_bool"
            }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_float"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_double"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_text"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_varchar"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_date"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_datetime"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_interval"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
-         },
-         {
-          "property": {
-           "key": {
-            "name": "prop_array"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
-          }
+          ]
          }
-        ],
-        "alias": {
-         "id": 4
         },
-        "conflict_action": "ON_CONFLICT_THROW"
-       }
-      ]
-     }
-    },
-    "meta_data": []
+        {
+         "property": {
+          "key": {
+           "name": "prop_uint64"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_bool"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_float"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_double"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_text"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_varchar"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_date"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_datetime"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_interval"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_array"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        }
+       ],
+       "alias": {
+        "id": 3
+       },
+       "conflict_action": "ON_CONFLICT_THROW"
+      },
+      {
+       "vertex_type": {
+        "id": 0
+       },
+       "property_mappings": [
+        {
+         "property": {
+          "key": {
+           "name": "prop_int32"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_uint32"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_int64"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "var": {
+             "tag": {
+              "id": 2
+             },
+             "node_type": {
+              "data_type": {
+               "primitive_type": "DT_SIGNED_INT64"
+              }
+             }
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT64"
+             }
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_uint64"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_bool"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_float"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_double"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_text"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_varchar"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_date"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_datetime"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_interval"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        },
+        {
+         "property": {
+          "key": {
+           "name": "prop_array"
+          }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
+         }
+        }
+       ],
+       "alias": {
+        "id": 4
+       },
+       "conflict_action": "ON_CONFLICT_THROW"
+      }
+     ]
+    }
    },
-   {
-    "opr": {
-     "create_edge": {
-      "entries": [
-       {
-        "edge_type": {
-         "type_name": {
-          "id": 0
-         },
-         "src_type_name": {
-          "id": 0
-         },
-         "dst_type_name": {
-          "id": 0
-         }
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "create_edge": {
+     "entries": [
+      {
+       "edge_type": {
+        "type_name": {
+         "id": 0
         },
-        "source_vertex_binding": {
-         "id": 3
+        "src_type_name": {
+         "id": 0
         },
-        "destination_vertex_binding": {
-         "id": 4
-        },
-        "property_mappings": [
-         {
-          "property": {
-           "key": {
-            "name": "weight"
-           }
-          },
-          "data": {
-           "operators": [
-            {
-             "const": {
-              "none": {}
-             }
-            }
-           ]
+        "dst_type_name": {
+         "id": 0
+        }
+       },
+       "source_vertex_binding": {
+        "id": 3
+       },
+       "destination_vertex_binding": {
+        "id": 4
+       },
+       "property_mappings": [
+        {
+         "property": {
+          "key": {
+           "name": "weight"
           }
+         },
+         "data": {
+          "operators": [
+           {
+            "const": {
+             "none": {}
+            }
+           }
+          ]
          }
-        ],
-        "alias": {
-         "id": 5
-        },
-        "conflict_action": "ON_CONFLICT_THROW"
-       }
-      ]
-     }
-    },
-    "meta_data": []
-   }
-  ]
+        }
+       ],
+       "alias": {
+        "id": 5
+       },
+       "conflict_action": "ON_CONFLICT_THROW"
+      }
+     ]
+    }
+   },
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": false,
+  "insert": true,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

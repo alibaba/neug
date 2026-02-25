@@ -9,4 +9,4 @@ if (BUILD_HTTP_SERVER)
     set(NEUG_LIBRARIES ${NEUG_LIBRARIES})
 endif()
 
-target_link_libraries(neug_py_bind PRIVATE ${NEUG_LIBRARIES} ${GLOG_LIBRARIES}) 
+target_link_libraries(neug_py_bind PRIVATE ${NEUG_LIBRARIES} ${GLOG_LIBRARIES})

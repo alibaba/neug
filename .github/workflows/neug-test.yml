@@ -59,9 +59,28 @@ jobs:
   # ============================================================
   build:
     runs-on: [self-hosted]
+    outputs:
+      runner-arch: ${{ steps.capture-arch.outputs.runner-arch }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
+    - name: Capture Runner Architecture
+      id: capture-arch
+      run: |
+        arch=$(uname -m)
+        echo "Runner architecture: $arch"
+
+        case "$arch" in
+          *arm*|*aarch64*)
+            echo "runner-arch=arm64" >>"$GITHUB_OUTPUT"
+            echo "Detected ARM architecture: $arch"
+            ;;
+          *)
+            echo "runner-arch=x64" >>"$GITHUB_OUTPUT"
+            echo "Detected x86 architecture: $arch"
+            ;;
+        esac
+
     - name: checkout
       id: checkout
       uses: actions/checkout@v4
@@ -144,13 +163,12 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind
         tar czf /tmp/neug-build.tar.gz \
           --exclude='*.o.d' \
-          --exclude='build/neug_py_bind/_deps' \
           build/
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: neug-build-${{ github.sha }}
+        name: neug-build-${{ github.sha }}-${{ steps.capture-arch.outputs.runner-arch }}
         path: /tmp/neug-build.tar.gz
         retention-days: 1
         compression-level: 0
@@ -160,7 +178,9 @@ jobs:
   # ============================================================
   test-cpp:
     needs: build
-    runs-on: [self-hosted]
+    runs-on: 
+      - self-hosted
+      - ${{ needs.build.outputs.runner-arch }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -184,7 +204,7 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: neug-build-${{ github.sha }}
+        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
         path: /tmp/
 
     - name: Extract build artifacts
@@ -237,7 +257,9 @@ jobs:
   # ============================================================
   test-python:
     needs: build
-    runs-on: [self-hosted]
+    runs-on:
+      - self-hosted
+      - ${{ needs.build.outputs.runner-arch }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -265,7 +287,7 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: neug-build-${{ github.sha }}
+        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
         path: /tmp/
 
     - name: Extract build artifacts
@@ -405,7 +427,9 @@ jobs:
   # ============================================================
   test-e2e:
     needs: build
-    runs-on: [self-hosted]
+    runs-on:
+      - self-hosted
+      - ${{ needs.build.outputs.runner-arch }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -439,7 +463,7 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: neug-build-${{ github.sha }}
+        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
         path: /tmp/
 
     - name: Extract build artifacts
@@ -540,7 +564,9 @@ jobs:
   # ============================================================
   test-java-client:
     needs: build
-    runs-on: [self-hosted]
+    runs-on:
+      - self-hosted
+      - ${{ needs.build.outputs.runner-arch }}
     container:
       image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
     steps:
@@ -586,7 +612,7 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: neug-build-${{ github.sha }}
+        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
         path: /tmp/
 
     - name: Extract build artifacts
@@ -614,8 +640,9 @@ jobs:
   # Job 6: Coverage — generate and upload the coverage report.
   # ============================================================
   coverage-report:
-  needs: [test-cpp, test-python, test-e2e]
-
+    needs: [test-cpp, test-python, test-e2e]
+    runs-on: ubuntu-latest
+    steps:
     - name: Download coverage report artifact
       if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
       uses: actions/download-artifact@v4

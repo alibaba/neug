@@ -1,107 +1,101 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "idx_predicate": {
-       "or_predicates": [
-        {
-         "predicates": [
-          {
-           "key": {
-            "key": {
-             "name": "id"
-            }
-           },
-           "const": {
-            "i64": "123"
-           },
-           "cmp": "EQ"
-          }
-         ]
-        }
-       ]
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
+ "plan": [
+  {
+   "opr": {
+    "scan": {
+     "scan_opt": "VERTEX",
+     "alias": 0,
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "idx_predicate": {
+      "or_predicates": [
+       {
+        "predicates": [
          {
-          "label": {
-           "label": 0
+          "key": {
+           "key": {
+            "name": "id"
+           }
           },
-          "props": []
+          "const": {
+           "i64": "123"
+          },
+          "cmp": "EQ"
          }
         ]
        }
-      },
-      "alias": 0
-     }
-    ]
+      ]
+     },
+     "is_count_only": false
+    }
    },
-   {
-    "opr": {
-     "path": {
-      "base": {
-       "edge_expand": {
-        "direction": "BOTH",
-        "params": {
-         "tables": [
-          {
-           "id": 0
-          }
-         ],
-         "columns": [],
-         "is_all_columns": false,
-         "sample_ratio": 0,
-         "extra": {}
-        },
-        "expand_opt": "VERTEX",
-        "is_optional": false
-       }
-      },
-      "hop_range": {
-       "lower": 1,
-       "upper": 31
-      },
-      "path_opt": "ANY_WEIGHTED_SHORTEST",
-      "result_opt": "ALL_V",
-      "is_optional": false,
-      "extra_info": {
-       "weight_expr": {
-        "operators": [
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "path": {
+     "base": {
+      "edge_expand": {
+       "direction": "BOTH",
+       "params": {
+        "tables": [
          {
-          "var": {
-           "property": {
-            "key": {
-             "name": "weight"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_DOUBLE"
-            }
+          "id": 0
+         }
+        ],
+        "columns": [],
+        "is_all_columns": false,
+        "sample_ratio": 0,
+        "extra": {}
+       },
+       "expand_opt": "VERTEX",
+       "is_optional": false
+      }
+     },
+     "start_tag": 0,
+     "alias": 1,
+     "hop_range": {
+      "lower": 1,
+      "upper": 31
+     },
+     "path_opt": "ANY_WEIGHTED_SHORTEST",
+     "result_opt": "ALL_V",
+     "is_optional": false,
+     "extra_info": {
+      "weight_expr": {
+       "operators": [
+        {
+         "var": {
+          "property": {
+           "key": {
+            "name": "weight"
            }
           },
           "node_type": {
@@ -109,60 +103,58 @@
             "primitive_type": "DT_DOUBLE"
            }
           }
+         },
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_DOUBLE"
+          }
          }
-        ]
-       }
-      },
-      "start_tag": 0,
-      "alias": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "PATH",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "OTHER",
-      "params": {
-       "tables": [
-        {
-         "id": 0
         }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "id"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
+       ]
+      }
+     }
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "PATH",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0,
+          "src_label": 0,
+          "dst_label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 1
+    }
+   ]
+  },
+  {
+   "opr": {
+    "vertex": {
+     "opt": "OTHER",
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "predicate": {
+       "operators": [
+        {
+         "var": {
+          "property": {
+           "key": {
+            "name": "id"
            }
           },
           "node_type": {
@@ -171,73 +163,63 @@
            }
           }
          },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "i64": "456"
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_SIGNED_INT64"
           }
          }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 2
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
+        },
+        {
+         "logical": "EQ",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
          }
-        ]
-       }
+        },
+        {
+         "const": {
+          "i64": "456"
+         }
+        }
+       ]
       },
-      "alias": 2
-     }
-    ]
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "alias": 2
+    }
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "PATH",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0,
-                 "src_label": 0,
-                 "dst_label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 2
+    }
+   ]
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 1
            },
            "node_type": {
             "graph_type": {
@@ -254,44 +236,69 @@
              ]
             }
            }
-          }
-         ]
-        },
-        "alias": 1
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "PATH",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
           },
-          "props": []
+          "node_type": {
+           "graph_type": {
+            "element_opt": "PATH",
+            "graph_data_type": [
+             {
+              "label": {
+               "label": 0,
+               "src_label": 0,
+               "dst_label": 0
+              },
+              "props": []
+             }
+            ]
+           }
+          }
          }
         ]
-       }
-      },
-      "alias": 1
-     }
-    ]
+       },
+       "alias": 1
+      }
+     ],
+     "is_append": false
+    }
    },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "PATH",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0,
+          "src_label": 0,
+          "dst_label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 1
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
+   },
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": true,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

@@ -1,67 +1,59 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
+ "plan": [
+  {
+   "opr": {
+    "scan": {
+     "scan_opt": "VERTEX",
+     "alias": 0,
+     "params": {
+      "tables": [
        {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "property": {
-             "key": {
-              "name": "gender"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT32"
-             }
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "is_count_only": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 0
+           },
+           "property": {
+            "key": {
+             "name": "gender"
             }
            },
            "node_type": {
@@ -69,103 +61,6 @@
              "primitive_type": "DT_SIGNED_INT32"
             }
            }
-          }
-         ]
-        },
-        "alias": 1
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "property": {
-             "key": {
-              "name": "fName"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 2
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT32"
-       }
-      },
-      "alias": 1
-     },
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
-        }
-       }
-      },
-      "alias": 2
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [
-       {
-        "key": {
-         "tag": {
-          "id": 2
-         },
-         "node_type": {
-          "data_type": {
-           "string": {
-            "var_char": {
-             "max_length": 65536
-            }
-           }
-          }
-         }
-        },
-        "alias": 2
-       }
-      ],
-      "functions": [
-       {
-        "vars": [
-         {
-          "tag": {
-           "id": 1
           },
           "node_type": {
            "data_type": {
@@ -173,226 +68,174 @@
            }
           }
          }
-        ],
-        "aggregate": "COUNT",
-        "alias": 3
+        ]
        },
-       {
-        "vars": [
+       "alias": 1
+      },
+      {
+       "expr": {
+        "operators": [
          {
-          "tag": {
-           "id": 1
+          "var": {
+           "tag": {
+            "id": 0
+           },
+           "property": {
+            "key": {
+             "name": "fName"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
           },
           "node_type": {
            "data_type": {
-            "primitive_type": "DT_SIGNED_INT32"
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
            }
           }
          }
-        ],
-        "aggregate": "AVG",
-        "alias": 4
-       }
-      ]
-     }
+        ]
+       },
+       "alias": 2
+      }
+     ],
+     "is_append": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT32"
+      }
+     },
+     "alias": 1
     },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
         }
        }
-      },
-      "alias": 2
+      }
      },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_DOUBLE"
-       }
-      },
-      "alias": 4
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 2
-            },
-            "node_type": {
-             "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
-            }
+     "alias": 2
+    }
+   ]
+  },
+  {
+   "opr": {
+    "group_by": {
+     "mappings": [
+      {
+       "key": {
+        "tag": {
+         "id": 2
+        },
+        "node_type": {
+         "data_type": {
+          "string": {
+           "var_char": {
+            "max_length": 65536
            }
           }
-         ]
-        },
-        "alias": 2
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 3
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 4
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_DOUBLE"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_DOUBLE"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 4
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
          }
         }
-       }
-      },
-      "alias": 2
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_DOUBLE"
-       }
-      },
-      "alias": 4
-     }
-    ]
-   },
-   {
-    "opr": {
-     "order_by": {
-      "pairs": [
-       {
-        "key": {
+       },
+       "alias": 2
+      }
+     ],
+     "functions": [
+      {
+       "vars": [
+        {
          "tag": {
-          "id": 2
+          "id": 1
          },
          "node_type": {
           "data_type": {
-           "string": {
-            "var_char": {
-             "max_length": 65536
-            }
-           }
+           "primitive_type": "DT_SIGNED_INT32"
           }
          }
-        },
-        "order": "ASC"
-       }
-      ]
-     }
-    },
-    "meta_data": []
+        }
+       ],
+       "aggregate": "COUNT",
+       "alias": 3
+      },
+      {
+       "vars": [
+        {
+         "tag": {
+          "id": 1
+         },
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_SIGNED_INT32"
+          }
+         }
+        }
+       ],
+       "aggregate": "AVG",
+       "alias": 4
+      }
+     ]
+    }
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 2
-            },
-            "node_type": {
-             "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
-             }
-            }
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
+        }
+       }
+      }
+     },
+     "alias": 2
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT64"
+      }
+     },
+     "alias": 3
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_DOUBLE"
+      }
+     },
+     "alias": 4
+    }
+   ]
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 2
            },
            "node_type": {
             "data_type": {
@@ -403,102 +246,266 @@
              }
             }
            }
-          }
-         ]
-        },
-        "alias": 2
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 3
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
+          },
+          "node_type": {
+           "data_type": {
+            "string": {
+             "var_char": {
+              "max_length": 65536
              }
             }
+           }
+          }
+         }
+        ]
+       },
+       "alias": 2
+      },
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 3
            },
            "node_type": {
             "data_type": {
              "primitive_type": "DT_SIGNED_INT64"
             }
            }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
           }
-         ]
-        },
-        "alias": 3
+         }
+        ]
        },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 4
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_DOUBLE"
-             }
-            }
+       "alias": 3
+      },
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 4
            },
            "node_type": {
             "data_type": {
              "primitive_type": "DT_DOUBLE"
             }
            }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_DOUBLE"
+           }
           }
-         ]
-        },
-        "alias": 4
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
          }
+        ]
+       },
+       "alias": 4
+      }
+     ],
+     "is_append": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
         }
        }
-      },
-      "alias": 2
+      }
      },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_DOUBLE"
-       }
-      },
-      "alias": 4
-     }
-    ]
-   },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
+     "alias": 2
     },
-    "meta_data": []
-   }
-  ]
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT64"
+      }
+     },
+     "alias": 3
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_DOUBLE"
+      }
+     },
+     "alias": 4
+    }
+   ]
+  },
+  {
+   "opr": {
+    "order_by": {
+     "pairs": [
+      {
+       "key": {
+        "tag": {
+         "id": 2
+        },
+        "node_type": {
+         "data_type": {
+          "string": {
+           "var_char": {
+            "max_length": 65536
+           }
+          }
+         }
+        }
+       },
+       "order": "ASC"
+      }
+     ]
+    }
+   },
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 2
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
+           }
+          }
+         }
+        ]
+       },
+       "alias": 2
+      },
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 3
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_SIGNED_INT64"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_SIGNED_INT64"
+           }
+          }
+         }
+        ]
+       },
+       "alias": 3
+      },
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 4
+           },
+           "node_type": {
+            "data_type": {
+             "primitive_type": "DT_DOUBLE"
+            }
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "primitive_type": "DT_DOUBLE"
+           }
+          }
+         }
+        ]
+       },
+       "alias": 4
+      }
+     ],
+     "is_append": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
+        }
+       }
+      }
+     },
+     "alias": 2
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_SIGNED_INT64"
+      }
+     },
+     "alias": 3
+    },
+    {
+     "type": {
+      "data_type": {
+       "primitive_type": "DT_DOUBLE"
+      }
+     },
+     "alias": 4
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
+   },
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": true,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

@@ -7,7 +7,7 @@ if (BUILD_HTTP_SERVER)
 
         add_executable(benchmark benchmark.cc)
         target_link_libraries(benchmark PUBLIC neug_libraries)
-        target_link_libraries(benchmark PUBLIC  ${GLOG_LIBRARIES})
+        target_link_libraries(benchmark PUBLIC ${GLOG_LIBRARIES})
         install_without_export_neug_target(benchmark)
         if (APPLE)
                 target_link_libraries(rt_server PRIVATE ${MACOS_DYLIBS})

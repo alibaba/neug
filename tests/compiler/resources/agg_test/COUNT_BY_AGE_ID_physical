@@ -1,467 +1,474 @@
 {
- "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
+    "plan_id": 0,
+    "plan": [
         {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "OUT",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": false,
-      "v_tag": 0,
-      "alias": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "END",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 2
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 2
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
+            "opr": {
+                "scan": {
+                    "scan_opt": "VERTEX",
+                    "alias": 0,
+                    "params": {
+                        "tables": [
+                            {
+                                "id": 0
+                            }
+                        ],
+                        "columns": [],
+                        "is_all_columns": false,
+                        "sample_ratio": 0,
+                        "extra": {}
+                    },
+                    "is_count_only": false
+                }
             },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
-           },
-           "node_type": {
-            "graph_type": {
-             "element_opt": "VERTEX",
-             "graph_data_type": [
-              {
-               "label": {
-                "label": 0
-               },
-               "props": []
-              }
-             ]
-            }
-           }
-          }
-         ]
-        },
-        "alias": 0
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 2
-            },
-            "property": {
-             "key": {
-              "name": "age"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "property": {
-             "key": {
-              "name": "id"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
-        },
-        "alias": 4
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 4
-     }
-    ]
-   },
-   {
-    "opr": {
-     "group_by": {
-      "mappings": [
-       {
-        "key": {
-         "tag": {
-          "id": 3
-         },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         }
-        },
-        "alias": 3
-       },
-       {
-        "key": {
-         "tag": {
-          "id": 4
-         },
-         "node_type": {
-          "data_type": {
-           "primitive_type": "DT_SIGNED_INT64"
-          }
-         }
-        },
-        "alias": 4
-       }
-      ],
-      "functions": [
-       {
-        "vars": [
-         {
-          "tag": {
-           "id": 0
-          },
-          "node_type": {
-           "graph_type": {
-            "element_opt": "VERTEX",
-            "graph_data_type": [
-             {
-              "label": {
-               "label": 0
-              },
-              "props": []
-             }
+            "meta_data": [
+                {
+                    "type": {
+                        "graph_type": {
+                            "element_opt": "VERTEX",
+                            "graph_data_type": [
+                                {
+                                    "label": {
+                                        "label": 0
+                                    },
+                                    "props": []
+                                }
+                            ]
+                        }
+                    },
+                    "alias": 0
+                }
             ]
-           }
-          }
-         }
-        ],
-        "aggregate": "COUNT",
-        "alias": 5
-       }
-      ]
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 4
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 5
-     }
-    ]
-   },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 3
-            },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
         },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 4
+        {
+            "opr": {
+                "edge": {
+                    "v_tag": 0,
+                    "direction": "OUT",
+                    "params": {
+                        "tables": [
+                            {
+                                "id": 0
+                            }
+                        ],
+                        "columns": [],
+                        "is_all_columns": false,
+                        "sample_ratio": 0,
+                        "extra": {}
+                    },
+                    "alias": 1,
+                    "expand_opt": "EDGE",
+                    "is_optional": false
+                }
             },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
+            "meta_data": [
+                {
+                    "type": {
+                        "graph_type": {
+                            "element_opt": "EDGE",
+                            "graph_data_type": [
+                                {
+                                    "label": {
+                                        "label": 0,
+                                        "src_label": 0,
+                                        "dst_label": 0
+                                    },
+                                    "props": []
+                                }
+                            ]
+                        }
+                    },
+                    "alias": 1
+                }
+            ]
         },
-        "alias": 4
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 5
+        {
+            "opr": {
+                "vertex": {
+                    "opt": "END",
+                    "params": {
+                        "tables": [
+                            {
+                                "id": 0
+                            }
+                        ],
+                        "columns": [],
+                        "is_all_columns": false,
+                        "sample_ratio": 0,
+                        "extra": {}
+                    },
+                    "alias": 2
+                }
             },
-            "node_type": {
-             "data_type": {
-              "primitive_type": "DT_SIGNED_INT64"
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT64"
-            }
-           }
-          }
-         ]
+            "meta_data": [
+                {
+                    "type": {
+                        "graph_type": {
+                            "element_opt": "VERTEX",
+                            "graph_data_type": [
+                                {
+                                    "label": {
+                                        "label": 0
+                                    },
+                                    "props": []
+                                }
+                            ]
+                        }
+                    },
+                    "alias": 2
+                }
+            ]
         },
-        "alias": 5
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 3
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 4
-     },
-     {
-      "type": {
-       "data_type": {
-        "primitive_type": "DT_SIGNED_INT64"
-       }
-      },
-      "alias": 5
-     }
-    ]
-   },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
- }
+        {
+            "opr": {
+                "project": {
+                    "mappings": [
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 0
+                                            },
+                                            "node_type": {
+                                                "graph_type": {
+                                                    "element_opt": "VERTEX",
+                                                    "graph_data_type": [
+                                                        {
+                                                            "label": {
+                                                                "label": 0
+                                                            },
+                                                            "props": []
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "graph_type": {
+                                                "element_opt": "VERTEX",
+                                                "graph_data_type": [
+                                                    {
+                                                        "label": {
+                                                            "label": 0
+                                                        },
+                                                        "props": []
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 0
+                        },
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 2
+                                            },
+                                            "property": {
+                                                "key": {
+                                                    "name": "age"
+                                                }
+                                            },
+                                            "node_type": {
+                                                "data_type": {
+                                                    "primitive_type": "DT_SIGNED_INT64"
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "data_type": {
+                                                "primitive_type": "DT_SIGNED_INT64"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 3
+                        },
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 0
+                                            },
+                                            "property": {
+                                                "key": {
+                                                    "name": "id"
+                                                }
+                                            },
+                                            "node_type": {
+                                                "data_type": {
+                                                    "primitive_type": "DT_SIGNED_INT64"
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "data_type": {
+                                                "primitive_type": "DT_SIGNED_INT64"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 4
+                        }
+                    ],
+                    "is_append": false
+                }
+            },
+            "meta_data": [
+                {
+                    "type": {
+                        "graph_type": {
+                            "element_opt": "VERTEX",
+                            "graph_data_type": [
+                                {
+                                    "label": {
+                                        "label": 0
+                                    },
+                                    "props": []
+                                }
+                            ]
+                        }
+                    },
+                    "alias": 0
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 3
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 4
+                }
+            ]
+        },
+        {
+            "opr": {
+                "group_by": {
+                    "mappings": [
+                        {
+                            "key": {
+                                "tag": {
+                                    "id": 3
+                                },
+                                "node_type": {
+                                    "data_type": {
+                                        "primitive_type": "DT_SIGNED_INT64"
+                                    }
+                                }
+                            },
+                            "alias": 3
+                        },
+                        {
+                            "key": {
+                                "tag": {
+                                    "id": 4
+                                },
+                                "node_type": {
+                                    "data_type": {
+                                        "primitive_type": "DT_SIGNED_INT64"
+                                    }
+                                }
+                            },
+                            "alias": 4
+                        }
+                    ],
+                    "functions": [
+                        {
+                            "vars": [
+                                {
+                                    "tag": {
+                                        "id": 0
+                                    },
+                                    "node_type": {
+                                        "graph_type": {
+                                            "element_opt": "VERTEX",
+                                            "graph_data_type": [
+                                                {
+                                                    "label": {
+                                                        "label": 0
+                                                    },
+                                                    "props": []
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ],
+                            "aggregate": "COUNT",
+                            "alias": 5
+                        }
+                    ]
+                }
+            },
+            "meta_data": [
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 3
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 4
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 5
+                }
+            ]
+        },
+        {
+            "opr": {
+                "project": {
+                    "mappings": [
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 3
+                                            },
+                                            "node_type": {
+                                                "data_type": {
+                                                    "primitive_type": "DT_SIGNED_INT64"
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "data_type": {
+                                                "primitive_type": "DT_SIGNED_INT64"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 3
+                        },
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 4
+                                            },
+                                            "node_type": {
+                                                "data_type": {
+                                                    "primitive_type": "DT_SIGNED_INT64"
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "data_type": {
+                                                "primitive_type": "DT_SIGNED_INT64"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 4
+                        },
+                        {
+                            "expr": {
+                                "operators": [
+                                    {
+                                        "var": {
+                                            "tag": {
+                                                "id": 5
+                                            },
+                                            "node_type": {
+                                                "data_type": {
+                                                    "primitive_type": "DT_SIGNED_INT64"
+                                                }
+                                            }
+                                        },
+                                        "node_type": {
+                                            "data_type": {
+                                                "primitive_type": "DT_SIGNED_INT64"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "alias": 5
+                        }
+                    ],
+                    "is_append": false
+                }
+            },
+            "meta_data": [
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 3
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 4
+                },
+                {
+                    "type": {
+                        "data_type": {
+                            "primitive_type": "DT_SIGNED_INT64"
+                        }
+                    },
+                    "alias": 5
+                }
+            ]
+        },
+        {
+            "opr": {
+                "sink": {
+                    "tags": []
+                }
+            },
+            "meta_data": []
+        }
+    ],
+    "flag": {
+        "read": true,
+        "insert": false,
+        "update": false,
+        "schema": false,
+        "batch": false,
+        "create_temp_table": false,
+        "checkpoint": false,
+        "procedure_call": false
+    }
 }

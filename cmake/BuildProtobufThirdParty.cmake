@@ -18,13 +18,21 @@
 
 function (build_protobuf_as_third_party)
     set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
-    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests")
+    set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "Build protobuf shared libraries" FORCE)
+    set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests" FORCE)
     set(protobuf_BUILD_CONFORMANCE OFF CACHE BOOL "Build protobuf conformance tests")
     set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "Build protobuf examples")
     set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "Build protoc binaries")
     set(protobuf_BUILD_LIBPROTOC ON CACHE BOOL "Build libprotoc")
     set(protobuf_BUILD_LIBUPB ON CACHE BOOL "Build libupb")
     set(protobuf_WITH_ZLIB ON CACHE BOOL "Build with zlib")
+    set(protobuf_INSTALL ON CACHE BOOL "Install protobuf targets and config files")
+    set(protobuf_USE_EXTERNAL_GTEST ON CACHE BOOL "Use external GTest targets" FORCE)
+    # Force absl to skip exporting test helper targets so its installed config
+    # file does not depend on GTest::gmock, which is not shipped in our runtime.
+    set(ABSL_BUILD_TEST_HELPERS OFF CACHE BOOL "Build Abseil test helper libraries" FORCE)
+    set(ABSL_USE_EXTERNAL_GOOGLETEST OFF CACHE BOOL "Use external GoogleTest targets" FORCE)
+    set(ABSL_FIND_GOOGLETEST OFF CACHE BOOL "Call find_package(GTest) from Abseil" FORCE)
     # protobuf_INSTALL must stay ON (the default) so that protobuf and its
     # abseil-cpp dependency both get proper install(EXPORT) rules.  Without
     # this, adding libprotobuf to neug-targets would fail because the absl
@@ -35,6 +43,24 @@ function (build_protobuf_as_third_party)
     # child directory scopes created by add_subdirectory(). We use
     # target_compile_options() after add_subdirectory() instead.
     # Apply third_party/protobuf.patch if it exists (optional for newer versions)
+    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp.patch")
+        execute_process(
+            COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp.patch"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf/third_party/abseil-cpp"
+            RESULT_VARIABLE patch_check_result
+            ERROR_VARIABLE error_output
+        )
+        if(patch_check_result EQUAL 0)
+            execute_process(
+                COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp.patch"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf/third_party/abseil-cpp"
+                RESULT_VARIABLE patch_result
+                ERROR_VARIABLE error_output
+            )
+        else()
+            message(STATUS "abseil-cpp.patch does not apply cleanly (likely already fixed upstream), skipping.")
+        endif()
+    endif()
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf.patch")
         execute_process(
             COMMAND git apply --check "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf.patch"

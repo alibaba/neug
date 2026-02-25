@@ -1,66 +1,73 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "root": {}
-    },
-    "meta_data": []
+ "plan": [
+  {
+   "opr": {
+    "root": {}
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "to_date": {
-            "date_str": "1995-11-02"
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "date": {
-               "date_format": "DF_YYYY_MM_DD"
-              }
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "node_type": {
+           "data_type": {
+            "temporal": {
+             "date": {
+              "date_format": "DF_YYYY_MM_DD"
              }
             }
            }
+          },
+          "to_date": {
+           "date_str": "1995-11-02"
           }
-         ]
-        },
-        "alias": 0
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "date": {
-          "date_format": "DF_YYYY_MM_DD"
          }
+        ]
+       },
+       "alias": 0
+      }
+     ],
+     "is_append": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "temporal": {
+        "date": {
+         "date_format": "DF_YYYY_MM_DD"
         }
        }
-      },
-      "alias": 0
-     }
-    ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
    },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": false,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }
