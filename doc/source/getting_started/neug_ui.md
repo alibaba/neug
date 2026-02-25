@@ -2,15 +2,6 @@
 
 The NeuG Web UI provides a browser-based interface for interacting with NeuG databases. It offers an intuitive way to execute Cypher queries, visualize results, and explore your graph data through a modern web interface.
 
-## Overview
-
-The `neug-cli ui` command starts a Flask web server that serves a React-based frontend application. This allows you to:
-
-- Execute Cypher queries through a web interface
-- Browse database schema
-- Visualize query results in tables and graphs
-- Access the database through HTTP REST APIs
-
 ## Basic Usage
 
 ### Starting the Web UI
