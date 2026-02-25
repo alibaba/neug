@@ -533,15 +533,10 @@ build_glog_as_third_party()
 include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
 message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 
-# find yaml-cpp-----------------------------------------------------------------
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-set(YAML_CPP_INSTALL OFF CACHE BOOL "Install yaml-cpp")
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
-add_subdirectory(third_party/yaml-cpp)
-include_directories(SYSTEM third_party/yaml-cpp/include)
-set(YAML_CPP_LIBRARIES yaml-cpp)
-set_target_properties(yaml-cpp PROPERTIES DEBUG_POSTFIX "")
-message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}")
+include(cmake/BuildYamlCppAsThirdParty.cmake)
+build_yaml_cpp_as_third_party()
+message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}, include dir: ${YAML_CPP_INCLUDE_DIRS}")
+include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIRS})
 
 #find protobuf-------------------------------------------------------------------
 include(cmake/BuildProtobufThirdParty.cmake)
