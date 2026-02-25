@@ -86,18 +86,10 @@ class PathColumnBuilder : public IContextColumnBuilder {
   void push_back_null() override {
     if (!is_optional_) {
       is_optional_ = true;
-      valids_.reserve(data_.capacity());
     }
-    valids_.resize(data_.size(), true);
-    valids_.push_back(false);
     data_.emplace_back();
   }
-  void reserve(size_t size) override {
-    data_.reserve(size);
-    if (is_optional_) {
-      valids_.reserve(size);
-    }
-  }
+  void reserve(size_t size) override { data_.reserve(size); }
 
   std::shared_ptr<IContextColumn> finish() override {
     auto col = std::make_shared<PathColumn>();
@@ -108,7 +100,6 @@ class PathColumnBuilder : public IContextColumnBuilder {
 
  private:
   bool is_optional_ = false;
-  std::vector<bool> valids_;
   std::vector<Path> data_;
 };
 
