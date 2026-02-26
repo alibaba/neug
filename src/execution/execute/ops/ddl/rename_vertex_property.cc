@@ -17,7 +17,7 @@
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class RenameVertexPropertyOpr : public IOperator {
@@ -74,5 +74,5 @@ neug::result<OpBuildResultT> RenameVertexPropertyOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

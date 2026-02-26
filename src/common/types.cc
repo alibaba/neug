@@ -165,6 +165,24 @@ DataType parse_from_data_type(const ::common::DataType& ddt) {
   return DataType(DataTypeId::kUnknown);
 }
 
+DataType parse_graph_data_type_from_ir_data_type(
+    const ::common::GraphDataType& gdt) {
+  switch (gdt.element_opt()) {
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_VERTEX:
+    return DataType(DataTypeId::kVertex);
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_EDGE:
+    return DataType(DataTypeId::kEdge);
+  case ::common::GraphDataType_GraphElementOpt::
+      GraphDataType_GraphElementOpt_PATH:
+    return DataType(DataTypeId::kPath);
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
+                                  gdt.DebugString());
+    break;
+  }
+}
 DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   switch (dt.type_case()) {
   case ::common::IrDataType::TypeCase::kDataType: {
@@ -173,26 +191,79 @@ DataType parse_from_ir_data_type(const ::common::IrDataType& dt) {
   }
   case ::common::IrDataType::TypeCase::kGraphType: {
     const ::common::GraphDataType gdt = dt.graph_type();
-    switch (gdt.element_opt()) {
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_VERTEX:
-      return DataType(DataTypeId::kVertex);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_EDGE:
-      return DataType(DataTypeId::kEdge);
-    case ::common::GraphDataType_GraphElementOpt::
-        GraphDataType_GraphElementOpt_PATH:
-      return DataType(DataTypeId::kPath);
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("unrecognized graph data type - " +
-                                    gdt.DebugString());
-      break;
-    }
-  } break;
+    return parse_graph_data_type_from_ir_data_type(gdt);
+  }
+  case ::common::IrDataType::TypeCase::kListType: {
+    const ::common::GraphTypeList gdtl = dt.list_type();
+    std::shared_ptr<ExtraTypeInfo> type_info = std::make_shared<ListTypeInfo>(
+        parse_graph_data_type_from_ir_data_type(gdtl.component_type()));
+    return DataType(DataTypeId::kList, type_info);
+  }
   default:
     break;
   }
   return DataType(DataTypeId::kUnknown);
+}
+
+std::string DataType::ToString() const {
+  switch (id_) {
+  case DataTypeId::kInvalid:
+    return "INVALID";
+  case DataTypeId::kBoolean:
+    return "BOOLEAN";
+  case DataTypeId::kInt8:
+    return "INT8";
+  case DataTypeId::kInt16:
+    return "INT16";
+  case DataTypeId::kInt32:
+    return "INT32";
+  case DataTypeId::kInt64:
+    return "INT64";
+  case DataTypeId::kUInt8:
+    return "UINT8";
+  case DataTypeId::kUInt16:
+    return "UINT16";
+  case DataTypeId::kUInt32:
+    return "UINT32";
+  case DataTypeId::kUInt64:
+    return "UINT64";
+  case DataTypeId::kFloat:
+    return "FLOAT";
+  case DataTypeId::kDouble:
+    return "DOUBLE";
+  case DataTypeId::kVarchar:
+    return "VARCHAR";
+  case DataTypeId::kDate:
+    return "DATE";
+  case DataTypeId::kTimestampMs:
+    return "TIMESTAMP_MS";
+  case DataTypeId::kInterval:
+    return "INTERVAL";
+  case DataTypeId::kVertex:
+    return "VERTEX";
+  case DataTypeId::kEdge:
+    return "EDGE";
+  case DataTypeId::kPath:
+    return "PATH";
+  case DataTypeId::kList: {
+    const DataType& child_type = ListType::GetChildType(*this);
+    return "LIST<" + child_type.ToString() + ">";
+  }
+  case DataTypeId::kStruct: {
+    const auto& child_types = StructType::GetChildTypes(*this);
+    std::string result = "STRUCT<";
+    for (size_t i = 0; i < child_types.size(); ++i) {
+      result += child_types[i].ToString();
+      if (i != child_types.size() - 1) {
+        result += ", ";
+      }
+    }
+    result += ">";
+    return result;
+  }
+  default:
+    return "UNKNOWN" + std::to_string(static_cast<uint8_t>(id_));
+  }
 }
 
 }  // namespace neug

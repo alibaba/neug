@@ -47,7 +47,7 @@ struct JsonReadFunction {
     return functionSet;
   }
 
-  static runtime::Context execFunc(
+  static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
     // todo: get file system from vfs manager
     LocalFileSystemProvider fsProvider;
@@ -58,7 +58,7 @@ struct JsonReadFunction {
     auto reader = std::make_unique<reader::ArrowReader>(
         state, std::move(optionsBuilder), fileInfo.fileSystem,
         std::make_shared<reader::JsonDatasetBuilder>());
-    runtime::Context ctx;
+    execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;

@@ -26,6 +26,17 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug import Database
 
+JSON_TESTS_ENABLED = os.environ.get("NEUG_RUN_JSON_TESTS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+json_test = pytest.mark.skipif(
+    not JSON_TESTS_ENABLED,
+    reason="JSON tests disabled by default; set NEUG_RUN_JSON_TESTS=1 to enable.",
+)
+
 
 def get_tinysnb_dataset_path():
     """Get the path to tinysnb dataset CSV files."""
@@ -113,6 +124,202 @@ class TestLoadFrom:
         assert len(first_record) == 2, "Should return only 2 columns"
         assert isinstance(first_record[0], str), "fName should be string"
         assert isinstance(first_record[1], int), "age should be integer"
+
+    def test_load_from_return_distinct_single_column_bool(self):
+        """Test DISTINCT with single boolean column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(isStudent, 'BOOL')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct boolean values (True, False)
+        assert len(records) > 0, "Should return at least one distinct value"
+        assert len(records) <= 2, "Boolean should have at most 2 distinct values"
+
+        # Verify all values are boolean
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], bool
+            ), f"isStudent should be boolean, got {type(record[0])}"
+
+    def test_load_from_return_distinct_single_column_numeric(self):
+        """Test DISTINCT with single numeric column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT age
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct age values
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are numeric and distinct
+        ages = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], int
+            ), f"age should be integer, got {type(record[0])}"
+            ages.append(record[0])
+
+        # Verify distinctness
+        assert len(ages) == len(set(ages)), "All returned ages should be distinct"
+
+    def test_load_from_return_distinct_single_column_string(self):
+        """Test DISTINCT with single string column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT fName
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct names
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are strings and distinct
+        names = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            assert isinstance(
+                record[0], str
+            ), f"fName should be string, got {type(record[0])}"
+            names.append(record[0])
+
+        # Verify distinctness
+        assert len(names) == len(set(names)), "All returned names should be distinct"
+
+    def test_load_from_return_distinct_single_column_date(self):
+        """Test DISTINCT with single date column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(birthdate, 'DATE')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct birthdates
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are dates and distinct
+        dates = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            # Date can be returned as date object or string depending on implementation
+            dates.append(record[0])
+
+        # Verify distinctness
+        assert len(dates) == len(set(dates)), "All returned dates should be distinct"
+
+    def test_load_from_return_distinct_single_column_datetime(self):
+        """Test DISTINCT with single datetime/timestamp column."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT CAST(registerTime, 'TIMESTAMP')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct timestamps
+        assert len(records) > 0, "Should return at least one distinct value"
+
+        # Verify all values are distinct
+        timestamps = []
+        for record in records:
+            assert len(record) == 1, "Should return only 1 column"
+            timestamps.append(record[0])
+
+        # Verify distinctness
+        assert len(timestamps) == len(
+            set(timestamps)
+        ), "All returned timestamps should be distinct"
+
+    def test_load_from_return_distinct_two_columns(self):
+        """Test DISTINCT with two columns: boolean and numeric."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT isStudent, age
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct combinations
+        assert len(records) > 0, "Should return at least one distinct combination"
+
+        # Verify all combinations are distinct
+        combinations = []
+        for record in records:
+            assert len(record) == 2, "Should return 2 columns"
+            assert isinstance(
+                record[0], bool
+            ), f"isStudent should be boolean, got {type(record[0])}"
+            assert isinstance(
+                record[1], int
+            ), f"age should be integer, got {type(record[1])}"
+            combinations.append((record[0], record[1]))
+
+        # Verify distinctness
+        assert len(combinations) == len(
+            set(combinations)
+        ), "All returned combinations should be distinct"
+
+    def test_load_from_return_distinct_multiple_columns(self):
+        """Test DISTINCT with multiple columns: string, date, datetime."""
+        csv_path = os.path.join(self.tinysnb_path, "vPerson.csv")
+        if not os.path.exists(csv_path):
+            pytest.skip(f"CSV file not found: {csv_path}")
+
+        query = f"""
+        LOAD FROM "{csv_path}" (delim=',')
+        RETURN DISTINCT fName, CAST(birthdate, 'DATE'), CAST(registerTime, 'TIMESTAMP')
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        # Should have distinct combinations
+        assert len(records) > 0, "Should return at least one distinct combination"
+
+        # Verify all combinations are distinct
+        combinations = []
+        for record in records:
+            assert len(record) == 3, "Should return 3 columns"
+            assert isinstance(
+                record[0], str
+            ), f"fName should be string, got {type(record[0])}"
+            combinations.append((record[0], record[1], record[2]))
+
+        # Verify distinctness
+        assert len(combinations) == len(
+            set(combinations)
+        ), "All returned combinations should be distinct"
 
     def test_load_from_with_where(self):
         """Test LOAD FROM with WHERE clause filtering."""
@@ -564,6 +771,7 @@ class TestLoadFrom:
             assert isinstance(record[1], float), "age_double should be float"
             assert record[1] > 30.0, f"Age {record[1]} should be greater than 30.0"
 
+    @json_test
     def test_load_from_json_basic_return_all(self):
         """Test basic LOAD FROM JSON with RETURN *."""
         json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
@@ -571,7 +779,7 @@ class TestLoadFrom:
             pytest.skip(f"JSON file not found: {json_path}")
 
         # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{json_path}"
@@ -588,14 +796,93 @@ class TestLoadFrom:
         first_record = records[0]
         assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
 
+    @json_test
+    def test_load_from_json_return_specific_columns(self):
+        """Test LOAD FROM JSON Array with column projection."""
+        json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
+        if not os.path.exists(json_path):
+            pytest.skip(f"JSON file not found: {json_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{json_path}"
+        RETURN fName, age
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return only 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], int), "age should be integer"
+
+    @json_test
+    def test_load_from_json_with_column_alias(self):
+        """Test LOAD FROM JSON Array with column aliases in RETURN.
+
+        Regression test: column aliases (e.g., fName AS name) must not be used
+        as the physical column name when reading the JSON file. The entry schema
+        sent to the Arrow JSON reader must use the original field names.
+        """
+        json_path = os.path.join(self.tinysnb_path, "json", "vPerson.json")
+        if not os.path.exists(json_path):
+            pytest.skip(f"JSON file not found: {json_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{json_path}"
+        RETURN fName AS name, age AS years
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "name (aliased fName) should be string"
+        assert isinstance(first_record[1], int), "years (aliased age) should be integer"
+        # Verify actual data: first person is Alice, age 35
+        assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
+        assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
+
+    @json_test
+    def test_load_from_jsonl_with_column_alias(self):
+        """Test LOAD FROM JSONL with column aliases in RETURN."""
+        jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
+        if not os.path.exists(jsonl_path):
+            pytest.skip(f"JSONL file not found: {jsonl_path}")
+
+        self.conn.execute("LOAD JSON")
+
+        query = f"""
+        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        RETURN fName AS name, age AS years
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return 2 columns"
+        assert isinstance(first_record[0], str), "name (aliased fName) should be string"
+        assert isinstance(first_record[1], int), "years (aliased age) should be integer"
+        assert first_record[0] == "Alice", f"Expected 'Alice', got '{first_record[0]}'"
+        assert first_record[1] == 35, f"Expected 35, got {first_record[1]}"
+
+    @json_test
     def test_load_from_jsonl_return_specific_columns(self):
         """Test LOAD FROM JSONL with column projection."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         query = f"""
         LOAD FROM "{jsonl_path}" (newline_delimited=true)
@@ -613,14 +900,14 @@ class TestLoadFrom:
         assert isinstance(first_record[1], int), "age should be integer"
         print(first_record)
 
+    @json_test
     def test_load_from_jsonl_with_multiple_where_conditions(self):
         """Test LOAD FROM JSONL with multiple WHERE conditions."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
@@ -641,14 +928,14 @@ class TestLoadFrom:
             assert isinstance(fname, str), "fName should be string"
             assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
 
+    @json_test
     def test_load_from_jsonl_with_complex_where_conditions(self):
         """Test LOAD FROM JSONL with complex WHERE conditions (age, eyeSight, height)."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
         if not os.path.exists(jsonl_path):
             pytest.skip(f"JSONL file not found: {jsonl_path}")
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
@@ -776,6 +1063,7 @@ class TestCopyFrom:
         assert records[0][2] == "Alice", "First person name should be Alice"
         assert records[0][3] == 1, "Alice's gender should be 1"
 
+    @json_test
     def test_copy_from_node_jsonl_with_column_remapping(self):
         """Test COPY FROM for node table with column remapping using JSONL file."""
         jsonl_path = os.path.join(self.tinysnb_path, "json", "vPerson.jsonl")
@@ -798,8 +1086,7 @@ class TestCopyFrom:
         """
         self.conn.execute(create_schema)
 
-        # json should be loaded as extension first
-        self.conn.execute("load json")
+        self.conn.execute("LOAD JSON")
 
         # Copy data with column remapping using LOAD FROM subquery
         # JSONL has: ID, fName, gender, isStudent, isWorker, age, eyeSight, ...

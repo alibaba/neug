@@ -15,21 +15,16 @@
 
 #include "neug/execution/execute/ops/retrieve/edge.h"
 
-#include "neug/execution/common/context.h"
 #include "neug/execution/common/operators/retrieve/edge_expand.h"
-#include "neug/execution/common/types/graph_types.h"
-#include "neug/execution/utils/params.h"
+#include "neug/execution/expression/expr.h"
+#include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/execution/utils/predicates.h"
-#include "neug/execution/utils/special_predicates.h"
-#include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
-#include "neug/utils/result.h"
 
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -103,57 +98,62 @@ bool edge_expand_get_v_fusable(const physical::PhysicalPlan& plan, int idx,
 class EdgeExpandVWithEPCmpOpr : public IOperator {
  public:
   EdgeExpandVWithEPCmpOpr(const EdgeExpandParams& eep,
-                          const SpecialEdgePredicateConfig& config,
-                          const common::Expression& pred)
-      : eep_(eep), pred_(pred), config_(config) {}
+                          const SpecialPredicateConfig& config,
+                          std::unique_ptr<ExprBase>&& pred)
+      : eep_(eep), pred_(std::move(pred)), config_(config) {}
 
   std::string get_operator_name() const override {
     return "EdgeExpandVWithEPCmpOpr";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (!eep_.is_optional) {
+      const auto& param_value = params.at(config_.param_names[0]);
       auto ret = EdgeExpand::expand_vertex_ep_cmp(graph, std::move(ctx), eep_,
-                                                  params.at(config_.param_name),
-                                                  config_.ptype);
+                                                  param_value, config_.ptype);
       if (ret) {
         return ret.value();
       }
     }
 
-    GeneralEdgePredicate pred(graph, ctx, params, pred_);
-    return EdgeExpand::expand_vertex<GeneralEdgePredicate>(
-        graph, std::move(ctx), eep_, pred);
+    auto expr = pred_->bind(&graph, params);
+    GeneralPred expr_wrapper(std::move(expr));
+    EdgePredicate<GeneralPred> pred(expr_wrapper);
+    return EdgeExpand::expand_vertex<decltype(pred)>(graph, std::move(ctx),
+                                                     eep_, pred);
   }
 
  private:
   EdgeExpandParams eep_;
-  common::Expression pred_;
-  SpecialEdgePredicateConfig config_;
+  std::unique_ptr<ExprBase> pred_;
+  SpecialPredicateConfig config_;
 };
 
 class EdgeExpandVOpr : public IOperator {
  public:
-  EdgeExpandVOpr(const EdgeExpandParams& eep,
-                 const std::optional<common::Expression>& pred)
-      : eep_(eep), pred_(pred) {}
+  EdgeExpandVOpr(const EdgeExpandParams& eep, std::unique_ptr<ExprBase>&& pred)
+      : eep_(eep), pred_(std::move(pred)) {}
 
   std::string get_operator_name() const override { return "EdgeExpandVOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
 
-    if (pred_.has_value()) {
-      GeneralEdgePredicate pred(graph, ctx, params, pred_.value());
-      return EdgeExpand::expand_vertex<GeneralEdgePredicate>(
-          graph, std::move(ctx), eep_, pred);
+    if (pred_ != nullptr) {
+      auto expr = pred_->bind(&graph, params);
+      GeneralPred expr_wrapper(std::move(expr));
+      EdgePredicate pred(expr_wrapper);
+      return EdgeExpand::expand_vertex<decltype(pred)>(graph, std::move(ctx),
+                                                       eep_, pred);
     } else {
       return EdgeExpand::expand_vertex<DummyPredicate>(graph, std::move(ctx),
                                                        eep_, DummyPredicate());
@@ -162,74 +162,79 @@ class EdgeExpandVOpr : public IOperator {
 
  private:
   EdgeExpandParams eep_;
-  std::optional<common::Expression> pred_;
+  std::unique_ptr<ExprBase> pred_;
 };
 
 class EdgeExpandEWithSPredOpr : public IOperator {
  public:
   EdgeExpandEWithSPredOpr(const EdgeExpandParams& eep,
-                          const SpecialEdgePredicateConfig& config)
+                          const SpecialPredicateConfig& config)
       : eep_(eep), config_(config) {}
 
   std::string get_operator_name() const override {
     return "EdgeExpandEWithSPredOpr";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_edge_with_special_edge_predicate(
-        graph, std::move(ctx), eep_, config_, params.at(config_.param_name));
+        graph, std::move(ctx), eep_, config_,
+        params.at(config_.param_names[0]));
   }
 
  private:
   EdgeExpandParams eep_;
-  SpecialEdgePredicateConfig config_;
+  SpecialPredicateConfig config_;
 };
 
 class EdgeExpandEOpr : public IOperator {
  public:
-  EdgeExpandEOpr(const EdgeExpandParams& eep,
-                 const std::optional<common::Expression>& pred)
-      : eep_(eep), pred_(pred) {}
+  EdgeExpandEOpr(const EdgeExpandParams& eep, std::unique_ptr<ExprBase>&& pred)
+      : eep_(eep), pred_(std::move(pred)) {}
 
   std::string get_operator_name() const override { return "EdgeExpandEOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    if (!pred_.has_value()) {
+    if (pred_ == nullptr) {
       return EdgeExpand::expand_edge(graph, std::move(ctx), eep_,
                                      DummyPredicate());
     } else {
-      GeneralEdgePredicate pred(graph, ctx, params, pred_.value());
-      return EdgeExpand::expand_edge<GeneralEdgePredicate>(
-          graph, std::move(ctx), eep_, pred);
+      auto expr = pred_->bind(&graph, params);
+      GeneralPred expr_wrapper(std::move(expr));
+      EdgePredicate pred(expr_wrapper);
+      return EdgeExpand::expand_edge<decltype(pred)>(graph, std::move(ctx),
+                                                     eep_, pred);
     }
   }
 
  private:
   EdgeExpandParams eep_;
-  std::optional<common::Expression> pred_;
+  std::unique_ptr<ExprBase> pred_;
 };
 
 class EdgeExpandVWithSPVertexPredOpr : public IOperator {
  public:
   EdgeExpandVWithSPVertexPredOpr(const EdgeExpandParams& eep,
-                                 const SpecialVertexPredicateConfig& config)
+                                 const SpecialPredicateConfig& config)
       : eep_(eep), config_(config) {}
 
   std::string get_operator_name() const override {
     return "EdgeExpandVWithSPVertexPredOpr";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_vertex_with_special_vertex_predicate(
@@ -238,41 +243,44 @@ class EdgeExpandVWithSPVertexPredOpr : public IOperator {
 
  private:
   EdgeExpandParams eep_;
-  SpecialVertexPredicateConfig config_;
+  SpecialPredicateConfig config_;
 };
 
 class EdgeExpandVWithGPVertexPredOpr : public IOperator {
  public:
   EdgeExpandVWithGPVertexPredOpr(const EdgeExpandParams& eep,
-                                 const common::Expression& pred)
-      : eep_(eep), pred_(pred) {}
+                                 std::unique_ptr<ExprBase>&& pred)
+      : eep_(eep), pred_(std::move(pred)) {}
   std::string get_operator_name() const override {
     return "EdgeExpandVWithGPVertexPredOpr";
   }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    GeneralVertexPredicate v_pred(graph, ctx, params, pred_);
-    EdgeNbrPredicate<GeneralVertexPredicate> vpred(v_pred);
-    return EdgeExpand::expand_vertex<EdgeNbrPredicate<GeneralVertexPredicate>>(
+    auto expr = pred_->bind(&graph, params);
+    GeneralPred expr_wrapper(std::move(expr));
+    EdgeNbrPredicate vpred(expr_wrapper);
+    return EdgeExpand::expand_vertex<EdgeNbrPredicate<GeneralPred>>(
         graph, std::move(ctx), eep_, vpred);
   }
 
  private:
   EdgeExpandParams eep_;
-  common::Expression pred_;
+  std::unique_ptr<ExprBase> pred_;
 };
 
 class EdgeExpandDegreeOpr : public IOperator {
  public:
   EdgeExpandDegreeOpr(const EdgeExpandParams& eep) : eep_(eep) {}
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::expand_degree(graph, std::move(ctx), eep_);
@@ -294,7 +302,7 @@ neug::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
     alias = plan.plan(op_idx).opr().edge().alias().value();
   }
   ContextMeta meta = ctx_meta;
-  meta.set(alias);
+
   auto opr = plan.plan(op_idx).opr().edge();
   int v_tag = opr.has_v_tag() ? opr.v_tag().value() : -1;
   Direction dir = parse_direction(opr.direction());
@@ -311,37 +319,44 @@ neug::result<OpBuildResultT> EdgeExpandOprBuilder::Build(
   eep.alias = alias;
   eep.is_optional = is_optional;
   if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_VERTEX) {
+    meta.set(alias, DataType::VERTEX);
     if (query_params.has_predicate()) {
-      SpecialEdgePredicateConfig config;
-      if (is_special_edge_predicate(query_params.predicate(), config)) {
+      SpecialPredicateConfig config;
+      auto pred =
+          parse_expression(query_params.predicate(), ctx_meta, VarType::kEdge);
+      if (is_special_edge_predicate(schema, eep.labels,
+                                    query_params.predicate(), config)) {
         return std::make_pair(std::make_unique<EdgeExpandVWithEPCmpOpr>(
-                                  eep, config, query_params.predicate()),
+                                  eep, config, std::move(pred)),
                               meta);
       }
       return std::make_pair(
-          std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
-          meta);
+          std::make_unique<EdgeExpandVOpr>(eep, std::move(pred)), meta);
 
     } else {
-      return std::make_pair(std::make_unique<EdgeExpandVOpr>(eep, std::nullopt),
+      return std::make_pair(std::make_unique<EdgeExpandVOpr>(eep, nullptr),
                             meta);
     }
   } else if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_EDGE) {
+    meta.set(alias, DataType::EDGE);
     if (query_params.has_predicate()) {
-      SpecialEdgePredicateConfig config;
-      if (is_special_edge_predicate(query_params.predicate(), config)) {
+      SpecialPredicateConfig config;
+      if (is_special_edge_predicate(schema, eep.labels,
+                                    query_params.predicate(), config)) {
         return std::make_pair(
             std::make_unique<EdgeExpandEWithSPredOpr>(eep, config), meta);
       } else {
+        auto pred = parse_expression(query_params.predicate(), ctx_meta,
+                                     VarType::kEdge);
         return std::make_pair(
-            std::make_unique<EdgeExpandEOpr>(eep, query_params.predicate()),
-            meta);
+            std::make_unique<EdgeExpandEOpr>(eep, std::move(pred)), meta);
       }
     } else {
-      return std::make_pair(std::make_unique<EdgeExpandEOpr>(eep, std::nullopt),
+      return std::make_pair(std::make_unique<EdgeExpandEOpr>(eep, nullptr),
                             meta);
     }
   } else if (opr.expand_opt() == physical::EdgeExpand_ExpandOpt_DEGREE) {
+    meta.set(alias, DataType::INT64);
     if (query_params.has_predicate()) {
       LOG(ERROR)
           << "EdgeExpandOprBuilder::Build: expand_opt is DEGREE with predicate"
@@ -363,7 +378,7 @@ neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
       alias = plan.plan(op_idx + 1).opr().vertex().alias().value();
     }
     ContextMeta meta = ctx_meta;
-    meta.set(alias);
+    meta.set(alias, DataType::VERTEX);
     const auto& ee_opr = plan.plan(op_idx).opr().edge();
     const auto& v_opr = plan.plan(op_idx + 1).opr().vertex();
     auto vtables = parse_tables(v_opr.params());
@@ -420,33 +435,39 @@ neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
     eep.is_optional = is_optional;
     if (!v_opr.params().has_predicate()) {
       if (query_params.has_predicate()) {
-        SpecialEdgePredicateConfig config;
-        if (is_special_edge_predicate(query_params.predicate(), config)) {
+        auto expr = parse_expression(query_params.predicate(), ctx_meta,
+                                     VarType::kEdge);
+        SpecialPredicateConfig config;
+        if (is_special_edge_predicate(schema, eep.labels,
+                                      query_params.predicate(), config)) {
           return std::make_pair(std::make_unique<EdgeExpandVWithEPCmpOpr>(
-                                    eep, config, query_params.predicate()),
+                                    eep, config, std::move(expr)),
                                 meta);
         }
         return std::make_pair(
-            std::make_unique<EdgeExpandVOpr>(eep, query_params.predicate()),
-            meta);
+            std::make_unique<EdgeExpandVOpr>(eep, std::move(expr)), meta);
       } else {
-        return std::make_pair(
-            std::make_unique<EdgeExpandVOpr>(eep, std::nullopt), meta);
+        return std::make_pair(std::make_unique<EdgeExpandVOpr>(eep, nullptr),
+                              meta);
       }
     }
 
     if (query_params.has_predicate()) {
       return std::make_pair(nullptr, meta);
     } else {
-      SpecialVertexPredicateConfig config;
-      if (is_special_vertex_predicate(v_opr.params().predicate(), config)) {
+      SpecialPredicateConfig config;
+      const auto& vertex_labels = parse_tables(v_opr.params());
+      if (is_special_vertex_predicate(schema, vertex_labels,
+                                      v_opr.params().predicate(), config)) {
         return std::make_pair(
             std::make_unique<EdgeExpandVWithSPVertexPredOpr>(eep, config),
             meta);
 
       } else {
+        auto expr = parse_expression(v_opr.params().predicate(), ctx_meta,
+                                     VarType::kVertex);
         return std::make_pair(std::make_unique<EdgeExpandVWithGPVertexPredOpr>(
-                                  eep, v_opr.params().predicate()),
+                                  eep, std::move(expr)),
                               meta);
       }
     }
@@ -455,5 +476,5 @@ neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
 }
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

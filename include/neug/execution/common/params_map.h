@@ -20,9 +20,9 @@
 namespace neug {
 
 struct DataType;
-namespace runtime {
+namespace execution {
 class Value;
 using ParamsMap = std::map<std::string, Value>;
 using ParamsMetaMap = std::map<std::string, DataType>;
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

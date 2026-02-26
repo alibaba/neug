@@ -18,7 +18,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 
 class Union {
@@ -26,6 +26,6 @@ class Union {
   static neug::result<Context> union_op(std::vector<Context>&& ctxs);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

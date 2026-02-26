@@ -14,14 +14,10 @@
  */
 #pragma once
 
-#include <map>
-#include <memory>
-#include <string>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CheckpointOprBuilder : public IOperatorBuilder {
@@ -33,7 +29,7 @@ class CheckpointOprBuilder : public IOperatorBuilder {
                                      const ContextMeta& ctx_meta,
                                      const physical::PhysicalPlan& plan,
                                      int op_idx) override;
-  virtual int stepping(int i) { return i + GetOpKinds().size(); }
+  virtual int stepping(int i) override { return i + GetOpKinds().size(); }
 
   std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
       const override {
@@ -41,6 +37,6 @@ class CheckpointOprBuilder : public IOperatorBuilder {
   }
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

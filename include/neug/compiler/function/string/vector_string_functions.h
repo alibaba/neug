@@ -65,7 +65,7 @@ struct LowerFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static runtime::Value Exec(const std::vector<runtime::Value>& args);
+  static execution::Value Exec(const std::vector<execution::Value>& args);
 };
 
 struct ToLowerFunction : public VectorStringFunction {
@@ -85,8 +85,8 @@ struct ReverseFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static neug::runtime::Value Exec(
-      const std::vector<neug::runtime::Value>& args);
+  static neug::execution::Value Exec(
+      const std::vector<neug::execution::Value>& args);
 };
 
 struct StartsWithFunction : public VectorStringFunction {
@@ -100,8 +100,8 @@ struct UpperFunction : public VectorStringFunction {
 
   static function_set getFunctionSet();
 
-  static neug::runtime::Value Exec(
-      const std::vector<neug::runtime::Value>& args);
+  static neug::execution::Value Exec(
+      const std::vector<neug::execution::Value>& args);
 };
 
 struct ToUpperFunction : public VectorStringFunction {

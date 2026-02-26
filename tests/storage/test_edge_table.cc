@@ -1073,7 +1073,6 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
   }
   for (size_t i = 0; i < src_lids.size(); ++i) {
     auto oe_edges = oe_view.get_edges(src_lids[i]);
-    auto ie_edges = ie_view.get_edges(dst_lids[i]);
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
       auto str_data = ed_accessor_0.get_data(it);
       auto int_data = ed_accessor_1.get_data(it);
@@ -1088,16 +1087,18 @@ struct TypePair {
   using EdType = EDATA_T;
   using ArrowType = ARROW_COL_T;
 };
-using Datatypes =
-    ::testing::Types<TypePair<int32_t, arrow::Int32Array>,
-                     TypePair<uint32_t, arrow::UInt32Array>,
-                     TypePair<int64_t, arrow::Int64Array>,
-                     TypePair<uint64_t, arrow::UInt64Array>,
-                     TypePair<float, arrow::FloatArray>,
-                     TypePair<double, arrow::DoubleArray>,
-                     TypePair<neug::Date, arrow::Date32Array>,
-                     TypePair<neug::DateTime, arrow::TimestampArray>,
-                     TypePair<neug::Interval, arrow::LargeStringArray>>;
+using Datatypes = ::testing::Types<
+    TypePair<int32_t, typename TypeConverter<int32_t>::ArrowArrayType>,
+    TypePair<uint32_t, typename TypeConverter<uint32_t>::ArrowArrayType>,
+    TypePair<int64_t, typename TypeConverter<int64_t>::ArrowArrayType>,
+    TypePair<uint64_t, typename TypeConverter<uint64_t>::ArrowArrayType>,
+    TypePair<float, typename TypeConverter<float>::ArrowArrayType>,
+    TypePair<double, typename TypeConverter<double>::ArrowArrayType>,
+    TypePair<neug::Date, typename TypeConverter<neug::Date>::ArrowArrayType>,
+    TypePair<neug::DateTime,
+             typename TypeConverter<neug::DateTime>::ArrowArrayType>,
+    TypePair<neug::Interval,
+             typename TypeConverter<neug::Interval>::ArrowArrayType>>;
 
 template <typename T>
 class EdgeTableToolsTest : public ::testing::Test {};
@@ -1127,63 +1128,63 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
     std::vector<DataTypeId> property_type = {DataTypeId::kInt32};
     column_types.emplace_back(DataTypeId::kInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
     file_path = resource_path + "/edges_i64.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kInt64};
     column_types.emplace_back(DataTypeId::kInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
     file_path = resource_path + "/edges_u32.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kUInt32};
     column_types.emplace_back(DataTypeId::kUInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
     file_path = resource_path + "/edges_u64.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kUInt64};
     column_types.emplace_back(DataTypeId::kUInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, float>) {
     file_path = resource_path + "/edges_float.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kFloat};
     column_types.emplace_back(DataTypeId::kFloat);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, double>) {
     file_path = resource_path + "/edges_double.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kDouble};
     column_types.emplace_back(DataTypeId::kDouble);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Date>) {
     file_path = resource_path + "/edges_date.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kDate};
     column_types.emplace_back(DataTypeId::kDate);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
     file_path = resource_path + "/edges_datetime.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kTimestampMs};
     column_types.emplace_back(DataTypeId::kTimestampMs);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Interval>) {
     file_path = resource_path + "/edges_interval.csv";
     std::vector<DataTypeId> property_type = {DataTypeId::kInterval};
     column_types.emplace_back(DataTypeId::kInterval);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
-    suppliers = runtime::ops::create_csv_record_suppliers(
+    suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else {
     FAIL();
@@ -1228,8 +1229,8 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
-  suppliers = runtime::ops::create_csv_record_suppliers(file_path, column_types,
-                                                        csv_options);
+  suppliers = execution::ops::create_csv_record_suppliers(
+      file_path, column_types, csv_options);
   EXPECT_EQ(suppliers.size(), 1);
 
   LFIndexer<vid_t> indexer;

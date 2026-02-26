@@ -77,6 +77,7 @@ PyConnection PyDatabase::connect() {
 
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t num_thread, bool blocking) {
+                                #ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }
@@ -86,15 +87,7 @@ std::string PyDatabase::serve(int port, const std::string& host,
   /**
    * Attention here: We utilize the NeugDBService to start the server, based on
    * database. But we need to make some changes to the NeugDB to make it works
-   * well for service mode, where concurrent queries will be processesd. The are
-   * mainly three changes:
-   *
-   * 1. Create multiple contexts in transaction manager, each for one thread,
-   * such that multiple queries can be processed concurrently. In contrast, in
-   * embedded mode, we only have one context.
-   * 2. Use TPVersionManager as the version manager, which is more suitable for
-   * transactional processing workloads. In contrast, in embedded mode, we use
-   * APVersionManager, which is more suitable for analytical processing
+   * well for service mode, where concurrent queries will be processed.
    *
    * But before all, we need to close the database, dump the data to disk, and
    * then reload the database with TPVersionManager and multiple contexts. By
@@ -122,11 +115,15 @@ std::string PyDatabase::serve(int port, const std::string& host,
     return "";
   }
   return service_->Start();
+#else
+  THROW_RUNTIME_ERROR("HTTP server is not enabled in this build.");
+#endif
 }
 
 void PyDatabase::stop_serving() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   VLOG(1) << "Stopping server if running.";
+#ifdef BUILD_HTTP_SERVER
   if (!service_) {
     return;
   }
@@ -134,6 +131,7 @@ void PyDatabase::stop_serving() {
     service_->Stop();
     service_.reset();
   }
+#endif
 }
 
 void PyDatabase::close() {

@@ -220,15 +220,15 @@ def test_tp_service_concurrent_query():
         session = Session(uri, timeout="10s")
         session.execute(
             query=f"CREATE NODE TABLE {src_node_name}(id INT64, name STRING, PRIMARY KEY(id));",
-            access_mode="update",
+            access_mode="schema",
         )
         session.execute(
             query=f"CREATE NODE TABLE {dst_node_name}(id INT64, name STRING, PRIMARY KEY(id));",
-            access_mode="update",
+            access_mode="schema",
         )
         session.execute(
             query=f"CREATE REL TABLE {edge_name}(FROM {src_node_name} TO {dst_node_name}, weight DOUBLE);",
-            access_mode="update",
+            access_mode="schema",
         )
         session.execute(
             query=f"CREATE (p:{src_node_name} {{id: 1, name: 'src'}});",

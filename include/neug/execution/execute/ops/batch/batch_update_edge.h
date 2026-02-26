@@ -14,13 +14,10 @@
  */
 #pragma once
 
-#include <memory>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class UpdateEdgeOprBuilder : public IOperatorBuilder {
@@ -41,6 +38,6 @@ class UpdateEdgeOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

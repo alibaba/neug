@@ -28,8 +28,7 @@ using namespace neug;
 void signal_handler(int signal) {
   LOG(INFO) << "Received signal " << signal << ", exiting...";
   // support SIGKILL, SIGINT, SIGTERM
-  if (signal == SIGKILL || signal == SIGINT || signal == SIGTERM ||
-      signal == SIGSEGV || signal == SIGABRT) {
+  if (signal == SIGINT || signal == SIGTERM || signal == SIGABRT) {
     LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
     // remove all files in work_dir
     neug::FileLock::CleanupAllLocks();
@@ -43,10 +42,7 @@ void signal_handler(int signal) {
 void setup_signal_handler() {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
-  std::signal(SIGSEGV, signal_handler);
   std::signal(SIGABRT, signal_handler);
-  std::signal(SIGFPE, signal_handler);
-  std::signal(SIGQUIT, signal_handler);
 }
 
 int main(int argc, char** argv) {

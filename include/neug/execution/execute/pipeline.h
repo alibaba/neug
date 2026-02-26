@@ -14,18 +14,12 @@
  */
 #pragma once
 
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 class OprTimer;
 
@@ -44,6 +38,6 @@ class Pipeline {
   std::vector<std::unique_ptr<IOperator>> operators_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

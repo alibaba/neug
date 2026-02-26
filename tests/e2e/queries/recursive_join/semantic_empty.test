@@ -5,19 +5,14 @@
 -CASE TwoCycle
 
 -STATEMENT CREATE NODE TABLE N (id INT32, PRIMARY KEY(id));
--UNSUPPORTED: Issue#1469
 ---- ok
 -STATEMENT CREATE REL TABLE R (FROM N TO N);
--UNSUPPORTED: Issue#1469
 ---- ok
 -STATEMENT CREATE (a:N {id:0})-[:R]->(b:N{id:1});
--UNSUPPORTED: Issue#1469
 ---- ok
 -STATEMENT MATCH (a:N {id:0}), (b:N {id:1}) CREATE (b)-[:R]->(a);
--UNSUPPORTED: Issue#1469
 ---- ok
 -STATEMENT MATCH (a:N {id:0})-[e:R*1..1]->(b) RETURN COUNT(b);
--UNSUPPORTED: Issue#1469
 ---- 1
 1
 -SKIP: This query was never executed before Issue#1458 was resolved and needs to be re-investigated.

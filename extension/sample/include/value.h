@@ -3,7 +3,7 @@
 #include "neug/execution/common/types/value.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 // Define missing comparison operators for Value
 // Value class already has operator< and operator==, we only add the missing ones
@@ -27,5 +27,5 @@ inline bool operator!=(const Value& lhs, const Value& rhs) {
     return !(lhs == rhs);
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -17,12 +17,12 @@
 
 #include "neug/execution/common/columns/list_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
   auto col = ctxs.get(key);
@@ -39,12 +39,12 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
 }
 
 template <typename T>
-Context unfold_impl(Context&& ctx, int alias, const Expr& key) {
+Context unfold_impl(Context&& ctx, int alias, const RecordExprBase& key) {
   ValueColumnBuilder<T> builder;
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    Value val = key.eval_path(i);
+    Value val = key.eval_record(ctx, i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {
       builder.push_back_elem(elem);
@@ -55,14 +55,14 @@ Context unfold_impl(Context&& ctx, int alias, const Expr& key) {
   return ctx;
 }
 
-Context unfold_list(Context&& ctx, int alias, const Expr& key) {
+Context unfold_list(Context&& ctx, int alias, const RecordExprBase& key) {
   const auto& elem_type = ListType::GetChildType(key.type());
 
   ListColumnBuilder builder(ListType::GetChildType(elem_type));
   size_t row_num = ctx.row_num();
   std::vector<size_t> offsets;
   for (size_t i = 0; i < row_num; ++i) {
-    Value val = key.eval_path(i);
+    Value val = key.eval_record(ctx, i);
     const auto& list = ListValue::GetChildren(val);
     for (const auto& elem : list) {
       builder.push_back_elem(elem);
@@ -73,7 +73,7 @@ Context unfold_list(Context&& ctx, int alias, const Expr& key) {
   return ctx;
 }
 
-neug::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key,
+neug::result<Context> Unfold::unfold(Context&& ctxs, const RecordExprBase& key,
                                      int alias) {
   auto type = ListType::GetChildType(key.type());
   switch (type.id()) {
@@ -92,6 +92,6 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, const Expr& key,
   return ctxs;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

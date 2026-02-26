@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class ListColumnBase : public IContextColumn {
  public:
@@ -62,11 +62,6 @@ class ListColumn : public ListColumnBase {
       list_values.emplace_back(datas_->get_elem(i));
     }
     return Value::LIST(elem_type_, std::move(list_values));
-  }
-
-  ISigColumn* generate_signature() const override {
-    LOG(FATAL) << "not implemented for " << this->column_info();
-    return nullptr;
   }
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
@@ -136,5 +131,5 @@ class ListColumnBuilder : public IContextColumnBuilder {
   std::shared_ptr<IContextColumnBuilder> child_builder_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

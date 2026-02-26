@@ -1,316 +1,260 @@
 # Transaction Management
 
-This document describes NeuG's transaction management system, which operates differently depending on the deployment mode. NeuG supports two primary modes: Embedded mode suitable for analytical processing (AP) and Service mode suitable for transactional processing (TP).
+This document describes NeuG's transaction management system, which operates differently depending on the deployment mode. NeuG supports two primary modes: **Embedded mode** suitable for analytical processing (AP) and **Service mode** suitable for transactional processing (TP).
 
-## Overview
+## Design Philosophy
 
-NeuG implements distinct transaction management strategies optimized for different workload patterns:
+NeuG's transaction model reflects trade-offs based on deep understanding of graph workload characteristics:
 
-**Embedded Mode (AP - Analytical Processing)**
-- Designed for single-user analytical workloads and batch processing
-- Employs global locking for concurrency control
-- Uses explicit checkpointing for data persistence
-- Optimized for maximum single-query performance
+- **Graph-native workloads** are predominantly read-heavy with insert operations, while updates and schema changes are relatively infrequent
+- **Analytical workloads** prioritize single-query throughput over complex consistency guarantees
+- **Transactional workloads** require concurrent read/insert performance with strong isolation
 
-**Service Mode (TP - Transactional Processing)**  
-- Designed for multi-user concurrent applications
-- Implements Multi-Version Concurrency Control (MVCC) with Write-Ahead Logging (WAL)
-- Provides automatic persistence with full ACID guarantees
-- Optimized for concurrent access and data integrity
+Rather than implementing a one-size-fits-all transaction system with high complexity, NeuG provides workload-appropriate guarantees that balance simplicity, performance, and correctness.
 
 ## Transaction Model
 
-NeuG implements a statement-level transaction model where each statement automatically executes as an atomic unit. Manual (and more flexible) transaction control will be supported in future version.
+NeuG implements an **implicit transaction model** with auto-commit semantics:
 
-### Statement Execution Semantics
+- **No explicit transaction primitives**: NeuG does not currently expose `BEGIN`, `COMMIT`, or `ABORT` commands
+- **Auto-commit semantics**: Each `execute()` call automatically forms its own transaction — one statement per call
 
-1. Each statement is automatically wrapped in a transaction
-2. Successful statements commit their changes according to the mode's persistence rules
-3. Failed statements are automatically rolled back with no partial state changes
-4. No explicit transaction management is required from the user
+```python
+# Each execute() is an independent, auto-committed transaction
+conn.execute("CREATE (p:Person {name: 'Alice'})")  # Transaction 1
+conn.execute("CREATE (p:Person {name: 'Bob'})")    # Transaction 2
+```
+
+> **Coming in v0.2:** Multi-statement execution (multiple statements separated by `;` in a single `execute()` call) and explicit transaction control (`BEGIN`/`COMMIT`/`ABORT`) will be supported in NeuG v0.2.
+
+## Deployment Modes Overview
+
+| Aspect | Embedded Mode | Service Mode |
+|--------|-------------------|-------------------|
+| **Use Case** | Analytics, ETL, batch processing | Interactive applications, web services |
+| **Concurrency** | Single-user, sequential writes | Multi-user, concurrent access |
+| **Persistence** | Explicit checkpoint-based | Automatic WAL-based |
+| **Optimization Goal** | Maximum single-query performance | Concurrent read/insert throughput |
 
 ## ACID Properties
 
-### Embedded Mode (AP)
+### Embedded Mode (AP-oriented)
 
-- **Atomicity**: Each statement executes completely or not at all within memory
-- **Consistency**: Schema constraints and referential integrity are enforced
-- **Isolation**: Achieved through global locking (readers concurrent, writers exclusive)
-- **Durability**: Changes are persisted to disk only after an explicit `CHECKPOINT` operation or database closure with `checkpoint_when_close=True`. For in-memory databases, durability is not applicable as data exists only in volatile memory.
+Embedded mode is designed for analytical workloads where simplicity and single-query performance take precedence over complex transaction guarantees.
 
-#### Transactions 
+#### Atomicity
 
-- **Read Transactions**: Multiple read statements can execute concurrently without blocking each other.
-- **Write Transactions**: Write statements acquire exclusive locks, blocking other read and write operations until completion.
+**Current Limitation:** Statement-level atomicity is **not fully guaranteed** for large write operations.
 
-### Service Mode (TP)
+For statements involving substantial data writes (such as `COPY` for bulk loading), a failure mid-execution may result in partial data being written to memory. This is a known trade-off for AP workloads where the overhead of full rollback mechanisms is typically unnecessary.
 
-- **Atomicity**: Each statement executes as an all-or-nothing operation
-- **Consistency**: Schema constraints and referential integrity are enforced  
-- **Isolation**: Serializable isolation level implemented via MVCC
-- **Durability**: Immediate persistence through Write-Ahead Logging (WAL)
+**Practical Workaround:** Since all writes are held in memory until an explicit `CHECKPOINT`, users can establish recovery points:
 
-#### Transactions
-- **Read Transactions**: Multiple read statements can execute concurrently without blocking each other.
-- **Write Transactions**: In service mode, write transactions are further categorized:
-  - **Insert Transactions**: Insert statements can execute concurrently with reads and other inserts, but will be blocked by update statements.
-  - **Update Transactions**: Update statements will block all other operations until completion.
+```cypher
+-- Create a recovery point before large operations
+CHECKPOINT;
 
-**Note**: All transactions in Service mode use MVCC, ensuring each statement sees a consistent snapshot of the database. 
-Insert transactions are write-only, a insert-after-read operator should be put in UpdateTransaction;
-thanks to thread-safe primary key handling, multiple inserts can execute concurrently.
+-- Perform bulk data loading
+COPY Person FROM 'large_dataset.csv';
 
-## Concurrency Control
+-- If an error occurs before this point, restart the database
+-- to reload from the last checkpoint (all uncommitted changes are discarded)
+```
 
-### Embedded Mode: Global Locking
+#### Consistency
 
-Embedded mode uses a global lock-based approach for simplicity and analytical performance:
+Schema constraints and referential integrity are enforced at the statement level. Invalid operations (such as creating duplicate primary keys or violating edge constraints) are rejected.
+
+#### Isolation
+
+**Pessimistic exclusive locking** is used for all write operations. Any write statement (insert, update, delete, or schema modification) acquires an exclusive lock, blocking all other operations until completion.
 
 | Operation Type | Concurrency Behavior |
 |----------------|---------------------|
-| Read-Only      | Concurrent execution allowed |
-| Read-Write     | Mutually exclusive (Both insert and update takes exclusive lock) |
+| Read + Read | Concurrent execution allowed |
+| Write + READ/Write | Mutually exclusive |
 
-**Example:**
+This simple locking model is sufficient for single-user analytical workloads and avoids the complexity of fine-grained concurrency control.
+
+#### Durability
+
+Changes are persisted to disk **only** after:
+- An explicit `CHECKPOINT` statement, or
+- Database closure with `checkpoint_when_close=True` (default)
+
+For in-memory databases, durability is not applicable as data exists only in volatile memory.
+
 ```python
 import neug
-import threading
 
 db = neug.Database("/path/to/database")
 conn = db.connect()
 
-def execute_ddl(connection, statement):
-    connection.execute(statement)
+# Changes are in memory only
+conn.execute("CREATE (p:Person {name: 'Alice'})")
 
-# These operations will execute serially due to write locks
-t1 = threading.Thread(target=execute_ddl, 
-                     args=(conn, 'CREATE NODE TABLE Person(id INT32, name STRING, PRIMARY KEY(id));'))
-t2 = threading.Thread(target=execute_ddl, 
-                     args=(conn, 'CREATE NODE TABLE Company(id INT32, name STRING, PRIMARY KEY(id));'))
+# Explicit persistence to disk
+conn.execute("CHECKPOINT")
 
-t1.start()
-t2.start()
-t1.join()
-t2.join()
-
+# Or rely on automatic checkpoint at close
 conn.close()
-db.close()
+db.close()  # checkpoint_when_close=True by default
 ```
 
-### Service Mode: MVCC with WAL
+### Service Mode
 
-Service mode implements Multi-Version Concurrency Control for high-concurrency scenarios:
+Service mode is designed for high-throughput transactional workloads with concurrent client access. The concurrency model is optimized for graph-native access patterns where reads and inserts dominate.
 
-- Multiple statements can execute concurrently
-- Each statement observes a consistent snapshot (serializable isolation)
-- Read operations do not block write operations
-- Write operations are persisted via WAL before completion
+#### Atomicity
 
-**Example:**
+Each statement executes as an all-or-nothing operation. Failed statements are automatically rolled back with no partial state changes visible to other transactions.
+
+#### Consistency
+
+Schema constraints and referential integrity are enforced. All concurrent operations observe a consistent view of the database.
+
+#### Isolation
+
+NeuG uses **Multi-Version Concurrency Control (MVCC)** to provide serializable isolation, with operation-specific concurrency rules:
+
+| Operation Type | Concurrency Behavior |
+|----------------|---------------------|
+| Read | Concurrent with all reads and inserts |
+| Insert | Concurrent with reads and other inserts |
+| Update | Acquires global write lock, blocks all operations |
+| Schema (DDL) | Acquires global write lock, blocks all operations |
+| Checkpoint | Acquires global write lock, blocks all operations |
+
+**Design Rationale:** This hybrid approach reflects the reality of graph workloads:
+
+- **Reads and inserts** are the dominant operations in most graph applications (social networks, knowledge graphs, recommendation systems)
+- **Updates and schema changes** are relatively rare and can tolerate exclusive locking
+- Full MVCC for all write types would add significant complexity with minimal benefit for typical graph workloads
+
 ```python
 from neug import Session
 
-# Concurrent sessions can operate simultaneously
+# Concurrent sessions
 session1 = Session("http://localhost:10000/")
 session2 = Session("http://localhost:10000/")
 
-# These operations can execute concurrently
-session1.execute("CREATE (p:Person {name: 'Alice', age: 30})")
-session2.execute("MATCH (p:Person) RETURN count(p)")
+# These can execute concurrently (read + insert)
+session1.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
+session2.execute("CREATE (p:Person {name: 'Bob'})", access_mode="insert")
 
-session1.close()
-session2.close()
+# This will block other operations (update takes global lock)
+session1.execute("MATCH (p:Person) SET p.updated = true", access_mode="update")
 ```
 
-## Access Mode 
+#### Durability
 
-### Usage 
+All modifications are immediately persisted through **Write-Ahead Logging (WAL)**:
 
-`AccessMode` can be specified when submitting queries in both Embedded and Service modes to control transaction behavior. By default, the access mode is set to empty, and NeuG will determine the appropriate mode based on the statement type.
+- Changes are logged to WAL before execution completes
+- Crash recovery automatically replays WAL to restore consistent state
+- No explicit checkpoint required for durability (but available for WAL consolidation)
 
-If the access_mode is explicitly set, it must be one of the following values:
-- `read` (or `r`): Indicates that the statement is read-only.
-- `insert` (or `i`): Indicates that the statement performs insert operations. 
-- `update` (or `u`): Indicates that the statement performs update operations.
-- `schema` (or `s`): Indicates that the statement modifies the database schema.
+## Access Mode
 
-**Note**: The `schema` is a special access mode that allows schema modifications. For execution level, it is treated same as `update` mode.
+When executing queries, you can specify an `access_mode` to control transaction behavior and optimize performance:
 
-For example, in Service mode, you can specify the access mode as follows:
+| Mode | Aliases | Description |
+|------|---------|-------------|
+| `read` | `r` | Read-only operations (MATCH without mutations) |
+| `insert` | `i` | Insert-only operations (CREATE new vertices/edges) |
+| `update` | `u` | Update/delete operations (SET, DELETE, MERGE) |
+| `schema` | `s` | Schema modifications (CREATE/DROP node/edge tables) |
+
+**Default Behavior:** If not specified, NeuG infers the appropriate mode. Explicitly specifying the correct mode enables better concurrency optimization in Service mode.
+
+**Access Mode Hierarchy:** Access modes follow a hierarchy where higher modes provide stronger guarantees but lower concurrency:
+
+```
+read < insert < update ≈ schema
+```
+
+- **Upward compatibility**: Using a higher access mode than required always works (e.g., `update` mode for a read-only query), but may reduce throughput due to stronger locking
+- **Downward restriction**: Using a lower access mode than required causes an error (e.g., `read` mode for an insert operation)
+
+| Specified Mode | Actual Operation | Result |
+|----------------|------------------|--------|
+| `read` | read | ✅ OK |
+| `read` | insert/update | ❌ Error |
+| `insert` | read/insert | ✅ OK |
+| `insert` | update/schema | ❌ Error |
+| `update`/`schema` | any | ✅ OK (global lock) |
 
 ```python
-from neug import Session
+# Optimal: match access mode to operation for best concurrency
+conn.execute("MATCH (n) RETURN n", access_mode="read")        # read lock only
+conn.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")  # insert lock
 
-session = Session('http://localhost:10000', timeout='10s')
-result = session.execute(
-    query="MATCH (n) RETURN count(n)",
-    access_mode="read"
-)
+# Works but suboptimal: update mode for read query (takes global lock)
+conn.execute("MATCH (n) RETURN n", access_mode="update")      # works, but blocks other operations
 ```
-
-Different transactions will be created based on the specified access mode, optimizing performance and concurrency control. If the access mode conflicts with the actual operations performed in the statement, an error will be raised.
-
-If you are interested in how the conflict is detected and handled, here is the logic:
-- If the access mode is `read` but the statement performs insert/update/schema operations, an error is raised.
-- If the access mode is `insert` but the statement performs read/update/schema operations, an error is raised.
-
-**Note**: The `update` and `schema` access mode take the largest lock, any operations inside these modes will be executed without access_mode conflict.
-However, if you specify `insert` access mode but the statement contains update or schema operations, an error will be raised.
-
 
 ## Data Persistence
 
-### Embedded Mode: Checkpoint-Based Persistence
+### Embedded Mode: Checkpoint-Based
 
-Embedded mode prioritizes performance by maintaining changes in memory until explicitly persisted.
+All changes are held in memory until explicitly persisted:
 
-#### Manual Checkpointing
+```python
+import neug
 
-Execute the `CHECKPOINT` statement to persist all in-memory changes to disk:
+db = neug.Database("/path/to/database")
+conn = db.connect()
 
-```cypher
-CHECKPOINT;
+# Establish recovery point
+conn.execute("CHECKPOINT")
+
+# Perform operations (changes in memory)
+conn.execute("COPY Person FROM 'employees.csv'")
+conn.execute("COPY Company FROM 'companies.csv'")
+
+# Persist all changes to disk
+conn.execute("CHECKPOINT")
+
+conn.close()
+db.close()
 ```
 
-The checkpoint operation:
+**Checkpoint Characteristics:**
 - Creates an atomic snapshot of the current database state
-- Replaces the previous checkpoint atomically
 - Blocks other operations during execution
 - May require significant time for large datasets
+- Replaces the previous checkpoint atomically
 
-**Python Example:**
-```python
-import neug
+### Service Mode: WAL-Based
 
-db = neug.Database("/path/to/database")
-conn = db.connect()
-
-# Execute data modifications
-conn.execute("CREATE (p:Person {name: 'Alice', age: 30})")
-conn.execute("CREATE (c:Company {name: 'TechCorp'})")
-
-# Persist changes to disk
-conn.execute('CHECKPOINT')
-
-conn.close()
-db.close()
-```
-
-#### Automatic Checkpointing
-
-By default, NeuG automatically creates a checkpoint when closing the database:
-
-```python
-import neug
-
-# Automatic checkpoint on close (default behavior)
-db = neug.Database("/path/to/database")
-conn = db.connect()
-
-conn.execute("CREATE (p:Person {name: 'Bob', age: 25})")
-
-# Automatic checkpoint occurs during database closure
-conn.close()
-db.close()
-```
-
-To disable automatic checkpointing and always manage checkpoints manually:
-```python
-db = neug.Database("/path/to/database", checkpoint_when_close=False)
-```
-
-### Service Mode: WAL-Based Persistence
-
-Service mode provides immediate persistence through Write-Ahead Logging:
-
-- All modifications are logged to WAL before execution
-- Changes are automatically persisted upon statement completion
-- Supports crash recovery and point-in-time consistency
-
-**Example:**
-```python
-from neug import Session
-
-session = Session("http://localhost:10000/")
-
-# Changes are immediately persisted via WAL
-session.execute("CREATE (p:Person {name: 'Charlie', age: 35})")
-
-session.close()
-```
-
-#### Manual Checkpointing in Service Mode
-
-Service mode supports manual checkpointing to consolidate WAL entries and optimize storage:
+Changes are automatically persisted through Write-Ahead Logging:
 
 ```python
 from neug import Session
 
 session = Session("http://localhost:10000/")
+
+# Each statement is immediately durable
+session.execute("CREATE (p:Person {name: 'Alice'})")  # Persisted via WAL
+session.execute("CREATE (p:Person {name: 'Bob'})")    # Persisted via WAL
+
+# Optional: consolidate WAL into checkpoint for storage optimization
 session.execute("CHECKPOINT")
+
 session.close()
 ```
 
-When executed in Service mode, the `CHECKPOINT` operation:
-- Temporarily blocks all (read/write) operations while the checkpoint is being created
-- Consolidates the previous checkpoint data with all accumulated WAL entries
-- Creates a new unified checkpoint file
-- Clears processed WAL entries to optimize storage space
-- Continues normal WAL-based persistence for subsequent operations
+**Service Mode Checkpoint:**
+- Temporarily blocks all operations
+- Consolidates WAL entries into a unified checkpoint
+- Clears processed WAL entries to reclaim storage
 - Does not affect the automatic durability of individual statements
 
 ## Error Recovery
 
-### Embedded Mode Recovery
+### Embedded Mode
 
-- Database state remains consistent after failures
-- Failed operations can be safely retried
-- Use checkpoints to establish recovery points
-- Restart from last successful checkpoint after crashes
-
-### Service Mode Recovery
-
-- Automatic crash recovery using WAL replay
-- Uncommitted operations are automatically rolled back
-- Database automatically restores to last consistent state
-- No manual recovery intervention required
-
-**Error Handling Example:**
-```python
-from neug import Session
-
-try:
-    session = Session("http://localhost:10000/")
-    session.execute("CREATE (p:Person {name: 'David', age: 40})")
-    # Statement automatically committed and persisted
-except Exception as e:
-    # Automatic rollback - no cleanup required
-    print(f"Operation failed: {e}")
-finally:
-    if 'session' in locals():
-        session.close()
-```
-
-## Configuration Parameters
-
-### Embedded Mode Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `checkpoint_when_close` | boolean | `True` | Automatically create checkpoint when closing database |
-
-**Example:**
-```python
-db = neug.Database(
-    "/path/to/database",
-    checkpoint_when_close=True
-)
-```
-
-
-## Best Practices
-
-### Embedded Mode Best Practices
+Recovery relies on the last successful checkpoint:
 
 ```python
 import neug
@@ -318,27 +262,62 @@ import neug
 db = neug.Database("/path/to/database")
 conn = db.connect()
 
-# Create schema first
-conn.execute("CREATE NODE TABLE Person(id INT32, name STRING, department STRING, PRIMARY KEY(id))")
-conn.execute("CREATE NODE TABLE Company(id INT32, name STRING, industry STRING, PRIMARY KEY(id))")
+conn.execute("CHECKPOINT")  # Recovery point
+
+try:
+    conn.execute("COPY LargeTable FROM 'huge_file.csv'")
+    conn.execute("CHECKPOINT")  # Commit if successful
+except Exception as e:
+    # Partial data may be in memory
+    # Close and reopen to restore from last checkpoint
+    conn.close()
+    db.close()
+    
+    db = neug.Database("/path/to/database")  # Restores from checkpoint
+    conn = db.connect()
+```
+
+### Service Mode
+
+Automatic crash recovery using WAL:
+
+- Uncommitted operations are automatically rolled back
+- Database restores to last consistent state on startup
+- No manual intervention required
+
+## Best Practices
+
+### Embedded Mode
+
+```python
+import neug
+
+db = neug.Database("/path/to/database")
+conn = db.connect()
+
+# 1. Create schema and checkpoint
+conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id))")
+conn.execute("CREATE NODE TABLE Company(id INT64, name STRING, PRIMARY KEY(id))")
 conn.execute("CREATE REL TABLE WorksAt(FROM Person TO Company)")
-conn.execute("CREATE REL TABLE Manages(FROM Person TO Person)")
-conn.execute("CHECKPOINT")  # Checkpoint after schema creation
+conn.execute("CHECKPOINT")
 
-# Load large datasets in batches with periodic checkpoints
-conn.execute("COPY Person FROM 'employees.csv'")
-conn.execute("COPY Company FROM 'companies.csv'") 
-conn.execute("CHECKPOINT")  # Checkpoint after loading base data
+# 2. Load data in batches with periodic checkpoints
+conn.execute("COPY Person FROM 'employees_batch1.csv'")
+conn.execute("COPY Person FROM 'employees_batch2.csv'")
+conn.execute("CHECKPOINT")
 
+conn.execute("COPY Company FROM 'companies.csv'")
 conn.execute("COPY WorksAt FROM 'employment.csv'")
-conn.execute("COPY Manages FROM 'management.csv'")
-conn.execute("CHECKPOINT")  # Checkpoint after loading relationships
+conn.execute("CHECKPOINT")
+
+# 3. Run analytical queries (read-only, high performance)
+result = conn.execute("MATCH (p:Person)-[:WorksAt]->(c:Company) RETURN c.name, count(p)")
 
 conn.close()
 db.close()
 ```
 
-### Service Mode Best Practices
+### Service Mode (TP-oriented)
 
 ```python
 from neug import Session
@@ -346,33 +325,46 @@ from neug import Session
 session = Session("http://localhost:10000/")
 
 try:
-    # Create schema first
-    session.execute("CREATE NODE TABLE Person(id INT32, name STRING, department STRING, PRIMARY KEY(id))")
-    session.execute("CREATE NODE TABLE Company(id INT32, name STRING, industry STRING, PRIMARY KEY(id))")
-    session.execute("CREATE REL TABLE WorksAt(FROM Person TO Company)")
+    # Reads and inserts can be concurrent across sessions
+    session.execute("CREATE (p:Person {name: 'Alice'})", access_mode="insert")
     
-    # Load large datasets - each automatically persisted via WAL
-    session.execute("COPY Person FROM 'employees.csv'")
-    session.execute("COPY Company FROM 'companies.csv'")
-    session.execute("COPY WorksAt FROM 'employment.csv'")
+    # Reads don't block inserts
+    result = session.execute("MATCH (p:Person) RETURN count(p)", access_mode="read")
     
-    # Optionally create checkpoint to consolidate WAL entries
+    # Updates take global lock - use sparingly in high-concurrency scenarios
+    session.execute("MATCH (p:Person) WHERE p.name = 'Alice' SET p.verified = true", 
+                   access_mode="update")
+    
+    # Periodic checkpoint to consolidate WAL (optional)
     session.execute("CHECKPOINT")
     
 finally:
     session.close()
 ```
 
-## Mode Comparison Summary
+## Summary
 
-| Aspect | Embedded Mode (AP) | Service Mode (TP) |
-|--------|-------------------|-------------------|
-| **Transaction Scope** | Per-statement atomic execution | Per-statement atomic execution |
-| **Concurrency Model** | Global locking (reads concurrent, writes exclusive) | MVCC with serializable isolation |
-| **Persistence Strategy** | Explicit checkpointing | Automatic WAL-based persistence |
-| **Manual Checkpointing** | Available for in-memory to disk persistence | Available to consolidate WAL into checkpoint |
-| **Durability Guarantee** | After CHECKPOINT or database close | Immediate upon statement completion |
-| **Concurrency Level** | Limited (single writer) | High (concurrent readers/writers) |
-| **Recovery Method** | Checkpoint-based recovery | WAL-based automatic recovery |
-| **Performance Focus** | Single-query throughput | Concurrent access scalability |
-| **Target Workloads** | Analytics, ETL, batch processing | Interactive applications, web services |
+| Property | Embedded Mode  | Service Mode  |
+|----------|-------------------|-------------------|
+| **Atomicity** | Partial (checkpoint-based recovery) | Full (automatic rollback) |
+| **Consistency** | Schema constraints enforced | Schema constraints enforced |
+| **Isolation** | Exclusive write locks | MVCC for read/insert, exclusive lock for update/DDL |
+| **Durability** | Explicit CHECKPOINT or close | Automatic WAL persistence |
+| **Concurrent Reads** | Yes | Yes |
+| **Concurrent Inserts** | No | Yes |
+| **Concurrent Updates** | No | No (global lock) |
+| **Recovery** | Manual (checkpoint reload) | Automatic (WAL replay) |
+
+## Roadmap
+
+**v0.2: Transaction Control**
+- Multi-statement execution: multiple statements separated by `;` in a single `execute()` call, sharing the same transaction boundary
+- Explicit transaction primitives (`BEGIN`/`COMMIT`/`ABORT`) for fine-grained transaction control
+- Savepoint support for partial rollback within transactions
+
+**Recovery & Durability**
+- More transparent recovery mechanisms for Embedded mode
+- Delta checkpointing for efficient incremental persistence
+- Reduced checkpoint blocking time for large datasets
+- Automatic checkpoint
+

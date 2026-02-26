@@ -310,8 +310,9 @@ std::pair<int64_t, int64_t> neug_AtomicityCheck(
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   int64_t num_persons = 0, num_emails = 0;
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-  auto vprop_accessor =
-      gi.GetVertexPropColumn<std::string_view>(person_label_id, "emails");
+  auto vprop_accessor = std::dynamic_pointer_cast<
+      StorageReadInterface::vertex_column_t<std::string_view>>(
+      gi.GetVertexPropColumn(person_label_id, "emails"));
   auto vset = gi.GetVertexSet(person_label_id);
   for (vid_t lid : vset) {
     ++num_persons;
@@ -442,10 +443,13 @@ std::tuple<std::string, std::string, std::string> G0Check(
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto knows_label_id = db.schema().get_edge_label_id("KNOWS");
   StorageReadInterface gi(txn.graph(), txn.timestamp());
-  auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id2");
+  auto prop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "id2"));
 
-  auto name_col = gi.GetVertexPropColumn<std::string_view>(person_label_id,
-                                                           "versionHistory");
+  auto name_col = std::dynamic_pointer_cast<
+      StorageReadInterface::vertex_column_t<std::string_view>>(
+      gi.GetVertexPropColumn(person_label_id, "versionHistory"));
 
   std::string p1_version_history;
   vid_t vit1_index = 0;
@@ -541,7 +545,9 @@ int64_t G1B2(neug::NeugDBSession& db) {
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
   CHECK(neug_get_random_vertex(gi, person_label_id, vid));
-  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
+  auto vprop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
   return vprop_col->get(vid).as_int64();
 }
@@ -672,7 +678,9 @@ int64_t G1A2(neug::NeugDBSession& db) {
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vid;
   CHECK(neug_get_random_vertex(gi, person_label_id, vid));
-  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
+  auto vprop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(vprop_col != nullptr);
   return vprop_col->get(vid).as_int64();
 }
@@ -726,9 +734,11 @@ std::tuple<int64_t, int64_t> IMP2(neug::NeugDBSession& db, int64_t person1_id) {
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   vid_t vit0_index = 0;
   auto v_prop_col0 =
-      gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "id_prop"));
   auto v_prop_col1 =
-      gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "version"));
   CHECK(v_prop_col0 != nullptr);
   auto vertex_set = gi.GetVertexSet(person_label_id);
   bool found = false;
@@ -841,7 +851,9 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
   auto likes_label_id = db.schema().get_edge_label_id("LIKES");
 
   vid_t vit0_index = 0;
-  auto v_prop_col0 = gi.GetVertexPropColumn<int64_t>(post_label_id, "id_prop");
+  auto v_prop_col0 =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(post_label_id, "id_prop"));
   CHECK(v_prop_col0 != nullptr);
   auto vertex_set = gi.GetVertexSet(post_label_id);
   for (vid_t lid : vertex_set) {
@@ -858,7 +870,9 @@ std::tuple<int64_t, int64_t> PMP2(neug::NeugDBSession& db, int64_t post_id) {
     c1++;
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME_MILLI_SEC));
-  auto v_prop_col = gi.GetVertexPropColumn<int64_t>(post_label_id, "id_prop");
+  auto v_prop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(post_label_id, "id_prop"));
   CHECK(v_prop_col != nullptr);
   vid_t vit1_index = 0;
   auto vertex_set1 = gi.GetVertexSet(post_label_id);
@@ -1001,8 +1015,12 @@ OTV2(neug::NeugDBSession& db, int64_t person_id) {
 
   auto view = gi.GetGenericOutgoingGraphView(person_label_id, person_label_id,
                                              knows_label_id);
-  auto prop0_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
-  auto vprop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "version");
+  auto prop0_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "id_prop"));
+  auto vprop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "version"));
 
   auto get_versions = [&]() -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
     auto vertex_set = gi.GetVertexSet(person_label_id);
@@ -1148,10 +1166,12 @@ std::map<int64_t, int64_t> LU2(neug::NeugDBSession& db) {
   auto txn = db.GetReadTransaction();
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
-
-  auto prop_col = gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+  auto prop_col =
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "id_prop"));
   auto num_friends_col =
-      gi.GetVertexPropColumn<int64_t>(person_label_id, "num_friends");
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "num_friends"));
   auto vertex_set = gi.GetVertexSet(person_label_id);
   for (vid_t lid : vertex_set) {
     int64_t person_id = prop_col->get(lid).as_int64();
@@ -1259,7 +1279,8 @@ std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> WS2(
   StorageReadInterface gi(txn.graph(), txn.timestamp());
   auto person_label_id = db.schema().get_vertex_label_id("PERSON");
   auto person_prop_col =
-      gi.GetVertexPropColumn<int64_t>(person_label_id, "id_prop");
+      std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<int64_t>>(
+          gi.GetVertexPropColumn(person_label_id, "id_prop"));
   auto vertex_set = gi.GetVertexSet(person_label_id);
 
   for (vid_t lid : vertex_set) {

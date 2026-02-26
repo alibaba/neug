@@ -18,9 +18,9 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class EdgeRecord;
-}  // namespace runtime
+}  // namespace execution
 enum class DataTypeId : uint8_t;
 class Property;
 
@@ -31,7 +31,7 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
 
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
-    const neug::runtime::EdgeRecord& record,
+    const neug::execution::EdgeRecord& record,
     const std::vector<DataTypeId>& props);
 
 int32_t search_other_offset_with_cur_offset(

@@ -1,90 +1,74 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
-        {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "idx_predicate": {
-       "or_predicates": [
-        {
-         "predicates": [
-          {
-           "key": {
-            "key": {
-             "name": "id"
-            }
-           },
-           "const": {
-            "i64": "1"
-           },
-           "cmp": "EQ"
-          }
-         ]
-        }
-       ]
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
+ "plan": [
+  {
+   "opr": {
+    "scan": {
+     "scan_opt": "VERTEX",
+     "alias": 0,
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "idx_predicate": {
+      "or_predicates": [
+       {
+        "predicates": [
          {
-          "label": {
-           "label": 0
+          "key": {
+           "key": {
+            "name": "id"
+           }
           },
-          "props": []
+          "const": {
+           "i64": "1"
+          },
+          "cmp": "EQ"
          }
         ]
        }
-      },
-      "alias": 0
-     }
-    ]
+      ]
+     },
+     "is_count_only": false
+    }
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "node_type": {
-             "graph_type": {
-              "element_opt": "VERTEX",
-              "graph_data_type": [
-               {
-                "label": {
-                 "label": 0
-                },
-                "props": []
-               }
-              ]
-             }
-            }
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "var": {
+           "tag": {
+            "id": 0
            },
            "node_type": {
             "graph_type": {
@@ -99,42 +83,65 @@
              ]
             }
            }
-          }
-         ]
-        },
-        "alias": 0
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
           },
-          "props": []
+          "node_type": {
+           "graph_type": {
+            "element_opt": "VERTEX",
+            "graph_data_type": [
+             {
+              "label": {
+               "label": 0
+              },
+              "props": []
+             }
+            ]
+           }
+          }
          }
         ]
-       }
-      },
-      "alias": 0
-     }
-    ]
+       },
+       "alias": 0
+      }
+     ],
+     "is_append": false
+    }
    },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
+   },
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": true,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

@@ -72,8 +72,6 @@ void VertexTimestamp::Reserve(size_t new_size) {
     return;
   }
   if (new_size <= init_vertex_num_) {
-    LOG(WARNING) << "Shrink VertexTimestamp from " << max_vertex_num_ << ", "
-                 << init_vertex_num_ << ", to : " << new_size;
     inserted_vertices_.reset();
     max_vertex_num_ = new_size;
     init_vertex_num_ = new_size;
@@ -89,9 +87,6 @@ void VertexTimestamp::Reserve(size_t new_size) {
     }
     return;
   }
-  LOG(INFO) << "resize inserted vertices from: "
-            << max_vertex_num_ - init_vertex_num_ << " to "
-            << new_size - init_vertex_num_;
 
   resize_inserted_vertices(new_size - init_vertex_num_);
   max_vertex_num_ = new_size;

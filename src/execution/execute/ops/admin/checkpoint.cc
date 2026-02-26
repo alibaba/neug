@@ -17,7 +17,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -46,6 +46,6 @@ neug::result<OpBuildResultT> CheckpointOprBuilder::Build(
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -14,24 +14,312 @@
  */
 
 #include "neug/execution/execute/ops/retrieve/project_utils.h"
-#include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
-std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
-    const IStorageInterface& graph, const Context& ctx,
-    const ParamsMap& params) {
-  if (data_type_.has_value() &&
-      data_type_.value().type_case() != common::IrDataType::TYPE_NOT_SET) {
-    auto func = make_project_expr(expr_, data_type_.value(), alias_, graph, ctx,
-                                  params);
-    if (func != nullptr) {
-      return func;
+/**
+ * Expressions
+ */
+struct DummyGetter : public ProjectExprBase {
+  DummyGetter(int from, int to) : from_(from), to_(to) {}
+  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
+    return ctx.get(from_);
+  }
+
+  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+                      std::vector<size_t>& offsets) const override {
+    return ctx.get(from_)->order_by_limit(asc, limit, offsets);
+  }
+
+  int from_;
+  int to_;
+};
+
+template <typename T>
+struct VertexPropertyExpr : public ProjectExprBase {
+  using V = std::conditional_t<std::is_same<T, std::string_view>::value,
+                               std::string, T>;
+  VertexPropertyExpr(const IStorageInterface& igraph, int tag,
+                     const std::string& property_name)
+      : graph(dynamic_cast<const StorageReadInterface&>(igraph)),
+        tag_(tag),
+        property_name_(property_name) {}
+
+  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
+    auto col = ctx.get(tag_);
+    if (col->is_optional() ||
+        col->column_type() != ContextColumnType::kVertex) {
+      return nullptr;
+    }
+    const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
+    std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
+        property_columns;
+    const auto& labels = vertex_col.get_labels_set();
+    for (auto label : labels) {
+      auto prop_col =
+          std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+              graph.GetVertexPropColumn(label, property_name_));
+      if (label >= property_columns.size()) {
+        property_columns.resize(label + 1);
+      }
+      if (!prop_col) {
+        return nullptr;
+      }
+      property_columns[label] = prop_col;
+    }
+    ValueColumnBuilder<V> builder;
+    builder.reserve(ctx.row_num());
+    foreach_vertex(vertex_col, [&](size_t idx, label_t label, vid_t vid) {
+      auto prop_col = property_columns[label];
+      if constexpr (std::is_same_v<T, std::string_view>) {
+        auto sv = prop_col->get_view(vid);
+        builder.push_back_opt(std::string(sv));
+      } else {
+        builder.push_back_opt(prop_col->get_view(vid));
+      }
+    });
+    return builder.finish();
+  }
+
+  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+                      std::vector<size_t>& indices) const override {
+    auto col = ctx.get(tag_);
+    if (col->is_optional() ||
+        col->column_type() != ContextColumnType::kVertex) {
+      return false;
+    }
+    const auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
+    const auto& labels = vertex_col->get_labels_set();
+    for (auto label : labels) {
+      auto prop_col =
+          std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+              graph.GetVertexPropColumn(label, property_name_));
+      if (!prop_col) {
+        return false;
+      }
+    }
+    return vertex_property_topN(asc, limit, vertex_col, graph, property_name_,
+                                indices);
+  }
+
+ private:
+  const StorageReadInterface& graph;
+  int tag_;
+  std::string property_name_;
+};
+template <typename CMP_T, typename RESULT_T>
+struct CaseWhenExpr : public ProjectExprBase {
+  using V = std::conditional_t<std::is_same<RESULT_T, std::string_view>::value,
+                               std::string, RESULT_T>;
+  CaseWhenExpr(const IStorageInterface& igraph, int tag,
+               const std::string& property_name, std::vector<Value>&& targets,
+               RESULT_T then_value, RESULT_T else_value)
+      : graph(dynamic_cast<const StorageReadInterface&>(igraph)),
+        tag_(tag),
+        property_name_(property_name),
+        targets(std::move(targets)),
+        then_value(then_value),
+        else_value(else_value) {}
+
+  bool check_valid(const IVertexColumn& vertex_col) {
+    auto labels = vertex_col.get_labels_set();
+    using T = typename CMP_T::data_t;
+    for (auto label : labels) {
+      auto prop_col =
+          std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+              graph.GetVertexPropColumn(label, property_name_));
+      if (!prop_col) {
+        return false;
+      }
+    }
+    return true;
+  }
+  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
+    auto col = ctx.get(tag_);
+    if (col->is_optional() ||
+        col->column_type() != ContextColumnType::kVertex) {
+      return nullptr;
+    }
+    const auto& vertex_col = dynamic_cast<const IVertexColumn&>(*col);
+    using T = typename CMP_T::data_t;
+    std::vector<T> values;
+    for (auto& val : targets) {
+      if constexpr (std::is_same_v<T, std::string_view>) {
+        std::string_view sw = StringValue::Get(val);
+        values.push_back(sw);
+      } else {
+        values.push_back(val.template GetValue<T>());
+      }
+    }
+    CMP_T cmp;
+    cmp.reset(values);
+    auto labels = vertex_col.get_labels_set();
+    if (!check_valid(vertex_col)) {
+      return nullptr;
+    }
+    if (labels.size() == 1) {
+      label_t label = *labels.begin();
+      using GETTER_T = SLVertexPropertyGetter<typename CMP_T::data_t>;
+      GETTER_T getter(graph, label, property_name_);
+      using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, CMP_T>;
+      PRED_T pred(getter, cmp);
+      return eval_impl(vertex_col, std::move(pred));
+    } else {
+      using GETTER_T = MLVertexPropertyGetter<T>;
+      GETTER_T getter(graph, property_name_);
+      using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, CMP_T>;
+      PRED_T pred(getter, cmp);
+      return eval_impl(vertex_col, std::move(pred));
     }
   }
-  return make_project_expr_without_data_type(expr_, alias_, graph, ctx, params);
+
+  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+                      std::vector<size_t>& indices) const override {
+    return false;
+  }
+
+ private:
+  template <typename COL_T, typename PRED_T>
+  std::shared_ptr<IContextColumn> eval_impl(const COL_T& vertex_col,
+                                            PRED_T&& pred) {
+    ValueColumnBuilder<V> builder;
+    size_t num_rows = vertex_col.size();
+    builder.reserve(num_rows);
+    for (size_t i = 0; i < num_rows; ++i) {
+      auto v = vertex_col.get_vertex(i);
+      if (pred(v.label_, v.vid_)) {
+        builder.push_back_opt(then_value);
+      } else {
+        builder.push_back_opt(else_value);
+      }
+    }
+    return builder.finish();
+  }
+  const StorageReadInterface& graph;
+  int tag_;
+  std::string property_name_;
+  std::vector<Value> targets;
+  RESULT_T then_value;
+  RESULT_T else_value;
+};
+
+struct GeneralExpr : public ProjectExprBase {
+  using V = Value;
+  GeneralExpr(const IStorageInterface& igraph,
+              std::unique_ptr<BindedExprBase>&& expr, const DataType& type)
+      : graph(igraph), expr(std::move(expr)), type(type) {}
+
+  std::shared_ptr<IContextColumn> evaluate(const Context& ctx) override {
+    auto column_builder = ColumnsUtils::create_builder(type);
+    column_builder->reserve(ctx.row_num());
+    const auto& e = expr->Cast<RecordExprBase>();
+
+    for (size_t i = 0; i < ctx.row_num(); ++i) {
+      const auto& val = e.eval_record(ctx, i);
+      if (val.IsNull()) {
+        column_builder->push_back_null();
+      } else {
+        column_builder->push_back_elem(val);
+      }
+    }
+    return column_builder->finish();
+  }
+
+  bool order_by_limit(const Context& ctx, bool asc, size_t limit,
+                      std::vector<size_t>& indices) const override {
+    return false;
+  }
+
+  const IStorageInterface& graph;
+  std::unique_ptr<BindedExprBase> expr;
+  DataType type;
+};
+
+struct DummyGetterBuilder : public ProjectExprBuilderBase {
+  DummyGetterBuilder(int from, int to) : from_(from), to_(to) {}
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const ParamsMap& params) override {
+    return std::make_unique<DummyGetter>(from_, to_);
+  }
+  int alias() const override { return to_; }
+  int from_;
+  int to_;
+};
+
+template <typename T>
+struct VertexPropertyExprBuilder : public ProjectExprBuilderBase {
+  VertexPropertyExprBuilder(int tag, const std::string& property_name,
+                            int alias)
+      : tag_(tag), property_name_(property_name), alias_(alias) {}
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const ParamsMap& params) override {
+    return std::make_unique<VertexPropertyExpr<T>>(graph, tag_, property_name_);
+  }
+
+  int alias() const override { return alias_; }
+
+  int tag_;
+  std::string property_name_;
+  int alias_;
+};
+
+template <typename CMP_T, typename THEN_T>
+struct CaseWhenExprBuilder : public ProjectExprBuilderBase {
+  CaseWhenExprBuilder(const std::vector<std::string>& param_names,
+                      const THEN_T& then_value, const THEN_T& else_value,
+                      int tag, const std::string& property_name, int alias)
+      : param_names_(param_names),
+        then_value_(then_value),
+        else_value_(else_value),
+        tag_(tag),
+        property_name_(property_name),
+        alias_(alias) {}
+
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& igraph,
+                                         const ParamsMap& params) override {
+    const auto& graph = dynamic_cast<const StorageReadInterface&>(igraph);
+
+    std::vector<Value> values;
+    for (auto& param_name : param_names_) {
+      values.push_back(params.at(param_name));
+    }
+    return std::make_unique<CaseWhenExpr<CMP_T, THEN_T>>(
+        graph, tag_, property_name_, std::move(values), then_value_,
+        else_value_);
+  }
+
+  int alias() const override { return alias_; }
+
+  std::vector<std::string> param_names_;
+  THEN_T then_value_;
+  THEN_T else_value_;
+  int tag_;
+  std::string property_name_;
+  int alias_;
+};
+
+struct GeneralProjectExprBuilder : public ProjectExprBuilderBase {
+  GeneralProjectExprBuilder(int alias, std::unique_ptr<ExprBase>&& expr_ptr)
+      : alias_(alias), expr_ptr_(std::move(expr_ptr)) {}
+  std::unique_ptr<ProjectExprBase> build(const IStorageInterface& graph,
+                                         const ParamsMap& params) override;
+
+  bool is_general() const override { return true; }
+
+  int alias() const override { return alias_; }
+
+  int alias_;
+  std::unique_ptr<ExprBase> expr_ptr_;
+};
+
+std::unique_ptr<ProjectExprBase> GeneralProjectExprBuilder::build(
+    const IStorageInterface& graph, const ParamsMap& params) {
+  auto expr_ptr = expr_ptr_->bind(&graph, params);
+  auto type = expr_ptr->type();
+  return std::make_unique<GeneralExpr>(graph, std::move(expr_ptr), type);
 }
 
 bool is_exchange_index(const common::Expression& expr, int& tag) {
@@ -51,6 +339,9 @@ bool is_exchange_index(const common::Expression& expr, int& tag) {
   return false;
 }
 
+/**
+ * Pattern matching for special expressions
+ */
 bool is_check_property_in_range(const common::Expression& expr, int& tag,
                                 std::string& name, std::string& lower,
                                 std::string& upper, common::Value& then_value,
@@ -291,325 +582,6 @@ bool is_property_extract(const common::Expression& expr, int& tag,
   return false;
 }
 
-std::unique_ptr<ProjectExprBase> create_sl_property_expr(
-    const Context& ctx, const IStorageInterface& graph,
-    const SLVertexColumn& column, const std::string& property_name,
-    DataType type, int alias) {
-  switch (type.id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                       \
-  case DataTypeId::enum_val: {                                                \
-    auto expr =                                                               \
-        SLPropertyExpr<SLVertexColumn, type>(graph, column, property_name);   \
-    if (expr.is_optional()) {                                                 \
-      return nullptr;                                                         \
-    }                                                                         \
-    PropertyValueCollector<decltype(expr)> collector(ctx);                    \
-    return std::make_unique<ProjectExpr<SLPropertyExpr<SLVertexColumn, type>, \
-                                        decltype(collector)>>(                \
-        std::move(expr), collector, alias);                                   \
-  }
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
-    TYPE_DISPATCHER(kVarchar, std::string_view)
-#undef TYPE_DISPATCHER
-
-  default:
-    LOG(ERROR) << "create_sl_property_expr: not implemented for type: "
-               << static_cast<int>(type.id());
-  }
-  return nullptr;
-}
-
-template <typename VertexColumn>
-std::unique_ptr<ProjectExprBase> create_ml_property_expr(
-    const Context& ctx, const IStorageInterface& graph,
-    const VertexColumn& column, const std::string& property_name, DataType type,
-    int alias) {
-  switch (type.id()) {
-#define TYPE_DISPATCHER(enum_val, type)                                        \
-  case DataTypeId::enum_val: {                                                 \
-    auto expr =                                                                \
-        MLPropertyExpr<VertexColumn, type>(graph, column, property_name);      \
-    if (expr.is_optional()) {                                                  \
-      return nullptr;                                                          \
-    }                                                                          \
-    PropertyValueCollector<decltype(expr)> collector(ctx);                     \
-    return std::make_unique<                                                   \
-        ProjectExpr<MLPropertyExpr<VertexColumn, type>, decltype(collector)>>( \
-        std::move(expr), collector, alias);                                    \
-  }
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
-    TYPE_DISPATCHER(kVarchar, std::string_view)
-#undef TYPE_DISPATCHER
-  default:
-    LOG(ERROR) << "create_ml_property_expr: not implemented for type: "
-               << static_cast<int>(type.id());
-  }
-  return nullptr;
-}
-
-template <typename PRED>
-std::unique_ptr<ProjectExprBase> create_case_when_project(
-    const Context& ctx, const std::shared_ptr<IVertexColumn>& vertex_col,
-    PRED&& pred, const common::Value& then_value,
-    const common::Value& else_value, int alias) {
-  if (then_value.item_case() != else_value.item_case()) {
-    return nullptr;
-  }
-  switch (then_value.item_case()) {
-  case common::Value::kI32: {
-    if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-      auto typed_vertex_col =
-          std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
-      SPOpr opr(typed_vertex_col, std::move(pred), then_value.i32(),
-                else_value.i32());
-      auto collector = CaseWhenCollector<decltype(opr), int32_t>(ctx);
-      return std::make_unique<ProjectExpr<decltype(opr), decltype(collector)>>(
-          std::move(opr), collector, alias);
-    } else {
-      SPOpr opr(vertex_col, std::move(pred), then_value.i32(),
-                else_value.i32());
-      auto collector = CaseWhenCollector<decltype(opr), int32_t>(ctx);
-      return std::make_unique<ProjectExpr<decltype(opr), decltype(collector)>>(
-          std::move(opr), collector, alias);
-    }
-  }
-  case common::Value::kI64: {
-    SPOpr opr(vertex_col, std::move(pred), then_value.i64(), else_value.i64());
-    auto collector = CaseWhenCollector<decltype(opr), int64_t>(ctx);
-    return std::make_unique<ProjectExpr<decltype(opr), decltype(collector)>>(
-        std::move(opr), collector, alias);
-  }
-
-  default:
-    LOG(ERROR) << "Unsupported type for case when collector";
-    return nullptr;
-  }
-}
-
-template <typename T, typename CMP_T>
-static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when_impl(
-    const Context& ctx, const IStorageInterface& graph,
-    const std::shared_ptr<IVertexColumn>& vertex,
-    const std::string& property_name, const CMP_T& cmp_val,
-    const common::Value& then_value, const common::Value& else_value,
-    int alias) {
-  auto labels = vertex->get_labels_set();
-  if (labels.size() == 1) {
-    label_t label = *labels.begin();
-    using GETTER_T = SLVertexPropertyGetter<typename CMP_T::data_t>;
-    GETTER_T getter(graph, label, property_name);
-    using PRED_T =
-        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
-    PRED_T pred(getter, cmp_val);
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
-  } else {
-    using GETTER_T = MLVertexPropertyGetter<typename CMP_T::data_t>;
-    GETTER_T getter(graph, property_name);
-    using PRED_T =
-        VertexPropertyCmpPredicate<typename CMP_T::data_t, GETTER_T, CMP_T>;
-    PRED_T pred(getter, cmp_val);
-    return create_case_when_project(ctx, vertex, std::move(pred), then_value,
-                                    else_value, alias);
-  }
-}
-
-template <typename T>
-static std::unique_ptr<ProjectExprBase> create_sp_pred_case_when(
-    const Context& ctx, const IStorageInterface& graph, const ParamsMap& params,
-    const std::shared_ptr<IVertexColumn>& vertex, SPPredicateType type,
-    const std::string& name, const std::string& target,
-    const common::Value& then_value, const common::Value& else_value,
-    int alias) {
-  if (type == SPPredicateType::kPropertyLT) {
-    using CMP_T = LTCmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  } else if (type == SPPredicateType::kPropertyGT) {
-    using CMP_T = GTCmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  } else if (type == SPPredicateType::kPropertyLE) {
-    using CMP_T = LECmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  } else if (type == SPPredicateType::kPropertyGE) {
-    using CMP_T = GECmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  } else if (type == SPPredicateType::kPropertyEQ) {
-    using CMP_T = EQCmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  } else if (type == SPPredicateType::kPropertyNE) {
-    using CMP_T = NECmp<T>;
-    CMP_T cmp(params.at(target).GetValue<T>());
-    return create_sp_pred_case_when_impl<T, CMP_T>(
-        ctx, graph, vertex, name, cmp, then_value, else_value, alias);
-  }
-  return nullptr;
-}
-
-template <typename T>
-static std::unique_ptr<ProjectExprBase> parse_special_expr_between_impl(
-    const IStorageInterface& graph, const Context& ctx, int alias,
-    const std::shared_ptr<IVertexColumn>& vertex_col,
-    const std::string& property_name, const Value& lower_value,
-    const Value& upper_value, int then_value, int else_value) {
-  BetweenCmp<T> cmp(lower_value.GetValue<T>(), upper_value.GetValue<T>());
-  auto labels = vertex_col->get_labels_set();
-  if (labels.size() == 1) {
-    label_t label = *labels.begin();
-    using GETTER_T = SLVertexPropertyGetter<T>;
-    GETTER_T getter(graph, label, property_name);
-    using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, BetweenCmp<T>>;
-    PRED_T pred(getter, cmp);
-    SPOpr sp(vertex_col, std::move(pred), then_value, else_value);
-    CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-    return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
-        std::move(sp), collector, alias);
-  } else {
-    using GETTER_T = MLVertexPropertyGetter<T>;
-    GETTER_T getter(graph, property_name);
-    using PRED_T = VertexPropertyCmpPredicate<T, GETTER_T, BetweenCmp<T>>;
-    PRED_T pred(getter, cmp);
-    SPOpr sp(vertex_col, std::move(pred), then_value, else_value);
-    CaseWhenCollector<decltype(sp), int32_t> collector(ctx);
-    return std::make_unique<ProjectExpr<decltype(sp), decltype(collector)>>(
-        std::move(sp), collector, alias);
-  }
-}
-
-std::unique_ptr<ProjectExprBase> parse_special_expr(
-    const common::Expression& expr, int alias, const IStorageInterface& graph,
-    const Context& ctx, const ParamsMap& params) {
-  int tag = -1;
-  if (is_exchange_index(expr, tag)) {
-    return std::make_unique<DummyGetter>(tag, alias);
-  }
-  {
-    {
-      int tag;
-      std::string name;
-      DataType type;
-      if (is_property_extract(expr, tag, name, type)) {
-        auto col = ctx.get(tag);
-        std::unique_ptr<ProjectExprBase> result;
-        if ((!col->is_optional()) &&
-            col->column_type() == ContextColumnType::kVertex) {
-          auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-          if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
-            auto typed_vertex_col =
-                std::dynamic_pointer_cast<SLVertexColumn>(vertex_col);
-            result = create_sl_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
-          } else if (vertex_col->vertex_column_type() ==
-                     VertexColumnType::kMultiSegment) {
-            auto typed_vertex_col =
-                std::dynamic_pointer_cast<MSVertexColumn>(vertex_col);
-            result = create_ml_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
-          } else {
-            CHECK(vertex_col->vertex_column_type() ==
-                  VertexColumnType::kMultiple);
-            auto typed_vertex_col =
-                std::dynamic_pointer_cast<MLVertexColumn>(vertex_col);
-            result = create_ml_property_expr(ctx, graph, *typed_vertex_col,
-                                             name, type, alias);
-          }
-        }
-        if (result) {
-          return result;
-        }
-        return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                   params);
-      }
-    }
-    std::string name, lower, upper, target;
-    common::Value then_value, else_value;
-    if (is_check_property_in_range(expr, tag, name, lower, upper, then_value,
-                                   else_value)) {
-      auto col = ctx.get(tag);
-      if (col->column_type() == ContextColumnType::kVertex) {
-        auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-
-        auto type = expr.operators(0)
-                        .case_()
-                        .when_then_expressions(0)
-                        .when_expression()
-                        .operators(2)
-                        .param()
-                        .data_type();
-        auto type_ = parse_from_ir_data_type(type);
-        if (then_value.item_case() != else_value.item_case() ||
-            then_value.item_case() != common::Value::kI32) {
-          return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                     params);
-        }
-
-        if (type_.id() == DataTypeId::kInt32) {
-          return parse_special_expr_between_impl<int32_t>(
-              graph, ctx, alias, vertex_col, name, params.at(lower),
-              params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_.id() == DataTypeId::kInt64) {
-          return parse_special_expr_between_impl<int64_t>(
-              graph, ctx, alias, vertex_col, name, params.at(lower),
-              params.at(upper), then_value.i32(), else_value.i32());
-        } else if (type_.id() == DataTypeId::kTimestampMs) {
-          return parse_special_expr_between_impl<DateTime>(
-              graph, ctx, alias, vertex_col, name, params.at(lower),
-              params.at(upper), then_value.i32(), else_value.i32());
-        }
-      }
-      return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                 params);
-    }
-    SPPredicateType ptype;
-    if (is_check_property_cmp(expr, tag, name, target, then_value, else_value,
-                              ptype)) {
-      auto col = ctx.get(tag);
-      if (col->column_type() == ContextColumnType::kVertex) {
-        auto vertex_col = std::dynamic_pointer_cast<IVertexColumn>(col);
-        auto type = expr.operators(0)
-                        .case_()
-                        .when_then_expressions(0)
-                        .when_expression()
-                        .operators(2)
-                        .param()
-                        .data_type();
-        auto type_ = parse_from_ir_data_type(type);
-
-        switch (type_.id()) {
-#define TYPE_DISPATCHER(enum_val, T)                                        \
-  case DataTypeId::enum_val: {                                              \
-    auto ptr = create_sp_pred_case_when<T>(ctx, graph, params, vertex_col,  \
-                                           ptype, name, target, then_value, \
-                                           else_value, alias);              \
-    if (ptr) {                                                              \
-      return ptr;                                                           \
-    }                                                                       \
-    break;                                                                  \
-  }
-          TYPE_DISPATCHER(kInt32, int32_t)
-          TYPE_DISPATCHER(kInt64, int64_t)
-          TYPE_DISPATCHER(kTimestampMs, DateTime)
-#undef TYPE_DISPATCHER
-        default: {
-          return make_project_expr_without_data_type(expr, alias, graph, ctx,
-                                                     params);
-        }
-        }
-      }
-    }
-    return nullptr;
-  }
-}
-
 std::unique_ptr<ProjectExprBuilderBase> create_dummy_getter_builder(
     const common::Expression& expr, int alias) {
   int tag = -1;
@@ -767,7 +739,6 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
                                              name, alias);
     TYPE_DISPATCHER(kInt32, int32_t)
     TYPE_DISPATCHER(kInt64, int64_t)
-    TYPE_DISPATCHER(kDouble, double)
     TYPE_DISPATCHER(kTimestampMs, DateTime)
     TYPE_DISPATCHER(kVarchar, std::string_view)
 #undef TYPE_DISPATCHER
@@ -777,6 +748,37 @@ std::unique_ptr<ProjectExprBuilderBase> create_case_when_builder(
   }
 }
 
+void create_project_expr_builders(
+    std::vector<std::tuple<common::Expression, int,
+                           std::unique_ptr<ExprBase>>>&& exprs_infos,
+    std::vector<std::unique_ptr<ProjectExprBuilderBase>>& expr_builders,
+    std::vector<std::unique_ptr<ProjectExprBuilderBase>>&
+        fallback_expr_builders) {
+  for (auto& expr_info : exprs_infos) {
+    auto& expr = std::get<0>(expr_info);
+    int alias = std::get<1>(expr_info);
+    fallback_expr_builders.push_back(
+        std::make_unique<GeneralProjectExprBuilder>(
+            alias, std::move(std::get<2>(expr_info))));
+    auto builder = create_dummy_getter_builder(expr, alias);
+    if (builder != nullptr) {
+      expr_builders.push_back(std::move(builder));
+      continue;
+    }
+    builder = create_vertex_property_expr_builder(expr, alias);
+    if (builder != nullptr) {
+      expr_builders.push_back(std::move(builder));
+      continue;
+    }
+    builder = create_case_when_builder(expr, alias);
+    if (builder != nullptr) {
+      expr_builders.push_back(std::move(builder));
+      continue;
+    }
+    expr_builders.push_back(nullptr);
+  }
+}
+
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -20,7 +20,7 @@
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 #define expand_sv_np_ms(v, v_idx, view, builder, offsets) \
   {                                                       \
@@ -68,9 +68,9 @@ namespace runtime {
     }                                                                     \
   }
 
-static std::vector<std::tuple<label_t, label_t, Direction>> get_label_dirs(
-    label_t input_label, const Schema& schema,
-    const std::vector<LabelTriplet>& labels, Direction dir) {
+static inline std::vector<std::tuple<label_t, label_t, Direction>>
+get_label_dirs(label_t input_label, const Schema& schema,
+               const std::vector<LabelTriplet>& labels, Direction dir) {
   std::vector<std::tuple<label_t, label_t, Direction>> label_dirs;
   for (auto& triplet : labels) {
     if (!schema.exist(triplet.src_label, triplet.dst_label,
@@ -96,10 +96,10 @@ static std::vector<std::tuple<label_t, label_t, Direction>> get_label_dirs(
   return label_dirs;
 }
 
-static std::vector<std::vector<std::tuple<label_t, label_t, Direction>>>
+static inline std::vector<std::vector<std::tuple<label_t, label_t, Direction>>>
 get_label_dirs_list(const std::set<label_t>& input_labels, const Schema& schema,
                     const std::vector<LabelTriplet>& labels, Direction dir) {
-  int label_num = schema.vertex_label_num();
+  int label_num = schema.vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs(
       label_num);
   for (auto& triplet : labels) {
@@ -223,12 +223,15 @@ expand_vertex_impl(const StorageReadInterface& graph,
                    const std::vector<LabelTriplet>& labels, Direction dir,
                    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
-  int label_num = graph.schema().vertex_label_num();
+  int label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::set<label_t> nbr_labels;
   bool single_view_per_label = true;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
+    if (!graph.schema().vertex_label_valid(v_label)) {
+      continue;
+    }
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
       nbr_labels.insert(nbr_label);
@@ -628,11 +631,14 @@ expand_vertex_impl(const StorageReadInterface& graph,
                    const std::vector<LabelTriplet>& labels, Direction dir,
                    const GPRED_T& gpred) {
   const std::set<label_t>& input_labels = input.get_labels_set();
-  int label_num = graph.schema().vertex_label_num();
+  int label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::set<label_t> nbr_labels;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
+    if (!graph.schema().vertex_label_valid(v_label)) {
+      continue;
+    }
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
       nbr_labels.insert(nbr_label);
@@ -1005,12 +1011,15 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
                  const std::vector<LabelTriplet>& labels, Direction dir,
                  const PRED_T& pred) {
   auto input_labels = input.get_labels_set();
-  label_t label_num = graph.schema().vertex_label_num();
+  label_t label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> label_dirs =
       get_label_dirs_list(input_labels, graph.schema(), labels, dir);
   std::vector<std::vector<GenericView>> views(label_num);
   std::vector<LabelTriplet> all_triplets;
   for (label_t v_label = 0; v_label < label_num; ++v_label) {
+    if (!graph.schema().vertex_label_valid(v_label)) {
+      continue;
+    }
     for (auto& t : label_dirs[v_label]) {
       label_t nbr_label = std::get<0>(t);
       label_t edge_label = std::get<1>(t);
@@ -1096,5 +1105,5 @@ expand_edge_impl(const StorageReadInterface& graph, const MLVertexColumn& input,
   return std::make_pair(builder.finish(), std::move(offsets));
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

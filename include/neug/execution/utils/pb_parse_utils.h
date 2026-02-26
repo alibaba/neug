@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "neug/execution/common/types/graph_types.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/utils/encoder.h"
 
 namespace algebra {
@@ -29,7 +29,7 @@ class QueryParams;
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 VOpt parse_opt(const physical::GetV_VOpt& opt);
 
@@ -46,6 +46,6 @@ std::vector<LabelTriplet> parse_label_triplets(
 
 AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v);
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

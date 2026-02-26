@@ -20,7 +20,7 @@
 #include <string_view>
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 class BatchDeleteEdgeOpr : public IOperator {
  public:
@@ -148,5 +148,5 @@ neug::result<OpBuildResultT> BatchDeleteEdgeOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

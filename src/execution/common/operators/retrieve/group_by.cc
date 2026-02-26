@@ -16,11 +16,11 @@
 #include "neug/execution/common/operators/retrieve/group_by.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
-neug::result<Context> GroupBy::group_by(
-    Context&& ctx, std::unique_ptr<KeyBase>&& key,
-    std::vector<std::unique_ptr<ReducerBase>>&& aggrs) {
+neug::result<Context> GroupBy::group_by(Context&& ctx,
+                                        std::unique_ptr<KeyBase>&& key,
+                                        std::vector<ReduceOp>&& aggrs) {
   auto [offsets, groups] = key->group(ctx);
   Context ret;
   const auto& tag_alias = key->tag_alias();
@@ -28,22 +28,10 @@ neug::result<Context> GroupBy::group_by(
     ret.set(tag_alias[i].second, ctx.get(tag_alias[i].first));
   }
   ret.reshuffle(offsets);
-  std::set<size_t> filter;
   for (auto& aggr : aggrs) {
-    ret = aggr->reduce(ctx, std::move(ret), groups, filter);
+    aggr.reduce(ctx, ret, groups);
   }
-  if (filter.empty()) {
-    return ret;
-  } else {
-    std::vector<size_t> new_offsets;
-    for (size_t i = 0; i < ret.row_num(); ++i) {
-      if (filter.find(i) == filter.end()) {
-        new_offsets.push_back(i);
-      }
-    }
-    ret.reshuffle(new_offsets);
-    return ret;
-  }
+  return ret;
 }
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

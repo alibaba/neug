@@ -24,8 +24,10 @@
 
 #include "neug/compiler/binder/expression/node_rel_expression.h"
 #include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/catalog/catalog_entry/node_table_catalog_entry.h"
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/common/enums/expression_type.h"
+#include "neug/compiler/common/types/types.h"
 
 namespace neug {
 namespace binder {
@@ -64,6 +66,8 @@ class NEUG_API NodeExpression final : public NodeOrRelExpression {
       propertyExpr->setUniqueVarName(uniqueName);
     }
   }
+
+  void setEntries(std::vector<catalog::TableCatalogEntry*> entries_) override;
 
   // Get primary key property expression for a given table ID.
   std::shared_ptr<Expression> getPrimaryKey(common::table_id_t tableID) const;

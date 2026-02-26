@@ -1,33 +1,26 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "scan": {
-      "scan_opt": "VERTEX",
-      "params": {
-       "tables": [
+ "plan": [
+  {
+   "opr": {
+    "scan": {
+     "scan_opt": "VERTEX",
+     "alias": 0,
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "predicate": {
+       "operators": [
         {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "gender"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT32"
-            }
+         "var": {
+          "property": {
+           "key": {
+            "name": "gender"
            }
           },
           "node_type": {
@@ -36,113 +29,112 @@
            }
           }
          },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "i32": 1
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_SIGNED_INT32"
           }
          }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "is_count_only": false,
-      "alias": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 0
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "BOTH",
-      "params": {
-       "tables": [
+        },
         {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": false,
-      "v_tag": 0
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
+         "logical": "EQ",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
          }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "OTHER",
-      "params": {
-       "tables": [
+        },
         {
-         "id": 0
+         "const": {
+          "i32": 1
+         }
         }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
-        "operators": [
-         {
-          "var": {
-           "property": {
-            "key": {
-             "name": "gender"
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "primitive_type": "DT_SIGNED_INT32"
-            }
+       ]
+      },
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "is_count_only": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "edge": {
+     "v_tag": 0,
+     "direction": "BOTH",
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "expand_opt": "EDGE",
+     "is_optional": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "EDGE",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0,
+          "src_label": 0,
+          "dst_label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": -1
+    }
+   ]
+  },
+  {
+   "opr": {
+    "vertex": {
+     "opt": "OTHER",
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "predicate": {
+       "operators": [
+        {
+         "var": {
+          "property": {
+           "key": {
+            "name": "gender"
            }
           },
           "node_type": {
@@ -151,103 +143,186 @@
            }
           }
          },
-         {
-          "node_type": {
-           "data_type": {
-            "primitive_type": "DT_BOOL"
-           }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "i32": 2
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_SIGNED_INT32"
           }
          }
-        ]
-       },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "edge": {
-      "direction": "BOTH",
-      "params": {
-       "tables": [
+        },
         {
-         "id": 0
-        }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "expand_opt": "EDGE",
-      "is_optional": false,
-      "v_tag": 1
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "EDGE",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0,
-           "src_label": 0,
-           "dst_label": 0
-          },
-          "props": []
+         "logical": "EQ",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
          }
-        ]
-       }
-      },
-      "alias": -1
-     }
-    ]
-   },
-   {
-    "opr": {
-     "vertex": {
-      "opt": "OTHER",
-      "params": {
-       "tables": [
+        },
         {
-         "id": 0
+         "const": {
+          "i32": 2
+         }
         }
-       ],
-       "columns": [],
-       "is_all_columns": false,
-       "predicate": {
+       ]
+      },
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "alias": 1
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 1
+    }
+   ]
+  },
+  {
+   "opr": {
+    "edge": {
+     "v_tag": 1,
+     "direction": "BOTH",
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "expand_opt": "EDGE",
+     "is_optional": false
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "EDGE",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0,
+          "src_label": 0,
+          "dst_label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": -1
+    }
+   ]
+  },
+  {
+   "opr": {
+    "vertex": {
+     "opt": "OTHER",
+     "params": {
+      "tables": [
+       {
+        "id": 0
+       }
+      ],
+      "columns": [],
+      "is_all_columns": false,
+      "predicate": {
+       "operators": [
+        {
+         "var": {
+          "property": {
+           "key": {
+            "name": "fName"
+           }
+          },
+          "node_type": {
+           "data_type": {
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
+           }
+          }
+         },
+         "node_type": {
+          "data_type": {
+           "string": {
+            "var_char": {
+             "max_length": 65536
+            }
+           }
+          }
+         }
+        },
+        {
+         "logical": "EQ",
+         "node_type": {
+          "data_type": {
+           "primitive_type": "DT_BOOL"
+          }
+         }
+        },
+        {
+         "const": {
+          "str": "Bob"
+         }
+        }
+       ]
+      },
+      "sample_ratio": 0,
+      "extra": {}
+     },
+     "alias": 2
+    }
+   },
+   "meta_data": [
+    {
+     "type": {
+      "graph_type": {
+       "element_opt": "VERTEX",
+       "graph_data_type": [
+        {
+         "label": {
+          "label": 0
+         },
+         "props": []
+        }
+       ]
+      }
+     },
+     "alias": 2
+    }
+   ]
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
         "operators": [
          {
           "var": {
+           "tag": {
+            "id": 0
+           },
            "property": {
             "key": {
              "name": "fName"
@@ -272,164 +347,96 @@
             }
            }
           }
-         },
+         }
+        ]
+       },
+       "alias": 3
+      },
+      {
+       "expr": {
+        "operators": [
          {
+          "var": {
+           "tag": {
+            "id": 1
+           },
+           "property": {
+            "key": {
+             "name": "fName"
+            }
+           },
+           "node_type": {
+            "data_type": {
+             "string": {
+              "var_char": {
+               "max_length": 65536
+              }
+             }
+            }
+           }
+          },
           "node_type": {
            "data_type": {
-            "primitive_type": "DT_BOOL"
+            "string": {
+             "var_char": {
+              "max_length": 65536
+             }
+            }
            }
-          },
-          "logical": "EQ"
-         },
-         {
-          "const": {
-           "str": "Bob"
           }
          }
         ]
        },
-       "sample_ratio": 0,
-       "extra": {}
-      },
-      "alias": 2
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "graph_type": {
-        "element_opt": "VERTEX",
-        "graph_data_type": [
-         {
-          "label": {
-           "label": 0
-          },
-          "props": []
-         }
-        ]
-       }
-      },
-      "alias": 2
-     }
-    ]
+       "alias": 4
+      }
+     ],
+     "is_append": false
+    }
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 0
-            },
-            "property": {
-             "key": {
-              "name": "fName"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 3
-       },
-       {
-        "expr": {
-         "operators": [
-          {
-           "var": {
-            "tag": {
-             "id": 1
-            },
-            "property": {
-             "key": {
-              "name": "fName"
-             }
-            },
-            "node_type": {
-             "data_type": {
-              "string": {
-               "var_char": {
-                "max_length": 65536
-               }
-              }
-             }
-            }
-           },
-           "node_type": {
-            "data_type": {
-             "string": {
-              "var_char": {
-               "max_length": 65536
-              }
-             }
-            }
-           }
-          }
-         ]
-        },
-        "alias": 4
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
         }
        }
-      },
-      "alias": 3
+      }
      },
-     {
-      "type": {
-       "data_type": {
-        "string": {
-         "var_char": {
-          "max_length": 65536
-         }
+     "alias": 3
+    },
+    {
+     "type": {
+      "data_type": {
+       "string": {
+        "var_char": {
+         "max_length": 65536
         }
        }
-      },
-      "alias": 4
-     }
-    ]
+      }
+     },
+     "alias": 4
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
    },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": true,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

@@ -39,8 +39,7 @@ class QueryResult(object):
         - `hasNext()`: Returns True if there are more results to iterate over.
         - `getNext()`: Returns the next result as a list.
         - `length()`: Returns the total number of results.
-        - `get_result_schema()`: Returns the schema of the result, which is a
-            yaml string describing the structure of the result.
+        - `column_names()`: Returns the projected column names as strings.
 
     .. code:: python
 
@@ -131,16 +130,9 @@ class QueryResult(object):
         del self._result
         self._result = None
 
-    def get_result_schema(self) -> str:
-        """
-        Get the schema of the result.
-
-        Returns
-        -------
-        str
-            The schema of the result, which is a yaml string describing the structure of the result.
-        """
-        return self._result.get_result_schema()
+    def column_names(self):
+        """Return the projected column names as a list of strings."""
+        return self._result.column_names()
 
     def get_bolt_response(self) -> str:
         """

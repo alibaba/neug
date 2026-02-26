@@ -91,10 +91,7 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
     httplib::Headers headers = {{"Content-Type", "application/json"}};
     std::string body = std::string("{\"query\":\"") + cypher + "\"}";
     auto res = cli.Post("/cypher", headers, body, "application/json");
-    if (!res) {
-      LOG(ERROR) << res.error();
-      return "";
-    }
+    EXPECT_TRUE(res);
     auto query_result = QueryResult::From(res->body);
     return query_result.ToString();
   }
@@ -107,18 +104,15 @@ INSTANTIATE_TEST_SUITE_P(CheckpointOnCloseValues, NeugDBWALRecoveryTest,
 
 TEST_P(NeugDBWALRecoveryTest, WALRecoveryViaCypher) {
   StartService();
-  ASSERT_FALSE(PostCypher("CREATE NODE TABLE Person (id INT64, age "
-                          "INT64, PRIMARY KEY(id));")
-                   .empty());
+  PostCypher(
+      "CREATE NODE TABLE Person (id INT64, age INT64, PRIMARY KEY(id));");
 
-  ASSERT_FALSE(PostCypher("CREATE (:Person {id: 1, age: 42})").empty());
-  ASSERT_FALSE(PostCypher("CREATE (:Person {id: 2, age: 43})").empty());
-  ASSERT_FALSE(
-      PostCypher("CREATE REL TABLE KNOWS(FROM Person TO Person, since INT64);")
-          .empty());
-  ASSERT_FALSE(PostCypher("MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
-                          "CREATE (a)-[:KNOWS {since: 2020}]->(b);")
-                   .empty());
+  PostCypher("CREATE (:Person {id: 1, age: 42})");
+  PostCypher("CREATE (:Person {id: 2, age: 43})");
+  PostCypher("CREATE REL TABLE KNOWS(FROM Person TO Person, since INT64);");
+  PostCypher(
+      "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
+      "CREATE (a)-[:KNOWS {since: 2020}]->(b);");
   StopService();
 
   StartService();
@@ -303,12 +297,10 @@ class NeugDBWALRecoverySubprocessTest : public ::testing::Test {
 
 TEST_F(NeugDBWALRecoverySubprocessTest, SimulateCrashAndRecoverFromWAL) {
   StartService();
-  ASSERT_FALSE(
-      PostCypher(
-          "CREATE NODE TABLE Person (id INT64, age INT64, PRIMARY KEY(id));")
-          .empty());
-  ASSERT_FALSE(PostCypher("CREATE (:Person {id: 1, age: 42})").empty());
-  ASSERT_FALSE(PostCypher("CREATE (:Person {id: 2, age: 43})").empty());
+  PostCypher(
+      "CREATE NODE TABLE Person (id INT64, age INT64, PRIMARY KEY(id));");
+  PostCypher("CREATE (:Person {id: 1, age: 42})");
+  PostCypher("CREATE (:Person {id: 2, age: 43})");
   auto resp = PostCypher("MATCH (n:Person {id: 1}) RETURN n.age");
   ASSERT_FALSE(resp.empty());
   EXPECT_NE(resp.find("42"), std::string::npos)

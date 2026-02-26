@@ -1,2 +1,2 @@
-WITH $personId as personId, $postId as postId, $creationDate as date
-CREATE (person:PERSON {id: personId})-[:LIKES {creationDate: date}]->(post:POST {id: postId})
+MATCH (person:PERSON {id: $personId}), (post:POST {id: $postId})
+CREATE (person:PERSON)-[:LIKES {creationDate: $creationDate}]->(post:POST)

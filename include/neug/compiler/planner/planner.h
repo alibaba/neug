@@ -263,6 +263,12 @@ class NEUG_API Planner {
       const std::vector<std::shared_ptr<binder::NodeExpression>>& joinNodes,
       bool flipPlan);
 
+  // Plan self-loop edge, i.e. Match (a)-[]->(b), (b)-[]->(a)
+  bool tryPlanSelfLoopEdge(
+      const binder::SubqueryGraph& subgraph,
+      const binder::SubqueryGraph& otherSubgraph,
+      const std::vector<std::shared_ptr<binder::NodeExpression>>& joinNodes);
+
   std::vector<std::unique_ptr<LogicalPlan>> planCrossProduct(
       std::vector<std::unique_ptr<LogicalPlan>> leftPlans,
       std::vector<std::unique_ptr<LogicalPlan>> rightPlans);

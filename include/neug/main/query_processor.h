@@ -23,6 +23,7 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
 #include "neug/generated/proto/plan/results.pb.h"
@@ -36,34 +37,47 @@ namespace neug {
 
 class QueryProcessor {
  public:
-  QueryProcessor(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
-                 Allocator& alloc, int32_t max_num_threads,
-                 bool is_read_only = false)
+  QueryProcessor(
+      PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+      std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
+      Allocator& alloc, int32_t max_num_threads, bool is_read_only = false)
       : g_(graph),
         planner_(planner),
+        global_query_cache_(global_query_cache),
         allocator_(alloc),
         max_num_threads_(max_num_threads),
         is_read_only_(is_read_only) {}
 
-  result<results::CollectiveResults> execute(
-      const std::string& query_string, const std::string& access_mode,
-      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
+  result<QueryResult> execute(const std::string& query_string,
+                              const std::string& access_mode,
+                              const execution::ParamsMap& parameters = {},
+                              int32_t num_threads = 0);
+
+  result<QueryResult> execute(const std::string& query_string,
+                              const std::string& access_mode,
+                              const rapidjson::Value& parameters_json,
+                              int32_t num_threads = 0);
 
  private:
-  result<results::CollectiveResults> execute_internal(
-      const std::string& query_string,
-      const runtime::ParamsMap& parameters = {}, int32_t num_threads = 0);
+  result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
+  check_and_retrieve_pipeline(const std::string& query_string,
+                              const std::string& access_mode,
+                              int32_t num_threads);
 
-  result<results::CollectiveResults> execute_query(
-      const physical::PhysicalPlan& plan, const runtime::ParamsMap& parameters,
-      int32_t num_threads);
+  result<QueryResult> execute_internal(
+      const std::string& query_string,
+      std::shared_ptr<execution::CacheValue> cache_value,
+      AccessMode access_mode, const execution::ParamsMap& parameters = {},
+      int32_t num_threads = 0);
 
   bool need_exclusive_lock(AccessMode access_mode);
 
-  void update_compiler_meta_if_needed(const physical::PhysicalPlan& plan);
+  void update_compiler_meta_if_needed(const physical::ExecutionFlag& flags,
+                                      AccessMode mode);
 
   PropertyGraph& g_;
   std::shared_ptr<IGraphPlanner> planner_;
+  std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;
   int32_t max_num_threads_;
   bool is_read_only_ = false;

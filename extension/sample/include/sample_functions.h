@@ -109,7 +109,7 @@ inline std::string EscapeJsonString(const std::string& s) {
 }
 
 /**
- * @brief Convert a neug::runtime::Value to JSON format string (preserving types)
+ * @brief Convert a neug::execution::Value to JSON format string (preserving types)
  * 
  * This function properly serializes different value types:
  * - INT32/INT64/UINT64: output as number (no quotes)
@@ -121,14 +121,14 @@ inline std::string EscapeJsonString(const std::string& s) {
  * @param val The Value to serialize
  * @return JSON-formatted string representation
  */
-inline std::string ValueToJsonString(const runtime::Value& val) {
+inline std::string ValueToJsonString(const execution::Value& val) {
     // Check if value is null/none
     if (val.IsNull()) {
         return "null";
     }
     
     // Get the type and handle accordingly
-    // Note: runtime::Value uses DataTypeId, not LogicalTypeID
+    // Note: execution::Value uses DataTypeId, not LogicalTypeID
     DataTypeId type_id = val.type().id();
     
     switch (type_id) {
@@ -1027,7 +1027,7 @@ class SampledSubgraphMatcher {
                 if (label == uv.label_id) {
                     try {
                         Property prop = readInterface->GetVertexProperty(label, local_vid, uv.ordered_prop_indices[pi]);
-                        runtime::Value val = runtime::property_to_value(prop);
+                        execution::Value val = execution::property_to_value(prop);
                         // Use ValueToJsonString to preserve proper JSON types
                         json_val = ValueToJsonString(val);
                     } catch (...) {
@@ -1066,7 +1066,7 @@ class SampledSubgraphMatcher {
                          it != view.get_edges(ue.src_vid).end(); ++it) {
                         if (*it == ue.dst_vid) {
                             Property prop = accessor.get_data(it);
-                            runtime::Value val = runtime::property_to_value(prop);
+                            execution::Value val = execution::property_to_value(prop);
                             // Use ValueToJsonString to preserve proper JSON types
                             json_val = ValueToJsonString(val);
                             break;
@@ -1120,7 +1120,7 @@ struct InitializeGraphFunction {
         std::vector<common::LogicalTypeID>{},  // 无输入参数
         std::move(outputCols));
     
-    func->bindFunc = [](const Schema& schema, const runtime::ContextMeta& ctx_meta,
+    func->bindFunc = [](const Schema& schema, const execution::ContextMeta& ctx_meta,
                         const ::physical::PhysicalPlan& plan, int op_idx) 
         -> std::unique_ptr<CallFuncInputBase> {
       LOG(INFO) << "[INITIALIZE] Bind: no parameters";
@@ -1128,13 +1128,13 @@ struct InitializeGraphFunction {
     };
     
     func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
-        -> runtime::Context {
+        -> execution::Context {
       LOG(INFO) << "[INITIALIZE] Executing graph initialization...";
       
       auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
       if (!readInterface) {
         LOG(ERROR) << "[INITIALIZE] ERROR: graph is not a StorageReadInterface!";
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 执行初始化
@@ -1145,30 +1145,30 @@ struct InitializeGraphFunction {
       auto& cached_data = cache.GetOrCreate(readInterface);
       
       // 创建返回结果 Context
-      runtime::Context ctx;
+      execution::Context ctx;
       
       // col 0: status
-      runtime::ValueColumnBuilder<std::string> statusBuilder;
+      execution::ValueColumnBuilder<std::string> statusBuilder;
       statusBuilder.push_back_opt(success ? std::string("success") : std::string("failed"));
       ctx.set(0, statusBuilder.finish());
       
       // col 1: num_vertices
-      runtime::ValueColumnBuilder<int64_t> verticesBuilder;
+      execution::ValueColumnBuilder<int64_t> verticesBuilder;
       verticesBuilder.push_back_opt(static_cast<int64_t>(cached_data.data_meta->GetNumVertices()));
       ctx.set(1, verticesBuilder.finish());
       
       // col 2: num_edges
-      runtime::ValueColumnBuilder<int64_t> edgesBuilder;
+      execution::ValueColumnBuilder<int64_t> edgesBuilder;
       edgesBuilder.push_back_opt(static_cast<int64_t>(cached_data.data_meta->GetNumEdges()));
       ctx.set(2, edgesBuilder.finish());
       
       // col 3: max_degree
-      runtime::ValueColumnBuilder<int64_t> maxDegreeBuilder;
+      execution::ValueColumnBuilder<int64_t> maxDegreeBuilder;
       maxDegreeBuilder.push_back_opt(static_cast<int64_t>(cached_data.data_meta->GetMaxDegree()));
       ctx.set(3, maxDegreeBuilder.finish());
       
       // col 4: degeneracy
-      runtime::ValueColumnBuilder<int64_t> degeneracyBuilder;
+      execution::ValueColumnBuilder<int64_t> degeneracyBuilder;
       degeneracyBuilder.push_back_opt(static_cast<int64_t>(cached_data.data_meta->GetDegeneracy()));
       ctx.set(4, degeneracyBuilder.finish());
       
@@ -1221,7 +1221,7 @@ struct SampledMatchFunction {
         std::move(outputCols));
     
     // 设置 bindFunc
-    func->bindFunc = [](const Schema& schema, const runtime::ContextMeta& ctx_meta,
+    func->bindFunc = [](const Schema& schema, const execution::ContextMeta& ctx_meta,
                         const ::physical::PhysicalPlan& plan, int op_idx) 
         -> std::unique_ptr<CallFuncInputBase> {
       auto& procedure = plan.plan(op_idx).opr().procedure_call();
@@ -1256,7 +1256,7 @@ struct SampledMatchFunction {
     };
     
     func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
-        -> runtime::Context {
+        -> execution::Context {
       auto& matchInput = static_cast<const SampledMatchInput&>(input);
       
       LOG(INFO) << "[SAMPLED_MATCH] Executing with graph access";
@@ -1265,7 +1265,7 @@ struct SampledMatchFunction {
       auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
       if (!readInterface) {
         LOG(ERROR) << "[SAMPLED_MATCH] ERROR: graph is not a StorageReadInterface!";
-        return runtime::Context();
+        return execution::Context();
       }
       
       LOG(INFO) << "[SAMPLED_MATCH] Starting subgraph matching...";
@@ -1292,7 +1292,7 @@ struct SampledMatchFunction {
       std::ofstream ofs(outputFile);
       if (!ofs.is_open()) {
         LOG(ERROR) << "[SAMPLED_MATCH] Failed to open output file: " << outputFile;
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 写入 CSV 表头
@@ -1334,25 +1334,25 @@ struct SampledMatchFunction {
       }
       
       // 创建返回结果 Context (1 行，4 列)
-      runtime::Context ctx;
+      execution::Context ctx;
       
       // col 0: estimated_count
-      runtime::ValueColumnBuilder<double> estimatedCountBuilder;
+      execution::ValueColumnBuilder<double> estimatedCountBuilder;
       estimatedCountBuilder.push_back_opt(estimatedCount);
       ctx.set(0, estimatedCountBuilder.finish());
       
       // col 1: sample_count
-      runtime::ValueColumnBuilder<int64_t> sampleCountBuilder;
+      execution::ValueColumnBuilder<int64_t> sampleCountBuilder;
       sampleCountBuilder.push_back_opt(static_cast<int64_t>(sampleCount));
       ctx.set(1, sampleCountBuilder.finish());
       
       // col 2: result_file
-      runtime::ValueColumnBuilder<std::string> filePathBuilder;
+      execution::ValueColumnBuilder<std::string> filePathBuilder;
       filePathBuilder.push_back_opt(std::string(outputFile));
       ctx.set(2, filePathBuilder.finish());
       
       // col 3: props_file
-      runtime::ValueColumnBuilder<std::string> propsFileBuilder;
+      execution::ValueColumnBuilder<std::string> propsFileBuilder;
       propsFileBuilder.push_back_opt(std::string(propsFile));
       ctx.set(3, propsFileBuilder.finish());
       
@@ -1406,7 +1406,7 @@ struct GetVertexPropertyFunction {
         },
         std::move(outputCols));
     
-    func->bindFunc = [](const Schema& schema, const runtime::ContextMeta& ctx_meta,
+    func->bindFunc = [](const Schema& schema, const execution::ContextMeta& ctx_meta,
                         const ::physical::PhysicalPlan& plan, int op_idx) 
         -> std::unique_ptr<CallFuncInputBase> {
       auto& procedure = plan.plan(op_idx).opr().procedure_call();
@@ -1453,13 +1453,13 @@ struct GetVertexPropertyFunction {
     };
     
     func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
-        -> runtime::Context {
+        -> execution::Context {
       auto& propInput = static_cast<const GetVertexPropertyInput&>(input);
       
       auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
       if (!readInterface) {
         LOG(ERROR) << "[GET_VERTEX_PROPERTY] ERROR: graph is not a StorageReadInterface!";
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 获取缓存数据
@@ -1495,7 +1495,7 @@ struct GetVertexPropertyFunction {
       std::ofstream ofs(outputFile);
       if (!ofs.is_open()) {
         LOG(ERROR) << "[GET_VERTEX_PROPERTY] Failed to open output file: " << outputFile;
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 写入表头: vertex_id, prop1, prop2, ...
@@ -1516,7 +1516,7 @@ struct GetVertexPropertyFunction {
           if (label == vertex_label_id && prop_indices[p] >= 0) {
             try {
               Property prop = readInterface->GetVertexProperty(label, local_vid, prop_indices[p]);
-              runtime::Value val = runtime::property_to_value(prop);
+              execution::Value val = execution::property_to_value(prop);
               // 转义 CSV 中的逗号和引号
               std::string val_str = val.to_string();
               if (val_str.find(',') != std::string::npos || val_str.find('"') != std::string::npos) {
@@ -1542,9 +1542,9 @@ struct GetVertexPropertyFunction {
       LOG(INFO) << "[GET_VERTEX_PROPERTY] Results written to: " << outputFile;
       
       // 创建返回结果 Context (1 行，1 列：文件路径)
-      runtime::Context ctx;
+      execution::Context ctx;
       
-      runtime::ValueColumnBuilder<std::string> filePathBuilder;
+      execution::ValueColumnBuilder<std::string> filePathBuilder;
       filePathBuilder.push_back_opt(std::string(outputFile));
       ctx.set(0, filePathBuilder.finish());
       
@@ -1598,7 +1598,7 @@ struct GetEdgePropertyFunction {
         },
         std::move(outputCols));
     
-    func->bindFunc = [](const Schema& schema, const runtime::ContextMeta& ctx_meta,
+    func->bindFunc = [](const Schema& schema, const execution::ContextMeta& ctx_meta,
                         const ::physical::PhysicalPlan& plan, int op_idx) 
         -> std::unique_ptr<CallFuncInputBase> {
       auto& procedure = plan.plan(op_idx).opr().procedure_call();
@@ -1644,13 +1644,13 @@ struct GetEdgePropertyFunction {
     };
     
     func->execFunc = [](const CallFuncInputBase& input, IStorageInterface& graph) 
-        -> runtime::Context {
+        -> execution::Context {
       auto& propInput = static_cast<const GetEdgePropertyInput&>(input);
       
       auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
       if (!readInterface) {
         LOG(ERROR) << "[GET_EDGE_PROPERTY] ERROR: graph is not a StorageReadInterface!";
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 获取缓存数据
@@ -1744,7 +1744,7 @@ struct GetEdgePropertyFunction {
       std::ofstream ofs(outputFile);
       if (!ofs.is_open()) {
         LOG(ERROR) << "[GET_EDGE_PROPERTY] Failed to open output file: " << outputFile;
-        return runtime::Context();
+        return execution::Context();
       }
       
       // 写入表头: edge_key, src_id, dst_id, prop1, prop2, ...
@@ -1771,7 +1771,7 @@ struct GetEdgePropertyFunction {
                    it != view.get_edges(pe.src_vid).end(); ++it) {
                 if (*it == pe.dst_vid) {
                   Property prop = accessor.get_data(it);
-                  runtime::Value val = runtime::property_to_value(prop);
+                  execution::Value val = execution::property_to_value(prop);
                   std::string val_str = val.to_string();
                   // 转义 CSV
                   if (val_str.find(',') != std::string::npos || val_str.find('"') != std::string::npos) {
@@ -1799,9 +1799,9 @@ struct GetEdgePropertyFunction {
       LOG(INFO) << "[GET_EDGE_PROPERTY] Results written to: " << outputFile;
       
       // 创建返回结果 Context (1 行，1 列：文件路径)
-      runtime::Context ctx;
+      execution::Context ctx;
       
-      runtime::ValueColumnBuilder<std::string> filePathBuilder;
+      execution::ValueColumnBuilder<std::string> filePathBuilder;
       filePathBuilder.push_back_opt(std::string(outputFile));
       ctx.set(0, filePathBuilder.finish());
       

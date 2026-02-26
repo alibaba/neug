@@ -25,7 +25,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Dedup::dedup(Context&& ctx,
                                    const std::vector<size_t>& cols) {
@@ -35,43 +35,6 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
     return ctx;
   } else if (cols.size() == 1) {
     ctx.get(cols[0])->generate_dedup_offset(offsets);
-  } else if (cols.size() == 2) {
-    ISigColumn* sig0 = ctx.get(cols[0])->generate_signature();
-    ISigColumn* sig1 = ctx.get(cols[1])->generate_signature();
-    std::vector<std::tuple<size_t, size_t, size_t>> list;
-    for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      list.emplace_back(sig0->get_sig(r_i), sig1->get_sig(r_i), r_i);
-    }
-    std::sort(list.begin(), list.end());
-    size_t list_size = list.size();
-    if (list_size > 0) {
-      offsets.push_back(std::get<2>(list[0]));
-      for (size_t k = 1; k < list_size; ++k) {
-        if (std::get<0>(list[k]) != std::get<0>(list[k - 1]) ||
-            std::get<1>(list[k]) != std::get<1>(list[k - 1])) {
-          offsets.push_back(std::get<2>(list[k]));
-        }
-      }
-      std::sort(offsets.begin(), offsets.end());
-    }
-    delete sig0;
-    delete sig1;
-  } else if (cols.size() == 3) {
-    phmap::flat_hash_set<std::tuple<size_t, size_t, size_t>> sigset;
-    ISigColumn* sig0 = ctx.get(cols[0])->generate_signature();
-    ISigColumn* sig1 = ctx.get(cols[1])->generate_signature();
-    ISigColumn* sig2 = ctx.get(cols[2])->generate_signature();
-    for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      auto cur = std::make_tuple(sig0->get_sig(r_i), sig1->get_sig(r_i),
-                                 sig2->get_sig(r_i));
-      if (sigset.find(cur) == sigset.end()) {
-        offsets.push_back(r_i);
-        sigset.insert(cur);
-      }
-    }
-    delete sig0;
-    delete sig1;
-    delete sig2;
   } else {
     phmap::flat_hash_set<std::string> set;
     for (size_t r_i = 0; r_i < row_num; ++r_i) {
@@ -97,6 +60,6 @@ neug::result<Context> Dedup::dedup(Context&& ctx,
   return ret;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

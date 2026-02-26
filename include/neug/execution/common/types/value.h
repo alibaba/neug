@@ -26,18 +26,17 @@
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/utils/numeric_cast.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 class Property;
 class Encoder;
 
-namespace runtime {
+namespace execution {
 using timestamp_ms_t = neug::DateTime;
 using interval_t = neug::Interval;
 using date_t = neug::Date;
-using vertex_t = neug::runtime::VertexRecord;
-using edge_t = neug::runtime::EdgeRecord;
+using vertex_t = neug::execution::VertexRecord;
+using edge_t = neug::execution::EdgeRecord;
 struct ExtraValueInfo;
 class Value {
   friend struct StringValue;
@@ -54,7 +53,7 @@ class Value {
   Value& operator=(const Value& other);
   Value& operator=(Value&& other) noexcept;
 
-  DataType type() const { return type_; }
+  const DataType& type() const { return type_; }
 
   static Value BOOLEAN(bool value);
 
@@ -101,7 +100,10 @@ class Value {
   }
 
   template <class T>
-  T GetValue() const;
+  T GetValue() const {
+    static_assert(sizeof(T) == 0, "Unsupported type for GetValue");
+    return T();
+  }
 
   template <class OP>
   static Value ApplyArithmeticOp(const Value& lhs, const Value& rhs);
@@ -124,11 +126,10 @@ class Value {
   Value operator%(const Value& rhs) const;
 
   std::string to_string() const;
-
   // Parse from json string, with type info
+  static Value FromJson(const std::string& json_str, const DataType& type);
   static Value FromJson(const rapidjson::Value& json_value,
                         const DataType& type);
-  static Value FromJson(const std::string& json_str, const DataType& type);
   static rapidjson::Value ToJson(const Value& value,
                                  rapidjson::Document::AllocatorType& allocator);
 
@@ -221,10 +222,7 @@ template <>
 uint64_t Value::GetValue() const;
 template <>
 std::string Value::GetValue() const;
-// TODO(zhanglei,lexiao): Implicit conversion from string to string_view may
-// cause issues
-template <>
-std::string_view Value::GetValue() const;
+
 template <>
 float Value::GetValue() const;
 template <>
@@ -260,11 +258,11 @@ struct ValueConverter<int32_t> {
   template <typename T>
   static bool cast(const T& input, int32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -289,11 +287,11 @@ struct ValueConverter<int64_t> {
       output = input.to_mill_seconds();
       return true;
     } else if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -308,11 +306,11 @@ struct ValueConverter<uint32_t> {
   template <typename T>
   static bool cast(const T& input, uint32_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -327,11 +325,11 @@ struct ValueConverter<uint64_t> {
   template <typename T>
   static bool cast(const T& input, uint64_t& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      auto [data, len] = neug::runtime::removeWhiteSpaces(input);
+      auto [data, len] = neug::execution::removeWhiteSpaces(input);
       auto [ptr, ec] = std::from_chars(data, data + len, output);
       return ec == std::errc() && ptr == data + len;
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -354,9 +352,9 @@ struct ValueConverter<double> {
   template <typename T>
   static bool cast(const T& input, double& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return neug::runtime::tryDoubleCast(input, output);
+      return neug::execution::tryDoubleCast(input, output);
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -371,9 +369,9 @@ struct ValueConverter<float> {
   template <typename T>
   static bool cast(const T& input, float& output) {
     if constexpr (std::is_same_v<T, std::string>) {
-      return neug::runtime::tryDoubleCast(input, output);
+      return neug::execution::tryDoubleCast(input, output);
     } else {
-      return neug::runtime::TryCastWithOverflowCheck(input, output);
+      return neug::execution::TryCastWithOverflowCheck(input, output);
     }
   }
 };
@@ -719,5 +717,6 @@ inline Value performCast<neug::Date>(const Value& input) {
 Value performCastToString(const Value& input);
 
 void encode_value(const Value& val, Encoder& encoder);
-}  // namespace runtime
+
+}  // namespace execution
 }  // namespace neug

@@ -17,11 +17,11 @@
 
 #include "neug/execution/common/columns/path_columns.h"
 #include "neug/execution/common/operators/retrieve/path_expand_impl.h"
-#include "neug/execution/utils/special_predicates.h"
+#include "neug/execution/expression/special_predicates.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> PathExpand::edge_expand_v(
     const StorageReadInterface& graph, Context&& ctx,
@@ -44,7 +44,7 @@ neug::result<Context> PathExpand::edge_expand_v(
           *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
       std::set<label_t> labels;
       std::vector<std::vector<LabelTriplet>> out_labels_map(
-          graph.schema().vertex_label_num());
+          graph.schema().vertex_label_frontier());
       for (const auto& label : params.labels) {
         labels.emplace(label.dst_label);
         if (params.hop_lower == 0) {
@@ -99,7 +99,7 @@ neug::result<Context> PathExpand::edge_expand_v(
           *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
       std::set<label_t> labels;
       std::vector<std::vector<LabelTriplet>> in_labels_map(
-          graph.schema().vertex_label_num());
+          graph.schema().vertex_label_frontier());
       for (auto& label : params.labels) {
         labels.emplace(label.src_label);
         if (params.hop_lower == 0) {
@@ -152,8 +152,8 @@ neug::result<Context> PathExpand::edge_expand_v(
     } else if (params.dir == Direction::kBoth) {
       std::set<label_t> labels;
       std::vector<std::vector<LabelTriplet>> in_labels_map(
-          graph.schema().vertex_label_num()),
-          out_labels_map(graph.schema().vertex_label_num());
+          graph.schema().vertex_label_frontier()),
+          out_labels_map(graph.schema().vertex_label_frontier());
       for (const auto& label : params.labels) {
         labels.emplace(label.dst_label);
         labels.emplace(label.src_label);
@@ -240,8 +240,8 @@ neug::result<Context> path_expand_p_arbitrary(const StorageReadInterface& graph,
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
   std::vector<std::vector<LabelTriplet>> out_labels_map(
-      graph.schema().vertex_label_num()),
-      in_labels_map(graph.schema().vertex_label_num());
+      graph.schema().vertex_label_frontier()),
+      in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
     out_labels_map[triplet.src_label].emplace_back(triplet);
     in_labels_map[triplet.dst_label].emplace_back(triplet);
@@ -408,8 +408,8 @@ neug::result<Context> path_expand_p_simple(const StorageReadInterface& graph,
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
   std::vector<std::vector<LabelTriplet>> out_labels_map(
-      graph.schema().vertex_label_num()),
-      in_labels_map(graph.schema().vertex_label_num());
+      graph.schema().vertex_label_frontier()),
+      in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
     out_labels_map[triplet.src_label].emplace_back(triplet);
     in_labels_map[triplet.dst_label].emplace_back(triplet);
@@ -490,8 +490,8 @@ neug::result<Context> path_expand_p_trail(const StorageReadInterface& graph,
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
   std::vector<std::vector<LabelTriplet>> out_labels_map(
-      graph.schema().vertex_label_num()),
-      in_labels_map(graph.schema().vertex_label_num());
+      graph.schema().vertex_label_frontier()),
+      in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
     out_labels_map[triplet.src_label].emplace_back(triplet);
     in_labels_map[triplet.dst_label].emplace_back(triplet);
@@ -592,8 +592,8 @@ neug::result<Context> path_expand_p_any_shortest(
   auto label_sets = input_vertex_list.get_labels_set();
   auto labels = params.labels;
   std::vector<std::vector<LabelTriplet>> out_labels_map(
-      graph.schema().vertex_label_num()),
-      in_labels_map(graph.schema().vertex_label_num());
+      graph.schema().vertex_label_frontier()),
+      in_labels_map(graph.schema().vertex_label_frontier());
   for (const auto& triplet : labels) {
     out_labels_map[triplet.src_label].emplace_back(triplet);
     in_labels_map[triplet.dst_label].emplace_back(triplet);
@@ -1174,8 +1174,8 @@ struct SSSPSPOp {
 neug::result<Context>
 PathExpand::single_source_shortest_path_with_special_vertex_predicate(
     const StorageReadInterface& graph, Context&& ctx,
-    const ShortestPathParams& params,
-    const SpecialVertexPredicateConfig& config, const ParamsMap& query_params) {
+    const ShortestPathParams& params, const SpecialPredicateConfig& config,
+    const ParamsMap& query_params) {
   std::set<label_t> expected_labels;
   for (const auto& label_triplet : params.labels) {
     expected_labels.insert(label_triplet.dst_label);
@@ -1186,6 +1186,6 @@ PathExpand::single_source_shortest_path_with_special_vertex_predicate(
                                              std::move(ctx), params);
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

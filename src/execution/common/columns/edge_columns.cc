@@ -17,7 +17,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 std::shared_ptr<IContextColumn> SDSLEdgeColumn::shuffle(
     const std::vector<size_t>& offsets) const {
@@ -351,6 +351,6 @@ std::shared_ptr<IContextColumn> BDMLEdgeColumn::optional_shuffle(
   return builder.finish();
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

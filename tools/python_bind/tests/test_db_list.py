@@ -41,8 +41,8 @@ def test_return_single_list(tmp_path):
 
     result = conn.execute("MATCH (p: PERSON) RETURN [p.id, p.name, p.score];")
     result = list(result)
-    assert result[0][0] == [0, "Alice", 99.5]
-    assert result[1][0] == [1, "Bob", 98.5]
+    assert result[0][0] == {"f0": 0, "f1": "Alice", "f2": 99.5}
+    assert result[1][0] == {"f0": 1, "f1": "Bob", "f2": 98.5}
 
     conn.close()
     db.close()
@@ -63,10 +63,10 @@ def test_return_multiple_lists(tmp_path):
 
     result = conn.execute("MATCH (p: PERSON) RETURN [p.id], [p.name, p.score];")
     result = list(result)
-    assert result[0][0] == [0]
-    assert result[0][1] == ["Alice", 99.5]
-    assert result[1][0] == [1]
-    assert result[1][1] == ["Bob", 98.5]
+    assert result[0][0] == {"f0": 0}
+    assert result[0][1] == {"f0": "Alice", "f1": 99.5}
+    assert result[1][0] == {"f0": 1}
+    assert result[1][1] == {"f0": "Bob", "f1": 98.5}
 
     conn.close()
     db.close()

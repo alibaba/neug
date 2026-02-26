@@ -33,14 +33,14 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
           {"description", common::LogicalTypeID::STRING}});
 
   function->bindFunc = [](const neug::Schema& schema,
-                          const neug::runtime::ContextMeta& ctx_meta,
+                          const neug::execution::ContextMeta& ctx_meta,
                           const ::physical::PhysicalPlan& plan,
                           int op_idx) -> std::unique_ptr<CallFuncInputBase> {
     return bindFunc(schema, ctx_meta, plan, op_idx);
   };
 
   function->execFunc =
-      [](const CallFuncInputBase& input, neug::IStorageInterface& graph) -> neug::runtime::Context {
+      [](const CallFuncInputBase& input, neug::IStorageInterface& graph) -> neug::execution::Context {
     (void)graph;
     const auto& showInput =
         static_cast<const ShowLoadedExtensionsFuncInput&>(input);
@@ -54,21 +54,21 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
 
 std::unique_ptr<ShowLoadedExtensionsFuncInput>
 ShowLoadedExtensionsFunction::bindFunc(const neug::Schema& schema,
-                                       const neug::runtime::ContextMeta& ctx_meta,
+                                       const neug::execution::ContextMeta& ctx_meta,
                                        const ::physical::PhysicalPlan& plan,
                                        int op_idx) {
   return std::make_unique<ShowLoadedExtensionsFuncInput>();
 }
 
-neug::runtime::Context ShowLoadedExtensionsFunction::execFunc(
+neug::execution::Context ShowLoadedExtensionsFunction::execFunc(
     const ShowLoadedExtensionsFuncInput& input, neug::IStorageInterface& graph) {
   (void)graph;
   try {
-    neug::runtime::Context ctx;
+    neug::execution::Context ctx;
     const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
 
-    neug::runtime::ValueColumnBuilder<std::string> name_builder;
-    neug::runtime::ValueColumnBuilder<std::string> desc_builder;
+    neug::execution::ValueColumnBuilder<std::string> name_builder;
+    neug::execution::ValueColumnBuilder<std::string> desc_builder;
     name_builder.reserve(ext_map.size());
     desc_builder.reserve(ext_map.size());
 

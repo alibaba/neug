@@ -855,7 +855,7 @@ void GQueryConvertor::setMetaData(::physical::PhysicalOpr* physicalOpr,
     metaPB->set_alias(aliasId);
     auto& type = expr->getDataType();
     // Get type from schema expression
-    auto typePB = typeConverter->convertLogicalType(expr->getDataType(), *expr);
+    auto typePB = typeConverter->convertLogicalType(expr->getDataType());
     metaPB->set_allocated_type(typePB.release());
     physicalOpr->mutable_meta_data()->AddAllocated(metaPB.release());
   }
@@ -1035,6 +1035,9 @@ void GQueryConvertor::convertProject(const planner::LogicalProjection& project,
     return;
   }
   auto projectPB = std::make_unique<::physical::Project>();
+  if (project.append()) {
+    projectPB->set_is_append(true);
+  }
   std::vector<common::alias_id_t> aliasIds;
   auto child = project.getChild(0);
   // set project mappings
@@ -1107,12 +1110,14 @@ std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
   common::alias_id_t columnId = 0;
   auto entryPB = std::make_unique<::physical::EntrySchema>();
   for (auto& column : scanBindData->columns) {
-    if (skipColumn(column->toString())) {
+    // Use rawName() to get the original column name without alias.
+    // When RETURN clause uses aliases (e.g., RETURN fName AS name),
+    // toString() returns the alias which doesn't match data source fields.
+    if (skipColumn(column->rawName())) {
       continue;  // skip internal columns
     }
-    entryPB->add_column_names(column->toString());
-    auto typePB =
-        typeConverter->convertSimpleLogicalType(column->getDataType());
+    entryPB->add_column_names(column->rawName());
+    auto typePB = typeConverter->convertLogicalType(column->getDataType());
     entryPB->mutable_column_types()->AddAllocated(typePB->release_data_type());
   }
   return entryPB;
@@ -1150,7 +1155,7 @@ void GQueryConvertor::convertDataSource(
   for (auto idx = 0; idx < scanBindData->columns.size(); idx++) {
     if (columnSkips[idx]) {
       sourcePB->mutable_skip_columns()->Add(
-          scanBindData->columns[idx]->toString());
+          scanBindData->columns[idx]->rawName());
     }
   }
 

@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/columns_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 std::shared_ptr<IContextColumn> StructColumn::shuffle(
     const std::vector<size_t>& offsets) const {
   std::vector<std::shared_ptr<IContextColumn>> shuffled_children;
@@ -71,11 +71,6 @@ Value StructColumn::get_elem(size_t idx) const {
   return Value::STRUCT(type_, std::move(struct_values));
 }
 
-ISigColumn* StructColumn::generate_signature() const {
-  LOG(FATAL) << "not implemented for " << this->column_info();
-  return nullptr;
-}
-
 void StructColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   LOG(FATAL) << "not implemented for " << this->column_info();
 }
@@ -123,5 +118,5 @@ std::shared_ptr<IContextColumn> StructColumnBuilder::finish() {
   return struct_col;
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

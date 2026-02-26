@@ -14,18 +14,18 @@
  */
 
 #include "neug/execution/execute/ops/ddl/add_vertex_property.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class AddVertexPropertySchemaOpr : public IOperator {
  public:
   AddVertexPropertySchemaOpr(
       const std::string& vertex_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-          properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       bool error_on_conflict)
       : vertex_type_(vertex_type),
         properties_(properties),
@@ -38,7 +38,12 @@ class AddVertexPropertySchemaOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
-    auto res = storage.AddVertexProperties(vertex_type_, properties_,
+    std::vector<std::tuple<DataTypeId, std::string, Property>> property_tuples;
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type().id(), prop_name,
+                                   value_to_property(prop_value));
+    }
+    auto res = storage.AddVertexProperties(vertex_type_, property_tuples,
                                            error_on_conflict_);
     if (!res.ok()) {
       LOG(ERROR) << "Fail to add vertex property to type: " << vertex_type_
@@ -50,7 +55,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
 
  private:
   std::string vertex_type_;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   bool error_on_conflict_;
 };
 
@@ -59,7 +64,7 @@ neug::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& add_vertex_property =
       plan.plan(op_id).opr().add_vertex_property_schema();
-  auto tuple_res = property_defs_to_tuple(add_vertex_property.properties());
+  auto tuple_res = property_defs_to_value(add_vertex_property.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
@@ -72,6 +77,6 @@ neug::result<OpBuildResultT> AddVertexPropertySchemaOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

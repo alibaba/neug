@@ -1,10 +1,6 @@
-WITH 
-  $moderatorPersonId as personId,
-  $forumId as forumId,
-  $forumTitle as forumTitle,
-  $creationDate as creationDate,
-  $tagIds as tagIds
-CREATE (f:FORUM {id: forumId, title: forumTitle, creationDate: creationDate})
-CREATE (f:FORUM {id: forumId})-[:HASMODERATOR]->(p:PERSON {id: personId})
-UNWIND tagIds AS tagId
-CREATE (f:FORUM {id: forumId})-[:HASTAG]->(t:TAG {id: tagId})
+MATCH (p:PERSON {id: $moderatorPersonId})
+CREATE (f:FORUM {id: $forumId, title: $forumTitle, creationDate: $creationDate})-[:HASMODERATOR]->(p)
+WITH f
+UNWIND CAST($tagIds, 'INT64[]') AS tagId
+MATCH (t:TAG {id: tagId} )
+CREATE (f)-[:HASTAG]->(t)

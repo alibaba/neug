@@ -9,6 +9,8 @@ endif
 PLATFORM          := $(shell uname -m)
 # can be: x86_64, arm64
 ARCH              := $(shell uname -m)
+# if arch is x86_64, then manylinux version is 2014, if arm64, then manylinux version is 2_28
+MANYLINUXVERSION := $(if $(filter $(ARCH),x86_64),2014,2_28)
 
 
 VERSION ?= latest
@@ -16,16 +18,15 @@ PROFILE ?= release
 
 BUILD_PROGRESS  	?= auto
 
-.PHONY: all graphscope
-
 # High order modules
-.PHONY: neug
+.PHONY: neug-dev 
+
+.PHONY: neug-release
 
 # Base images and develop images
 .PHONY: neug-manylinux
 
-all: neug neug-manylinux
-graphscope: all
+all: neug-dev neug-manylinux neug-release
 
 neug-manylinux:
 	cd .. && \
@@ -33,30 +34,9 @@ neug-manylinux:
 		--build-arg REGISTRY=$(REGISTRY) \
 		--build-arg PLATFORM=${PLATFORM} \
 		--build-arg ARCH=${ARCH} \
+		--build-arg MANYLINUXVERSION=${MANYLINUXVERSION} \
 		-t graphscope/neug-manylinux:${ARCH}  \
-		-f ${DOCKERFILES_DIR}/manylinux2014.Dockerfile .
-
-neug-manylinux-arm64:
-	cd .. && \
-	docker build \
-		--build-arg REGISTRY=$(REGISTRY) \
-		--build-arg PLATFORM=${PLATFORM} \
-		--build-arg ARCH=${ARCH} \
-		-t graphscope/neug-manylinux:${ARCH}  \
-		-f ${DOCKERFILES_DIR}/manylinux2014-arm64.Dockerfile .
-
-
-
-neug-manylinux-brpc:
-	cd .. && \
-	docker build \
-		--progress=plain \
-		--no-cache \
-		--build-arg REGISTRY=$(REGISTRY) \
-		--build-arg PLATFORM=${PLATFORM} \
-		--build-arg ARCH=${ARCH} \
-		-t graphscope/neug-manylinux-brpc:${ARCH}  \
-		-f ${DOCKERFILES_DIR}/manylinux2014-brpc.Dockerfile .
+		-f ${DOCKERFILES_DIR}/neug-manylinux.Dockerfile .
 
 neug-dev:
 	cd .. && \
@@ -65,14 +45,6 @@ neug-dev:
 		--build-arg ARCH=${ARCH} \
 		-t graphscope/neug-dev:${ARCH}  \
 		-f ${DOCKERFILES_DIR}/neug-dev.Dockerfile .
-
-neug-dev-base: # The base image where no dependencies are installed
-	cd .. && \
-	docker build \
-		--build-arg REGISTRY=$(REGISTRY) \
-		--build-arg ARCH=${ARCH} \
-		-t graphscope/neug-dev-base:${ARCH}  \
-		-f ${DOCKERFILES_DIR}/neug-dev-base.Dockerfile .
 
 neug-release:
 	cd .. && \

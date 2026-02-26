@@ -1,4 +1,4 @@
-MATCH (a)<-[:HASCREATOR]-(m:POST|COMMENT {id: $messageId })<-[:REPLYOF]-(c:COMMENT)-[:HASCREATOR]->(p:PERSON)
+MATCH (a)<-[:HASCREATOR]-(m:POST:COMMENT {id: $messageId })<-[:REPLYOF]-(c:COMMENT)-[:HASCREATOR]->(p:PERSON)
     OPTIONAL MATCH (a)-[r:KNOWS]-(p)
     RETURN c.id AS commentId,
         c.creationDate AS commentCreationDate,

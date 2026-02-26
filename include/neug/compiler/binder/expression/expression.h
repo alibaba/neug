@@ -117,6 +117,10 @@ class NEUG_API Expression : public std::enable_shared_from_this<Expression> {
     return hasAlias() ? alias : toStringInternal();
   }
 
+  // Returns the original name without alias. Used for data source column
+  // naming where the name must match the actual field name in the file.
+  std::string rawName() const { return toStringInternal(); }
+
   virtual std::unique_ptr<Expression> copy() const {
     THROW_INTERNAL_EXCEPTION("Unimplemented expression copy().");
   }

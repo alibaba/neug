@@ -183,7 +183,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPattern(
   if (aliasId != DEFAULT_ALIAS_ID) {
     variable->set_allocated_tag(convertAlias(aliasId).release());
   }
-  auto varType = typeConverter.convertLogicalType(expr.getDataType(), expr);
+  auto varType = typeConverter.convertLogicalType(expr.getDataType());
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());
@@ -485,8 +485,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertParam(
   auto paramPB = std::make_unique<::common::DynamicParam>();
   paramPB->set_name(expr.getName());
   paramPB->set_allocated_data_type(
-      typeConverter.convertLogicalType(expr.getDataType().copy(), expr)
-          .release());
+      typeConverter.convertLogicalType(expr.getDataType().copy()).release());
   // todo: Engine get parameter value by its name (not index) during dynamic
   // parameter execution, here we just set a default 0 for all parameters.
   paramPB->set_index(0);
@@ -594,7 +593,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertPropertiesFunc(
   auto oprPB = std::make_unique<::common::ExprOpr>();
   oprPB->set_allocated_path_func(pathFuncPB.release());
   oprPB->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+      typeConverter.convertLogicalType(expr.getDataType()).release());
   auto exprPB = std::make_unique<::common::Expression>();
   *exprPB->add_operators() = std::move(*oprPB);
   return exprPB;
@@ -693,7 +692,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertExtensionFunc(
   auto opr = exprPB->add_operators();
   opr->set_allocated_scalar_func(scalarPB.release());
   opr->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+      typeConverter.convertLogicalType(expr.getDataType()).release());
   return exprPB;
 }
 
@@ -718,8 +717,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
   auto opr = exprPB->add_operators();
   opr->set_allocated_to_tuple(tuplePB.release());
   opr->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType().copy(), expr)
-          .release());
+      typeConverter.convertLogicalType(expr.getDataType().copy()).release());
   return exprPB;
 }
 
@@ -810,7 +808,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertProperty(
   }
   auto property = convertPropertyExpr(propertyName);
   variable->set_allocated_property(property.release());
-  auto varType = typeConverter.convertLogicalType(expr.dataType, expr);
+  auto varType = typeConverter.convertLogicalType(expr.dataType);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());
@@ -837,7 +835,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVariable(
     namePB->set_name(expr.getVariableName());
     variable->set_allocated_tag(namePB.release());
   }
-  auto varType = typeConverter.convertLogicalType(expr.dataType, expr);
+  auto varType = typeConverter.convertLogicalType(expr.dataType);
   auto exprType = std::make_unique<::common::IrDataType>();
   exprType->CopyFrom(*varType);
   variable->set_allocated_node_type(varType.release());
@@ -850,7 +848,7 @@ std::unique_ptr<::common::ExprOpr> GExprConverter::convertOperator(
     const binder::Expression& expr) {
   auto result = std::make_unique<::common::ExprOpr>();
   result->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+      typeConverter.convertLogicalType(expr.getDataType()).release());
 
   switch (expr.expressionType) {
   case common::ExpressionType::OR:
@@ -988,7 +986,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertTemporalFunc(
     THROW_EXCEPTION_WITH_FILE_LINE("Unsupported scalar function " +
                                    expr.toString() + " in temporal func");
   }
-  auto typePB = typeConverter.convertLogicalType(expr.getDataType(), expr);
+  auto typePB = typeConverter.convertLogicalType(expr.getDataType());
   exprPB->mutable_operators(0)->set_allocated_node_type(typePB.release());
   return exprPB;
 }
@@ -1088,12 +1086,12 @@ std::unique_ptr<::common::Expression> GExprConverter::convertIsNotNull(
   auto notOp = result->add_operators();
   notOp->set_logical(::common::Logical::NOT);
   notOp->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+      typeConverter.convertLogicalType(expr.getDataType()).release());
   auto leftBrace = result->add_operators();
   leftBrace->set_brace(::common::ExprOpr::Brace::ExprOpr_Brace_LEFT_BRACE);
   auto isnullOp = result->add_operators();
   isnullOp->set_allocated_node_type(
-      typeConverter.convertLogicalType(expr.getDataType(), expr).release());
+      typeConverter.convertLogicalType(expr.getDataType()).release());
   isnullOp->set_logical(::common::Logical::ISNULL);
   auto childExpr = convert(*expr.getChild(0), {});
   auto childOp = result->add_operators();

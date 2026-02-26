@@ -14,18 +14,11 @@
  */
 #pragma once
 
-#include <memory>
-#include <set>
-#include <utility>
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-class Schema;
 
-namespace runtime {
-class ContextMeta;
+namespace execution {
 
 namespace ops {
 
@@ -47,6 +40,6 @@ class GroupByOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

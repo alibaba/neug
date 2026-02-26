@@ -20,7 +20,7 @@
 #include "neug/execution/common/columns/value_columns.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace test {
 
 class ValueColumnTest : public ::testing::Test {};
@@ -2075,5 +2075,5 @@ TEST_F(ValueColumnTest, ListColumnUnfold) {
 }
 
 }  // namespace test
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

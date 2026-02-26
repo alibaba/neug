@@ -5,7 +5,7 @@ DML (Data Manipulation Language) provides operations for data insertion, deletio
 ## COPY FROM
 
 The COPY FROM command allows you to bulk load data from external data sources and construct nodes and edges in the graph storage. 
-Refer to [Import Data](../../import_export/import_data) for more details.
+Refer to [Import Data](../../data_io/import_data) for more details.
 
 ### Loading Node Data
 

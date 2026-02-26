@@ -20,10 +20,9 @@
 #include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex_on_graph_view(const GenericView& view,
@@ -422,7 +421,7 @@ default_single_source_shortest_path_impl(
     const StorageReadInterface& graph, const IVertexColumn& input,
     const std::vector<LabelTriplet>& labels, Direction dir, int lower,
     int upper, const PRED_T& pred) {
-  label_t label_num = graph.schema().vertex_label_num();
+  label_t label_num = graph.schema().vertex_label_frontier();
   std::vector<std::vector<std::tuple<label_t, label_t, Direction>>> labels_map(
       label_num);
   const auto& input_labels_set = input.get_labels_set();
@@ -593,6 +592,6 @@ default_single_source_shortest_path_impl(
                          std::move(offsets));
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

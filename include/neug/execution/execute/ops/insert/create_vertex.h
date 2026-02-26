@@ -17,7 +17,7 @@
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 class CreateVertexOprBuilder : public IOperatorBuilder {
  public:
@@ -35,5 +35,5 @@ class CreateVertexOprBuilder : public IOperatorBuilder {
   }
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

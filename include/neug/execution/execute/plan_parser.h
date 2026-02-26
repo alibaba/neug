@@ -14,19 +14,17 @@
  */
 #pragma once
 
-#include <map>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/pipeline.h"
-#include "neug/generated/proto/plan/physical.pb.h"
 
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class ContextMeta;
 class Pipeline;
 
@@ -65,10 +63,6 @@ class PlanParser {
       op_builders_;
 };
 
-neug::result<runtime::Context> ParseAndExecuteQueryPipeline(
-    IStorageInterface& graph, const physical::PhysicalPlan& plan,
-    const ParamsMap& parameters, OprTimer* timer);
-
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

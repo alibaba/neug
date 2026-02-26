@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
+#include "arrow_column_assertions.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
@@ -70,10 +71,8 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
     EXPECT_TRUE(conn->Query("MATCH (v:person) SET v.score=3;"));
     auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
     EXPECT_TRUE(res);
-    auto res_val = res.value();
-    EXPECT_TRUE(res_val.hasNext());
-    auto row = res_val.next();
-    EXPECT_EQ(row.ToString(), "<element { object { i64: 3 } }>");
+    const auto& res_val = res.value();
+    neug::test::AssertInt64Column(res_val.table(), 0, {3});
   }
 
   // Set the vertex property by expression
@@ -82,21 +81,16 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
     {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
       EXPECT_TRUE(res);
-      auto res_val = res.value();
-      EXPECT_TRUE(res_val.hasNext());
-      auto row = res_val.next();
-      EXPECT_EQ(row.ToString(), "<element { object { i64: 5 } }>");
+      const auto& res_val = res.value();
+      neug::test::AssertInt64Column(res_val.table(), 0, {5});
     }
     {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=2 RETURN v.score;");
       EXPECT_TRUE(res);
-      auto res_val = res.value();
-      EXPECT_TRUE(res_val.hasNext());
-      auto row = res_val.next();
-      EXPECT_EQ(row.ToString(), "<element { object { i64: 6 } }>");
+      const auto& res_val = res.value();
+      neug::test::AssertInt64Column(res_val.table(), 0, {6});
     }
   }
-
   // Set the edge property to a constant value.
   {
     EXPECT_TRUE(
@@ -104,10 +98,8 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
     auto res = conn->Query(
         "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN e.weight;");
     EXPECT_TRUE(res);
-    auto res_val = res.value();
-    EXPECT_TRUE(res_val.hasNext());
-    auto row = res_val.next();
-    EXPECT_EQ(row.ToString(), "<element { object { f64: 3 } }>");
+    const auto& res_val = res.value();
+    neug::test::AssertDoubleColumn(res_val.table(), 0, {3.0});
   }
 
   // Set the edge property by expression
@@ -120,10 +112,8 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
           "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN "
           "e.weight;");
       EXPECT_TRUE(res);
-      auto res_val = res.value();
-      EXPECT_TRUE(res_val.hasNext());
-      auto row = res_val.next();
-      EXPECT_EQ(row.ToString(), "<element { object { f64: 6 } }>");
+      const auto& res_val = res.value();
+      neug::test::AssertDoubleColumn(res_val.table(), 0, {6.0});
     }
   }
 }

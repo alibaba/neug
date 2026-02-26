@@ -50,7 +50,7 @@ class StatsManager;
 
 class NEUG_API NodeTable : public Table {
  public:
-  NodeTable() = default;
+  NodeTable() = delete;
   NodeTable(const StatsManager* storageManager,
             const catalog::NodeTableCatalogEntry* nodeTableEntry)
       : Table(nodeTableEntry, storageManager) {}

@@ -19,10 +19,11 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 class TimerUnit {
  public:
@@ -102,6 +103,6 @@ class OprTimer {
   uint64_t numTuples_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

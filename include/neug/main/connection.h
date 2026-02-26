@@ -72,7 +72,8 @@ class NeugDB;
  * - Execute queries via Query() method
  * - Close via Close() or automatic cleanup in destructor
  *
- * @note Connections hold references to shared resources (planner, query processor).
+ * @note Connections hold references to shared resources (planner, query
+ * processor).
  * @note For best performance, reuse connections for multiple queries.
  *
  * @see NeugDB::Connect For creating connections
@@ -100,9 +101,10 @@ class Connection {
    * auto result = conn->Query("MATCH (n:Person) RETURN n.name", "read");
    *
    * // Query with parameters
-   * neug::runtime::ParamsMap params;
-   * params["min_age"] = neug::runtime::Value(18);
-   * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p", "read", params);
+   * neug::execution::ParamsMap params;
+   * params["min_age"] = neug::execution::Value(18);
+   * result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
+   * "read", params);
    *
    * // Process results
    * if (result.has_value()) {
@@ -136,7 +138,15 @@ class Connection {
    */
   result<QueryResult> Query(const std::string& query_string,
                             const std::string& access_mode = "update",
-                            const runtime::ParamsMap& parameters = {});
+                            const execution::ParamsMap& parameters = {});
+
+  /**
+   * @brief Execute a Cypher query with JSON parameters.
+   * The parameter values are provided as a JSON object.
+   */
+  result<QueryResult> Query(const std::string& query_string,
+                            const std::string& access_mode,
+                            const rapidjson::Value& parameters_json);
 
   /**
    * @brief Get the database schema as a YAML string.

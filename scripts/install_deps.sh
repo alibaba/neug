@@ -95,14 +95,10 @@ readonly OUTPUT_ENV_FILE="${HOME}/.neug_env"
 if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
   readonly HOMEBREW_PREFIX=$(brew --prefix)
 fi
-readonly ARROW_VERSION="17.0.0"
-# upgrade arrow version to 17.0.0, to avoid the cmake deprecation warning
-# for cmake version < 3.5 for third-party library: xsimd-ep. Which cause compilation failure
 readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
 install_prefix="/opt/neug"
-install_brpc=false
 
 # parse args
 while (( "$#" )); do
@@ -117,10 +113,6 @@ while (( "$#" )); do
       ;;
     --debug)
       debug_flag=true
-      shift
-      ;;
-    --brpc)
-      install_brpc=true
       shift
       ;;
     *)
@@ -192,148 +184,6 @@ function download_and_untar() {
   fi
 }
 
-function git_clone() {
-  local url=$1
-  local file=$2
-  local directory=$3
-  local branch=$4
-  if [ ! -d "${directory}" ]; then
-    if [ ! -f "${file}" ]; then
-      git clone --depth=1 --branch "${branch}" "${url}" "${directory}"
-      pushd "${directory}" || exit
-      git submodule update --init || true
-      popd || exit
-    else
-      tar zxf "${file}"
-    fi
-  fi
-}
-
-# arrow for ubuntu and centos
-install_arrow() {
-  # if [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
-  #   if ! dpkg -s libarrow-dev &>/dev/null; then
-  #     ${SUDO} apt-get install -y lsb-release
-  #     # shellcheck disable=SC2046,SC2019,SC2018
-  #     wget -c https://apache.jfrog.io/artifactory/arrow/"$(lsb_release --id --short | tr 'A-Z' 'a-z')"/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb -P /tmp/
-  #     ${SUDO} apt-get install -y -V /tmp/apache-arrow-apt-source-latest-"$(lsb_release --codename --short)".deb
-  #     ${SUDO} apt-get update -y
-  #     ${SUDO} apt-get install -y libarrow-dev=${ARROW_VERSION}-1 libarrow-dataset-dev=${ARROW_VERSION}-1 libarrow-acero-dev=${ARROW_VERSION}-1 libparquet-dev=${ARROW_VERSION}-1
-  #     rm /tmp/apache-arrow-apt-source-latest-*.deb
-  #   fi
-  # else
-  install_arrow_from_source
-  # fi
-}
-
-# arrow for centos
-install_arrow_from_source() {
-  if [[ -f "${install_prefix}/include/arrow/api.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="arrow-apache-arrow-${ARROW_VERSION}"
-  file="apache-arrow-${ARROW_VERSION}.tar.gz"
-  url="https://github.com/apache/arrow/archive"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  cmake ./cpp \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-    -DCMAKE_PREFIX_PATH="${install_prefix}" \
-    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-    -DARROW_COMPUTE=ON \
-    -DARROW_WITH_UTF8PROC=OFF \
-    -DARROW_CSV=ON \
-    -DARROW_CUDA=OFF \
-    -DARROW_DATASET=OFF \
-    -DARROW_FILESYSTEM=ON \
-    -DARROW_FLIGHT=OFF \
-    -DARROW_GANDIVA=OFF \
-    -DARROW_HDFS=OFF \
-    -DARROW_JSON=OFF \
-    -DARROW_ORC=OFF \
-    -DARROW_PARQUET=OFF \
-    -DARROW_PLASMA=OFF \
-    -DARROW_PYTHON=OFF \
-    -DARROW_S3=OFF \
-    -DARROW_WITH_BZ2=OFF \
-    -DARROW_WITH_ZLIB=OFF \
-    -DARROW_WITH_LZ4=OFF \
-    -DARROW_WITH_SNAPPY=OFF \
-    -DARROW_WITH_ZSTD=OFF \
-    -DARROW_WITH_BROTLI=OFF \
-    -DARROW_IPC=ON \
-    -DARROW_BUILD_BENCHMARKS=OFF \
-    -DARROW_BUILD_EXAMPLES=OFF \
-    -DARROW_BUILD_INTEGRATION=OFF \
-    -DARROW_BUILD_UTILITIES=OFF \
-    -DARROW_BUILD_TESTS=OFF \
-    -DARROW_ENABLE_TIMING_TESTS=OFF \
-    -DARROW_FUZZING=OFF \
-    -DARROW_USE_ASAN=OFF \
-    -DARROW_USE_TSAN=OFF \
-    -DARROW_USE_UBSAN=OFF \
-    -DARROW_JEMALLOC=OFF \
-    -DARROW_BUILD_SHARED=ON \
-    -DARROW_BUILD_STATIC=OFF
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
-install_mimalloc() {
-  if [[ -f "${install_prefix}/include/mimalloc-2.0/mimalloc.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  git clone https://github.com/microsoft/mimalloc -b v2.0.6 --single-branch
-  cd mimalloc
-  rm -rf build && mkdir build && cd build
-  cmake .. -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-  make -j$(nproc)
-  make install
-  popd || exit
-  rm -rf "${tempdir:?}/mimalloc"
-}
-
-install_yaml_cpp() {
-  if [[ -f "${install_prefix}/include/yaml-cpp/yaml.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  git clone https://github.com/jbeder/yaml-cpp.git -b 0.8.0
-  cd yaml-cpp
-  rm -rf build && mkdir build && cd build
-  cmake .. -DYAML_BUILD_SHARED_LIBS=ON  -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-  make -j$(nproc)
-  make install
-  popd || exit
-  rm -rf "${tempdir:?}/yaml-cpp"
-}
-
-install_protobuf() {
-  if [[ -f "${install_prefix}/include/google/protobuf/port.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="protobuf-21.9"
-  file="protobuf-all-21.9.tar.gz"
-  url="https://github.com/protocolbuffers/protobuf/releases/download/v21.9"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  ./configure --prefix="${install_prefix}" --enable-shared --disable-static
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
 
 BASIC_PACKAGES_LINUX=("file" "curl" "wget" "git" "sudo")
 BASIC_PACKAGES_UBUNTU=("${BASIC_PACKAGES_LINUX[@]}" "build-essential" "cmake" "libunwind-dev" "python3-pip")
@@ -374,89 +224,6 @@ install_basic_packages() {
   fi
 }
 
-install_gflags() {
-  if [[ -f "${install_prefix}/include/gflags/gflags.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="gflags-2.2.2"
-  file="v2.2.2.tar.gz"
-  url="https://github.com/gflags/gflags/archive"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  cmake . -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-          -DCMAKE_PREFIX_PATH="${install_prefix}" \
-          -DBUILD_SHARED_LIBS=ON \
-          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
-install_glog() {
-  if [[ -f "${install_prefix}/include/glog/logging.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="glog-0.6.0"
-  file="v0.6.0.tar.gz"
-  url="https://github.com/google/glog/archive"
-  url=$(set_to_cn_url ${url})
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  cmake . -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-          -DCMAKE_PREFIX_PATH="${install_prefix}" \
-          -DBUILD_SHARED_LIBS=ON \
-          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
-install_rapidjson() {
-  if [[ -f "${install_prefix}/include/rapidjson/document.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  git clone https://github.com/Tencent/rapidjson.git -b master --single-branch
-  pushd rapidjson || exit
-  git checkout 24b5e7a8b27f42fa16b96fc70aade9106cf7102f
-  rm -rf build && mkdir build && cd build
-  git submodule update --init
-  cmake .. -DRAPIDJSON_BUILD_TESTS=OFF -DRAPIDJSON_BUILD_DOC=OFF -DRAPIDJSON_BUILD_EXAMPLES=OFF \
-          -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCMAKE_BUILD_TYPE=Release \
-          -DRAPIDJSON_ENABLE_INSTRUMENTATION_OPT=OFF
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/rapidjson"
-}
-
-install_leveldb() {
-  if [[ -f "${install_prefix}/include/leveldb/db.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  git clone https://github.com/google/leveldb.git -b 1.23 --single-branch
-  pushd leveldb || exit
-  git submodule update --init
-  rm -rf build && mkdir build && cd build
-  cmake .. -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
-          -DCMAKE_BUILD_TYPE=Release -DLEVELDB_BUILD_TESTS=OFF \
-	  -DLEVELDB_BUILD_BENCHMARKS=OFF -DCMAKE_CXX_FLAGS="-fPIC"
-  make -j$(nproc)
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/leveldb"
-}
-
 install_openssl() {
   if [[ -f "${install_prefix}/include/openssl/ssl.h" ]]; then
     info "openssl already installed, skip."
@@ -479,66 +246,16 @@ install_openssl() {
   export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-install_brpc() {
-  if [[ -f "${install_prefix}/include/brpc/channel.h" ]]; then
-    return 0
-  fi
-  pushd "${tempdir}" || exit
-  directory="brpc-1.12.1"
-  file="1.12.1.tar.gz"
-  url="https://github.com/apache/brpc/archive/refs/tags"
-  download_and_untar "${url}" "${file}" "${directory}"
-  pushd ${directory} || exit
-  # if on darwin, requires using apple-clang, otherwise will fail to compile
-  if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-    export CC=clang
-    export CXX=clang++
-    # check whether clang, and clang++ works
-    if ! command -v clang &> /dev/null || ! command -v clang++ &> /dev/null; then
-      err "clang or clang++ not found, please install it first."
-      exit 1
-    fi
-  fi
-  # We need to add -DNO_PTHREAD_MUTEX_HOOK to avoid brpc introducing the private symbol dysym@@GLIBC, which will cause auditwheel failure
-  # see https://github.com/apache/brpc/pull/2727
-  sed -i '36i add_definitions(-DNO_PTHREAD_MUTEX_HOOK)' CMakeLists.txt
-
-  rm -rf build && mkdir build && cd build && cmake .. -DWITH_DEBUG_SYMBOLS=OFF -DWITH_GLOG=ON -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="{install_prefix}"
-  make -j$(nproc)
-  info "building brpc complete"
-  make install
-  popd || exit
-  popd || exit
-  rm -rf "${tempdir:?}/${directory:?}" "${tempdir:?}/${file:?}"
-}
-
-INTERACTIVE_MACOS=("rapidjson" "xsimd", "cmake")
-INTERACTIVE_UBUNTU=("cmake" "rapidjson-dev" "libgoogle-glog-dev" "libgflags-dev" "libyaml-cpp-dev" "libprotobuf-dev" "libssl-dev" "libprotoc-dev" "libgflags-dev" "libleveldb-dev") # levedb for brpc
+INTERACTIVE_MACOS=("xsimd", "cmake")
+INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
 
 install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
     install_openssl
-    install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
-    install_gflags
-    install_glog
-    install_arrow
-    install_yaml_cpp
-    install_protobuf
-    if [[ "${install_brpc}" == true ]]; then
-      install_leveldb
-      install_brpc
-    fi
-    install_mimalloc
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
-    install_protobuf
-    install_arrow
-    if [[ "${install_brpc}" == true ]]; then
-      install_brpc
-    fi
-    install_mimalloc
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
     ${SUDO} sysctl -p /etc/sysctl.conf
   else
@@ -546,18 +263,7 @@ install_neug_dependencies() {
     if [[ "${OS_VERSION}" -eq "7" ]]; then
       source /opt/rh/devtoolset-10/enable
     fi
-    install_rapidjson # We need to install rapidjson from source, since the latest release available has issue https://github.com/Tencent/rapidjson/issues/2277
-    install_protobuf
     install_openssl
-    install_gflags
-    install_glog
-    install_arrow
-    install_mimalloc
-    install_yaml_cpp
-    if [[ "${install_brpc}" == true ]]; then
-      install_leveldb
-      install_brpc
-    fi
   fi
 }
 

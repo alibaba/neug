@@ -18,7 +18,7 @@
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 class ProcedureCallOpr : public IOperator {
  private:
@@ -34,15 +34,15 @@ class ProcedureCallOpr : public IOperator {
 
   std::string get_operator_name() const override { return "ProcedureCallOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
     return callFunction->execFunc(*callInput, graph);
   }  // namespace ops
-};   // namespace runtime
+};   // namespace execution
 
 neug::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
@@ -56,11 +56,11 @@ neug::result<OpBuildResultT> ProcedureCallOprBuilder::Build(
 
   return std::make_pair(
       std::make_unique<ProcedureCallOpr>(
-          callFunc->bindFunc(schema, runtime::ContextMeta(), plan, op_idx),
+          callFunc->bindFunc(schema, execution::ContextMeta(), plan, op_idx),
           callFunc),
       ret_meta);
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

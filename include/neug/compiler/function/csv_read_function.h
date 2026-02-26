@@ -108,7 +108,7 @@ struct CSVReadFunction {
     }
   }
 
-  static runtime::Context execFunc(
+  static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
     validateAndConvertExecOptions(state);
     // todo: get file system from vfs manager
@@ -119,7 +119,7 @@ struct CSVReadFunction {
         std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
     auto reader = std::make_unique<reader::ArrowReader>(
         state, std::move(optionsBuilder), fileInfo.fileSystem);
-    runtime::Context ctx;
+    execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
     return ctx;

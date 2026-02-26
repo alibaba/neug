@@ -25,7 +25,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -36,14 +36,14 @@ class UnionOpr : public IOperator {
 
   std::string get_operator_name() const override { return "UnionOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    std::vector<neug::runtime::Context> ctxs;
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+    std::vector<neug::execution::Context> ctxs;
     for (auto& plan : sub_plans_) {
-      neug::runtime::Context n_ctx = ctx;
-      std::unique_ptr<neug::runtime::OprTimer> sub_timer =
-          (timer != nullptr) ? std::make_unique<neug::runtime::OprTimer>()
+      neug::execution::Context n_ctx = ctx;
+      std::unique_ptr<neug::execution::OprTimer> sub_timer =
+          (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()
                              : nullptr;
       auto ret = plan.Execute(graph, std::move(n_ctx), params, sub_timer.get());
       if (NEUG_UNLIKELY(timer != nullptr)) {
@@ -65,7 +65,7 @@ neug::result<OpBuildResultT> UnionOprBuilder::Build(
     const physical::PhysicalPlan& plan, int op_idx) {
   std::vector<Pipeline> sub_plans;
   std::vector<ContextMeta> sub_metas;
-  ContextMeta ret_meta;
+  ContextMeta ret_meta = ctx_meta;
   for (int i = 0; i < plan.plan(op_idx).opr().union_().sub_plans_size(); ++i) {
     auto& sub_plan = plan.plan(op_idx).opr().union_().sub_plans(i);
     auto pair_res = PlanParser::get().parse_execute_pipeline_with_meta(
@@ -78,10 +78,9 @@ neug::result<OpBuildResultT> UnionOprBuilder::Build(
     sub_metas.push_back(pair.second);
   }
 
-  // TODO(liulexiao): check sub metas consisitency
   return std::make_pair(std::make_unique<UnionOpr>(std::move(sub_plans)),
                         ret_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

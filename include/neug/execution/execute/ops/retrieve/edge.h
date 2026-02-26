@@ -14,15 +14,11 @@
  */
 #pragma once
 
-#include <vector>
-
 #include "neug/execution/execute/operator.h"
 
 namespace neug {
-class Schema;
 
-namespace runtime {
-class ContextMeta;
+namespace execution {
 
 namespace ops {
 
@@ -87,6 +83,6 @@ class TCOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

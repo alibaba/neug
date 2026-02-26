@@ -24,56 +24,75 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
 namespace neug {
 
-runtime::Value PyParameterSerializer::SerializeParameter(
-    const pybind11::object& parameter) {
-  // Different serialization logic based on the type of parameter
-  if (pybind11::isinstance<pybind11::int_>(parameter)) {
-    return runtime::Value::INT64(parameter.cast<int64_t>());
-  } else if (pybind11::isinstance<pybind11::float_>(parameter)) {
-    return runtime::Value::DOUBLE(parameter.cast<double>());
-  } else if (pybind11::isinstance<pybind11::str>(parameter)) {
-    return runtime::Value::STRING(parameter.cast<std::string>());
-  } else if (pybind11::isinstance<pybind11::bool_>(parameter)) {
-    return runtime::Value::BOOLEAN(parameter.cast<bool>());
-  } else if (pybind11::isinstance<pybind11::list>(parameter)) {
-    auto list = parameter.cast<pybind11::list>();
-    std::vector<runtime::Value> serialized_list;
+rapidjson::Document pyobject_to_rapidjson_document(
+    const pybind11::object& obj,
+    rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Document doc(&allocator);
+  if (pybind11::isinstance<pybind11::none>(obj)) {
+    doc.SetNull();
+  } else if (pybind11::isinstance<pybind11::bool_>(obj)) {
+    bool val = obj.cast<bool>();
+    doc.SetBool(val);
+  } else if (pybind11::isinstance<pybind11::int_>(obj)) {
+    int64_t val = obj.cast<int64_t>();
+    doc.SetInt64(val);
+  } else if (pybind11::isinstance<pybind11::float_>(obj)) {
+    double val = obj.cast<double>();
+    doc.SetDouble(val);
+  } else if (pybind11::isinstance<pybind11::str>(obj)) {
+    std::string val = obj.cast<std::string>();
+    doc.SetString(val.c_str(), val.length(), allocator);
+  } else if (pybind11::isinstance<pybind11::bool_>(obj)) {
+    bool val = obj.cast<bool>();
+    doc.SetBool(val);
+  } else if (pybind11::isinstance<pybind11::list>(obj)) {
+    auto list = obj.cast<pybind11::list>();
+    doc.SetArray();
     for (auto item : list) {
-      pybind11::object obj =
+      pybind11::object element =
           pybind11::reinterpret_borrow<pybind11::object>(item);
-      serialized_list.push_back(SerializeParameter(obj));
+      rapidjson::Document element_doc =
+          pyobject_to_rapidjson_document(element, allocator);
+      doc.PushBack(element_doc, allocator);
     }
-    if (serialized_list.empty()) {
-      return runtime::Value::LIST(DataType::UNKNOWN,
-                                  std::move(serialized_list));
-    }
-    DataType child_type = serialized_list[0].type();
-    for (const auto& val : serialized_list) {
-      if (val.type() != child_type) {
-        throw std::invalid_argument(
-            "All elements in the list parameter must have the same type.");
-      }
-    }
-    return runtime::Value::LIST(child_type, std::move(serialized_list));
-  }
-  // handle case for date and datetime
-  else {
+  } else {
     // TODO(zhanglei): Maybe not correct.
     pybind11::module datetime = pybind11::module::import("datetime");
-    if (pybind11::isinstance(parameter, datetime.attr("date"))) {
-      std::string date_str = parameter.attr("isoformat")().cast<std::string>();
-      return runtime::Value::DATE(Date(date_str));
-    }
-    if (pybind11::isinstance(parameter, datetime.attr("datetime"))) {
-      std::string datetime_str =
-          parameter.attr("isoformat")().cast<std::string>();
-      return runtime::Value::TIMESTAMPMS(DateTime(datetime_str));
+    if (pybind11::isinstance(obj, datetime.attr("date"))) {
+      std::string date_str = obj.attr("isoformat")().cast<std::string>();
+      doc.SetString(date_str.c_str(), date_str.length(), allocator);
+      return doc;
+    } else if (pybind11::isinstance(obj, datetime.attr("datetime"))) {
+      std::string datetime_str = obj.attr("isoformat").cast<std::string>();
+      doc.SetString(datetime_str.c_str(), datetime_str.length(), allocator);
+      return doc;
+    } else {
+      throw std::invalid_argument(
+          "Unsupported parameter type for serialization.");
     }
   }
-  // TODO(zhanglei): Support interval, struct, etc.
-  throw std::invalid_argument("Unsupported parameter type for serialization.");
+  return doc;
+}
+
+// TODO(zhanglei): Complete the implementation.
+void PyParameterSerializer::SerializeParameter(
+    rapidjson::Document& doc, const std::string key,
+    const pybind11::object& parameter) {
+  if (doc.IsNull()) {
+    doc.SetObject();
+  }
+  rapidjson::Value json_key;
+  json_key.SetString(key.c_str(), key.length(), doc.GetAllocator());
+  auto& allocator = doc.GetAllocator();
+  rapidjson::Document json_value =
+      pyobject_to_rapidjson_document(parameter, allocator);
+  doc.AddMember(json_key, json_value, allocator);
 }
 
 void PyQueryRequest::initialize(pybind11::handle& m) {
@@ -103,16 +122,25 @@ void PyQueryRequest::initialize(pybind11::handle& m) {
 std::string PyQueryRequest::serialize_request(
     const std::string& query, const std::string& access_mode,
     const pybind11::dict& parameters) {
-  neug::runtime::ParamsMap params;
+  rapidjson::Document req_doc(rapidjson::kObjectType);
+  auto& allocator = req_doc.GetAllocator();
+  req_doc.AddMember("query", rapidjson::Value(query.c_str(), allocator),
+                    allocator);
+  req_doc.AddMember("access_mode",
+                    rapidjson::Value(access_mode.c_str(), allocator),
+                    allocator);
+  rapidjson::Document params_doc;
   for (auto item : parameters) {
-    pybind11::object key_obj =
-        pybind11::reinterpret_borrow<pybind11::object>(item.first);
-    pybind11::object value_obj =
+    std::string key = item.first.cast<std::string>();
+    pybind11::object parameter =
         pybind11::reinterpret_borrow<pybind11::object>(item.second);
-    std::string key = key_obj.cast<std::string>();
-    params.emplace(key, PyParameterSerializer::SerializeParameter(value_obj));
+    PyParameterSerializer::SerializeParameter(params_doc, key, parameter);
   }
-  return neug::RequestSerializer::SerializeRequest(query, access_mode, params);
+  req_doc.AddMember("parameters", params_doc, allocator);
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  req_doc.Accept(writer);
+  return buffer.GetString();
 }
 
 }  // namespace neug

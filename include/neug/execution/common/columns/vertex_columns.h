@@ -15,11 +15,10 @@
 #pragma once
 
 #include "neug/execution/common/columns/i_context_column.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 enum class VertexColumnType {
   kSingle,
@@ -32,8 +31,8 @@ class IVertexColumn : public IContextColumn {
   IVertexColumn() : type_(DataType(DataTypeId::kVertex)) {}
   virtual ~IVertexColumn() = default;
 
-  __attribute__((always_inline)) ContextColumnType column_type()
-      const override {
+  __attribute__((always_inline)) ContextColumnType
+  column_type() const override {
     return ContextColumnType::kVertex;
   }
 
@@ -41,6 +40,9 @@ class IVertexColumn : public IContextColumn {
   virtual VertexRecord get_vertex(size_t idx) const = 0;
 
   Value get_elem(size_t idx) const override {
+    if (is_optional() && !has_value(idx)) {
+      return Value(DataType::VERTEX);
+    }
     return Value::VERTEX(this->get_vertex(idx));
   }
 
@@ -87,8 +89,8 @@ class SLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kSingle;
   }
 
@@ -98,8 +100,8 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -134,8 +136,6 @@ class SLVertexColumn : public IVertexColumn {
   }
 
   __attribute__((always_inline)) label_t label() const { return label_; }
-
-  ISigColumn* generate_signature() const override;
 
   __attribute__((always_inline)) const std::vector<vid_t>& vertices() const {
     return vertices_;
@@ -175,8 +175,8 @@ class MSVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kMultiSegment;
   }
 
@@ -186,8 +186,8 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -220,8 +220,6 @@ class MSVertexColumn : public IVertexColumn {
   }
 
   std::set<label_t> get_labels_set() const override { return labels_; }
-
-  ISigColumn* generate_signature() const override;
 
   __attribute__((always_inline)) size_t seg_num() const {
     return vertices_.size();
@@ -322,8 +320,8 @@ class MLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  __attribute__((always_inline)) VertexColumnType vertex_column_type()
-      const override {
+  __attribute__((always_inline)) VertexColumnType
+  vertex_column_type() const override {
     return VertexColumnType::kMultiple;
   }
 
@@ -332,8 +330,8 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord get_vertex(
-      size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord
+  get_vertex(size_t idx) const override {
     return vertices_[idx];
   }
 
@@ -354,8 +352,6 @@ class MLVertexColumn : public IVertexColumn {
   }
 
   std::set<label_t> get_labels_set() const override { return labels_; }
-
-  ISigColumn* generate_signature() const override;
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
@@ -465,6 +461,6 @@ void foreach_vertex(const IVertexColumn& col, const FUNC_T& func) {
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

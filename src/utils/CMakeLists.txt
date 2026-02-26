@@ -14,6 +14,17 @@ function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_
                 set(PROTOC_EXE protoc)
         endif()
 
+        # Build a list of include arguments for protoc (-I path ...)
+        set(_proto_include_dirs ${PROTO_DIR})
+        if (Protobuf_INCLUDE_DIRS)
+                list(APPEND _proto_include_dirs ${Protobuf_INCLUDE_DIRS})
+        endif()
+        list(REMOVE_DUPLICATES _proto_include_dirs)
+        set(PROTOC_INCLUDE_ARGS)
+        foreach(_inc IN LISTS _proto_include_dirs)
+                list(APPEND PROTOC_INCLUDE_ARGS -I ${_inc})
+        endforeach()
+
         foreach(P ${PROTO_FILES})
                 # Compute a path relative to PROTO_DIR (works whether P is absolute or relative)
                 if (IS_ABSOLUTE "${P}")
@@ -35,10 +46,13 @@ function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_
                 get_filename_component(HDR_DIR ${HDR} DIRECTORY)
                 get_filename_component(SRC_DIR ${SRC} DIRECTORY)
 
+                string(REPLACE ";" " " PROTOC_INCLUDE_ARGS_STR "${PROTOC_INCLUDE_ARGS}")
+                message(STATUS "Generating protobuf C++ files with command: ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS_STR} --cpp_out=${DESTDIR} ${PROTO_DIR}/${REL_PROTO}")
+
                 add_custom_command(
                         OUTPUT ${HDR} ${SRC}
                         COMMAND ${CMAKE_COMMAND} -E make_directory ${HDR_DIR} ${SRC_DIR}
-                                        COMMAND ${PROTOC_EXE} ${PROTOC_FLAGS} -I${PROTO_DIR} -I${Protobuf_INCLUDE_DIRS} --cpp_out=${DESTDIR} ${PROTO_DIR}/${REL_PROTO}
+                        COMMAND ${PROTOC_EXE} ${PROTOC_FLAGS} ${PROTOC_INCLUDE_ARGS} --cpp_out=${DESTDIR} ${PROTO_DIR}/${REL_PROTO}
                         # When HDR_OUTPUT_DIR differs from DESTDIR, optionally copy headers
                         COMMAND ${CMAKE_COMMAND} -E copy ${HDR} ${HDR_OUTPUT_DIR}/${HDR_RELATIVE}
                         DEPENDS ${PROTO_DIR}/${REL_PROTO}

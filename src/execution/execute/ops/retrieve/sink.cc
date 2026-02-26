@@ -21,7 +21,7 @@
 namespace neug {
 class Schema;
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -76,5 +76,5 @@ neug::result<OpBuildResultT> SinkOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

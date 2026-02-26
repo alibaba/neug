@@ -19,7 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
 iterative_expand_vertex_on_graph_view(const GenericView& view,
@@ -192,6 +192,6 @@ path_expand_vertex_without_predicate_impl(
   return std::make_pair(ret, std::vector<size_t>());
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

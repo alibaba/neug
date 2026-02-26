@@ -25,7 +25,9 @@ namespace neug {
  * A helper struct for serializing parameters from Python objects to strings.
  */
 struct PyParameterSerializer {
-  static runtime::Value SerializeParameter(const pybind11::object& parameter);
+  static void SerializeParameter(rapidjson::Document& doc,
+                                 const std::string key,
+                                 const pybind11::object& parameter);
 };
 
 class PyQueryRequest {

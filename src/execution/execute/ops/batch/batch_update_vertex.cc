@@ -14,12 +14,13 @@
  */
 
 #include "neug/execution/execute/ops/batch/batch_update_vertex.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 /**
@@ -28,7 +29,7 @@ namespace ops {
 class UpdateVertexOpr : public IOperator {
  public:
   using vertex_prop_vec_t =
-      std::vector<std::tuple<int32_t, std::string, common::Expression>>;
+      std::vector<std::tuple<int32_t, std::string, std::unique_ptr<ExprBase>>>;
   UpdateVertexOpr(vertex_prop_vec_t&& vertex_data)
       : vertex_data_(std::move(vertex_data)) {}
 
@@ -65,9 +66,11 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
                           " is not a vertex column");
     }
 
-    Expr expr(&graph, ctx, params, expression, VarType::kPathVar);
+    auto expr = expression->bind(&graph, params);
+    const auto& expr_ref = expr->Cast<RecordExprBase>();
+
     for (size_t ind = 0; ind < vertex_col->size(); ++ind) {
-      auto value = value_to_property(expr.eval_path(ind));
+      auto value = value_to_property(expr_ref.eval_record(ctx, ind));
       auto vr = vertex_col->get_vertex(ind);
       auto label_id = vr.label();
       // Restricts: 0. Could not set primary key; 1. Could not set empty
@@ -140,12 +143,14 @@ neug::result<OpBuildResultT> UpdateVertexOprBuilder::Build(
       THROW_RUNTIME_ERROR(
           "Setting vertex property without key is not supported.");
     }
+    auto expression = neug::execution::parse_expression(
+        prop_mapping.data(), ctx_meta, neug::execution::VarType::kRecord);
     vertex_data.emplace_back(tag_id, prop_mapping.property().key().name(),
-                             prop_mapping.data());
+                             std::move(expression));
   }
   return std::make_pair(
       std::make_unique<UpdateVertexOpr>(std::move(vertex_data)), ret_meta);
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

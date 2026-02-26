@@ -18,10 +18,10 @@
 
 namespace neug {
 class StorageInsertInterface;
-namespace runtime {
+namespace execution {
 class Context;
-class Expr;
-class LabelTriplet;
+struct LabelTriplet;
+class BindedExprBase;
 namespace ops {
 class CreateEdge {
  public:
@@ -29,9 +29,10 @@ class CreateEdge {
       StorageInsertInterface& graph, Context&& ctx,
       std::vector<LabelTriplet> labels,
       const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-      const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
+      std::vector<std::vector<
+          std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&& props,
       const std::vector<int>& alias);
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

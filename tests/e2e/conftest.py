@@ -108,7 +108,7 @@ def _load_tests(query_dir, dataset, test_names, include_skip_tests):
         all_tests = collect_tests_from_files(
             test_files, dataset, test_names, include_skip_tests
         )
-        skip_keywords = ["call", "p =", "rels(", "nodes(", "unwind", "skip", "drop"]
+        skip_keywords = ["call", "p =", "rels(", "nodes(", "unwind", "skip"]
         all_tests = [
             query
             for query in all_tests

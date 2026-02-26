@@ -17,18 +17,19 @@
 #include "neug/utils/result.h"
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
-class Expr;
+class RecordExprBase;
 
 class Unfold {
  public:
   static neug::result<Context> unfold(Context&& ctxs, int key, int alias);
 
-  static neug::result<Context> unfold(Context&& ctxs, const Expr& key,
+  static neug::result<Context> unfold(Context&& ctxs,
+                                      const RecordExprBase& key,
                                       int alias);
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

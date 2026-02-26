@@ -27,10 +27,10 @@ namespace neug {
 class Schema;
 class IStorageInterface;  // Forward declaration for graph interface
 
-namespace runtime {
+namespace execution {
 class ContextMeta;
 class Context;
-}  // namespace runtime
+}  // namespace execution
 
 namespace function {
 struct CallFuncInputBase {
@@ -38,12 +38,12 @@ struct CallFuncInputBase {
 };
 
 using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
-    const Schema& schema, const runtime::ContextMeta& ctx_meta,
+    const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
 // Extended exec function type that receives graph interface
 using call_exec_func_t =
-    std::function<runtime::Context(const CallFuncInputBase& input, IStorageInterface& graph)>;
+    std::function<execution::Context(const CallFuncInputBase& input, IStorageInterface& graph)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;

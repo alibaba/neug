@@ -32,7 +32,7 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 VOpt parse_opt(const physical::GetV_VOpt& opt) {
   if (opt == physical::GetV_VOpt::GetV_VOpt_START) {
@@ -166,6 +166,6 @@ AggrKind parse_aggregate(physical::GroupBy_AggFunc::Aggregate v) {
   }
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

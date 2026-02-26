@@ -30,17 +30,18 @@ class Scan;
 }  // namespace physical
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class ScanUtils {
  public:
-  static std::function<std::vector<Property>(const ParamsMap&)>
-  parse_ids_with_type(DataTypeId type, const algebra::IndexPredicate& triplet);
+  static std::vector<Property> parse_ids_with_type(
+      DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
+      const ParamsMap& params);
 
   static bool check_idx_predicate(const physical::Scan& scan_opr);
 };
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

@@ -1,18 +1,14 @@
-MATCH (person:PERSON { id: $personId })-[:KNOWS*1..3]-(friend)
+MATCH (person:PERSON { id: $personId })-[:KNOWS*1..2]-(friend)
 WITH DISTINCT friend
 WHERE friend.id <> $personId
-CALL {
-  WITH friend
+CALL (friend) {
   MATCH (friend)<-[membership:HASMEMBER]-(forum)
   WHERE membership.joinDate > $minDate
   WITH distinct forum
   ORDER BY forum.id ASC
   LIMIT 20
-  RETURN forum, 0L AS postCount
-}
-UNION
-CALL {
-  WITH friend
+  RETURN forum, 0 AS postCount
+UNION ALL
   MATCH (friend)<-[membership:HASMEMBER]-(forum)
   WHERE membership.joinDate > $minDate
   WITH friend, collect(distinct forum) AS forums

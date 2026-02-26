@@ -1,14 +1,14 @@
-MATCH(p:PERSON {id: $personId}) <-[:HASCREATOR] -(msg : POST | COMMENT) <- [:REPLYOF] - (cmt: COMMENT) - [:HASCREATOR] -> (author : PERSON)
+MATCH(p:PERSON {id: $personId}) <-[:HASCREATOR] -(msg : POST : COMMENT) <- [:REPLYOF] - (cmt: COMMENT) - [:HASCREATOR] -> (author : PERSON)
 WITH
-    p, msg, cmt, author 
+   cmt, author, cmt.creationDate as cmtCreationDate , cmt.id as cmtId
 ORDER BY 
-    cmt.creationDate DESC, 
-    cmt.id ASC 
+    cmtCreationDate DESC, 
+    cmtId ASC 
 LIMIT 20 
 RETURN
     author.id, 
     author.firstName, 
     author.lastName, 
-    cmt.creationDate, 
-    cmt.id, 
+    cmtCreationDate,
+    cmtId,
     cmt.content

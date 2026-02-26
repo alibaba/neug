@@ -43,20 +43,26 @@ void Connection::Close() {
 
 result<QueryResult> Connection::Query(const std::string& query_string,
                                       const std::string& access_mode,
-                                      const runtime::ParamsMap& parameters) {
+                                      const execution::ParamsMap& parameters) {
   LOG(INFO) << "Query: " << query_string;
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     RETURN_ERROR(
         Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
-  auto result =
-      query_processor_->execute(query_string, access_mode, parameters);
-  if (result) {
-    return QueryResult::From(std::move(result.value()));
-  } else {
-    RETURN_ERROR(result.error());
+  return query_processor_->execute(query_string, access_mode, parameters);
+}
+
+result<QueryResult> Connection::Query(const std::string& query_string,
+                                      const std::string& access_mode,
+                                      const rapidjson::Value& parameters_json) {
+  LOG(INFO) << "Query: " << query_string;
+  if (IsClosed()) {
+    LOG(ERROR) << "Connection is closed, cannot execute query.";
+    RETURN_ERROR(
+        Status(StatusCode::ERR_CONNECTION_CLOSED, "Connection is closed."));
   }
+  return query_processor_->execute(query_string, access_mode, parameters_json);
 }
 
 }  // namespace neug

@@ -15,12 +15,13 @@
 
 #include "neug/execution/common/operators/retrieve/union.h"
 
+#include <glog/logging.h>
 #include "neug/execution/common/context.h"
 #include "neug/utils/result.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 neug::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
   if (ctxs.size() != 2) {
@@ -36,6 +37,6 @@ neug::result<Context> Union::union_op(std::vector<Context>&& ctxs) {
   return ctx0.union_ctx(ctx1);
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

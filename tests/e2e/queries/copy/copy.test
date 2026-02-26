@@ -5,7 +5,7 @@
 -LOG AddNodeProperty
 -STATEMENT Create node table Comment (id int64, PRIMARY KEY (id));
 ---- ok
--STATEMENT Copy Comment from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment.csv' (HEADER=true);
+-STATEMENT Copy Comment from '${GS_TEST_DIR}/neug/lsqb-sf01/Comment.csv' (HEADER=true);
 ---- ok
 -STATEMENT MATCH (c:Comment) RETURN COUNT(*);
 ---- 1
@@ -53,7 +53,7 @@
 -LOG AddRelProperty
 -STATEMENT create rel table replyOf (FROM Comment TO Comment, MANY_ONE);
 ---- ok
--STATEMENT copy replyOf from '${NEUG_ROOT_DIRECTORY}/example_dataset/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
+-STATEMENT copy replyOf from '${GS_TEST_DIR}/neug/lsqb-sf01/Comment_replyOf_Comment.csv' (HEADER=true);
 ---- ok
 -STATEMENT alter table replyOf add propx int64;
 ---- ok

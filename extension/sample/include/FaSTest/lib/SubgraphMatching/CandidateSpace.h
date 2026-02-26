@@ -16,7 +16,7 @@
 using neug::function::DataGraphMeta;
 using neug::function::CompType;
 using neug::function::PropCons;
-using Value = neug::runtime::Value;
+using Value = neug::execution::Value;
 
 /**
  * @brief The Candidate Space structure
@@ -820,7 +820,7 @@ namespace SubgraphMatching {
             
             // Get property value from graph
             neug::Property data_prop = graph_.GetVertexProperty(data_label, data_vid, prop_idx);
-            Value data_value = neug::runtime::property_to_value(data_prop);
+            Value data_value = neug::execution::property_to_value(data_prop);
             
             // Check if value satisfies constraint
             if (!CheckValueConstraint(data_value, constraint._comp_type, constraint._value)) {
@@ -899,7 +899,7 @@ namespace SubgraphMatching {
                     if (*edge_it == dst_vid) {
                         // Found the edge, get property value
                         neug::Property data_prop = accessor.get_data(edge_it);
-                        Value data_value = neug::runtime::property_to_value(data_prop);
+                        Value data_value = neug::execution::property_to_value(data_prop);
                         
                         // Check if value satisfies constraint
                         if (!CheckValueConstraint(data_value, constraint._comp_type, constraint._value)) {
@@ -924,7 +924,7 @@ namespace SubgraphMatching {
     }
 
     // 辅助函数：检查值是否满足约束条件
-    // Note: neug::runtime::Value only supports == operator, other comparisons not yet implemented
+    // Note: neug::execution::Value only supports == operator, other comparisons not yet implemented
     inline bool CandidateSpace::CheckValueConstraint(const Value& data_value, CompType comp_type, const Value& constraint_value) {
         switch (comp_type) {
             case CompType::COMP_EQUAL:

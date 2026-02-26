@@ -1,62 +1,69 @@
 {
  "plan_id": 0,
- "query_plan": {
-  "mode": "READ_ONLY",
-  "plan": [
-   {
-    "opr": {
-     "root": {}
-    },
-    "meta_data": []
+ "plan": [
+  {
+   "opr": {
+    "root": {}
    },
-   {
-    "opr": {
-     "project": {
-      "mappings": [
-       {
-        "expr": {
-         "operators": [
-          {
-           "to_interval": {
-            "interval_str": "1 year 2 days"
-           },
-           "node_type": {
-            "data_type": {
-             "temporal": {
-              "interval": {}
-             }
+   "meta_data": []
+  },
+  {
+   "opr": {
+    "project": {
+     "mappings": [
+      {
+       "expr": {
+        "operators": [
+         {
+          "node_type": {
+           "data_type": {
+            "temporal": {
+             "interval": {}
             }
            }
+          },
+          "to_interval": {
+           "interval_str": "1 year 2 days"
           }
-         ]
-        },
-        "alias": 0
-       }
-      ],
-      "is_append": false
-     }
-    },
-    "meta_data": [
-     {
-      "type": {
-       "data_type": {
-        "temporal": {
-         "interval": {}
-        }
-       }
-      },
-      "alias": 0
-     }
-    ]
+         }
+        ]
+       },
+       "alias": 0
+      }
+     ],
+     "is_append": false
+    }
    },
-   {
-    "opr": {
-     "sink": {
-      "tags": []
-     }
-    },
-    "meta_data": []
-   }
-  ]
+   "meta_data": [
+    {
+     "type": {
+      "data_type": {
+       "temporal": {
+        "interval": {}
+       }
+      }
+     },
+     "alias": 0
+    }
+   ]
+  },
+  {
+   "opr": {
+    "sink": {
+     "tags": []
+    }
+   },
+   "meta_data": []
+  }
+ ],
+ "flag": {
+  "read": false,
+  "insert": false,
+  "update": false,
+  "schema": false,
+  "batch": false,
+  "create_temp_table": false,
+  "checkpoint": false,
+  "procedure_call": false
  }
 }

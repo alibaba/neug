@@ -20,7 +20,7 @@
 #include "parallel_hashmap/phmap.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 std::shared_ptr<IContextColumn> SLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
@@ -200,15 +200,6 @@ std::shared_ptr<IContextColumn> MSVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-ISigColumn* SLVertexColumn::generate_signature() const {
-  return new SigColumn<vid_t>(vertices_);
-}
-
-ISigColumn* MSVertexColumn::generate_signature() const {
-  LOG(FATAL) << "not implemented...";
-  return nullptr;
-}
-
 std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
   if (!cur_list_.empty()) {
     vertices_.emplace_back(cur_label_, std::move(cur_list_));
@@ -268,10 +259,6 @@ std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-ISigColumn* MLVertexColumn::generate_signature() const {
-  return new SigColumn<VertexRecord>(vertices_);
-}
-
 void MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   offsets.clear();
   std::set<VertexRecord> vset;
@@ -293,6 +280,6 @@ std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
   return ret;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

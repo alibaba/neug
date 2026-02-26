@@ -24,33 +24,37 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
 
 class GroupByOpr : public IOperator {
  public:
-  GroupByOpr(std::vector<common::Variable>&& vars,
-             std::vector<std::pair<int, int>>&& mappings,
+  GroupByOpr(std::vector<std::pair<int, int>>&& mappings,
              std::vector<physical::GroupBy_AggFunc>&& aggrs)
-      : vars_(std::move(vars)),
-        mappings_(std::move(mappings)),
-        aggrs_(std::move(aggrs)) {}
+      : mappings_(std::move(mappings)), aggrs_(std::move(aggrs)) {}
 
   std::string get_operator_name() const override { return "GroupByOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
-      IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
-    const auto& graph =
-        dynamic_cast<const StorageReadInterface&>(graph_interface);
-    return GroupByEvalImpl(graph, params, std::move(ctx), vars_, mappings_,
-                           aggrs_);
+  neug::result<neug::execution::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+    auto key = create_key_func(mappings_, graph, ctx);
+    std::vector<ReduceOp> reducers;
+    for (auto& aggr : aggrs_) {
+      reducers.push_back(create_reduce_op(aggr, graph, ctx));
+    }
+    auto ret =
+        GroupBy::group_by(std::move(ctx), std::move(key), std::move(reducers));
+    if (!ret) {
+      return ret;
+    }
+
+    return ret;
   }
 
  private:
-  std::vector<common::Variable> vars_;
   std::vector<std::pair<int, int>> mappings_;
   std::vector<physical::GroupBy_AggFunc> aggrs_;
 };
@@ -61,40 +65,30 @@ neug::result<OpBuildResultT> GroupByOprBuilder::Build(
   int mappings_num = plan.plan(op_idx).opr().group_by().mappings_size();
   int func_num = plan.plan(op_idx).opr().group_by().functions_size();
   ContextMeta meta;
-  for (int i = 0; i < mappings_num; ++i) {
-    auto& key = plan.plan(op_idx).opr().group_by().mappings(i);
-    if (key.has_alias()) {
-      meta.set(key.alias().value());
-    } else {
-      meta.set(-1);
+  int metadata_num = plan.plan(op_idx).meta_data_size();
+  if (func_num + mappings_num == metadata_num) {
+    for (int i = 0; i < metadata_num; ++i) {
+      meta.set(plan.plan(op_idx).meta_data(i).alias(),
+               parse_from_ir_data_type(plan.plan(op_idx).meta_data(i).type()));
     }
+  } else {
+    LOG(FATAL) << "GroupBy metadata number mismatch.";
   }
-  for (int i = 0; i < func_num; ++i) {
-    auto& func = plan.plan(op_idx).opr().group_by().functions(i);
-    if (func.has_alias()) {
-      meta.set(func.alias().value());
-    } else {
-      meta.set(-1);
-    }
-  }
-
   auto opr = plan.plan(op_idx).opr().group_by();
   std::vector<std::pair<int, int>> mappings;
-  std::vector<common::Variable> vars;
   std::vector<physical::GroupBy_AggFunc> reduce_funcs;
 
-  if (!BuildGroupByUtils(opr, vars, mappings, reduce_funcs)) {
+  if (!BuildGroupByUtils(opr, mappings, reduce_funcs)) {
     return std::make_pair(nullptr, ContextMeta());
   }
 
-  return std::make_pair(
-      std::make_unique<GroupByOpr>(std::move(vars), std::move(mappings),
+  return std::make_pair(std::make_unique<GroupByOpr>(std::move(mappings),
 
-                                   std::move(reduce_funcs)),
+                                                     std::move(reduce_funcs)),
 
-      meta);
+                        meta);
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

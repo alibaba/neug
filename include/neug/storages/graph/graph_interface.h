@@ -106,10 +106,12 @@ class IStorageInterface {
  * auto vertices = reader.GetVertexSet(person_label);
  *
  * // Access vertex properties
- * auto name_col = reader.GetVertexPropColumn<std::string_view>(person_label, "name");
+ * auto name_col = reader.GetVertexPropColumn<std::string_view>(person_label,
+ * "name");
  *
  * // Traverse edges
- * auto out_view = reader.GetGenericOutgoingGraphView(person_label, person_label, knows_label);
+ * auto out_view = reader.GetGenericOutgoingGraphView(person_label,
+ * person_label, knows_label);
  * @endcode
  *
  * **Timestamp Semantics:**
@@ -158,18 +160,16 @@ class StorageReadInterface : virtual public IStorageInterface {
    * Returns a typed column accessor for efficient bulk access to vertex
    * properties. Use this for performance-critical property access.
    *
-   * @tparam PROP_T Property data type (e.g., int64_t, double, std::string_view)
    * @param label Vertex label
    * @param prop_name Property name
-   * @return Shared pointer to typed column accessor
+   * @return Shared pointer to column accessor
    *
    * @since v0.1.0
    */
-  template <typename PROP_T>
-  inline std::shared_ptr<vertex_column_t<PROP_T>> GetVertexPropColumn(
+
+  std::shared_ptr<RefColumnBase> GetVertexPropColumn(
       label_t label, const std::string& prop_name) const {
-    return std::dynamic_pointer_cast<vertex_column_t<PROP_T>>(
-        graph_.GetVertexPropertyColumn(label, prop_name));
+    return graph_.GetVertexPropertyColumn(label, prop_name);
   }
 
   /**
@@ -259,8 +259,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    *     person_label, person_label, knows_label);
    *
    * // Traverse neighbors of vertex v
-   * for (auto it = view.get_edges(v).begin(); it != view.get_edges(v).end(); ++it) {
-   *     vid_t neighbor = *it;
+   * for (auto it = view.get_edges(v).begin(); it != view.get_edges(v).end();
+   * ++it) { vid_t neighbor = *it;
    * }
    * @endcode
    *
@@ -366,7 +366,8 @@ class StorageReadInterface : virtual public IStorageInterface {
  * inserter.AddVertex(person_label, Property("alice"), props, vid);
  *
  * // Add edge between vertices
- * inserter.AddEdge(person_label, src_vid, person_label, dst_vid, knows_label, {});
+ * inserter.AddEdge(person_label, src_vid, person_label, dst_vid, knows_label,
+ * {});
  * @endcode
  *
  * @note This interface is write-only; use StorageReadInterface for reads.

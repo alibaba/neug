@@ -1,4 +1,4 @@
-MATCH (person:PERSON {id: $personId})<-[:HASCREATOR]-(message: POST | COMMENT)<-[like:LIKES]-(liker:PERSON)
+MATCH (person:PERSON {id: $personId})<-[:HASCREATOR]-(message: POST : COMMENT)<-[like:LIKES]-(liker:PERSON)
 WITH liker, message, like.creationDate AS likeTime
 OPTIONAL MATCH (liker: PERSON)-[k:KNOWS]-(person: PERSON {id: $personId})
 WITH liker, message, likeTime,
@@ -7,18 +7,18 @@ WITH liker, message, likeTime,
       ELSE false
      END AS isNew
 ORDER BY likeTime DESC, message.id ASC
-WITH liker, head(collect(message)) as message, head(collect(likeTime)) AS likeTime, isNew
+WITH liker, collect(message)[0] as message, collect(likeTime)[0] AS likeTime, isNew
 RETURN
     liker.id AS personId,
     liker.firstName AS personFirstName,
     liker.lastName AS personLastName,
-    likeTime AS likeCreationDate,
+    likeTime,
     message.id AS commentOrPostId,
     message.content AS messageContent,
     message.imageFile AS messageImageFile,
-    (likeTime - message.creationDate)/1000/60 AS minutesLatency,
+    CAST(likeTime - message.creationDate, 'INT64')/1000/60 AS minutesLatency,
   	isNew
 ORDER BY
-    likeCreationDate DESC,
+    likeTime DESC,
     personId ASC
 LIMIT 20;

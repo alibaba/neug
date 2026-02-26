@@ -35,7 +35,7 @@ TEST_F(ReaderTest, TestBasicCsvRead) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -60,7 +60,7 @@ TEST_F(ReaderTest, TestCsvWithTabDelimiter) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -85,7 +85,7 @@ TEST_F(ReaderTest, TestCsvWithCustomQuoting) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -106,7 +106,7 @@ TEST_F(ReaderTest, TestCsvWithNoHeader) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -134,7 +134,7 @@ TEST_F(ReaderTest, TestBatchRead) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -163,7 +163,7 @@ TEST_F(ReaderTest, TestColumnPruning) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -193,7 +193,7 @@ TEST_F(ReaderTest, TestFilterPushdown) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -224,7 +224,7 @@ TEST_F(ReaderTest, TestColumnPruningAndFilterPushdown) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -253,7 +253,7 @@ TEST_F(ReaderTest, TestMultipleFiles) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -279,7 +279,7 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 
@@ -288,18 +288,18 @@ TEST_F(ReaderTest, TestForceColumnTypeConversion) {
 
   // Verify the first column (id) is int32
   auto column0 = ctx.columns[0];
-  ASSERT_EQ(column0->column_type(), runtime::ContextColumnType::kArrowArray);
+  ASSERT_EQ(column0->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn0 =
-      std::dynamic_pointer_cast<runtime::ArrowArrayContextColumn>(column0);
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column0);
   auto arrowType0 = arrayColumn0->GetArrowType();
   EXPECT_TRUE(arrowType0->Equals(arrow::int32()))
       << "Expected int32, but got: " << arrowType0->ToString();
 
   // Verify the third column (value) is int64
   auto column2 = ctx.columns[2];
-  ASSERT_EQ(column2->column_type(), runtime::ContextColumnType::kArrowArray);
+  ASSERT_EQ(column2->column_type(), execution::ContextColumnType::kArrowArray);
   auto arrayColumn2 =
-      std::dynamic_pointer_cast<runtime::ArrowArrayContextColumn>(column2);
+      std::dynamic_pointer_cast<execution::ArrowArrayContextColumn>(column2);
   auto arrowType2 = arrayColumn2->GetArrowType();
   EXPECT_TRUE(arrowType2->Equals(arrow::int64()))
       << "Expected int64 for value column, but got: " << arrowType2->ToString();
@@ -331,7 +331,7 @@ TEST_F(ReaderTest, TestMultiColumnAndFilterPushdown) {
   auto reader = createArrowReader(sharedState);
 
   auto localState = std::make_shared<reader::ReadLocalState>();
-  runtime::Context ctx;
+  execution::Context ctx;
 
   reader->read(localState, ctx);
 

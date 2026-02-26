@@ -73,18 +73,18 @@ TEST_F(MetaDataTest, GStorageManager) {
   database->updateSchema(schemaData);
   database->updateStats(statsData);
   auto& catalog = *ctx->getCatalog();
-  auto& storageManager = *ctx->getStatsManager();
+  auto storageManager = ctx->getStatsManager();
   auto& transaction = neug::Constants::DEFAULT_TRANSACTION;
   auto entry = catalog.getTableCatalogEntry(&transaction, "KNOWS");
-  auto knowsTable = storageManager.getTable(entry->getTableID());
+  auto knowsTable = storageManager->getTable(entry->getTableID());
   ASSERT_EQ(knowsTable->getNumTotalRows(&transaction), 14073);
   auto entry2 = catalog.getTableCatalogEntry(&transaction, "COMMENT");
-  auto commentTable = storageManager.getTable(entry2->getTableID())
+  auto commentTable = storageManager->getTable(entry2->getTableID())
                           ->ptrCast<storage::GNodeTable>();
   ASSERT_EQ(commentTable->getStats(&transaction).getTableCard(), 151043);
   auto entry3 =
       catalog.getTableCatalogEntry(&transaction, "HASCREATOR_COMMENT_PERSON");
-  auto hasCreatorTable = storageManager.getTable(entry3->getTableID());
+  auto hasCreatorTable = storageManager->getTable(entry3->getTableID());
   ASSERT_EQ(hasCreatorTable->getNumTotalRows(&transaction), 151043);
 }
 

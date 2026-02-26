@@ -17,10 +17,8 @@
 #include "neug/execution/common/columns/edge_columns.h"
 #include "neug/execution/common/columns/vertex_columns.h"
 
-#include <string_view>
-
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class BatchDeleteVertexOpr : public IOperator {
@@ -110,5 +108,5 @@ neug::result<OpBuildResultT> BatchDeleteVertexOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

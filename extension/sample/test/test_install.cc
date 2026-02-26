@@ -305,36 +305,31 @@ void verifyData(neug::Connection* conn) {
     std::cout << "\n=== Verifying Data ===" << std::endl;
     
     // Count Person nodes
-    auto res = conn->Query("MATCH (p:Person) RETURN count(*)");
-    if (res.has_value()) {
-        auto& rs = res.value();
-        if (rs.hasNext()) {
-            auto row = rs.next();
-            std::cout << "  Person count: " << row.ToString() << std::endl;
+    {
+        auto res = conn->Query("MATCH (p:Person) RETURN count(*)");
+        if (res.has_value()) {
+            std::cout << "  Person count: " << res.value().ToString() << std::endl;
         }
     }
     
     // Count edges
-    res = conn->Query("MATCH (a:Person)-[k:person_knows_person]->(b:Person) RETURN count(*)");
-    if (res.has_value()) {
-        auto& rs = res.value();
-        if (rs.hasNext()) {
-            auto row = rs.next();
-            std::cout << "  person_knows_person count: " << row.ToString() << std::endl;
+    {
+        auto res = conn->Query("MATCH (a:Person)-[k:person_knows_person]->(b:Person) RETURN count(*)");
+        if (res.has_value()) {
+            std::cout << "  person_knows_person count: " << res.value().ToString() << std::endl;
         }
     }
     
     // Show knows relationships
     std::cout << "\n  Person knows Person relationships:" << std::endl;
-    res = conn->Query(R"(
-        MATCH (a:Person)-[k:person_knows_person]->(b:Person)
-        RETURN a.firstName, b.firstName, k.creationDate
-    )");
-    if (res.has_value()) {
-        auto& rs = res.value();
-        while (rs.hasNext()) {
-            auto row = rs.next();
-            std::cout << "    " << row.ToString() << std::endl;
+    {
+        auto res = conn->Query(R"(
+            MATCH (a:Person)-[k:person_knows_person]->(b:Person)
+            RETURN a.firstName, b.firstName, k.creationDate
+        )");
+        if (res.has_value()) {
+            auto tbl = res.value().table();
+            if (tbl) std::cout << "    " << tbl->ToString() << std::endl;
         }
     }
 }
@@ -380,15 +375,18 @@ int main() {
     auto load_res = conn->Query("LOAD sample;");
     
     // Verify extension is loaded
-    auto show_res = conn->Query("CALL show_loaded_extensions() RETURN *;");
-    if (show_res.has_value()) {
-        std::cout << "\nLoaded extensions:" << std::endl;
-        auto& rs = show_res.value();
-        while (rs.hasNext()) {
-            auto row = rs.next();
-            std::string name = std::string(row.entries()[0]->element().object().str());
-            std::string desc = std::string(row.entries()[1]->element().object().str());
-            std::cout << "  - " << name << ": " << desc << std::endl;
+    {
+        auto show_res = conn->Query("CALL show_loaded_extensions() RETURN *;");
+        if (show_res.has_value()) {
+            std::cout << "\nLoaded extensions:" << std::endl;
+            auto tbl = show_res.value().table();
+            if (tbl) {
+                for (int64_t i = 0; i < tbl->num_rows(); i++) {
+                    auto name_col = std::static_pointer_cast<arrow::StringArray>(tbl->column(0)->chunk(0));
+                    auto desc_col = std::static_pointer_cast<arrow::StringArray>(tbl->column(1)->chunk(0));
+                    std::cout << "  - " << name_col->GetString(i) << ": " << desc_col->GetString(i) << std::endl;
+                }
+            }
         }
     }
     
@@ -409,12 +407,8 @@ int main() {
 
     std::cout << "\n=== Results ===" << std::endl;
     auto& result_rs = res.value();
-    int result_count = 0;
-    while (result_rs.hasNext()) {
-        auto row = result_rs.next();
-        std::cout << "  " << row.ToString() << std::endl;
-        result_count++;
-    }
+    int64_t result_count = result_rs.length();
+    std::cout << result_rs.ToString() << std::endl;
     
     if (result_count == 0) {
         std::cout << "  No matches found." << std::endl;

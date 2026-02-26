@@ -24,7 +24,9 @@
 #include <string>
 
 #include "neug/main/neug_db.h"
+#ifdef BUILD_HTTP_SERVER
 #include "neug/server/neug_db_service.h"
+#endif
 #include "py_connection.h"
 
 namespace neug {
@@ -85,7 +87,9 @@ class PyDatabase : public std::enable_shared_from_this<PyDatabase> {
   std::recursive_mutex mtx_;
   std::string db_dir_;
   std::unique_ptr<NeugDB> database;
-  std::unique_ptr<neug::NeugDBService> service_;
+#ifdef BUILD_HTTP_SERVER
+  std::unique_ptr<NeugDBService> service_;
+#endif
 };
 
 }  // namespace neug

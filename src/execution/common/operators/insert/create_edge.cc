@@ -14,18 +14,22 @@
  */
 
 #include "neug/execution/common/operators/insert/create_edge.h"
+#include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
-#include "neug/execution/utils/expr.h"
+#include "neug/execution/expression/expr.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 neug::result<Context> CreateEdge::insert_edge(
     StorageInsertInterface& graph, Context&& ctx,
     std::vector<LabelTriplet> labels,
     const std::vector<std::pair<int32_t, int32_t>>& src_dst_tags,
-    const std::vector<std::vector<std::pair<std::string, Expr>>>& props,
+    std::vector<
+        std::vector<std::pair<std::string, std::unique_ptr<BindedExprBase>>>>&&
+        props,
     const std::vector<int>& alias) {
   const auto& schema = graph.schema();
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -68,7 +72,7 @@ neug::result<Context> CreateEdge::insert_edge(
       std::vector<Property> property_values(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
-        Value value = prop_expr.eval_path(i);
+        Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
         auto it = std::find(properties_name.begin(), properties_name.end(),
                             prop_name);
         if (it == properties_name.end()) {
@@ -99,5 +103,5 @@ neug::result<Context> CreateEdge::insert_edge(
   return ctx;
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

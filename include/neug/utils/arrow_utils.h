@@ -33,7 +33,23 @@
 
 namespace neug {
 
+namespace execution {
+class EdgeRecord;
+class VertexRecord;
+struct Path;
+}  // namespace execution
+
 // arrow related;
+
+// For numeric types, could be wrap std::vector to arrow::Buffer without copy
+template <typename T>
+struct is_arrow_wrappable
+    : std::bool_constant<
+          std::is_same_v<T, int8_t> || std::is_same_v<T, uint8_t> ||
+          std::is_same_v<T, int16_t> || std::is_same_v<T, uint16_t> ||
+          std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t> ||
+          std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t> ||
+          std::is_same_v<T, float> || std::is_same_v<T, double>> {};
 
 class LDBCTimeStampParser : public arrow::TimestampParser {
  public:
@@ -255,9 +271,19 @@ template <>
 struct TypeConverter<bool> {
   static DataTypeId property_type() { return DataTypeId::kBoolean; }
   using ArrowType = arrow::BooleanType;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::BooleanArray;
+  using ArrowBuilderType = arrow::BooleanBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::boolean();
+  }
+
+  static inline ArrowCType ToArrowCType(const bool& value) {
+    return static_cast<ArrowCType>(value);
+  }
+
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 
@@ -265,9 +291,19 @@ template <>
 struct TypeConverter<int32_t> {
   static DataTypeId property_type() { return DataTypeId::kInt32; }
   using ArrowType = arrow::Int32Type;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::Int32Array;
+  using ArrowBuilderType = arrow::Int32Builder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::int32();
+  }
+
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
+  }
+
+  static inline const ArrowCType& ToArrowCType(const int32_t& value) {
+    return value;
   }
 };
 
@@ -275,9 +311,14 @@ template <>
 struct TypeConverter<uint32_t> {
   static DataTypeId property_type() { return DataTypeId::kUInt32; }
   using ArrowType = arrow::UInt32Type;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::UInt32Array;
+  using ArrowBuilderType = arrow::UInt32Builder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::uint32();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 
@@ -285,9 +326,14 @@ template <>
 struct TypeConverter<int64_t> {
   static DataTypeId property_type() { return DataTypeId::kInt64; }
   using ArrowType = arrow::Int64Type;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::Int64Array;
+  using ArrowBuilderType = arrow::Int64Builder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::int64();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 
@@ -295,9 +341,14 @@ template <>
 struct TypeConverter<uint64_t> {
   static DataTypeId property_type() { return DataTypeId::kUInt64; }
   using ArrowType = arrow::UInt64Type;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::UInt64Array;
+  using ArrowBuilderType = arrow::UInt64Builder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::uint64();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 
@@ -305,9 +356,18 @@ template <>
 struct TypeConverter<double> {
   static DataTypeId property_type() { return DataTypeId::kDouble; }
   using ArrowType = arrow::DoubleType;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::DoubleArray;
+  using ArrowBuilderType = arrow::DoubleBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::float64();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
+  }
+
+  static inline const ArrowCType& ToArrowCType(const double& value) {
+    return value;
   }
 };
 
@@ -315,38 +375,70 @@ template <>
 struct TypeConverter<float> {
   static DataTypeId property_type() { return DataTypeId::kFloat; }
   using ArrowType = arrow::FloatType;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::FloatArray;
+  using ArrowBuilderType = arrow::FloatBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::float32();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 template <>
 struct TypeConverter<std::string> {
   static DataTypeId property_type() { return DataTypeId::kVarchar; }
-  using ArrowType = arrow::LargeStringType;
-  using ArrowArrayType = arrow::LargeStringArray;
+  using ArrowType = arrow::StringType;
+  using ArrowCType = std::string;
+  using ArrowArrayType = arrow::StringArray;
+  using ArrowBuilderType = arrow::StringBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
-    return arrow::large_utf8();
+    return arrow::utf8();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
+  }
+  static inline const ArrowCType& ToArrowCType(const std::string& value) {
+    return value;
   }
 };
 
 template <>
 struct TypeConverter<std::string_view> {
   static DataTypeId property_type() { return DataTypeId::kVarchar; }
-  using ArrowType = arrow::LargeStringType;
-  using ArrowArrayType = arrow::LargeStringArray;
+  using ArrowType = arrow::StringType;
+  using ArrowCType = std::string_view;
+  using ArrowArrayType = arrow::StringArray;
+  using ArrowBuilderType = arrow::StringBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
-    return arrow::large_utf8();
+    return arrow::utf8();
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
+  }
+
+  static inline ArrowCType ToArrowCType(const std::string_view& value) {
+    return value;
   }
 };
 
 template <>
 struct TypeConverter<Date> {
   static DataTypeId property_type() { return DataTypeId::kDate; }
-  using ArrowType = arrow::TimestampType;
-  using ArrowArrayType = arrow::TimestampArray;
+  using ArrowType = arrow::Date64Type;
+  using ArrowCType = typename ArrowType::c_type;
+  using ArrowArrayType = arrow::Date64Array;
+  using ArrowBuilderType = arrow::Date64Builder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
-    return arrow::timestamp(arrow::TimeUnit::MILLI);
+    return arrow::date64();
+  }
+
+  static inline ArrowCType ToArrowCType(const Date& date) {
+    return static_cast<ArrowCType>(date.to_timestamp());
+  }
+
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>();
   }
 };
 
@@ -354,20 +446,43 @@ template <>
 struct TypeConverter<DateTime> {
   static DataTypeId property_type() { return DataTypeId::kTimestampMs; }
   using ArrowType = arrow::TimestampType;
+  using ArrowCType = typename ArrowType::c_type;
   using ArrowArrayType = arrow::TimestampArray;
+  using ArrowBuilderType = arrow::TimestampBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
     return arrow::timestamp(arrow::TimeUnit::MILLI);
+  }
+
+  static inline ArrowCType ToArrowCType(const DateTime& date_time) {
+    return static_cast<ArrowCType>(date_time.milli_second);
+  }
+
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>(ArrowTypeValue(),
+                                              arrow::default_memory_pool());
   }
 };
 template <>
 struct TypeConverter<Interval> {
   static DataTypeId property_type() { return DataTypeId::kInterval; }
-  using ArrowType = arrow::DurationType;
-  using ArrowArrayType = arrow::DurationArray;
+  using ArrowType = arrow::StringType;
+  using ArrowCType = std::string;
+  using ArrowArrayType = arrow::StringArray;
+  using ArrowBuilderType = arrow::StringBuilder;
   static std::shared_ptr<arrow::DataType> ArrowTypeValue() {
-    return arrow::duration(arrow::TimeUnit::MILLI);
+    return arrow::utf8();
+  }
+  static inline ArrowCType ToArrowCType(const Interval& interval) {
+    return static_cast<ArrowCType>(interval.to_string());
+  }
+  static std::shared_ptr<ArrowBuilderType> CreateBuilder() {
+    return std::make_shared<ArrowBuilderType>(ArrowTypeValue(),
+                                              arrow::default_memory_pool());
   }
 };
 
 std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type);
+
+std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataType type);
+
 }  // namespace neug

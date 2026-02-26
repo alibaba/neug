@@ -44,16 +44,59 @@ std::vector<std::string> split_string(const std::string& s, char delimiter) {
   return tokens;
 }
 
-neug::runtime::ParamsMap deserialize_string_kv_map(
-    const neug::runtime::ParamsMetaMap& meta_map,
+neug::execution::ParamsMap deserialize_string_kv_map(
+    const neug::execution::ParamsMetaMap& meta_map,
     const std::map<std::string, std::string>& param_str_map) {
-  neug::runtime::ParamsMap map;
+  neug::execution::ParamsMap map;
   for (auto iter : param_str_map) {
     if (meta_map.count(iter.first) > 0) {
-      map.emplace(iter.first, neug::runtime::Value::FromJson(
-                                  iter.second, meta_map.at(iter.first)));
+      auto type = meta_map.at(iter.first);
+      switch (type.id()) {
+      case neug::DataTypeId::kInt32: {
+        map.emplace(iter.first,
+                    neug::execution::Value::INT32(std::stoi(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kInt64: {
+        map.emplace(iter.first,
+                    neug::execution::Value::INT64(std::stoll(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kUInt32: {
+        map.emplace(iter.first,
+                    neug::execution::Value::UINT32(std::stoul(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kUInt64: {
+        map.emplace(iter.first,
+                    neug::execution::Value::UINT64(std::stoull(iter.second)));
+        break;
+      }
+      case neug::DataTypeId::kBoolean: {
+        map.emplace(iter.first,
+                    neug::execution::Value::BOOLEAN(iter.second == "true"));
+        break;
+      }
+      case neug::DataTypeId::kVarchar: {
+        map.emplace(iter.first, neug::execution::Value::STRING(iter.second));
+        break;
+      }
+      case neug::DataTypeId::kTimestampMs: {
+        map.emplace(iter.first, neug::execution::Value::TIMESTAMPMS(
+                                    neug::DateTime(std::stoll(iter.second))));
+        break;
+      }
+      case neug::DataTypeId::kDate: {
+        map.emplace(iter.first, neug::execution::Value::DATE(neug::Date(
+                                    int64_t(std::stoll(iter.second)))));
+        break;
+      default:
+        LOG(WARNING) << "Unsupported parameter type for key: " << iter.first
+                     << ", type id: " << static_cast<int>(type.id());
+      }
+      }
     } else {
-      LOG(WARNING) << "Parameter key not found in meta: " << iter.first;
+      continue;
     }
   }
   return map;
@@ -131,7 +174,7 @@ std::vector<std::map<std::string, std::string>> parse_query_file(
   return ret;
 }
 
-physical::PhysicalPlan parse_plan(const std::string& filename) {
+std::string parse_query(const std::string& filename) {
   std::ifstream file(filename, std::ios::binary);
 
   CHECK(file.is_open());
@@ -147,39 +190,36 @@ physical::PhysicalPlan parse_plan(const std::string& filename) {
 
   file.close();
 
-  physical::PhysicalPlan plan;
-  plan.ParseFromString(buffer);
-
-  return plan;
+  return buffer;
 }
 
 void benchmark_iteration(
-    neug::IStorageInterface& graph, neug::runtime::Pipeline& pipeline,
-    const std::vector<neug::runtime::ParamsMap>& parameters, int query_num,
-    std::vector<std::vector<char>>& outputs, neug::runtime::OprTimer& timer) {
+    neug::IStorageInterface& graph, neug::execution::Pipeline& pipeline,
+    const std::vector<neug::execution::ParamsMap>& parameters, int query_num,
+    std::vector<std::vector<char>>& outputs, neug::execution::OprTimer& timer) {
   outputs.resize(query_num);
   for (int i = 0; i < query_num; ++i) {
-    neug::runtime::Context ctx;
+    neug::execution::Context ctx;
     auto& m = parameters[i % parameters.size()];
     if (i == 0) {
-      auto ctx = pipeline.Execute(graph, neug::runtime::Context(), m, &timer);
+      auto ctx = pipeline.Execute(graph, neug::execution::Context(), m, &timer);
       if (!ctx) {
         LOG(ERROR) << "Failed to execute pipeline: " << ctx.error().ToString();
         return;
       }
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
-      neug::runtime::Sink::sink(
+      neug::execution::Sink::sink(
           ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
           output);
     } else {
-      neug::runtime::OprTimer cur_timer;
+      neug::execution::OprTimer cur_timer;
       auto ctx =
-          pipeline.Execute(graph, neug::runtime::Context(), m, &cur_timer);
+          pipeline.Execute(graph, neug::execution::Context(), m, &cur_timer);
 
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
-      neug::runtime::Sink::sink(
+      neug::execution::Sink::sink(
           ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
           output);
       timer += cur_timer;
@@ -218,6 +258,7 @@ int main(int argc, char** argv) {
 
   config.enable_auto_compaction = false;
   db.Open(config);
+  auto compiler = db.GetPlanner();
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
   if (!vm.count("benchmark-config")) {
@@ -241,26 +282,33 @@ int main(int argc, char** argv) {
               << ", repeat: " << query_num;
     std::vector<std::vector<char>> outputs(query_num);
 
-    auto plan = parse_plan(unit.query_pb_path);
+    auto query_str = parse_query(unit.query_pb_path);
+    const auto res = compiler->compilePlan(query_str);
+    if (!res) {
+      LOG(ERROR) << "Failed to compile plan: " << res.error().ToString();
+      continue;
+    }
+    auto plan = res.value().first;
+
     {
       std::ofstream fout("./tmp_physical_plan.pb");
       fout << plan.DebugString();
       fout.close();
     }
-    auto param_meta = neug::runtime::PlanParser::parse_params_type(plan);
-    std::vector<neug::runtime::ParamsMap> params_map;
+    auto param_meta = neug::execution::PlanParser::parse_params_type(plan);
+    std::vector<neug::execution::ParamsMap> params_map;
     for (const auto& param : parameters) {
       params_map.emplace_back(deserialize_string_kv_map(param_meta, param));
     }
-    auto pipeline = neug::runtime::PlanParser::get().parse_execute_pipeline(
-        txn.graph().schema(), neug::runtime::ContextMeta(), plan);
+    auto pipeline = neug::execution::PlanParser::get().parse_execute_pipeline(
+        txn.graph().schema(), neug::execution::ContextMeta(), plan);
 
-    std::unique_ptr<neug::runtime::OprTimer> best_timer =
-        std::make_unique<neug::runtime::OprTimer>();
+    std::unique_ptr<neug::execution::OprTimer> best_timer =
+        std::make_unique<neug::execution::OprTimer>();
     double best_elapsed = std::numeric_limits<double>::max();
     for (int iter = 0; iter < 3; ++iter) {
-      std::unique_ptr<neug::runtime::OprTimer> timer =
-          std::make_unique<neug::runtime::OprTimer>();
+      std::unique_ptr<neug::execution::OprTimer> timer =
+          std::make_unique<neug::execution::OprTimer>();
       benchmark_iteration(graph, pipeline.value(), params_map, query_num,
                           outputs, *timer);
       if (timer->elapsed() < best_elapsed) {

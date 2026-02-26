@@ -18,12 +18,12 @@
 #include "neug/execution/common/operators/retrieve/edge_expand_impl.h"
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/params.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 class EdgeExpand {
  public:
@@ -96,7 +96,7 @@ class EdgeExpand {
 
   static neug::result<Context> expand_edge_with_special_edge_predicate(
       const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params, const SpecialEdgePredicateConfig& config,
+      const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const Value& target_val_str);
 
   template <typename PRED_T>
@@ -184,8 +184,7 @@ class EdgeExpand {
 
   static neug::result<Context> expand_vertex_with_special_vertex_predicate(
       const StorageReadInterface& graph, Context&& ctx,
-      const EdgeExpandParams& params,
-      const SpecialVertexPredicateConfig& config,
+      const EdgeExpandParams& params, const SpecialPredicateConfig& config,
       const ParamsMap& query_params);
 
   template <typename T1>
@@ -232,7 +231,7 @@ class EdgeExpand {
                     : graph.GetGenericIncomingGraphView(
                           d1_nbr_label, d2_nbr_label, d2_e_label);
 
-    T1 param = val.GetValue<T1>();
+    T1 param = val.template GetValue<T1>();
 
     MSVertexColumnBuilder builder1(d1_nbr_label);
     MSVertexColumnBuilder builder2(d2_nbr_label);
@@ -368,5 +367,5 @@ class EdgeExpand {
   static Context remove_null_from_ctx(Context&& ctx, int tag_id);
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

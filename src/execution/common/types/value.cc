@@ -25,7 +25,7 @@
 #include "neug/utils/property/property.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 enum class ExtraValueInfoType : uint8_t {
   INVALID_TYPE_INFO = 0,
   STRING_VALUE_INFO = 1,
@@ -184,7 +184,7 @@ Value Value::UINT64(uint64_t value) {
 }
 
 Value Value::DATE(date_t date) {
-  Value result(DataTypeId::kDate);
+  Value result(DataType::DATE);
   result.value_.date = date;
   result.is_null_ = false;
   return result;
@@ -439,11 +439,6 @@ std::string Value::GetValue() const {
 }
 
 template <>
-std::string_view Value::GetValue() const {
-  return std::string_view(value_info_->Get<StringValueInfo>().GetString());
-}
-
-template <>
 float Value::GetValue() const {
   return value_.float_;
 }
@@ -620,64 +615,64 @@ Value Value::FromJson(const rapidjson::Value& json_value,
   case DataTypeId::kBoolean: {
     // If the value is 1/0, treat it as boolean
     if (json_value.IsInt()) {
-      return runtime::Value::BOOLEAN(json_value.GetInt() != 0);
+      return execution::Value::BOOLEAN(json_value.GetInt() != 0);
     }
-    return runtime::Value::BOOLEAN(json_value.GetBool());
+    return execution::Value::BOOLEAN(json_value.GetBool());
   }
   case DataTypeId::kDate: {
     if (json_value.IsInt64()) {
-      return runtime::Value::DATE(Date(json_value.GetInt64()));
+      return execution::Value::DATE(Date(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return runtime::Value::DATE(Date(json_value.GetString()));
+      return execution::Value::DATE(Date(json_value.GetString()));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int/string for Date type");
     }
   }
   case DataTypeId::kDouble: {
-    return runtime::Value::DOUBLE(json_value.GetDouble());
+    return execution::Value::DOUBLE(json_value.GetDouble());
   }
   case DataTypeId::kFloat: {
-    return runtime::Value::FLOAT(json_value.GetFloat());
+    return execution::Value::FLOAT(json_value.GetFloat());
   }
   case DataTypeId::kInt32: {
-    return runtime::Value::INT32(json_value.GetInt());
+    return execution::Value::INT32(json_value.GetInt());
   }
   case DataTypeId::kInt64: {
-    return runtime::Value::INT64(json_value.GetInt64());
+    return execution::Value::INT64(json_value.GetInt64());
   }
   case DataTypeId::kUInt32: {
-    return runtime::Value::UINT32(json_value.GetUint());
+    return execution::Value::UINT32(json_value.GetUint());
   }
   case DataTypeId::kUInt64: {
-    return runtime::Value::UINT64(json_value.GetUint64());
+    return execution::Value::UINT64(json_value.GetUint64());
   }
   case DataTypeId::kVarchar: {
-    return runtime::Value::STRING(json_value.GetString());
+    return execution::Value::STRING(json_value.GetString());
   }
   case DataTypeId::kTimestampMs: {
     if (json_value.IsInt64()) {
-      return runtime::Value::TIMESTAMPMS(
-          runtime::timestamp_ms_t(json_value.GetInt64()));
+      return execution::Value::TIMESTAMPMS(
+          execution::timestamp_ms_t(json_value.GetInt64()));
     } else if (json_value.IsString()) {
-      return runtime::Value::TIMESTAMPMS(
-          runtime::timestamp_ms_t(std::stoll(json_value.GetString())));
+      return execution::Value::TIMESTAMPMS(
+          execution::timestamp_ms_t(std::stoll(json_value.GetString())));
     } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Expected an (u)int64/string for TimestampMs type");
     }
   }
   case DataTypeId::kList: {
-    std::vector<runtime::Value> values;
+    std::vector<execution::Value> values;
     if (!json_value.IsArray()) {
-      return runtime::Value::LIST(DataType::UNKNOWN, std::move(values));
+      return execution::Value::LIST(DataType::UNKNOWN, std::move(values));
     }
     const auto list = json_value.GetArray();
     auto child_type = ListType::GetChildType(type);
     for (auto item = list.begin(); item != list.end(); ++item) {
-      values.emplace_back(Value::FromJson(*item, child_type));
+      values.emplace_back(FromJson(*item, child_type));
     }
-    return runtime::Value::LIST(child_type, std::move(values));
+    return execution::Value::LIST(child_type, std::move(values));
   }
   default:
     THROW_NOT_IMPLEMENTED_EXCEPTION(
@@ -693,7 +688,7 @@ Value Value::FromJson(const std::string& json_str, const DataType& type) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Failed to parse JSON string: " +
                                      json_str);
   }
-  return FromJson(document, type);
+  return Value::FromJson(document, type);
 }
 
 rapidjson::Value Value::ToJson(const Value& value,
@@ -711,19 +706,13 @@ rapidjson::Value Value::ToJson(const Value& value,
     return rapidjson::Value(                                \
         static_cast<cpp_type>(value.GetValue<cpp_type>())); \
   }
-    TYPE_DISPATCHER(kInt32, int32_t);
-    TYPE_DISPATCHER(kInt64, int64_t);
-    TYPE_DISPATCHER(kUInt32, uint32_t);
-    TYPE_DISPATCHER(kUInt64, uint64_t);
-    TYPE_DISPATCHER(kFloat, float);
-    TYPE_DISPATCHER(kDouble, double);
-    TYPE_DISPATCHER(kBoolean, bool);
+    FOR_EACH_NUMERIC_DATA_TYPE(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case neug::DataTypeId::kList: {
     rapidjson::Value list_doc(rapidjson::kArrayType);
-    const auto& list = runtime::ListValue::GetChildren(value);
+    const auto& list = execution::ListValue::GetChildren(value);
     for (size_t i = 0; i < list.size(); ++i) {
-      list_doc.PushBack(Value::ToJson(list[i], allocator), allocator);
+      list_doc.PushBack(ToJson(list[i], allocator), allocator);
     }
     return list_doc;
   }
@@ -771,7 +760,7 @@ Property value_to_property(const Value& value) {
     return Property::from_interval(value.GetValue<interval_t>());
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unexpected RTAny type: " +
+        "Unexpected type: " +
         std::to_string(static_cast<int>(value.type().id())));
   }
 }
@@ -866,6 +855,10 @@ void encode_value(const Value& val, Encoder& encoder) {
     }
   } else if (type.id() == DataTypeId::kTimestampMs) {
     encoder.put_long(val.GetValue<timestamp_ms_t>().milli_second);
+  } else if (type.id() == DataTypeId::kDate) {
+    encoder.put_long(val.GetValue<date_t>().to_timestamp());
+  } else if (type.id() == DataTypeId::kInterval) {
+    encoder.put_long(val.GetValue<interval_t>().to_mill_seconds());
   } else {
     THROW_RUNTIME_ERROR("RTAny::encode_sig not support for " +
                         std::to_string(static_cast<int>(type.id())));
@@ -905,5 +898,5 @@ Value performCastToString(const Value& input) {
   return Value::STRING(ret);
 }
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

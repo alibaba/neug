@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
@@ -116,7 +117,8 @@ class UpdateTransaction {
    * @since v0.1.0
    */
   UpdateTransaction(PropertyGraph& graph, Allocator& alloc, IWalWriter& logger,
-                    IVersionManager& vm, timestamp_t timestamp);
+                    IVersionManager& vm, execution::LocalQueryCache& cache,
+                    timestamp_t timestamp);
 
   /**
    * @brief Destructor that calls release().
@@ -354,6 +356,8 @@ class UpdateTransaction {
 
   void applyEdgePropDeletion();
 
+  void invalidate_query_cache_if_needed();
+
   // Revert all changes made in this transaction.
   void revert_changes();
 
@@ -361,10 +365,12 @@ class UpdateTransaction {
   Allocator& alloc_;
   IWalWriter& logger_;
   IVersionManager& vm_;
+  execution::LocalQueryCache& pipeline_cache_;
   timestamp_t timestamp_;
 
   InArchive arc_;
   int op_num_;
+  bool schema_changed_{false};
 
   std::unordered_set<label_t> deleted_vertex_labels_;
   std::unordered_set<std::tuple<label_t, label_t, label_t>,

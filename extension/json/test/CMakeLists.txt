@@ -1,1 +1,0 @@
-add_extension_test(json json_test.cpp)

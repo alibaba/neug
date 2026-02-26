@@ -67,7 +67,7 @@ function_set UpperFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::Value UpperFunction::Exec(const std::vector<runtime::Value>& args) {
+execution::Value UpperFunction::Exec(const std::vector<execution::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("UPPER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -76,9 +76,9 @@ runtime::Value UpperFunction::Exec(const std::vector<runtime::Value>& args) {
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("UPPER: input value is not a string");
   }
-  std::string str(runtime::StringValue::Get(val));
+  std::string str(execution::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-  return runtime::Value::STRING(str);
+  return execution::Value::STRING(str);
 }
 
 function_set LowerFunction::getFunctionSet() {
@@ -89,7 +89,7 @@ function_set LowerFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::Value LowerFunction::Exec(const std::vector<runtime::Value>& args) {
+execution::Value LowerFunction::Exec(const std::vector<execution::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("LOWER: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -98,9 +98,9 @@ runtime::Value LowerFunction::Exec(const std::vector<runtime::Value>& args) {
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("LOWER: input value is not a string");
   }
-  std::string str(runtime::StringValue::Get(val));
+  std::string str(execution::StringValue::Get(val));
   std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-  return runtime::Value::STRING(str);
+  return execution::Value::STRING(str);
 }
 
 function_set ReverseFunction::getFunctionSet() {
@@ -111,7 +111,7 @@ function_set ReverseFunction::getFunctionSet() {
   return functionSet;
 }
 
-runtime::Value ReverseFunction::Exec(const std::vector<runtime::Value>& args) {
+execution::Value ReverseFunction::Exec(const std::vector<execution::Value>& args) {
   if (args.size() != 1) {
     THROW_RUNTIME_ERROR("REVERSE: expect exactly 1 argument, got " +
                         std::to_string(args.size()));
@@ -120,9 +120,9 @@ runtime::Value ReverseFunction::Exec(const std::vector<runtime::Value>& args) {
   if (val.type().id() != DataTypeId::kVarchar) {
     THROW_RUNTIME_ERROR("REVERSE: input value is not a string");
   }
-  std::string str(runtime::StringValue::Get(val));
+  std::string str(execution::StringValue::Get(val));
   std::reverse(str.begin(), str.end());
-  return runtime::Value::STRING(str);
+  return execution::Value::STRING(str);
 }
 
 }  // namespace function

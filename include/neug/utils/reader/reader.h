@@ -38,7 +38,7 @@ class Expression;
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 class Context;
 }
 
@@ -152,7 +152,7 @@ class Reader {
    * @param ctx Context to populate with parsed data
    */
   virtual void read(std::shared_ptr<ReadLocalState> localState,
-                    runtime::Context& ctx) = 0;
+                    execution::Context& ctx) = 0;
 
  protected:
   std::shared_ptr<ReadSharedState> sharedState;
@@ -210,7 +210,7 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
   virtual ~ArrowReader() override = default;
 
   void read(std::shared_ptr<ReadLocalState> localState,
-            runtime::Context& ctx) override;
+            execution::Context& ctx) override;
 
   /**
    * @brief Infer schema from external files using Arrow Dataset API
@@ -244,9 +244,9 @@ class ArrowReader : public Reader<arrow::fs::FileSystem> {
   std::shared_ptr<arrow::dataset::Scanner> createScanner(
       std::shared_ptr<arrow::fs::FileSystem> fs);
   void full_read(std::shared_ptr<arrow::dataset::Scanner>,
-                 runtime::Context& output);
+                 execution::Context& output);
   void batch_read(std::shared_ptr<arrow::dataset::Scanner>,
-                  runtime::Context& output);
+                  execution::Context& output);
 
  protected:
   std::unique_ptr<ArrowOptionsBuilder> optionsBuilder;

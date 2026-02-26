@@ -40,8 +40,8 @@ struct LabelVidHash {
     }
 };
 
-// Use Value from neug::runtime
-using Value = neug::runtime::Value;
+// Use Value from neug::execution
+using Value = neug::execution::Value;
 
 enum class CompType {
     COMP_EQUAL,

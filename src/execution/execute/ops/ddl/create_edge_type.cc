@@ -14,16 +14,16 @@
  */
 
 #include "neug/execution/execute/ops/ddl/create_edge_type.h"
+#include "neug/execution/common/types/value.h"
 #include "neug/utils/pb_utils.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CreateEdgeTypeOpr : public IOperator {
  public:
-  using property_def_t =
-      std::vector<std::tuple<DataTypeId, std::string, Property>>;
+  using property_def_t = std::vector<std::pair<std::string, Value>>;
   using create_edge_type_t =
       std::tuple<std::string, std::string, std::string, property_def_t, bool,
                  EdgeStrategy, EdgeStrategy>;
@@ -41,9 +41,15 @@ class CreateEdgeTypeOpr : public IOperator {
     Status status;
     while (succeed_index < defs_size) {
       const auto& create_edge_def = create_edge_types_[succeed_index];
+      std::vector<std::tuple<DataTypeId, std::string, Property>>
+          property_tuples;
+      for (const auto& [prop_name, prop_value] : std::get<3>(create_edge_def)) {
+        property_tuples.emplace_back(prop_value.type().id(), prop_name,
+                                     value_to_property(prop_value));
+      }
       status = storage.CreateEdgeType(
           std::get<0>(create_edge_def), std::get<1>(create_edge_def),
-          std::get<2>(create_edge_def), std::get<3>(create_edge_def),
+          std::get<2>(create_edge_def), property_tuples,
           std::get<4>(create_edge_def), std::get<5>(create_edge_def),
           std::get<6>(create_edge_def));
       if (!status.ok()) {
@@ -83,7 +89,7 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_id) {
   const auto& create_edges = plan.plan(op_id).opr().create_edge_schema();
-  auto tuple_res = property_defs_to_tuple(create_edges.properties());
+  auto tuple_res = property_defs_to_value(create_edges.properties());
   if (!tuple_res) {
     RETURN_ERROR(tuple_res.error());
   }
@@ -121,5 +127,5 @@ neug::result<OpBuildResultT> CreateEdgeTypeOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

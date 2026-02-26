@@ -22,102 +22,60 @@
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 struct ProjectExprBase {
   virtual ~ProjectExprBase() = default;
-  virtual Context evaluate(const Context& ctx, Context&& ret) = 0;
-  virtual int alias() const = 0;
-
+  virtual std::shared_ptr<IContextColumn> evaluate(const Context& ctx) = 0;
   virtual bool order_by_limit(const Context& ctx, bool asc, size_t limit,
                               std::vector<size_t>& offsets) const {
     return false;
   }
 };
 
-struct DummyGetter : public ProjectExprBase {
-  DummyGetter(int from, int to) : from_(from), to_(to) {}
-  Context evaluate(const Context& ctx, Context&& ret) override {
-    ret.set(to_, ctx.get(from_));
-    return ret;
-  }
-  int alias() const override { return to_; }
-
-  int from_;
-  int to_;
-};
-
-template <typename EXPR, typename COLLECTOR_T>
-struct ProjectExpr : public ProjectExprBase {
-  EXPR expr_;
-  COLLECTOR_T collector_;
+struct ProjectOp {
+  std::unique_ptr<ProjectExprBase> expr_;
+  std::unique_ptr<ProjectExprBase> fallback_expr_;
   int alias_;
 
-  ProjectExpr(EXPR&& expr, const COLLECTOR_T& collector, int alias)
-      : expr_(std::move(expr)), collector_(collector), alias_(alias) {}
-
-  Context evaluate(const Context& ctx, Context&& ret) override {
-    size_t row_num = ctx.row_num();
-    for (size_t i = 0; i < row_num; ++i) {
-      collector_.collect(expr_, i);
+  ProjectOp(std::unique_ptr<ProjectExprBase>&& expr,
+            std::unique_ptr<ProjectExprBase>&& fallback_expr, int alias)
+      : expr_(std::move(expr)),
+        fallback_expr_(std::move(fallback_expr)),
+        alias_(alias) {}
+  void evaluate(const Context& ctx, Context& ret) const {
+    std::shared_ptr<IContextColumn> col;
+    if (expr_) {
+      col = expr_->evaluate(ctx);
     }
-    ret.set(alias_, collector_.get());
-    return ret;
+    if (!col) {
+      col = fallback_expr_->evaluate(ctx);
+    }
+    ret.set(alias_, col);
   }
 
   bool order_by_limit(const Context& ctx, bool asc, size_t limit,
-                      std::vector<size_t>& offsets) const override {
-    size_t size = ctx.row_num();
-    if (size == 0) {
-      return false;
+                      std::vector<size_t>& offsets) const {
+    if (expr_) {
+      return expr_->order_by_limit(ctx, asc, limit, offsets);
     }
-    using T = typename EXPR::V;
-    if constexpr (std::is_same_v<T, Date> || std::is_same_v<T, DateTime> ||
-                  std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||
-                  std::is_same_v<T, double> || std::is_same_v<T, std::string>) {
-      if (asc) {
-        TopNGenerator<T, TopNAscCmp<T>> generator(limit);
-        for (size_t i = 0; i < size; ++i) {
-          auto val = expr_(i);
-          if constexpr (std::is_same_v<decltype(val), std::string_view>) {
-            generator.push(std::string(val), i);
-          } else {
-            generator.push(val, i);
-          }
-        }
-        generator.generate_indices(offsets);
-      } else {
-        TopNGenerator<T, TopNDescCmp<T>> generator(limit);
-        for (size_t i = 0; i < size; ++i) {
-          auto val = expr_(i);
-          if constexpr (std::is_same_v<decltype(val), std::string_view>) {
-            generator.push(std::string(val), i);
-          } else {
-            generator.push(val, i);
-          }
-        }
-        generator.generate_indices(offsets);
-      }
-      return true;
-    } else {
-      return false;
-    }
+    return false;
   }
 
-  int alias() const override { return alias_; }
+  int alias() const { return alias_; }
 };
 
 class Project {
  public:
-  static neug::result<Context> project(
-      Context&& ctx, const std::vector<std::unique_ptr<ProjectExprBase>>& exprs,
-      bool is_append = false) {
+  static neug::result<Context> project(Context&& ctx,
+                                       const std::vector<ProjectOp>& exprs,
+                                       bool is_append = false) {
     Context ret;
     if (is_append) {
       ret = ctx;
     }
-    for (size_t i = 0; i < exprs.size(); ++i) {
-      ret = exprs[i]->evaluate(ctx, std::move(ret));
+    for (const auto& expr : exprs) {
+      expr.evaluate(ctx, ret);
     }
     return ret;
   }
@@ -125,13 +83,10 @@ class Project {
   template <typename Comparer>
   static neug::result<Context> project_order_by_fuse(
       const StorageReadInterface& graph, const ParamsMap& params, Context&& ctx,
-      const std::vector<std::function<std::unique_ptr<ProjectExprBase>(
-          const StorageReadInterface& graph, const ParamsMap& params,
-          const Context& ctx)>>& exprs,
+      std::vector<ProjectOp>&& exprs,
       const std::function<Comparer(const Context&)>& cmp, size_t lower,
       size_t upper, const std::set<int>& order_index,
-      const std::function<bool(const Context&, std::vector<size_t>&)>&
-          index_generator) {
+      std::pair<int32_t, bool> fst_idx) {
     lower = std::max(lower, static_cast<size_t>(0));
     upper = std::min(upper, ctx.row_num());
 
@@ -142,12 +97,13 @@ class Project {
 
     std::vector<size_t> indices;
 
-    if (upper * 2 < ctx.row_num() && index_generator(ctx, indices)) {
+    if (upper * 2 < ctx.row_num() && exprs[fst_idx.first].order_by_limit(
+                                         ctx, fst_idx.second, upper, indices)) {
       ctx.reshuffle(indices);
       for (size_t i : order_index) {
-        auto expr = exprs[i](graph, params, ctx);
-        int alias_ = expr->alias();
-        tmp = expr->evaluate(ctx, std::move(tmp));
+        const auto& expr = exprs[i];
+        int alias_ = expr.alias();
+        expr.evaluate(ctx, tmp);
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(tmp);
@@ -158,7 +114,7 @@ class Project {
       tmp.reshuffle(offsets);
       for (size_t i = 0; i < exprs.size(); ++i) {
         if (order_index.find(i) == order_index.end()) {
-          ret = exprs[i](graph, params, ctx)->evaluate(ctx, std::move(ret));
+          exprs[i].evaluate(ctx, ret);
         }
       }
       for (size_t i = 0; i < tmp.col_num(); ++i) {
@@ -168,9 +124,9 @@ class Project {
       }
     } else {
       for (size_t i = 0; i < exprs.size(); ++i) {
-        auto expr = exprs[i](graph, params, ctx);
-        int alias_ = expr->alias();
-        ret = expr->evaluate(ctx, std::move(ret));
+        auto& expr = exprs[i];
+        int alias_ = expr.alias();
+        expr.evaluate(ctx, ret);
         alias.push_back(alias_);
       }
       auto cmp_ = cmp(ret);
@@ -184,6 +140,6 @@ class Project {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

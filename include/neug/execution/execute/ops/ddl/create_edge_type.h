@@ -15,12 +15,9 @@
 #pragma once
 
 #include "neug/execution/execute/operator.h"
-#include "neug/generated/proto/plan/cypher_ddl.pb.h"
-#include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/property/types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 
 class CreateEdgeTypeOprBuilder : public IOperatorBuilder {
@@ -37,6 +34,6 @@ class CreateEdgeTypeOprBuilder : public IOperatorBuilder {
   }
 };
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

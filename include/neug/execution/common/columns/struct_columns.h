@@ -17,7 +17,7 @@
 #include "neug/execution/common/columns/i_context_column.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class StructColumnBuilder;
 
 class StructColumn : public IContextColumn {
@@ -48,8 +48,6 @@ class StructColumn : public IContextColumn {
 
   const DataType& elem_type() const override { return type_; }
   Value get_elem(size_t idx) const override;
-
-  ISigColumn* generate_signature() const override;
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
@@ -95,5 +93,5 @@ class StructColumnBuilder : public IContextColumnBuilder {
   std::vector<std::shared_ptr<IContextColumnBuilder>> child_builders_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

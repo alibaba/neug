@@ -18,13 +18,13 @@
 #include "neug/execution/common/types/graph_types.h"
 #include "neug/execution/execute/operator.h"
 #include "neug/execution/execute/ops/retrieve/edge.h"
+#include "neug/execution/expression/special_predicates.h"
 #include "neug/execution/utils/pb_parse_utils.h"
-#include "neug/execution/utils/special_predicates.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 class OprTimer;
 
 namespace ops {
@@ -73,9 +73,9 @@ class TCOpr : public IOperator {
 
   std::string get_operator_name() const override { return "TCOpr"; }
 
-  neug::result<neug::runtime::Context> Eval(
+  neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::runtime::Context&& ctx, neug::runtime::OprTimer* timer) override {
+      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
     auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
                               alias1_, alias2_, is_lt_, params.at(param_name_));
@@ -270,8 +270,8 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
       return std::make_pair(nullptr, ContextMeta());
     }
     ContextMeta meta = ctx_meta;
-    meta.set(alias1);
-    meta.set(alias2);
+    meta.set(alias1, DataType::VERTEX);
+    meta.set(alias2, DataType::VERTEX);
 
     return std::make_pair(std::move(opr), meta);
   } else {
@@ -280,5 +280,5 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
 }
 
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

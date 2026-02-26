@@ -15,11 +15,6 @@
 
 #pragma once
 
-#include <arrow/array/array_base.h>
-#include <arrow/array/array_binary.h>
-#include <arrow/array/array_nested.h>
-#include <arrow/array/array_primitive.h>
-#include <arrow/type_fwd.h>
 #include <glog/logging.h>
 #include <stddef.h>
 
@@ -39,7 +34,11 @@ class RecordBatch;
 namespace neug {
 class IRecordBatchSupplier;
 
-namespace runtime {
+namespace execution {
+
+std::pair<size_t, size_t> locate_array_and_offset(
+    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
+    size_t idx);
 
 DataType arrow_type_to_rt_type(const std::shared_ptr<arrow::DataType>& type);
 
@@ -94,10 +93,9 @@ class ArrowArrayContextColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
 
- private:
-  // Helper function to locate which array and offset for a given index
-  std::pair<size_t, size_t> locate_array_and_offset(size_t idx) const;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
+ private:
   std::vector<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;
   DataType type_;
@@ -173,7 +171,7 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   void reserve(size_t size) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
-  void push_back_elem(const runtime::Value& val) override {
+  void push_back_elem(const execution::Value& val) override {
     LOG(FATAL) << "not implemented for arrow stream column";
   }
 
@@ -185,5 +183,5 @@ class ArrowStreamContextColumnBuilder : public IContextColumnBuilder {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

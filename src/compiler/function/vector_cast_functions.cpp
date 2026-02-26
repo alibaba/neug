@@ -998,14 +998,14 @@ static std::unique_ptr<FunctionBindData> castBindFunc(
   return bindData;
 }
 
-static runtime::Value castFunc(const std::vector<runtime::Value>& args) {
+static execution::Value castFunc(const std::vector<execution::Value>& args) {
   if (args.size() != 2) {
     THROW_RUNTIME_ERROR("CAST(VAL, TYPE): expect exactly 2 argument, got " +
                         std::to_string(args.size()));
   }
   const auto& arg0 = args[0];
   const auto& arg1 = args[1];
-  auto type = runtime::StringValue::Get(arg1);
+  auto type = execution::StringValue::Get(arg1);
 
   if (type == "INT64") {
     return performCast<int64_t>(arg0);
@@ -1029,7 +1029,7 @@ static runtime::Value castFunc(const std::vector<runtime::Value>& args) {
     THROW_RUNTIME_ERROR(std::string("Unsupported target type for CAST: ") +
                         std::string(type));
   }
-  return runtime::Value(DataType::SQLNULL);
+  return execution::Value(DataType::SQLNULL);
 }
 
 function_set CastAnyFunction::getFunctionSet() {

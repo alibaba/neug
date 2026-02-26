@@ -1,7 +1,7 @@
-MATCH (p:PERSON {id: $personId})-[:KNOWS*1..3]-(friend:PERSON)
+MATCH (p:PERSON {id: $personId})-[:KNOWS*1..2]-(friend:PERSON)
 WITH distinct friend
 where friend.id <> $personId
-MATCH  (message:POST|COMMENT)-[e:HASCREATOR]->(friend)
+MATCH  (message:POST:COMMENT)-[e:HASCREATOR]->(friend)
 where e.creationDate < $maxDate
 WITH friend, message
 

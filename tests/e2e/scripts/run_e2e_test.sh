@@ -2,7 +2,8 @@
 set -e
 
 usage() {
-    echo "Usage: $0 <dataset_name> [db_dir] [subquery_dirs] [rw_flag]"
+    echo "Usage: $0 <test_mode> <dataset_name> [db_dir] [subquery_dirs] [rw_flag]"
+    echo "  <test_mode>      (required) Test mode, neug_ap_test or neug_tp_test"
     echo "  <dataset_name>   (required) Dataset name, e.g. tinysnb or modern-graph"
     echo "  [db_dir]         (optional) Database directory, default: /tmp/<dataset_name>"
     echo "  [subquery_dirs]  (optional) Comma-separated list of subquery dirs, default: all"

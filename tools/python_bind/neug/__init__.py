@@ -30,7 +30,7 @@ logger = logging.getLogger("neug")
 
 _PROTOBUF_VERSION_OVERRIDE_ENV = "NEUG_EXPECTED_PROTOBUF_VERSION"
 _PROTOBUF_CHECK_SKIP_ENV = "NEUG_SKIP_PROTOBUF_CHECK"
-_EXPECTED_PROTOBUF_VERSION = os.environ.get(_PROTOBUF_VERSION_OVERRIDE_ENV, "4.21.9")
+_EXPECTED_PROTOBUF_VERSION = os.environ.get(_PROTOBUF_VERSION_OVERRIDE_ENV, "5.29.6")
 
 
 def _ensure_protobuf_runtime_matches() -> None:
@@ -158,22 +158,22 @@ def get_build_lib_dir() -> str:
         else:
             build_dir = None
     else:
-        if sys.version_info.major == 3 and sys.version_info.minor >= 12:
-            # For Python 3.8 and above, we use the new naming convention
-            build_dir = os.path.join(
-                cur_dir,
-                "..",
-                "build",
-                f"lib.{os_name}-{os.uname().machine}-cpython-{sys.version_info.major}{sys.version_info.minor}",
-            )
-        else:
-            build_dir = os.path.join(
-                cur_dir,
-                "..",
-                "build",
-                f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
-            )
-    logger.info("Build directory: %s", build_dir)
+        # Try multiple build directory patterns in order of preference
+        build_dir_patterns = [
+            # Modern pattern with cpython tag (Python 3.8+)
+            f"lib.{os_name}-{os.uname().machine}-cpython-{sys.version_info.major}{sys.version_info.minor}",
+            # Legacy pattern with version
+            f"lib.{os_name}-{os.uname().machine}-{sys.version_info.major}.{sys.version_info.minor}",
+            # Very old pattern without version suffix
+            f"lib.{os_name}-{os.uname().machine}",
+        ]
+
+        build_dir = None
+        for pattern in build_dir_patterns:
+            candidate = os.path.join(cur_dir, "..", "build", pattern)
+            if os.path.exists(candidate):
+                build_dir = candidate
+                break
     if build_dir is not None:
         if os.path.exists(build_dir):
             logger.debug("Using build directory: %s", build_dir)

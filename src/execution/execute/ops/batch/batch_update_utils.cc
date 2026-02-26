@@ -43,7 +43,7 @@ class Array;
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 namespace ops {
 
@@ -621,6 +621,6 @@ void parse_property_mappings(
 }
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

@@ -20,14 +20,13 @@
 #include "neug/execution/common/types/graph_types.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 struct ScanParams {
   int alias;
   std::vector<label_t> tables;
-  int32_t limit;
 
-  ScanParams() : alias(-1), limit(std::numeric_limits<int32_t>::max()) {}
+  ScanParams() : alias(-1) {}
 };
 
 struct GetVParams {
@@ -71,5 +70,5 @@ struct JoinParams {
   JoinKind join_type;
 };
 
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

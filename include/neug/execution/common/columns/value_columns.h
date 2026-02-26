@@ -15,14 +15,12 @@
 #pragma once
 
 #include "neug/execution/common/columns/columns_utils.h"
-#include "neug/execution/common/columns/edge_columns.h"
-#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/top_n_generator.h"
 
 namespace neug {
 
-namespace runtime {
+namespace execution {
 
 template <typename T>
 class ValueColumnBuilder;
@@ -65,18 +63,6 @@ class ValueColumn : public IValueColumn<T> {
 
   inline const std::vector<T>& data() const { return data_; }
 
-  ISigColumn* generate_signature() const override {
-    if constexpr (std::is_same_v<T, std::string>) {
-      return new SigColumn<std::string>(data_);
-    } else if constexpr (std::is_same_v<T, bool>) {
-      LOG(FATAL) << "not implemented for " << this->column_info();
-      return nullptr;
-    } else if constexpr (std::is_arithmetic_v<T>) {
-      return new SigColumn<T>(data_);
-    }
-    return nullptr;
-  }
-
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
     ColumnsUtils::generate_dedup_offset(data_, data_.size(), offsets);
   }
@@ -101,6 +87,10 @@ class OptionalValueColumn : public IValueColumn<T> {
   ~OptionalValueColumn() = default;
 
   inline size_t size() const override { return data_.size(); }
+
+  inline const std::vector<bool>& validity_bitmap() const { return valid_; }
+
+  inline const std::vector<T>& data() const { return data_; }
 
   std::string column_info() const override {
     return "OptionalValueColumn<" + ValueConverter<T>::name() + ">[" +
@@ -134,21 +124,23 @@ class OptionalValueColumn : public IValueColumn<T> {
 
   inline T get_value(size_t idx) const override { return data_[idx]; }
 
-  ISigColumn* generate_signature() const override {
-    if constexpr (std::is_same_v<T, std::string>) {
-      return new SigColumn<std::string>(data_);
-    } else if constexpr (std::is_same_v<T, bool>) {
-      LOG(FATAL) << "not implemented for " << this->column_info();
-      return nullptr;
-    } else if constexpr (std::is_arithmetic_v<T>) {
-      return new SigColumn<T>(data_);
-    }
-    return nullptr;
-  }
-
   void generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_optional_dedup_offset(data_, valid_, data_.size(),
-                                                 offsets);
+    std::set<T> st;
+
+    size_t null_index = std::numeric_limits<size_t>::max();
+    for (size_t i = 0; i < data_.size(); ++i) {
+      if (valid_[i]) {
+        if (st.find(data_[i]) == st.end()) {
+          st.insert(data_[i]);
+          offsets.push_back(i);
+        }
+      } else {
+        null_index = i;
+      }
+    }
+    if (null_index != std::numeric_limits<size_t>::max()) {
+      offsets.push_back(null_index);
+    }
   }
 
   bool has_value(size_t idx) const override { return valid_[idx]; }
@@ -175,7 +167,7 @@ class ValueColumnBuilder : public IContextColumnBuilder {
     }
   }
   inline void push_back_elem(const Value& val) override {
-    data_.push_back(val.GetValue<T>());
+    data_.push_back(val.template GetValue<T>());
   }
 
   inline void push_back_opt(const T& val) { data_.push_back(val); }
@@ -272,6 +264,6 @@ bool ValueColumn<T>::order_by_limit(bool asc, size_t limit,
   return true;
 }
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

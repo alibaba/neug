@@ -352,7 +352,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void resize(size_t size) override {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-    auto prev_size = size_;
     size_ = size;
     if (buffer_.size() != 0) {
       size_t avg_width =
@@ -360,12 +359,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
       buffer_.resize(size_, std::max(size_ * avg_width, pos_.load()));
     } else {
       buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
-    }
-    if (NEUG_UNLIKELY(size_ > prev_size && !default_value_.empty())) {
-      for (size_t i = prev_size; i < size_; ++i) {
-        size_t offset = pos_.fetch_add(default_value_.size());
-        buffer_.set(i, offset, default_value_);
-      }
     }
   }
 

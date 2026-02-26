@@ -30,6 +30,7 @@
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/execution/execute/query_cache.h"
 #include "neug/main/connection_manager.h"
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
@@ -127,7 +128,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   if (!file_lock_->lock(work_dir_, config.mode)) {
     THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
   }
-  neug::runtime::PlanParser::get().init();
+  neug::execution::PlanParser::get().init();
   initAllocators();
   openGraphAndSchema();
   ingestWals();
@@ -160,7 +161,7 @@ void NeugDB::Close() {
   }
   // -----------Create checkpoint if needed----------------
   if (config_.checkpoint_on_close) {
-    createCheckpoint();
+    createCheckpoint(false, false);
   }
   graph_.Clear();
 
@@ -287,21 +288,23 @@ void NeugDB::initPlannerAndQueryProcessor() {
   planner_->update_meta(schema().to_yaml().value());
   planner_->update_statistics(graph().get_statistics_json());
 
+  global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
+
   query_processor_ = std::make_shared<QueryProcessor>(
-      graph_, planner_, *allocators_[0], thread_num_,
+      graph_, planner_, global_query_cache_, *allocators_[0], thread_num_,
       config_.mode == DBMode::READ_ONLY);
 
   connection_manager_ = std::make_unique<ConnectionManager>(
       graph_, planner_, query_processor_, config_);
 }
 
-void NeugDB::createCheckpoint(bool force_compaction) {
+void NeugDB::createCheckpoint(bool force_compaction, bool reopen) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (config_.compact_on_close || force_compaction) {
     graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                    MAX_TIMESTAMP);
   }
-  graph_.Dump();
+  graph_.Dump(reopen);
   VLOG(1) << "Finish checkpoint";
 }
 

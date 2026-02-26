@@ -16,8 +16,9 @@
 #include "neug/execution/execute/ops/retrieve/order_by_utils.h"
 
 #include "neug/execution/common/columns/vertex_columns.h"
+#include "neug/storages/graph/graph_interface.h"
 namespace neug {
-namespace runtime {
+namespace execution {
 namespace ops {
 template <typename T>
 bool vertex_property_topN_impl(bool asc, size_t limit,
@@ -27,9 +28,14 @@ bool vertex_property_topN_impl(bool asc, size_t limit,
                                std::vector<size_t>& offsets) {
   std::vector<std::shared_ptr<StorageReadInterface::vertex_column_t<T>>>
       property_columns;
-  label_t label_num = graph.schema().vertex_label_num();
+  label_t label_num = graph.schema().vertex_label_frontier();
   for (label_t i = 0; i < label_num; ++i) {
-    property_columns.emplace_back(graph.GetVertexPropColumn<T>(i, prop_name));
+    if (!graph.schema().vertex_label_valid(i)) {
+      continue;
+    }
+    property_columns.emplace_back(
+        std::dynamic_pointer_cast<StorageReadInterface::vertex_column_t<T>>(
+            graph.GetVertexPropColumn(i, prop_name)));
   }
   bool success = true;
   if (asc) {
@@ -69,6 +75,12 @@ bool vertex_property_topN(bool asc, size_t limit,
   std::vector<DataTypeId> prop_types;
   const auto& labels = col->get_labels_set();
   for (auto l : labels) {
+    const auto& pk = graph.schema().get_vertex_primary_key(l)[0];
+    if (prop_name == std::get<1>(pk)) {
+      prop_types.emplace_back(std::get<0>(pk));
+      break;
+    }
+
     const auto& prop_names = graph.schema().get_vertex_property_names(l);
     int prop_names_size = prop_names.size();
     for (int prop_id = 0; prop_id < prop_names_size; ++prop_id) {
@@ -103,5 +115,5 @@ bool vertex_property_topN(bool asc, size_t limit,
   }
 }
 }  // namespace ops
-}  // namespace runtime
+}  // namespace execution
 }  // namespace neug

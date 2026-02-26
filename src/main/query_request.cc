@@ -25,10 +25,10 @@
 
 namespace neug {
 
-runtime::ParamsMap ParamsParser::ParseFromJsonObj(
-    const runtime::ParamsMetaMap& meta,
+execution::ParamsMap ParamsParser::ParseFromJsonObj(
+    const execution::ParamsMetaMap& meta,
     const rapidjson::Document& param_json_obj) {
-  runtime::ParamsMap param_map;
+  execution::ParamsMap param_map;
   if (!param_json_obj.IsObject()) {
     return param_map;
   }
@@ -36,10 +36,10 @@ runtime::ParamsMap ParamsParser::ParseFromJsonObj(
        itr != param_json_obj.MemberEnd(); ++itr) {
     auto key = itr->name.GetString();
     if (meta.count(key) <= 0) {
-      LOG(WARNING) << "Parameter key not found in meta: " << key;
+      VLOG(1) << "Parameter key not found in meta: " << key;
     } else {
       param_map.emplace(key,
-                        runtime::Value::FromJson(itr->value, meta.at(key)));
+                        execution::Value::FromJson(itr->value, meta.at(key)));
     }
   }
   return param_map;
@@ -72,7 +72,7 @@ neug::Status RequestParser::ParseFromString(const std::string& req,
 
 std::string RequestSerializer::SerializeRequest(
     const std::string& query, const std::string& mode,
-    const runtime::ParamsMap& parameters) {
+    const execution::ParamsMap& parameters) {
   rapidjson::Document document(rapidjson::kObjectType);
   rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
   document.AddMember(
@@ -89,7 +89,7 @@ std::string RequestSerializer::SerializeRequest(
   for (const auto& kv : parameters) {
     parameter_obj.AddMember(
         rapidjson::Value(kv.first.c_str(), kv.first.size(), allocator),
-        runtime::Value::ToJson(kv.second, allocator), allocator);
+        execution::Value::ToJson(kv.second, allocator), allocator);
   }
   document.AddMember("parameters", parameter_obj, allocator);
   rapidjson::StringBuffer buffer;

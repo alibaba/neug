@@ -1,0 +1,3248 @@
+-DATASET CSV comprehensive_graph
+
+--
+
+-CASE TestEdgeExpandV
+-LOG TestEdgeExpandVSLSD
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 1
+4
+
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property>$f64_param return m.id; {"f64_param": 2.718281828459045}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property<$f64_param return m.id; {"f64_param": 3.141592653589793}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property=$f64_param return m.id; {"f64_param": 1.4142135623730951}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property<>$f64_param return m.id; {"f64_param": 0.0}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property>=$f64_param return m.id; {"f64_param": 1.0}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property<=$f64_param return m.id; {"f64_param": 3.0}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.f64_property>=$f64_param and m.f64_property<$f64_param1 return m.id; {"f64_param": 0.0, "f64_param1": 3.141592653589793}
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5"}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3"}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0"}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9"}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7"}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2"}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5"}
+---- 1
+4
+
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property>$date_param return m.id; {"date_param": "2023-06-15"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property<$date_param return m.id; {"date_param": "2023-10-20"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property=$date_param return m.id; {"date_param": "2023-01-15"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property<>$date_param return m.id; {"date_param": "2023-12-31"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property>=$date_param return m.id; {"date_param": "2023-08-01"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property<=$date_param return m.id; {"date_param": "2023-04-30"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.date_property>=$date_param and m.date_property<$date_param1 return m.id; {"date_param": "2023-01-01", "date_param1": "2023-12-31"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30"}
+#-STATEMENT Match (n:node_a) where n.id=1 MATCH (n)-[:rel_a]->(m:node_a) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31"}
+
+-LOG TestEdgeExpandVMLSD
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property=$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<>$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 50
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+7
+3
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>=$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 30
+3
+7
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+7
+3
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<=$i32_param MATCH (n)-[]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 30
+3
+7
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+7
+3
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>=$i32_param0 and n.i32_property<$i32_param1 MATCH (n)-[]->(m:node_a) where m.i32_property>=$i32_param0 and m.i32_property<$i32_param1 return m.id; {"i32_param0": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 5
+8
+8
+8
+8
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property=$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<>$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 50
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+7
+3
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>=$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 5
+8
+8
+8
+8
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<=$i64_param MATCH (n)-[]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>=$i64_param0 and n.i64_property<$i64_param1 MATCH (n)-[]->(m:node_a) where m.i64_property>=$i64_param0 and m.i64_property<$i64_param1 return m.id; {"i64_param0": 0, "i64_param1": 9223372036854775807}
+---- 5
+8
+8
+8
+8
+8
+
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property>$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property>$f64_param return m.id; {"f64_param": 2.718281828459045}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property<$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property<$f64_param return m.id; {"f64_param": 3.141592653589793}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property=$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property=$f64_param return m.id; {"f64_param": 1.4142135623730951}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property<>$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property<>$f64_param return m.id; {"f64_param": 0.0}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property>=$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property>=$f64_param return m.id; {"f64_param": 1.0}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property<=$f64_param MATCH (n)-[]->(m:node_a) where m.f64_property<=$f64_param return m.id; {"f64_param": 3.0}
+#-STATEMENT Match (n:node_a:node_b) where n.f64_property>=$f64_param0 and n.f64_property<$f64_param1 MATCH (n)-[]->(m:node_a) where m.f64_property>=$f64_param0 and m.f64_property<$f64_param1 return m.id; {"f64_param0": 0.0, "f64_param1": 3.141592653589793}
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>$str_param MATCH (n)-[]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5"}
+---- 5
+9
+9
+9
+9
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<$str_param MATCH (n)-[]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3"}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property=$str_param MATCH (n)-[]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0"}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<>$str_param MATCH (n)-[]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9"}
+---- 40
+3
+7
+7
+4
+5
+8
+8
+6
+3
+7
+4
+7
+5
+8
+8
+6
+3
+7
+4
+7
+5
+8
+8
+6
+7
+3
+4
+7
+5
+8
+8
+6
+3
+7
+7
+4
+5
+8
+8
+6
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>=$str_param MATCH (n)-[]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7"}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<=$str_param MATCH (n)-[]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2"}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>=$str_param0 and n.str_property<$str_param1 MATCH (n)-[]->(m:node_a) where m.str_property>=$str_param0 and m.str_property<$str_param1 return m.id; {"str_param0": "test_string_0", "str_param1": "test_string_5"}
+---- 10
+3
+4
+3
+4
+3
+4
+3
+4
+3
+4
+
+#-STATEMENT Match (n:node_a:node_b) where n.date_property>$date_param MATCH (n)-[]->(m:node_a) where m.date_property>$date_param return m.id; {"date_param": "2023-06-15}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property<$date_param MATCH (n)-[]->(m:node_a) where m.date_property<$date_param return m.id; {"date_param": "2023-10-20"}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property=$date_param MATCH (n)-[]->(m:node_a) where m.date_property=$date_param return m.id; {"date_param": "2023-01-15"}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property<>$date_param MATCH (n)-[]->(m:node_a) where m.date_property<>$date_param return m.id; {"date_param": "2023-12-31"}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property>=$date_param MATCH (n)-[]->(m:node_a) where m.date_property>=$date_param return m.id; {"date_param": "2023-08-01"}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property<=$date_param MATCH (n)-[]->(m:node_a) where m.date_property<=$date_param return m.id; {"date_param": "2023-04-30"}
+#-STATEMENT Match (n:node_a:node_b) where n.date_property>=$date_param0 and n.date_property<$date_param1 MATCH (n)-[]->(m:node_a) where m.date_property>=$date_param0 and m.date_property<$date_param1 return m.id; {"date_param0": "2023-01-01", "date_param1": "2023-12-31"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property>$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property<$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property=$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property<>$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property>=$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property<=$datetime_param MATCH (n)-[]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30"}
+#-STATEMENT Match (n:node_a:node_b) where n.datetime_property>=$datetime_param0 and n.datetime_property<$datetime_param1 MATCH (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param0 and m.datetime_property<$datetime_param1 return m.id; {"datetime_param0": "2023-01-01", "datetime_param1": "2023-12-31"}
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property=$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<>$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 60
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+7
+3
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>=$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 36
+3
+7
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+7
+3
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+3
+7
+7
+5
+9
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property<=$i32_param Match (n)-[]->(m:node_a:node_b) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 36
+3
+7
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+7
+3
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+3
+7
+5
+8
+8
+6
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 6
+8
+8
+8
+8
+8
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property=$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<>$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 60
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+7
+3
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>=$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 6
+8
+8
+8
+8
+8
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property<=$i64_param Match (n)-[]->(m:node_a:node_b) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 6
+9
+9
+9
+9
+9
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property=$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<>$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 48
+3
+7
+7
+4
+5
+8
+8
+6
+3
+7
+4
+7
+5
+8
+8
+6
+3
+7
+4
+7
+5
+8
+8
+6
+7
+3
+4
+7
+5
+8
+8
+6
+3
+7
+7
+4
+5
+8
+8
+6
+3
+7
+7
+4
+5
+8
+8
+6
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>=$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property<=$str_param Match (n)-[]->(m:node_a:node_b) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property>$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 24
+7
+4
+9
+9
+4
+7
+9
+9
+4
+7
+9
+9
+4
+7
+9
+9
+7
+4
+9
+9
+7
+4
+9
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property<$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 24
+7
+7
+4
+8
+7
+4
+7
+8
+7
+4
+7
+8
+7
+4
+7
+8
+7
+7
+4
+8
+7
+7
+4
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property=$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property<>$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 60
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+4
+7
+5
+9
+8
+8
+6
+9
+7
+3
+4
+7
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+3
+7
+7
+4
+5
+9
+8
+8
+6
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property>=$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 12
+9
+9
+9
+9
+9
+9
+9
+9
+9
+9
+9
+9
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property<=$datetime_param Match (n)-[]->(m:node_a:node_b) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i32_property>=$i32_param0 and n.i32_property<$i32_param1 Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param0 and m.i32_property<$i32_param1 return m.id; {"i32_param0": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.i64_property>=$i64_param0 and n.i64_property<$i64_param1 Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param0 and m.i64_property<$i64_param1 return m.id; {"i64_param0": 0, "i64_param1": 9223372036854775807}
+---- 6
+8
+8
+8
+8
+8
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.str_property>=$str_param0 and n.str_property<$str_param1 Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param0 and m.str_property<$str_param1 return m.id; {"str_param0": "test_string_0", "str_param1": "test_string_5" }
+---- 12
+3
+4
+3
+4
+3
+4
+3
+4
+3
+4
+3
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.datetime_property>=$datetime_param0 and n.datetime_property<$datetime_param1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param0 and m.datetime_property<$datetime_param1 return m.id; {"datetime_param0": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 36
+7
+7
+4
+5
+9
+8
+7
+4
+7
+5
+9
+8
+7
+4
+7
+5
+9
+8
+7
+4
+7
+5
+9
+8
+7
+7
+4
+5
+9
+8
+7
+7
+4
+5
+9
+8
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param0 and m.i32_property<$i32_param1 return m.id; {"i32_param0": 0, "i32_param1": 540000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param0 and m.i64_property<$i64_param1 return m.id; {"i64_param0": 0, "i64_param1": 9223372036854775807}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param0 and m.str_property<$str_param1 return m.id; {"str_param0": "test_string_0", "str_param1": "test_string_5" }
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param0 and m.datetime_property<$datetime_param1 return m.id; {"datetime_param0": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 0
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-CASE TestOptionalEdgeExpandV
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 1
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Optional Match (n)-[:rel_a]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 1
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 5
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 5
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 10
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_a|rel_c]->(m:node_a) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i32_property>=$i32_param0 and m.i32_property<$i32_param1 return m.id; {"i32_param0": 0, "i32_param1": 540000000}
+---- 6
+7
+7
+7
+7
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.i64_property>=$i64_param0 and m.i64_property<$i64_param1 return m.id; {"i64_param0": 0, "i64_param1": 9223372036854775807}
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.str_property>=$str_param0 and m.str_property<$str_param1 return m.id; {"str_param0": "test_string_0", "str_param1": "test_string_5" }
+---- 6
+4
+4
+4
+4
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[]->(m:node_a:node_b) where m.datetime_property>=$datetime_param0 and m.datetime_property<$datetime_param1 return m.id; {"datetime_param0": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 12
+7
+4
+4
+7
+4
+7
+4
+7
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>$i32_param return m.id; {"i32_param": 157892345}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<$i32_param return m.id; {"i32_param": -892345678}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property=$i32_param return m.id; {"i32_param": 123456789}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<>$i32_param return m.id; {"i32_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>=$i32_param return m.id; {"i32_param": -500000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property<=$i32_param return m.id; {"i32_param": 777777777}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>$i64_param return m.id; {"i64_param": 12345678901234567}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<$i64_param return m.id; {"i64_param": -98765432109876543}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property=$i64_param return m.id; {"i64_param": 5555555555555555555}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<>$i64_param return m.id; {"i64_param": 0}
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>=$i64_param return m.id; {"i64_param": -100000000000000}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property<=$i64_param return m.id; {"i64_param": 500000000000000}
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>$str_param return m.id; {"str_param": "test_string_5" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<$str_param return m.id; {"str_param": "test_string_3" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property=$str_param return m.id; {"str_param": "test_string_0" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<>$str_param return m.id; {"str_param": "test_string_9" }
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>=$str_param return m.id; {"str_param": "test_string_7" }
+---- 2
+7
+7
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property<=$str_param return m.id; {"str_param": "test_string_2" }
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>$datetime_param return m.id; {"datetime_param": "2023-06-15" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<$datetime_param return m.id; {"datetime_param": "2023-10-20" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property=$datetime_param return m.id; {"datetime_param": "2023-01-15" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<>$datetime_param return m.id; {"datetime_param": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>=$datetime_param return m.id; {"datetime_param": "2023-08-01" }
+-UNSUPPORTED: datetime not supported
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property<=$datetime_param return m.id; {"datetime_param": "2023-04-30" }
+-UNSUPPORTED: datetime not supported
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i32_property>=$i32_param and m.i32_property<$i32_param1 return m.id; {"i32_param": 0, "i32_param1": 32768}
+---- 2
+
+
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.i64_property>=$i64_param and m.i64_property<$i64_param1 return m.id; {"i64_param": 0, "i64_param1": 9223372036854775807}
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.str_property>=$str_param and m.str_property<$str_param1 return m.id; {"str_param": "test_string_0", "str_param1": "test_string_5" }
+---- 2
+4
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Optional Match (n)-[:rel_b|rel_c]->(m:node_a:node_b) where m.datetime_property>=$datetime_param and m.datetime_property<$datetime_param1 return m.id; {"datetime_param": "2023-01-01", "datetime_param1": "2023-12-31" }
+-UNSUPPORTED: datetime not supported
+---- 4
+7
+4
+7
+4
+
+
+-CASE TestEdgeExpandE
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<$datetime_param return e.double_weight; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight=$datetime_param return e.double_weight; {"datetime_param": "2023-05-17": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<>$datetime_param return e.double_weight; {"datetime_param": "2023-12-31": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight>=$datetime_param return e.double_weight; {"datetime_param": "2023-08-01": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<=$datetime_param return e.double_weight; {"datetime_param": "2023-04-30": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
+---- 3
+-0.693147
+-0.693147
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
+---- 6
+-0.693147
+-2.718282
+
+
+-0.693147
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+---- 3
+-0.693147
+-0.693147
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+---- 3
+-0.693147
+-0.693147
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
+---- 6
+-0.693147
+-2.718282
+-0.693147
+-2.718282
+
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
+---- 3
+-0.693147
+-0.693147
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 6
+-2.71828
+-0.693147
+
+
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<$datetime_param return e.double_weight; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 6
+-0.693147
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+8.37951e-312
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight=$datetime_param return e.double_weight; {"datetime_param": "2023-05-17": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<>$datetime_param return e.double_weight; {"datetime_param": "2023-12-31": }
+-UNSUPPORTED: datetime not supported
+---- 10
+-2.71828
+-0.693147
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+1.22161e-242
+8.37951e-312
+8.39403e-312
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>=$datetime_param return e.double_weight; {"datetime_param": "2023-08-01": }
+-UNSUPPORTED: datetime not supported
+---- 7
+-2.71828
+-0.693147
+1.22161e-242
+8.37951e-312
+8.39403e-312
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<=$datetime_param return e.double_weight; {"datetime_param": "2023-04-30": }
+-UNSUPPORTED: datetime not supported
+---- 3
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight>$i32_param return m.id; {"i32_param": 42}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight<$i32_param return m.id; {"i32_param": 999}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight>$i64_param return m.id; {"i64_param": 123456789012345}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight<$i64_param return m.id; {"i64_param": -9876543210987654}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_datetime]->(m:node_a) where e.datetime_weight>$datetime_param return m.id; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_datetime]->(m:node_a) where e.datetime_weight<$datetime_param return m.id; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
+---- 1
+-2.71828
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<$datetime_param return e.double_weight; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 1
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight=$datetime_param return e.double_weight; {"datetime_param": "2023-05-17": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<>$datetime_param return e.double_weight; {"datetime_param": "2023-12-31": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight>=$datetime_param return e.double_weight; {"datetime_param": "2023-08-01": }
+-UNSUPPORTED: datetime not supported
+---- 2
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_a]->(m:node_a) where e.datetime_weight<=$datetime_param return e.double_weight; {"datetime_param": "2023-04-30": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>$i32_param return e.double_weight; {"i32_param": 42}
+---- 3
+-2.718282
+-2.718282
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<$i32_param return e.double_weight; {"i32_param": 999}
+---- 3
+-0.693147
+
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight=$i32_param return e.double_weight; {"i32_param": 42}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<>$i32_param return e.double_weight; {"i32_param": 0}
+---- 6
+-0.693147
+-2.718282
+
+
+-0.693147
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight>=$i32_param return e.double_weight; {"i32_param": 0}
+---- 3
+-2.718282
+
+-2.718282
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i32_weight<=$i32_param return e.double_weight; {"i32_param": 500}
+---- 3
+-0.693147
+
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>$i64_param return e.double_weight; {"i64_param": 123456789012345}
+---- 3
+-2.718282
+-2.718282
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<$i64_param return e.double_weight; {"i64_param": -9876543210987654}
+---- 3
+-0.693147
+
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight=$i64_param return e.double_weight; {"i64_param": 922337203685477}
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<>$i64_param return e.double_weight; {"i64_param": 0}
+---- 6
+-0.693147
+-2.718282
+-0.693147
+-2.718282
+
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight>=$i64_param return e.double_weight; {"i64_param": -100000000000000}
+---- 3
+-2.718282
+-2.718282
+
+
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.i64_weight<=$i64_param return e.double_weight; {"i64_param": 500000000000000}
+---- 3
+-0.693147
+
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>$datetime_param return e.double_weight; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 7
+-2.71828
+-0.693147
+1.22161e-242
+8.37951e-312
+8.39403e-312
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<$datetime_param return e.double_weight; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 6
+-0.693147
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+8.37951e-312
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight=$datetime_param return e.double_weight; {"datetime_param": "2023-05-17": }
+-UNSUPPORTED: datetime not supported
+---- 0
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<>$datetime_param return e.double_weight; {"datetime_param": "2023-12-31": }
+-UNSUPPORTED: datetime not supported
+---- 10
+-2.71828
+-0.693147
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+1.22161e-242
+8.37951e-312
+8.39403e-312
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight>=$datetime_param return e.double_weight; {"datetime_param": "2023-08-01": }
+-UNSUPPORTED: datetime not supported
+---- 7
+-2.71828
+-0.693147
+1.22161e-242
+8.37951e-312
+8.39403e-312
+-2.71828
+-0.693147
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e]->(m) where e.datetime_weight<=$datetime_param return e.double_weight; {"datetime_param": "2023-04-30": }
+-UNSUPPORTED: datetime not supported
+---- 3
+1.6976e-313
+4.93572e-321
+-5.26953e+302
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight>$i32_param return m.id; {"i32_param": 42}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i32]->(m:node_a) where e.i32_weight<$i32_param return m.id; {"i32_param": 999}
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight>$i64_param return m.id; {"i64_param": 123456789012345}
+---- 1
+7
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_i64]->(m:node_a) where e.i64_weight<$i64_param return m.id; {"i64_param": -9876543210987654}
+---- 1
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_datetime]->(m:node_a) where e.datetime_weight>$datetime_param return m.id; {"datetime_param": "2023-06-15": }
+-UNSUPPORTED: datetime not supported
+---- 2
+7
+4
+
+-STATEMENT Match (n:node_a) where n.id=1 Match (n)-[e:rel_datetime]->(m:node_a) where e.datetime_weight<$datetime_param return m.id; {"datetime_param": "2023-10-20": }
+-UNSUPPORTED: datetime not supported
+---- 1
+4
+
+-STATEMENT Match (n:node_a:node_b) where n.id=1 Match (n)-[e:rel_b|rel_c]->(:node_a:node_b) where e.i32_weight>$i32_param return e; {"i32_param": 157892345}
+---- 0
+

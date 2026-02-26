@@ -23,11 +23,32 @@
 #include "neug/compiler/binder/expression/node_expression.h"
 
 #include "neug/compiler/binder/expression/property_expression.h"
+#include "neug/compiler/common/types/types.h"
+#include "neug/compiler/gopt/g_graph_type.h"
 
 namespace neug {
 namespace binder {
 
 NodeExpression::~NodeExpression() = default;
+
+void NodeExpression::setEntries(
+    std::vector<catalog::TableCatalogEntry*> entries_) {
+  entries = std::move(entries_);
+  auto extraTypeInfo = getDataType().getExtraTypeInfoRef();
+  auto nodeTypeInfo = dynamic_cast<common::GNodeTypeInfo*>(extraTypeInfo);
+  if (!nodeTypeInfo) {
+    return;
+  }
+  // update node labels using new entries
+  std::vector<catalog::NodeTableCatalogEntry*> nodeEntries;
+  for (auto entry : entries) {
+    nodeEntries.emplace_back(entry->ptrCast<catalog::NodeTableCatalogEntry>());
+  }
+  auto nodeType = nodeTypeInfo->getNodeType();
+  if (nodeType) {
+    nodeType->setNodeTables(std::move(nodeEntries));
+  }
+}
 
 std::shared_ptr<Expression> NodeExpression::getPrimaryKey(
     common::table_id_t tableID) const {

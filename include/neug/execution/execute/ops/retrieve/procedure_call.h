@@ -14,18 +14,14 @@
  */
 #pragma once
 
-#include <vector>
-
 #include "neug/compiler/function/function.h"
 #include "neug/execution/execute/operator.h"
 
 #include "neug/compiler/function/neug_call_function.h"
 
 namespace neug {
-class Schema;
 
-namespace runtime {
-class ContextMeta;
+namespace execution {
 
 namespace ops {
 
@@ -47,6 +43,6 @@ class ProcedureCallOprBuilder : public IOperatorBuilder {
 
 }  // namespace ops
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

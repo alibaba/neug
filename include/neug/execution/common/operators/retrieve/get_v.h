@@ -14,13 +14,16 @@
  */
 #pragma once
 
+#include "neug/execution/common/columns/edge_columns.h"
+#include "neug/execution/common/columns/path_columns.h"
+#include "neug/execution/common/columns/vertex_columns.h"
 #include "neug/execution/common/context.h"
+#include "neug/execution/expression/predicates.h"
 #include "neug/execution/utils/params.h"
-#include "neug/execution/utils/predicates.h"
 #include "neug/utils/result.h"
 
 namespace neug {
-namespace runtime {
+namespace execution {
 
 inline std::vector<label_t> extract_labels(
     const std::vector<LabelTriplet>& labels, const std::vector<label_t>& tables,
@@ -288,10 +291,11 @@ class GetV {
   }
 
   template <typename PRED_T>
-  static neug::result<Context> _get_vertex_from_path(
-      const StorageReadInterface& graph, Context&& ctx,
-      const GetVParams& params, const PRED_T& pred) {
-    std::vector<bool> required_label(graph.schema().vertex_label_num(), false);
+  static neug::result<Context> get_vertex_from_path(
+      const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
+      const PRED_T& pred) {
+    std::vector<bool> required_label(graph.schema().vertex_label_frontier(),
+                                     false);
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     std::set<label_t> required_label_set;
@@ -316,12 +320,12 @@ class GetV {
 
   template <typename PRED_T>
   static neug::result<Context> get_vertex_from_edges(
-      const StorageReadInterface& graph, Context&& ctx,
-      const GetVParams& params, const PRED_T& pred) {
+      const IStorageInterface& graph, Context&& ctx, const GetVParams& params,
+      const PRED_T& pred) {
     std::vector<size_t> shuffle_offset;
     auto col = ctx.get(params.tag);
     if (col->column_type() == ContextColumnType::kPath) {
-      return _get_vertex_from_path(graph, std::move(ctx), params, pred);
+      return get_vertex_from_path(graph, std::move(ctx), params, pred);
     }
     auto column = std::dynamic_pointer_cast<IEdgeColumn>(ctx.get(params.tag));
     if (!column) {
@@ -344,53 +348,8 @@ class GetV {
       return ctx;
     }
   }
-
-  template <typename PRED_T>
-  static neug::result<Context> get_vertex_from_vertices(
-      const StorageReadInterface& graph, Context&& ctx,
-      const GetVParams& params, const PRED_T& pred) {
-    std::shared_ptr<IVertexColumn> input_vertex_list_ptr =
-        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.tag));
-    const IVertexColumn& input_vertex_list = *input_vertex_list_ptr;
-
-    std::vector<size_t> offset;
-    if (params.tag == params.alias) {
-      foreach_vertex(input_vertex_list,
-                     [&](size_t idx, label_t label, vid_t v) {
-                       if (pred(label, v)) {
-                         offset.push_back(idx);
-                       }
-                     });
-      ctx.reshuffle(offset);
-    } else {
-      const std::set<label_t>& label_set = input_vertex_list.get_labels_set();
-      if (label_set.size() == 1) {
-        MSVertexColumnBuilder builder(*label_set.begin());
-        foreach_vertex(input_vertex_list,
-                       [&](size_t idx, label_t label, vid_t v) {
-                         if (pred(label, v)) {
-                           builder.push_back_opt(v);
-                           offset.push_back(idx);
-                         }
-                       });
-        ctx.set_with_reshuffle(params.alias, builder.finish(), offset);
-
-      } else {
-        MLVertexColumnBuilderOpt builder(input_vertex_list.get_labels_set());
-        foreach_vertex(input_vertex_list,
-                       [&](size_t idx, label_t label, vid_t v) {
-                         if (pred(label, v)) {
-                           builder.push_back_vertex({label, v});
-                           offset.push_back(idx);
-                         }
-                       });
-        ctx.set_with_reshuffle(params.alias, builder.finish(), offset);
-      }
-    }
-    return ctx;
-  }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

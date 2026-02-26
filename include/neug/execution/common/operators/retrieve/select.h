@@ -19,9 +19,7 @@
 
 namespace neug {
 
-namespace runtime {
-
-class Expr;
+namespace execution {
 
 class Select {
  public:
@@ -30,7 +28,7 @@ class Select {
     size_t row_num = ctx.row_num();
     std::vector<size_t> offsets;
     for (size_t k = 0; k < row_num; ++k) {
-      if (pred(k)) {
+      if (pred(ctx, k)) {
         offsets.push_back(k);
       }
     }
@@ -40,6 +38,6 @@ class Select {
   }
 };
 
-}  // namespace runtime
+}  // namespace execution
 
 }  // namespace neug

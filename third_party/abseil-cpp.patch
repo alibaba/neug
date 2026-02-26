@@ -1,0 +1,24 @@
+diff --git a/absl/container/CMakeLists.txt b/absl/container/CMakeLists.txt
+index 128cc0e9..0a8177f8 100644
+--- a/absl/container/CMakeLists.txt
++++ b/absl/container/CMakeLists.txt
+@@ -202,7 +202,10 @@ absl_cc_library(
+   PUBLIC
+ )
+ 
+-# Internal-only target, do not depend on directly.
++# Internal-only target, do not depend on directly. This helper pulls in
++# GTest::gmock, so only build it (and export it) when Abseil test helpers are
++# explicitly enabled.
++if(ABSL_BUILD_TEST_HELPERS)
+ absl_cc_library(
+   NAME
+     test_allocator
+@@ -214,6 +217,7 @@ absl_cc_library(
+     absl::config
+     GTest::gmock
+ )
++endif()
+ 
+ absl_cc_test(
+   NAME

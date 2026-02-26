@@ -41,8 +41,8 @@ void NeugDBService::init(const ServiceConfig& config) {
       db_.last_ts_, db_config_.thread_num);  // We assume versions start from 1.
 
   session_pool_ = std::make_unique<neug::SessionPool>(
-      db_.graph(), db_.GetPlanner(), version_manager_, db_.allocators_,
-      db_config_, db_.work_dir());
+      db_.graph(), db_.GetPlanner(), db_.GetQueryCache(), version_manager_,
+      db_.allocators_, db_config_, db_.work_dir());
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
   hdl_mgr_->Init(config);
@@ -89,6 +89,7 @@ neug::result<std::string> NeugDBService::service_status() {
 }
 
 void NeugDBService::run_and_wait_for_exit() {
+  startCompactThreadIfNeeded();
   if (!IsInitialized()) {
     THROW_RUNTIME_ERROR("NeugDB service has not been inited!");
   }
