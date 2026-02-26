@@ -18,10 +18,36 @@
 
 import os
 import shutil
+import subprocess
 import sys
 
 import neug
 from neug.database import Database
+
+
+def check_bad_top_level_connect_exits_cleanly():
+    """Run a subprocess calling neug.connect() to ensure it fails gracefully."""
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH", "")
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [repo_root, pythonpath]))
+    script = (
+        "import sys\n"
+        "import neug\n"
+        "try:\n"
+        "    neug.connect()\n"
+        "    sys.exit(1)  # Should not succeed\n"
+        "except Exception:\n"
+        "    sys.exit(0)\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, env=env
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Unexpected return code {proc.returncode}; stderr: {proc.stderr}"
+        )
+
 
 if __name__ == "__main__":
     # expect 2 args, csv_data_dir and db_dir
@@ -66,3 +92,6 @@ if __name__ == "__main__":
 
     conn2.close()
     db2.close()
+
+    print("Checking that bad top-level connect() exits cleanly...")
+    check_bad_top_level_connect_exits_cleanly()
