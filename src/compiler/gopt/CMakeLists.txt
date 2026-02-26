@@ -5,6 +5,7 @@ add_library(neug_gopt
     g_expr_converter.cpp
     g_alias_manager.cpp
     g_type_converter.cpp
+    g_type_registration.cpp
     g_query_converter.cpp
     g_precedence.cpp
     g_catalog_holder.cpp
