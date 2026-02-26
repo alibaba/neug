@@ -481,7 +481,7 @@ results::CollectiveResults Sink::sink(const Context& ctx,
 
 template <typename T>
 inline void wrap_primitive_type_array(
-    const T* data, size_t size, const std::vector<bool>* validity_bitmap,
+    const T* data, size_t size, const std::vector<bool>& validity_bitmap,
     std::shared_ptr<IArrowArrayBuilder> builder) {
   auto casted_builder =
       std::static_pointer_cast<ArrowArrayWrapBuilder<T>>(builder);
@@ -490,31 +490,21 @@ inline void wrap_primitive_type_array(
                                   std::string(typeid(T).name()) +
                                   " but got builder type");
   }
-  if (validity_bitmap) {
-    casted_builder->Wrap(data, size, validity_bitmap);
-  } else {
-    casted_builder->Wrap(data, size);
-  }
+  casted_builder->Wrap(data, size, validity_bitmap);
 }
 
-#define VISIT_AND_WRAP_VALUE_COLUMN(TYPE, TYPE_ENUM)                          \
-  case DataTypeId::TYPE_ENUM: {                                               \
-    if (col->is_optional()) {                                                 \
-      auto casted = std::static_pointer_cast<OptionalValueColumn<TYPE>>(col); \
-      wrap_primitive_type_array<TYPE>(casted->data().data(), casted->size(),  \
-                                      &casted->validity_bitmap(),             \
-                                      array_builder);                         \
-    } else {                                                                  \
-      auto casted = std::static_pointer_cast<ValueColumn<TYPE>>(col);         \
-      wrap_primitive_type_array<TYPE>(casted->data().data(), casted->size(),  \
-                                      nullptr, array_builder);                \
-    }                                                                         \
-    break;                                                                    \
+#define VISIT_AND_WRAP_VALUE_COLUMN(TYPE, TYPE_ENUM)                           \
+  case DataTypeId::TYPE_ENUM: {                                                \
+    auto casted = std::static_pointer_cast<ValueColumn<TYPE>>(col);            \
+    wrap_primitive_type_array<TYPE>(casted->data().data(), casted->size(),     \
+                                    casted->validity_bitmap(), array_builder); \
+                                                                               \
+    break;                                                                     \
   }
 
 template <typename T>
 inline void append_to_builder(const std::vector<T>& data,
-                              const std::vector<bool>* validity_bitmap,
+                              const std::vector<bool>& validity_bitmap,
                               arrow::ArrayBuilder* builder) {
   auto casted_builder =
       static_cast<typename TypeConverter<T>::ArrowBuilderType*>(builder);
@@ -524,9 +514,9 @@ inline void append_to_builder(const std::vector<T>& data,
                                   " but got builder type");
   }
   THROW_IF_ARROW_NOT_OK(casted_builder->Reserve(data.size()));
-  if (validity_bitmap) {
+  if (!validity_bitmap.empty()) {
     for (size_t i = 0; i < data.size(); ++i) {
-      if ((*validity_bitmap)[i]) {
+      if (validity_bitmap[i]) {
         THROW_IF_ARROW_NOT_OK(
             casted_builder->Append(TypeConverter<T>::ToArrowCType(data[i])));
       } else {
@@ -541,101 +531,102 @@ inline void append_to_builder(const std::vector<T>& data,
   }
 }
 
-#define VISIT_AND_APPEND_VALUE_COLUMN(TYPE, TYPE_ENUM)                        \
-  case DataTypeId::TYPE_ENUM: {                                               \
-    if (col->is_optional()) {                                                 \
-      auto casted = std::static_pointer_cast<OptionalValueColumn<TYPE>>(col); \
-      append_to_builder<TYPE>(casted->data(), &casted->validity_bitmap(),     \
-                              array_builder);                                 \
-    } else {                                                                  \
-      auto casted = std::static_pointer_cast<ValueColumn<TYPE>>(col);         \
-      append_to_builder<TYPE>(casted->data(), nullptr, array_builder);        \
-    }                                                                         \
-    break;                                                                    \
+#define VISIT_AND_APPEND_VALUE_COLUMN(TYPE, TYPE_ENUM)                 \
+  case DataTypeId::TYPE_ENUM: {                                        \
+    auto casted = std::static_pointer_cast<ValueColumn<TYPE>>(col);    \
+    append_to_builder<TYPE>(casted->data(), casted->validity_bitmap(), \
+                            array_builder);                            \
+                                                                       \
+    break;                                                             \
   }
 
 // For String column, we could not Use UnsafeAppend directly
-#define VISIT_AND_APPEND_STRING_VALUE_COLUMN(TYPE, TYPE_ENUM)                 \
-  case DataTypeId::TYPE_ENUM: {                                               \
-    if (col->is_optional()) {                                                 \
-      auto str_col = static_pointer_cast<OptionalValueColumn<TYPE>>(col);     \
-      auto str_builder =                                                      \
-          static_cast<TypeConverter<TYPE>::ArrowBuilderType*>(array_builder); \
-      for (size_t i = 0; i < str_col->size(); ++i) {                          \
-        if (str_col->has_value(i)) {                                          \
-          THROW_IF_ARROW_NOT_OK(str_builder->Append(str_col->get_value(i)));  \
-        } else {                                                              \
-          THROW_IF_ARROW_NOT_OK(str_builder->AppendNull());                   \
-        }                                                                     \
-      }                                                                       \
-    } else {                                                                  \
-      auto str_col = static_pointer_cast<ValueColumn<TYPE>>(col);             \
-      auto str_builder =                                                      \
-          static_cast<TypeConverter<TYPE>::ArrowBuilderType*>(array_builder); \
-      THROW_IF_ARROW_NOT_OK(str_builder->AppendValues(str_col->data()));      \
-    }                                                                         \
-    break;                                                                    \
+void append_string_value_column(const std::shared_ptr<IContextColumn>& col,
+                                arrow::ArrayBuilder* array_builder) {
+  if (col->is_optional()) {
+    auto str_col = std::static_pointer_cast<ValueColumn<std::string>>(col);
+    auto str_builder =
+        static_cast<TypeConverter<std::string>::ArrowBuilderType*>(
+            array_builder);
+    for (size_t i = 0; i < str_col->size(); ++i) {
+      if (str_col->has_value(i)) {
+        THROW_IF_ARROW_NOT_OK(str_builder->Append(str_col->get_value(i)));
+      } else {
+        THROW_IF_ARROW_NOT_OK(str_builder->AppendNull());
+      }
+    }
+  } else {
+    auto str_col = std::static_pointer_cast<ValueColumn<std::string>>(col);
+    auto str_builder =
+        static_cast<TypeConverter<std::string>::ArrowBuilderType*>(
+            array_builder);
+    THROW_IF_ARROW_NOT_OK(str_builder->AppendValues(str_col->data()));
   }
+}
 
-#define VISIT_AND_APPEND_LIST_VALUE_COLUMN(TYPE_ENUM)                    \
-  case DataTypeId::TYPE_ENUM: {                                          \
-    auto list_col = std::static_pointer_cast<ListColumn>(col);           \
-    auto list_builder = static_cast<arrow::ListBuilder*>(array_builder); \
-    auto child_builder = list_builder->value_builder();                  \
-    for (size_t i = 0; i < list_col->size(); ++i) {                      \
-      auto val = list_col->get_elem(i);                                  \
-      THROW_IF_ARROW_NOT_OK(list_builder->Append());                     \
-      const auto& vals = ListValue::GetChildren(val);                    \
-      for (size_t j = 0; j < vals.size(); ++j) {                         \
-        append_rt_any_to_builder(graph, vals[j], child_builder);         \
-      }                                                                  \
-    }                                                                    \
-    break;                                                               \
+void append_list_column(const StorageReadInterface& graph,
+                        const std::shared_ptr<IContextColumn>& col,
+                        arrow::ArrayBuilder* array_builder) {
+  auto list_col = std::static_pointer_cast<ListColumn>(col);
+  auto list_builder = static_cast<arrow::ListBuilder*>(array_builder);
+  auto child_builder = list_builder->value_builder();
+  for (size_t i = 0; i < list_col->size(); ++i) {
+    auto val = list_col->get_elem(i);
+    THROW_IF_ARROW_NOT_OK(list_builder->Append());
+    const auto& vals = ListValue::GetChildren(val);
+    for (size_t j = 0; j < vals.size(); ++j) {
+      append_rt_any_to_builder(graph, vals[j], child_builder);
+    }
   }
+}
 
-#define VISIT_AND_APPEND_STRUCT_VALUE_COLUMN(TYPE_ENUM)                       \
-  case DataTypeId::TYPE_ENUM: {                                               \
-    auto struct_builder = dynamic_cast<arrow::StructBuilder*>(array_builder); \
-    assert(struct_builder);                                                   \
-    auto struct_col = std::dynamic_pointer_cast<StructColumn>(col);           \
-    for (size_t i = 0; i < struct_col->size(); ++i) {                         \
-      if (struct_col->has_value(i)) {                                         \
-        THROW_IF_ARROW_NOT_OK(struct_builder->Append());                      \
-        auto val = struct_col->get_elem(i);                                   \
-        const auto& childs = StructValue::GetChildren(val);                   \
-        for (size_t j = 0; j < childs.size(); ++j) {                          \
-          auto child_builder = struct_builder->child_builder(j);              \
-          if (childs[j].IsNull()) {                                           \
-            THROW_IF_ARROW_NOT_OK(child_builder->AppendNull());               \
-            continue;                                                         \
-          }                                                                   \
-          append_rt_any_to_builder(graph, childs[j], child_builder.get());    \
-        }                                                                     \
-      } else {                                                                \
-        THROW_IF_ARROW_NOT_OK(struct_builder->AppendNull());                  \
-        for (size_t j = 0; j < struct_builder->num_fields(); ++j) {           \
-          auto child_builder = struct_builder->child_builder(j);              \
-          THROW_IF_ARROW_NOT_OK(child_builder->AppendNull());                 \
-        }                                                                     \
-      }                                                                       \
-    }                                                                         \
-    break;                                                                    \
+void append_struct_column(const StorageReadInterface& graph,
+                          const std::shared_ptr<IContextColumn>& col,
+                          arrow::ArrayBuilder* array_builder) {
+  auto struct_builder = dynamic_cast<arrow::StructBuilder*>(array_builder);
+  assert(struct_builder);
+  auto struct_col = std::dynamic_pointer_cast<StructColumn>(col);
+  for (size_t i = 0; i < struct_col->size(); ++i) {
+    if (struct_col->has_value(i)) {
+      THROW_IF_ARROW_NOT_OK(struct_builder->Append());
+      auto val = struct_col->get_elem(i);
+      const auto& childs = StructValue::GetChildren(val);
+      for (size_t j = 0; j < childs.size(); ++j) {
+        auto child_builder = struct_builder->child_builder(j);
+        if (childs[j].IsNull()) {
+          THROW_IF_ARROW_NOT_OK(child_builder->AppendNull());
+          continue;
+        }
+        append_rt_any_to_builder(graph, childs[j], child_builder.get());
+      }
+    } else {
+      THROW_IF_ARROW_NOT_OK(struct_builder->AppendNull());
+      for (size_t j = 0; j < struct_builder->num_fields(); ++j) {
+        auto child_builder = struct_builder->child_builder(j);
+        THROW_IF_ARROW_NOT_OK(child_builder->AppendNull());
+      }
+    }
   }
-
+}
 std::shared_ptr<arrow::Array> visit_and_build_value_column(
     const StorageReadInterface& graph,
     const std::shared_ptr<IContextColumn>& col,
     arrow::ArrayBuilder* array_builder) {
   auto ele_type = col->elem_type();
   switch (ele_type.id()) {
-    VISIT_AND_APPEND_VALUE_COLUMN(bool, kBoolean);
-    VISIT_AND_APPEND_STRING_VALUE_COLUMN(std::string, kVarchar);
-    VISIT_AND_APPEND_VALUE_COLUMN(Date, kDate);
-    VISIT_AND_APPEND_VALUE_COLUMN(DateTime, kTimestampMs);
-    VISIT_AND_APPEND_VALUE_COLUMN(Interval, kInterval);
-
-    VISIT_AND_APPEND_LIST_VALUE_COLUMN(kList);
-    VISIT_AND_APPEND_STRUCT_VALUE_COLUMN(kStruct);
+    VISIT_AND_APPEND_VALUE_COLUMN(bool, kBoolean)
+    VISIT_AND_APPEND_VALUE_COLUMN(Date, kDate)
+    VISIT_AND_APPEND_VALUE_COLUMN(DateTime, kTimestampMs)
+    VISIT_AND_APPEND_VALUE_COLUMN(Interval, kInterval)
+  case DataTypeId::kVarchar:
+    append_string_value_column(col, array_builder);
+    break;
+  case DataTypeId::kList:
+    append_list_column(graph, col, array_builder);
+    break;
+  case DataTypeId::kStruct:
+    append_struct_column(graph, col, array_builder);
+    break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "visit_and_build_value_column not support for " + col->column_info());
