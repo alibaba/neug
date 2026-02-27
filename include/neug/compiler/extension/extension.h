@@ -96,7 +96,7 @@ struct NEUG_API ExtensionUtils {
 
   static constexpr const char* OFFICIAL_EXTENSION[] = {
       "JSON",
-      "SAMPLE",
+      "SAMPLED_MATCH",
   };
 
   static constexpr const char* EXTENSION_LOADER_SUFFIX = "_loader";
