@@ -25,7 +25,7 @@ cd /path/to/neug
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DBUILD_TEST=ON \
-         -DBUILD_EXTENSIONS="sample"
+         -DBUILD_EXTENSIONS="sampled_match"
 make -j$(nproc)
 ```
 

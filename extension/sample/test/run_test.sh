@@ -49,7 +49,7 @@ if [ ! -f "CMakeCache.txt" ]; then
     echo "Configuring CMake..."
     cmake .. -DCMAKE_BUILD_TYPE=Release \
              -DBUILD_TEST=ON \
-             -DBUILD_EXTENSIONS="sample"
+             -DBUILD_EXTENSIONS="sampled_match"
 fi
 
 # Build

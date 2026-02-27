@@ -17,7 +17,7 @@ set(SAMPLE_EXTENSION_OBJECT_FILES
     ${FASTEST_LIB_SOURCES})
 
 # Use the extension build system
-build_extension_lib("sample")
+build_extension_lib("sampled_match")
 
 if (${BUILD_TEST})
     add_subdirectory(test)

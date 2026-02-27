@@ -55,7 +55,7 @@
     // 注册 extension 元数据
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
-            "sample",
+            "sampled_match",
             "Provides subgraph matching and property access functions. "
             "Functions: CALL INITIALIZE() - initializes graph data cache, "
             "CALL SAMPLED_MATCH(pattern_file, sample_size), "
