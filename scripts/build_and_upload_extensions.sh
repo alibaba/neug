@@ -105,14 +105,16 @@ if [ "${SKIP_BUILD}" = false ]; then
     echo ""
     echo "Step 1: Building extensions..."
     
-    # Source environment if exists
-    if [ -f "/home/neug/.neug_env" ]; then
-        . /home/neug/.neug_env
+    # Source environment if exists (use $HOME for both Linux and macOS)
+    if [ -f "${HOME}/.neug_env" ]; then
+        . "${HOME}/.neug_env"
     fi
     
     # Set build environment variables
+    # nproc on Linux, sysctl -n hw.ncpu on macOS
+    NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
     export BUILD_TYPE=RELEASE
-    export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+    export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "${NPROC}" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
     export BUILD_EXECUTABLES=ON
     export BUILD_HTTP_SERVER=ON
     export BUILD_TEST=ON
@@ -122,9 +124,16 @@ if [ "${SKIP_BUILD}" = false ]; then
     export BUILD_EXTENSIONS="${EXTENSIONS}"
     
     # Create install directory if needed
+    # When already root, skip sudo (root may not be in sudoers e.g. in Docker)
+    # chown: use $(id -gn) for portable primary group (Linux: often $USER, macOS: often staff)
     if [ ! -d "/opt/neug-install" ]; then
-        sudo mkdir -p /opt/neug-install
-        sudo chown -R $USER:$USER /opt/neug-install/ 2>/dev/null || true
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p /opt/neug-install
+            chown -R "${SUDO_USER:-root}:$(id -gn "${SUDO_USER:-root}")" /opt/neug-install/ 2>/dev/null || true
+        else
+            sudo mkdir -p /opt/neug-install
+            sudo chown -R "$USER:$(id -gn)" /opt/neug-install/ 2>/dev/null || true
+        fi
     fi
     
     # Set compiler with ccache if available
@@ -136,7 +145,7 @@ if [ "${SKIP_BUILD}" = false ]; then
     # Build
     cd tools/python_bind
     make clean || true
-    make requirements
+    make requirements || true
     make build
     
     if command -v ccache &> /dev/null; then
@@ -223,10 +232,10 @@ if [ "${SKIP_UPLOAD}" = false ]; then
         exit 0
     fi
     
-    # Install oss2 if not available
+    # Install oss2 if not available (urllib3<2 for OpenSSL 1.0.2 compatibility, e.g. RHEL 7)
     if ! python3 -c "import oss2" 2>/dev/null; then
         echo "Installing oss2..."
-        pip3 install oss2
+        pip3 install 'urllib3<2' oss2
     fi
     
     # Upload using Python script
