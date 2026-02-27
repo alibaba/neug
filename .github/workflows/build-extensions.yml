@@ -310,7 +310,7 @@ jobs:
           path: |
             /tmp/extension_packages/*.neug_extension
             /tmp/extension_packages/*.sha256
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: warn
 
   # Linux arm64
@@ -553,7 +553,7 @@ jobs:
           path: |
             /tmp/extension_packages/*.neug_extension
             /tmp/extension_packages/*.sha256
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: warn
 
   # macOS x86_64
@@ -761,7 +761,7 @@ jobs:
           path: |
             /tmp/extension_packages/*.neug_extension
             /tmp/extension_packages/*.sha256
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: warn
 
   # macOS ARM64
@@ -969,7 +969,7 @@ jobs:
           path: |
             /tmp/extension_packages/*.neug_extension
             /tmp/extension_packages/*.sha256
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: warn
 
 
