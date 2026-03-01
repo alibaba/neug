@@ -119,7 +119,7 @@ if [ "${SKIP_BUILD}" = false ]; then
     export BUILD_HTTP_SERVER=ON
     export BUILD_TEST=ON
     export USE_NINJA=OFF
-    export WITH_MIMALLOC=ON
+    export WITH_MIMALLOC=OFF
     export CMAKE_INSTALL_PREFIX=/opt/neug-install/
     export BUILD_EXTENSIONS="${EXTENSIONS}"
     

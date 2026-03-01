@@ -141,7 +141,7 @@ jobs:
           export BUILD_HTTP_SERVER=ON
           export BUILD_TEST=ON
           export USE_NINJA=OFF
-          export WITH_MIMALLOC=ON
+          export WITH_MIMALLOC=OFF
           export CMAKE_INSTALL_PREFIX=/opt/neug-install/
           export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
           sudo mkdir -p /opt/neug-install
@@ -384,7 +384,7 @@ jobs:
           export BUILD_HTTP_SERVER=ON
           export BUILD_TEST=ON
           export USE_NINJA=OFF
-          export WITH_MIMALLOC=ON
+          export WITH_MIMALLOC=OFF
           export CMAKE_INSTALL_PREFIX=/opt/neug-install/
           export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
           sudo mkdir -p /opt/neug-install
@@ -596,7 +596,7 @@ jobs:
           export BUILD_HTTP_SERVER=ON
           export BUILD_TEST=ON
           export USE_NINJA=OFF
-          export WITH_MIMALLOC=ON
+          export WITH_MIMALLOC=OFF
           export CMAKE_INSTALL_PREFIX=/opt/neug-install/
           export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
           mkdir -p /opt/neug-install
@@ -804,7 +804,7 @@ jobs:
           export BUILD_HTTP_SERVER=ON
           export BUILD_TEST=ON
           export USE_NINJA=OFF
-          export WITH_MIMALLOC=ON
+          export WITH_MIMALLOC=OFF
           export CMAKE_INSTALL_PREFIX=/opt/neug-install/
           export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
           mkdir -p /opt/neug-install
