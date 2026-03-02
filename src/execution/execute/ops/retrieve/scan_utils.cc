@@ -57,12 +57,13 @@ std::vector<Property> parse_ids_from_idx_predicate(
 
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
     auto param_type = parse_from_ir_data_type(triplet.param().data_type());
-    std::vector<Property> ret;
-    if (param_type.id() == DataTypeId::kInt32 ||
-        param_type.id() == DataTypeId::kInt64 ||
-        param_type.id() == DataTypeId::kUInt32 ||
-        param_type.id() == DataTypeId::kUInt64) {
-      ret.emplace_back(value_to_property(params.at(triplet.param().name())));
+
+    if (param_type.id() == DataTypeId::kInt32) {
+      return std::vector<Property>{PropUtils<T>::to_prop(
+          params.at(triplet.param().name()).template GetValue<T>())};
+    } else if (param_type.id() == DataTypeId::kInt64) {
+      return std::vector<Property>{PropUtils<T>::to_prop(
+          params.at(triplet.param().name()).template GetValue<T>())};
     }
   }
   default:
