@@ -364,7 +364,6 @@ setup(
         "tabulate>=0.9.0",
         "PyYAML>=6.0.2",
         "tqdm",
-        "gnureadline>=8.0.0; sys_platform == 'darwin'",
         "Flask",
         "Flask-Cors",
     ],
