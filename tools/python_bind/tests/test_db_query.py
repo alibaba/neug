@@ -2384,3 +2384,34 @@ def test_result():
     result = conn.execute("Match (n: person) return n")
     logger.info(list(result))
     logger.info(result.column_names())
+
+
+def test_parameterized_where_on_edge_string_property():
+    """Test that parameterized WHERE on edge STRING property works (not just literals)."""
+    db = Database(db_path=":memory", mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE IF NOT EXISTS A(id STRING PRIMARY KEY)")
+    conn.execute("CREATE REL TABLE IF NOT EXISTS R(FROM A TO A, tag STRING)")
+
+    conn.execute("CREATE (a:A {id: 'n1'})")
+    conn.execute("CREATE (a:A {id: 'n2'})")
+    conn.execute(
+        "MATCH (a:A), (b:A) WHERE a.id = 'n1' AND b.id = 'n2' CREATE (a)-[:R {tag: 'hello'}]->(b)"
+    )
+
+    # Literal string should work
+    res_literal = conn.execute(
+        "MATCH (a:A)-[e:R]->(b:A) WHERE e.tag = 'hello' RETURN e.tag"
+    )
+    assert list(res_literal) == [["hello"]]
+
+    # Parameterized string should also work
+    res_param = conn.execute(
+        "MATCH (a:A)-[e:R]->(b:A) WHERE e.tag = $t RETURN e.tag",
+        parameters={"t": "hello"},
+    )
+    assert list(res_param) == [["hello"]]
+
+    conn.close()
+    db.close()

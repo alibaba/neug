@@ -194,12 +194,14 @@ neug::result<Context> EdgeExpand::expand_edge_with_special_edge_predicate(
   } else if (config.param_type == DataTypeId::kTimestampMs) {
     return expand_edge_with_special_edge_predicate_impl0<DateTime>(
         graph, std::move(ctx), params, config, target_val);
+  } else if (config.param_type == DataTypeId::kVarchar) {
+    return expand_edge_with_special_edge_predicate_impl0<std::string_view>(
+        graph, std::move(ctx), params, config, target_val);
   } else {
     LOG(ERROR) << "not support edge property type "
-               << static_cast<int>(config.param_type);
-    RETURN_UNSUPPORTED_ERROR(
-        "not support edge property type " +
-        std::to_string(static_cast<int>(config.param_type)));
+               << DataType(config.param_type).ToString();
+    RETURN_UNSUPPORTED_ERROR("not support edge property type " +
+                             DataType(config.param_type).ToString());
   }
 }
 

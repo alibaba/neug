@@ -29,10 +29,6 @@ class OprTimer;
 
 namespace ops {
 
-struct DummyPredicate {
-  static constexpr bool is_dummy = true;
-};
-
 bool edge_expand_get_v_fusable(const physical::PhysicalPlan& plan, int idx,
                                const physical::PhysicalOpr_MetaData& meta) {
   const auto& ee_opr = plan.plan(idx).opr().edge();
@@ -112,7 +108,9 @@ class EdgeExpandVWithEPCmpOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
-    if (!eep_.is_optional) {
+    if ((!eep_.is_optional) &&
+        (config_.ptype == SPPredicateType::kPropertyLT ||
+         config_.ptype == SPPredicateType::kPropertyGT)) {
       const auto& param_value = params.at(config_.param_names[0]);
       auto ret = EdgeExpand::expand_vertex_ep_cmp(graph, std::move(ctx), eep_,
                                                   param_value, config_.ptype);
@@ -155,8 +153,8 @@ class EdgeExpandVOpr : public IOperator {
       return EdgeExpand::expand_vertex<decltype(pred)>(graph, std::move(ctx),
                                                        eep_, pred);
     } else {
-      return EdgeExpand::expand_vertex<DummyPredicate>(graph, std::move(ctx),
-                                                       eep_, DummyPredicate());
+      return EdgeExpand::expand_vertex<DummyPred>(graph, std::move(ctx), eep_,
+                                                  DummyPred());
     }
   }
 
@@ -205,8 +203,7 @@ class EdgeExpandEOpr : public IOperator {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     if (pred_ == nullptr) {
-      return EdgeExpand::expand_edge(graph, std::move(ctx), eep_,
-                                     DummyPredicate());
+      return EdgeExpand::expand_edge(graph, std::move(ctx), eep_, DummyPred());
     } else {
       auto expr = pred_->bind(&graph, params);
       GeneralPred expr_wrapper(std::move(expr));
