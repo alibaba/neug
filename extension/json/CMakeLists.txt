@@ -36,3 +36,12 @@ target_link_libraries(neug_json_extension PRIVATE
     arrow_dataset_objlib
     neug_libraries
 )
+
+# Build test by compiling extension sources directly (no link to neug_json_extension)
+if(BUILD_TEST)
+    add_extension_test(NAME json
+        TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/json_test.cpp
+        EXTRA_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include
+        EXTRA_LINK_LIBS arrow_json arrow_dataset_objlib
+    )
+endif()

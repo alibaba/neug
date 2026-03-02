@@ -688,6 +688,14 @@ set(MACOS_DYLIBS
 "-Wl,-U,_objc_opt_isKindOfClass"
 )
 
+# Define NEUG_EXTENSION_HOME_MACRO for core library (extension.cc) and extension libs.
+# Must be before add_subdirectory(src) so getUserExtensionDir() is compiled with it.
+if(DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY AND CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+    get_filename_component(_neug_extension_home "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" ABSOLUTE)
+    add_compile_definitions(NEUG_EXTENSION_HOME_MACRO="${_neug_extension_home}")
+    message(STATUS "NEUG_EXTENSION_HOME_MACRO is set to ${_neug_extension_home}")
+endif()
+
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)
 add_subdirectory(tools)

@@ -8,6 +8,7 @@ set -e
 #   --version VERSION         Version tag (default: dev)
 #   --platform PLATFORM       Platform identifier (default: linux-x86_64)
 #   --workspace WORKSPACE     Workspace directory (default: current directory)
+#   --python-version VER      Python dir under /opt/python (default: cp310-cp310, or env PYTHON_VERSION)
 #   --skip-build              Skip building, only package and upload
 #   --skip-upload             Skip uploading to OSS
 #   --help                    Show this help message
@@ -19,6 +20,8 @@ PLATFORM="linux_x86_64"
 WORKSPACE_DIR="$(pwd)"
 SKIP_BUILD=false
 SKIP_UPLOAD=false
+# Python version dir under /opt/python (e.g. cp310-cp310), overridable via env PYTHON_VERSION
+PYTHON_VERSION="${PYTHON_VERSION:-cp310-cp310}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -37,6 +40,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --workspace)
             WORKSPACE_DIR="$2"
+            shift 2
+            ;;
+        --python-version)
+            PYTHON_VERSION="$2"
             shift 2
             ;;
         --skip-build)
@@ -58,6 +65,7 @@ Options:
     --version VERSION         Version tag (default: dev)
     --platform PLATFORM       Platform identifier (default: linux-x86_64)
     --workspace WORKSPACE     Workspace directory (default: current directory)
+    --python-version VER      Python dir under /opt/python (default: cp310-cp310, or env PYTHON_VERSION)
     --skip-build              Skip building, only package and upload
     --skip-upload             Skip uploading to OSS
     --help                    Show this help message
@@ -100,6 +108,12 @@ echo "=========================================="
 # Change to workspace directory
 cd "${WORKSPACE_DIR}"
 
+# Set Python 3 environment: use /opt/python/$PYTHON_VERSION/bin if present
+if [ -d /opt/python ] && [ -d "/opt/python/${PYTHON_VERSION}/bin" ]; then
+    export PATH="/opt/python/${PYTHON_VERSION}/bin:${PATH}"
+    echo "Using Python from /opt/python/${PYTHON_VERSION}/bin"
+fi
+
 # Step 1: Build extensions
 if [ "${SKIP_BUILD}" = false ]; then
     echo ""
@@ -114,43 +128,14 @@ if [ "${SKIP_BUILD}" = false ]; then
     # nproc on Linux, sysctl -n hw.ncpu on macOS
     NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
     export BUILD_TYPE=RELEASE
-    export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "${NPROC}" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
-    export BUILD_EXECUTABLES=ON
-    export BUILD_HTTP_SERVER=ON
-    export BUILD_TEST=ON
-    export USE_NINJA=OFF
-    export WITH_MIMALLOC=OFF
-    export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+    export CMAKE_BUILD_PARALLEL_LEVEL=${NPROC}
     export BUILD_EXTENSIONS="${EXTENSIONS}"
-    
-    # Create install directory if needed
-    # When already root, skip sudo (root may not be in sudoers e.g. in Docker)
-    # chown: use $(id -gn) for portable primary group (Linux: often $USER, macOS: often staff)
-    if [ ! -d "/opt/neug-install" ]; then
-        if [ "$(id -u)" -eq 0 ]; then
-            mkdir -p /opt/neug-install
-            chown -R "${SUDO_USER:-root}:$(id -gn "${SUDO_USER:-root}")" /opt/neug-install/ 2>/dev/null || true
-        else
-            sudo mkdir -p /opt/neug-install
-            sudo chown -R "$USER:$(id -gn)" /opt/neug-install/ 2>/dev/null || true
-        fi
-    fi
-    
-    # Set compiler with ccache if available
-    if command -v ccache &> /dev/null; then
-        export CC="ccache gcc"
-        export CXX="ccache g++"
-    fi
     
     # Build
     cd tools/python_bind
     make clean || true
     make requirements || true
     make build
-    
-    if command -v ccache &> /dev/null; then
-        ccache --show-stats
-    fi
     
     echo "Build completed successfully!"
 else
