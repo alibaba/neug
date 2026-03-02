@@ -320,7 +320,7 @@ class TestCopyFromDocs:
             "id INT64, name STRING, age INT64, PRIMARY KEY(id));"
         )
         # modern_graph has person.part1.csv and person.part2.csv
-        part_pattern = os.path.join(self.data_path, "person.part*.csv")
+        part_pattern = os.path.join(self.data_path, "test_data/person.part*.csv")
         self.conn.execute(f'COPY person FROM "{part_pattern}" (header=true);')
         res = self.conn.execute("MATCH (p:person) RETURN count(p);")
         assert list(res)[0][0] == 4

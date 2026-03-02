@@ -1,1 +1,0 @@
-MATCH (u: User) -[r:REVIEW]->(movie: Movie) WHERE r.rating > $rateThresh RETURN COUNT(u);
