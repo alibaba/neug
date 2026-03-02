@@ -141,7 +141,8 @@ class NeugDB {
    * @param max_num_threads Maximum threads for concurrent operations.
    *        If 0, uses hardware concurrency (number of CPU cores)
    * @param mode Database access mode (READ_ONLY or READ_WRITE)
-   * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or "greedy"
+   * @param planner_kind Query planner type: "gopt" (Graph Optimizer) or
+   * "greedy"
    * @param enable_auto_compaction Enable background auto-compaction thread
    * @param compact_csr Compact CSR structures during auto-compaction
    * @param compact_on_close Perform compaction when closing database
@@ -269,6 +270,13 @@ class NeugDB {
    * the connection is closed. And should be only called internally.
    */
   void RemoveConnection(std::shared_ptr<Connection> conn);
+
+  /**
+   * @brief Remove all connection from the database.
+   * @note This method is used to remove all connection when tp svc created, to
+   * remove the handle from the database.
+   */
+  void CloseAllConnection();
 
   inline const PropertyGraph& graph() const { return graph_; }
   inline PropertyGraph& graph() { return graph_; }
