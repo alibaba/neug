@@ -158,6 +158,14 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         ./build/neug_py_bind/examples/cpp/simple_example
 
+    - name: Trim build tree
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build
+        # Drop per-target object directories; binaries and CTest files stay.
+        find . -path '*/CMakeFiles/*.dir' -prune -exec rm -rf {} +
+        find . -type f \( -name '*.o' -o -name '*.o.d' -o -name '*.obj' \) -delete
+        find . -type f -name '*.log' -delete
+
     - name: Package build artifacts
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind
@@ -171,7 +179,6 @@ jobs:
         name: neug-build-${{ github.sha }}-${{ steps.capture-arch.outputs.runner-arch }}
         path: /tmp/neug-build.tar.gz
         retention-days: 1
-        compression-level: 0
 
   # ============================================================
   # Job 2: C++ Tests — run ctest (no bulk loader needed)
