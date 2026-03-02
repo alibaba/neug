@@ -29,21 +29,14 @@ namespace neug {
 
 static std::vector<std::shared_ptr<arrow::DataType>>
     LEGAL_GRAPH_PROPERTY_ARROW_TYPES = {
-        arrow::boolean(),
-        arrow::int8(),
-        arrow::uint8(),
-        arrow::int16(),
-        arrow::uint16(),
-        arrow::int32(),
-        arrow::uint32(),
-        arrow::int64(),
-        arrow::uint64(),
-        arrow::float32(),
-        arrow::float64(),
-        arrow::utf8(),
-        arrow::date32(),
-        arrow::date64(),
-        arrow::timestamp(arrow::TimeUnit::MILLI)};
+        arrow::boolean(),    arrow::int8(),
+        arrow::uint8(),      arrow::int16(),
+        arrow::uint16(),     arrow::int32(),
+        arrow::uint32(),     arrow::int64(),
+        arrow::uint64(),     arrow::float32(),
+        arrow::float64(),    arrow::utf8(),
+        arrow::large_utf8(), arrow::date32(),
+        arrow::date64(),     arrow::timestamp(arrow::TimeUnit::MILLI)};
 
 std::shared_ptr<IArrowArrayBuilder> create_wrap_array_builder(DataType type) {
   if (type.id() == DataTypeId::kInt64) {
@@ -212,7 +205,7 @@ void append_property_to_builder(const Property& prop, DataTypeId type_id,
     APPEND_PROP_CASE(UInt64, arrow::UInt64Builder, prop.as_uint64())
     APPEND_PROP_CASE(Float, arrow::FloatBuilder, prop.as_float())
     APPEND_PROP_CASE(Double, arrow::DoubleBuilder, prop.as_double())
-    APPEND_PROP_CASE(Date, arrow::Date64Builder, prop.as_date().to_timestamp())
+    APPEND_PROP_CASE(Date, arrow::Date64Builder, prop.as_date().to_num_days())
     APPEND_PROP_CASE(
         TimestampMs, arrow::TimestampBuilder,
         prop.as_datetime().milli_second)  // timestamp builder requires millis
@@ -221,6 +214,15 @@ void append_property_to_builder(const Property& prop, DataTypeId type_id,
     assert(string_builder != nullptr);
     const auto& str = prop.as_string_view();
     THROW_IF_ARROW_NOT_OK(string_builder->Append(str.data(), str.size()));
+    break;
+  }
+  case DataTypeId::kInterval: {
+    auto large_string_builder =
+        static_cast<arrow::LargeStringBuilder*>(builder);
+    assert(large_string_builder != nullptr);
+    std::string interval_str = prop.as_interval().to_string();
+    THROW_IF_ARROW_NOT_OK(
+        large_string_builder->Append(interval_str.data(), interval_str.size()));
     break;
   }
   default:
