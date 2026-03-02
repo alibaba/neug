@@ -159,6 +159,7 @@ jobs:
         ./build/neug_py_bind/examples/cpp/simple_example
 
     - name: Trim build tree
+      if: (!(github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push'))
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build
         # Drop per-target object directories; binaries and CTest files stay.
