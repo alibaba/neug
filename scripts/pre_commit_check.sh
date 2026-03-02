@@ -419,11 +419,33 @@ run_python_tests() {
     print_info "Preparing test data at /tmp/modern_graph ..."
     rm -rf /tmp/modern_graph
     if ! $PYTHON_CMD -c "from neug.database import Database; db = Database('/tmp/modern_graph', mode='w'); db.load_builtin_dataset('modern_graph'); db.close()" 2>&1; then
-        print_warning "Failed to prepare test data. Skipping Python tests."
+        print_warning "Failed to prepare modern_graph test data. Skipping Python tests."
         return 0
     fi
-    print_success "Test data prepared"
+    print_success "modern_graph test data prepared"
+
+    print_info "Preparing test data at /tmp/tinysnb ..."
+    rm -rf /tmp/tinysnb
+    if ! $PYTHON_CMD -c "from neug.database import Database; db = Database('/tmp/tinysnb', mode='w'); db.load_builtin_dataset('tinysnb'); db.close()" 2>&1; then
+        print_warning "Failed to prepare tinysnb test data. Skipping Python tests."
+        return 0
+    fi
+    print_success "tinysnb test data prepared"
     
+    # Tests that require the ldbc dataset (only available in CI)
+    local ldbc_deselect=(
+        "--deselect=tests/test_db_query.py::test_length"
+        "--deselect=tests/test_db_query.py::test_nodes_rels"
+        "--deselect=tests/test_db_query.py::test_case_expression"
+        "--deselect=tests/test_db_query.py::test_to_tuple"
+        "--deselect=tests/test_db_query.py::test_dummy_scan"
+        "--deselect=tests/test_db_query.py::test_date_time_to_string"
+        "--deselect=tests/test_db_query.py::test_start_end_node"
+        "--deselect=tests/test_db_query.py::test_shortest_path"
+        "--deselect=tests/test_db_query.py::test_properties"
+        "--deselect=tests/test_db_query.py::test_internal_id_filter"
+    )
+
     # Run a subset of quick tests
     local tests=(
         "tests/test_db_connection.py"
@@ -438,7 +460,13 @@ run_python_tests() {
     for test in "${tests[@]}"; do
         if [ -f "$test" ]; then
             print_info "Running $test..."
-            if $PYTHON_CMD -m pytest -sv "$test" 2>&1; then
+            local deselect_args=()
+            for ds in "${ldbc_deselect[@]}"; do
+                if [[ "$ds" == *"$test"* ]]; then
+                    deselect_args+=("$ds")
+                fi
+            done
+            if $PYTHON_CMD -m pytest -sv "$test" "${deselect_args[@]}" 2>&1; then
                 print_success "$test passed"
             else
                 print_error "$test failed"
