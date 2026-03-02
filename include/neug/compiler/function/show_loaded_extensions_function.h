@@ -32,13 +32,6 @@ struct ShowLoadedExtensionsFunction {
   static constexpr const char* name = "show_loaded_extensions";
 
   static function_set getFunctionSet();
-
-  static std::unique_ptr<ShowLoadedExtensionsFuncInput> bindFunc(
-      const neug::Schema& schema, const neug::execution::ContextMeta& ctx_meta,
-      const ::physical::PhysicalPlan& plan, int op_idx);
-
-  static neug::execution::Context execFunc(
-      const ShowLoadedExtensionsFuncInput& input);
 };
 
 }  // namespace function

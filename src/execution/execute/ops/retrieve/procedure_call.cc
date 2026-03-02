@@ -40,7 +40,7 @@ class ProcedureCallOpr : public IOperator {
     if (callFunction == nullptr) {
       THROW_RUNTIME_ERROR("ProcedureCallOpr: callFunction is nullptr");
     }
-    return callFunction->execFunc(*callInput);
+    return callFunction->execFunc(*callInput, graph);
   }  // namespace ops
 };   // namespace execution
 

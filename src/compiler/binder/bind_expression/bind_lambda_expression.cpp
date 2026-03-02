@@ -34,7 +34,7 @@ namespace binder {
 void ExpressionBinder::bindLambdaExpression(const Expression& lambdaInput,
                                             Expression& lambdaExpr) const {
   ExpressionUtil::validateDataType(lambdaInput, LogicalTypeID::LIST);
-  auto& listChildType = ListType::getChildType(lambdaInput.getDataType());
+  auto& listChildType = neug::common::ListType::getChildType(lambdaInput.getDataType());
   auto& boundLambdaExpr = lambdaExpr.cast<LambdaExpression>();
   auto& parsedLambdaExpr = boundLambdaExpr.getParsedLambdaExpr()
                                ->constCast<ParsedLambdaExpression>();
