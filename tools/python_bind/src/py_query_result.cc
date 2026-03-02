@@ -82,10 +82,10 @@ pybind11::object value_to_pyobject(const ::common::Value& value) {
   case ::common::Value::kNone: {
     return pybind11::none();
   }
-  case ::common::Value::kDate: {      // date32
-    auto days = value.date().item();  // days since epoch
+  case ::common::Value::kDate: {    // date64
+    auto ts = value.date().item();  // ts
     Date day;
-    day.from_num_days(days);
+    day.from_timestamp(ts);
     return pybind11::cast<pybind11::object>(
         PyDate_FromDate(day.year(), day.month(), day.day()));
   }

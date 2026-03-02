@@ -409,7 +409,7 @@ inline void append_rt_any_to_builder(const StorageReadInterface& graph,
   } else if (type == DataType::DATE) {
     auto date_val = val.GetValue<Date>();
     THROW_IF_ARROW_NOT_OK(dynamic_cast<arrow::Date64Builder*>(builder)->Append(
-        date_val.to_num_days()));
+        date_val.to_timestamp()));
   } else if (type == DataType::TIMESTAMP_MS) {
     auto dt_val = val.GetValue<DateTime>();
     THROW_IF_ARROW_NOT_OK(

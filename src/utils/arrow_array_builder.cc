@@ -205,7 +205,7 @@ void append_property_to_builder(const Property& prop, DataTypeId type_id,
     APPEND_PROP_CASE(UInt64, arrow::UInt64Builder, prop.as_uint64())
     APPEND_PROP_CASE(Float, arrow::FloatBuilder, prop.as_float())
     APPEND_PROP_CASE(Double, arrow::DoubleBuilder, prop.as_double())
-    APPEND_PROP_CASE(Date, arrow::Date64Builder, prop.as_date().to_num_days())
+    APPEND_PROP_CASE(Date, arrow::Date64Builder, prop.as_date().to_timestamp())
     APPEND_PROP_CASE(
         TimestampMs, arrow::TimestampBuilder,
         prop.as_datetime().milli_second)  // timestamp builder requires millis

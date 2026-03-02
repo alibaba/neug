@@ -1846,6 +1846,19 @@ def test_checkpoint():
     db.close()
 
 
+def test_return_date():
+    db_dir = "/tmp/tinysnb"
+    query = "MATCH (n) return n.birthdate limit 1"
+    import datetime
+
+    expected = [[datetime.date(1900, 1, 1)]]
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    result = conn.execute(query)
+    records = list(result)
+    assert records == expected, f"Expected {expected}, got {records}"
+
+
 # test START_NODE and END_NODE
 def test_start_end_node():
     db_dir = "/tmp/ldbc"

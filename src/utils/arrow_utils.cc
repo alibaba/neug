@@ -30,7 +30,7 @@ std::shared_ptr<arrow::DataType> PropertyTypeToArrowType(DataTypeId type) {
   case DataTypeId::kVarchar:
     return TypeConverter<std::string_view>::ArrowTypeValue();
   case DataTypeId::kDate:
-    return arrow::date32();
+    return arrow::date64();
   case DataTypeId::kTimestampMs:
     return arrow::timestamp(arrow::TimeUnit::MILLI);
   case DataTypeId::kInterval:

@@ -64,8 +64,9 @@ std::shared_ptr<arrow::DataType> ArrowTypeConverter::convert(
     const auto& temporal = type.temporal();
     switch (temporal.item_case()) {
     case ::common::Temporal::kDate32:
-    case ::common::Temporal::kDate:
       return arrow::date32();
+    case ::common::Temporal::kDate:
+      return arrow::date64();
     case ::common::Temporal::kDateTime:
     case ::common::Temporal::kTimestamp:
       return arrow::timestamp(arrow::TimeUnit::MILLI);
