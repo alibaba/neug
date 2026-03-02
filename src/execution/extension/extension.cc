@@ -44,8 +44,19 @@ namespace neug {
 namespace extension {
 
 std::string getUserExtensionDir(const std::string& extension_name) {
-  const char* home = std::getenv("EXTENSION_HOME");
-  std::string base = home ? home : "/tmp";
+  std::string base;
+  const char* pyenv = std::getenv("NEUG_EXTENSION_HOME_PYENV");
+  if (pyenv && *pyenv) {
+    base = pyenv;
+  }
+#if defined(NEUG_EXTENSION_HOME_MACRO)
+  else {
+    base = NEUG_EXTENSION_HOME_MACRO;
+  }
+#endif
+  if (base.empty()) {
+    base = "/tmp";
+  }
   return base + "/extension/" + extension_name;
 }
 
@@ -169,9 +180,10 @@ Status install_extension(const std::string& extension_name) {
   if (!std::filesystem::exists(localLibPath)) {
     auto st = downloadExtensionFile(repoInfo, localLibPath);
     if (!st.ok()) {
-      return Status(StatusCode::ERR_IO_ERROR, "Failed to download extension " +
-                                                  extension_name + " : " +
-                                                  st.error_message());
+      return Status(StatusCode::ERR_IO_ERROR,
+                    "Failed to download extension " + extension_name +
+                        " to local lib path " + localLibPath + " : " +
+                        st.error_message());
     }
     LOG(INFO) << "[Admin] Extension " << extension_name << " downloaded to "
               << localLibPath;
@@ -467,10 +479,10 @@ Status load_extension(const std::string& extension_name) {
   }
 
   // Not found
-  LOG(ERROR) << "[Admin] Extension " << extension_name
+  LOG(ERROR) << "[Admin] Extension " << userLibPath
              << " not found in user install or wheel package";
   return Status(StatusCode::ERR_IO_ERROR,
-                "Extension " + extension_name +
+                "Extension " + userLibPath +
                     " not found in user install or wheel package");
 }
 

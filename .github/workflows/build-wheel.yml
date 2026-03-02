@@ -62,7 +62,7 @@ jobs:
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.8 on PRs
+      - name: Limit builds to CPython 3.13 on PRs
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
@@ -73,11 +73,12 @@ jobs:
           export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
-        if: false
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          name: wheels-linux-x86_64-${{ github.run_id }}
           path: ./wheelhouse/*.whl
+          if-no-files-found: error
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
@@ -149,11 +150,12 @@ jobs:
           export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
-        if: false
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          name: wheels-linux-arm64-${{ github.run_id }}
           path: ./wheelhouse/*.whl
+          if-no-files-found: error
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
@@ -233,11 +235,12 @@ jobs:
           export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
-        if: false
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          name: wheels-macos-x86_64-${{ github.run_id }}
           path: ./wheelhouse/*.whl
+          if-no-files-found: error
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
@@ -317,11 +320,12 @@ jobs:
           export PYBIND11_FINDPYTHON=OFF
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
-        if: false
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ github.sha }}
+          name: wheels-macos-arm64-${{ github.run_id }}
           path: ./wheelhouse/*.whl
+          if-no-files-found: error
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
@@ -354,3 +358,163 @@ jobs:
         run: |
           neug-cli --help
           neug-cli --version
+
+  test_wheels_linux_x86_64:
+    needs: build_wheels_linux_x86_64
+    if: needs.build_wheels_linux_x86_64.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py
+
+  test_wheels_linux_arm64:
+    needs: build_wheels_linux_arm64
+    if: needs.build_wheels_linux_arm64.result == 'success'
+    runs-on: ubuntu-22.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-arm64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py
+
+  test_wheels_macos_x86_64:
+    needs: build_wheels_macos_x86_64
+    if: needs.build_wheels_macos_x86_64.result == 'success'
+    runs-on: macos-13
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-x86_64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py
+
+  test_wheels_macos_aarch64:
+    needs: build_wheels_macos_aarch64
+    if: needs.build_wheels_macos_aarch64.result == 'success'
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-arm64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py

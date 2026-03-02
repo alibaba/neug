@@ -118,6 +118,8 @@ jobs:
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
         ctest -R json_extension_test -V
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        ctest -R test_extension -V
 
     - name: Run Extension Python Test
       run: |

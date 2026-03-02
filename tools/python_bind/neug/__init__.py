@@ -205,13 +205,12 @@ try:
             raise e
 
     # set home for loading and installing extensions
-    if "EXTENSION_HOME" not in os.environ:
-        if build_dir and os.path.exists(build_dir):
-            os.environ["EXTENSION_HOME"] = build_dir
-        else:
-            cur_dir = os.path.dirname(__file__)
-            os.environ["EXTENSION_HOME"] = os.path.join(cur_dir, "..")
-    logger.info(f"Extension home: {os.environ['EXTENSION_HOME']}")
+    if build_dir and os.path.exists(build_dir):
+        os.environ["NEUG_EXTENSION_HOME_PYENV"] = build_dir
+    else:
+        cur_dir = os.path.dirname(__file__)
+        os.environ["NEUG_EXTENSION_HOME_PYENV"] = os.path.join(cur_dir, "..")
+    logger.info(f"Extension home: {os.environ['NEUG_EXTENSION_HOME_PYENV']}")
 
 
 except ImportError as e:
