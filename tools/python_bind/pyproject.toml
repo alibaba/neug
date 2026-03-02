@@ -47,8 +47,8 @@ test = [
 build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = ["*-musllinux_*", "*i686*"]
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET", "PYBIND11_FINDPYTHON"]
-manylinux-x86_64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-x86_64"
-manylinux-aarch64-image = "registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-manylinux-arm64"
+manylinux-x86_64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-x86_64"
+manylinux-aarch64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-arm64"
 
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init --recursive"]

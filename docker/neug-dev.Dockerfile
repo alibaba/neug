@@ -26,5 +26,5 @@ WORKDIR /home/neug
 
 COPY --chown=neug:neug scripts/install_deps.sh /home/neug/install_deps.sh
 RUN cd /home/neug/ && \
-    bash install_deps.sh --brpc && \
+    bash install_deps.sh && \
     rm -fr install_deps.sh

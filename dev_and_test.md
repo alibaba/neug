@@ -185,8 +185,8 @@ When running python test, set environment variable `DEBUG` to `ON`, to display a
 
 ## Dev images
 
-- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-x86_64: dev container built upload ubuntu for x86_64
-- registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-arm64: dev container built upload ubuntu for amr64
+- neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0-x86_64: dev container built upload ubuntu for x86_64
+- neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0-arm64: dev container built upload ubuntu for amr64
 
 ## Alter property on edge
 1. Alter property on edge with single property

@@ -76,7 +76,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, X64]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -319,7 +319,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, ARM64]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
       - name: checkout
         uses: actions/checkout@v4

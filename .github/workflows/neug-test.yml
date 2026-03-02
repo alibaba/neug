@@ -62,7 +62,7 @@ jobs:
     outputs:
       runner-arch: ${{ steps.capture-arch.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: Capture Runner Architecture
       id: capture-arch
@@ -189,7 +189,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -282,7 +282,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -466,7 +466,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -613,7 +613,7 @@ jobs:
         path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
 
   # ============================================================
-  # Job 6: Coverage — generate and upload the coverage report.
+  # Job 5: Coverage — generate and upload the coverage report.
   # ============================================================
   coverage-report:
     needs: [build, test-cpp, test-python, test-e2e]

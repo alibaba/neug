@@ -1,4 +1,4 @@
-FROM registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev as builder
+FROM neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0 as builder
 
 USER neug
 
