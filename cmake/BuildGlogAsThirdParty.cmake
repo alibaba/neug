@@ -17,7 +17,7 @@
 function (build_glog_as_third_party)
     set(CMAKE_DEBUG_POSTFIX "" FORCE)
     set(WITH_GFLAGS OFF CACHE BOOL "Build glog without gflags" FORCE)
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static library" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
     add_subdirectory(third_party/glog)
     include_directories(SYSTEM third_party/glog/src)
