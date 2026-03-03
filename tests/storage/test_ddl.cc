@@ -256,7 +256,7 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   }
   {
     auto res = conn->Query("COPY person from \"" + flex_data_dir +
-                           "/person_after_alter.csv\";");
+                           "/test_data/person_after_alter.csv\";");
     EXPECT_TRUE(res);
   }
   {

@@ -1,3 +1,16 @@
+diff --git a/absl/base/options.h b/absl/base/options.h
+index d7bf8cff..f1f2633c 100644
+--- a/absl/base/options.h
++++ b/absl/base/options.h
+@@ -148,7 +148,7 @@
+ // absl::string_view is a typedef of std::string_view, use the feature macro
+ // ABSL_USES_STD_STRING_VIEW.
+ 
+-#define ABSL_OPTION_USE_STD_STRING_VIEW 2
++#define ABSL_OPTION_USE_STD_STRING_VIEW 0  // Force Abseil string_view to avoid mismatch across targets
+ 
+ // ABSL_OPTION_USE_STD_VARIANT
+ //
 diff --git a/absl/container/CMakeLists.txt b/absl/container/CMakeLists.txt
 index 128cc0e9..0a8177f8 100644
 --- a/absl/container/CMakeLists.txt

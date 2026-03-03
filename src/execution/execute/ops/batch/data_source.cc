@@ -56,11 +56,12 @@ class DataSourceOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     NEUG_ASSERT(readFunction != nullptr);
     return readFunction->execFunc(sharedState);
   }
-};  // namespace ops
+};
 
 std::shared_ptr<ReadSharedState> ReadStateBuilder::build(
     const ::physical::DataSource& data_source) {

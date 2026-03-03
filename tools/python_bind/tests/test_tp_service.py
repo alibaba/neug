@@ -58,7 +58,7 @@ def test_batch_loading(setup_database):
         raise Exception("FLEX_DATA_DIR is not set")
     person_csv = os.path.join(flex_data_dir, "person.csv")
     person_knows_person_csv = os.path.join(
-        flex_data_dir, "person_knows_person.part*.csv"
+        flex_data_dir, "test_data/person_knows_person.part*.csv"
     )
     sess = Session(uri, timeout="10s")
     sess.execute(

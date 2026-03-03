@@ -324,6 +324,7 @@ void dispatch_generate_dedup_offset(
     ARROW_TYPE_DISPATCHER_DEDUP(STRING, arrow::StringArray)
     ARROW_TYPE_DISPATCHER_DEDUP(LARGE_STRING, arrow::LargeStringArray)
     ARROW_TYPE_DISPATCHER_DEDUP(DATE32, arrow::Date32Array)
+    ARROW_TYPE_DISPATCHER_DEDUP(DATE64, arrow::Date64Array)
     ARROW_TYPE_DISPATCHER_DEDUP(TIMESTAMP, arrow::TimestampArray)
     // Interval type has been converted to arrow string type
 
@@ -391,6 +392,8 @@ std::shared_ptr<IContextColumn> ArrowArrayContextColumn::shuffle(
                                   arrow::LargeStringBuilder)
     ARROW_TYPE_DISPATCHER_SHUFFLE(DATE32, arrow::Date32Array,
                                   arrow::Date32Builder)
+    ARROW_TYPE_DISPATCHER_SHUFFLE(DATE64, arrow::Date64Array,
+                                  arrow::Date64Builder)
     ARROW_TYPE_DISPATCHER_SHUFFLE(TIMESTAMP, arrow::TimestampArray,
                                   arrow::TimestampBuilder)
 

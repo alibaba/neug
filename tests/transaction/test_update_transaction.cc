@@ -767,7 +767,6 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
     neug::test::AssertDoubleColumn(value.table(), 0, {0.8});
     neug::test::AssertInt64Column(value.table(), 1, {2021});
   }
-  db.Close();
 }
 
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
@@ -2361,5 +2360,83 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
         gi, person_label, software_label, review_label);
     verify_string_views(updated_views, fetched_views);
     EXPECT_TRUE(txn.Commit());
+  }
+}
+
+TEST_F(UpdateTransactionTest, TestTPServiceStart) {
+  neug::NeugDB db;
+  neug::NeugDBConfig config(db_dir);
+  config.memory_level = 1;
+  db.Open(config);
+  auto conn = db.Connect();
+  auto svc = std::make_shared<neug::NeugDBService>(db);
+  // conn should be closed when tp service start
+  auto result = conn->Query(
+      "MATCH (a:person {id: 1})-[r:created]->(b:software) "
+      "RETURN r.weight AS weight, r.since AS since;");
+  EXPECT_FALSE(result);
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetUpdateTransaction();
+    auto person_label = txn.schema().get_vertex_label_id("person");
+    auto software_label = txn.schema().get_vertex_label_id("software");
+    auto created_label = txn.schema().get_edge_label_id("created");
+    neug::vid_t vertex_id;
+    CHECK(txn.GetVertexIndex(person_label, neug::Property::from_int64(1),
+                             vertex_id));
+
+    update_edge_property(
+        txn, person_label, software_label, created_label, vertex_id,
+        [](neug::vid_t dst_vid) { return true; },
+        [&](neug::vid_t dst_vid, int32_t oe_offset, int32_t ie_offset) {
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 0, neug::Property::from_double(0.9));
+          txn.UpdateEdgeProperty(person_label, vertex_id, software_label,
+                                 dst_vid, created_label, oe_offset, ie_offset,
+                                 1, neug::Property::from_int64(2023));
+        });
+
+    txn.Abort();
+  }
+  {
+    auto sess = svc->AcquireSession();
+    auto txn = sess->GetReadTransaction();
+    neug::StorageReadInterface gi(txn.graph(), txn.timestamp());
+    auto person_label = gi.schema().get_vertex_label_id("person");
+    auto software_label = gi.schema().get_vertex_label_id("software");
+    auto created_label = gi.schema().get_edge_label_id("created");
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
+    auto ed_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 0);
+    auto since_accessor =
+        gi.GetEdgeDataAccessor(person_label, software_label, created_label, 1);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (neug::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
+      if (oid.as_int64() == 1) {
+        auto edge_iter = view.get_edges(vid);
+        for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+          EXPECT_EQ(ed_accessor.get_data(it).as_double(), 0.8);
+          EXPECT_EQ(since_accessor.get_data(it).as_int64(), 2021);
+        }
+      }
+    }
+  }
+  db.Close();
+  {
+    neug::NeugDB db2;
+    neug::NeugDBConfig config2(db_dir);
+    config2.memory_level = 1;
+    db2.Open(config2);
+    auto conn2 = db2.Connect();
+    auto result = conn2->Query(
+        "MATCH (a:person {id: 1})-[r:created]->(b:software) "
+        "RETURN r.weight AS weight, r.since AS since;");
+    EXPECT_TRUE(result);
+    auto& value = result.value();
+    neug::test::AssertDoubleColumn(value.table(), 0, {0.8});
+    neug::test::AssertInt64Column(value.table(), 1, {2021});
   }
 }

@@ -100,6 +100,7 @@ class NeugDBService {
    */
   NeugDBService(neug::NeugDB& db, const ServiceConfig& config = ServiceConfig())
       : db_(db), db_config_(db_.config()), compact_thread_running_(false) {
+    db_.CloseAllConnection();
     init(config);
   }
 

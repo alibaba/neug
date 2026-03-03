@@ -29,26 +29,26 @@ operation=$4
 
 
 if [[ "${operation}" == "create" ]]; then
-    echo "Create mainfest registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}"
+    echo "Create mainfest registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}"
 
     docker manifest create \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version} \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}-arm64 \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}-amd64
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version} \
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}-arm64 \
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}-x86_64
 
-    docker manifest push registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}
+    docker manifest push registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}
 
 elif [[ "${operation}" == "update" ]]; then
-    echo "Update mainfest registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}"
+    echo "Update mainfest registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}"
 
-    docker manifest rm registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}
+    docker manifest rm registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}
     docker manifest create \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version} \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}-arm64 \
-        registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}-amd64
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version} \
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}-arm64 \
+        registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}-x86_64
 
-    docker manifest push registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version}
+    docker manifest push registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version}
 
 elif [[ "${operation}" == "inspect" ]]; then
-    docker manifest inspect registry.cn-${region}.aliyuncs.com/graphscope/${image_name}:${version} | jq '.manifests[] | { "arch": .platform.architecture, "digest": .digest }'
+    docker manifest inspect registry.cn-${region}.aliyuncs.com/neug/${image_name}:${version} | jq '.manifests[] | { "arch": .platform.architecture, "digest": .digest }'
 fi

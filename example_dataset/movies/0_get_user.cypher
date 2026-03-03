@@ -1,1 +1,0 @@
-MATCH (u: User) Return u.id, u.name LIMIT 5;

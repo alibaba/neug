@@ -20,13 +20,11 @@
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/table/table_function.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/graph_interface.h"
 
 namespace neug {
 class Schema;
-class IStorageInterface;  // Forward declaration for graph interface
-
+class IStorageInterface;
 namespace execution {
 class ContextMeta;
 class Context;
@@ -43,7 +41,7 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
 
 // Extended exec function type that receives graph interface
 using call_exec_func_t =
-    std::function<execution::Context(const CallFuncInputBase& input, IStorageInterface& graph)>;
+    std::function<execution::Context(const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;

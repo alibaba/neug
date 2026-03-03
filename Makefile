@@ -1,4 +1,4 @@
-.PHONY: python-dev python-wheel python-clean clean help
+.PHONY: python-dev python-wheel python-clean clean format-check full-check help
 
 # Check for required tools at the start of each target
 
@@ -26,6 +26,14 @@ python-clean: check-tools ## Clean up Python build artifacts
 .PHONY: clean
 clean: ## Clean up all build artifacts
 	make python-clean
+
+.PHONY: format-check
+format-check: ## Run format checks only (C++ and Python)
+	@bash scripts/pre_commit_check.sh --format-only
+
+.PHONY: full-check
+full-check: ## Run full checks (format + build + tests)
+	@bash scripts/pre_commit_check.sh --full
 
 .PHONY: help
 help:  ## Display this help information

@@ -435,7 +435,7 @@ TEST_F(ArrowTypeConverterTest, Convert_TemporalTypes) {
     auto input = MakeDateType();
     auto result = converter_.convert(input);
     ASSERT_NE(result, nullptr);
-    EXPECT_TRUE(result->Equals(arrow::date32()));
+    EXPECT_TRUE(result->Equals(arrow::date64()));
   }
 
   {

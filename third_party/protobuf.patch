@@ -1,27 +1,87 @@
-diff --git a/src/google/protobuf/generated_message_tctable_impl.h b/src/google/protobuf/generated_message_tctable_impl.h
-index 21fa5332d..715e585a7 100644
---- a/src/google/protobuf/generated_message_tctable_impl.h
-+++ b/src/google/protobuf/generated_message_tctable_impl.h
-@@ -32,6 +32,7 @@
- #define GOOGLE_PROTOBUF_GENERATED_MESSAGE_TCTABLE_IMPL_H__
+diff --git a/cmake/libprotobuf-lite.cmake b/cmake/libprotobuf-lite.cmake
+index 9aa81fb88..bd410860a 100644
+--- a/cmake/libprotobuf-lite.cmake
++++ b/cmake/libprotobuf-lite.cmake
+@@ -2,6 +2,7 @@
  
- #include <cstdint>
-+#include <cstdlib>
- #include <type_traits>
+ include(${protobuf_SOURCE_DIR}/src/file_lists.cmake)
+ include(${protobuf_SOURCE_DIR}/cmake/protobuf-configure-target.cmake)
++set(_protobuf_utf8_dir ${protobuf_SOURCE_DIR}/third_party/utf8_range)
  
- #include <google/protobuf/port.h>
-@@ -248,11 +249,11 @@ enum FieldType : uint16_t {
+ add_library(libprotobuf-lite ${protobuf_SHARED_OR_STATIC}
+   ${libprotobuf_lite_srcs}
+@@ -27,6 +28,7 @@ target_include_directories(libprotobuf-lite PUBLIC
+   $<BUILD_INTERFACE:${protobuf_SOURCE_DIR}/src>
+   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+ )
++target_include_directories(libprotobuf-lite PRIVATE ${_protobuf_utf8_dir})
+ target_link_libraries(libprotobuf-lite PUBLIC ${protobuf_ABSL_USED_TARGETS})
+ protobuf_configure_target(libprotobuf-lite)
+ protobuf_configure_unity_target(libprotobuf-lite)
+@@ -46,4 +48,8 @@ set_target_properties(libprotobuf-lite PROPERTIES
+ )
+ add_library(protobuf::libprotobuf-lite ALIAS libprotobuf-lite)
  
- #ifndef NDEBUG
- template <size_t align>
--#ifndef _MSC_VER
--[[noreturn]]
--#endif
- void AlignFail(uintptr_t address) {
-   GOOGLE_LOG(FATAL) << "Unaligned (" << align << ") access at " << address;
-+
-+  // Explicit abort to let compilers know this function does not return
-+  abort();
- }
+-target_link_libraries(libprotobuf-lite PRIVATE utf8_validity)
++# target_link_libraries(libprotobuf-lite PRIVATE utf8_validity)
++target_sources(libprotobuf-lite PRIVATE
++  ${_protobuf_utf8_dir}/utf8_range.c
++  ${_protobuf_utf8_dir}/utf8_validity.cc
++)
+diff --git a/cmake/libprotobuf.cmake b/cmake/libprotobuf.cmake
+index 11c09b1bc..b9f4db853 100644
+--- a/cmake/libprotobuf.cmake
++++ b/cmake/libprotobuf.cmake
+@@ -2,6 +2,7 @@
  
- extern template void AlignFail<4>(uintptr_t);
+ include(${protobuf_SOURCE_DIR}/src/file_lists.cmake)
+ include(${protobuf_SOURCE_DIR}/cmake/protobuf-configure-target.cmake)
++set(_protobuf_utf8_dir ${protobuf_SOURCE_DIR}/third_party/utf8_range)
+ 
+ add_library(libprotobuf ${protobuf_SHARED_OR_STATIC}
+   ${libprotobuf_srcs}
+@@ -30,6 +31,7 @@ target_include_directories(libprotobuf PUBLIC
+   $<BUILD_INTERFACE:${protobuf_SOURCE_DIR}/src>
+   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+ )
++target_include_directories(libprotobuf PRIVATE ${_protobuf_utf8_dir})
+ target_link_libraries(libprotobuf PUBLIC ${protobuf_ABSL_USED_TARGETS})
+ protobuf_configure_target(libprotobuf)
+ if(protobuf_BUILD_SHARED_LIBS)
+@@ -48,4 +50,8 @@ set_target_properties(libprotobuf PROPERTIES
+ )
+ add_library(protobuf::libprotobuf ALIAS libprotobuf)
+ 
+-target_link_libraries(libprotobuf PRIVATE utf8_validity)
++# target_link_libraries(libprotobuf PRIVATE utf8_validity)
++target_sources(libprotobuf PRIVATE
++  ${_protobuf_utf8_dir}/utf8_range.c
++  ${_protobuf_utf8_dir}/utf8_validity.cc
++)
+diff --git a/cmake/libupb.cmake b/cmake/libupb.cmake
+index 7476e56eb..09357da68 100644
+--- a/cmake/libupb.cmake
++++ b/cmake/libupb.cmake
+@@ -2,6 +2,7 @@
+ 
+ include(${protobuf_SOURCE_DIR}/src/file_lists.cmake)
+ include(${protobuf_SOURCE_DIR}/cmake/protobuf-configure-target.cmake)
++set(_protobuf_utf8_dir ${protobuf_SOURCE_DIR}/third_party/utf8_range)
+ 
+ set(bootstrap_cmake_dir ${protobuf_SOURCE_DIR}/upb/reflection/cmake)
+ set(bootstrap_sources
+@@ -24,6 +25,7 @@ target_include_directories(libupb PUBLIC
+   $<BUILD_INTERFACE:${bootstrap_cmake_dir}>
+   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+ )
++target_include_directories(libupb PRIVATE ${_protobuf_utf8_dir})
+ 
+ protobuf_configure_target(libupb)
+ 
+@@ -37,4 +39,5 @@ set_target_properties(libupb PROPERTIES
+     VISIBILITY_INLINES_HIDDEN ON
+ )
+ add_library(protobuf::libupb ALIAS libupb)
+-target_link_libraries(libupb PRIVATE utf8_range)
++# target_link_libraries(libupb PRIVATE utf8_range)
++target_sources(libupb PRIVATE ${_protobuf_utf8_dir}/utf8_range.c)

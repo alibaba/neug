@@ -475,7 +475,7 @@ TEST_F(ArrowUtilsTest, PropertyTypeToArrowType_Function) {
   EXPECT_TRUE(float_type->Equals(arrow::float32()));
 
   auto date_type = PropertyTypeToArrowType(DataTypeId::kDate);
-  EXPECT_TRUE(date_type->Equals(arrow::date32()));
+  EXPECT_TRUE(date_type->Equals(arrow::date64()));
 
   auto string_type = PropertyTypeToArrowType(DataTypeId::kVarchar);
   EXPECT_TRUE(string_type->Equals(arrow::utf8()));

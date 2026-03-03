@@ -27,14 +27,13 @@ import sys
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("neug")
 
-if sys.platform == "darwin":
-    try:
-        import gnureadline as readline  # https://ipython.org/ipython-doc/2/install/install.html#readline
-    except ImportError:
-        logger.warning("gnureadline not available, falling back to standard readline")
-        import readline
-else:
-    import readline
+try:
+    import readline  # type: ignore
+except ImportError:
+    readline = None
+    logger.warning(
+        "readline module is unavailable; command history features are disabled"
+    )
 
 import click
 
@@ -64,19 +63,23 @@ class NeugShell(cmd.Cmd):
         self.multi_line_mode = False
         self.max_rows = 20  # Default max rows for query results
 
-        # Set and read history file
-        histfile = os.path.join(os.path.expanduser("~"), ".neug_history")
-        try:
-            readline.read_history_file(histfile)
-        except FileNotFoundError:
-            pass
-        # Register history save at exit
-        atexit.register(readline.write_history_file, histfile)
+        # Set and read history file when readline is available
+        self._histfile = os.path.join(os.path.expanduser("~"), ".neug_history")
+        if readline:
+            try:
+                readline.read_history_file(self._histfile)
+            except FileNotFoundError:
+                pass
+            atexit.register(self._save_history, self._histfile)
+        else:
+            logger.info("Command history disabled; readline support not detected.")
 
         logger.info("Connection established.")
 
     def _save_history(self, histfile):
         """Save command history with error handling"""
+        if not readline:
+            return
         try:
             readline.write_history_file(histfile)
         except (PermissionError, OSError) as e:
@@ -114,7 +117,8 @@ class NeugShell(cmd.Cmd):
                 self.prompt = PROMPT
                 self.do_query(full_query)
                 # Add complete query to history after execution
-                readline.add_history(full_query)
+                if readline:
+                    readline.add_history(full_query)
             else:
                 self.prompt = ALTPROMPT
         else:

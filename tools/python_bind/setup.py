@@ -110,7 +110,9 @@ class CMakeBuild(build_ext):
         enable_backtraces = (
             "ON" if os.environ.get("ENABLE_BACKTRACES", "OFF") == "ON" else "OFF"
         )
-        with_mimalloc = "ON" if os.environ.get("WITH_MIMALLOC", "ON") == "ON" else "OFF"
+        with_mimalloc = (
+            "ON" if os.environ.get("WITH_MIMALLOC", "OFF") == "ON" else "OFF"
+        )
         build_extensions = os.environ.get("BUILD_EXTENSIONS", "")
         cmake_install_prefix = os.environ.get("CMAKE_INSTALL_PREFIX", None)
         use_ninja = os.environ.get("USE_NINJA", "OFF") == "ON"
@@ -362,7 +364,6 @@ setup(
         "tabulate>=0.9.0",
         "PyYAML>=6.0.2",
         "tqdm",
-        "gnureadline>=8.0.0; sys_platform == 'darwin'",
         "Flask",
         "Flask-Cors",
     ],

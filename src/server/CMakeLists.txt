@@ -1,7 +1,7 @@
 if (BUILD_HTTP_SERVER)
     file(GLOB_RECURSE NEUG_SERVER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
     add_library(neug_execution_service OBJECT ${NEUG_SERVER_FILES})
-    add_dependencies(neug_execution_service neug_plan_proto)
+    add_dependencies(neug_execution_service neug_plan_proto neug_utils)
     target_include_directories(neug_execution_service PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../utils/neug/generated/proto/plan")
     set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_execution_service> PARENT_SCOPE)
 endif()

@@ -1,6 +1,5 @@
 add_subdirectory(compiler)
 add_subdirectory(execution)
-add_subdirectory(extension)
 add_subdirectory(storage)
 add_subdirectory(transaction)
 add_subdirectory(unittest)

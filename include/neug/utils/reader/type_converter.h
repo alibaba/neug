@@ -50,7 +50,7 @@ class TypeConverter {
  * instances. Supported types include:
  * - Primitive types: BOOL, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE
  * - String types: all string variants map to Arrow utf8()
- * - Temporal types: DATE (date32), TIMESTAMP (timestamp with millisecond),
+ * - Temporal types: DATE (date64), TIMESTAMP (timestamp with millisecond),
  *   INTERVAL (duration with millisecond)
  * - Complex types: ARRAY (list/fixed_size_list), MAP (map)
  *
@@ -63,7 +63,7 @@ class TypeConverter {
  * definitions and Arrow DataType instances. Supported types include:
  * - Primitive types: BOOL, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE
  * - String types: all string variants map to Arrow utf8()
- * - Temporal types: DATE (date32), TIMESTAMP (timestamp with millisecond),
+ * - Temporal types: DATE (date64), TIMESTAMP (timestamp with millisecond),
  *   INTERVAL (duration with millisecond)
  * - Complex types: ARRAY (list/fixed_size_list), MAP (map)
  *

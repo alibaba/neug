@@ -105,176 +105,17 @@ add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 add_definitions(-DNEUG_EXTENSION_VERSION="0.1.0")
 include(CheckCXXCompilerFlag)
 
-macro(install_neug_target target)
-    if (NOT TARGET ${target})
-        message(WARNING "Target ${target} does not exist, cannot be installed.")
-        return()
-    endif()
 
-    get_target_property(actual_target ${target} ALIASED_TARGET)
-    if(actual_target)
-        if(NOT TARGET ${actual_target})
-            message(WARNING "Aliased target ${target} points to ${actual_target}, which does not exist. Cannot be installed.")
-            return()
-        endif()
-        set(_neug_install_target ${actual_target})
-    else()
-        set(_neug_install_target ${target})
-    endif()
+set(DEFAULT_BUILD_TYPE "Release")
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE
+      STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+               "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif ()
 
-    get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
-    get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
-    if(_neug_public_headers AND NOT _neug_public_headers STREQUAL "_neug_public_headers-NOTFOUND" AND NOT _neug_public_headers STREQUAL "NOTFOUND")
-        set(_neug_public_header_abs)
-        foreach(_hdr IN LISTS _neug_public_headers)
-            if(NOT IS_ABSOLUTE "${_hdr}" AND _neug_target_source_dir)
-                list(APPEND _neug_public_header_abs "${_neug_target_source_dir}/${_hdr}")
-            else()
-                list(APPEND _neug_public_header_abs "${_hdr}")
-            endif()
-        endforeach()
-        # Update the target property so install(TARGETS) can rely on it
-        set_target_properties(${_neug_install_target} PROPERTIES PUBLIC_HEADER "${_neug_public_header_abs}")
-        set(_neug_public_header_args PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-    else()
-        set(_neug_public_header_args)
-    endif()
-
-    install(TARGETS ${_neug_install_target}
-        EXPORT neug-targets
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ${_neug_public_header_args}
-    )
-endmacro()
-
-if (BUILD_HTTP_SERVER)
-    add_compile_definitions(BUILD_HTTP_SERVER)
-endif()
-
-if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml-cpp/CMakeLists.txt")
-    execute_process(
-        COMMAND git submodule update --init
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        RESULT_VARIABLE result
-    )
-    if(result)
-        message(FATAL_ERROR "Failed to update git submodule: ${result}")
-    endif()
-endif()
-
-if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf/third_party/abseil-cpp/CMakeLists.txt")
-    execute_process(
-        COMMAND git submodule update --init
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/protobuf
-        RESULT_VARIABLE result
-    )
-    if(result)
-        message(FATAL_ERROR "Failed to update protobuf git submodule: ${result}")
-    endif()
-endif()
-
-if (WITH_MIMALLOC)
-    set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
-    set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
-    set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library") 
-    set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
-    # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
-    add_subdirectory(third_party/mimalloc)
-    set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
-    include_directories(SYSTEM third_party/mimalloc/include)
-    unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
-endif()
-
-add_subdirectory(third_party/fast_float)
-include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/fast_float/include)
-
-if(BUILD_TEST)
-    enable_testing()
-    # Always use the bundled googletest to avoid discrepancies in system packages.
-    add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
-    add_library(neug::GTest INTERFACE IMPORTED)
-    target_link_libraries(neug::GTest INTERFACE gtest_main)
-    target_link_libraries(neug::GTest INTERFACE gmock_main)
-endif()
-
-if (ENABLE_BACKTRACES)
-    find_package(cpptrace)
-    if (NOT cpptrace_FOUND)
-        include(FetchContent)
-        FetchContent_Declare(
-          cpptrace
-          GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-          GIT_TAG        v1.0.2
-          GIT_SHALLOW    TRUE
-        )
-        FetchContent_MakeAvailable(cpptrace)
-        include_directories(SYSTEM ${cpptrace_SOURCE_DIR}/include)
-    endif()
-    add_compile_definitions(NEUG_BACKTRACE)
-endif()
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options(-Wno-restrict) # no restrict until https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105651 is fixed
-endif()
-
-#----------------------------------------------------------------------------------
-# Detect OS and architecture, copied from DuckDB
-set(OS_NAME "unknown")
-set(OS_ARCH "amd64")
-
-string(REGEX MATCH "(arm64|aarch64)" IS_ARM "${CMAKE_SYSTEM_PROCESSOR}")
-if(IS_ARM)
-  set(OS_ARCH "arm64")
-elseif(FORCE_32_BIT)
-  set(OS_ARCH "i386")
-endif()
-
-if(APPLE)
-  set(OS_NAME "osx")
-endif()
-if(WIN32)
-  set(OS_NAME "windows")
-endif()
-if(UNIX AND NOT APPLE)
-  set(OS_NAME "linux") # sorry BSD
-endif()
-
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "64-bit architecture detected")
-    add_compile_definitions(__64BIT__)
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(STATUS "32-bit architecture detected")
-    add_compile_definitions(__32BIT__)
-    set(__32BIT__ TRUE)
-endif()
-
-
-
-#print options
-message(STATUS "Build test: ${BUILD_TEST}")
-message(STATUS "Build doc: ${BUILD_DOC}")
-message(STATUS "Build odps fragment loader: ${BUILD_ODPS_FRAGMENT_LOADER}")
-
-# ------------------------------------------------------------------------------
-# cmake configs
-# ------------------------------------------------------------------------------
-
-include(CheckLibraryExists)
-include(GNUInstallDirs)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-include(CheckCXXSourceCompiles)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
-# pb files generated under src/utils
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
-# system_config.h generated under src/compiler
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/compiler)
-
-# Print cc and cxx compiler
-message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
-message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
-
+add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
 
 # reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
@@ -300,128 +141,6 @@ if(ENABLE_WERROR)
         add_compile_options(-Werror)
     endif()
 endif()
-
-function(add_neug_test TEST_NAME)
-    find_package(OpenSSL REQUIRED)
-    set(SRCS ${ARGN})
-    add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
-        ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
-        ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
-    if (ENABLE_GCOV)
-        target_compile_options(${TEST_NAME} PRIVATE --coverage)
-        target_link_options(${TEST_NAME} PRIVATE --coverage)
-    endif()
-    include(GoogleTest)
-	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
-endfunction()
-
-
-set(TEST_PROGRAM "
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <fcntl.h>
-
-int main() {
-  int fd_in = -1, fd_out = -1;
-  struct stat stat_buf;
-  copy_file_range(fd_in, NULL, fd_out, NULL, stat_buf.st_size, 0);
-  return 0;
-}
-")
-
-check_cxx_source_compiles("${TEST_PROGRAM}" HAVE_COPY_FILE_RANGE_COMPILES)
-
-if(NOT HAVE_COPY_FILE_RANGE_COMPILES)
-    message(WARNING "copy_file_range is not available or failed to compile!")
-else()
-    message(STATUS "copy_file_range compilation succeeded.")
-endif()
-
-if(HAVE_COPY_FILE_RANGE_COMPILES)
-    add_definitions(-DUSE_COPY_FILE_RANGE)
-endif()
-
-find_package(Threads REQUIRED)
-find_package(OpenSSL)
-if (NOT OpenSSL_FOUND)
-    message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
-endif()
-include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
-
-# if os is macos, 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    message("macos detected")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
-endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
-check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
-check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
-check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
-check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
-check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
-if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
-endif()
-if (COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
-endif()
-if (COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
-endif()
-if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-overflow")
-endif()
-if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
-endif()
-
-if (BUILD_WITH_OSS)
-    add_definitions(-DBUILD_WITH_OSS)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/aliyun-oss-cpp-sdk/sdk/include)
-    set(TARGET_OUTPUT_NAME_PREFIX "alibabacloud-oss-" CACHE STRING "The target's output name prefix")
-    add_subdirectory(third_party/aliyun-oss-cpp-sdk)
-endif()
-
-if (BUILD_PYTHON)
-    message("Build python embedded")
-    # To build wheel in manylinux docker, we should not link to a specific python library.
-    # Get environment variable PYBIND11_FINDPYTHON, if it is set to ON, we will set PYBIND11_FINDPYTHON to ON, otherwise, we will not set it, and let pybind11 find python by itself.
-    set(PYBIND11_FINDPYTHON ON)
-    if (DEFINED ENV{PYBIND11_FINDPYTHON}) 
-        if ($ENV{PYBIND11_FINDPYTHON} STREQUAL "OFF")
-            message(STATUS "Environment variable PYBIND11_FINDPYTHON is set to OFF")
-            set(PYBIND11_FINDPYTHON OFF)
-        elseif (NOT ( $ENV{PYBIND11_FINDPYTHON} STREQUAL "ON"))
-            message(WARNING "Environment variable PYBIND11_FINDPYTHON is set to ${ENV{PYBIND11_FINDPYTHON}}, which is not ON or OFF, by default is ON")
-        endif()
-    else()
-        message(STATUS "Environment variable PYBIND11_FINDPYTHON is not set, by default is ON")
-    endif()
-    add_subdirectory(third_party/pybind11)
-endif()
-
-
-if(POLICY CMP0167)
-  cmake_policy(SET CMP0167 NEW)
-endif()
-
-include_directories(SYSTEM third_party/HowardHinnant/date/include)
-
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-
-set(DEFAULT_BUILD_TYPE "Release")
-if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE
-      STRING "Choose the type of build." FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-               "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif ()
-
-add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
 
 if (APPLE)
     set(CMAKE_MACOSX_RPATH ON)
@@ -484,6 +203,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-uninitialized")
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nonnull ") # brought by arrow
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-Wno-restrict) # no restrict until https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105651 is fixed
+endif()
 
 
 #------------------------Brought by compiler------------------------------------
@@ -512,6 +234,279 @@ endif()
 if(${ENABLE_LTO})
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
+
+# if os is macos, 
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message("macos detected")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-class-conversion -fclang-abi-compat=14") # need fclang-abi-compat for clang compiler, due to absl problem: https://github.com/protocolbuffers/protobuf/issues/12693
+endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
+check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+check_cxx_compiler_flag("-Wno-deprecated-declarations" COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+check_cxx_compiler_flag("-Wno-attributes" COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+check_cxx_compiler_flag("-Wno-error=stringop-overflow" COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+check_cxx_compiler_flag("-Wno-array-bounds" COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+if (COMPILER_SUPPORTS_SIGN_COMPARE_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
+endif()
+if (COMPILER_SUPPORTS_DEPRECATED_DECLARATIONS_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+endif()
+if (COMPILER_SUPPORTS_ATTRIBUTES_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-attributes")
+endif()
+if (COMPILER_SUPPORTS_STRINGOP_OVERFLOW_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=stringop-overflow")
+endif()
+if (COMPILER_SUPPORTS_ARRAY_BOUNDS_FLAG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
+endif()
+
+macro(install_neug_target target)
+    if (NOT TARGET ${target})
+        message(WARNING "Target ${target} does not exist, cannot be installed.")
+        return()
+    endif()
+
+    get_target_property(actual_target ${target} ALIASED_TARGET)
+    if(actual_target)
+        if(NOT TARGET ${actual_target})
+            message(WARNING "Aliased target ${target} points to ${actual_target}, which does not exist. Cannot be installed.")
+            return()
+        endif()
+        set(_neug_install_target ${actual_target})
+    else()
+        set(_neug_install_target ${target})
+    endif()
+
+    get_target_property(_neug_public_headers ${_neug_install_target} PUBLIC_HEADER)
+    get_target_property(_neug_target_source_dir ${_neug_install_target} SOURCE_DIR)
+    if(_neug_public_headers AND NOT _neug_public_headers STREQUAL "_neug_public_headers-NOTFOUND" AND NOT _neug_public_headers STREQUAL "NOTFOUND")
+        set(_neug_public_header_abs)
+        foreach(_hdr IN LISTS _neug_public_headers)
+            if(NOT IS_ABSOLUTE "${_hdr}" AND _neug_target_source_dir)
+                list(APPEND _neug_public_header_abs "${_neug_target_source_dir}/${_hdr}")
+            else()
+                list(APPEND _neug_public_header_abs "${_hdr}")
+            endif()
+        endforeach()
+        # Update the target property so install(TARGETS) can rely on it
+        set_target_properties(${_neug_install_target} PROPERTIES PUBLIC_HEADER "${_neug_public_header_abs}")
+        set(_neug_public_header_args PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    else()
+        set(_neug_public_header_args)
+    endif()
+
+    install(TARGETS ${_neug_install_target}
+        EXPORT neug-targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ${_neug_public_header_args}
+    )
+endmacro()
+
+if (BUILD_HTTP_SERVER)
+    add_compile_definitions(BUILD_HTTP_SERVER)
+endif()
+
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml-cpp/CMakeLists.txt")
+    execute_process(
+        COMMAND git submodule update --init
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE result
+    )
+    if(result)
+        message(FATAL_ERROR "Failed to update git submodule: ${result}")
+    endif()
+endif()
+
+if (WITH_MIMALLOC)
+    set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests")
+    set(MI_BUILD_SHARED ON CACHE BOOL "Build mimalloc as shared library" FORCE)
+    set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc as static library")
+    # Keep MI_OVERRIDE=ON to let it take effect.
+    set(MI_OVERRIDE ON CACHE BOOL "Override malloc with mimalloc" FORCE)
+    set(MI_USE_LIBATOMIC OFF CACHE BOOL "Use libatomic")
+    # we should not use static mimalloc, the reason is that static mimalloc will override the default malloc.
+    add_subdirectory(third_party/mimalloc)
+    set_target_properties(mimalloc PROPERTIES DEBUG_POSTFIX "")
+    include_directories(SYSTEM third_party/mimalloc/include)
+    unset(PACKAGE_VERSION) # Unset PACKAGE_VERSION to avoid generate two PACKAGE_VERSION in config.h for libdwarf-lite.
+endif()
+
+add_subdirectory(third_party/fast_float)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/fast_float/include)
+
+include(cmake/BuildAbseilThirdParty.cmake)
+build_abseil_as_third_party()
+
+if(BUILD_TEST)
+    enable_testing()
+    # Always use the bundled googletest to avoid discrepancies in system packages.
+    add_subdirectory(third_party/gtest EXCLUDE_FROM_ALL)
+    add_library(neug::GTest INTERFACE IMPORTED)
+    target_link_libraries(neug::GTest INTERFACE gtest_main)
+    target_link_libraries(neug::GTest INTERFACE gmock_main)
+endif()
+
+if (ENABLE_BACKTRACES)
+    find_package(cpptrace)
+    if (NOT cpptrace_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+          cpptrace
+          GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
+          GIT_TAG        v1.0.2
+          GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(cpptrace)
+        include_directories(SYSTEM ${cpptrace_SOURCE_DIR}/include)
+    endif()
+    add_compile_definitions(NEUG_BACKTRACE)
+endif()
+
+#----------------------------------------------------------------------------------
+# Detect OS and architecture, copied from DuckDB
+set(OS_NAME "unknown")
+set(OS_ARCH "amd64")
+
+string(REGEX MATCH "(arm64|aarch64)" IS_ARM "${CMAKE_SYSTEM_PROCESSOR}")
+if(IS_ARM)
+  set(OS_ARCH "arm64")
+elseif(FORCE_32_BIT)
+  set(OS_ARCH "i386")
+endif()
+
+if(APPLE)
+  set(OS_NAME "osx")
+endif()
+if(WIN32)
+  set(OS_NAME "windows")
+endif()
+if(UNIX AND NOT APPLE)
+  set(OS_NAME "linux") # sorry BSD
+endif()
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(STATUS "64-bit architecture detected")
+    add_compile_definitions(__64BIT__)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(STATUS "32-bit architecture detected")
+    add_compile_definitions(__32BIT__)
+    set(__32BIT__ TRUE)
+endif()
+
+
+
+#print options
+message(STATUS "Build test: ${BUILD_TEST}")
+message(STATUS "Build doc: ${BUILD_DOC}")
+message(STATUS "Build odps fragment loader: ${BUILD_ODPS_FRAGMENT_LOADER}")
+
+# ------------------------------------------------------------------------------
+# cmake configs
+# ------------------------------------------------------------------------------
+
+include(CheckLibraryExists)
+include(GNUInstallDirs)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(CheckCXXSourceCompiles)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
+# pb files generated under src/utils
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/utils)
+# system_config.h generated under src/compiler
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/compiler)
+
+# Print cc and cxx compiler
+message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
+message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
+
+function(add_neug_test TEST_NAME)
+    find_package(OpenSSL REQUIRED)
+    set(SRCS ${ARGN})
+    add_executable(${TEST_NAME} ${SRCS})
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
+        ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
+        ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
+    if (ENABLE_GCOV)
+        target_compile_options(${TEST_NAME} PRIVATE --coverage)
+        target_link_options(${TEST_NAME} PRIVATE --coverage)
+    endif()
+    include(GoogleTest)
+	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+endfunction()
+
+
+set(TEST_PROGRAM "
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <fcntl.h>
+
+int main() {
+  int fd_in = -1, fd_out = -1;
+  struct stat stat_buf;
+  copy_file_range(fd_in, NULL, fd_out, NULL, stat_buf.st_size, 0);
+  return 0;
+}
+")
+
+check_cxx_source_compiles("${TEST_PROGRAM}" HAVE_COPY_FILE_RANGE_COMPILES)
+
+if(NOT HAVE_COPY_FILE_RANGE_COMPILES)
+    message(WARNING "copy_file_range is not available or failed to compile!")
+else()
+    message(STATUS "copy_file_range compilation succeeded.")
+endif()
+
+if(HAVE_COPY_FILE_RANGE_COMPILES)
+    add_definitions(-DUSE_COPY_FILE_RANGE)
+endif()
+
+find_package(Threads REQUIRED)
+find_package(OpenSSL)
+if (NOT OpenSSL_FOUND)
+    message(FATAL_ERROR "Fail to find OpenSSL, try to install openssl development package. On macos: brew install openssl@3; on ubuntu: apt-get install libssl-dev")
+endif()
+include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
+
+if (BUILD_WITH_OSS)
+    add_definitions(-DBUILD_WITH_OSS)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/aliyun-oss-cpp-sdk/sdk/include)
+    set(TARGET_OUTPUT_NAME_PREFIX "alibabacloud-oss-" CACHE STRING "The target's output name prefix")
+    add_subdirectory(third_party/aliyun-oss-cpp-sdk)
+endif()
+
+if (BUILD_PYTHON)
+    message("Build python embedded")
+    # To build wheel in manylinux docker, we should not link to a specific python library.
+    # Get environment variable PYBIND11_FINDPYTHON, if it is set to ON, we will set PYBIND11_FINDPYTHON to ON, otherwise, we will not set it, and let pybind11 find python by itself.
+    set(PYBIND11_FINDPYTHON ON)
+    if (DEFINED ENV{PYBIND11_FINDPYTHON}) 
+        if ($ENV{PYBIND11_FINDPYTHON} STREQUAL "OFF")
+            message(STATUS "Environment variable PYBIND11_FINDPYTHON is set to OFF")
+            set(PYBIND11_FINDPYTHON OFF)
+        elseif (NOT ( $ENV{PYBIND11_FINDPYTHON} STREQUAL "ON"))
+            message(WARNING "Environment variable PYBIND11_FINDPYTHON is set to ${ENV{PYBIND11_FINDPYTHON}}, which is not ON or OFF, by default is ON")
+        endif()
+    else()
+        message(STATUS "Environment variable PYBIND11_FINDPYTHON is not set, by default is ON")
+    endif()
+    add_subdirectory(third_party/pybind11)
+endif()
+
+
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
+include_directories(SYSTEM third_party/HowardHinnant/date/include)
+
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+
 
 # find Threads------------------------------------------------------------------
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
@@ -692,6 +687,14 @@ set(MACOS_DYLIBS
 "-Wl,-U,_objc_opt_class"
 "-Wl,-U,_objc_opt_isKindOfClass"
 )
+
+# Define NEUG_EXTENSION_HOME_MACRO for core library (extension.cc) and extension libs.
+# Must be before add_subdirectory(src) so getUserExtensionDir() is compiled with it.
+if(DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY AND CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+    get_filename_component(_neug_extension_home "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" ABSOLUTE)
+    add_compile_definitions(NEUG_EXTENSION_HOME_MACRO="${_neug_extension_home}")
+    message(STATUS "NEUG_EXTENSION_HOME_MACRO is set to ${_neug_extension_home}")
+endif()
 
 include_directories(SYSTEM third_party/expected)
 add_subdirectory(src)

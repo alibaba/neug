@@ -14,8 +14,8 @@ We welcome contributions from the community! 🎉
 
 ```bash
 # Using Docker (recommended)
-docker pull registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
-docker run -it --name neug-dev registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev bash
+docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+docker run -it --name neug-dev neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0 bash
 source ~/.neug_env && make python-dev
 ```
 

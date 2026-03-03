@@ -71,13 +71,10 @@ class ArrowArrayWrapBuilder<
   ArrowArrayWrapBuilder() : data_(nullptr), size_(0), bitmap_(nullptr) {}
   ~ArrowArrayWrapBuilder() = default;
 
-  void Wrap(const T* data, size_t size,
-            const std::vector<bool>* bitmap = nullptr) {
+  void Wrap(const T* data, size_t size, const std::vector<bool>& bitmap) {
     data_ = data;
     size_ = size;
-    if (bitmap != nullptr) {
-      bitmap_ = bitmap;
-    }
+    bitmap_ = &bitmap;
   }
 
   std::shared_ptr<arrow::Array> Build() override {

@@ -62,8 +62,7 @@ TEST_F(ValueColumnTest, BoolValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<bool>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<bool>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -150,8 +149,7 @@ TEST_F(ValueColumnTest, I32ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<int32_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<int32_t>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -237,8 +235,7 @@ TEST_F(ValueColumnTest, I64ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<int64_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<int64_t>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -324,8 +321,7 @@ TEST_F(ValueColumnTest, U32ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<uint32_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint32_t>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -411,8 +407,7 @@ TEST_F(ValueColumnTest, U64ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<uint64_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint64_t>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -498,8 +493,7 @@ TEST_F(ValueColumnTest, F32ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<float>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<float>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -585,8 +579,7 @@ TEST_F(ValueColumnTest, F64ValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<double>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<double>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -677,7 +670,7 @@ TEST_F(ValueColumnTest, ValueColumnStringBasic) {
     ASSERT_EQ(shuffled->size(), 3);
 
     auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<std::string>>(shuffled);
+        std::dynamic_pointer_cast<ValueColumn<std::string>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -763,8 +756,7 @@ TEST_F(ValueColumnTest, DateValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Date>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<Date>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -853,8 +845,7 @@ TEST_F(ValueColumnTest, DateTimeValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<DateTime>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<DateTime>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -946,8 +937,7 @@ TEST_F(ValueColumnTest, IntervalValueColumnBasic) {
     auto shuffled = col->optional_shuffle(offsets);
     ASSERT_EQ(shuffled->size(), 3);
 
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Interval>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<Interval>>(shuffled);
     ASSERT_NE(opt_col, nullptr);
     EXPECT_TRUE(opt_col->has_value(0));
     EXPECT_FALSE(opt_col->has_value(1));
@@ -1198,12 +1188,11 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
   builder.push_back_opt(true);
   builder.push_back_null();
   builder.push_back_elem(Value::BOOLEAN(false));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<bool>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<bool>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<bool>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<bool>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kBoolean);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1220,8 +1209,7 @@ TEST_F(OptionalValueColumnTest, BoolOptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<bool>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<bool>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1241,12 +1229,11 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
   builder.push_back_opt(10);
   builder.push_back_null();
   builder.push_back_elem(Value::INT32(30));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<int32_t>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<int32_t>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<int32>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<int32>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt32);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1263,8 +1250,7 @@ TEST_F(OptionalValueColumnTest, I32OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<int32_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<int32_t>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1284,12 +1270,11 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
   builder.push_back_opt(10);
   builder.push_back_null();
   builder.push_back_elem(Value::INT64(30));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<int64_t>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<int64_t>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<int64>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<int64>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInt64);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1306,8 +1291,7 @@ TEST_F(OptionalValueColumnTest, I64OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<int64_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<int64_t>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1327,12 +1311,11 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
   builder.push_back_opt(10);
   builder.push_back_null();
   builder.push_back_elem(Value::UINT32(30));
-  auto col = std::dynamic_pointer_cast<OptionalValueColumn<uint32_t>>(
-      builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<uint32_t>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<uint32>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<uint32>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt32);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1349,8 +1332,7 @@ TEST_F(OptionalValueColumnTest, U32OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<uint32_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint32_t>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1370,12 +1352,11 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
   builder.push_back_opt(10);
   builder.push_back_null();
   builder.push_back_elem(Value::UINT64(30));
-  auto col = std::dynamic_pointer_cast<OptionalValueColumn<uint64_t>>(
-      builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<uint64_t>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<uint64>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<uint64>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kUInt64);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1392,8 +1373,7 @@ TEST_F(OptionalValueColumnTest, U64OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<uint64_t>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<uint64_t>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1413,12 +1393,11 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
   builder.push_back_opt(10.42);
   builder.push_back_null();
   builder.push_back_elem(Value::FLOAT(30.44));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<float>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<float>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<float>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<float>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kFloat);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1435,8 +1414,7 @@ TEST_F(OptionalValueColumnTest, F32OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<float>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<float>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1456,12 +1434,11 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
   builder.push_back_opt(10.42);
   builder.push_back_null();
   builder.push_back_elem(Value::DOUBLE(30.44));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<double>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<double>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<double>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<double>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDouble);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1478,8 +1455,7 @@ TEST_F(OptionalValueColumnTest, F64OptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<double>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<double>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1502,12 +1478,12 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
   builder.push_back_opt(s1);
   builder.push_back_null();
   builder.push_back_elem(Value::STRING(s2));
-  auto col = std::dynamic_pointer_cast<OptionalValueColumn<std::string>>(
-      builder.finish());
+  auto col =
+      std::dynamic_pointer_cast<ValueColumn<std::string>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<string>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<string>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kVarchar);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1525,7 +1501,7 @@ TEST_F(OptionalValueColumnTest, StringOptionalValueColumnBasic) {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
     auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<std::string>>(shuffled);
+        std::dynamic_pointer_cast<ValueColumn<std::string>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1545,12 +1521,11 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
   builder.push_back_opt(Date(10));
   builder.push_back_null();
   builder.push_back_elem(Value::DATE(Date(30)));
-  auto col =
-      std::dynamic_pointer_cast<OptionalValueColumn<Date>>(builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<Date>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<date>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<date>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kDate);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1567,8 +1542,7 @@ TEST_F(OptionalValueColumnTest, DateOptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Date>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<Date>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1588,12 +1562,11 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
   builder.push_back_opt(DateTime(10));
   builder.push_back_null();
   builder.push_back_elem(Value::TIMESTAMPMS(DateTime(30)));
-  auto col = std::dynamic_pointer_cast<OptionalValueColumn<DateTime>>(
-      builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<DateTime>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<timestamp_ms>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<timestamp_ms>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kTimestampMs);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1610,8 +1583,7 @@ TEST_F(OptionalValueColumnTest, DateTimeOptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<DateTime>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<DateTime>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));
@@ -1631,12 +1603,11 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
   builder.push_back_opt(Interval(std::string("3years")));
   builder.push_back_null();
   builder.push_back_elem(Value::INTERVAL(Interval(std::string("24months"))));
-  auto col = std::dynamic_pointer_cast<OptionalValueColumn<Interval>>(
-      builder.finish());
+  auto col = std::dynamic_pointer_cast<ValueColumn<Interval>>(builder.finish());
 
   ASSERT_NE(col, nullptr);
   EXPECT_EQ(col->size(), 3);
-  EXPECT_EQ(col->column_info(), "OptionalValueColumn<interval>[3]");
+  EXPECT_EQ(col->column_info(), "ValueColumn<interval>[3]");
   EXPECT_EQ(col->elem_type().id(), DataTypeId::kInterval);
   EXPECT_EQ(col->column_type(), ContextColumnType::kValue);
   EXPECT_TRUE(col->is_optional());
@@ -1655,8 +1626,7 @@ TEST_F(OptionalValueColumnTest, IntervalOptionalValueColumnBasic) {
   {
     std::vector<size_t> offsets = {1, 0};
     auto shuffled = col->shuffle(offsets);
-    auto opt_col =
-        std::dynamic_pointer_cast<OptionalValueColumn<Interval>>(shuffled);
+    auto opt_col = std::dynamic_pointer_cast<ValueColumn<Interval>>(shuffled);
 
     ASSERT_NE(opt_col, nullptr);
     EXPECT_FALSE(opt_col->has_value(0));

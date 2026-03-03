@@ -143,6 +143,26 @@ GLOG_v=10 lldb -- python3 -m pytest -sv tests/test_db_query.py
 
 For additional debugging techniques, refer to the documentation for gdb and lldb respectively.
 
+### Local Pre-Commit Checks
+
+Before pushing code to GitHub, run local checks to catch issues early and save CI resources:
+
+> **tips**: A Python environment is required for the check.
+> Set one up with `python3 -m venv .venv && source .venv/bin/activate` or `conda create -n neug python=3.13 && conda activate neug`.
+
+```bash
+# Format check only (fast, recommended before commit)
+make format-check
+
+# Full check including build and tests (recommended before creating PR)
+make full-check
+```
+
+The `format-check` validates C++ (clang-format) and Python (isort, black, flake8) code formatting. Any auto-fixable issues (clang-format, isort, black) will be corrected in-place; only flake8 issues require manual fixes.
+The `full-check` additionally compiles the code and runs unit tests.
+
+For more options, see `./scripts/pre_commit_check.sh --help`.
+
 ### FAQ
 
 #### Fail to run e2e queries on macos

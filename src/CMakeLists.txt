@@ -31,7 +31,7 @@ if (ENABLE_GCOV)
 endif()
 target_link_libraries(neug_libraries PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(neug_libraries PRIVATE ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES} ${YAML_CPP_LIBRARIES} ${COMPILER_LIBRARIES} ${ARROW_LIB})
-target_link_libraries(neug_libraries PUBLIC ${Protobuf_LIBRARIES})
+target_link_libraries(neug_libraries PRIVATE ${Protobuf_LIBRARIES})
 if (BUILD_HTTP_SERVER)
     target_link_libraries(neug_libraries PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
     target_link_libraries(neug_libraries PUBLIC ${CRYPTO_LIB}) #${PROTOC_LIB}

@@ -62,7 +62,7 @@ jobs:
     outputs:
       runner-arch: ${{ steps.capture-arch.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: Capture Runner Architecture
       id: capture-arch
@@ -141,7 +141,7 @@ jobs:
         export BUILD_HTTP_SERVER=ON
         export BUILD_TEST=ON
         export USE_NINJA=OFF
-        export WITH_MIMALLOC=ON
+        export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
@@ -158,6 +158,15 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         ./build/neug_py_bind/examples/cpp/simple_example
 
+    - name: Trim build tree
+      if: (!(github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push'))
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/build
+        # Drop per-target object directories; binaries and CTest files stay.
+        find . -path '*/CMakeFiles/*.dir' -prune -exec rm -rf {} +
+        find . -type f \( -name '*.o' -o -name '*.o.d' -o -name '*.obj' \) -delete
+        find . -type f -name '*.log' -delete
+
     - name: Package build artifacts
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind
@@ -171,7 +180,6 @@ jobs:
         name: neug-build-${{ github.sha }}-${{ steps.capture-arch.outputs.runner-arch }}
         path: /tmp/neug-build.tar.gz
         retention-days: 1
-        compression-level: 0
 
   # ============================================================
   # Job 2: C++ Tests — run ctest (no bulk loader needed)
@@ -182,7 +190,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -275,7 +283,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -459,7 +467,7 @@ jobs:
       - self-hosted
       - ${{ needs.build.outputs.runner-arch }}
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -606,7 +614,7 @@ jobs:
         path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
 
   # ============================================================
-  # Job 6: Coverage — generate and upload the coverage report.
+  # Job 5: Coverage — generate and upload the coverage report.
   # ============================================================
   coverage-report:
     needs: [build, test-cpp, test-python, test-e2e]

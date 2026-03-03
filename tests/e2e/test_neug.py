@@ -41,6 +41,30 @@ class TestNeug(BaseTest):
     def test_benchmark_queries(self, request, benchmark, neug_sess, query_object):
         self.run_benchmark(neug_sess, query_object, request, benchmark)
 
+    def _parse_datetime_in_dict_str(self, val):
+        import datetime
+
+        def repl_dt(m):
+            parts = [int(g) if g else 0 for g in m.groups()]
+            y, mo, d, h, mi, s = parts
+            return f"'{y:04d}-{mo:02d}-{d:02d} {h:02d}:{mi:02d}:{s:02d}'"
+
+        val = re.sub(
+            r"datetime\.datetime\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)"
+            r"(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)",
+            repl_dt,
+            val,
+        )
+
+        def repl_d(m):
+            y, mo, d = map(int, m.groups())
+            return f"'{y:04d}-{mo:02d}-{d:02d}'"
+
+        val = re.sub(
+            r"datetime\.date\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", repl_d, val
+        )
+        return val
+
     def _parse_possible_dict(self, val):
         if isinstance(val, dict):
             return val
@@ -49,6 +73,7 @@ class TestNeug(BaseTest):
             if val == "":
                 return {}
             try:
+                val = self._parse_datetime_in_dict_str(val)
                 return yaml.safe_load(val)
             except Exception:
                 pass

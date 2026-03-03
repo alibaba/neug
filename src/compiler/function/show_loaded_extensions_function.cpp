@@ -33,62 +33,44 @@ function_set ShowLoadedExtensionsFunction::getFunctionSet() {
           {"description", common::LogicalTypeID::STRING}});
 
   function->bindFunc = [](const neug::Schema& schema,
-                          const neug::execution::ContextMeta& ctx_meta,
-                          const ::physical::PhysicalPlan& plan,
-                          int op_idx) -> std::unique_ptr<CallFuncInputBase> {
-    return bindFunc(schema, ctx_meta, plan, op_idx);
+    const neug::execution::ContextMeta& ctx_meta,
+    const ::physical::PhysicalPlan& plan,
+    int op_idx) -> std::unique_ptr<CallFuncInputBase> {
+    return std::make_unique<ShowLoadedExtensionsFuncInput>();
   };
 
-  function->execFunc =
-      [](const CallFuncInputBase& input, neug::IStorageInterface& graph) -> neug::execution::Context {
-    (void)graph;
-    const auto& showInput =
-        static_cast<const ShowLoadedExtensionsFuncInput&>(input);
-    return execFunc(showInput, graph);
+  function->execFunc = [](const CallFuncInputBase& input, neug::IStorageInterface& graph) {
+    try {
+      neug::execution::Context ctx;
+      const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
+  
+      neug::execution::ValueColumnBuilder<std::string> name_builder;
+      neug::execution::ValueColumnBuilder<std::string> desc_builder;
+      name_builder.reserve(ext_map.size());
+      desc_builder.reserve(ext_map.size());
+  
+      for (const auto& kv : ext_map) {
+        const std::string& name_view = kv.second.name;
+        name_builder.push_back_opt(name_view);
+  
+        const std::string& desc_view = kv.second.description;
+        desc_builder.push_back_opt(desc_view);
+      }
+  
+      ctx.set(0, name_builder.finish());
+      ctx.set(1, desc_builder.finish());
+      ctx.tag_ids = {0, 1};
+      return ctx;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "ShowLoadedExtensions failed: " << e.what();
+      THROW_EXTENSION_EXCEPTION("ShowLoadedExtensions failed: " +
+                                std::string(e.what()));
+    }
   };
 
   function_set functionSet;
   functionSet.push_back(std::move(function));
   return functionSet;
-}
-
-std::unique_ptr<ShowLoadedExtensionsFuncInput>
-ShowLoadedExtensionsFunction::bindFunc(const neug::Schema& schema,
-                                       const neug::execution::ContextMeta& ctx_meta,
-                                       const ::physical::PhysicalPlan& plan,
-                                       int op_idx) {
-  return std::make_unique<ShowLoadedExtensionsFuncInput>();
-}
-
-neug::execution::Context ShowLoadedExtensionsFunction::execFunc(
-    const ShowLoadedExtensionsFuncInput& input, neug::IStorageInterface& graph) {
-  (void)graph;
-  try {
-    neug::execution::Context ctx;
-    const auto& ext_map = neug::extension::ExtensionAPI::getLoadedExtensions();
-
-    neug::execution::ValueColumnBuilder<std::string> name_builder;
-    neug::execution::ValueColumnBuilder<std::string> desc_builder;
-    name_builder.reserve(ext_map.size());
-    desc_builder.reserve(ext_map.size());
-
-    for (const auto& kv : ext_map) {
-      const std::string& name_view = kv.second.name;
-      name_builder.push_back_opt(name_view);
-
-      const std::string& desc_view = kv.second.description;
-      desc_builder.push_back_opt(desc_view);
-    }
-
-    ctx.set(0, name_builder.finish());
-    ctx.set(1, desc_builder.finish());
-    ctx.tag_ids = {0, 1};
-    return ctx;
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "ShowLoadedExtensions failed: " << e.what();
-    THROW_EXTENSION_EXCEPTION("ShowLoadedExtensions failed: " +
-                              std::string(e.what()));
-  }
 }
 
 }  // namespace function

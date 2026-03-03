@@ -178,6 +178,8 @@ void NeugDB::RemoveConnection(std::shared_ptr<Connection> conn) {
   connection_manager_->RemoveConnection(conn);
 }
 
+void NeugDB::CloseAllConnection() { connection_manager_->Close(); }
+
 void NeugDB::preprocessConfig() {
   if (config_.thread_num == 0) {
     config_.thread_num = std::thread::hardware_concurrency();

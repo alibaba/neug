@@ -1,3 +1,0 @@
-e
-{"_SRC":"0:0","_DST":"0:1","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":0.5}
-{"_SRC":"0:0","_DST":"0:2","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":1.0}

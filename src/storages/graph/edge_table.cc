@@ -106,7 +106,7 @@ std::vector<Property> extract_bundled_edge_data_from_batches(
                                                                 valid_flags);
     FOR_EACH_DATA_TYPE_PRIMITIVE(EXTRACT_EDGE_DATA_CASE)
   case DataTypeId::kDate:
-    return extract_edge_data<Date, arrow::Date32Array>(data_batches,
+    return extract_edge_data<Date, arrow::Date64Array>(data_batches,
                                                        valid_flags);
   case DataTypeId::kTimestampMs:
     return extract_edge_data<DateTime, arrow::TimestampArray>(data_batches,
@@ -334,9 +334,9 @@ static std::vector<Property> get_row_from_recordbatch(
       break;
     }
     case DataTypeId::kDate: {
-      auto casted = std::static_pointer_cast<arrow::Date32Array>(array);
+      auto casted = std::static_pointer_cast<arrow::Date64Array>(array);
       Date d;
-      d.from_num_days(casted->Value(row_idx));
+      d.from_timestamp(casted->Value(row_idx));
       row.push_back(Property::from_date(d));
       break;
     }

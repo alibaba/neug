@@ -42,7 +42,7 @@ jobs:
   build:
     runs-on: [self-hosted]
     container:
-      image: registry.cn-hongkong.aliyuncs.com/graphscope/graphscope-dev:neug-dev
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -96,7 +96,7 @@ jobs:
         export BUILD_HTTP_SERVER=ON
         export BUILD_TEST=ON
         export USE_NINJA=OFF
-        export WITH_MIMALLOC=ON
+        export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
@@ -118,6 +118,8 @@ jobs:
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
         ctest -R json_extension_test -V
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        ctest -R test_extension -V
 
     - name: Run Extension Python Test
       run: |

@@ -127,11 +127,14 @@ void add_entry_value_to_table(rapidjson::Value& table, size_t index,
   if (entry.has_element()) {
     const auto& element = entry.element();
     if (element.has_vertex()) {
-      (void) google::protobuf::util::MessageToJsonString(element.vertex(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.vertex(),
+                                                         &value);
     } else if (element.has_edge()) {
-      (void) google::protobuf::util::MessageToJsonString(element.edge(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.edge(),
+                                                         &value);
     } else if (element.has_graph_path()) {
-      (void) google::protobuf::util::MessageToJsonString(element.graph_path(), &value);
+      (void) google::protobuf::util::MessageToJsonString(element.graph_path(),
+                                                         &value);
     } else if (element.has_object()) {
       value = convert_object_to_string(element.object());
     }
@@ -141,7 +144,7 @@ void add_entry_value_to_table(rapidjson::Value& table, size_t index,
       auto item = e.element();
       if (item.has_vertex()) {
         std::string v;
-       (void) google::protobuf::util::MessageToJsonString(item.vertex(), &v);
+        (void) google::protobuf::util::MessageToJsonString(item.vertex(), &v);
         v_collection.emplace_back(v);
       } else if (item.has_edge()) {
         std::string v;
@@ -149,7 +152,8 @@ void add_entry_value_to_table(rapidjson::Value& table, size_t index,
         v_collection.emplace_back(v);
       } else if (item.has_graph_path()) {
         std::string v;
-        (void) google::protobuf::util::MessageToJsonString(item.graph_path(), &v);
+        (void) google::protobuf::util::MessageToJsonString(item.graph_path(),
+                                                           &v);
         v_collection.emplace_back(v);
       } else if (item.has_object()) {
         v_collection.emplace_back(convert_object_to_string(item.object()));
@@ -815,7 +819,6 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
   switch (temporal_type.item_case()) {
   case common::Temporal::kDate32:
     out_type = DataTypeId::kDate;
-    ;
     break;
   case common::Temporal::kDateTime:
     out_type = DataTypeId::kTimestampMs;
