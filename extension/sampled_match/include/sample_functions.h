@@ -500,9 +500,7 @@ class SampledSubgraphMatcher {
     std::unique_ptr<GraphLib::SubgraphMatching::PatternGraph> CreatePatternFromJson(
         const std::string& pattern_file) {
         
-        // Use const_cast because vertex_label_to_index/edge_label_to_index are not const
-        // but they should be (they don't modify schema state)
-        auto& schema = const_cast<Schema&>(graph_.schema());
+        const auto& schema = graph_.schema();
 
         // Read file content
         std::ifstream fin(pattern_file);
@@ -559,10 +557,23 @@ class SampledSubgraphMatcher {
         
         for (rapidjson::SizeType i = 0; i < vertices.Size(); i++) {
             const auto& vertex = vertices[i];
-            int id = vertex["id"].GetInt();
+            // Support both integer and string id (convert string to int if needed)
+            int id;
+            if (vertex["id"].IsInt()) {
+                id = vertex["id"].GetInt();
+            } else if (vertex["id"].IsString()) {
+                id = std::stoi(vertex["id"].GetString());
+            } else {
+                std::cerr << "Error: vertex 'id' must be int or string" << std::endl;
+                return nullptr;
+            }
             std::string label = vertex["label"].GetString();
             
-            pattern->vertex_label[id] = schema.vertex_label_to_index(label);
+            if (!schema.contains_vertex_label(label)) {
+                std::cerr << "Error: vertex label '" << label << "' not found in schema" << std::endl;
+                return nullptr;
+            }
+            pattern->vertex_label[id] = schema.get_vertex_label_id(label);
             
             // Parse vertex property constraints
             if (vertex.HasMember("constraints") && vertex["constraints"].IsArray()) {
@@ -584,8 +595,24 @@ class SampledSubgraphMatcher {
         int edge_idx = 0;
         for (rapidjson::SizeType i = 0; i < edges.Size(); i++) {
             const auto& edge = edges[i];
-            int src = edge["source"].GetInt();
-            int dst = edge["target"].GetInt();
+            // Support both integer and string source/target (convert string to int if needed)
+            int src, dst;
+            if (edge["source"].IsInt()) {
+                src = edge["source"].GetInt();
+            } else if (edge["source"].IsString()) {
+                src = std::stoi(edge["source"].GetString());
+            } else {
+                std::cerr << "Error: edge 'source' must be int or string" << std::endl;
+                return nullptr;
+            }
+            if (edge["target"].IsInt()) {
+                dst = edge["target"].GetInt();
+            } else if (edge["target"].IsString()) {
+                dst = std::stoi(edge["target"].GetString());
+            } else {
+                std::cerr << "Error: edge 'target' must be int or string" << std::endl;
+                return nullptr;
+            }
             
             std::string edge_type = "";
             if (edge.HasMember("label") && edge["label"].IsString()) {
@@ -593,7 +620,11 @@ class SampledSubgraphMatcher {
             }
             
             if (!edge_type.empty()) {
-                pattern->edge_label[edge_idx] = schema.edge_label_to_index(edge_type);
+                if (!schema.contains_edge_label(edge_type)) {
+                    std::cerr << "Error: edge label '" << edge_type << "' not found in schema" << std::endl;
+                    return nullptr;
+                }
+                pattern->edge_label[edge_idx] = schema.get_edge_label_id(edge_type);
             } else {
                 pattern->edge_label[edge_idx] = 0;
             }
@@ -1471,7 +1502,11 @@ struct GetVertexPropertyFunction {
       }
       
       const auto& schema = readInterface->schema();
-      label_t vertex_label_id = const_cast<Schema&>(schema).vertex_label_to_index(propInput.vertex_label);
+      if (!schema.contains_vertex_label(propInput.vertex_label)) {
+        LOG(ERROR) << "[GET_VERTEX_PROPERTY] vertex label '" << propInput.vertex_label << "' not found in schema";
+        return execution::Context();
+      }
+      label_t vertex_label_id = schema.get_vertex_label_id(propInput.vertex_label);
       
       int numVertices = propInput.vertex_ids.size();
       int numProps = propInput.property_names.size();

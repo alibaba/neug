@@ -6,7 +6,7 @@ This script demonstrates:
 1. Creating a NeuG database
 2. Defining graph schema (node and edge tables)
 3. Inserting sample data
-4. Loading the sample extension
+4. Loading the sampled_match extension
 5. Using SAMPLED_MATCH for subgraph pattern matching
 
 Usage:
@@ -14,7 +14,7 @@ Usage:
 
 Requirements:
     - NeuG Python binding installed (pip install neug or build from source)
-    - Sample extension built (make neug_sample_extension)
+    - sampled_match extension built (make neug_sampled_match_extension)
 """
 
 import os
@@ -41,7 +41,7 @@ except ImportError as e:
 
 
 def get_extension_path():
-    """Get the path to the sample extension library."""
+    """Get the path to the sampled_match extension library."""
     # Try build directory first
     build_path = "/mnt/lyk/neug/build/extension/sample/libsample.neug_extension"
     if os.path.exists(build_path):
@@ -404,7 +404,7 @@ CREATE (a)-[:person_knows_person {creationDate: '2020-06-01'}]->(b);
     print("\n-- 3. Load Extension and Run Query --")
     ext_path = get_extension_path()
     print(f"""
--- Load the sample extension
+-- Load the sampled_match extension
 LOAD '{ext_path}';
 
 -- Run SAMPLED_MATCH with a triangle pattern
@@ -464,7 +464,7 @@ def main():
         ext_path = get_extension_path()
         if not os.path.exists(ext_path):
             print(f"Warning: Extension not found at {ext_path}")
-            print("Please build the extension first: cd /mnt/lyk/neug/build && make neug_sample_extension")
+            print("Please build the extension first: cd /mnt/lyk/neug/build && make neug_sampled_match_extension")
             print("Skipping SAMPLED_MATCH demo...")
         else:
             try:

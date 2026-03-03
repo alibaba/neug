@@ -7,7 +7,7 @@
 #include <cassert>
 #include <dlfcn.h>
 
-// // Path to sample extension library
+// // Path to sampled_match extension library
 // static std::string getSampleExtensionPath() {
 //     // First try build directory
 //     std::string build_path = "/mnt/lyk/neug/build/extension/sample/libsample.neug_extension";
@@ -300,6 +300,13 @@ bool loadExtension(neug::Connection* conn) {
   return true;
 }
 
+// Helper: print all rows of a QueryResult via Arrow Table
+void printQueryResult(neug::QueryResult& rs, const std::string& indent = "  ") {
+    auto tbl = rs.table();
+    if (!tbl) { std::cout << indent << "(empty)" << std::endl; return; }
+    std::cout << indent << tbl->ToString() << std::endl;
+}
+
 // Verify inserted data
 void verifyData(neug::Connection* conn) {
     std::cout << "\n=== Verifying Data ===" << std::endl;
@@ -328,15 +335,14 @@ void verifyData(neug::Connection* conn) {
             RETURN a.firstName, b.firstName, k.creationDate
         )");
         if (res.has_value()) {
-            auto tbl = res.value().table();
-            if (tbl) std::cout << "    " << tbl->ToString() << std::endl;
+            printQueryResult(res.value(), "    ");
         }
     }
 }
 
 int main() {
     std::cout << "============================================" << std::endl;
-    std::cout << "NeuG INSTALL Test" << std::endl;
+    std::cout << "NeuG SAMPLED_MATCH Extension Test" << std::endl;
     std::cout << "============================================" << std::endl;
     
     // Setup VFS (required for neug)
@@ -370,9 +376,34 @@ int main() {
         return 1;
     }
     std::cout << "Connected to database" << std::endl;
-
-    auto install_res = conn->Query("INSTALL sample;");
-    auto load_res = conn->Query("LOAD sample;");
+    
+    // Create schema
+    if (!createSchema(conn.get())) {
+        std::cerr << "Failed to create schema" << std::endl;
+        conn.reset();
+        db.Close();
+        return 1;
+    }
+    
+    // Insert data
+    if (!insertData(conn.get())) {
+        std::cerr << "Failed to insert data" << std::endl;
+        conn.reset();
+        db.Close();
+        return 1;
+    }
+    
+    // Verify data
+    // verifyData(conn.get());
+    
+    // Load extension directly using dlopen
+    std::cout << "\n=== Loading Extension ===" << std::endl;
+    if (!loadExtension(conn.get())) {
+        std::cerr << "Failed to load sampled_match extension" << std::endl;
+        conn.reset();
+        db.Close();
+        return 1;
+    }
     
     // Verify extension is loaded
     {

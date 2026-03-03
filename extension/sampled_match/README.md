@@ -30,7 +30,7 @@ cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug -DBUILD_EXTENSIONS="sampled_match" -DB
 
 ```bash
 # 编译 libsample.neug_extension
-make -j8 neug_sample_extension
+make -j8 neug_sampled_match_extension
 ```
 
 编译后的文件位置：

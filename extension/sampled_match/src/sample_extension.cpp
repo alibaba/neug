@@ -29,7 +29,7 @@
   * It registers the subgraph matching functions with the catalog.
   */
  void Init() {
-   LOG(INFO) << "[sample extension] init called";
+   LOG(INFO) << "[sampled_match extension] init called";
  
   try {
     // 注册 INITIALIZE 函数 (图初始化)
@@ -63,13 +63,13 @@
             "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
             "SAMPLED_MATCH returns estimated embedding count and sampled results with edge keys."});
 
-    LOG(INFO) << "[sample extension] functions registered successfully";
+    LOG(INFO) << "[sampled_match extension] functions registered successfully";
    } catch (const std::exception& e) {
      THROW_EXCEPTION_WITH_FILE_LINE(
-         "[sample extension] registration failed: " + std::string(e.what()));
+         "[sampled_match extension] registration failed: " + std::string(e.what()));
    } catch (...) {
      THROW_EXCEPTION_WITH_FILE_LINE(
-         "[sample extension] registration failed: unknown exception");
+         "[sampled_match extension] registration failed: unknown exception");
    }
  }
  

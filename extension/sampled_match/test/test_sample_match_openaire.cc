@@ -505,7 +505,7 @@ int main(int argc, char* argv[]) {
     
     // Load extension
     if (!loadExtension(conn.get())) {
-        std::cerr << "Failed to load sample extension" << std::endl;
+        std::cerr << "Failed to load sampled_match extension" << std::endl;
         conn.reset();
         db.Close();
         return 1;

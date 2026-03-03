@@ -14,7 +14,7 @@ set -e
 #   --help                    Show this help message
 
 # Default values
-EXTENSIONS="json"
+EXTENSIONS="sampled_match"
 VERSION="0.1.0"
 PLATFORM="linux_x86_64"
 WORKSPACE_DIR="$(pwd)"

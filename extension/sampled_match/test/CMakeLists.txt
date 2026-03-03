@@ -1,4 +1,4 @@
-# Test for sample extension
+# Test for sampled_match extension
 
 # Test executable for subgraph matching
 add_executable(test_sample_match test_sample_match.cc)

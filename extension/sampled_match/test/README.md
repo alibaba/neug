@@ -4,7 +4,7 @@ This directory contains tests for the subgraph matching functionality using the 
 
 ## Prerequisites
 
-1. Build neug with the sample extension enabled:
+1. Build neug with the sampled_match extension enabled:
 
 ```bash
 cd /path/to/neug
