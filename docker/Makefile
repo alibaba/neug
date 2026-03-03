@@ -9,8 +9,7 @@ endif
 PLATFORM          := $(shell uname -m)
 # can be: x86_64, arm64
 ARCH              := $(shell uname -m)
-# if arch is x86_64, then manylinux version is 2014, if arm64, then manylinux version is 2_28
-MANYLINUXVERSION := $(if $(filter $(ARCH),x86_64),2014,_2_28)
+MANYLINUXVERSION := 2014
 
 
 VERSION ?= latest
