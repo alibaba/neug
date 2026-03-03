@@ -84,8 +84,6 @@ struct JsonReadFunction {
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
-      LOG(ERROR) << "Failed to sniff schema: "
-                 << sniffResult.error().ToString();
       THROW_IO_EXCEPTION("Failed to sniff schema: " +
                          sniffResult.error().ToString());
     }

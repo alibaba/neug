@@ -2,7 +2,7 @@ message(STATUS "=== Building extensions: ${BUILD_EXTENSIONS} ===")
 
 function(set_extension_properties target_name output_name extension_name)
     # Determine output directory based on build context
-    # If CMAKE_LIBRARY_OUTPUT_DIRECTORY is set (Python build), use it directly like neug_libraries
+    # If CMAKE_LIBRARY_OUTPUT_DIRECTORY is set (Python build), use it directly like neug
     # Otherwise, output to build/extension/ (standalone build)
     if(DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY AND CMAKE_LIBRARY_OUTPUT_DIRECTORY)
         get_filename_component(lib_output_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" ABSOLUTE)
@@ -88,7 +88,7 @@ function(add_extension_test)
     endif()
     target_link_libraries(${_test_name} PUBLIC
         neug::GTest
-        neug_libraries
+        neug
         ${ARG_EXTRA_LINK_LIBS}
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}

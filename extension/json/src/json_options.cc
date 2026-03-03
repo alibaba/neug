@@ -22,7 +22,6 @@
 #include <arrow/json/reader.h>
 #include <arrow/table.h>
 #include <arrow/type.h>
-#include <glog/logging.h>
 #include <memory>
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/options.h"
@@ -94,9 +93,6 @@ ArrowJsonOptionsBuilder::buildFileFormat(
   auto fileFormat = std::make_shared<arrow::dataset::JsonFileFormat>();
   auto fragmentOpts = options.fragment_scan_options;
   if (!fragmentOpts) {
-    LOG(WARNING)
-        << "fragment_scan_options is null in ScanOptions, parse_options "
-           "will use default configuration";
     return fileFormat;
   }
 
@@ -104,8 +100,6 @@ ArrowJsonOptionsBuilder::buildFileFormat(
       std::dynamic_pointer_cast<arrow::dataset::JsonFragmentScanOptions>(
           fragmentOpts);
   if (!jsonFragmentOpts) {
-    LOG(WARNING) << "fragment_scan_options is not JsonFragmentScanOptions, "
-                    "parse_options will use default configuration";
     return fileFormat;
   }
 
