@@ -10,7 +10,7 @@ target_include_directories(test_sample_match PRIVATE
 )
 
 target_link_libraries(test_sample_match PRIVATE
-    neug_libraries
+    neug
     ${GLOG_LIBRARIES}
     gflags
 )
@@ -25,7 +25,7 @@ target_include_directories(test_sample_match_ldbc PRIVATE
 )
 
 target_link_libraries(test_sample_match_ldbc PRIVATE
-    neug_libraries
+    neug
     ${GLOG_LIBRARIES}
     gflags
 )
@@ -40,7 +40,7 @@ target_include_directories(test_sample_match_openaire PRIVATE
 )
 
 target_link_libraries(test_sample_match_openaire PRIVATE
-    neug_libraries
+    neug
     ${GLOG_LIBRARIES}
     gflags
 )
@@ -54,7 +54,7 @@ target_include_directories(test_install PRIVATE
 )
 
 target_link_libraries(test_install PRIVATE
-    neug_libraries
+    neug
     ${GLOG_LIBRARIES}
     gflags
 )

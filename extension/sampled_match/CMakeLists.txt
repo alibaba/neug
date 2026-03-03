@@ -38,9 +38,7 @@ target_include_directories(neug_sampled_match_extension PRIVATE SYSTEM
 
 # Link libraries
 target_link_libraries(neug_sampled_match_extension PRIVATE
-    ${Protobuf_LIBRARIES}
-    ${GLOG_LIBRARIES}
     ${GSL_LIBRARIES}
     Boost::boost
-    neug_libraries
+    neug
 )
