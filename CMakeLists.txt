@@ -427,7 +427,7 @@ function(add_neug_test TEST_NAME)
     find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug_libraries   
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug   
         ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
         ${CRYPTO_LIB} ${GFLAGS_LIBRARIES})
     if (ENABLE_GCOV)
@@ -726,7 +726,7 @@ if (BUILD_COMPILER)
     add_subdirectory(third_party/utf8proc)
 endif()
 
-set(NEUG_LIBRARIES neug::neug_libraries)
+set(NEUG_LIBRARIES neug::neug)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/neug-config.in.cmake
                ${CMAKE_CURRENT_BINARY_DIR}/neug-config.cmake @ONLY)

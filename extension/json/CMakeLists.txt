@@ -19,10 +19,10 @@ endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
 # Link libraries
-# Core Arrow symbols are already in neug_libraries (which links arrow_static,
+# Core Arrow symbols are already in neug (which links arrow_static,
 # arrow_dataset_static, etc.). However, the linker strips unreferenced symbols
 # from static archives — both arrow::json::* and arrow::dataset::Json* symbols
-# are stripped because neug_libraries itself doesn't use them.
+# are stripped because neug itself doesn't use them.
 #
 # Link the Arrow OBJECT libraries directly to include these symbols:
 # - arrow_json: provides arrow::json::TableReader, ReadOptions, ParseOptions, etc.
@@ -34,7 +34,7 @@ target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR
 target_link_libraries(neug_json_extension PRIVATE
     arrow_json
     arrow_dataset_objlib
-    neug_libraries
+    neug
 )
 
 # Build test by compiling extension sources directly (no link to neug_json_extension)

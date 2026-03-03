@@ -76,7 +76,7 @@ function (build_protobuf_as_third_party)
     # libprotobuf and friends default to hidden visibility when built as
     # static libs, which prevents symbols from being re-exported if we embed
     # them into our own shared objects. Relax the visibility so downstream
-    # binaries reuse the single runtime bundled inside libneug_libraries.
+    # binaries reuse the single runtime bundled inside libneug.
     foreach(_proto_vis_target libprotobuf libprotobuf-lite libprotoc)
         if(TARGET ${_proto_vis_target})
             set_target_properties(${_proto_vis_target} PROPERTIES
