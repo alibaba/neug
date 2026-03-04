@@ -4,13 +4,17 @@ file(READ ${CMAKE_CURRENT_SOURCE_DIR}/NEUG_VERSION NEUG_VERSION)
 # Strip trailing newline
 string(REGEX REPLACE "\n$" "" NEUG_VERSION "${NEUG_VERSION}")
 
-# Parse version components
-string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _ ${NEUG_VERSION})
+# Parse version components (allowing optional suffixes like +build)
+string(REGEX MATCH "^([0-9]+)\.([0-9]+)\.([0-9]+)" _ "${NEUG_VERSION}")
+if(NOT CMAKE_MATCH_COUNT)
+    message(FATAL_ERROR "NEUG_VERSION must start with <major>.<minor>.<patch>")
+endif()
 set(NEUG_VERSION_MAJOR ${CMAKE_MATCH_1})
 set(NEUG_VERSION_MINOR ${CMAKE_MATCH_2})
 set(NEUG_VERSION_PATCH ${CMAKE_MATCH_3})
+set(NEUG_VERSION_SEMVER "${NEUG_VERSION_MAJOR}.${NEUG_VERSION_MINOR}.${NEUG_VERSION_PATCH}")
 
-message(STATUS "NeuG Version: ${NEUG_VERSION} (${NEUG_VERSION_MAJOR}.${NEUG_VERSION_MINOR}.${NEUG_VERSION_PATCH})")
+message(STATUS "NeuG Version: ${NEUG_VERSION} (${NEUG_VERSION_SEMVER})")
 
 # Generate version header
 configure_file(
@@ -24,7 +28,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 project (
   NeuG
-  VERSION ${NEUG_VERSION}
+    VERSION ${NEUG_VERSION_SEMVER}
   LANGUAGES C CXX)
 
 option(BUILD_TEST "Whether to build test" OFF)
@@ -808,7 +812,7 @@ if (NOT DEFINED CPACK_PACKAGE_NAME)
 endif ()
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "neug is a embedded graph database")
 set(CPACK_PACKAGE_VENDOR "GraphScope")
-set(CPACK_PACKAGE_VERSION ${NEUG_VERSION})
+set(CPACK_PACKAGE_VERSION ${NEUG_VERSION_SEMVER})
 set(CPACK_PACKAGE_RELEASE 1)
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_CONTACT "graphscope@alibaba-inc.com")
