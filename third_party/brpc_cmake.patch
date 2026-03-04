@@ -51,3 +51,21 @@ index 30076bf2..f1da1f21 100644
  compile_proto(PROTO_HDRS PROTO_SRCS ${PROJECT_BINARY_DIR}
                                      ${PROJECT_BINARY_DIR}/output/include
                                      ${PROJECT_SOURCE_DIR}/src
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1b4b2332..ed4f2c0b 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -74,6 +74,13 @@ set(protoc_gen_mcpack_SOURCES
+  )
+     
+ add_executable(protoc-gen-mcpack ${protoc_gen_mcpack_SOURCES})
++set_target_properties(protoc-gen-mcpack PROPERTIES
++    CXX_STANDARD 17
++    CXX_STANDARD_REQUIRED ON
++)
++target_compile_options(protoc-gen-mcpack PRIVATE
++    $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
++)
+ 
+ if(BUILD_SHARED_LIBS)
+     add_library(brpc-shared SHARED $<TARGET_OBJECTS:BUTIL_LIB> 

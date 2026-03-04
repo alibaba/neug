@@ -38,6 +38,7 @@ if sys.version_info >= (3, 12):
     from setuptools import Command  # noqa: F811
 
 base_dir = os.path.dirname(__file__)
+repo_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
 
 PLAT_TO_CMAKE = {
     "win32": "Win32",
@@ -55,13 +56,20 @@ def get_version(file):
         with open(file, "r", encoding="utf-8") as fp:
             __version__ = fp.read().strip()
     else:
-        __version__ = "0.1.0"
+        pkg_info = os.path.join(base_dir, "PKG-INFO")
+        if os.path.isfile(pkg_info):
+            with open(pkg_info, "r", encoding="utf-8") as fp:
+                for line in fp:
+                    if line.startswith("Version: "):
+                        __version__ = line.split("Version: ", 1)[1].strip()
+                        break
+        if not __version__:
+            __version__ = "0.1.0"
 
     return __version__
 
 
-version = get_version(os.path.join(base_dir, "VERSION"))
-repo_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
+version = get_version(os.path.join(repo_root, "NEUG_VERSION"))
 
 
 class CMakeExtension(Extension):
@@ -302,7 +310,6 @@ class BuildProto(Command):
             output_dir,
             [
                 "common.proto",
-                "results.proto",
                 "common.proto",
                 "expr.proto",
                 "type.proto",
@@ -348,7 +355,7 @@ setup(
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"neug": ["VERSION", "resources/*", "extension/*/*.neug_extension"]},
+    package_data={"neug": ["resources/*", "extension/*/*.neug_extension"]},
     zip_safe=False,
     include_package_data=True,
     entry_points={

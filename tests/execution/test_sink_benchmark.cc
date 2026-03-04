@@ -134,8 +134,6 @@ struct ColumnTypeTraits<int32_t> {
                           int64_t index) {
     return array->Value(index);
   }
-
-  static int32_t Decode(Decoder& decoder) { return decoder.get_int(); }
 };
 
 template <>
@@ -150,8 +148,6 @@ struct ColumnTypeTraits<int64_t> {
                           int64_t index) {
     return array->Value(index);
   }
-
-  static int64_t Decode(Decoder& decoder) { return decoder.get_long(); }
 };
 
 template <>
@@ -165,13 +161,6 @@ struct ColumnTypeTraits<double> {
   static double GetValue(const std::shared_ptr<ArrowArrayType>& array,
                          int64_t index) {
     return array->Value(index);
-  }
-
-  static double Decode(Decoder& decoder) {
-    int64_t bits = decoder.get_long();
-    double value = 0.0;
-    std::memcpy(&value, &bits, sizeof(double));
-    return value;
   }
 };
 
@@ -193,11 +182,6 @@ struct ColumnTypeTraits<std::string> {
     auto view = array->GetView(index);
     return std::string(view.data(), view.size());
   }
-
-  static std::string Decode(Decoder& decoder) {
-    auto view = decoder.get_string();
-    return std::string(view.data(), view.size());
-  }
 };
 
 template <>
@@ -213,11 +197,6 @@ struct ColumnTypeTraits<Date> {
     int64_t ts = array->Value(index);
     return Date(ts);
   }
-
-  static Date Decode(Decoder& decoder) {
-    int64_t ts = decoder.get_long();
-    return Date(ts);
-  }
 };
 
 template <>
@@ -231,11 +210,6 @@ struct ColumnTypeTraits<DateTime> {
   static DateTime GetValue(const std::shared_ptr<ArrowArrayType>& array,
                            int64_t index) {
     int64_t ts = array->Value(index);
-    return DateTime(ts);
-  }
-
-  static DateTime Decode(Decoder& decoder) {
-    int64_t ts = decoder.get_long();
     return DateTime(ts);
   }
 };
@@ -278,17 +252,6 @@ struct ColumnOperations<ColumnTypeList<ColumnTypes...>> {
     size_t row_count = static_cast<size_t>(table->num_rows());
     ReserveVectors(row_count, vectors, IndexSeq{});
     ExtractColumns(table, vectors, IndexSeq{});
-    return vectors;
-  }
-
-  static VectorTuple DecodeEncoder(const std::vector<char>& buffer,
-                                   size_t row_count) {
-    VectorTuple vectors;
-    ReserveVectors(row_count, vectors, IndexSeq{});
-    Decoder decoder(buffer.data(), buffer.size());
-    for (size_t row = 0; row < row_count; ++row) {
-      DecodeRow(decoder, vectors, IndexSeq{});
-    }
     return vectors;
   }
 
@@ -358,20 +321,6 @@ struct ColumnOperations<ColumnTypeList<ColumnTypes...>> {
   }
 
   template <size_t... Is>
-  static void DecodeRow(Decoder& decoder, VectorTuple& vectors,
-                        std::index_sequence<Is...>) {
-    (DecodeValue<Is>(decoder, vectors), ...);
-  }
-
-  template <size_t Index>
-  static void DecodeValue(Decoder& decoder, VectorTuple& vectors) {
-    using ColumnType =
-        typename std::tuple_element<Index, std::tuple<ColumnTypes...>>::type;
-    auto value = ColumnTypeTraits<ColumnType>::Decode(decoder);
-    std::get<Index>(vectors).push_back(value);
-  }
-
-  template <size_t... Is>
   static void ExpectEqualImpl(const VectorTuple& actual,
                               const VectorTuple& expected,
                               std::index_sequence<Is...>) {
@@ -394,13 +343,6 @@ template <typename ColumnList>
 auto MockArrowDeserialization(const std::shared_ptr<arrow::Table>& table) ->
     typename ColumnList::VectorTuple {
   return ColumnOperations<ColumnList>::DecodeArrow(table);
-}
-
-template <typename ColumnList>
-auto MockEncoderDeserialization(const std::vector<char>& buffer,
-                                size_t row_count) ->
-    typename ColumnList::VectorTuple {
-  return ColumnOperations<ColumnList>::DecodeEncoder(buffer, row_count);
 }
 
 struct MockHttpBinaryResponse {
@@ -427,21 +369,6 @@ std::shared_ptr<arrow::Table> MockClientReceiveArrowTable(
   return table_result.MoveValueUnsafe();
 }
 
-MockHttpBinaryResponse MockServerSendEncoderPayload(
-    const std::vector<char>& payload) {
-  MockHttpBinaryResponse response;
-  response.body.resize(payload.size());
-  std::memcpy(response.body.data(), payload.data(), payload.size());
-  return response;
-}
-
-std::vector<char> MockClientReceiveEncoderPayload(
-    const MockHttpBinaryResponse& response) {
-  std::vector<char> payload(response.body.size());
-  std::memcpy(payload.data(), response.body.data(), response.body.size());
-  return payload;
-}
-
 using BenchmarkColumnSets =
     ::testing::Types<ColumnTypeList<std::string, std::string, std::string>,
                      ColumnTypeList<int32_t, double, Date, DateTime>>;
@@ -462,14 +389,11 @@ TYPED_TEST(ExecutionBenchmarkTest, SinkArrowAndEncoderValueColumnBenchmark) {
 
   double total_arrow_pack_ms = 0.0;
   double total_arrow_unpack_ms = 0.0;
-  double total_encoder_pack_ms = 0.0;
-  double total_encoder_unpack_ms = 0.0;
   const int iterations = 50;
   size_t arrow_http_response_size = 0;
-  size_t encoder_http_response_size = 0;
   for (int iter = 0; iter < iterations; ++iter) {
     auto arrow_pack_start = std::chrono::steady_clock::now();
-    auto arrow_result = Sink::sink_neug_serial(dataset.ctx, graph);
+    auto arrow_result = Sink::sink_neug(dataset.ctx, graph);
     auto arrow_http_response = MockServerSendArrowTable(arrow_result);
     auto arrow_pack_end = std::chrono::steady_clock::now();
 
@@ -479,24 +403,7 @@ TYPED_TEST(ExecutionBenchmarkTest, SinkArrowAndEncoderValueColumnBenchmark) {
     auto arrow_vectors = MockArrowDeserialization<ColumnList>(arrow_table);
     auto arrow_unpack_end = std::chrono::steady_clock::now();
 
-    std::vector<char> buffer;
-    Encoder encoder(buffer);
-    auto encoder_pack_start = std::chrono::steady_clock::now();
-    Sink::sink_encoder(dataset.ctx, graph, encoder);
-    auto encoder_pack_end = std::chrono::steady_clock::now();
-
-    ASSERT_FALSE(buffer.empty());
-    auto encoder_unpack_start = std::chrono::steady_clock::now();
-    auto encoder_http_response = MockServerSendEncoderPayload(buffer);
-    auto encoder_http_payload =
-        MockClientReceiveEncoderPayload(encoder_http_response);
-    auto encoder_vectors =
-        MockEncoderDeserialization<ColumnList>(encoder_http_payload, row_count);
-    auto encoder_unpack_end = std::chrono::steady_clock::now();
-
     ColumnOperations<ColumnList>::ExpectEqual(arrow_vectors,
-                                              dataset.expected_columns);
-    ColumnOperations<ColumnList>::ExpectEqual(encoder_vectors,
                                               dataset.expected_columns);
 
     auto to_millis = [](auto duration) {
@@ -507,22 +414,15 @@ TYPED_TEST(ExecutionBenchmarkTest, SinkArrowAndEncoderValueColumnBenchmark) {
 
     total_arrow_pack_ms += to_millis(arrow_pack_end - arrow_pack_start);
     total_arrow_unpack_ms += to_millis(arrow_unpack_end - arrow_unpack_start);
-    total_encoder_pack_ms += to_millis(encoder_pack_end - encoder_pack_start);
-    total_encoder_unpack_ms +=
-        to_millis(encoder_unpack_end - encoder_unpack_start);
     arrow_http_response_size += arrow_http_response.body.size();
-    encoder_http_response_size += encoder_http_response.body.size();
   }
 
   std::ostringstream timing_report;
   timing_report << "arrow_pack_ms=" << total_arrow_pack_ms
                 << ", arrow_unpack_ms=" << total_arrow_unpack_ms
-                << ", encoder_pack_ms=" << total_encoder_pack_ms
-                << ", encoder_unpack_ms=" << total_encoder_unpack_ms
                 << ", arrow_http_reponse_size_bytes="
-                << arrow_http_response_size
-                << ", encoder_http_reponse_size_bytes="
-                << encoder_http_response_size;
+                << arrow_http_response_size << " bytes"
+                << " rows=" << row_count;
   GTEST_LOG_(INFO) << timing_report.str();
 }
 

@@ -84,7 +84,6 @@ set(CODE_GEN_PROTOBUF_FILES
         algebra.proto
         common.proto
         expr.proto
-        results.proto
         schema.proto
         type.proto
         stored_procedure.proto
@@ -143,7 +142,6 @@ set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_utils> $<TARGET_O
 
 add_dependencies(neug_utils neug_plan_proto)
 
-# Add include directory for plan proto headers so http_service proto can find results.pb.h
 target_include_directories(neug_utils PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
 
 # Make all future targets depend on neug_plan_proto

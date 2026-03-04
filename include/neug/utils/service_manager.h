@@ -27,10 +27,6 @@ namespace neug {
 class Status;
 }  // namespace neug
 
-namespace results {
-class CollectiveResults;
-}  // namespace results
-
 namespace neug {
 
 /**
@@ -63,7 +59,8 @@ struct ServiceConfig {
   uint32_t query_port;
   /// Number of shards for distributed processing (default: 1)
   uint32_t shard_num;
-  /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all interfaces)
+  /// Host address to bind (default: "127.0.0.1", use "0.0.0.0" for all
+  /// interfaces)
   std::string host_str;
 
   /**

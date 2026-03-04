@@ -45,9 +45,9 @@ jobs:
 
       - name: Set nightly wheel version
         run: |
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           short_sha=$(git rev-parse --short HEAD)
-          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/tools/python_bind/VERSION
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
 
       - name: Build wheels
         run: |
@@ -83,7 +83,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
@@ -121,9 +121,9 @@ jobs:
 
       - name: Set nightly wheel version
         run: |
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           short_sha=$(git rev-parse --short HEAD)
-          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/tools/python_bind/VERSION
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
 
       - name: Build wheels
         run: |
@@ -159,7 +159,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
@@ -204,9 +204,9 @@ jobs:
 
       - name: Set nightly wheel version
         run: |
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           short_sha=$(git rev-parse --short HEAD)
-          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/tools/python_bind/VERSION
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
 
       - name: Build wheels
         run: |
@@ -243,7 +243,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
@@ -288,9 +288,9 @@ jobs:
 
       - name: Set nightly wheel version
         run: |
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           short_sha=$(git rev-parse --short HEAD)
-          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/tools/python_bind/VERSION
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
 
       - name: Build wheels
         run: |
@@ -327,7 +327,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/tools/python_bind/VERSION)
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
           python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example

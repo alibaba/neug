@@ -18,22 +18,7 @@ if(ARROW_INCLUDE_DIRS)
 endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
-# Link libraries
-# Core Arrow symbols are already in neug (which links arrow_static,
-# arrow_dataset_static, etc.). However, the linker strips unreferenced symbols
-# from static archives — both arrow::json::* and arrow::dataset::Json* symbols
-# are stripped because neug itself doesn't use them.
-#
-# Link the Arrow OBJECT libraries directly to include these symbols:
-# - arrow_json: provides arrow::json::TableReader, ReadOptions, ParseOptions, etc.
-# - arrow_dataset_objlib: provides arrow::dataset::JsonFileFormat,
-#   JsonFragmentScanOptions, and other dataset symbols used by the extension.
-#
-# Using OBJECT library targets (resolved at build time) instead of file(GLOB)
-# for .o files (which fails on clean builds since GLOB runs at configure time).
 target_link_libraries(neug_json_extension PRIVATE
-    arrow_json
-    arrow_dataset_objlib
     neug
 )
 
@@ -42,6 +27,5 @@ if(BUILD_TEST)
     add_extension_test(NAME json
         TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/json_test.cpp
         EXTRA_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include
-        EXTRA_LINK_LIBS arrow_json arrow_dataset_objlib
     )
 endif()

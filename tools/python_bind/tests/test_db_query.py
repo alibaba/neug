@@ -2428,3 +2428,18 @@ def test_parameterized_where_on_edge_string_property():
 
     conn.close()
     db.close()
+
+
+def test_insert_many_vertices():
+    db_dir = "/tmp/test_insert_many_vertices"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    for i in range(10000):
+        conn.execute(f"CREATE (p: Person {{id: {i}}});")
+    res = conn.execute("MATCH (p: Person) RETURN count(p);")
+    records = list(res)
+    assert records == [[10000]], f"Expected value [[10000]], got {records}"
+    conn.close()
+    db.close()
