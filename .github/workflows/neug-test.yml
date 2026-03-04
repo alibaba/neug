@@ -135,6 +135,7 @@ jobs:
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
+        export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
         export BUILD_EXECUTABLES=ON
@@ -583,6 +584,8 @@ jobs:
         ./scripts/run_e2e_test.sh neug_tp_test comprehensive_graph /tmp/comprehensive_graph path
 
     - name: Test installation c++ sdk
+      env:
+        CI: ON
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
         # Use cmake --install instead of make install to avoid CMakeCache

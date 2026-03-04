@@ -99,6 +99,7 @@ readonly tempdir="/tmp/gs-local-deps"
 cn_flag=false
 debug_flag=false
 install_prefix="/opt/neug"
+ARROW_VERSION=${ARROW_VERSION:-"18.0.0"}
 
 # parse args
 while (( "$#" )); do
@@ -184,6 +185,78 @@ function download_and_untar() {
   fi
 }
 
+install_arrow_from_source() {
+  local arrow_version="${ARROW_VERSION}"
+  local arrow_archive="apache-arrow-${arrow_version}.tar.gz"
+  local arrow_directory="apache-arrow-${arrow_version}"
+  local arrow_build_directory="${tempdir}/apache-arrow-build"
+  local arrow_url="https://graphscope.oss-cn-beijing.aliyuncs.com/apache-arrow-${arrow_version}.tar.gz"
+
+  if [[ -f "${install_prefix}/lib/libarrow.a" || -f "${install_prefix}/lib64/libarrow.a" ]]; then
+    info "Arrow already installed under ${install_prefix}, skip."
+    return 0
+  fi
+
+  info "Installing Arrow ${arrow_version} from source"
+  pushd "${tempdir}" >/dev/null || exit
+  if [ ! -f "${arrow_archive}" ]; then
+    info "Downloading Arrow archive from ${arrow_url}"
+    curl -fsSL -o "${arrow_archive}" "${arrow_url}"
+  fi
+  if [ ! -d "${arrow_directory}" ]; then
+    tar zxf "${arrow_archive}"
+  fi
+
+  cmake -S "${arrow_directory}/cpp" -B "${arrow_build_directory}" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="${install_prefix}" \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DARROW_BUILD_SHARED=OFF \
+    -DARROW_BUILD_STATIC=ON \
+    -DARROW_WITH_UTF8PROC=OFF \
+    -DARROW_CSV=ON \
+    -DARROW_ACERO=ON \
+    -DARROW_DATASET=ON \
+    -DARROW_COMPUTE=ON \
+    -DARROW_CUDA=OFF \
+    -DARROW_FILESYSTEM=ON \
+    -DARROW_FLIGHT=OFF \
+    -DARROW_GANDIVA=OFF \
+    -DARROW_HDFS=OFF \
+    -DARROW_ORC=OFF \
+    -DARROW_JSON=ON \
+    -DARROW_PARQUET=OFF \
+    -DARROW_PLASMA=OFF \
+    -DARROW_PYTHON=OFF \
+    -DARROW_S3=OFF \
+    -DARROW_WITH_BZ2=OFF \
+    -DARROW_WITH_LZ4=OFF \
+    -DARROW_WITH_SNAPPY=OFF \
+    -DARROW_WITH_ZSTD=OFF \
+    -DARROW_WITH_BROTLI=OFF \
+    -DARROW_IPC=ON \
+    -DARROW_BUILD_BENCHMARKS=OFF \
+    -DARROW_BUILD_TESTS=OFF \
+    -DARROW_BUILD_EXAMPLES=OFF \
+    -DARROW_BUILD_UTILITIES=OFF \
+    -DARROW_BUILD_INTEGRATION=OFF \
+    -DARROW_ENABLE_TIMING_TESTS=OFF \
+    -DARROW_FUZZING=OFF \
+    -DARROW_USE_ASAN=OFF \
+    -DARROW_USE_UBSAN=OFF \
+    -DARROW_USE_TSAN=OFF \
+    -DARROW_USE_JEMALLOC=OFF \
+    -DARROW_SIMD_LEVEL=NONE \
+    -DARROW_RUNTIME_SIMD_LEVEL=NONE \
+    -DARROW_POSITION_INDEPENDENT_CODE=ON \
+    -DARROW_DEPENDENCY_SOURCE=BUNDLED \
+    -DRapidJSON_SOURCE=BUNDLED
+
+  cmake --build "${arrow_build_directory}" --target install -j"$(nproc)"
+  popd >/dev/null || exit
+  rm -rf "${arrow_build_directory}" "${tempdir}/${arrow_directory}" "${tempdir}/${arrow_archive}"
+}
+
 
 BASIC_PACKAGES_LINUX=("file" "curl" "wget" "git" "sudo")
 BASIC_PACKAGES_UBUNTU=("${BASIC_PACKAGES_LINUX[@]}" "build-essential" "cmake" "libunwind-dev" "python3-pip")
@@ -264,6 +337,10 @@ install_neug_dependencies() {
       source /opt/rh/devtoolset-10/enable
     fi
     install_openssl
+  fi
+
+  if [[ "${CI:-OFF}" == "ON" ]]; then
+    install_arrow_from_source
   fi
 }
 

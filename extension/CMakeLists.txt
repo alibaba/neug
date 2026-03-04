@@ -93,8 +93,7 @@ function(add_extension_test)
         ${GLOG_LIBRARIES}
         ${ARROW_LIB}
         ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB}
-        ${GFLAGS_LIBRARIES})
+        ${CRYPTO_LIB})
     if(ENABLE_GCOV)
         target_compile_options(${_test_name} PRIVATE --coverage)
         target_link_options(${_test_name} PRIVATE --coverage)
