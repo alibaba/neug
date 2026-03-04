@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
- #include "glog/logging.h"
  #include "neug/compiler/extension/extension_api.h"
  #include "neug/utils/exception/exception.h"
  
@@ -29,7 +28,7 @@
   * It registers the subgraph matching functions with the catalog.
   */
  void Init() {
-   LOG(INFO) << "[sampled_match extension] init called";
+   std::cout << "[sampled_match extension] init called" << std::endl;
  
   try {
     // 注册 INITIALIZE 函数 (图初始化)
@@ -63,7 +62,7 @@
             "CALL GET_EDGE_PROPERTY(edge_keys_json, edge_label, prop_names_json). "
             "SAMPLED_MATCH returns estimated embedding count and sampled results with edge keys."});
 
-    LOG(INFO) << "[sampled_match extension] functions registered successfully";
+    std::cout << "[sampled_match extension] functions registered successfully" << std::endl;
    } catch (const std::exception& e) {
      THROW_EXCEPTION_WITH_FILE_LINE(
          "[sampled_match extension] registration failed: " + std::string(e.what()));

@@ -28,7 +28,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "glog/logging.h"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"

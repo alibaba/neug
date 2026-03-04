@@ -307,7 +307,6 @@ undefined reference to `google::FlagRegisterer::FlagRegisterer<int>...
 ```cmake
 target_link_libraries(test_sample_match PRIVATE
     neug_libraries
-    ${GLOG_LIBRARIES}
     gflags
 )
 ```
