@@ -17,7 +17,6 @@
 #include <string>
 #include "neug/compiler/extension/extension.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/utils/result.h"
 
 namespace neug {

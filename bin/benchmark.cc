@@ -209,9 +209,8 @@ void benchmark_iteration(
       }
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
-      neug::execution::Sink::sink(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
-          output);
+      (void) neug::execution::Sink::sink_neug(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph));
     } else {
       neug::execution::OprTimer cur_timer;
       auto ctx =
@@ -219,9 +218,8 @@ void benchmark_iteration(
 
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
-      neug::execution::Sink::sink(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
-          output);
+      (void) neug::execution::Sink::sink_neug(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph));
       timer += cur_timer;
     }
   }

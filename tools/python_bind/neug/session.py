@@ -34,7 +34,6 @@ except ImportError as e:
 
 from neug.proto.error_pb2 import ERR_NETWORK
 from neug.proto.error_pb2 import ERR_SESSION_CLOSED
-from neug.proto.results_pb2 import CollectiveResults
 from neug.query_result import QueryResult
 from neug.utils import is_access_mode_valid
 from neug.utils import valid_access_modes

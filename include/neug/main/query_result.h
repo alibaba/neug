@@ -22,7 +22,6 @@
 #include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/common/types/value.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/serialization_protocol.h"
 
 #include <arrow/api.h>

@@ -126,7 +126,7 @@ result<QueryResult> QueryProcessor::execute_internal(
                << ", message: " << ctx_res.error().error_message();
     RETURN_ERROR(ctx_res.error());
   }
-  auto ret = execution::Sink::sink_neug_serial(ctx_res.value(), graph);
+  auto ret = execution::Sink::sink_neug(ctx_res.value(), graph);
   ret.set_result_schema(cache_value->result_schema);
   update_compiler_meta_if_needed(cache_value->flags, access_mode);
   return ret;

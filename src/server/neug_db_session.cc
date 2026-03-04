@@ -165,7 +165,7 @@ neug::result<QueryResult> NeugDBSession::Eval(const std::string& req) {
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, read_txn, gri));
-    result.Swap(execution::Sink::sink_neug_serial(ctx, gri));
+    result.Swap(execution::Sink::sink_neug(ctx, gri));
   } else if (mode == AccessMode::kInsert) {
     auto insert_txn = GetInsertTransaction();
     neug::StorageTPInsertInterface gii(insert_txn);
@@ -180,7 +180,7 @@ neug::result<QueryResult> NeugDBSession::Eval(const std::string& req) {
     GS_AUTO(ctx, ExecutePipelineInTransaction(pipeline_cache_, schema(), query,
                                               mode, param_json_obj, timer.get(),
                                               result_schema, update_txn, gui));
-    result.Swap(execution::Sink::sink_neug_serial(ctx, gui));
+    result.Swap(execution::Sink::sink_neug(ctx, gui));
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Access mode not supported in NeugDBSession::Eval: " +

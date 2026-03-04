@@ -28,7 +28,6 @@
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
