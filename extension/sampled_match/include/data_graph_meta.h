@@ -26,7 +26,6 @@
 #include <any>
 #include <functional>
 
-#include "glog/logging.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/execution/common/types/value.h"
 
