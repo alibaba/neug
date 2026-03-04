@@ -16,7 +16,7 @@ set -e
 # Default values
 EXTENSIONS="sampled_match"
 VERSION="0.1.0"
-PLATFORM="linux_x86_64"
+PLATFORM="osx_arm64"
 WORKSPACE_DIR="$(pwd)"
 SKIP_BUILD=false
 SKIP_UPLOAD=false
