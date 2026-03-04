@@ -35,6 +35,10 @@ void StorageAPUpdateInterface::UpdateEdgeProperty(
 bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
                                          const std::vector<Property>& props,
                                          vid_t& vid) {
+  const auto& table = graph_.get_vertex_table(label);
+  if (table.LidNum() >= table.Capacity()) {
+    graph_.Reserve(label, table.Capacity() * 2);
+  }
   auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
