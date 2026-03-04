@@ -26,7 +26,6 @@
 #include "neug/execution/execute/query_cache.h"
 #include "neug/execution/utils/opr_timer.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/access_mode.h"

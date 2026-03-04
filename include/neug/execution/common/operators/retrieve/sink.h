@@ -26,20 +26,8 @@ namespace execution {
 class Context;
 class Sink {
  public:
-  static results::CollectiveResults sink(const Context& ctx,
-                                         const StorageReadInterface& graph);
-
-  static QueryResult sink_neug_serial(const Context& ctx,
-                                      const StorageReadInterface& graph);
-
-  static void sink(const Context& ctx, const StorageReadInterface& graph,
-                   Encoder& output);
-
-  static void sink_encoder(const Context& ctx,
-                           const StorageReadInterface& graph, Encoder& encoder);
-  // for debug
-  static void sink_beta(const Context& ctx, const StorageReadInterface& graph,
-                        Encoder& output);
+  static QueryResult sink_neug(const Context& ctx,
+                               const StorageReadInterface& graph);
 };
 
 }  // namespace execution

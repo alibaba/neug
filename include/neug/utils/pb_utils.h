@@ -22,7 +22,6 @@
 #include "neug/generated/proto/plan/basic_type.pb.h"
 #include "neug/generated/proto/plan/cypher_ddl.pb.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -52,8 +51,6 @@ inline void configure_json_print_options_for_all_fields(
   options.always_print_fields_with_no_presence = true;  // Replacement field
 #endif
 }
-
-std::string proto_to_bolt_response(const results::CollectiveResults& result);
 
 template <typename T>
 std::string proto_to_string(const T& proto) {

@@ -17,7 +17,6 @@
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/generated/proto/plan/error.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
 
 namespace neug {
 

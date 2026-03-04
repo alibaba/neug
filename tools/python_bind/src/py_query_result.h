@@ -18,7 +18,6 @@
 
 #include "pybind11/include/pybind11/pybind11.h"
 
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_result.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/result.h"

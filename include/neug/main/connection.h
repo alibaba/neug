@@ -24,7 +24,6 @@
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/common/types/value.h"
 #include "neug/generated/proto/plan/physical.pb.h"
-#include "neug/generated/proto/plan/results.pb.h"
 #include "neug/main/query_processor.h"
 #include "neug/main/query_result.h"
 #include "neug/utils/result.h"

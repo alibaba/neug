@@ -302,7 +302,6 @@ class BuildProto(Command):
             output_dir,
             [
                 "common.proto",
-                "results.proto",
                 "common.proto",
                 "expr.proto",
                 "type.proto",
