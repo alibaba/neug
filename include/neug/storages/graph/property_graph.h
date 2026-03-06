@@ -298,6 +298,15 @@ class PropertyGraph {
 
   Status Reserve(label_t v_label, vid_t vertex_reserve_size);
 
+  // Ensure there are enough spaces for adding vertices/edges, if capacity
+  // is -1, we will calculate the new capacity based on the current capacity:
+  // For vertex table, we will double the current capacity; for edge table, we
+  // will set new capacity to  cap + (cap + 4) / 5
+  Status EnsureCapacity(label_t v_label, int64_t capacity = -1);
+
+  Status EnsureCapacity(label_t src_label, label_t dst_label,
+                        label_t edge_label, int64_t capacity = -1);
+
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
 

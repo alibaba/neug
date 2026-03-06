@@ -112,6 +112,55 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
   }
 }
 
+Status PropertyGraph::EnsureCapacity(label_t v_label, int64_t capacity) {
+  if (schema_.vertex_label_valid(v_label)) {
+    auto old_cap = vertex_tables_[v_label].Capacity();
+    auto v_new_cap = vertex_tables_[v_label].EnsureCapacity(capacity);
+    if (v_new_cap == old_cap) {
+      return neug::Status::OK();
+    }
+    for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
+         ++dst_label) {
+      if (!schema_.vertex_label_valid(dst_label)) {
+        continue;
+      }
+      for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
+        size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
+        if (edge_tables_.count(index) > 0) {
+          edge_tables_.at(index).Resize(v_new_cap,
+                                        vertex_tables_[dst_label].Capacity());
+        }
+        index = schema_.generate_edge_label(dst_label, v_label, e_label);
+        if (edge_tables_.count(index) > 0) {
+          edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
+                                        v_new_cap);
+        }
+      }
+    }
+    return neug::Status::OK();
+  } else {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex label does not exist.");
+  }
+}
+
+Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
+                                     label_t edge_label, int64_t capacity) {
+  if (!schema_.exist(src_label, dst_label, edge_label)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge label does not exist for the given source and "
+                  "destination vertex labels.");
+  }
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    return Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Edge table for the given edge label triplet does not exist.");
+  }
+  edge_tables_.at(index).EnsureCapacity(capacity);
+  return neug::Status::OK();
+}
+
 Status PropertyGraph::BatchAddVertices(
     label_t v_label, std::shared_ptr<IRecordBatchSupplier> supplier) {
   assert(v_label < vertex_tables_.size());
@@ -1129,7 +1178,8 @@ Status PropertyGraph::AddVertex(label_t label, const Property& id,
                                 const std::vector<Property>& props, vid_t& ret,
                                 timestamp_t ts) {
   if (!vertex_tables_[label].AddVertex(id, props, ret, ts)) {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Fail to add vertex, reserved space exhausted.");
   }
   return Status::OK();
 }

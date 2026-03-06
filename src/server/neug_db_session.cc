@@ -134,9 +134,24 @@ inline neug::result<execution::Context> ExecutePipelineInTransaction(
     txn.Abort();
     RETURN_ERROR(ctx_res.error());
   }
-  if (!txn.Commit()) {
-    LOG(ERROR) << "transaction commit failed.";
-    RETURN_ERROR(neug::Status::InternalError("Transaction commit failed."));
+  try {
+    if (!txn.Commit()) {
+      return tl::unexpected(neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR,
+                                         "Failed to commit "
+                                         "transaction."));
+    }
+  } catch (const neug::exception::Exception& e) {
+    return tl::unexpected(neug::Status(
+        neug::StatusCode::ERR_INTERNAL_ERROR,
+        std::string("Exception during transaction commit: ") + e.what()));
+  } catch (const std::exception& e) {
+    return tl::unexpected(neug::Status(
+        neug::StatusCode::ERR_INTERNAL_ERROR,
+        std::string("Exception during transaction commit: ") + e.what()));
+  } catch (...) {
+    return tl::unexpected(
+        neug::Status(neug::StatusCode::ERR_INTERNAL_ERROR,
+                     "Unknown exception during transaction commit."));
   }
   return ctx_res;
 }

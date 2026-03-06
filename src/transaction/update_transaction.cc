@@ -682,12 +682,14 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
 
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
-  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+  auto status = graph_.EnsureCapacity(label);
   if (!status.ok()) {
-    // The most possible reason is that the space is not enough.
-    graph_.Reserve(label, std::max((vid_t) 1024, graph_.LidNum(label) * 2));
-    status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+    LOG(ERROR) << "Failed to ensure space for vertex of label "
+               << graph_.schema().get_vertex_label_name(label) << ": "
+               << status.ToString();
+    return false;
   }
+  status = graph_.AddVertex(label, oid, props, vid, timestamp_);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
                << graph_.schema().get_vertex_label_name(label) << ": "
@@ -737,6 +739,12 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
+  auto status = graph_.EnsureCapacity(src_label, dst_label, edge_label);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to ensure space before insert edge: "
+               << status.ToString();
+    return false;
+  }
   auto oe_offset = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
                                   edge_label, properties, timestamp_, alloc_);
   auto ie_offset = search_other_offset_with_cur_offset(

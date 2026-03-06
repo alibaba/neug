@@ -35,11 +35,14 @@ void StorageAPUpdateInterface::UpdateEdgeProperty(
 bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
                                          const std::vector<Property>& props,
                                          vid_t& vid) {
-  const auto& table = graph_.get_vertex_table(label);
-  if (table.LidNum() >= table.Capacity()) {
-    graph_.Reserve(label, table.Capacity() * 2);
+  auto status = graph_.EnsureCapacity(label);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to ensure space for vertex of label "
+               << graph_.schema().get_vertex_label_name(label) << ": "
+               << status.ToString();
+    return false;
   }
-  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
+  status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }
@@ -49,6 +52,11 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
 bool StorageAPUpdateInterface::AddEdge(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Property>& properties) {
+  auto status = graph_.EnsureCapacity(src_label, dst_label, edge_label);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to ensure space for edge of: " << status.ToString();
+    return false;
+  }
   graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
                  neug::timestamp_t(0), alloc_);
   return true;

@@ -1039,7 +1039,10 @@ def test_insert_string_column_exaustion():
     str_prop = "a" * 255
     with pytest.raises(Exception):
         for i in range(10000):
-            sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
+            sess.execute(
+                query=f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});",
+                access_mode="insert",
+            )
     sess.close()
     db2.stop_serving()
     db2.close()

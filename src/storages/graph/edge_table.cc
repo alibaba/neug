@@ -371,13 +371,15 @@ void batch_add_unbundled_edges_impl(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list, TypedCsrBase<uint64_t>* out_csr,
     TypedCsrBase<uint64_t>* in_csr, Table* table_,
-    std::atomic<uint64_t>& table_idx_, const std::vector<DataType>& prop_types,
+    std::atomic<uint64_t>& table_idx_, std::atomic<uint64_t>& capacity_,
+    const std::vector<DataType>& prop_types,
     const std::vector<std::shared_ptr<arrow::RecordBatch>>& data_batches,
     const std::vector<bool>& valid_flags) {
   size_t offset = table_idx_.fetch_add(src_lid_list.size());
   insert_edges_separated_impl(out_csr, in_csr, src_lid_list, dst_lid_list,
                               offset);
   table_->resize(table_idx_.load());
+  capacity_.store(table_idx_.load());
   std::vector<std::shared_ptr<arrow::DataType>> expected_types;
   for (auto pt : prop_types) {
     expected_types.emplace_back(PropertyTypeToArrowType(pt));
@@ -454,6 +456,7 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
   table_idx_ = edge_table.table_idx_.load();
+  capacity_ = edge_table.capacity_.load();
 }
 
 void EdgeTable::Swap(EdgeTable& edge_table) {
@@ -469,6 +472,9 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   auto t_idx = table_idx_.load();
   table_idx_.store(edge_table.table_idx_.load());
   edge_table.table_idx_.store(t_idx);
+  auto cap = capacity_.load();
+  capacity_.store(edge_table.capacity_.load());
+  edge_table.capacity_.store(cap);
 }
 
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
@@ -493,8 +499,9 @@ void EdgeTable::Open(const std::string& work_dir) {
     assert(table_->col_num() > 0);
     size_t property_capacity = table_->get_column_by_id(0)->size();
     table_idx_.store(property_capacity);
-    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
-                            static_cast<size_t>(4096)));
+    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
+                             static_cast<size_t>(4096)));
+    table_->resize(capacity_.load());
   }
 }
 
@@ -522,8 +529,9 @@ void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
     assert(table_->col_num() > 0);
     size_t property_capacity = table_->get_column_by_id(0)->size();
     table_idx_.store(property_capacity);
-    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
-                            static_cast<size_t>(4096)));
+    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
+                             static_cast<size_t>(4096)));
+    table_->resize(capacity_.load());
   }
 }
 
@@ -551,8 +559,9 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
     assert(table_->col_num() > 0);
     size_t property_capacity = table_->get_column_by_id(0)->size();
     table_idx_.store(property_capacity);
-    table_->resize(std::max(property_capacity + (property_capacity + 4) / 5,
-                            static_cast<size_t>(4096)));
+    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
+                             static_cast<size_t>(4096)));
+    table_->resize(capacity_.load());
   }
 }
 
@@ -672,6 +681,20 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
 void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
   out_csr_->resize(src_vertex_num);
   in_csr_->resize(dst_vertex_num);
+}
+
+void EdgeTable::EnsureCapacity(int64_t capacity) {
+  if (!meta_->is_bundled()) {
+    if (capacity < 0) {
+      capacity =
+          std::max(4096UL, table_idx_.load() + (table_idx_.load() + 4) / 5);
+    }
+    if (capacity <= capacity_.load()) {
+      return;
+    }
+    capacity_.store(capacity);
+    table_->resize(capacity);
+  }
 }
 
 size_t EdgeTable::EdgeNum() const {
@@ -833,9 +856,9 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
     auto oe_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(out_csr_.get());
     auto ie_csr = dynamic_cast<TypedCsrBase<uint64_t>*>(in_csr_.get());
     assert(oe_csr != nullptr && ie_csr != nullptr);
-    batch_add_unbundled_edges_impl(src_lid, dst_lid, oe_csr, ie_csr,
-                                   table_.get(), table_idx_, meta_->properties,
-                                   data_batches, valid_flags);
+    batch_add_unbundled_edges_impl(
+        src_lid, dst_lid, oe_csr, ie_csr, table_.get(), table_idx_, capacity_,
+        meta_->properties, data_batches, valid_flags);
   }
 }
 
@@ -864,7 +887,11 @@ void EdgeTable::BatchAddEdges(
     size_t offset = table_idx_.fetch_add(src_lid_list.size());
     insert_edges_separated_impl(oe_csr, ie_csr, src_lid_list, dst_lid_list,
                                 offset);
-    table_->resize(offset + src_lid_list.size());
+    while (capacity_.load() <= table_idx_.load()) {
+      capacity_.store(std::max(table_idx_.load() + (table_idx_.load() + 4) / 5,
+                               static_cast<size_t>(4096)));
+    }
+    table_->resize(capacity_.load());
     for (size_t i = 0; i < edge_data_list.size(); ++i) {
       table_->insert(offset + i, edge_data_list[i]);
     }
