@@ -122,6 +122,8 @@ class VertexTable {
 
   void Reserve(size_t cap);
 
+  size_t EnsureCapacity(size_t capacity);
+
   bool is_dropped() const { return table_ == nullptr; }
 
   bool get_index(const Property& oid, vid_t& lid,
@@ -143,6 +145,8 @@ class VertexTable {
 
   // Capacity of the vertex table
   inline size_t Capacity() const { return indexer_.capacity(); }
+
+  inline size_t Size() const { return indexer_.size(); }
 
   bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 

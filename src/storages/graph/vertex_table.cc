@@ -194,6 +194,14 @@ void VertexTable::Reserve(size_t cap) {
   }
 }
 
+size_t VertexTable::EnsureCapacity(size_t capacity) {
+  if (capacity <= indexer_.capacity()) {
+    return indexer_.capacity();
+  }
+  Reserve(capacity);
+  return indexer_.capacity();
+}
+
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
   indexer_.ensure_writable(work_dir_);
   size_t delete_cnt = 0;

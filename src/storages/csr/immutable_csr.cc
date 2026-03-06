@@ -190,6 +190,12 @@ void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
 }
 
 template <typename EDATA_T>
+size_t ImmutableCsr<EDATA_T>::capacity() const {
+  // We assume the capacity of each csr is INFINITE.
+  return CsrBase::INFINITE_CAPACITY;
+}
+
+template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::close() {
   adj_lists_.reset();
   degree_list_.reset();
@@ -461,6 +467,11 @@ void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   } else {
     nbr_list_.resize(vnum);
   }
+}
+
+template <typename EDATA_T>
+size_t SingleImmutableCsr<EDATA_T>::capacity() const {
+  return nbr_list_.size();
 }
 
 template <typename EDATA_T>

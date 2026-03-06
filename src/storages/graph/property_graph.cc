@@ -30,6 +30,7 @@
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
+#include "neug/utils/growth.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
@@ -98,10 +99,12 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
           edge_tables_.at(index).Resize(vertex_tables_[v_label].Capacity(),
                                         vertex_tables_[dst_label].Capacity());
         }
-        index = schema_.generate_edge_label(dst_label, v_label, e_label);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
-                                        vertex_tables_[v_label].Capacity());
+        if (v_label != dst_label) {
+          index = schema_.generate_edge_label(dst_label, v_label, e_label);
+          if (edge_tables_.count(index) > 0) {
+            edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
+                                          vertex_tables_[v_label].Capacity());
+          }
         }
       }
     }
@@ -110,6 +113,73 @@ Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Vertex label does not exist.");
   }
+}
+
+Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
+  if (schema_.vertex_label_valid(v_label)) {
+    auto old_cap = vertex_tables_[v_label].Capacity();
+    if (capacity == 0) {
+      auto old_size = vertex_tables_[v_label].Size();
+      if (old_size >= old_cap) {
+        capacity = neug::calculate_new_capacity(old_cap, true);
+      }
+    }
+    if (capacity <= old_cap) {
+      return neug::Status::OK();
+    }
+    auto v_new_cap = vertex_tables_[v_label].EnsureCapacity(capacity);
+    for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
+         ++dst_label) {
+      if (!schema_.vertex_label_valid(dst_label)) {
+        continue;
+      }
+      for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
+        size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
+        if (edge_tables_.count(index) > 0) {
+          edge_tables_.at(index).Resize(v_new_cap,
+                                        vertex_tables_[dst_label].Capacity());
+        }
+        if (v_label != dst_label) {
+          index = schema_.generate_edge_label(dst_label, v_label, e_label);
+          if (edge_tables_.count(index) > 0) {
+            edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
+                                          v_new_cap);
+          }
+        }
+      }
+    }
+    return neug::Status::OK();
+  } else {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Vertex label does not exist.");
+  }
+}
+
+Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
+                                     label_t edge_label, size_t capacity) {
+  if (!schema_.exist(src_label, dst_label, edge_label)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge label does not exist for the given source and "
+                  "destination vertex labels.");
+  }
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    return Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Edge table for the given edge label triplet does not exist.");
+  }
+  size_t old_cap = edge_tables_.at(index).Capacity();
+  if (capacity == 0) {
+    size_t old_size = edge_tables_.at(index).Size();
+    if (old_size >= old_cap) {
+      capacity = neug::calculate_new_capacity(old_cap, false);
+    }
+  }
+  if (capacity <= old_cap) {
+    return neug::Status::OK();
+  }
+  edge_tables_.at(index).EnsureCapacity(capacity);
+  return neug::Status::OK();
 }
 
 Status PropertyGraph::BatchAddVertices(

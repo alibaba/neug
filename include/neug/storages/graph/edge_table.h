@@ -72,6 +72,8 @@ class EdgeTable {
 
   void Resize(vid_t src_vertex_num, vid_t dst_vertex_num);
 
+  void EnsureCapacity(size_t capacity);
+
   size_t EdgeNum() const;
 
   size_t PropertyNum() const;
@@ -128,6 +130,21 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
+  inline size_t Size() const { return table_idx_.load(); }
+
+  inline size_t Capacity() const {
+    if (meta_->is_bundled()) {
+      if (out_csr_) {
+        return out_csr_->capacity();
+      } else if (in_csr_) {
+        return in_csr_->capacity();
+      } else {
+        THROW_RUNTIME_ERROR("both csr are null");
+      }
+    }
+    return capacity_.load();
+  }
+
  private:
   void dropAndCreateNewBundledCSR();
   void dropAndCreateNewUnbundledCSR(bool delete_property);
@@ -141,6 +158,7 @@ class EdgeTable {
   std::unique_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
+  std::atomic<uint64_t> capacity_{0};
 
   friend class PropertyGraph;
 };

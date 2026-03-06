@@ -298,6 +298,11 @@ class PropertyGraph {
 
   Status Reserve(label_t v_label, vid_t vertex_reserve_size);
 
+  Status EnsureCapacity(label_t v_label, size_t capacity = 0);
+
+  Status EnsureCapacity(label_t src_label, label_t dst_label,
+                        label_t edge_label, size_t capacity = 0);
+
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);
 

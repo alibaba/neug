@@ -34,6 +34,8 @@ enum class CsrType {
 
 class CsrBase {
  public:
+  static constexpr size_t INFINITE_CAPACITY =
+      std::numeric_limits<size_t>::max();
   CsrBase() = default;
   virtual ~CsrBase() = default;
 
@@ -65,6 +67,8 @@ class CsrBase {
   virtual void compact() = 0;
 
   virtual void resize(vid_t vnum) = 0;
+
+  virtual size_t capacity() const = 0;
 
   virtual void close() = 0;
 

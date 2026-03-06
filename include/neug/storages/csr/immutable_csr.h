@@ -83,6 +83,8 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void resize(vid_t vnum) override;
 
+  size_t capacity() const override;
+
   void close() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
@@ -175,6 +177,8 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   void compact() override;
 
   void resize(vid_t vnum) override;
+
+  size_t capacity() const override;
 
   void close() override;
 
