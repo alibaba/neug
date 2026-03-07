@@ -323,6 +323,19 @@ jobs:
     # ========================================
     # Phase 3.5: Extension Tests
     # ========================================
+    - name: Diagnose extension linkage
+      run: |
+        EXT_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/extension/json/libjson.neug_extension
+        NEUG_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/libneug.so
+        echo "=== Extension DT_NEEDED ==="
+        readelf -d "$EXT_LIB" | grep NEEDED || echo "(no NEEDED entries)"
+        echo "=== Extension RPATH/RUNPATH ==="
+        readelf -d "$EXT_LIB" | grep -E "RPATH|RUNPATH" || echo "(no RPATH)"
+        echo "=== libneug.so exports InvalidArgumentException? ==="
+        nm -D "$NEUG_LIB" | grep InvalidArgumentException || echo "(symbol NOT found in libneug.so)"
+        echo "=== ldd on extension ==="
+        ldd "$EXT_LIB" || echo "(ldd failed)"
+
     - name: Run Extension C++ Test
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
