@@ -17,7 +17,12 @@ function(set_extension_properties target_name output_name extension_name)
     set(extension_dir "${output_dir}/extension/${extension_name}")
     file(MAKE_DIRECTORY "${extension_dir}")
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
-    
+    # macOS dyld uses @loader_path, Linux uses $ORIGIN
+    if(APPLE)
+        set(_ext_rpath "@loader_path/../..")
+    else()
+        set(_ext_rpath "$ORIGIN/../..")
+    endif()
     set_target_properties(${target_name}
             PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${extension_dir}"
@@ -25,7 +30,7 @@ function(set_extension_properties target_name output_name extension_name)
             PREFIX "lib"
             SUFFIX ".neug_extension"
             BUILD_WITH_INSTALL_RPATH true
-            INSTALL_RPATH "$ORIGIN/../.."
+            INSTALL_RPATH "${_ext_rpath}"
     )
 endfunction()
 
