@@ -40,6 +40,10 @@ function(build_extension_lib ext_name)
     add_library(neug_${ext_name}_extension
             SHARED
             ${${var_name}})
+    if(ENABLE_GCOV)
+        target_compile_options(neug_${ext_name}_extension PRIVATE --coverage)
+        target_link_options(neug_${ext_name}_extension PRIVATE --coverage)
+    endif()
     SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
     SET(EXTENSION_LIB_NAME "${ext_name}")
     set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})

@@ -433,8 +433,26 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 #endif
 }
 
+// Promote libneug.so to RTLD_GLOBAL so that extensions loaded via dlopen
+// can resolve neug symbols.  When the host process (e.g. Python) loads
+// libneug.so with RTLD_LOCAL, the symbols stay in a local scope and are
+// invisible to subsequently dlopen'd extensions even though they list
+// libneug.so in DT_NEEDED.  Re-opening with RTLD_NOLOAD | RTLD_GLOBAL
+// promotes the already-loaded instance without reloading it.
+static void ensureNeugSymbolsGlobal() {
+  static bool promoted = false;
+  if (promoted) return;
+  Dl_info info;
+  if (dladdr(reinterpret_cast<void*>(&ensureNeugSymbolsGlobal), &info) &&
+      info.dli_fname) {
+    dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_GLOBAL);
+  }
+  promoted = true;
+}
+
 Status load_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
+  ensureNeugSymbolsGlobal();
   auto fileName =
       neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
 
