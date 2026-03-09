@@ -183,7 +183,11 @@ void TypedColumn<std::string_view>::set_value_safe(
     size_t idx, const std::string_view& value) {
   std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   if (idx < size_) {
-    size_t offset = pos_.fetch_add(value.size());
+    std::string_view v = value;
+    if (v.size() >= width_) {
+      v = truncate_utf8(v, width_);
+    }
+    size_t offset = pos_.fetch_add(v.size());
     if (pos_.load() > buffer_.data_size()) {
       lock.unlock();
       std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
@@ -195,7 +199,7 @@ void TypedColumn<std::string_view>::set_value_safe(
       w_lock.unlock();
       lock.lock();
     }
-    buffer_.set(idx, offset, value);
+    buffer_.set(idx, offset, v);
   } else {
     THROW_INDEX_EXCEPTION(
         "Index out of range in set_value_safe: " + std::to_string(idx) +
