@@ -34,8 +34,7 @@ Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
 result<std::string> computeFileSHA256(const std::string& path);
 
 Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
-                               const std::string& localLibPath,
-                               bool& checksumChecked);
+                               const std::string& localLibPath);
 
 }  // namespace extension
 }  // namespace neug

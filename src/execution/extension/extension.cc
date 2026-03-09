@@ -177,6 +177,27 @@ Status install_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
             << " path=" << repoInfo.hostPath << " full=" << repoInfo.repoURL;
 
+  if (std::filesystem::exists(localLibPath)) {
+    auto verifySt = verifyExtensionChecksum(repoInfo, localLibPath);
+    // existing extension lib in local path is not consistent with the remote
+    // repo, remove it
+    if (!verifySt.ok()) {
+      std::error_code ec;
+      if (!std::filesystem::remove(localLibPath, ec)) {
+        LOG(ERROR) << "[Admin] Cannot delete existing extension file (no "
+                      "permission or error): " +
+                          localLibPath + " ec=" + ec.message() +
+                          ". Please delete it manually.";
+        return Status(
+            StatusCode::ERR_IO_ERROR,
+            "Cannot delete existing extension file (no permission or error): " +
+                localLibPath + " ec=" + ec.message() +
+                ". Please delete it manually.");
+      }
+      LOG(INFO) << "[Admin] Removed existing extension file: " << localLibPath;
+    }
+  }
+
   if (!std::filesystem::exists(localLibPath)) {
     auto st = downloadExtensionFile(repoInfo, localLibPath);
     if (!st.ok()) {
@@ -187,20 +208,13 @@ Status install_extension(const std::string& extension_name) {
     }
     LOG(INFO) << "[Admin] Extension " << extension_name << " downloaded to "
               << localLibPath;
-  } else {
-    LOG(INFO) << "[Admin] Extension file already exists: " << localLibPath;
-  }
-
-  bool checksumChecked = false;
-  auto verifySt =
-      verifyExtensionChecksum(repoInfo, localLibPath, checksumChecked);
-  if (!verifySt.ok()) {
-    std::filesystem::remove(localLibPath);
-    return Status(
-        StatusCode::ERR_IO_ERROR,
-        "Extension integrity check failed: " + verifySt.error_message());
-  }
-  if (checksumChecked) {
+    auto verifySt = verifyExtensionChecksum(repoInfo, localLibPath);
+    if (!verifySt.ok()) {
+      std::filesystem::remove(localLibPath);
+      return Status(
+          StatusCode::ERR_IO_ERROR,
+          "Extension integrity check failed: " + verifySt.error_message());
+    }
     LOG(INFO) << "[Admin] Extension integrity verified for " << extension_name;
   }
 
@@ -329,10 +343,7 @@ result<std::string> computeFileSHA256(const std::string& path) {
 }
 
 Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
-                               const std::string& localLibPath,
-                               bool& checksumChecked) {
-  checksumChecked = false;
-
+                               const std::string& localLibPath) {
   std::string checksumURL = libRepoInfo.repoURL + ".sha256";
   std::string checksumPath = libRepoInfo.hostPath + ".sha256";
   std::string checksumHost = libRepoInfo.hostURL;
@@ -424,7 +435,6 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
                       ", Got: " + computedChecksum);
   }
 
-  checksumChecked = true;
   LOG(INFO) << "[Admin] Checksum verification passed for " << localLibPath;
   return Status::OK();
 #else
@@ -441,7 +451,8 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 // promotes the already-loaded instance without reloading it.
 static void ensureNeugSymbolsGlobal() {
   static bool promoted = false;
-  if (promoted) return;
+  if (promoted)
+    return;
   Dl_info info;
   if (dladdr(reinterpret_cast<void*>(&ensureNeugSymbolsGlobal), &info) &&
       info.dli_fname) {
