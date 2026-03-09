@@ -21,10 +21,10 @@ import neug
 
 # Step 1: Load and analyze data (Embedded Mode)
 db = neug.Database("/path/to/database") 
-conn = db.connect()
-
 # Load sample data
 db.load_builtin_dataset("tinysnb")
+
+conn = db.connect()
 
 # Run analytics
 result = conn.execute("""
