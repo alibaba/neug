@@ -18,9 +18,9 @@ if(ARROW_INCLUDE_DIRS)
 endif()
 target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
-target_link_libraries(neug_json_extension PRIVATE
-    neug
-)
+if(NOT APPLE)
+    target_link_libraries(neug_json_extension PRIVATE neug)
+endif()
 
 # Build test by compiling extension sources directly (no link to neug_json_extension)
 if(BUILD_TEST)

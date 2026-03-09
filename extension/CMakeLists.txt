@@ -18,6 +18,12 @@ function(set_extension_properties target_name output_name extension_name)
     file(MAKE_DIRECTORY "${extension_dir}")
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
     
+    if(APPLE)
+        set(_install_rpath "@loader_path/../..")
+    else()
+        set(_install_rpath "$ORIGIN/../..")
+    endif()
+
     set_target_properties(${target_name}
             PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY "${extension_dir}"
@@ -25,7 +31,7 @@ function(set_extension_properties target_name output_name extension_name)
             PREFIX "lib"
             SUFFIX ".neug_extension"
             BUILD_WITH_INSTALL_RPATH true
-            INSTALL_RPATH "$ORIGIN/../.."
+            INSTALL_RPATH "${_install_rpath}"
     )
 endfunction()
 
@@ -40,6 +46,19 @@ function(build_extension_lib ext_name)
     add_library(neug_${ext_name}_extension
             SHARED
             ${${var_name}})
+    if(APPLE)
+        # On macOS, resolve neug symbols at runtime instead of recording a
+        # hard LC_LOAD_DYLIB dependency.  delocate (the macOS wheel-repair
+        # tool) copies libneug into .dylibs/ with a rewritten install_name
+        # but does not process .neug_extension files, leaving the extension
+        # pointing at the original libneug.  dyld then loads two copies
+        # (different install_names) and gflags aborts on duplicate flags.
+        # This mirrors pybind11's approach: ensureNeugSymbolsGlobal() in
+        # extension.cc promotes libneug to RTLD_GLOBAL before dlopen'ing
+        # the extension, so all neug symbols are already available.
+        target_link_options(neug_${ext_name}_extension PRIVATE
+            "LINKER:-undefined,dynamic_lookup")
+    endif()
     if(ENABLE_GCOV)
         target_compile_options(neug_${ext_name}_extension PRIVATE --coverage)
         target_link_options(neug_${ext_name}_extension PRIVATE --coverage)
