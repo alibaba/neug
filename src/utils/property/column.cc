@@ -73,7 +73,8 @@ class TypedEmptyColumn : public ColumnBase {
 
   void set_value(size_t index, const T& val) {}
 
-  void set_any(size_t index, const Property& value) override {}
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+  }
 
   T get_view(size_t index) const { T{}; }
 
@@ -112,7 +113,8 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
 
   void set_value(size_t index, const std::string_view& val) {}
 
-  void set_any(size_t index, const Property& value) override {}
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+  }
 
   std::string_view get_view(size_t index) const { return std::string_view{}; }
 

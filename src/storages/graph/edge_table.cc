@@ -775,7 +775,7 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
 
 int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
                            const std::vector<Property>& edge_data,
-                           timestamp_t ts, Allocator& alloc) {
+                           timestamp_t ts, Allocator& alloc, bool insert_safe) {
   int32_t oe_offset;
   if (meta_->is_bundled()) {
     assert(edge_data.size() == 1 ||
@@ -795,7 +795,7 @@ int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
     prop.set_uint64(row_id);
     in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
     oe_offset = out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
-    table_->insert(row_id, edge_data);
+    table_->insert(row_id, edge_data, insert_safe);
   }
   return oe_offset;
 }
