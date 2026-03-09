@@ -19,7 +19,7 @@ function(set_extension_properties target_name output_name extension_name)
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
     # macOS dyld uses @loader_path, Linux uses $ORIGIN. Multiple paths: semicolon-separated.
     if(APPLE)
-        set(_ext_rpath
+        set(_ext_rpath 
             "@loader_path/../../neug/.dylibs"
             "@loader_path/../.."
             "@loader_path")
