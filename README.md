@@ -36,10 +36,12 @@ import neug
 
 # Step 1: Load and analyze data (Embedded Mode)
 db = neug.Database("/path/to/database") 
-conn = db.connect()
 
-# Load sample data
+# Load sample data (must load data before creating connection)
 db.load_builtin_dataset("tinysnb")
+
+# Create connection to execute queries
+conn = db.connect()
 
 # Run analytics - find triangles in the graph
 result = conn.execute("""
@@ -48,8 +50,9 @@ result = conn.execute("""
     RETURN a.fName, b.fName, c.fName
 """)
 
+# Access results by index (QueryResult returns a list for each row)
 for record in result:
-    print(f"{record['a.fName']}, {record['b.fName']}, {record['c.fName']} are mutual friends")
+    print(f"{record[0]}, {record[1]}, {record[2]} are mutual friends")
 
 # Step 2: Serve applications (Service Mode)  
 conn.close()
