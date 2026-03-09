@@ -132,7 +132,7 @@ size_t VertexTable::LidNum() const { return indexer_.size(); }
 
 bool VertexTable::AddVertex(const Property& id,
                             const std::vector<Property>& props, vid_t& vid,
-                            timestamp_t ts, bool allow_resize_col) {
+                            timestamp_t ts, bool insert_safe) {
   indexer_.ensure_writable(work_dir_);
   if (indexer_.capacity() <= indexer_.size()) {
     return false;
