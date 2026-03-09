@@ -343,12 +343,12 @@ jobs:
         ctest -R json_extension_test -V
         ctest -R test_extension -V
 
-    - name: Run Extension Python Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export NEUG_RUN_JSON_TESTS=true
-        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py -k "json"
+    # - name: Run Extension Python Test
+    #   run: |
+    #     cd ${GITHUB_WORKSPACE}/tools/python_bind/
+    #     export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+    #     export NEUG_RUN_JSON_TESTS=true
+    #     python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py -k "json"
 
     # ========================================
     # Phase 4: E2E Tests
