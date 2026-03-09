@@ -134,7 +134,13 @@ class EdgeTable {
 
   inline size_t Capacity() const {
     if (meta_->is_bundled()) {
-      return std::numeric_limits<size_t>::max();
+      if (out_csr_) {
+        return out_csr_->capacity();
+      } else if (in_csr_) {
+        return in_csr_->capacity();
+      } else {
+        THROW_RUNTIME_ERROR("both csr are null");
+      }
     }
     return capacity_.load();
   }

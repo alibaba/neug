@@ -66,6 +66,8 @@ class CsrBase {
 
   virtual void resize(vid_t vnum) = 0;
 
+  virtual size_t capacity() const = 0;
+
   virtual void close() = 0;
 
   virtual void batch_sort_by_edge_data(timestamp_t ts) {

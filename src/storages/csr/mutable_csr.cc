@@ -344,6 +344,11 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
 }
 
 template <typename EDATA_T>
+size_t MutableCsr<EDATA_T>::capacity() const {
+  return std::numeric_limits<size_t>::max();
+}
+
+template <typename EDATA_T>
 void MutableCsr<EDATA_T>::close() {
   if (locks_ != nullptr) {
     delete[] locks_;
@@ -643,6 +648,11 @@ void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
   } else {
     nbr_list_.resize(vnum);
   }
+}
+
+template <typename EDATA_T>
+size_t SingleMutableCsr<EDATA_T>::capacity() const {
+  return nbr_list_.size();
 }
 
 template <typename EDATA_T>
