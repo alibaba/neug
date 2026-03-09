@@ -81,10 +81,13 @@ Common utilities and infrastructure components used throughout the system.
   - `yaml_utils.cc` - YAML configuration parsing
   - `pb_utils.cc` - Protocol Buffers serialization utilities
   - `service_utils.cc` - Service and networking utilities
-  - `app_utils.cc` - Application lifecycle management
+  - `bolt_utils.cc` - Bolt protocol support utilities
+  - `bitset.cc` - Bitset data structure implementations
+  - `encoder.cc` - Data encoding and decoding utilities
+  - `result.cc` - Result handling and error propagation
 - **`exception/`** - Custom exception handling framework
 - **`property/`** - Property type system and columnar storage
-- **`proto/`** - Protocol Buffers definitions and generated code
+- **`reader/`** - Data reader implementations and utilities
 - **`remote/`** - Remote procedure call and networking utilities
 
 ### 🚀 [`main/`](./main/)
@@ -92,19 +95,23 @@ Common utilities and infrastructure components used throughout the system.
 
 Core database engine implementation and session management.
 
-- **Core Engine:**
+- **Core Engine Components:**
   - `neug_db.cc` - Main database engine implementation
-  - `neug_db_session.cc` - Database session management
   - `query_processor.cc` - Query processing orchestration
+  - `query_request.cc` - Query request representation and parsing
   - `query_result.cc` - Query result handling and formatting
-  - `connection.cc` - Client connection management
-  - `file_lock.cc` - File-based locking mechanisms
-- **`app/`** - Application framework and plugin system
+- **Connection Management:**
+  - `connection.cc` - Client connection handling
+  - `connection_manager.cc` - Connection pool and lifecycle management
+  - `file_lock.cc` - File-based locking and concurrency control
 
 ### 🌐 [`server/`](./server/)
 **Network Server Implementation**
 
 HTTP and RPC server implementations for service mode operations.
 
-- `brpc_http_hdl_mgr.cc` - BRPC-based HTTP service handler
-- `neug_db_service.cc` - Database service implementation and API endpoints
+- **Service Management:**
+  - `brpc_service_mgr.cc` - BRPC service framework management
+  - `neug_db_service.cc` - Database service implementation and API endpoints
+  - `neug_db_session.cc` - Service-side session handling and state management
+  - `session_pool.cc` - Session pooling and resource management
