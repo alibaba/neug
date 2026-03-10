@@ -24,6 +24,7 @@ Available parameters are:
 |---|---|---|
 |`HEADER`|Whether to output a header row.|`false`|
 |`DELIM` or `DELIMITER`|Character that separates fields in the CSV.|`\|`|
+|`BATCH_SIZE`|Maximum number of rows to write in a single batch.|`1024`|
 
 Another example is shown below.
 ```cypher
@@ -31,9 +32,9 @@ COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) TO 'person_knows_person.csv
 ```
 This outputs the following results to `person_knows_person.csv`:
 ```csv
-e
-{'_SRC': '0:0', '_DST': '0:1', '_LABEL': 'knows', 'weight': 0.500000}
-{'_SRC': '0:0', '_DST': '0:2', '_LABEL': 'knows', 'weight': 1.000000}
+"e"
+"{'_LABEL':'knows','_ID':1,'_SRC_ID':0,'_DST_ID':1,'weight':0.5}"
+"{'_LABEL':'knows','_ID':2,'_SRC_ID':0,'_DST_ID':2,'weight':1.0}"
 ```
 
 ## Additional Export Formats

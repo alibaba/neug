@@ -35,7 +35,7 @@ struct LogicalCopyToPrintInfo final : OPPrintInfo {
 class LogicalCopyTo final : public LogicalOperator {
  public:
   LogicalCopyTo(std::unique_ptr<function::ExportFuncBindData> bindData,
-                function::TableFunction exportFunc,
+                function::ExportFunction exportFunc,
                 std::shared_ptr<LogicalOperator> child)
       : LogicalOperator{LogicalOperatorType::COPY_TO, std::move(child),
                         std::optional<common::cardinality_t>(0)},
@@ -55,7 +55,7 @@ class LogicalCopyTo final : public LogicalOperator {
     return bindData->copy();
   }
 
-  const function::TableFunction& getExportFunc() const { return exportFunc; };
+  const function::ExportFunction& getExportFunc() const { return exportFunc; };
 
   std::unique_ptr<OPPrintInfo> getPrintInfo() const override {
     return std::make_unique<LogicalCopyToPrintInfo>(bindData->columnNames,
@@ -69,7 +69,7 @@ class LogicalCopyTo final : public LogicalOperator {
 
  private:
   std::unique_ptr<function::ExportFuncBindData> bindData;
-  function::TableFunction exportFunc;
+  function::ExportFunction exportFunc;
 };
 
 }  // namespace planner

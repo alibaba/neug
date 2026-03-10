@@ -91,6 +91,12 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
     physicalOpr->set_allocated_opr(oprPB.release());
     planPB->mutable_plan()->AddAllocated(physicalOpr.release());
   }
+  size_t planSize = planPB->plan_size();
+  if (planSize >= 2 && planPB->plan(planSize - 1).opr().has_sink() &&
+      planPB->plan(planSize - 2).opr().has_data_export()) {
+    // swap sink and data export to make sure sink is before data export
+    planPB->mutable_plan()->SwapElements(planSize - 1, planSize - 2);
+  }
   return planPB;
 }
 
@@ -1105,6 +1111,14 @@ std::unique_ptr<::physical::FileSchema> GQueryConvertor::convertFileSchema(
   return filePB;
 }
 
+std::unique_ptr<::physical::FileSchema> GQueryConvertor::convertFileSchema(
+    const function::ExportFuncBindData* bindData) {
+  auto filePB = std::make_unique<::physical::FileSchema>();
+  filePB->add_paths(bindData->fileName);
+  *filePB->mutable_options() = std::move(*convertExportOptions(bindData));
+  return filePB;
+}
+
 std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
     const function::ScanFileBindData* scanBindData) {
   common::alias_id_t columnId = 0;
@@ -1120,6 +1134,17 @@ std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
     auto typePB = typeConverter->convertLogicalType(column->getDataType());
     entryPB->mutable_column_types()->AddAllocated(typePB->release_data_type());
   }
+  return entryPB;
+}
+
+std::unique_ptr<::physical::EntrySchema> GQueryConvertor::convertEntrySchema(
+    const function::ExportFuncBindData* bindData) {
+  auto entryPB = std::make_unique<::physical::EntrySchema>();
+  for (const auto& name : bindData->columnNames) {
+    entryPB->add_column_names(name);
+  }
+  // Types are taken from the table at write time; only column names (header
+  // order) come from entry_schema.
   return entryPB;
 }
 
@@ -1177,18 +1202,10 @@ std::unique_ptr<Options> GQueryConvertor::convertDataSourceOptions(
 }
 
 std::unique_ptr<Options> GQueryConvertor::convertExportOptions(
-    const planner::LogicalCopyTo& copyTo) {
-  auto bindData = copyTo.getBindData();
-  auto csvBindData = bindData->ptrCast<function::ExportCSVBindData>();
+    const function::ExportFuncBindData* bindData) {
   auto options = std::make_unique<Options>();
-  if (csvBindData) {
-    auto csvOptions = csvBindData->exportOption;
-    // csvOptions is not a map, but has defined fields; insert each as a
-    // key-value pair.
-    options->insert({"ESCAPE", std::string(1, csvOptions.escapeChar)});
-    options->insert({"DELIM", std::string(1, csvOptions.delimiter)});
-    options->insert({"QUOTE", std::string(1, csvOptions.quoteChar)});
-    options->insert({"HEADER", csvOptions.hasHeader ? "True" : "False"});
+  for (auto& option : bindData->options) {
+    options->insert({option.first, option.second.toString()});
   }
   return options;
 }
@@ -1961,127 +1978,28 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
 
 void GQueryConvertor::convertCopyTo(const planner::LogicalCopyTo& copyTo,
                                     ::physical::PhysicalPlan* plan) {
-  auto exportFunc = copyTo.getExportFunc();
-  if (exportFunc.name == neug::function::ExportCSVFunction::name) {
-    convertDataExport(copyTo, plan);
-  } else {
-    convertProcedureCall(copyTo, plan);
-  }
-}
-
-// convert the header of CopyTo as a pair array
-std::unique_ptr<::common::Value> GQueryConvertor::convertCopyToHeader(
-    const planner::LogicalCopyTo& copyTo) {
-  auto columnNames = copyTo.getBindData()->columnNames;
-  // set column mappings, here assume input column ID is the same as output
-  // column ID of the previous operator.
-  // todo: consider about column reordering.
-  if (copyTo.getChildren().empty()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "COPY TO operator should have at least one child");
+  if (!copyTo.getNumChildren()) {
+    THROW_EXCEPTION_WITH_FILE_LINE("CopyTo should have at least one child");
   }
   auto child = copyTo.getChild(0);
-  auto outputSchema = child->getSchema()->getExpressionsInScope();
-  if (outputSchema.size() != columnNames.size()) {
+  if (child->getOperatorType() != planner::LogicalOperatorType::PROJECTION &&
+      child->getOperatorType() != planner::LogicalOperatorType::AGGREGATE) {
     THROW_EXCEPTION_WITH_FILE_LINE(
-        "Mismatch between number of output columns (" +
-        std::to_string(columnNames.size()) + ") and number of input columns (" +
-        std::to_string(outputSchema.size()) + ") in COPY TO operator.");
+        "Child of CopyTo should be a projection or aggregate");
   }
-  auto pairArrayPB = std::make_unique<::common::PairArray>();
-  size_t pos = 0;
-  for (auto& column : columnNames) {
-    auto& outputExpr = outputSchema[pos++];
-    auto outputAliasId = aliasManager->getAliasId(outputExpr->getUniqueName());
-    if (outputAliasId == DEFAULT_ALIAS_ID) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Invalid alias id in output column: " +
-                                     outputExpr->toString());
-    }
-    auto pairPB = std::make_unique<::common::Pair>();
-    auto keyPB = std::make_unique<::common::Value>();
-    keyPB->set_i32(outputAliasId);
-    auto valuePB = std::make_unique<::common::Value>();
-    valuePB->set_str(column);
-    pairPB->set_allocated_key(keyPB.release());
-    pairPB->set_allocated_val(valuePB.release());
-    pairArrayPB->mutable_item()->AddAllocated(pairPB.release());
-  }
-  auto valuePB = std::make_unique<::common::Value>();
-  valuePB->set_allocated_pair_array(pairArrayPB.release());
-  return valuePB;
-}
-
-// convert CopyTo as ProcedureCall
-void GQueryConvertor::convertProcedureCall(const planner::LogicalCopyTo& copyTo,
-                                           ::physical::PhysicalPlan* plan) {
-  auto callFunc = copyTo.getExportFunc();
-  // set function name of CopyTo
-  auto queryPB = std::make_unique<::procedure::Query>();
-  auto namePB = std::make_unique<::common::NameOrId>();
-  namePB->set_name(callFunc.signatureName);
-  queryPB->set_allocated_query_name(namePB.release());
-
-  // set parameters of CopyTo
-  // the fst parameter is the output path
-  // the snd parameter is the output header which defines the column names and
-  // their corresponding alias IDs in pair array, i.e. [<alias_id_1,
-  // column_name_1>, <alias_id_2, column_name_2>, ...]
-  auto outputPath = std::make_unique<::common::Value>();
-  outputPath->set_str(copyTo.getBindData()->fileName);
-  auto arg0 = std::make_unique<::procedure::Argument>();
-  arg0->set_param_ind(0);
-  arg0->set_allocated_const_(outputPath.release());
-  auto arg1 = std::make_unique<::procedure::Argument>();
-  arg1->set_param_ind(1);
-  arg1->set_allocated_const_(convertCopyToHeader(copyTo).release());
-  queryPB->mutable_arguments()->AddAllocated(arg0.release());
-  queryPB->mutable_arguments()->AddAllocated(arg1.release());
-
-  auto procedurePB = std::make_unique<::physical::ProcedureCall>();
-  procedurePB->set_allocated_query(queryPB.release());
-  auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
-  auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
-  oprPB->set_allocated_procedure_call(procedurePB.release());
-  physicalPB->set_allocated_opr(oprPB.release());
-  plan->mutable_plan()->AddAllocated(physicalPB.release());
+  convertDataExport(copyTo, plan);
 }
 
 // convert CopyTo as DataExport
 void GQueryConvertor::convertDataExport(const planner::LogicalCopyTo& copyTo,
                                         ::physical::PhysicalPlan* plan) {
   auto exportPB = std::make_unique<::physical::DataExport>();
-  auto extensionName = getExtensionName(copyTo);
+  auto extensionName = copyTo.getExportFunc().signatureName;
   exportPB->set_extension_name(extensionName);
-  std::string path = copyTo.getBindData()->fileName;
-  exportPB->set_file_path(path);
-  *exportPB->mutable_options() = std::move(*convertExportOptions(copyTo));
-  auto columnNames = copyTo.getBindData()->columnNames;
-  // set column mappings, here assume input column ID is the same as output
-  // column ID of the previous operator.
-  // todo: consider about column reordering.
-  if (copyTo.getChildren().empty()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "COPY TO operator should have at least one child");
-  }
-  auto child = copyTo.getChild(0);
-  auto outputSchema = child->getSchema()->getExpressionsInScope();
-  if (outputSchema.size() != columnNames.size()) {
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Mismatch between number of output columns (" +
-        std::to_string(columnNames.size()) + ") and number of input columns (" +
-        std::to_string(outputSchema.size()) + ") in COPY TO operator.");
-  }
-  size_t pos = 0;
-  for (auto& column : columnNames) {
-    auto& outputExpr = outputSchema[pos++];
-    auto outputAliasId = aliasManager->getAliasId(outputExpr->getUniqueName());
-    if (outputAliasId == DEFAULT_ALIAS_ID) {
-      THROW_EXCEPTION_WITH_FILE_LINE("Invalid alias id in output column: " +
-                                     outputExpr->toString());
-    }
-    auto mappingPB = convertPropMapping(column, outputAliasId);
-    exportPB->mutable_property_mappings()->AddAllocated(mappingPB.release());
-  }
+  exportPB->set_allocated_file_schema(
+      convertFileSchema(copyTo.getBindData().get()).release());
+  exportPB->set_allocated_entry_schema(
+      convertEntrySchema(copyTo.getBindData().get()).release());
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
   auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
   oprPB->set_allocated_data_export(exportPB.release());

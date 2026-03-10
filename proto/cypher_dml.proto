@@ -54,15 +54,12 @@ message DataExport {
     // The file format to export to, e.g., "csv", "json".
     string extension_name = 1;
 
-    // The target file path where the export will be written.
-    string file_path = 2;
+    // The target file path where the export will be written,
+    // and format-specific options, such as delimiters, headers, etc.
+    FileSchema file_schema = 5;
 
-    // Format-specific options, such as delimiters, headers, etc.
-    map<string, string> options = 3;
-
-    // Specifies the columns to include in the export.
-    // To support extensibility and column reordering, each item maps a column name to its corresponding input column ID.
-    repeated PropertyMapping property_mappings = 4;
+    // Specifies the columns to include in the export, including column names and types.
+    EntrySchema entry_schema = 6;
 }
 
 // COPY User from 'user.csv'
