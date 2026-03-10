@@ -334,14 +334,10 @@ struct EdgeDataAccessor {
   }
         FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-      case DataTypeId::kVarchar: {
-        *reinterpret_cast<std::string_view*>(const_cast<void*>(
-            it.get_data_ptr())) = PropUtils<std::string_view>::to_typed(prop);
-        break;
-      }
       default:
-        LOG(FATAL) << "type - " << std::to_string(data_type_)
-                   << " - not implemented";
+        THROW_RUNTIME_ERROR("Could not set bundled data for type " +
+                            std::to_string(data_type_));
+        break;
       }
     }
   }
@@ -370,13 +366,9 @@ struct EdgeDataAccessor {
   }
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-    case DataTypeId::kVarchar: {
-      return PropUtils<std::string_view>::to_prop(
-          get_bundled_data_from_ptr<std::string_view>(data_ptr));
-    }
     default:
-      LOG(FATAL) << "type - " << std::to_string(data_type_)
-                 << " - not implemented";
+      THROW_RUNTIME_ERROR("Could not get bundled data for type " +
+                          std::to_string(data_type_));
       return Property::empty();
     }
   }
