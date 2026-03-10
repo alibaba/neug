@@ -68,6 +68,7 @@ jobs:
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Upload wheel artifacts
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')))
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-x86_64-${{ github.run_id }}
@@ -146,6 +147,7 @@ jobs:
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Upload wheel artifacts
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')))
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-arm64-${{ github.run_id }}
@@ -201,6 +203,27 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Cache cibuildwheel downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/cibuildwheel
+          key: ${{ runner.os }}-${{ runner.arch }}-cibw-cache-v1
+
+      - name: Pre-download virtualenv.pyz (retry on 429)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/Caches/cibuildwheel
+          VENV_PYZ=~/Library/Caches/cibuildwheel/virtualenv-20.32.0.pyz
+          if [ -s "$VENV_PYZ" ]; then
+            echo "Using cached virtualenv.pyz: $VENV_PYZ"
+            exit 0
+          fi
+          URL_PRIMARY="https://raw.githubusercontent.com/pypa/get-virtualenv/20.32.0/public/virtualenv.pyz"
+          URL_FALLBACK="https://github.com/pypa/get-virtualenv/blob/20.32.0/public/virtualenv.pyz?raw=true"
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_PRIMARY" || \
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_FALLBACK"
+          test -s "$VENV_PYZ"
+
       # Only run install_dep.sh on macos system
       - name: Install dependencies
         run: |
@@ -212,7 +235,7 @@ jobs:
       - name: Prepare for macos
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=${{ env.MACOSX_DEPLOYMENT_TARGET }}"
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15"
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
@@ -229,6 +252,7 @@ jobs:
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Upload wheel artifacts
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')))
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-x86_64-${{ github.run_id }}
@@ -284,6 +308,27 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Cache cibuildwheel downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/cibuildwheel
+          key: ${{ runner.os }}-${{ runner.arch }}-cibw-cache-v1
+
+      - name: Pre-download virtualenv.pyz (retry on 429)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/Caches/cibuildwheel
+          VENV_PYZ=~/Library/Caches/cibuildwheel/virtualenv-20.32.0.pyz
+          if [ -s "$VENV_PYZ" ]; then
+            echo "Using cached virtualenv.pyz: $VENV_PYZ"
+            exit 0
+          fi
+          URL_PRIMARY="https://raw.githubusercontent.com/pypa/get-virtualenv/20.32.0/public/virtualenv.pyz"
+          URL_FALLBACK="https://github.com/pypa/get-virtualenv/blob/20.32.0/public/virtualenv.pyz?raw=true"
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_PRIMARY" || \
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_FALLBACK"
+          test -s "$VENV_PYZ"
+
       # Only run install_dep.sh on macos system
       - name: Install dependencies
         run: |
@@ -295,7 +340,7 @@ jobs:
       - name: Prepare for macos
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=${{ env.MACOSX_DEPLOYMENT_TARGET }}"
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15"
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
@@ -312,6 +357,7 @@ jobs:
           python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Upload wheel artifacts
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')))
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-arm64-${{ github.run_id }}
