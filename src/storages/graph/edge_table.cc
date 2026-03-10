@@ -397,7 +397,7 @@ void batch_add_unbundled_edges_impl(
       assert(cur_index < valid_flags.size());
       if (valid_flags[cur_index++]) {
         auto row = get_row_from_recordbatch(prop_types, expected_types, rb, i);
-        table_->insert(offset++, row);
+        table_->insert(offset++, row, true);
       }
     }
   }
@@ -775,7 +775,7 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
 
 int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
                            const std::vector<Property>& edge_data,
-                           timestamp_t ts, Allocator& alloc) {
+                           timestamp_t ts, Allocator& alloc, bool insert_safe) {
   int32_t oe_offset;
   if (meta_->is_bundled()) {
     assert(edge_data.size() == 1 ||
@@ -795,7 +795,7 @@ int32_t EdgeTable::AddEdge(vid_t src_lid, vid_t dst_lid,
     prop.set_uint64(row_id);
     in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
     oe_offset = out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
-    table_->insert(row_id, edge_data);
+    table_->insert(row_id, edge_data, insert_safe);
   }
   return oe_offset;
 }
@@ -866,7 +866,7 @@ void EdgeTable::BatchAddEdges(
                                 offset);
     table_->resize(offset + src_lid_list.size());
     for (size_t i = 0; i < edge_data_list.size(); ++i) {
-      table_->insert(offset + i, edge_data_list[i]);
+      table_->insert(offset + i, edge_data_list[i], true);
     }
   }
 }

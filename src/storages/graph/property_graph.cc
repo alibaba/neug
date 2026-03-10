@@ -1127,8 +1127,8 @@ Property PropertyGraph::GetOid(label_t label, vid_t lid, timestamp_t ts) const {
 
 Status PropertyGraph::AddVertex(label_t label, const Property& id,
                                 const std::vector<Property>& props, vid_t& ret,
-                                timestamp_t ts) {
-  if (!vertex_tables_[label].AddVertex(id, props, ret, ts)) {
+                                timestamp_t ts, bool insert_safe) {
+  if (!vertex_tables_[label].AddVertex(id, props, ret, ts, insert_safe)) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
   }
   return Status::OK();
@@ -1138,7 +1138,8 @@ int32_t PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
                                label_t dst_label, vid_t dst_lid,
                                label_t edge_label,
                                const std::vector<Property>& properties,
-                               timestamp_t ts, Allocator& alloc) {
+                               timestamp_t ts, Allocator& alloc,
+                               bool insert_safe) {
   size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
   if (edge_tables_.count(index) == 0) {
     LOG(ERROR) << "Edge table does not exist for edge label: " << edge_label;
@@ -1147,8 +1148,8 @@ int32_t PropertyGraph::AddEdge(label_t src_label, vid_t src_lid,
                                      std::to_string(dst_label) + ", " +
                                      std::to_string(edge_label) + ">");
   }
-  return edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts,
-                                        alloc);
+  return edge_tables_.at(index).AddEdge(src_lid, dst_lid, properties, ts, alloc,
+                                        insert_safe);
 }
 
 Status PropertyGraph::UpdateVertexProperty(label_t v_label, vid_t vid,

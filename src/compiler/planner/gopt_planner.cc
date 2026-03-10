@@ -26,7 +26,7 @@ namespace neug {
 
 result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     const std::string& query) {
-  LOG(INFO) << "[GOptPlanner] compilePlan called with query: " << query;
+  VLOG(1) << "[GOptPlanner] compilePlan called with query: " << query;
   // read access to the planner
 
   if (database->getCatalog() == nullptr) {
