@@ -10,19 +10,6 @@ on:
         type: choice
         options:
           - main
-  push:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'extension/**'
-      - '.github/workflows/neug-extension-test.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
