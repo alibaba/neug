@@ -19,7 +19,6 @@ on:
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
-      - 'extension/**'
   push:
     branches:
       - main
@@ -35,7 +34,6 @@ on:
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
-      - 'extension/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -160,7 +158,6 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
@@ -335,38 +332,6 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_commands.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
-
-    # ========================================
-    # Phase 3.5: Extension Tests
-    # ========================================
-    - name: Diagnose extension linkage
-      run: |
-        EXT_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/extension/json/libjson.neug_extension
-        NEUG_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/libneug.so
-        echo "=== Extension DT_NEEDED ==="
-        readelf -d "$EXT_LIB" | grep NEEDED || echo "(no NEEDED entries)"
-        echo "=== Extension RPATH/RUNPATH ==="
-        readelf -d "$EXT_LIB" | grep -E "RPATH|RUNPATH" || echo "(no RPATH)"
-        echo "=== libneug.so exports InvalidArgumentException? ==="
-        nm -D "$NEUG_LIB" | grep InvalidArgumentException || echo "(symbol NOT found in libneug.so)"
-        echo "=== ldd on extension ==="
-        ldd "$EXT_LIB" || echo "(ldd failed)"
-
-    - name: Run Extension C++ Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        ctest -R json_extension_test -V
-        ctest -R test_extension -V
-
-    # TODO: Re-enable after fixing extension loading (PR #14)
-    - name: Run Extension Python Test
-      continue-on-error: true
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export NEUG_RUN_JSON_TESTS=true
-        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py -k "json"
 
     # ========================================
     # Phase 4: E2E Tests
