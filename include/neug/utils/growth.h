@@ -25,7 +25,10 @@ inline size_t calculate_new_capacity(size_t current_capacity,
   if (is_vertex_table) {
     // For vertex tables, we grow exponentially: double the current capacity,
     // with a 4K floor.
-    return current_capacity == 0 ? 4096 : current_capacity * 2;
+    return current_capacity == 0 ? 4096
+           : (current_capacity <= std::numeric_limits<size_t>::max() / 2
+                  ? current_capacity * 2
+                  : std::numeric_limits<size_t>::max());
   } else {
     // For edge tables, we grow linearly: new capacity = current capacity +
     // (current capacity + 4) / 5.
