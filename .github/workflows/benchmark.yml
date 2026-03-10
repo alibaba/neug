@@ -46,6 +46,10 @@ jobs:
           ${{ runner.os }}-ccache-${{ github.run_id }}-
           ${{ runner.os }}-ccache-
 
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
