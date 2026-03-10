@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   build-neug-image:
-    runs-on: [ubuntu-22.04]
+    runs-on: ubuntu-22.04
 
     steps:
     - name: checkout
