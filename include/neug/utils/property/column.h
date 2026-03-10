@@ -358,7 +358,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
-    std::unique_lock<std::shared_mutex> lock(rw_mutex_);
+    // concurrency should be controlled by caller.
     size_ = size;
     if (buffer_.size() != 0) {
       size_t avg_width =
@@ -435,7 +435,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   size_t size_;
   std::atomic<size_t> pos_;
   StorageStrategy strategy_;
-  std::shared_mutex rw_mutex_;
   uint16_t width_;
   std::string_view default_value_;
   DataTypeId type_;
