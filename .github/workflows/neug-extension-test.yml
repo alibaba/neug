@@ -1,20 +1,15 @@
 name: NeuG Extension Test
 
 on:
-  workflow_dispatch: # Manual trigger
-  pull_request:      # PR trigger
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'extension/**'
-      - '.github/workflows/neug-extension-test.yml'
+  workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
+    inputs:
+      branch:
+        description: 'Branch to run the workflow on'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - main
   push:
     branches:
       - main
@@ -38,8 +33,6 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   build:
-    # only trigger by workflow_dispatch
-    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
