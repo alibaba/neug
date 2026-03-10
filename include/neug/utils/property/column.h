@@ -64,7 +64,12 @@ class ColumnBase {
 
   virtual DataTypeId type() const = 0;
 
-  virtual void set_any(size_t index, const Property& value) = 0;
+  // insert_safe is true when the column needs to be resized to accommodate the
+  // new value, which can happen when the value is not fixed length. If the
+  // value is fixed length, we should already have enough space allocated, so
+  // insert_safe can be false.
+  virtual void set_any(size_t index, const Property& value,
+                       bool insert_safe = false) = 0;
 
   virtual Property get_prop(size_t index) const = 0;
 
@@ -166,7 +171,8 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const Property& value) override {
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+    // allow resize is ignored for fixed-length types
     set_value(index, PropUtils<T>::to_typed(value));
   }
 
@@ -237,7 +243,8 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   DataTypeId type() const override { return DataTypeId::kEmpty; }
 
-  void set_any(size_t index, const Property& value) override {}
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+  }
 
   void set_value(size_t index, const EmptyType& value) {}
 
@@ -385,8 +392,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  void set_any(size_t idx, const Property& value) override {
-    set_value(idx, value.as_string_view());
+  void set_any(size_t idx, const Property& value, bool insert_safe) override {
+    if (insert_safe) {
+      set_value_safe(idx, PropUtils<std::string_view>::to_typed(value));
+    } else {
+      set_value(idx, value.as_string_view());
+    }
   }
 
   void set_value_safe(size_t idx, const std::string_view& value);
