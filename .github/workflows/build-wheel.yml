@@ -20,6 +20,7 @@ on:
       - '.github/workflows/build-wheel.yml'
       - 'scripts/install_deps.sh'
       - 'CMakeLists.txt'
+      - 'NEUG_VERSION'
   pull_request:
     branches:
       - main
@@ -51,10 +52,10 @@ jobs:
         run: |
           rm -rf /__w/_tool/Python
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==2.23.3
@@ -63,7 +64,7 @@ jobs:
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.13 on PRs
+      - name: Limit builds to CPython 3.14 on PRs
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
@@ -129,11 +130,11 @@ jobs:
         run: |
           rm -rf /__w/_tool/Python
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.14
         if: runner.name != 'arm64-1'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==2.23.3
@@ -204,10 +205,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       # Only run install_dep.sh on macos system
       - name: Install dependencies
@@ -286,10 +287,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       # Only run install_dep.sh on macos system
       - name: Install dependencies
@@ -365,7 +366,7 @@ jobs:
     runs-on: macos-15-intel
     strategy:
       matrix:
-        python-version: ['3.13']
+        python-version: ['3.14']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -406,7 +407,7 @@ jobs:
     runs-on: macos-15
     strategy:
       matrix:
-        python-version: ['3.13']
+        python-version: ['3.14']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
