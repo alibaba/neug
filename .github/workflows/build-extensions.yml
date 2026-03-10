@@ -8,7 +8,7 @@ on:
         required: false
         default: 'json'
       version:
-        description: 'Version tag for the extensions (e.g., v0.1.0)'
+        description: 'Version tag for the extensions (e.g., 0.1.0)'
         required: false
         default: '0.1.0'
   push:
@@ -39,7 +39,7 @@ concurrency:
 jobs:
   # Shared step to determine extensions and version
   prepare:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     outputs:
       extensions: ${{ steps.extensions.outputs.extensions }}
@@ -73,15 +73,22 @@ jobs:
   # Linux x86_64
   build_linux_x86_64:
     needs: prepare
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, X64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-x86_64
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
           submodules: true
+
+      - name: Mark directory safe
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
       - name: Debug runner information
         run: |
@@ -92,7 +99,10 @@ jobs:
           echo "Current user: $(whoami)"
           echo "Hostname: $(hostname)"
           echo "IP address: $(hostname -I)"
-          echo "IP address: $(hostname -I)"
+
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
 
       - name: Cache CCache
         uses: actions/cache@v4
@@ -124,173 +134,10 @@ jobs:
         run: |
           . /home/neug/.neug_env
           cd ${GITHUB_WORKSPACE}/
-          export BUILD_TYPE=RELEASE
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
-          export BUILD_EXECUTABLES=ON
-          export BUILD_HTTP_SERVER=ON
-          export BUILD_TEST=ON
-          export USE_NINJA=OFF
-          export WITH_MIMALLOC=OFF
-          export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-          export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          sudo mkdir -p /opt/neug-install
-          sudo chown -R $USER:$USER /opt/neug-install/
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          cd tools/python_bind
-          make clean
-          make requirements
-          make build
-          ccache --show-stats
-
-      - name: Find and package extension files
-        id: package
-        run: |
-          cd ${GITHUB_WORKSPACE}/tools/python_bind
-          EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          EXT_DIR="build"
-          PACKAGE_DIR="/tmp/extension_packages"
-          mkdir -p ${PACKAGE_DIR}
-          PLATFORM="linux_x86_64"
-          
-          # Find all extension files
-          EXT_FILES=""
-          for ext in $(echo $EXTENSIONS | tr ';' ' '); do
-            EXT_PATH="${EXT_DIR}"
-            if [ -d "${EXT_PATH}" ]; then
-              EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
-              if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
-                EXT_FILES="${EXT_FILES} ${EXT_FILE}"
-                echo "Found extension file: ${EXT_FILE}"
-              else
-                echo "Warning: Extension file not found for ${ext} in ${EXT_PATH}"
-              fi
-            else
-              echo "Warning: Extension directory not found: ${EXT_PATH}"
-            fi
-          done
-          
-          if [ -z "${EXT_FILES}" ]; then
-            echo "Error: No extension files found"
-            exit 1
-          fi
-          
-          # Copy extension files with original names and strip them
-          for ext_file in ${EXT_FILES}; do
-            original_name=$(basename ${ext_file})
-            cp ${ext_file} ${PACKAGE_DIR}/${original_name}
-            # Strip debug symbols to reduce file size
-            strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
-            echo "Packaged and stripped: ${original_name}"
-            
-            # Compute SHA256 checksum
-            checksum_file="${PACKAGE_DIR}/${original_name}.sha256"
-            python3 ${GITHUB_WORKSPACE}/scripts/compute_sha256.py ${PACKAGE_DIR}/${original_name} ${checksum_file}
-            echo "Computed checksum: ${checksum_file}"
-          done
-          
-          # List all packages
-          echo "Extension packages:"
-          ls -lh ${PACKAGE_DIR}/
-          
-          # Save package list for upload step
-          echo "package_dir=${PACKAGE_DIR}" >> $GITHUB_OUTPUT
-          echo "platform=${PLATFORM}" >> $GITHUB_OUTPUT
-
-      - name: Install OSS Python SDK
-        run: |
-          python3 -m pip  install oss2
-
-      - name: Upload extensions to OSS
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
-          package_dir: ${{ steps.package.outputs.package_dir }}
-          version: ${{ needs.prepare.outputs.version }}
-          platform: ${{ steps.package.outputs.platform }}
-        run: |
-          if [ -z "${OSS_ACCESS_KEY_ID}" ] || [ -z "${OSS_ACCESS_KEY_SECRET}" ] || [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET_NAME}" ]; then
-            echo "Warning: OSS credentials not configured. Skipping upload."
-            exit 0
-          fi
-          
-          python3 << 'EOF'
-          import os
-          import sys
-          import oss2
-          import glob
-          
-          access_key_id = os.environ.get('OSS_ACCESS_KEY_ID')
-          access_key_secret = os.environ.get('OSS_ACCESS_KEY_SECRET')
-          endpoint = os.environ.get('OSS_ENDPOINT')
-          bucket_name = os.environ.get('OSS_BUCKET_NAME')
-          package_dir = os.environ.get('package_dir', '/tmp/extension_packages')
-          version = os.environ.get('version', '0.1.0')
-          platform = os.environ.get('platform', 'linux_x86_64')
-          
-          # Initialize OSS client
-          auth = oss2.Auth(access_key_id, access_key_secret)
-          bucket = oss2.Bucket(auth, endpoint, bucket_name)
-          
-          # Upload each extension package and its checksum file
-          extension_files = glob.glob(os.path.join(package_dir, '*.neug_extension'))
-          checksum_files = glob.glob(os.path.join(package_dir, '*.sha256'))
-          
-          if not extension_files:
-              print("No extension files found to upload")
-              sys.exit(1)
-          
-          for ext_file in extension_files:
-              filename = os.path.basename(ext_file)
-              # Extract extension name from filename (e.g., libjson.neug_extension -> json)
-              # Remove 'lib' prefix and '.neug_extension' suffix
-              if filename.startswith('lib') and filename.endswith('.neug_extension'):
-                  ext_name = filename[3:-len('.neug_extension')]
-              else:
-                  # Fallback: try to extract from filename
-                  ext_name = filename.replace('.neug_extension', '').replace('lib', '')
-              # Construct OSS path: neug/extensions/v{version}/{platform}/{extension_name}/{filename}
-              # Example: neug/extensions/v0.1.0/linux_x86_64/json/libjson.neug_extension
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, ext_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          # Upload checksum files
-          for checksum_file in checksum_files:
-              filename = os.path.basename(checksum_file)
-              # Extract extension name from checksum filename (e.g., libjson.neug_extension.sha256 -> json)
-              if filename.startswith('lib') and filename.endswith('.neug_extension.sha256'):
-                  ext_name = filename[3:-len('.neug_extension.sha256')]
-              else:
-                  ext_name = filename.replace('.neug_extension.sha256', '').replace('lib', '')
-              # Construct OSS path for checksum file
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, checksum_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          print(f"\nAll extensions and checksums uploaded successfully!")
-          print(f"OSS base URL: https://{bucket_name}.{endpoint}/neug/extensions/v{version}/{platform}/")
-          EOF
+          ./scripts/build_and_upload_extensions.sh \
+            --platform linux_x86_64 \
+            --version ${{ needs.prepare.outputs.version }} \
+            --extensions ${{ needs.prepare.outputs.extensions }}
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
@@ -305,15 +152,22 @@ jobs:
   # Linux arm64
   build_linux_arm64:
     needs: prepare
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: [self-hosted, ARM64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-arm64
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
           submodules: true
+
+      - name: Mark directory safe
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
 
       - name: Debug runner information
         run: |
@@ -325,6 +179,10 @@ jobs:
           echo "Hostname: $(hostname)"
           echo "IP address: $(hostname -I)"
           echo "CPU architecture: $(uname -m)"
+
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
 
       - name: Cache CCache
         uses: actions/cache@v4
@@ -355,174 +213,11 @@ jobs:
       - name: Build NeuG with extensions
         run: |
           . /home/neug/.neug_env
-          cd ${GITHUB_WORKSPACE}/
-          export BUILD_TYPE=RELEASE
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
-          export BUILD_EXECUTABLES=ON
-          export BUILD_HTTP_SERVER=ON
-          export BUILD_TEST=ON
-          export USE_NINJA=OFF
-          export WITH_MIMALLOC=OFF
-          export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-          export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          sudo mkdir -p /opt/neug-install
-          sudo chown -R $USER:$USER /opt/neug-install/
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          cd tools/python_bind
-          make clean
-          make requirements
-          make build
-          ccache --show-stats
-
-      - name: Find and package extension files
-        id: package
-        run: |
-          cd ${GITHUB_WORKSPACE}/tools/python_bind
-          EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          EXT_DIR="build"
-          PACKAGE_DIR="/tmp/extension_packages"
-          mkdir -p ${PACKAGE_DIR}
-          PLATFORM="linux_arm64"
-          
-          # Find all extension files
-          EXT_FILES=""
-          for ext in $(echo $EXTENSIONS | tr ';' ' '); do
-            EXT_PATH="${EXT_DIR}"
-            if [ -d "${EXT_PATH}" ]; then
-              EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
-              if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
-                EXT_FILES="${EXT_FILES} ${EXT_FILE}"
-                echo "Found extension file: ${EXT_FILE}"
-              else
-                echo "Warning: Extension file not found for ${ext} in ${EXT_PATH}"
-              fi
-            else
-              echo "Warning: Extension directory not found: ${EXT_PATH}"
-            fi
-          done
-          
-          if [ -z "${EXT_FILES}" ]; then
-            echo "Error: No extension files found"
-            exit 1
-          fi
-          
-          # Copy extension files with original names and strip them
-          for ext_file in ${EXT_FILES}; do
-            original_name=$(basename ${ext_file})
-            cp ${ext_file} ${PACKAGE_DIR}/${original_name}
-            # Strip debug symbols to reduce file size
-            strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
-            echo "Packaged and stripped: ${original_name}"
-            
-            # Compute SHA256 checksum
-            checksum_file="${PACKAGE_DIR}/${original_name}.sha256"
-            python3 ${GITHUB_WORKSPACE}/scripts/compute_sha256.py ${PACKAGE_DIR}/${original_name} ${checksum_file}
-            echo "Computed checksum: ${checksum_file}"
-          done
-          
-          # List all packages
-          echo "Extension packages:"
-          ls -lh ${PACKAGE_DIR}/
-          
-          # Save package list for upload step
-          echo "package_dir=${PACKAGE_DIR}" >> $GITHUB_OUTPUT
-          echo "platform=${PLATFORM}" >> $GITHUB_OUTPUT
-
-      - name: Install OSS Python SDK
-        run: |
-          python3 -m pip  install oss2
-
-      - name: Upload extensions to OSS
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
-          package_dir: ${{ steps.package.outputs.package_dir }}
-          version: ${{ needs.prepare.outputs.version }}
-          platform: ${{ steps.package.outputs.platform }}
-        run: |
-          if [ -z "${OSS_ACCESS_KEY_ID}" ] || [ -z "${OSS_ACCESS_KEY_SECRET}" ] || [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET_NAME}" ]; then
-            echo "Warning: OSS credentials not configured. Skipping upload."
-            exit 0
-          fi
-          
-          python3 << 'EOF'
-          import os
-          import sys
-          import oss2
-          import glob
-          
-          access_key_id = os.environ.get('OSS_ACCESS_KEY_ID')
-          access_key_secret = os.environ.get('OSS_ACCESS_KEY_SECRET')
-          endpoint = os.environ.get('OSS_ENDPOINT')
-          bucket_name = os.environ.get('OSS_BUCKET_NAME')
-          package_dir = os.environ.get('package_dir', '/tmp/extension_packages')
-          version = os.environ.get('version', '0.1.0')
-          platform = os.environ.get('platform', 'linux_arm64')
-          
-          # Initialize OSS client
-          auth = oss2.Auth(access_key_id, access_key_secret)
-          bucket = oss2.Bucket(auth, endpoint, bucket_name)
-          
-          # Upload each extension package and its checksum file
-          extension_files = glob.glob(os.path.join(package_dir, '*.neug_extension'))
-          checksum_files = glob.glob(os.path.join(package_dir, '*.sha256'))
-          
-          if not extension_files:
-              print("No extension files found to upload")
-              sys.exit(1)
-          
-          for ext_file in extension_files:
-              filename = os.path.basename(ext_file)
-              # Extract extension name from filename (e.g., libjson.neug_extension -> json)
-              # Remove 'lib' prefix and '.neug_extension' suffix
-              if filename.startswith('lib') and filename.endswith('.neug_extension'):
-                  ext_name = filename[3:-len('.neug_extension')]
-              else:
-                  # Fallback: try to extract from filename
-                  ext_name = filename.replace('.neug_extension', '').replace('lib', '')
-              # Construct OSS path: neug/extensions/v{version}/{platform}/{extension_name}/{filename}
-              # Example: neug/extensions/v0.1.0/linux_arm64/json/libjson.neug_extension
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, ext_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          # Upload checksum files
-          for checksum_file in checksum_files:
-              filename = os.path.basename(checksum_file)
-              # Extract extension name from checksum filename (e.g., libjson.neug_extension.sha256 -> json)
-              if filename.startswith('lib') and filename.endswith('.neug_extension.sha256'):
-                  ext_name = filename[3:-len('.neug_extension.sha256')]
-              else:
-                  ext_name = filename.replace('.neug_extension.sha256', '').replace('lib', '')
-              # Construct OSS path for checksum file
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, checksum_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          print(f"\nAll extensions and checksums uploaded successfully!")
-          print(f"OSS base URL: https://{bucket_name}.{endpoint}/neug/extensions/v{version}/{platform}/")
-          EOF
+          cd ${GITHUB_WORKSPACE}
+          ./scripts/build_and_upload_extensions.sh \
+            --platform linux_arm64 \
+            --version ${{ needs.prepare.outputs.version }} \
+            --extensions ${{ needs.prepare.outputs.extensions }}
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
@@ -545,6 +240,10 @@ jobs:
         with:
           submodules: true
 
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -563,170 +262,11 @@ jobs:
       - name: Build NeuG with extensions
         run: |
           source ~/.neug_env
-          cd ${GITHUB_WORKSPACE}/
-          export BUILD_TYPE=RELEASE
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
-          export BUILD_EXECUTABLES=ON
-          export BUILD_HTTP_SERVER=ON
-          export BUILD_TEST=ON
-          export USE_NINJA=OFF
-          export WITH_MIMALLOC=OFF
-          export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-          export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          mkdir -p /opt/neug-install
-          cd tools/python_bind
-          make clean
-          make requirements
-          make build
-
-      - name: Find and package extension files
-        id: package
-        run: |
-          cd ${GITHUB_WORKSPACE}/tools/python_bind
-          EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          EXT_DIR="build"
-          PACKAGE_DIR="/tmp/extension_packages"
-          mkdir -p ${PACKAGE_DIR}
-          PLATFORM="osx_x86_64"
-          
-          # Find all extension files
-          EXT_FILES=""
-          for ext in $(echo $EXTENSIONS | tr ';' ' '); do
-            EXT_PATH="${EXT_DIR}"
-            if [ -d "${EXT_PATH}" ]; then
-              EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
-              if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
-                EXT_FILES="${EXT_FILES} ${EXT_FILE}"
-                echo "Found extension file: ${EXT_FILE}"
-              else
-                echo "Warning: Extension file not found for ${ext} in ${EXT_PATH}"
-              fi
-            else
-              echo "Warning: Extension directory not found: ${EXT_PATH}"
-            fi
-          done
-          
-          if [ -z "${EXT_FILES}" ]; then
-            echo "Error: No extension files found"
-            exit 1
-          fi
-          
-          # Copy extension files with original names and strip them
-          for ext_file in ${EXT_FILES}; do
-            original_name=$(basename ${ext_file})
-            cp ${ext_file} ${PACKAGE_DIR}/${original_name}
-            # Strip debug symbols to reduce file size (macOS uses strip command)
-            strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
-            echo "Packaged and stripped: ${original_name}"
-            
-            # Compute SHA256 checksum
-            checksum_file="${PACKAGE_DIR}/${original_name}.sha256"
-            python3 ${GITHUB_WORKSPACE}/scripts/compute_sha256.py ${PACKAGE_DIR}/${original_name} ${checksum_file}
-            echo "Computed checksum: ${checksum_file}"
-          done
-          
-          # List all packages
-          echo "Extension packages:"
-          ls -lh ${PACKAGE_DIR}/
-          
-          # Save package list for upload step
-          echo "package_dir=${PACKAGE_DIR}" >> $GITHUB_OUTPUT
-          echo "platform=${PLATFORM}" >> $GITHUB_OUTPUT
-
-      - name: Install OSS Python SDK
-        run: |
-          python3 -m pip  install oss2
-
-      - name: Upload extensions to OSS
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
-          package_dir: ${{ steps.package.outputs.package_dir }}
-          version: ${{ needs.prepare.outputs.version }}
-          platform: ${{ steps.package.outputs.platform }}
-        run: |
-          if [ -z "${OSS_ACCESS_KEY_ID}" ] || [ -z "${OSS_ACCESS_KEY_SECRET}" ] || [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET_NAME}" ]; then
-            echo "Warning: OSS credentials not configured. Skipping upload."
-            exit 0
-          fi
-          
-          python3 << 'EOF'
-          import os
-          import sys
-          import oss2
-          import glob
-          
-          access_key_id = os.environ.get('OSS_ACCESS_KEY_ID')
-          access_key_secret = os.environ.get('OSS_ACCESS_KEY_SECRET')
-          endpoint = os.environ.get('OSS_ENDPOINT')
-          bucket_name = os.environ.get('OSS_BUCKET_NAME')
-          package_dir = os.environ.get('package_dir', '/tmp/extension_packages')
-          version = os.environ.get('version', '0.1.0')
-          platform = os.environ.get('platform', 'osx_x86_64')
-          
-          # Initialize OSS client
-          auth = oss2.Auth(access_key_id, access_key_secret)
-          bucket = oss2.Bucket(auth, endpoint, bucket_name)
-          
-          # Upload each extension package and its checksum file
-          extension_files = glob.glob(os.path.join(package_dir, '*.neug_extension'))
-          checksum_files = glob.glob(os.path.join(package_dir, '*.sha256'))
-          
-          if not extension_files:
-              print("No extension files found to upload")
-              sys.exit(1)
-          
-          for ext_file in extension_files:
-              filename = os.path.basename(ext_file)
-              # Extract extension name from filename (e.g., libjson.neug_extension -> json)
-              # Remove 'lib' prefix and '.neug_extension' suffix
-              if filename.startswith('lib') and filename.endswith('.neug_extension'):
-                  ext_name = filename[3:-len('.neug_extension')]
-              else:
-                  # Fallback: try to extract from filename
-                  ext_name = filename.replace('.neug_extension', '').replace('lib', '')
-              # Construct OSS path: neug/extensions/v{version}/{platform}/{extension_name}/{filename}
-              # Example: neug/extensions/v0.1.0/osx_x86_64/json/libjson.neug_extension
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, ext_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          # Upload checksum files
-          for checksum_file in checksum_files:
-              filename = os.path.basename(checksum_file)
-              # Extract extension name from checksum filename (e.g., libjson.neug_extension.sha256 -> json)
-              if filename.startswith('lib') and filename.endswith('.neug_extension.sha256'):
-                  ext_name = filename[3:-len('.neug_extension.sha256')]
-              else:
-                  ext_name = filename.replace('.neug_extension.sha256', '').replace('lib', '')
-              # Construct OSS path for checksum file
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, checksum_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          print(f"\nAll extensions and checksums uploaded successfully!")
-          print(f"OSS base URL: https://{bucket_name}.{endpoint}/neug/extensions/v{version}/{platform}/")
-          EOF
+          cd ${GITHUB_WORKSPACE}
+          ./scripts/build_and_upload_extensions.sh \
+            --platform osx_x86_64 \
+            --version ${{ needs.prepare.outputs.version }} \
+            --extensions ${{ needs.prepare.outputs.extensions }}
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
@@ -749,6 +289,10 @@ jobs:
         with:
           submodules: true
 
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -767,170 +311,11 @@ jobs:
       - name: Build NeuG with extensions
         run: |
           source ~/.neug_env
-          cd ${GITHUB_WORKSPACE}/
-          export BUILD_TYPE=RELEASE
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
-          export BUILD_EXECUTABLES=ON
-          export BUILD_HTTP_SERVER=ON
-          export BUILD_TEST=ON
-          export USE_NINJA=OFF
-          export WITH_MIMALLOC=OFF
-          export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-          export BUILD_EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          mkdir -p /opt/neug-install
-          cd tools/python_bind
-          make clean
-          make requirements
-          make build
-
-      - name: Find and package extension files
-        id: package
-        run: |
-          cd ${GITHUB_WORKSPACE}/tools/python_bind
-          EXTENSIONS="${{ needs.prepare.outputs.extensions }}"
-          EXT_DIR="build"
-          PACKAGE_DIR="/tmp/extension_packages"
-          mkdir -p ${PACKAGE_DIR}
-          PLATFORM="osx_arm64"
-          
-          # Find all extension files
-          EXT_FILES=""
-          for ext in $(echo $EXTENSIONS | tr ';' ' '); do
-            EXT_PATH="${EXT_DIR}"
-            if [ -d "${EXT_PATH}" ]; then
-              EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
-              if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
-                EXT_FILES="${EXT_FILES} ${EXT_FILE}"
-                echo "Found extension file: ${EXT_FILE}"
-              else
-                echo "Warning: Extension file not found for ${ext} in ${EXT_PATH}"
-              fi
-            else
-              echo "Warning: Extension directory not found: ${EXT_PATH}"
-            fi
-          done
-          
-          if [ -z "${EXT_FILES}" ]; then
-            echo "Error: No extension files found"
-            exit 1
-          fi
-          
-          # Copy extension files with original names and strip them
-          for ext_file in ${EXT_FILES}; do
-            original_name=$(basename ${ext_file})
-            cp ${ext_file} ${PACKAGE_DIR}/${original_name}
-            # Strip debug symbols to reduce file size (macOS uses strip command)
-            strip ${PACKAGE_DIR}/${original_name} || echo "Warning: strip failed for ${original_name}"
-            echo "Packaged and stripped: ${original_name}"
-            
-            # Compute SHA256 checksum
-            checksum_file="${PACKAGE_DIR}/${original_name}.sha256"
-            python3 ${GITHUB_WORKSPACE}/scripts/compute_sha256.py ${PACKAGE_DIR}/${original_name} ${checksum_file}
-            echo "Computed checksum: ${checksum_file}"
-          done
-          
-          # List all packages
-          echo "Extension packages:"
-          ls -lh ${PACKAGE_DIR}/
-          
-          # Save package list for upload step
-          echo "package_dir=${PACKAGE_DIR}" >> $GITHUB_OUTPUT
-          echo "platform=${PLATFORM}" >> $GITHUB_OUTPUT
-
-      - name: Install OSS Python SDK
-        run: |
-          python3 -m pip  install oss2
-
-      - name: Upload extensions to OSS
-        env:
-          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
-          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-          OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
-          OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
-          package_dir: ${{ steps.package.outputs.package_dir }}
-          version: ${{ needs.prepare.outputs.version }}
-          platform: ${{ steps.package.outputs.platform }}
-        run: |
-          if [ -z "${OSS_ACCESS_KEY_ID}" ] || [ -z "${OSS_ACCESS_KEY_SECRET}" ] || [ -z "${OSS_ENDPOINT}" ] || [ -z "${OSS_BUCKET_NAME}" ]; then
-            echo "Warning: OSS credentials not configured. Skipping upload."
-            exit 0
-          fi
-          
-          python3 << 'EOF'
-          import os
-          import sys
-          import oss2
-          import glob
-          
-          access_key_id = os.environ.get('OSS_ACCESS_KEY_ID')
-          access_key_secret = os.environ.get('OSS_ACCESS_KEY_SECRET')
-          endpoint = os.environ.get('OSS_ENDPOINT')
-          bucket_name = os.environ.get('OSS_BUCKET_NAME')
-          package_dir = os.environ.get('package_dir', '/tmp/extension_packages')
-          version = os.environ.get('version', '0.1.0')
-          platform = os.environ.get('platform', 'osx_arm64')
-          
-          # Initialize OSS client
-          auth = oss2.Auth(access_key_id, access_key_secret)
-          bucket = oss2.Bucket(auth, endpoint, bucket_name)
-          
-          # Upload each extension package and its checksum file
-          extension_files = glob.glob(os.path.join(package_dir, '*.neug_extension'))
-          checksum_files = glob.glob(os.path.join(package_dir, '*.sha256'))
-          
-          if not extension_files:
-              print("No extension files found to upload")
-              sys.exit(1)
-          
-          for ext_file in extension_files:
-              filename = os.path.basename(ext_file)
-              # Extract extension name from filename (e.g., libjson.neug_extension -> json)
-              # Remove 'lib' prefix and '.neug_extension' suffix
-              if filename.startswith('lib') and filename.endswith('.neug_extension'):
-                  ext_name = filename[3:-len('.neug_extension')]
-              else:
-                  # Fallback: try to extract from filename
-                  ext_name = filename.replace('.neug_extension', '').replace('lib', '')
-              # Construct OSS path: neug/extensions/v{version}/{platform}/{extension_name}/{filename}
-              # Example: neug/extensions/v0.1.0/osx_arm64/json/libjson.neug_extension
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, ext_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          # Upload checksum files
-          for checksum_file in checksum_files:
-              filename = os.path.basename(checksum_file)
-              # Extract extension name from checksum filename (e.g., libjson.neug_extension.sha256 -> json)
-              if filename.startswith('lib') and filename.endswith('.neug_extension.sha256'):
-                  ext_name = filename[3:-len('.neug_extension.sha256')]
-              else:
-                  ext_name = filename.replace('.neug_extension.sha256', '').replace('lib', '')
-              # Construct OSS path for checksum file
-              oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
-              
-              print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")
-              
-              try:
-                  result = bucket.put_object_from_file(oss_path, checksum_file)
-                  print(f"Successfully uploaded {filename}")
-                  print(f"  ETag: {result.etag}")
-                  print(f"  Request ID: {result.request_id}")
-              except Exception as e:
-                  print(f"Failed to upload {filename}: {e}")
-                  sys.exit(1)
-          
-          print(f"\nAll extensions and checksums uploaded successfully!")
-          print(f"OSS base URL: https://{bucket_name}.{endpoint}/neug/extensions/v{version}/{platform}/")
-          EOF
+          cd ${GITHUB_WORKSPACE}
+          ./scripts/build_and_upload_extensions.sh \
+            --platform osx_arm64 \
+            --version ${{ needs.prepare.outputs.version }} \
+            --extensions ${{ needs.prepare.outputs.extensions }}
 
       - name: Upload extension packages as artifacts
         uses: actions/upload-artifact@v4
