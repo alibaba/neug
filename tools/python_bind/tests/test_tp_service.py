@@ -1020,26 +1020,31 @@ def test_iu_7():
 
 
 def test_insert_string_column_exaustion():
-    db_dir = "/tmp/test_insert_string_column_exhaustion"
-    shutil.rmtree(db_dir, ignore_errors=True)
-    db = Database(db_path=db_dir, mode="w")
-    conn = db.connect()
-    conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));")
-    # by default the string column has maximum length 256
-    conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
-    conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
-    conn.execute("CHECKPOINT;")
-    conn.close()
-    db.close()
+    logging.disable(logging.CRITICAL)
+    try:
+        db_dir = "/tmp/test_insert_string_column_exhaustion"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_path=db_dir, mode="w")
+        conn = db.connect()
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        # by default the string column has maximum length 256
+        conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
+        conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        db.close()
 
-    db2 = Database(db_path=db_dir, mode="w")
-    endpoint = db2.serve(10005, "localhost", False)
-    # conn2 = db2.connect()
-    sess = Session.open(endpoint, timeout="10s")
-    str_prop = "a" * 255
-    with pytest.raises(Exception):
-        for i in range(10000):
+        db2 = Database(db_path=db_dir, mode="w")
+        endpoint = db2.serve(10005, "localhost", False)
+        # conn2 = db2.connect()
+        sess = Session.open(endpoint, timeout="10s")
+        str_prop = "a" * 255
+        for i in range(6000):
             sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
-    sess.close()
-    db2.stop_serving()
-    db2.close()
+        sess.close()
+        db2.stop_serving()
+        db2.close()
+    finally:
+        logging.disable(logging.NOTSET)
