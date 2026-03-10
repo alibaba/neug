@@ -174,13 +174,16 @@ nEUG_CreateNodeConstraint : PRIMARY SP KEY SP? '(' SP? oC_PropertyKeyName SP? ')
 
 DECIMAL: ( 'D' | 'd' ) ( 'E' | 'e' ) ( 'C' | 'c' ) ( 'I' | 'i' ) ( 'M' | 'm' ) ( 'A' | 'a' ) ( 'L' | 'l' ) ;
 
+VARCHAR: ('V' | 'v') ('A' | 'a') ('R' | 'r') ('C' | 'c') ('H' | 'h') ('A' | 'a') ('R' | 'r');
+
 nEUG_DataType
     : oC_SymbolicName
         | nEUG_DataType nEUG_ListIdentifiers
         | UNION SP? '(' SP? nEUG_ColumnDefinitions SP? ')'
         | oC_SymbolicName SP? '(' SP? nEUG_ColumnDefinitions SP? ')'
         | oC_SymbolicName SP? '(' SP? nEUG_DataType SP? ',' SP? nEUG_DataType SP? ')'
-        | DECIMAL SP? '(' SP? oC_IntegerLiteral SP? ',' SP? oC_IntegerLiteral SP? ')' ;
+        | DECIMAL SP? '(' SP? oC_IntegerLiteral SP? ',' SP? oC_IntegerLiteral SP? ')'
+        | VARCHAR SP? '(' SP? oC_IntegerLiteral SP? ')';
 
 nEUG_ListIdentifiers : nEUG_ListIdentifier ( nEUG_ListIdentifier )* ;
 
