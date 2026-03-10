@@ -17,9 +17,12 @@ function(set_extension_properties target_name output_name extension_name)
     set(extension_dir "${output_dir}/extension/${extension_name}")
     file(MAKE_DIRECTORY "${extension_dir}")
     message(STATUS "Setting LIBRARY_OUTPUT_DIRECTORY for ${target_name} to: ${extension_dir}")
-    # macOS dyld uses @loader_path, Linux uses $ORIGIN
+    # macOS dyld uses @loader_path, Linux uses $ORIGIN. Multiple paths: semicolon-separated.
     if(APPLE)
-        set(_ext_rpath "@loader_path/../..")
+        set(_ext_rpath 
+            "@loader_path/../../neug/.dylibs"
+            "@loader_path/../.."
+            "@loader_path")
     else()
         set(_ext_rpath "$ORIGIN/../..")
     endif()
