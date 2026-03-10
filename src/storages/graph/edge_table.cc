@@ -397,7 +397,7 @@ void batch_add_unbundled_edges_impl(
       assert(cur_index < valid_flags.size());
       if (valid_flags[cur_index++]) {
         auto row = get_row_from_recordbatch(prop_types, expected_types, rb, i);
-        table_->insert(offset++, row);
+        table_->insert(offset++, row, true);
       }
     }
   }
@@ -866,7 +866,7 @@ void EdgeTable::BatchAddEdges(
                                 offset);
     table_->resize(offset + src_lid_list.size());
     for (size_t i = 0; i < edge_data_list.size(); ++i) {
-      table_->insert(offset + i, edge_data_list[i]);
+      table_->insert(offset + i, edge_data_list[i], true);
     }
   }
 }

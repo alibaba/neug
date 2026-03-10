@@ -181,7 +181,7 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type, Property default_value,
 
 void TypedColumn<std::string_view>::set_value_safe(
     size_t idx, const std::string_view& value) {
-  // concurrency should be controlled by caller.
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   if (idx < size_) {
     std::string_view v = value;
     if (v.size() >= width_) {
@@ -189,11 +189,15 @@ void TypedColumn<std::string_view>::set_value_safe(
     }
     size_t offset = pos_.fetch_add(v.size());
     if (pos_.load() > buffer_.data_size()) {
+      lock.unlock();
+      std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
       if (pos_.load() > buffer_.data_size()) {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
         size_t new_len = std::max(size_ * new_avg_width, pos_.load());
         buffer_.resize(buffer_.size(), new_len);
       }
+      w_lock.unlock();
+      lock.lock();
     }
     buffer_.set(idx, offset, v);
   } else {
