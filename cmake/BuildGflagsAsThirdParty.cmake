@@ -30,7 +30,7 @@ function (build_gflags_as_third_party)
     set(BUILD_PACKAGING OFF CACHE BOOL "Build gflags packaging")
     set(GFLAGS_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include PARENT_SCOPE)
     set(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include PARENT_SCOPE)
-    include_directories(SYSTEM ${GFLAGS_INCLUDE_PATH})
+    include_directories(${GFLAGS_INCLUDE_PATH})
 
     execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gflags.patch
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gflags

@@ -20,8 +20,8 @@ function (build_glog_as_third_party)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static library" FORCE)
     set(BUILD_TESTING OFF CACHE BOOL "Build glog tests" FORCE)
     add_subdirectory(third_party/glog)
-    include_directories(SYSTEM third_party/glog/src)
-    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
+    include_directories(third_party/glog/src)
+    include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/glog/) # For generated headers
     set_target_properties(glog PROPERTIES DEBUG_POSTFIX "")
     set(GLOG_LIBRARIES glog::glog PARENT_SCOPE)
     set(GLOG_LIB glog::glog PARENT_SCOPE)

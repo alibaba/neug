@@ -519,8 +519,8 @@ find_package(Threads REQUIRED)
 # We need gflags for brpc, so we build it as a third party library
 include(cmake/BuildGflagsAsThirdParty.cmake)
 build_gflags_as_third_party()
-include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
-include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include)
+include_directories(${GFLAGS_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include)
 message(STATUS "gflags libraries: ${GFLAGS_LIBRARIES}")
 message(STATUS "gflags found: ${gflags_FOUND}")
 message(STATUS "gflags dir: ${gflags_DIR}")
@@ -528,7 +528,7 @@ message(STATUS "gflags dir: ${gflags_DIR}")
 #find glog
 include(cmake/BuildGlogAsThirdParty.cmake)
 build_glog_as_third_party()
-include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+include_directories(${GLOG_INCLUDE_DIRS})
 message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 
 include(cmake/BuildYamlCppAsThirdParty.cmake)
@@ -540,7 +540,7 @@ include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIRS})
 include(cmake/BuildProtobufThirdParty.cmake)
 build_protobuf_as_third_party()
 
-include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+include_directories(${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
 
@@ -586,7 +586,7 @@ if (BUILD_HTTP_SERVER)
         include(cmake/BuildBRPCAsThirdParty.cmake)
         build_brpc_as_third_party(${APPLY_BRPC_PATCH})
     endif()
-    include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
+    include_directories(${BRPC_INCLUDE_PATH})
 endif()
 
 #find arrow----------------------------------------------------------------------
@@ -696,7 +696,7 @@ endif()
 
 # Add Arrow include directories after building
 if(ARROW_INCLUDE_DIRS)
-    include_directories(SYSTEM ${ARROW_INCLUDE_DIRS})
+    include_directories(${ARROW_INCLUDE_DIRS})
     message(STATUS "Arrow include directories: ${ARROW_INCLUDE_DIRS}")
 endif()
 
