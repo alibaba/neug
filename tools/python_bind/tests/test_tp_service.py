@@ -1049,6 +1049,9 @@ def test_insert_string_column_exaustion():
             sess.close()
             db2.stop_serving()
             db2.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(
+                "Error while cleaning up resources in test_insert_string_column_exaustion: %s",
+                e,
+            )
         logging.disable(logging.NOTSET)
