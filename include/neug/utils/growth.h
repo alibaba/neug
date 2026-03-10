@@ -29,7 +29,9 @@ inline size_t calculate_new_capacity(size_t current_capacity,
   } else {
     // For edge tables, we grow linearly: new capacity = current capacity +
     // (current capacity + 4) / 5.
-    return current_capacity + (current_capacity + 4) / 5;
+    return current_capacity == 0
+               ? 4096
+               : current_capacity + (current_capacity + 4) / 5;
   }
 }
 }  // namespace neug
