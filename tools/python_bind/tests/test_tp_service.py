@@ -1039,13 +1039,16 @@ def test_insert_string_column_exaustion():
         db2 = Database(db_path=db_dir, mode="w")
         endpoint = db2.serve(10005, "localhost", False)
         sess = Session.open(endpoint, timeout="10s")
-        str_prop = "a" * 10000
-        for i in range(100):
+        str_prop = "a" * 256
+        for i in range(7000):
             sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
-        sess.close()
-        db2.stop_serving()
-        db2.close()
     except Exception as e:
         raise AssertionError("Failed to insert string column with large length") from e
     finally:
+        try:
+            sess.close()
+            db2.stop_serving()
+            db2.close()
+        except Exception:
+            pass
         logging.disable(logging.NOTSET)
