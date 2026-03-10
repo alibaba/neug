@@ -145,7 +145,7 @@ bool VertexTable::AddVertex(const Property& id,
       return true;
     }
   }());
-  table_->insert(vid, props, allow_resize_col);
+  table_->insert(vid, props, insert_safe);
   return true;
 }
 
