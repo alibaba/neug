@@ -1046,5 +1046,7 @@ def test_insert_string_column_exaustion():
         sess.close()
         db2.stop_serving()
         db2.close()
+    except Exception as e:
+        assert "exhausted" in str(e)
     finally:
         logging.disable(logging.NOTSET)
