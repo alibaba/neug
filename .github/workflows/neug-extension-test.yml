@@ -7,9 +7,7 @@ on:
         description: 'Branch to run the workflow on'
         required: true
         default: 'main'
-        type: choice
-        options:
-          - main
+        type: string
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
