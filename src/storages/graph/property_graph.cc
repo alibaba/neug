@@ -1122,7 +1122,7 @@ void PropertyGraph::Dump(bool reopen, bool ensure_capacity) {
           auto& edge_table = edge_tables_.at(index);
           edge_table.Resize(vertex_num[src_label_i], vertex_num[dst_label_i]);
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
-                         calculate_new_capacity(edge_table.Capacity(), false));
+                         calculate_new_capacity(edge_table.Size(), false));
           edge_table.Dump(target_dir);
         }
       }

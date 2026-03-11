@@ -294,7 +294,7 @@ class VertexTable {
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
       size_t new_size = indexer_.size() + pk_array->length();
-      if (new_size >= indexer_.capacity()) {
+      while (new_size >= Capacity()) {
         EnsureCapacity(calculate_new_capacity(new_size, true));
       }
 
