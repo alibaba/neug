@@ -412,4 +412,5 @@ jobs:
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
       uses: codecov/codecov-action@v4
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
         file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage.info
