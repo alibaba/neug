@@ -534,7 +534,7 @@ message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 include(cmake/BuildYamlCppAsThirdParty.cmake)
 build_yaml_cpp_as_third_party()
 message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}, include dir: ${YAML_CPP_INCLUDE_DIRS}")
-include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIRS})
+include_directories(${YAML_CPP_INCLUDE_DIRS})
 
 #find protobuf-------------------------------------------------------------------
 include(cmake/BuildProtobufThirdParty.cmake)
