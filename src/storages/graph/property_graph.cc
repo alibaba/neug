@@ -42,32 +42,6 @@ PropertyGraph::PropertyGraph()
       edge_label_total_count_(0),
       memory_level_(1) {}
 
-PropertyGraph::~PropertyGraph() {
-  std::vector<size_t> degree_list(vertex_label_total_count_, 0);
-  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (!vertex_tables_[i].is_dropped()) {
-      degree_list[i] = vertex_tables_[i].LidNum();
-      vertex_tables_[i].Reserve(degree_list[i]);
-    }
-  }
-  for (size_t src_label = 0; src_label != vertex_label_total_count_;
-       ++src_label) {
-    for (size_t dst_label = 0; dst_label != vertex_label_total_count_;
-         ++dst_label) {
-      for (size_t e_label = 0; e_label != edge_label_total_count_; ++e_label) {
-        size_t index =
-            schema_.generate_edge_label(src_label, dst_label, e_label);
-        auto pair = edge_tables_.find(index);
-        if (pair != edge_tables_.end()) {
-          auto& edge_table = pair->second;
-          edge_table.Resize(degree_list[src_label], degree_list[dst_label]);
-          edge_tables_.erase(pair);
-        }
-      }
-    }
-  }
-}
-
 void PropertyGraph::loadSchema(const std::string& schema_path) {
   std::ifstream in(schema_path);
   schema_.Deserialize(in);

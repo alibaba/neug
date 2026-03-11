@@ -187,9 +187,9 @@ bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
 void VertexTable::Reserve(size_t cap) {
   if (cap > indexer_.capacity()) {
     indexer_.reserve(cap);
-  }
-  if (table_) {
-    table_->resize(cap);
+    if (table_) {
+      table_->resize(cap);
+    }
     v_ts_.Reserve(cap);
   }
 }

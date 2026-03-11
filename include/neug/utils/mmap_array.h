@@ -564,7 +564,9 @@ class mmap_array<std::string_view> {
 
   // Compact the data buffer by removing unused space and updating offsets
   // This is an in-place operation that shifts valid string data forward
-  // Returns the compacted data size
+  // Returns the compacted data size. Note that the reserved size of data buffer
+  // is not changed, and new strings can still be appended after the compacted
+  // data.
   size_t compact() {
     auto plan = prepare_compaction_plan();
     if (items_.size() == 0) {
@@ -577,9 +579,11 @@ class mmap_array<std::string_view> {
 
     std::vector<char> temp_buf(plan.total_size);
     size_t write_offset = 0;
+    size_t limit_offset = 0;
     for (const auto& entry : plan.entries) {
       const char* src = data_.data() + entry.offset;
       char* dst = temp_buf.data() + write_offset;
+      limit_offset = std::max(limit_offset, entry.offset + entry.length);
       memcpy(dst, src, entry.length);
       items_.set(entry.index,
                  {static_cast<uint64_t>(write_offset), entry.length});
@@ -588,9 +592,8 @@ class mmap_array<std::string_view> {
     assert(write_offset == plan.total_size);
     memcpy(data_.data(), temp_buf.data(), plan.total_size);
 
-    data_.resize(plan.total_size);
     VLOG(1) << "Compaction completed. New data size: " << plan.total_size
-            << ", old data size: " << size_before_compact;
+            << ", old data size: " << limit_offset;
     return plan.total_size;
   }
 

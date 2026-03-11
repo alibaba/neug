@@ -116,7 +116,7 @@ class PropertyGraph {
    *
    * @since v0.1.0
    */
-  ~PropertyGraph();
+  ~PropertyGraph() = default;
 
   /**
    * @brief Open the property graph from persistent storage.
