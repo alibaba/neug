@@ -71,7 +71,7 @@ bool multiplicity_to_storage_strategy(
     const ::physical::CreateEdgeSchema::Multiplicity& multiplicity,
     EdgeStrategy& oe_strategy, EdgeStrategy& ie_strategy);
 
-neug::result<std::vector<std::pair<std::string, execution::Value>>>
+neug::result<std::vector<std::tuple<DataType, std::string, execution::Value>>>
 property_defs_to_value(
     const google::protobuf::RepeatedPtrField<::physical::PropertyDef>&
         properties);
