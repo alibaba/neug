@@ -114,7 +114,7 @@ void remove_directory(const std::string& dir_path) {
 
 void read_file(const std::string& filename, void* buffer, size_t size,
                size_t num) {
-  FILE* fin = fopen(filename.c_str(), "r");
+  FILE* fin = fopen(filename.c_str(), "rb");
   if (fin == nullptr) {
     std::stringstream ss;
     ss << "Failed to open file " << filename << ", " << strerror(errno);
