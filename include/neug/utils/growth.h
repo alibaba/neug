@@ -15,10 +15,9 @@
  */
 
 #pragma once
-
 #include <cstddef>
 #include <cstdint>
-
+#include <limits>
 namespace neug {
 inline size_t calculate_new_capacity(size_t current_capacity,
                                      bool is_vertex_table) {
