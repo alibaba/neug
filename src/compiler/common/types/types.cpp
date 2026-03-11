@@ -345,11 +345,12 @@ uint32_t PhysicalTypeUtils::getFixedTypeSize(PhysicalTypeID physicalType) {
 
 void StringTypeInfo::serializeInternal(Serializer& serializer) const {};
 
-// The method will be invoked in `operator==` of LogicalType, which will be
-// invoked after comparison of LogicalTypeId, we think the string type with
-// different max_length are equal.
 bool StringTypeInfo::operator==(const ExtraTypeInfo& other) const {
-  return true;
+  auto otherStringTypeInfo = dynamic_cast<const StringTypeInfo*>(&other);
+  if (otherStringTypeInfo) {
+    return max_length == otherStringTypeInfo->max_length;
+  }
+  return false;
 }
 
 std::unique_ptr<ExtraTypeInfo> StringTypeInfo::copy() const {
@@ -615,6 +616,11 @@ bool LogicalType::containsAny() const {
 bool LogicalType::operator==(const LogicalType& other) const {
   if (typeID != other.typeID || category != other.category) {
     return false;
+  }
+  // We think the string type with different max_length are equal, so skip the
+  // comparison of extraTypeInfo.
+  if (typeID == LogicalTypeID::STRING) {
+    return true;
   }
   if (extraTypeInfo) {
     return *extraTypeInfo == *other.extraTypeInfo;
@@ -1503,8 +1509,9 @@ LogicalType parseStringType(const std::string& trimmedStr) {
   }
   auto maxLenStr = StringUtils::ltrim(StringUtils::rtrim(trimmedStr.substr(
       leftBracketPos + 1, rightBracketPos - leftBracketPos - 1)));
-  auto maxLen = std::strtoll(maxLenStr.c_str(), nullptr, 0);
-  if (maxLen <= 0) {
+  char* endPtr = nullptr;
+  auto maxLen = std::strtoll(maxLenStr.c_str(), &endPtr, 10);
+  if (endPtr == maxLenStr.c_str() || *endPtr != '\0') {
     THROW_BINDER_EXCEPTION(
         "The max length of string must be a positive integer. Given: " +
         maxLenStr);
