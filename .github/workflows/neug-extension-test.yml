@@ -1,0 +1,114 @@
+name: NeuG Extension Test
+
+on:
+  workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
+    inputs:
+      branch:
+        description: 'Branch to run the workflow on'
+        required: true
+        default: 'main'
+        type: string
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # Job 1: Build NeuG with extensions
+  # ============================================================
+  build:
+    runs-on: [self-hosted]
+    container:
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Mark directory safe
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
+
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-ccache-ext-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-ext-
+          ${{ runner.os }}-ccache-
+
+    - name: Setup CCache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        ccache --max-size=2G
+        ccache --zero-stats
+
+    - name: Increase the maximum number of opened files
+      run: |
+        ulimit -n 65535
+        sudo chmod -R 777 /etc/security/*
+        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    # TODO: After unifying wheel build (neug-manylinux:v0.1.0-x86_64) and dev images (neug-dev:v0.1.0), 
+    # skip the build process and use `pip3 install neug` to test the locally built json extension 
+    # with the released wheel package.
+    - name: Build NeuG with extensions
+      run: |
+        . /home/neug/.neug_env
+        cd ${GITHUB_WORKSPACE}/
+        export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
+        export BUILD_TYPE=RELEASE
+        export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
+        export BUILD_EXECUTABLES=ON
+        export BUILD_HTTP_SERVER=ON
+        export BUILD_TEST=ON
+        export USE_NINJA=OFF
+        export WITH_MIMALLOC=OFF
+        export CMAKE_INSTALL_PREFIX=/opt/neug-install/
+        export BUILD_EXTENSIONS="json"
+        sudo mkdir -p /opt/neug-install
+        sudo chown -R $USER:$USER /opt/neug-install/
+        export CC="ccache gcc"
+        export CXX="ccache g++"
+        cd tools/python_bind
+        make clean
+        make requirements
+        make build
+        ccache --show-stats
+
+    - name: Run Extension C++ Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        export COMPREHENSIVE_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        export TEST_PATH=${GITHUB_WORKSPACE}/tests
+        cd build/neug_py_bind
+        ctest -R json_extension_test -V
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        ctest -R test_extension -V
+
+    - name: Run Extension Python Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        pip3 install -r requirements.txt
+        pip3 install -r requirements_dev.txt
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
+        export NEUG_RUN_JSON_TESTS=true
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
+        python3 -m pytest -sv tests/test_load.py -k "json"
