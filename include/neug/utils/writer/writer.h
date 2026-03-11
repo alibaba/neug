@@ -22,13 +22,10 @@
 #include <rapidjson/document.h>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <utility>
-#include <vector>
 
-#include "neug/execution/common/columns/i_context_column.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
-#include "neug/generated/proto/plan/type.pb.h"
+#include "neug/generated/proto/response/response.pb.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/schema.h"
@@ -42,6 +39,16 @@ struct WriteOptions {
   // maximum number of rows to write in a single batch
   reader::Option<int64_t> batch_rows =
       reader::Option<int64_t>::Int64Option("batch_size", 1024);
+  reader::Option<char> delimiter =
+      reader::Option<char>::CharOption("delim", '|');
+  reader::Option<bool> has_header =
+      reader::Option<bool>::BoolOption("header", true);
+  reader::Option<char> quote_char =
+      reader::Option<char>::CharOption("quote", '"');
+  reader::Option<char> escape_char =
+      reader::Option<char>::CharOption("escape", '\\');
+  reader::Option<bool> ignore_errors =
+      reader::Option<bool>::BoolOption("ignore_errors", true);
 };
 
 class ExportWriter {
@@ -60,6 +67,59 @@ class ExportWriter {
   std::shared_ptr<reader::EntrySchema> entry_schema_;
 };
 
+class StringFormatBuffer {
+ public:
+  StringFormatBuffer(const neug::QueryResponse* response,
+                     const reader::FileSchema& schema)
+      : response_(response), schema_(schema) {}
+  ~StringFormatBuffer() {}
+  virtual void addValue(int rowIdx, int colIdx) = 0;
+  virtual arrow::Status flush(
+      std::shared_ptr<arrow::io::OutputStream> stream) = 0;
+
+ protected:
+  const neug::QueryResponse* response_;
+  const reader::FileSchema& schema_;
+
+ protected:
+  bool validateIndex(const neug::QueryResponse* response, int rowIdx,
+                     int colIdx);
+  bool validateProtoValue(const std::string& validity, int rowIdx);
+};
+
+struct BinaryData {
+  std::unique_ptr<uint8_t[]> data;
+  uint64_t size = 0;
+};
+
+class CSVStringFormatBuffer : public StringFormatBuffer {
+ public:
+  CSVStringFormatBuffer(const neug::QueryResponse* response,
+                        const reader::FileSchema& schema,
+                        const reader::EntrySchema& entry_schema);
+  ~CSVStringFormatBuffer() {}
+  void addValue(int rowIdx, int colIdx) override;
+  arrow::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+
+ private:
+  BinaryData blob_;
+  size_t capacity_;
+  uint8_t* data_;
+  const reader::EntrySchema& entry_schema_;
+
+ private:
+  // Format each value to string, return string or error status.
+  arrow::Result<std::string> formatValueToStr(const neug::Array& arr,
+                                              int rowIdx);
+  std::string addEscapes(char toEscape, char escape, const std::string& val);
+  void write(const uint8_t* buffer, uint64_t len);
+
+ private:
+  static constexpr const char* DEFAULT_CSV_NEWLINE = "\n";
+  static constexpr const char* DEFAULT_NULL_STR = "";
+  static constexpr size_t DEFAULT_CAPACITY = 64;
+};
+
 class ArrowExportWriter : public ExportWriter {
  public:
   ArrowExportWriter(const reader::FileSchema& schema,
@@ -72,7 +132,7 @@ class ArrowExportWriter : public ExportWriter {
   virtual Status write(const execution::Context& context,
                        const StorageReadInterface& graph) override;
 
-  virtual Status writeTable(const std::shared_ptr<arrow::Table>& table) = 0;
+  virtual Status writeTable(const QueryResponse* table) = 0;
 
  protected:
   std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
@@ -87,8 +147,7 @@ class ArrowCsvExportWriter : public ArrowExportWriter {
       : ArrowExportWriter(schema, fileSystem, std::move(entry_schema)) {}
   ~ArrowCsvExportWriter() {}
 
-  virtual Status writeTable(
-      const std::shared_ptr<arrow::Table>& table) override;
+  virtual Status writeTable(const QueryResponse* table) override;
 };
 
 }  // namespace writer

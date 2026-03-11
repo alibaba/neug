@@ -433,3 +433,52 @@ class TestExport:
         header, rows = _parse_csv(out_path, ",", has_header=True)
         assert len(header) == 3
         assert len(rows) == expected
+
+    def test_export_collect_names(self):
+        out_path = self.tmp_path / "collect_names.csv"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(
+            self.conn, "MATCH (v:person) RETURN v.ID, collect(v.fName)"
+        )
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO "
+            f"'{out_path}' (HEADER = true, QUOTE = '\\'');"
+        )
+        assert out_path.exists()
+        header, rows = _parse_csv(out_path, "|", has_header=True)
+        assert len(header) == 2
+        assert len(rows) == expected
+
+    # Verify that the 'QUOTE' option correctly changes the wrapping character for string values.
+    # Here, we explicitly set QUOTE = "'" (single quote).
+    # Expected behavior: The output string "Alice" should be wrapped in single quotes instead of the default double quotes.
+    def test_export_with_single_quote(self):
+        out_path = self.tmp_path / "single_quote.csv"
+        out_path.unlink(missing_ok=True)
+        self.conn.execute(
+            f"COPY (MATCH (v:person {{ID: 0}}) RETURN v.fName) TO '{out_path}' (HEADER = false, QUOTE = '\\'');"
+        )
+        assert out_path.exists()
+        with open(out_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            assert content == "'Alice'\n"
+
+    # Verify default escaping behavior when data contains the quote character itself.
+    # Scenario: The data contains a double quote (John"s).
+    # Since the default QUOTE character is double quote ("), the internal quote must be escaped.
+    # Expected behavior: The field is wrapped in double quotes, and the internal double quote is escaped with a backslash (\).
+    def test_export_with_escape_char(self):
+        out_path = self.tmp_path / "escape_char.csv"
+        out_path.unlink(missing_ok=True)
+        self.conn.execute("CREATE (:person {ID: 1006, fName: 'John\"s'})")
+        try:
+            self.conn.execute(
+                f"COPY (MATCH (v:person {{ID: 1006}}) RETURN v.fName) TO "
+                f"'{out_path}' (HEADER = false);"
+            )
+            assert out_path.exists()
+            with open(out_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                assert content == '"John\\"s"\n'
+        finally:
+            self.conn.execute("MATCH (v:person {ID: 1006}) DELETE v")

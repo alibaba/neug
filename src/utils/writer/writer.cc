@@ -14,348 +14,318 @@
  */
 
 #include "neug/utils/writer/writer.h"
-#include <arrow/json/options.h>
+#include <arrow/result.h>
 #include <arrow/status.h>
-#include <arrow/type_fwd.h>
-#include "arrow/array/array_base.h"
-#include "arrow/array/array_binary.h"
-#include "arrow/array/array_nested.h"
-#include "arrow/array/array_primitive.h"
-#include "arrow/array/builder_binary.h"
-#include "arrow/scalar.h"
-#include "arrow/table.h"
-#include "arrow/type.h"
 #include "neug/execution/common/operators/retrieve/sink.h"
+#include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
-#include "neug/utils/service_utils.h"
 
-#include "arrow/util/formatting.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <string>
 
 namespace neug {
 namespace writer {
-namespace {
 
-// Format temporal (date32/date64/timestamp) to string using Arrow's
-// StringFormatter, same as arrow::csv::WriteCSV (Cast to utf8). Returns
-// ISO-style string or error.
-template <typename Formatter, typename ValueType>
-static arrow::Result<std::string> formatTemporalWithArrow(Formatter& formatter,
-                                                          ValueType value) {
-  std::string out;
-  auto appender = [&out](std::string_view v) -> arrow::Status {
-    out.append(v.data(), v.size());
-    return arrow::Status::OK();
-  };
-  ARROW_RETURN_NOT_OK(formatter(value, std::move(appender)));
-  return out;
+bool StringFormatBuffer::validateIndex(const neug::QueryResponse* response,
+                                       int rowIdx, int colIdx) {
+  if (response == nullptr)
+    return false;
+  if (rowIdx < 0 || rowIdx >= response->row_count())
+    return false;
+  if (colIdx < 0 || static_cast<size_t>(colIdx) >= response->arrays_size()) {
+    return false;
+  }
+  return true;
 }
 
-// Internal implementation with allocator. Caller must use the returned Value
-// immediately (e.g. stringify) before next call.
-arrow::Result<rapidjson::Value> arrowValueToJsonImpl(
-    const std::shared_ptr<arrow::Array>& column, int64_t index,
-    rapidjson::Document::AllocatorType& allocator) {
-  const arrow::Array& arr = *column;
-  if (arr.IsNull(index)) {
-    return rapidjson::Value(rapidjson::kNullType);
+bool StringFormatBuffer::validateProtoValue(const std::string& validity,
+                                            int rowIdx) {
+  return validity.empty() ||
+         (static_cast<uint8_t>(validity[static_cast<size_t>(rowIdx) >> 3]) >>
+          (rowIdx & 7)) &
+             1;
+}
+
+#define TYPED_PRIMITIVE_ARRAY_TO_JSON(CASE_ENUM, GETTER_METHOD)   \
+  case neug::Array::TypedArrayCase::CASE_ENUM: {                  \
+    auto typed_array = arr.GETTER_METHOD();                       \
+    if (!validateProtoValue(typed_array.validity(), rowIdx)) {    \
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" + \
+                                    std::to_string(rowIdx));      \
+    }                                                             \
+    return std::to_string(typed_array.values(rowIdx));            \
   }
 
-  switch (arr.type()->id()) {
-  case arrow::Type::BOOL:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::BooleanArray>(column)->Value(index));
-  case arrow::Type::INT32:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::Int32Array>(column)->Value(index));
-  case arrow::Type::INT64:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::Int64Array>(column)->Value(index));
-  case arrow::Type::UINT32:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::UInt32Array>(column)->Value(index));
-  case arrow::Type::UINT64:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::UInt64Array>(column)->Value(index));
-  case arrow::Type::FLOAT:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::FloatArray>(column)->Value(index));
-  case arrow::Type::DOUBLE:
-    return rapidjson::Value(
-        std::static_pointer_cast<arrow::DoubleArray>(column)->Value(index));
-  case arrow::Type::STRING: {
-    auto view =
-        std::static_pointer_cast<arrow::StringArray>(column)->GetView(index);
-    return rapidjson::Value(
-        view.data(), static_cast<rapidjson::SizeType>(view.size()), allocator);
+CSVStringFormatBuffer::CSVStringFormatBuffer(
+    const neug::QueryResponse* response, const reader::FileSchema& schema,
+    const reader::EntrySchema& entry_schema)
+    : StringFormatBuffer(response, schema), entry_schema_(entry_schema) {
+  capacity_ = DEFAULT_CAPACITY;
+  WriteOptions writeOpts;
+  size_t batchSize = writeOpts.batch_rows.get(schema.options);
+  if (batchSize > 0 && response->arrays_size() > 0 &&
+      response->row_count() > 0) {
+    capacity_ = DEFAULT_CAPACITY * batchSize * response->arrays_size();
   }
-  case arrow::Type::LARGE_STRING: {
-    auto view =
-        std::static_pointer_cast<arrow::LargeStringArray>(column)->GetView(
-            index);
-    return rapidjson::Value(
-        view.data(), static_cast<rapidjson::SizeType>(view.size()), allocator);
-  }
-  case arrow::Type::DATE32: {
-    auto date32_arr = std::static_pointer_cast<arrow::Date32Array>(column);
-    arrow::internal::StringFormatter<arrow::Date32Type> formatter(
-        date32_arr->type().get());
-    ARROW_ASSIGN_OR_RAISE(
-        std::string iso,
-        formatTemporalWithArrow(formatter, date32_arr->Value(index)));
-    return rapidjson::Value(
-        iso.c_str(), static_cast<rapidjson::SizeType>(iso.size()), allocator);
-  }
-  case arrow::Type::DATE64: {
-    auto date64_arr = std::static_pointer_cast<arrow::Date64Array>(column);
-    arrow::internal::StringFormatter<arrow::Date64Type> formatter(
-        date64_arr->type().get());
-    ARROW_ASSIGN_OR_RAISE(
-        std::string iso,
-        formatTemporalWithArrow(formatter, date64_arr->Value(index)));
-    return rapidjson::Value(
-        iso.c_str(), static_cast<rapidjson::SizeType>(iso.size()), allocator);
-  }
-  case arrow::Type::TIMESTAMP: {
-    auto ts_arr = std::static_pointer_cast<arrow::TimestampArray>(column);
-    arrow::internal::StringFormatter<arrow::TimestampType> formatter(
-        ts_arr->type().get());
-    ARROW_ASSIGN_OR_RAISE(
-        std::string iso,
-        formatTemporalWithArrow(formatter, ts_arr->Value(index)));
-    return rapidjson::Value(
-        iso.c_str(), static_cast<rapidjson::SizeType>(iso.size()), allocator);
-  }
-  case arrow::Type::NA:
-    return rapidjson::Value(rapidjson::kNullType);
-  case arrow::Type::LIST: {
-    auto list_arr = std::static_pointer_cast<arrow::ListArray>(column);
-    rapidjson::Value arr_val(rapidjson::kArrayType);
-    auto values = list_arr->values();
-    int64_t offset = list_arr->value_offset(index);
-    int64_t length = list_arr->value_length(index);
-    for (int64_t j = 0; j < length; ++j) {
-      ARROW_ASSIGN_OR_RAISE(
-          auto elem, arrowValueToJsonImpl(values, offset + j, allocator));
-      arr_val.PushBack(elem, allocator);
+  blob_.data = std::make_unique<uint8_t[]>(capacity_);
+  blob_.size = 0;
+  data_ = blob_.data.get();
+}
+
+arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
+    const neug::Array& arr, int rowIdx) {
+  switch (arr.typed_array_case()) {
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kBoolArray, bool_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kInt32Array, int32_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kInt64Array, int64_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kUint32Array, uint32_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kUint64Array, uint64_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kFloatArray, float_array)
+    TYPED_PRIMITIVE_ARRAY_TO_JSON(kDoubleArray, double_array)
+  case neug::Array::TypedArrayCase::kStringArray: {
+    auto string_array = arr.string_array();
+    if (!validateProtoValue(string_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
     }
-    return arr_val;
+    return string_array.values(rowIdx);
   }
-  case arrow::Type::LARGE_LIST: {
-    auto list_arr = std::static_pointer_cast<arrow::LargeListArray>(column);
-    rapidjson::Value arr_val(rapidjson::kArrayType);
-    auto values = list_arr->values();
-    int64_t offset = list_arr->value_offset(index);
-    int64_t length = list_arr->value_length(index);
-    for (int64_t j = 0; j < length; ++j) {
-      ARROW_ASSIGN_OR_RAISE(
-          auto elem, arrowValueToJsonImpl(values, offset + j, allocator));
-      arr_val.PushBack(elem, allocator);
+  case neug::Array::TypedArrayCase::kDateArray: {
+    auto date32_arr = arr.date_array();
+    if (!validateProtoValue(date32_arr.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
     }
-    return arr_val;
+    Date date_value;
+    date_value.from_timestamp(date32_arr.values(rowIdx));
+    return date_value.to_string();
   }
-  case arrow::Type::MAP: {
-    auto map_arr = std::static_pointer_cast<arrow::MapArray>(column);
-    rapidjson::Value obj(rapidjson::kObjectType);
-    auto keys = map_arr->keys();
-    auto items = map_arr->items();
-    int64_t offset = map_arr->value_offset(index);
-    int64_t length = map_arr->value_length(index);
-    for (int64_t j = 0; j < length; ++j) {
-      ARROW_ASSIGN_OR_RAISE(auto k,
-                            arrowValueToJsonImpl(keys, offset + j, allocator));
-      ARROW_ASSIGN_OR_RAISE(auto v,
-                            arrowValueToJsonImpl(items, offset + j, allocator));
-      if (k.IsString()) {
-        obj.AddMember(k, v, allocator);
-      } else {
-        rapidjson::Value key_str(rapidjson::kStringType);
-        key_str.SetString(neug::rapidjson_stringify(k).c_str(), allocator);
-        obj.AddMember(key_str, v, allocator);
+  case neug::Array::TypedArrayCase::kTimestampArray: {
+    auto timestamp_array = arr.timestamp_array();
+    if (!validateProtoValue(timestamp_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    DateTime dt_value(timestamp_array.values(rowIdx));
+    return dt_value.to_string();
+  }
+  case neug::Array::TypedArrayCase::kIntervalArray: {
+    auto interval_array = arr.interval_array();
+    if (!validateProtoValue(interval_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    return interval_array.values(rowIdx);
+  }
+  case neug::Array::TypedArrayCase::kListArray: {
+    auto list_array = arr.list_array();
+    if (!validateProtoValue(list_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    std::string list_val;
+    list_val.append("[");
+    uint32_t list_size =
+        list_array.offsets(rowIdx + 1) - list_array.offsets(rowIdx);
+    size_t offset = list_array.offsets(rowIdx);
+    for (uint32_t i = 0; i < list_size; ++i) {
+      ARROW_ASSIGN_OR_RAISE(
+          auto elem, formatValueToStr(list_array.elements(), offset + i));
+      if (i > 0) {
+        list_val.append(",");
       }
+      list_val.append(elem);
     }
-    return obj;
+    list_val.append("]");
+    return list_val;
   }
-  case arrow::Type::STRUCT: {
-    auto struct_arr = std::static_pointer_cast<arrow::StructArray>(column);
-    rapidjson::Value obj(rapidjson::kObjectType);
-    const auto& type =
-        arrow::internal::checked_cast<const arrow::StructType&>(*arr.type());
-    for (int i = 0; i < type.num_fields(); ++i) {
-      auto field_arr = struct_arr->field(i);
-      ARROW_ASSIGN_OR_RAISE(auto v,
-                            arrowValueToJsonImpl(field_arr, index, allocator));
-      rapidjson::Value name(
-          type.field(i)->name().c_str(),
-          static_cast<rapidjson::SizeType>(type.field(i)->name().size()),
-          allocator);
-      obj.AddMember(name, v, allocator);
+  case neug::Array::TypedArrayCase::kStructArray: {
+    auto struct_arr = arr.struct_array();
+    std::string list_val;
+    list_val.append("[");
+    for (int i = 0; i < struct_arr.fields_size(); ++i) {
+      const auto& field = struct_arr.fields(i);
+      ARROW_ASSIGN_OR_RAISE(auto elem, formatValueToStr(field, rowIdx));
+      if (i > 0) {
+        list_val.append(",");
+      }
+      list_val.append(elem);
     }
-    return obj;
+    list_val.append("]");
+    return list_val;
   }
-  case arrow::Type::SPARSE_UNION: {
-    auto union_arr = std::static_pointer_cast<arrow::SparseUnionArray>(column);
-    int child_pos = union_arr->child_id(index);
-    auto child = union_arr->field(child_pos);
-    return arrowValueToJsonImpl(child, index, allocator);
+  case neug::Array::TypedArrayCase::kVertexArray: {
+    auto vertex_array = arr.vertex_array();
+    if (!validateProtoValue(vertex_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    return vertex_array.values(rowIdx);
   }
-  case arrow::Type::DENSE_UNION: {
-    auto union_arr = std::static_pointer_cast<arrow::DenseUnionArray>(column);
-    int child_pos = union_arr->child_id(index);
-    auto child = union_arr->field(child_pos);
-    int64_t child_index = union_arr->value_offset(index);
-    return arrowValueToJsonImpl(child, child_index, allocator);
+  case neug::Array::TypedArrayCase::kEdgeArray: {
+    auto edge_array = arr.edge_array();
+    if (!validateProtoValue(edge_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    return edge_array.values(rowIdx);
+  }
+  case neug::Array::TypedArrayCase::kPathArray: {
+    auto path_array = arr.path_array();
+    if (!validateProtoValue(path_array.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
+    return path_array.values(rowIdx);
   }
   default: {
-    return arrow::Status::Invalid("Unsupported type: ", arr.type()->ToString());
+    return arrow::Status::Invalid("Unsupported type: " +
+                                  std::to_string(arr.typed_array_case()));
   }
   }
 }
 
-}  // namespace
+std::string CSVStringFormatBuffer::addEscapes(char toEscape, char escape,
+                                              const std::string& val) {
+  uint64_t i = 0;
+  std::string escapedStr = "";
+  auto found = val.find(toEscape);
 
-// Convert arrow value to json value. Supported types: BOOL, INT32, INT64,
-// UINT32, UINT64, FLOAT, DOUBLE, STRING, LARGE_STRING, DATE32, DATE64,
-// TIMESTAMP, LIST, MAP, STRUCT, SPARSE_UNION, NA. Returned Value is only
-// valid until the next call (uses thread-local Document).
-arrow::Result<rapidjson::Value> arrowValueToJson(
-    std::shared_ptr<arrow::Array> column, size_t index) {
-  if (!column) {
-    return arrow::Status::Invalid("column is null");
+  while (found != std::string::npos) {
+    while (i < found) {
+      escapedStr += val[i];
+      i++;
+    }
+    escapedStr += escape;
+    found = val.find(toEscape, found + sizeof(escape));
   }
-  if (index >= static_cast<size_t>(column->length())) {
-    return arrow::Status::IndexError("index out of range");
+  while (i < val.length()) {
+    escapedStr += val[i];
+    i++;
   }
-  thread_local rapidjson::Document doc;
-  doc.Clear();
-  return arrowValueToJsonImpl(column, static_cast<int64_t>(index),
-                              doc.GetAllocator());
+  return escapedStr;
 }
 
-// Replace double-quotes in JSON string with single-quotes so that when written
-// to CSV, the writer does not escape them (no "" in output). Output is not
-// standard JSON but is readable and avoids CSV quote doubling.
-static std::string jsonStrForCsv(std::string json_str) {
-  for (auto& ch : json_str) {
-    if (ch == '"') {
-      ch = '\'';
-    }
+void CSVStringFormatBuffer::write(const uint8_t* buffer, uint64_t len) {
+  if (len == 0) {
+    return;
   }
-  return json_str;
+  if (buffer == nullptr) {
+    THROW_IO_EXCEPTION("CSVStringFormatBuffer::write called with null buffer");
+  }
+  // Overflow-safe: need grow when (blob.size + len > capacity) without
+  // computing blob.size + len (which can overflow).
+  const bool need_grow = (len > capacity_) || (blob_.size > capacity_ - len);
+  if (need_grow) {
+    size_t old_capacity = capacity_;
+    do {
+      if (capacity_ > SIZE_MAX / 2) {
+        THROW_IO_EXCEPTION("CSV buffer capacity overflow");
+      }
+      capacity_ *= 2;
+    } while ((len > capacity_) || (blob_.size > capacity_ - len));
+    auto new_data = std::make_unique<uint8_t[]>(capacity_);
+    // Copy only up to old capacity to avoid reading past old buffer
+    size_t copy_len = (blob_.size < old_capacity) ? blob_.size : old_capacity;
+    if (copy_len > 0 && data_ != nullptr) {
+      memcpy(new_data.get(), data_, copy_len);
+    }
+    blob_.size = copy_len;
+    blob_.data = std::move(new_data);
+    data_ = blob_.data.get();
+  }
+
+  memcpy(data_ + blob_.size, buffer, len);
+  blob_.size += len;
 }
 
-// Convert chunked array with composite types (LIST, STRUCT, MAP, UNION) to
-// chunked array with string type.
-arrow::Result<std::shared_ptr<arrow::ChunkedArray>> chunkedArrayToString(
-    const arrow::ChunkedArray& chunked) {
-  arrow::StringBuilder builder(arrow::default_memory_pool());
-  size_t total_rows = chunked.length();
-  if (total_rows > 0) {
-    auto first_arr = chunked.chunk(0);
-    ARROW_ASSIGN_OR_RAISE(auto first_row, arrowValueToJson(first_arr, 0));
-    std::string first_str = neug::rapidjson_stringify(first_row);
-    first_str = jsonStrForCsv(std::move(first_str));
-    size_t first_row_size = first_str.size();
-    // reserve total rows and total bytes
-    ARROW_RETURN_NOT_OK(builder.Reserve(static_cast<int64_t>(total_rows)));
-    ARROW_RETURN_NOT_OK(
-        builder.ReserveData(static_cast<int64_t>(first_row_size * total_rows)));
+void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
+  if (!validateIndex(response_, rowIdx, colIdx)) {
+    THROW_IO_EXCEPTION(
+        "Value index out of range: rowIdx=" + std::to_string(rowIdx) +
+        ", colIdx=" + std::to_string(colIdx));
   }
-  for (size_t c = 0; c < chunked.num_chunks(); ++c) {
-    auto arr = chunked.chunk(c);
-    for (size_t i = 0; i < arr->length(); ++i) {
-      ARROW_ASSIGN_OR_RAISE(auto json, arrowValueToJson(arr, i));
-      std::string json_str = neug::rapidjson_stringify(json);
-      json_str = jsonStrForCsv(std::move(json_str));
-      ARROW_RETURN_NOT_OK(builder.Append(std::move(json_str)));
+  // write with header
+  WriteOptions writeOpts;
+  if (rowIdx == 0 && colIdx == 0 && writeOpts.has_header.get(schema_.options)) {
+    auto& columnNames = entry_schema_.columnNames;
+    if (!columnNames.empty()) {
+      char delim = writeOpts.delimiter.get(schema_.options);
+      for (size_t col = 0; col < columnNames.size(); ++col) {
+        if (col > 0) {
+          write(reinterpret_cast<const uint8_t*>(&delim), sizeof(char));
+        }
+        const auto& name = columnNames[col];
+        write(reinterpret_cast<const uint8_t*>(name.c_str()), name.length());
+      }
+      write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE),
+            sizeof(char));
     }
   }
-  ARROW_ASSIGN_OR_RAISE(auto str_array, builder.Finish());
-  return std::make_shared<arrow::ChunkedArray>(str_array);
+
+  const neug::Array& column = response_->arrays(colIdx);
+  auto strResult = formatValueToStr(column, rowIdx);
+  if (!strResult.ok() && !writeOpts.ignore_errors.get(schema_.options)) {
+    THROW_IO_EXCEPTION(
+        "Format value to string failed, rowIdx=" + std::to_string(rowIdx) +
+        ", colIdx=" + std::to_string(colIdx) +
+        ", error=" + strResult.status().ToString());
+  }
+  if (colIdx > 0) {
+    char delim = writeOpts.delimiter.get(schema_.options);
+    write(reinterpret_cast<const uint8_t*>(&delim), sizeof(char));
+  }
+  if (strResult.ok()) {
+    auto str = strResult.ValueOrDie();
+    if (!str.empty()) {
+      // add quotes for string type values
+      if (column.has_string_array()) {
+        char escapeChar = writeOpts.escape_char.get(schema_.options);
+        char quoteChar = writeOpts.quote_char.get(schema_.options);
+        str = addEscapes(escapeChar, escapeChar, str);
+        if (escapeChar != quoteChar) {
+          str = addEscapes(quoteChar, escapeChar, str);
+        }
+        write(reinterpret_cast<const uint8_t*>(&quoteChar), sizeof(char));
+        write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
+        write(reinterpret_cast<const uint8_t*>(&quoteChar), sizeof(char));
+      } else {
+        write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
+      }
+    }
+  } else {
+    write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
+          strlen(DEFAULT_NULL_STR));
+  }
+  if (colIdx == response_->arrays_size() - 1) {
+    // the last column, add newline
+    write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE), sizeof(char));
+  }
 }
 
-// Try to convert the arrow table to a table that is supported by the arrow::CSV
-// writer.
-arrow::Result<std::shared_ptr<arrow::Table>> convertToCsvWritableTable(
-    const arrow::Table& table) {
-  std::vector<std::shared_ptr<arrow::ChunkedArray>> columns;
-  std::vector<std::shared_ptr<arrow::Field>> fields;
-  for (size_t column = 0; column < table.num_columns(); ++column) {
-    const auto& col = table.column(column);
-    arrow::Type::type id = col->type()->id();
-    switch (id) {
-    case arrow::Type::BOOL:
-    case arrow::Type::INT32:
-    case arrow::Type::INT64:
-    case arrow::Type::UINT32:
-    case arrow::Type::UINT64:
-    case arrow::Type::FLOAT:
-    case arrow::Type::DOUBLE:
-    case arrow::Type::STRING:
-    case arrow::Type::LARGE_STRING:
-    case arrow::Type::DATE32:
-    case arrow::Type::DATE64:
-    case arrow::Type::TIMESTAMP: {
-      columns.push_back(col);
-      fields.push_back(table.schema()->field(column));
-      break;
-    }
-    case arrow::Type::LIST:
-    case arrow::Type::MAP:
-    case arrow::Type::STRUCT:
-    case arrow::Type::SPARSE_UNION: {
-      ARROW_ASSIGN_OR_RAISE(auto str_chunked, chunkedArrayToString(*col));
-      columns.push_back(str_chunked);
-      fields.push_back(arrow::field(table.schema()->field(column)->name(),
-                                    arrow::utf8(),
-                                    table.schema()->field(column)->nullable()));
-      break;
-    }
-    default: {
-      return arrow::Status::Invalid(
-          "The column type: ",
-          col->type()->ToString() + " cannot be written to csv");
-    }
-    }
+arrow::Status CSVStringFormatBuffer::flush(
+    std::shared_ptr<arrow::io::OutputStream> stream) {
+  if (blob_.size > 0) {
+    auto status = stream->Write(data_, blob_.size);
+    blob_.size = 0;
+    return status;
   }
-  auto schema = arrow::schema(fields);
-  return arrow::Table::Make(schema, columns);
+  return arrow::Status::OK();
 }
 
 Status ArrowExportWriter::write(const execution::Context& context,
                                 const StorageReadInterface& graph) {
-  auto result = execution::Sink::sink_neug(context, graph);
-  auto table = result.table();
-  if (!table) {
-    return Status(StatusCode::ERR_IO_ERROR,
-                  "Failed to get table from query result, table is null");
-  }
-
-  std::shared_ptr<arrow::Table> table_to_write = table;
-  if (entry_schema_ && !entry_schema_->columnNames.empty()) {
-    auto rename_result = table->RenameColumns(entry_schema_->columnNames);
-    if (!rename_result.ok()) {
-      return Status(StatusCode::ERR_IO_ERROR,
-                    "Failed to set table field names: " +
-                        rename_result.status().ToString());
-    }
-    table_to_write = rename_result.ValueOrDie();
-  }
-
-  return writeTable(table_to_write);
+  neug::QueryResponse response;
+  execution::Sink::sink_results(context, graph, &response);
+  return writeTable(&response);
 }
 
-Status ArrowCsvExportWriter::writeTable(
-    const std::shared_ptr<arrow::Table>& table) {
-  // build csv options
-  arrow::csv::WriteOptions writeOpts = arrow::csv::WriteOptions::Defaults();
-  reader::CSVParseOptions csvParseOpts;
-  WriteOptions csvWriteOpts;
-  writeOpts.delimiter = csvParseOpts.delimiter.get(schema_.options);
-  writeOpts.batch_size = csvWriteOpts.batch_rows.get(schema_.options);
-  writeOpts.include_header = csvParseOpts.has_header.get(schema_.options);
-  writeOpts.eol = "\n";
-
+Status ArrowCsvExportWriter::writeTable(const neug::QueryResponse* table) {
   if (schema_.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
   }
@@ -367,21 +337,30 @@ Status ArrowCsvExportWriter::writeTable(
   }
   auto stream = stream_result.ValueOrDie();
 
-  // Arrow CSV writer does not support struct/list/map/union etc, convert those
-  // columns to json string before writing.
-  auto table_result = convertToCsvWritableTable(*table);
-  if (!table_result.ok()) {
-    return Status(
-        StatusCode::ERR_IO_ERROR,
-        "Failed to prepare table for CSV: " + table_result.status().ToString());
+  WriteOptions writeOpts;
+  auto batchSize = writeOpts.batch_rows.get(schema_.options);
+  if (batchSize <= 0) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Batch size should be positive");
   }
-  auto table_to_write = table_result.ValueOrDie();
+  auto csvBuffer = CSVStringFormatBuffer(table, schema_, *entry_schema_);
+  for (size_t i = 0; i < table->row_count(); ++i) {
+    for (size_t j = 0; j < table->arrays_size(); ++j) {
+      csvBuffer.addValue(i, j);
+    }
+    if (i % batchSize == batchSize - 1) {
+      auto status = csvBuffer.flush(stream);
+      if (!status.ok()) {
+        return Status(StatusCode::ERR_IO_ERROR,
+                      "Failed to flush CSV buffer: " + status.ToString());
+      }
+    }
+  }
 
-  auto write_result =
-      arrow::csv::WriteCSV(*table_to_write, writeOpts, stream.get());
-  if (!write_result.ok()) {
+  auto status = csvBuffer.flush(stream);
+  if (!status.ok()) {
     return Status(StatusCode::ERR_IO_ERROR,
-                  "Failed to write table to file: " + write_result.ToString());
+                  "Failed to flush CSV buffer: " + status.ToString());
   }
   return Status::OK();
 }

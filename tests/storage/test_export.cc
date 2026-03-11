@@ -123,7 +123,7 @@ TEST(StorageDDLTest, ExportTest) {
     LOG(INFO) << "Total knows relationships: " << count;
   }
 
-  if (std::filesystem::exists("/tmp/rel_a.csv")) {
+  if (std::filesystem::exists("c")) {
     std::filesystem::remove("/tmp/rel_a.csv");
   }
   EXPECT_TRUE(
