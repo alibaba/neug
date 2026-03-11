@@ -129,7 +129,7 @@ class EdgeTable {
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
  private:
-  void dropAndCreateNewBundledCSR();
+  void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
 
