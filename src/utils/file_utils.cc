@@ -154,6 +154,7 @@ void write_file(const std::string& filename, const void* buffer, size_t size,
     ss << "Failed to write file " << filename << ", expected " << num
        << ", got " << ret_len << ", " << strerror(errno);
     LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
   }
   int ret = 0;
   if ((ret = fclose(fout)) != 0) {
