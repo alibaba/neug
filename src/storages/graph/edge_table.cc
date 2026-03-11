@@ -595,10 +595,6 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
 }
 
 void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
-  LOG(INFO) << "dump edge table " << meta_->src_label_name << "-"
-            << meta_->edge_label_name << "-" << meta_->dst_label_name << " to "
-            << checkpoint_dir_path << ", capacity: " << Capacity()
-            << ", size: " << Size();
   in_csr_->dump(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                           meta_->edge_label_name),
                 checkpoint_dir_path);
@@ -723,8 +719,6 @@ void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
 
 void EdgeTable::EnsureCapacity(size_t capacity) {
   if (!meta_->is_bundled()) {
-    LOG(INFO) << "ensure edge table capacity " << capacity
-              << ", current capacity " << capacity_.load();
     if (capacity <= capacity_.load()) {
       return;
     }
@@ -883,7 +877,10 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   std::vector<bool> valid_flags;  // true for valid edges
   std::tie(src_lid, dst_lid, valid_flags) =
       filterInvalidEdges(src_lid, dst_lid);
-  EnsureCapacity(table_idx_.load() + src_lid.size());
+  size_t new_size = table_idx_.load() + src_lid.size();
+  if (new_size >= capacity_.load()) {
+    EnsureCapacity(calculate_new_capacity(new_size, false));
+  }
   if (meta_->is_bundled()) {
     auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
                                                         valid_flags);
@@ -903,7 +900,10 @@ void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
     const std::vector<std::vector<Property>>& edge_data_list) {
-  EnsureCapacity(table_idx_.load() + src_lid_list.size());
+  size_t new_size = table_idx_.load() + src_lid_list.size();
+  if (new_size >= capacity_.load()) {
+    EnsureCapacity(calculate_new_capacity(new_size, false));
+  }
   if (meta_->is_bundled()) {
     std::vector<Property> flat_edge_data;
     assert(meta_->properties.size() == 1);

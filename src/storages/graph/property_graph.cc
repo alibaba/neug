@@ -896,24 +896,12 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     std::string v_label_name = schema_.get_vertex_label_name(i);
 
     vertex_tables_[i].Open(work_dir_, memory_level);
-#ifdef DEBUG
-    size_t old_cap = vertex_tables_[i].Capacity();
-    LOG(INFO) << "Open vertex table for label [" << v_label_name
-              << "], capacity: " << vertex_tables_[i].Capacity()
-              << ", size: " << vertex_tables_[i].Size() << ", new capacity: "
-              << calculate_new_capacity(vertex_tables_[i].Size(), true);
-#endif
     // Case 1: Open from checkpoint, the capacity should be already reserved and
     // satisfied Case 2: Open from empty, Capacity should be the default minimum
     // capacity(4096)
     vertex_tables_[i].EnsureCapacity(
         calculate_new_capacity(vertex_tables_[i].Size(), true));
     vertex_capacities[i] = vertex_tables_[i].Capacity();
-#ifdef DEBUG
-    if (vertex_tables_[i].Size() > 0) {
-      assert(old_cap == vertex_tables_[i].Capacity());
-    }
-#endif
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
@@ -955,21 +943,8 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
           edge_table.OpenInMemory(work_dir_, vertex_capacities[src_label_i],
                                   vertex_capacities[dst_label_i]);
         }
-#ifdef DEBUG
-        size_t old_cap = edge_table.Capacity();
-        LOG(INFO) << "Open edge table for edge label [" << edge_label
-                  << "] from [" << src_label << "] to [" << dst_label
-                  << "], capacity: " << edge_table.Capacity()
-                  << ", size: " << edge_table.Size() << ", new capacity: "
-                  << calculate_new_capacity(edge_table.Size(), false);
-#endif
         edge_table.EnsureCapacity(
             calculate_new_capacity(edge_table.Size(), false));
-#ifdef DEBUG
-        if (edge_table.Size() > 0) {
-          assert(old_cap == edge_table.Capacity());
-        }
-#endif
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }

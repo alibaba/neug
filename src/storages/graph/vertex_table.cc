@@ -57,12 +57,6 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
                              std::to_string(memory_level_));
   }
-  LOG(INFO) << "Open vertex table for label [" << label_name
-            << "], capacity: " << indexer_.capacity()
-            << ", size: " << indexer_.size();
-  if (table_ && table_->col_num() > 0) {
-    LOG(INFO) << ", table size: " << table_->get_column_by_id(0)->size();
-  }
   v_ts_.Open(vertex_tracker_filename);
 }
 
@@ -191,10 +185,6 @@ bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
 }
 
 void VertexTable::Reserve(size_t cap) {
-  LOG(INFO) << "Reserving capacity for vertex table "
-            << vertex_schema_->label_name
-            << ", current capacity: " << indexer_.capacity()
-            << ", requested capacity: " << cap;
   if (cap > indexer_.capacity()) {
     indexer_.reserve(cap);
   }
@@ -205,10 +195,6 @@ void VertexTable::Reserve(size_t cap) {
 }
 
 size_t VertexTable::EnsureCapacity(size_t capacity) {
-  LOG(INFO) << "Ensuring capacity for vertex table "
-            << vertex_schema_->label_name
-            << ", current capacity: " << indexer_.capacity()
-            << ", requested capacity: " << capacity;
   if (capacity <= indexer_.capacity()) {
     return indexer_.capacity();
   }

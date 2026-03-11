@@ -130,7 +130,20 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
-  inline size_t Size() const { return table_idx_.load(); }
+  inline size_t Size() const {
+    if (meta_->is_bundled()) {
+      if (out_csr_) {
+        return out_csr_->edge_num();
+      } else if (in_csr_) {
+        return in_csr_->edge_num();
+      } else {
+        THROW_RUNTIME_ERROR("both csr are null");
+      }
+    }
+    // TODO(zhanglei): the size may be inaccurate if some edges are deleted but
+    // not compacted yet.
+    return table_idx_.load();
+  }
 
   inline size_t Capacity() const {
     if (meta_->is_bundled()) {

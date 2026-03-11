@@ -18,6 +18,7 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/growth.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 
@@ -292,7 +293,10 @@ class VertexTable {
       auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
-      EnsureCapacity(indexer_.size() + pk_array->length());
+      size_t new_size = indexer_.size() + pk_array->length();
+      if (new_size >= indexer_.capacity()) {
+        EnsureCapacity(calculate_new_capacity(new_size, true));
+      }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
 
