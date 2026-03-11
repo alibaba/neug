@@ -211,7 +211,7 @@ function(build_arrow_as_third_party)
         endif()
 
         message(STATUS "Arrow source directory found: ${arrow_SOURCE_DIR}")
-        include_directories(SYSTEM ${arrow_SOURCE_DIR}/cpp/src
+        include_directories(${arrow_SOURCE_DIR}/cpp/src
             ${arrow_BINARY_DIR}/src)
 
         # Set additional Arrow variables for compatibility
