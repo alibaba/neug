@@ -70,7 +70,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
     // Open the vertex table
-    table.Open(test_dir_, 1, true);  // memory_level=1 for in-memory
+    table.Open(test_dir_, 1);  // memory_level=1 for in-memory
   }
 
   void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
