@@ -137,7 +137,13 @@ class PropertyGraph {
 
   void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
-  void Dump(bool reopen = true);
+  /**
+   * @brief Dump the current graph state to persistent storage.
+   * @param reopen If true, reopens the graph after dumping (default: true)
+   * @param reserve_space If true, reserves space for all vertex and edge
+   * tables.
+   */
+  void Dump(bool reopen = true, bool ensure_capacity = true);
 
   /**
    * @brief Dump schema information to a file.

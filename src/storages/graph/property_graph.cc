@@ -121,7 +121,7 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
     if (capacity == 0) {
       auto old_size = vertex_tables_[v_label].Size();
       if (old_size >= old_cap) {
-        capacity = neug::calculate_new_capacity(old_cap, true);
+        capacity = neug::calculate_new_capacity(old_size, true);
       }
     }
     if (capacity <= old_cap) {
@@ -172,7 +172,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
   if (capacity == 0) {
     size_t old_size = edge_tables_.at(index).Size();
     if (old_size >= old_cap) {
-      capacity = neug::calculate_new_capacity(old_cap, false);
+      capacity = neug::calculate_new_capacity(old_size, false);
     }
   }
   if (capacity <= old_cap) {
@@ -292,7 +292,7 @@ Status PropertyGraph::CreateVertexType(
   }
 
   auto& vtable = vertex_tables_.back();
-  vtable.Open(work_dir_, memory_level_, true);
+  vtable.Open(work_dir_, memory_level_);
   vtable.Reserve(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
@@ -859,45 +859,25 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
   memory_level_ = memory_level;
   work_dir_.assign(work_dir);
   std::string schema_file = schema_path(work_dir_);
-  std::string checkpoint_dir_path{};
-  bool build_empty_graph = false;
+  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
   if (std::filesystem::exists(schema_file)) {
     loadSchema(schema_file);
-    vertex_label_total_count_ = schema_.vertex_label_frontier();
-    edge_label_total_count_ = schema_.edge_label_frontier();
-    for (size_t i = 0; i < vertex_label_total_count_; i++) {
-      if (!schema_.vertex_label_valid(i)) {
-        THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " +
-                                 std::to_string(i));
-      }
-      std::string v_label_name = schema_.get_vertex_label_name(i);
-      auto properties = schema_.get_vertex_properties(i);
-      auto property_names = schema_.get_vertex_property_names(i);
-      auto property_strategies =
-          schema_.get_vertex_storage_strategies(v_label_name);
-      vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
-    }
-    checkpoint_dir_path = checkpoint_dir(work_dir_);
   } else {
-    vertex_label_total_count_ = schema_.vertex_label_frontier();
-    edge_label_total_count_ = schema_.edge_label_frontier();
-    for (size_t i = 0; i < vertex_label_total_count_; i++) {
-      if (!schema_.vertex_label_valid(i)) {
-        THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " +
-                                 std::to_string(i));
-      }
-      std::string v_label_name = schema_.get_vertex_label_name(i);
-      auto properties = schema_.get_vertex_properties(i);
-      auto property_names = schema_.get_vertex_property_names(i);
-      auto property_strategies =
-          schema_.get_vertex_storage_strategies(v_label_name);
-      vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
-    }
-    build_empty_graph = true;
     LOG(INFO) << "Schema file not found, build empty graph";
-
-    checkpoint_dir_path = checkpoint_dir(work_dir_);
     std::filesystem::create_directories(checkpoint_dir_path);
+  }
+  vertex_label_total_count_ = schema_.vertex_label_frontier();
+  edge_label_total_count_ = schema_.edge_label_frontier();
+  for (size_t i = 0; i < vertex_label_total_count_; i++) {
+    if (!schema_.vertex_label_valid(i)) {
+      THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " + std::to_string(i));
+    }
+    std::string v_label_name = schema_.get_vertex_label_name(i);
+    auto properties = schema_.get_vertex_properties(i);
+    auto property_names = schema_.get_vertex_property_names(i);
+    auto property_strategies =
+        schema_.get_vertex_storage_strategies(v_label_name);
+    vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
   }
 
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -915,14 +895,25 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     }
     std::string v_label_name = schema_.get_vertex_label_name(i);
 
-    vertex_tables_[i].Open(work_dir_, memory_level, build_empty_graph);
-
-    // We will reserve the at least 4096 slots for each vertex label
-    size_t vertex_capacity =
-        std::max(vertex_tables_[i].get_indexer().capacity(), (size_t) 4096);
-    vertex_tables_[i].Reserve(vertex_capacity);
-
-    vertex_capacities[i] = vertex_capacity;
+    vertex_tables_[i].Open(work_dir_, memory_level);
+#ifdef DEBUG
+    size_t old_cap = vertex_tables_[i].Capacity();
+    LOG(INFO) << "Open vertex table for label [" << v_label_name
+              << "], capacity: " << vertex_tables_[i].Capacity()
+              << ", size: " << vertex_tables_[i].Size() << ", new capacity: "
+              << calculate_new_capacity(vertex_tables_[i].Size(), true);
+#endif
+    // Case 1: Open from checkpoint, the capacity should be already reserved and
+    // satisfied Case 2: Open from empty, Capacity should be the default minimum
+    // capacity(4096)
+    vertex_tables_[i].EnsureCapacity(
+        calculate_new_capacity(vertex_tables_[i].Size(), true));
+    vertex_capacities[i] = vertex_tables_[i].Capacity();
+#ifdef DEBUG
+    if (vertex_tables_[i].Size() > 0) {
+      assert(old_cap == vertex_tables_[i].Capacity());
+    }
+#endif
   }
 
   for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
@@ -964,9 +955,21 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
           edge_table.OpenInMemory(work_dir_, vertex_capacities[src_label_i],
                                   vertex_capacities[dst_label_i]);
         }
-
-        edge_table.Resize(vertex_capacities[src_label_i],
-                          vertex_capacities[dst_label_i]);
+#ifdef DEBUG
+        size_t old_cap = edge_table.Capacity();
+        LOG(INFO) << "Open edge table for edge label [" << edge_label
+                  << "] from [" << src_label << "] to [" << dst_label
+                  << "], capacity: " << edge_table.Capacity()
+                  << ", size: " << edge_table.Size() << ", new capacity: "
+                  << calculate_new_capacity(edge_table.Size(), false);
+#endif
+        edge_table.EnsureCapacity(
+            calculate_new_capacity(edge_table.Size(), false));
+#ifdef DEBUG
+        if (edge_table.Size() > 0) {
+          assert(old_cap == edge_table.Capacity());
+        }
+#endif
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }
@@ -1086,7 +1089,7 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   }
 }
 
-void PropertyGraph::Dump(bool reopen) {
+void PropertyGraph::Dump(bool reopen, bool ensure_capacity) {
   // First dump to the  temp dir, then move to the checkpoint dir
   std::string target_dir = temp_checkpoint_dir(work_dir_);
   if (std::filesystem::exists(target_dir)) {
@@ -1108,6 +1111,7 @@ void PropertyGraph::Dump(bool reopen) {
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
     if (!vertex_tables_[i].is_dropped()) {
       vertex_num[i] = vertex_tables_[i].LidNum();
+      EnsureCapacity(i, calculate_new_capacity(vertex_num[i], true));
       vertex_tables_[i].Dump(target_dir);
     }
   }
@@ -1142,6 +1146,8 @@ void PropertyGraph::Dump(bool reopen) {
         if (edge_tables_.count(index) > 0) {
           auto& edge_table = edge_tables_.at(index);
           edge_table.Resize(vertex_num[src_label_i], vertex_num[dst_label_i]);
+          EnsureCapacity(src_label_i, dst_label_i, e_label_i,
+                         calculate_new_capacity(edge_table.Capacity(), false));
           edge_table.Dump(target_dir);
         }
       }

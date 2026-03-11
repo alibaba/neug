@@ -118,6 +118,12 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
                "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif ()
 
+#if BUILD_TYPE is DEBUG, add compile option DEBUG
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+endif()
+add_definitions(-DDEBUG)
+
 add_compile_definitions(NEUG_VERSION="${NEUG_VERSION}")
 
 # reference: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling#always-full-rpath

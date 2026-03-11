@@ -111,8 +111,7 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
-  void Open(const std::string& work_dir, int memory_level,
-            bool build_empty_graph = false);
+  void Open(const std::string& work_dir, int memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -293,11 +292,7 @@ class VertexTable {
       auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
-      auto cur_size = indexer_.capacity();
-      while (cur_size < indexer_.size() + pk_array->length()) {
-        cur_size = std::max(16, 2 * static_cast<int>(cur_size));
-      }
-      Reserve(cur_size);
+      EnsureCapacity(indexer_.size() + pk_array->length());
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
 

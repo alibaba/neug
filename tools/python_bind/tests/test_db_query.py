@@ -2577,3 +2577,13 @@ def test_insert_many_edges():
     assert records == [[4950]], f"Expected value [[4950]], got {records}"
     conn.close()
     db.close()
+
+def test_open_modern_graph():
+    db_dir = "/tmp/tinysnb"
+    db = Database(db_path=db_dir, mode="r")
+    conn = db.connect()
+    res = conn.execute("MATCH (n) RETURN n LIMIT 1;")
+    records = list(res)
+    assert len(records) == 1
+    conn.close()
+    db.close()

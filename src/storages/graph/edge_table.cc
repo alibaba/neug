@@ -33,6 +33,8 @@
 #include "neug/storages/file_names.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
+#include "neug/utils/file_utils.h"
+#include "neug/utils/growth.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -378,9 +380,6 @@ void batch_add_unbundled_edges_impl(
   size_t offset = table_idx_.fetch_add(src_lid_list.size());
   insert_edges_separated_impl(out_csr, in_csr, src_lid_list, dst_lid_list,
                               offset);
-  size_t cur_idx = table_idx_.load();
-  table_->resize(cur_idx);
-  capacity_.store(cur_idx);
   std::vector<std::shared_ptr<arrow::DataType>> expected_types;
   for (auto pt : prop_types) {
     expected_types.emplace_back(PropertyTypeToArrowType(pt));
@@ -482,6 +481,26 @@ void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
   meta_ = meta;
 }
 
+void load_statistic_file(const std::string& work_dir,
+                         const std::string& src_label_name,
+                         const std::string& dst_label_name,
+                         const std::string& edge_label_name,
+                         std::atomic<uint64_t>& cap_atomic,
+                         std::atomic<uint64_t>& table_idx_atomic) {
+  size_t cap = 0, size = 0;
+  auto statistic_file_path =
+      checkpoint_dir(work_dir) + "/" +
+      statistics_file_prefix(src_label_name, dst_label_name, edge_label_name);
+  if (!std::filesystem::exists(statistic_file_path)) {
+    cap_atomic.store(0);
+    table_idx_atomic.store(0);
+    return;
+  }
+  read_statistic_file(statistic_file_path, cap, size);
+  cap_atomic.store(cap);
+  table_idx_atomic.store(size);
+}
+
 void EdgeTable::Open(const std::string& work_dir) {
   work_dir_ = work_dir;
   memory_level_ = 0;
@@ -498,11 +517,14 @@ void EdgeTable::Open(const std::string& work_dir) {
                  work_dir, meta_->property_names, meta_->properties,
                  meta_->default_property_values, meta_->strategies);
     assert(table_->col_num() > 0);
-    size_t property_capacity = table_->get_column_by_id(0)->size();
-    table_idx_.store(property_capacity);
-    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
-                             static_cast<size_t>(4096)));
-    table_->resize(capacity_.load());
+    size_t table_cap = table_->get_column_by_id(0)->size();
+    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
+                        meta_->edge_label_name, capacity_, table_idx_);
+    if (table_cap != capacity_.load()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "capacity in statistic file not match actual table capacity, maybe "
+          "the graph is not dumped properly");
+    }
   }
 }
 
@@ -528,11 +550,14 @@ void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
         work_dir_, meta_->property_names, meta_->properties,
         meta_->default_property_values, meta_->strategies);
     assert(table_->col_num() > 0);
-    size_t property_capacity = table_->get_column_by_id(0)->size();
-    table_idx_.store(property_capacity);
-    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
-                             static_cast<size_t>(4096)));
-    table_->resize(capacity_.load());
+    size_t table_cap = table_->get_column_by_id(0)->size();
+    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
+                        meta_->edge_label_name, capacity_, table_idx_);
+    if (table_cap != capacity_.load()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "capacity in statistic file not match actual table capacity, maybe "
+          "the graph is not dumped properly");
+    }
   }
 }
 
@@ -558,15 +583,22 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
         checkpoint_dir_path, meta_->property_names, meta_->properties,
         meta_->default_property_values, meta_->strategies, (memory_level_ > 2));
     assert(table_->col_num() > 0);
-    size_t property_capacity = table_->get_column_by_id(0)->size();
-    table_idx_.store(property_capacity);
-    capacity_.store(std::max(property_capacity + (property_capacity + 4) / 5,
-                             static_cast<size_t>(4096)));
-    table_->resize(capacity_.load());
+    size_t table_cap = table_->get_column_by_id(0)->size();
+    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
+                        meta_->edge_label_name, capacity_, table_idx_);
+    if (table_cap != capacity_.load()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "capacity in statistic file not match actual table capacity, maybe "
+          "the graph is not dumped properly");
+    }
   }
 }
 
 void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
+  LOG(INFO) << "dump edge table " << meta_->src_label_name << "-"
+            << meta_->edge_label_name << "-" << meta_->dst_label_name << " to "
+            << checkpoint_dir_path << ", capacity: " << Capacity()
+            << ", size: " << Size();
   in_csr_->dump(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                           meta_->edge_label_name),
                 checkpoint_dir_path);
@@ -577,6 +609,11 @@ void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
     table_->dump(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                               meta_->edge_label_name),
                  checkpoint_dir_path);
+    auto statistc_file_path =
+        checkpoint_dir_path + "/" +
+        statistics_file_prefix(meta_->src_label_name, meta_->dst_label_name,
+                               meta_->edge_label_name);
+    write_statistic_file(statistc_file_path, Capacity(), Size());
   }
 }
 
@@ -686,6 +723,8 @@ void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
 
 void EdgeTable::EnsureCapacity(size_t capacity) {
   if (!meta_->is_bundled()) {
+    LOG(INFO) << "ensure edge table capacity " << capacity
+              << ", current capacity " << capacity_.load();
     if (capacity <= capacity_.load()) {
       return;
     }
@@ -844,6 +883,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   std::vector<bool> valid_flags;  // true for valid edges
   std::tie(src_lid, dst_lid, valid_flags) =
       filterInvalidEdges(src_lid, dst_lid);
+  EnsureCapacity(table_idx_.load() + src_lid.size());
   if (meta_->is_bundled()) {
     auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
                                                         valid_flags);
@@ -863,6 +903,7 @@ void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& src_lid_list,
     const std::vector<vid_t>& dst_lid_list,
     const std::vector<std::vector<Property>>& edge_data_list) {
+  EnsureCapacity(table_idx_.load() + src_lid_list.size());
   if (meta_->is_bundled()) {
     std::vector<Property> flat_edge_data;
     assert(meta_->properties.size() == 1);
@@ -884,12 +925,6 @@ void EdgeTable::BatchAddEdges(
     size_t offset = table_idx_.fetch_add(src_lid_list.size());
     insert_edges_separated_impl(oe_csr, ie_csr, src_lid_list, dst_lid_list,
                                 offset);
-    while (capacity_.load() <= table_idx_.load()) {
-      size_t cur_idx = table_idx_.load();
-      capacity_.store(
-          std::max(cur_idx + (cur_idx + 4) / 5, static_cast<size_t>(4096)));
-    }
-    table_->resize(capacity_.load());
     for (size_t i = 0; i < edge_data_list.size(); ++i) {
       table_->insert(offset + i, edge_data_list[i], true);
     }
@@ -949,6 +984,7 @@ void EdgeTable::dropAndCreateNewBundledCSR() {
   in_csr_ = std::move(new_in_csr);
 }
 
+// TODO(zhanglei): Keep table_idx_ and capacity_ right.
 void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   auto suffix = get_next_csr_path_suffix();
   std::string next_oe_csr_path =
@@ -980,6 +1016,16 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     if (table_->col_num() >= 1) {
       prev_data_col = table_->get_column_by_id(0);
     }
+    if (prev_data_col && prev_data_col->size() > 0) {
+      table_->resize(prev_data_col->size());
+      table_idx_.store(prev_data_col->size());
+      EnsureCapacity(calculate_new_capacity(prev_data_col->size(), false));
+    }
+  } else {
+    // delete_property == true, which means the EdgeTable will become use csr of
+    // empty type. we need to reset capacity and table_idx to 0
+    table_idx_.store(0);
+    capacity_.store(0);
   }
 
   auto edges = out_csr_->batch_export(prev_data_col);
@@ -995,7 +1041,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     VLOG(10) << "Set default value for column " << col_id << ": "
              << default_value.to_string()
              << ", type: " << std::to_string(default_value.type());
-    for (size_t row = 0; row < col->size(); ++row) {
+    for (size_t row = 0; row < Size(); ++row) {
       col->set_any(row, default_value);
     }
   }
@@ -1003,11 +1049,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   for (size_t i = 0; i < std::get<0>(edges).size(); ++i) {
     row_ids.push_back(i);
   }
-  if (!delete_property) {
-    if (prev_data_col->size() > 0) {
-      table_->resize(prev_data_col->size());
-    }
-  }
+
   std::unique_ptr<CsrBase> new_out_csr, new_in_csr;
   if (delete_property) {
     new_out_csr =

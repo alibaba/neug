@@ -38,4 +38,16 @@ void copy_directory(const std::string& src, const std::string& dst,
 
 void remove_directory(const std::string& dir_path);
 
+void write_file(const std::string& filename, const void* buffer, size_t size,
+                size_t num);
+
+void read_file(const std::string& filename, void* buffer, size_t size,
+               size_t num);
+
+void write_statistic_file(const std::string& file_path, size_t capacity,
+                          size_t size);
+
+void read_statistic_file(const std::string& file_path, size_t& capacity,
+                         size_t& size);
+
 }  // namespace neug

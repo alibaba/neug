@@ -14,12 +14,12 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, int memory_level,
-                       bool build_empty_graph) {
+void VertexTable::Open(const std::string& work_dir, int memory_level) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -57,6 +57,12 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
                              std::to_string(memory_level_));
   }
+  LOG(INFO) << "Open vertex table for label [" << label_name
+            << "], capacity: " << indexer_.capacity()
+            << ", size: " << indexer_.size();
+  if (table_ && table_->col_num() > 0) {
+    LOG(INFO) << ", table size: " << table_->get_column_by_id(0)->size();
+  }
   v_ts_.Open(vertex_tracker_filename);
 }
 
@@ -82,15 +88,15 @@ void VertexTable::insert_vertices(
 
 void VertexTable::Dump(const std::string& target_dir) {
   const auto& label_name = vertex_schema_->label_name;
+  VLOG(1) << "Dump vertex table " << label_name << " done, size "
+          << indexer_.size() << ", capacity " << indexer_.capacity();
   indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
                 target_dir);
-  table_->resize(indexer_.size());
+  // table_->resize(indexer_.size());
   table_->dump(vertex_table_prefix(label_name), target_dir);
   // Shrink v_ts_ to fit the indexer size
-  v_ts_.Reserve(indexer_.size());
+  // v_ts_.Reserve(indexer_.size());
   v_ts_.Dump(target_dir + "/" + vertex_tracker_file(label_name));
-  VLOG(1) << "Dump vertex table " << label_name << " done, size "
-          << indexer_.size();
 }
 
 void VertexTable::Close() {
@@ -185,6 +191,10 @@ bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
 }
 
 void VertexTable::Reserve(size_t cap) {
+  LOG(INFO) << "Reserving capacity for vertex table "
+            << vertex_schema_->label_name
+            << ", current capacity: " << indexer_.capacity()
+            << ", requested capacity: " << cap;
   if (cap > indexer_.capacity()) {
     indexer_.reserve(cap);
   }
@@ -195,6 +205,10 @@ void VertexTable::Reserve(size_t cap) {
 }
 
 size_t VertexTable::EnsureCapacity(size_t capacity) {
+  LOG(INFO) << "Ensuring capacity for vertex table "
+            << vertex_schema_->label_name
+            << ", current capacity: " << indexer_.capacity()
+            << ", requested capacity: " << capacity;
   if (capacity <= indexer_.capacity()) {
     return indexer_.capacity();
   }
