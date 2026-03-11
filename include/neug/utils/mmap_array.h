@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
@@ -653,6 +654,21 @@ class mmap_array<std::string_view> {
     if (fflush(fout) != 0) {
       std::stringstream ss;
       ss << "Failed to fflush file [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+    int fd = fileno(fout);
+    if (fd == -1) {
+      std::stringstream ss;
+      ss << "Failed to get file descriptor for [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+    if (ftruncate(fd, size_before_compact) != 0) {
+      std::stringstream ss;
+      ss << "Failed to ftruncate file [ " << data_filename << " ], "
          << strerror(errno);
       LOG(ERROR) << ss.str();
       THROW_RUNTIME_ERROR(ss.str());

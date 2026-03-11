@@ -42,6 +42,32 @@ PropertyGraph::PropertyGraph()
       edge_label_total_count_(0),
       memory_level_(1) {}
 
+PropertyGraph::~PropertyGraph() {
+  std::vector<size_t> degree_list(vertex_label_total_count_, 0);
+  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
+    if (!vertex_tables_[i].is_dropped()) {
+      degree_list[i] = vertex_tables_[i].LidNum();
+      vertex_tables_[i].Reserve(degree_list[i]);
+    }
+  }
+  for (size_t src_label = 0; src_label != vertex_label_total_count_;
+       ++src_label) {
+    for (size_t dst_label = 0; dst_label != vertex_label_total_count_;
+         ++dst_label) {
+      for (size_t e_label = 0; e_label != edge_label_total_count_; ++e_label) {
+        size_t index =
+            schema_.generate_edge_label(src_label, dst_label, e_label);
+        auto pair = edge_tables_.find(index);
+        if (pair != edge_tables_.end()) {
+          auto& edge_table = pair->second;
+          edge_table.Resize(degree_list[src_label], degree_list[dst_label]);
+          edge_tables_.erase(pair);
+        }
+      }
+    }
+  }
+}
+
 void PropertyGraph::loadSchema(const std::string& schema_path) {
   std::ifstream in(schema_path);
   schema_.Deserialize(in);
@@ -919,6 +945,11 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
         }
         edge_table.EnsureCapacity(
             calculate_new_capacity(edge_table.Size(), false));
+        // TODO(zhanglei): Any better way to resize for memory level 0?
+        if (memory_level_ == 0) {
+          edge_table.Resize(vertex_capacities[src_label_i],
+                            vertex_capacities[dst_label_i]);
+        }
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }
@@ -1038,7 +1069,7 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   }
 }
 
-void PropertyGraph::Dump(bool reopen, bool ensure_capacity) {
+void PropertyGraph::Dump(bool reopen) {
   // First dump to the  temp dir, then move to the checkpoint dir
   std::string target_dir = temp_checkpoint_dir(work_dir_);
   if (std::filesystem::exists(target_dir)) {

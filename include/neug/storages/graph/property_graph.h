@@ -116,7 +116,7 @@ class PropertyGraph {
    *
    * @since v0.1.0
    */
-  ~PropertyGraph() = default;
+  ~PropertyGraph();
 
   /**
    * @brief Open the property graph from persistent storage.
@@ -140,10 +140,8 @@ class PropertyGraph {
   /**
    * @brief Dump the current graph state to persistent storage.
    * @param reopen If true, reopens the graph after dumping (default: true)
-   * @param reserve_space If true, reserves space for all vertex and edge
-   * tables.
    */
-  void Dump(bool reopen = true, bool ensure_capacity = true);
+  void Dump(bool reopen = true);
 
   /**
    * @brief Dump schema information to a file.

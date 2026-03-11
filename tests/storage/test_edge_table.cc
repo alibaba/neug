@@ -895,6 +895,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
 
   size_t edge_count = 0;
+  this->edge_table->EnsureCapacity(edge_data.size());
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -1043,6 +1044,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
                          neug::Property::from_int32(static_cast<int>(0))});
   }
 
+  this->edge_table->EnsureCapacity(edge_data.size());
   neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
