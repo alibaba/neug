@@ -10,10 +10,6 @@ target_link_libraries(bulk_loader
     ${GFLAGS_LIBRARIES}
 )
 
-if (BUILD_WITH_OSS)
-        target_link_libraries(bulk_loader PRIVATE cpp-sdk)
-endif()
-
 if (ENABLE_GCOV)
     target_compile_options(bulk_loader PRIVATE --coverage)
     target_link_options(bulk_loader PRIVATE --coverage)

@@ -163,16 +163,6 @@ int main(int argc, char** argv) {
         vm["use-mmap-vector"].as<bool>());
   }
 
-  if (data_path.find("oss://") == 0) {
-#ifdef BUILD_WITH_OSS
-    upload_to_oss = true;
-    check_oss_object_not_exist(data_path, object_path, oss_conf);
-#else
-    LOG(ERROR) << "OSS is not supported in this build";
-    return -1;
-#endif
-  }
-
   std::filesystem::path data_dir_path(data_path);
   if (!std::filesystem::exists(data_dir_path)) {
     std::filesystem::create_directory(data_dir_path);
