@@ -83,6 +83,8 @@ class Value {
 
   static Value STRING(const std::string& str);
 
+  static Value VARCHAR(const std::string& str, uint16_t max_length);
+
   static Value VERTEX(const vertex_t& vertex);
 
   static Value EDGE(const edge_t& edge);
@@ -630,7 +632,8 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
 }
 
 Property value_to_property(const Value& value);
-Value property_to_value(const Property& property);
+Value property_to_value(const Property& property,
+                        const DataType& type = DataType::UNKNOWN);
 
 template <typename T>
 Value performCast(const Value& input) {

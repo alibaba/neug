@@ -1126,13 +1126,13 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
   auto& tuples = result.value();
   ASSERT_EQ(tuples.size(), 2U);
 
-  EXPECT_EQ(std::get<0>(tuples[0]).id(), DataTypeId::kInt32);
-  EXPECT_EQ(std::get<1>(tuples[0]), "age");
-  EXPECT_EQ(std::get<2>(tuples[0]).GetValue<int32_t>(), 18);
+  EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kInt32);
+  EXPECT_EQ(tuples[0].first, "age");
+  EXPECT_EQ(tuples[0].second.GetValue<int32_t>(), 18);
 
-  EXPECT_EQ(std::get<0>(tuples[1]).id(), DataTypeId::kVarchar);
-  EXPECT_EQ(std::get<1>(tuples[1]), "name");
-  EXPECT_EQ(std::get<2>(tuples[1]).GetValue<std::string>(), "");
+  EXPECT_EQ(tuples[1].second.type().id(), DataTypeId::kVarchar);
+  EXPECT_EQ(tuples[1].first, "name");
+  EXPECT_EQ(tuples[1].second.GetValue<std::string>(), "");
 }
 
 }  // namespace test

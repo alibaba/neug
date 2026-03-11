@@ -25,7 +25,7 @@ class CreateVertexTypeOpr : public IOperator {
  public:
   CreateVertexTypeOpr(
       const std::string& type_name,
-      const std::vector<std::tuple<DataType, std::string, Value>>& properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       const std::vector<std::string>& pks, bool error_on_conflict)
       : type_name_(type_name),
         properties_(properties),
@@ -41,8 +41,8 @@ class CreateVertexTypeOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
-    for (const auto& [prop_type, prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_type, prop_name,
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
     auto res = storage.CreateVertexType(type_name_, property_tuples, pks_,
@@ -57,7 +57,7 @@ class CreateVertexTypeOpr : public IOperator {
 
  private:
   std::string type_name_;
-  std::vector<std::tuple<DataType, std::string, Value>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   std::vector<std::string> pks_;
   bool error_on_conflict_;
 };

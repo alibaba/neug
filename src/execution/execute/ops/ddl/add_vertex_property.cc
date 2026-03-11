@@ -25,7 +25,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
  public:
   AddVertexPropertySchemaOpr(
       const std::string& vertex_type,
-      const std::vector<std::tuple<DataType, std::string, Value>>& properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       bool error_on_conflict)
       : vertex_type_(vertex_type),
         properties_(properties),
@@ -39,8 +39,8 @@ class AddVertexPropertySchemaOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
-    for (const auto& [prop_type, prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_type, prop_name,
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
     auto res = storage.AddVertexProperties(vertex_type_, property_tuples,
@@ -55,7 +55,7 @@ class AddVertexPropertySchemaOpr : public IOperator {
 
  private:
   std::string vertex_type_;
-  std::vector<std::tuple<DataType, std::string, Value>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   bool error_on_conflict_;
 };
 

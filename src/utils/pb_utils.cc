@@ -267,9 +267,13 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
       out_value = execution::Value::INTERVAL(interval);
       break;
     } else {
+      auto str_type_info = type.RawExtraTypeInfo();
+      uint16_t max_length =
+          str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
+                        : STRING_DEFAULT_MAX_LENGTH;
       LOG(INFO) << "Setting string value: " << value.str()
                 << " for type: " << type.ToString();
-      out_value = execution::Value::STRING(value.str());
+      out_value = execution::Value::VARCHAR(value.str(), max_length);
     }
     break;
   case common::Value::kDate:
@@ -282,11 +286,11 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
   return true;
 }
 
-neug::result<std::vector<std::tuple<DataType, std::string, execution::Value>>>
+neug::result<std::vector<std::pair<std::string, execution::Value>>>
 property_defs_to_value(
     const google::protobuf::RepeatedPtrField<physical::PropertyDef>&
         properties) {
-  std::vector<std::tuple<DataType, std::string, execution::Value>> result;
+  std::vector<std::pair<std::string, execution::Value>> result;
   for (const auto& property : properties) {
     const auto& name = property.name();
     execution::Value default_value(DataType::SQLNULL);
@@ -308,12 +312,12 @@ property_defs_to_value(
       }
     } else {
       default_value =
-          execution::property_to_value(get_default_value(type.id()));
+          execution::property_to_value(get_default_value(type.id()), type);
       VLOG(1) << "No default value, use type default:"
               << default_value.to_string()
               << " type: " << default_value.type().ToString();
     }
-    result.emplace_back(type, name, default_value);
+    result.emplace_back(name, default_value);
   }
   return result;
 }

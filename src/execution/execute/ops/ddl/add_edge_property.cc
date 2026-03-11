@@ -26,7 +26,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   AddEdgePropertySchemaOpr(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataType, std::string, Value>>& properties,
+      const std::vector<std::pair<std::string, Value>>& properties,
       bool error_on_conflict)
       : src_type_(src_type),
         dst_type_(dst_type),
@@ -41,8 +41,8 @@ class AddEdgePropertySchemaOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
-    for (const auto& [prop_type, prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_type, prop_name,
+    for (const auto& [prop_name, prop_value] : properties_) {
+      property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
     auto res = storage.AddEdgeProperties(src_type_, dst_type_, edge_type_,
@@ -59,7 +59,7 @@ class AddEdgePropertySchemaOpr : public IOperator {
   std::string src_type_;
   std::string dst_type_;
   std::string edge_type_;
-  std::vector<std::tuple<DataType, std::string, Value>> properties_;
+  std::vector<std::pair<std::string, Value>> properties_;
   bool error_on_conflict_;
 };
 
