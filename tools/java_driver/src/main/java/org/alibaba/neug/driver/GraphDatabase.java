@@ -73,8 +73,9 @@ public final class GraphDatabase {
         if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
             throw new IllegalArgumentException("URI must start with http:// or https://");
         }
-
+        if (config == null) {
+            throw new IllegalArgumentException("Config cannot be null");
+        }
         return new InternalDriver(uri, config);
     }
 }
-;

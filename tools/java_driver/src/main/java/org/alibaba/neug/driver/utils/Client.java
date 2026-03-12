@@ -20,6 +20,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 /**
  * HTTP client for communicating with the NeuG database server.
@@ -30,7 +31,7 @@ import okhttp3.Response;
 public class Client {
 
     private final String uri;
-    private static OkHttpClient httpClient = null;
+    private OkHttpClient httpClient = null;
     private boolean closed = false;
 
     /**
@@ -71,7 +72,11 @@ public class Client {
             if (!response.isSuccessful()) {
                 throw new IOException("Unexpected code " + response);
             }
-            return response.body().bytes();
+            ResponseBody responseBody = response.body();
+            if (responseBody == null) {
+                throw new IOException("Response body is null");
+            }
+            return responseBody.bytes();
         }
     }
 

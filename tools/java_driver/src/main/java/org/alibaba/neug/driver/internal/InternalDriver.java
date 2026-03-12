@@ -27,7 +27,7 @@ import org.alibaba.neug.driver.utils.Config;
  */
 public class InternalDriver implements Driver {
 
-    private static Client client = null;
+    private Client client = null;
 
     /**
      * Constructs a new InternalDriver with the specified URI and configuration.
@@ -36,7 +36,7 @@ public class InternalDriver implements Driver {
      * @param config the configuration for the driver
      */
     public InternalDriver(String uri, Config config) {
-        client = new Client(uri, config);
+        this.client = new Client(uri, config);
     }
 
     @Override
