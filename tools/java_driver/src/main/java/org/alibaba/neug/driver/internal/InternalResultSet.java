@@ -105,12 +105,12 @@ public class InternalResultSet implements ResultSet {
         }
     }
 
-    private Object getObject(Results.Array array, int rowIndex, boolean isNullSetted)
+    private Object getObject(Results.Array array, int rowIndex, boolean nullAlreadyHandled)
             throws Exception {
         switch (array.getTypedArrayCase()) {
             case STRING_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getStringArray().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -121,7 +121,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case INT32_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getInt32Array().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -132,7 +132,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case INT64_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getInt64Array().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -143,7 +143,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case BOOL_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getBoolArray().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -154,7 +154,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case DOUBLE_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getDoubleArray().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -165,7 +165,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case TIMESTAMP_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getTimestampArray().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -176,7 +176,7 @@ public class InternalResultSet implements ResultSet {
                 }
             case DATE_ARRAY:
                 {
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = array.getDateArray().getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -189,7 +189,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     Results.ListArray listArray = array.getListArray();
 
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = listArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -209,7 +209,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     Results.StructArray structArray = array.getStructArray();
 
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = structArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -226,7 +226,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     Results.VertexArray vertexArray = array.getVertexArray();
                     ObjectMapper mapper = JsonUtil.getInstance();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = vertexArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -243,7 +243,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     Results.EdgeArray edgeArray = array.getEdgeArray();
                     ObjectMapper mapper = JsonUtil.getInstance();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = edgeArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -260,7 +260,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     Results.PathArray pathArray = array.getPathArray();
                     ObjectMapper mapper = JsonUtil.getInstance();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = pathArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -276,8 +276,7 @@ public class InternalResultSet implements ResultSet {
             case INTERVAL_ARRAY:
                 {
                     Results.IntervalArray intervalArray = array.getIntervalArray();
-                    ObjectMapper mapper = JsonUtil.getInstance();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = intervalArray.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -289,7 +288,7 @@ public class InternalResultSet implements ResultSet {
             case UINT32_ARRAY:
                 {
                     Results.UInt32Array uint32Array = array.getUint32Array();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = uint32Array.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -302,7 +301,7 @@ public class InternalResultSet implements ResultSet {
             case UINT64_ARRAY:
                 {
                     Results.UInt64Array uint64Array = array.getUint64Array();
-                    if (!isNullSetted) {
+                    if (!nullAlreadyHandled) {
                         ByteString nullBitmap = uint64Array.getValidity();
                         was_null =
                                 !nullBitmap.isEmpty()
@@ -546,10 +545,10 @@ public class InternalResultSet implements ResultSet {
     }
 
     private int getColumnIndex(String columnName) {
-        Results.MetaDatas colum_name = response.getSchema();
-        int columnCount = colum_name.getNameCount();
+        Results.MetaDatas metaDatas = response.getSchema();
+        int columnCount = metaDatas.getNameCount();
         for (int i = 0; i < columnCount; i++) {
-            if (colum_name.getName(i).equals(columnName)) {
+            if (metaDatas.getName(i).equals(columnName)) {
                 return i;
             }
         }

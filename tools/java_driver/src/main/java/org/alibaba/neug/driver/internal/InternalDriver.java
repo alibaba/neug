@@ -14,6 +14,7 @@
 package org.alibaba.neug.driver.internal;
 
 import org.alibaba.neug.driver.Driver;
+import org.alibaba.neug.driver.ResultSet;
 import org.alibaba.neug.driver.Session;
 import org.alibaba.neug.driver.utils.AccessMode;
 import org.alibaba.neug.driver.utils.Client;
@@ -46,8 +47,9 @@ public class InternalDriver implements Driver {
 
     @Override
     public void verifyConnectivity() {
-        try (Session session = session()) {
-            session.run("RETURN 1", null, AccessMode.READ);
+        try (Session session = session();
+                ResultSet rs = session.run("RETURN 1", null, AccessMode.READ)) {
+            // Execute query to verify connectivity, result is discarded
         }
     }
 

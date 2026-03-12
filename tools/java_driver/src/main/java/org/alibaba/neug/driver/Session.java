@@ -48,17 +48,17 @@ public interface Session extends AutoCloseable {
      * Executes a Cypher statement with configuration options.
      *
      * @param statement the Cypher query to execute
-     * @param config configuration options for query execution
+     * @param parameters query parameters as key-value pairs
      * @return a {@link ResultSet} containing the query results
      * @throws RuntimeException if the query fails
      */
-    ResultSet run(String statement, Map<String, Object> config);
+    ResultSet run(String statement, Map<String, Object> parameters);
 
     /**
      * Executes a Cypher statement with a specific access mode.
      *
      * @param statement the Cypher query to execute
-     * @param mode the access mode (READ or WRITE)
+     * @param mode the access mode (READ/INSERT/UPDATE/SCHEMA)
      * @return a {@link ResultSet} containing the query results
      * @throws RuntimeException if the query fails
      */
@@ -69,7 +69,7 @@ public interface Session extends AutoCloseable {
      *
      * @param statement the Cypher query to execute
      * @param parameters query parameters as key-value pairs
-     * @param mode the access mode (READ or WRITE)
+     * @param mode the access mode (READ/INSERT/UPDATE/SCHEMA)
      * @return a {@link ResultSet} containing the query results
      * @throws RuntimeException if the query fails
      */

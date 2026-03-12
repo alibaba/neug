@@ -64,7 +64,7 @@ public class ConfigExample {
         
         Driver driver = GraphDatabase.driver("http://localhost:10000", config);
         
-        try (Session session = driver.session(AccessMode.READ)) {
+        try (Session session = driver.session()) {
             // Read-only query
             try (ResultSet rs = session.run("MATCH (n:Person) RETURN n.name, n.age")) {
                 while (rs.next()) {
@@ -78,6 +78,8 @@ public class ConfigExample {
         }
     }
 }
+```
+
 ### Parameterized Query
 
 ```java

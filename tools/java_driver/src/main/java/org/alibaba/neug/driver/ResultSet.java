@@ -148,7 +148,7 @@ public interface ResultSet extends AutoCloseable {
      * to string.
      *
      * @param columnName the name of the column
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of a compatible type
      */
@@ -161,7 +161,7 @@ public interface ResultSet extends AutoCloseable {
      * to string.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of a compatible type
      */
@@ -173,7 +173,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type DATE.
      *
      * @param columnName the name of the column
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type DATE
      */
@@ -185,7 +185,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type DATE.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type DATE
      */
@@ -197,7 +197,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
      *
      * @param columnName the name of the column
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type TIMESTAMP
      */
@@ -209,7 +209,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type TIMESTAMP
      */
@@ -221,7 +221,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
      *
      * @param columnName the name of the column
-     * @return the column value; {@code false} if the value is SQL NULL
+     * @return the column value; 
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type BOOLEAN
      */
@@ -233,7 +233,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; {@code false} if the value is SQL NULL
+     * @return the column value; 
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type BOOLEAN
      */
@@ -296,7 +296,7 @@ public interface ResultSet extends AutoCloseable {
      * precision is critical.
      *
      * @param columnName the name of the column
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value; 
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not a numeric type
      */
@@ -311,7 +311,7 @@ public interface ResultSet extends AutoCloseable {
      * precision is critical.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; {@code null} if the value is SQL NULL
+     * @return the column value;
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not a numeric type
      */
