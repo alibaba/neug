@@ -148,7 +148,7 @@ public interface ResultSet extends AutoCloseable {
      * to string.
      *
      * @param columnName the name of the column
-     * @return the column value; 
+     * @return the column value;
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of a compatible type
      */
@@ -161,7 +161,7 @@ public interface ResultSet extends AutoCloseable {
      * to string.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; 
+     * @return the column value;
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of a compatible type
      */
@@ -173,7 +173,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type DATE.
      *
      * @param columnName the name of the column
-     * @return the column value; 
+     * @return the column value;
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type DATE
      */
@@ -185,7 +185,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type DATE.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; 
+     * @return the column value;
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type DATE
      */
@@ -197,7 +197,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
      *
      * @param columnName the name of the column
-     * @return the column value; 
+     * @return the column value;
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type TIMESTAMP
      */
@@ -209,7 +209,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; 
+     * @return the column value;
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type TIMESTAMP
      */
@@ -221,7 +221,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
      *
      * @param columnName the name of the column
-     * @return the column value; 
+     * @return the column value;
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not of type BOOLEAN
      */
@@ -233,7 +233,7 @@ public interface ResultSet extends AutoCloseable {
      * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
      *
      * @param columnIndex the column index (0-based)
-     * @return the column value; 
+     * @return the column value;
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      * @throws ClassCastException if the column is not of type BOOLEAN
      */
@@ -296,7 +296,7 @@ public interface ResultSet extends AutoCloseable {
      * precision is critical.
      *
      * @param columnName the name of the column
-     * @return the column value; 
+     * @return the column value;
      * @throws IllegalArgumentException if the column name is not valid
      * @throws ClassCastException if the column is not a numeric type
      */
@@ -341,4 +341,54 @@ public interface ResultSet extends AutoCloseable {
      * @return a list of column names
      */
     List<String> getColumnNames();
+
+    /** Moves the cursor to the end of this ResultSet object, just after the last row. */
+    void afterLast();
+
+    /** Moves the cursor to the beginning of this ResultSet object, just before the first row. */
+    void beforeFirst();
+
+    /**
+     * Moves the cursor to the last row in this ResultSet object.
+     *
+     * @return {@code true} if the cursor is on a valid row; {@code false} if there are no rows in
+     *     the result set
+     */
+    boolean last();
+
+    /**
+     * Moves the cursor to the first row in this ResultSet object.
+     *
+     * @return {@code true} if the cursor is on a valid row; {@code false} if there are no rows in
+     *     the result set
+     */
+    boolean first();
+
+    /**
+     * Retrieves whether the cursor is on the last row of this ResultSet object.
+     *
+     * @return {@code true} if the cursor is on the last row; {@code false} otherwise
+     */
+    boolean isLast();
+
+    /**
+     * Retrieves whether the cursor is on the first row of this ResultSet object.
+     *
+     * @return {@code true} if the cursor is on the first row; {@code false} otherwise
+     */
+    boolean isFirst();
+
+    /**
+     * Retrieves whether the cursor is before the first row of this ResultSet object.
+     *
+     * @return {@code true} if the cursor is before the first row; {@code false} otherwise
+     */
+    boolean isBeforeFirst();
+
+    /**
+     * Retrieves whether the cursor is after the last row of this ResultSet object.
+     *
+     * @return {@code true} if the cursor is after the last row; {@code false} otherwise
+     */
+    boolean isAfterLast();
 }

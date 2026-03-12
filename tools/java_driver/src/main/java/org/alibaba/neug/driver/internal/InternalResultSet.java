@@ -328,13 +328,14 @@ public class InternalResultSet implements ResultSet {
     public int getInt(int columnIndex) {
         checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if(arr.hasInt32Array()) {
+        if (arr.hasInt32Array()) {
             Results.Int32Array array = arr.getInt32Array();
             ByteString nullBitmap = array.getValidity();
             int value = array.getValues(currentIndex);
             was_null =
                     !nullBitmap.isEmpty()
-                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
             return value;
         }
         return getNumericValue(arr).intValue();
@@ -350,13 +351,14 @@ public class InternalResultSet implements ResultSet {
     public long getLong(int columnIndex) {
         checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if(arr.hasInt64Array()) {
+        if (arr.hasInt64Array()) {
             Results.Int64Array array = arr.getInt64Array();
             ByteString nullBitmap = array.getValidity();
             long value = array.getValues(currentIndex);
             was_null =
                     !nullBitmap.isEmpty()
-                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
             return value;
         }
         return getNumericValue(arr).longValue();
@@ -460,13 +462,14 @@ public class InternalResultSet implements ResultSet {
     public double getDouble(int columnIndex) {
         checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if(arr.hasFloatArray()) {
+        if (arr.hasFloatArray()) {
             Results.FloatArray array = arr.getFloatArray();
             ByteString nullBitmap = array.getValidity();
             float value = array.getValues(currentIndex);
             was_null =
                     !nullBitmap.isEmpty()
-                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
             return value;
         }
         return getNumericValue(arr).doubleValue();
@@ -482,13 +485,14 @@ public class InternalResultSet implements ResultSet {
     public float getFloat(int columnIndex) {
         checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if(arr.hasFloatArray()) {
+        if (arr.hasFloatArray()) {
             Results.FloatArray array = arr.getFloatArray();
             ByteString nullBitmap = array.getValidity();
             float value = array.getValues(currentIndex);
             was_null =
                     !nullBitmap.isEmpty()
-                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
             return value;
         }
         return getNumericValue(arr).floatValue();
@@ -634,6 +638,48 @@ public class InternalResultSet implements ResultSet {
         }
 
         throw new ClassCastException("Column is not a numeric type");
+    }
+
+    @Override
+    void afterLast() {
+        currentIndex = response.getArraysCount();
+    }
+
+    @Override
+    void beforeFirst() {
+        currentIndex = -1;
+    }
+
+    @Override
+    boolean first() {
+        currentIndex = 0;
+        return currentIndex < response.getArraysCount();
+    }
+
+    @Override
+    boolean last() {
+        currentIndex = response.getArraysCount() - 1;
+        return currentIndex >= 0;
+    }
+
+    @Override
+    boolean isFirst() {
+        return currentIndex == 0 && response.getArraysCount() != 0;
+    }
+
+    @Override
+    boolean isLast() {
+        return currentIndex == response.getArraysCount() - 1 && response.getArraysCount() != 0;
+    }
+
+    @Override
+    boolean isBeforeFirst() {
+        return currentIndex == -1 && response.getArraysCount() != 0;
+    }
+
+    @Override
+    boolean isAfterLast() {
+        return currentIndex == response.getArraysCount() && response.getArraysCount() != 0;
     }
 
     private Results.QueryResponse response;
