@@ -66,8 +66,16 @@ class GTypeUtils {
     auto stringType = node["string"];
     if (stringType) {
       // denote varchar
-      if (stringType["var_char"] || stringType["long_text"]) {
-        return neug::common::LogicalType(neug::common::LogicalTypeID::STRING);
+      if (stringType["var_char"]) {
+        auto varChar = stringType["var_char"];
+        auto maxLength = varChar["max_length"];
+        if (maxLength && maxLength.IsScalar()) {
+          return neug::common::LogicalType::STRING(maxLength.as<uint64_t>());
+        } else {
+          return neug::common::LogicalType::STRING();
+        }
+      } else if (stringType["long_text"]) {
+        return neug::common::LogicalType::STRING();
       }
     }
     auto temporalType = node["temporal"];
@@ -115,8 +123,20 @@ class GTypeUtils {
       return YAML_NODE_DT_DOUBLE;
     case neug::common::LogicalTypeID::BOOL:
       return YAML_NODE_DT_BOOL;
-    case neug::common::LogicalTypeID::STRING:
-      return YAML_NODE_STRING_VARCHAR(neug::Constants::VARCHAR_MAX_LENGTH);
+    case neug::common::LogicalTypeID::STRING: {
+      size_t maxLen;
+      auto extraInfo = type.getExtraTypeInfo();
+      if (extraInfo) {
+        auto stringTypeInfo =
+            extraInfo->constPtrCast<neug::common::StringTypeInfo>();
+        maxLen = stringTypeInfo->getMaxLength();
+      } else {
+        maxLen = neug::common::LogicalType::getDefaultStringMaxLen();
+      }
+      YAML::Node n;
+      n["string"]["var_char"]["max_length"] = maxLen;
+      return n;
+    }
     case neug::common::LogicalTypeID::DATE32:
       return YAML_NODE_TEMPORAL_DATE32();
     case neug::common::LogicalTypeID::TIMESTAMP64:

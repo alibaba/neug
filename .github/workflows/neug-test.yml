@@ -123,6 +123,10 @@ jobs:
         sudo chmod -R 777 /etc/security/*
         echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
 
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:

@@ -278,6 +278,7 @@ enum class PhysicalTypeID : uint8_t {
 class ExtraTypeInfo;
 class StructField;
 class StructTypeInfo;
+class StringTypeInfo;
 
 enum class TypeCategory : uint8_t { INTERNAL = 0, UDT = 1 };
 
@@ -340,6 +341,13 @@ class LogicalType {
     return ret;
   }
 
+  // default max_length value of VARCHAR type if max_length is not defined
+  // explicitly
+  static size_t getDefaultStringMaxLen() { return 256; }
+
+  // maximum limit of max_length value of VARCHAR type
+  static size_t getMaxStringMaxLen() { return 65536; }
+
   static LogicalType BOOL() { return LogicalType(LogicalTypeID::BOOL); }
   static LogicalType HASH() { return LogicalType(LogicalTypeID::UINT64); }
   static LogicalType INT64() { return LogicalType(LogicalTypeID::INT64); }
@@ -375,7 +383,8 @@ class LogicalType {
     return LogicalType(LogicalTypeID::INTERNAL_ID);
   }
   static LogicalType SERIAL() { return LogicalType(LogicalTypeID::SERIAL); }
-  static LogicalType STRING() { return LogicalType(LogicalTypeID::STRING); }
+  static LogicalType STRING();
+  static LogicalType STRING(size_t max_length);
   static LogicalType BLOB() { return LogicalType(LogicalTypeID::BLOB); }
   static LogicalType UUID() { return LogicalType(LogicalTypeID::UUID); }
   static LogicalType POINTER() { return LogicalType(LogicalTypeID::POINTER); }
@@ -446,6 +455,23 @@ class NEUG_API ExtraTypeInfo {
 
  protected:
   virtual void serializeInternal(Serializer& serializer) const = 0;
+};
+
+class NEUG_API StringTypeInfo : public ExtraTypeInfo {
+ public:
+  explicit StringTypeInfo(size_t max_length) : max_length(max_length) {}
+
+  size_t getMaxLength() const { return max_length; }
+
+  bool containsAny() const override { return false; }
+
+  bool operator==(const ExtraTypeInfo& other) const override;
+
+  std::unique_ptr<ExtraTypeInfo> copy() const override;
+
+ private:
+  virtual void serializeInternal(Serializer& serializer) const override;
+  size_t max_length;
 };
 
 class NEUG_API UDTTypeInfo : public ExtraTypeInfo {

@@ -327,3 +327,36 @@ def test_drop_edge_table():
     )
     conn2.close()
     db2.close()
+
+
+def test_create_varchar_type():
+    db_dir = "/tmp/test_create_varchar_type"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY, name VARCHAR(10));")
+    conn.execute("CREATE (:TestNode {id: 1, name: 'Alice'});")
+    res = conn.execute("Match (n:TestNode) Return n.name;")
+    assert list(res) == [["Alice"]]
+
+    conn.execute(
+        "CREATE (:TestNode {id: 2, name: 'this is a string longer than 10 characters, should be truncated'});"
+    )
+    res = conn.execute("Match (n:TestNode {id: 2}) Return n.name;")
+    assert list(res) == [["this is a "]]
+    conn.close()
+    db.close()
+
+
+def test_alter_varchar_type():
+    db_dir = "/tmp/test_alter_varchar_type"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY);")
+    conn.execute("ALTER TABLE TestNode ADD name VARCHAR(10);")
+    conn.execute("CREATE (:TestNode {id: 1, name: 'Alice'});")
+    res = conn.execute("Match (n:TestNode) Return n.id, n.name;")
+    assert list(res) == [[1, "Alice"]]
+    conn.close()
+    db.close()
