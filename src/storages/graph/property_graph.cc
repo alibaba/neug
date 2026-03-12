@@ -897,7 +897,8 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
 
     vertex_tables_[i].Open(work_dir_, memory_level);
     // Case 1: Open from checkpoint, the capacity should be already reserved and
-    // satisfied Case 2: Open from empty, Capacity should be the default minimum
+    // satisfied.
+    // Case 2: Open from empty, Capacity should be the default minimum
     // capacity(4096)
     vertex_tables_[i].EnsureCapacity(
         calculate_new_capacity(vertex_tables_[i].Size(), true, true));
@@ -945,7 +946,6 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
         }
         edge_table.EnsureCapacity(
             calculate_new_capacity(edge_table.Size(), false, true));
-        // TODO(zhanglei): Any better way to resize for memory level 0?
         if (memory_level_ == 0) {
           edge_table.Resize(vertex_capacities[src_label_i],
                             vertex_capacities[dst_label_i]);

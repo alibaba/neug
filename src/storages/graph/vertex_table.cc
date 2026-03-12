@@ -82,14 +82,9 @@ void VertexTable::insert_vertices(
 
 void VertexTable::Dump(const std::string& target_dir) {
   const auto& label_name = vertex_schema_->label_name;
-  VLOG(1) << "Dump vertex table " << label_name << " done, size "
-          << indexer_.size() << ", capacity " << indexer_.capacity();
   indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
                 target_dir);
-  // table_->resize(indexer_.size());
   table_->dump(vertex_table_prefix(label_name), target_dir);
-  // Shrink v_ts_ to fit the indexer size
-  // v_ts_.Reserve(indexer_.size());
   v_ts_.Dump(target_dir + "/" + vertex_tracker_file(label_name));
 }
 

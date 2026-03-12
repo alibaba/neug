@@ -1018,12 +1018,6 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     if (table_->col_num() >= 1) {
       prev_data_col = table_->get_column_by_id(0);
     }
-    if (prev_data_col && prev_data_col->size() > 0) {
-      table_->resize(prev_data_col->size());
-      table_idx_.store(prev_data_col->size());
-      EnsureCapacity(
-          calculate_new_capacity(prev_data_col->size(), false, false));
-    }
   } else {
     // delete_property == true, which means the EdgeTable will become use csr of
     // empty type. we need to reset capacity and table_idx to 0
@@ -1032,6 +1026,11 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   }
 
   auto edges = out_csr_->batch_export(prev_data_col);
+  if (prev_data_col && prev_data_col->size() > 0) {
+    table_->resize(prev_data_col->size());
+    table_idx_.store(prev_data_col->size());
+    EnsureCapacity(calculate_new_capacity(prev_data_col->size(), false));
+  }
   // Set default value for other columns
   for (size_t col_id = 1; col_id < table_->col_num(); ++col_id) {
     auto col = table_->get_column_by_id(col_id);
@@ -1044,7 +1043,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     VLOG(10) << "Set default value for column " << col_id << ": "
              << default_value.to_string()
              << ", type: " << std::to_string(default_value.type());
-    for (size_t row = 0; row < Size(); ++row) {
+    for (size_t row = 0; row < col->size(); ++row) {
       col->set_any(row, default_value);
     }
   }
