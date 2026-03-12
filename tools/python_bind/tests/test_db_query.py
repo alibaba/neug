@@ -2615,5 +2615,6 @@ def test_insert_string_column_exaustion():
         conn4.close()
     except Exception as e:
         raise AssertionError("Failed to insert string column with large length") from e
-    finally:
+        db4.close()
+
         logging.disable(logging.NOTSET)
