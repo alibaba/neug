@@ -2600,7 +2600,10 @@ def test_insert_string_column_exhaustion():
 
         db4 = Database(db_path=db_dir, mode="w")
         conn4 = db4.connect()
-        records = list(res)
+        res4 = conn4.execute(
+            "MATCH (a: Person)-[k: Knows]->(b: Person) RETURN k.note ORDER BY k.note;"
+        )
+        records = list(res4)
         assert records == [
             ["12"],
             ["34"],
