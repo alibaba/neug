@@ -2613,8 +2613,8 @@ def test_insert_string_column_exaustion():
                 f"MATCH (a: Person {{id: 1}}), (b: Person {{id: 2}}) CREATE (a)-[:Knows {{note: '{str_prop}'}}]->(b);"
             )
         conn4.close()
-    except Exception as e:
-        raise AssertionError("Failed to insert string column with large length") from e
+        conn4.close()
+        db4.close()
         db4.close()
 
         logging.disable(logging.NOTSET)
