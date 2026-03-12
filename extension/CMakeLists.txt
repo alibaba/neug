@@ -125,4 +125,6 @@ endfunction()
 # Add json extension
 add_extension_if_enabled("json")
 
+add_extension_if_enabled("sampled_match")
+
 message(STATUS "=== Extension configuration complete ===")
