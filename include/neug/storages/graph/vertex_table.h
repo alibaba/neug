@@ -295,7 +295,7 @@ class VertexTable {
       columns.erase(columns.begin() + ind);
       size_t new_size = indexer_.size() + pk_array->length();
       while (new_size >= Capacity()) {
-        EnsureCapacity(calculate_new_capacity(new_size, true, false));
+        EnsureCapacity(calculate_new_capacity(new_size, true));
       }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);

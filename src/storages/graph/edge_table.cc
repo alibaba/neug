@@ -881,7 +881,7 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
       filterInvalidEdges(src_lid, dst_lid);
   size_t new_size = table_idx_.load() + src_lid.size();
   if (new_size >= capacity_.load()) {
-    EnsureCapacity(calculate_new_capacity(new_size, false, false));
+    EnsureCapacity(calculate_new_capacity(new_size, false));
   }
   if (meta_->is_bundled()) {
     auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
@@ -904,7 +904,7 @@ void EdgeTable::BatchAddEdges(
     const std::vector<std::vector<Property>>& edge_data_list) {
   size_t new_size = table_idx_.load() + src_lid_list.size();
   if (new_size >= capacity_.load()) {
-    EnsureCapacity(calculate_new_capacity(new_size, false, false));
+    EnsureCapacity(calculate_new_capacity(new_size, false));
   }
   if (meta_->is_bundled()) {
     std::vector<Property> flat_edge_data;
@@ -1021,8 +1021,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     if (prev_data_col && prev_data_col->size() > 0) {
       table_->resize(prev_data_col->size());
       table_idx_.store(prev_data_col->size());
-      EnsureCapacity(
-          calculate_new_capacity(prev_data_col->size(), false, false));
+      EnsureCapacity(calculate_new_capacity(prev_data_col->size(), false));
     }
   } else {
     // delete_property == true, which means the EdgeTable will become use csr of

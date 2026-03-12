@@ -530,6 +530,23 @@ class mmap_array<std::string_view> {
     data_.resize(data_size);
   }
 
+  size_t avg_size() const {
+    if (items_.size() == 0) {
+      return 0;
+    }
+    size_t total_length = 0;
+    size_t non_zero_count = 0;
+    for (size_t i = 0; i < items_.size(); ++i) {
+      if (items_.get(i).length > 0) {
+        ++non_zero_count;
+        total_length += items_.get(i).length;
+      }
+    }
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
+  }
+
   void set(size_t idx, size_t offset, const std::string_view& val) {
     items_.set(idx, {offset, static_cast<uint32_t>(val.size())});
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());

@@ -121,7 +121,7 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
     if (capacity == 0) {
       auto old_size = vertex_tables_[v_label].Size();
       if (old_size >= old_cap) {
-        capacity = neug::calculate_new_capacity(old_size, true, false);
+        capacity = neug::calculate_new_capacity(old_size, true);
       }
     }
     if (capacity <= old_cap) {
@@ -172,7 +172,7 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
   if (capacity == 0) {
     size_t old_size = edge_tables_.at(index).Size();
     if (old_size >= old_cap) {
-      capacity = neug::calculate_new_capacity(old_size, false, false);
+      capacity = neug::calculate_new_capacity(old_size, false);
     }
   }
   if (capacity <= old_cap) {
@@ -900,7 +900,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     // satisfied Case 2: Open from empty, Capacity should be the default minimum
     // capacity(4096)
     vertex_tables_[i].EnsureCapacity(
-        calculate_new_capacity(vertex_tables_[i].Size(), true, true));
+        calculate_new_capacity(vertex_tables_[i].Size(), true));
     vertex_capacities[i] = vertex_tables_[i].Capacity();
   }
 
@@ -944,7 +944,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
                                   vertex_capacities[dst_label_i]);
         }
         edge_table.EnsureCapacity(
-            calculate_new_capacity(edge_table.Size(), false, true));
+            calculate_new_capacity(edge_table.Size(), false));
         // TODO(zhanglei): Any better way to resize for memory level 0?
         if (memory_level_ == 0) {
           edge_table.Resize(vertex_capacities[src_label_i],
@@ -1097,8 +1097,8 @@ void PropertyGraph::Dump(bool reopen) {
                 << ", vertex num: " << vertex_num[i]
                 << ", capacity: " << vertex_tables_[i].Capacity()
                 << ", new capacity: "
-                << calculate_new_capacity(vertex_num[i], true, true);
-      EnsureCapacity(i, calculate_new_capacity(vertex_num[i], true, true));
+                << calculate_new_capacity(vertex_num[i], true);
+      EnsureCapacity(i, calculate_new_capacity(vertex_num[i], true));
       vertex_capacity[i] = vertex_tables_[i].Capacity();
       vertex_tables_[i].Dump(target_dir);
     }
@@ -1140,10 +1140,9 @@ void PropertyGraph::Dump(bool reopen) {
                     << ", edge num: " << edge_table.EdgeNum()
                     << ", capacity: " << edge_table.Capacity()
                     << ", new capacity: "
-                    << calculate_new_capacity(edge_table.Size(), false, true);
-          EnsureCapacity(
-              src_label_i, dst_label_i, e_label_i,
-              calculate_new_capacity(edge_table.Size(), false, true));
+                    << calculate_new_capacity(edge_table.Size(), false);
+          EnsureCapacity(src_label_i, dst_label_i, e_label_i,
+                         calculate_new_capacity(edge_table.Size(), false));
           edge_table.Dump(target_dir);
         }
       }
