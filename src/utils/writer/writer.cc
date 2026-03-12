@@ -72,6 +72,11 @@ CSVStringFormatBuffer::CSVStringFormatBuffer(
       response->row_count() > 0) {
     capacity_ = DEFAULT_CAPACITY * batchSize * response->arrays_size();
   }
+  has_header_ = writeOpts.has_header.get(schema.options);
+  delimiter_ = writeOpts.delimiter.get(schema.options);
+  ignore_errors_ = writeOpts.ignore_errors.get(schema.options);
+  escape_char_ = writeOpts.escape_char.get(schema.options);
+  quote_char_ = writeOpts.quote_char.get(schema.options);
   blob_.data = std::make_unique<uint8_t[]>(capacity_);
   blob_.size = 0;
   data_ = blob_.data.get();
@@ -146,6 +151,10 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
   }
   case neug::Array::TypedArrayCase::kStructArray: {
     auto struct_arr = arr.struct_array();
+    if (!validateProtoValue(struct_arr.validity(), rowIdx)) {
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
+                                    std::to_string(rowIdx));
+    }
     std::string list_val;
     list_val.append("[");
     for (int i = 0; i < struct_arr.fields_size(); ++i) {
@@ -251,14 +260,12 @@ void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
         ", colIdx=" + std::to_string(colIdx));
   }
   // write with header
-  WriteOptions writeOpts;
-  if (rowIdx == 0 && colIdx == 0 && writeOpts.has_header.get(schema_.options)) {
+  if (rowIdx == 0 && colIdx == 0 && has_header_) {
     auto& columnNames = entry_schema_.columnNames;
     if (!columnNames.empty()) {
-      char delim = writeOpts.delimiter.get(schema_.options);
       for (size_t col = 0; col < columnNames.size(); ++col) {
         if (col > 0) {
-          write(reinterpret_cast<const uint8_t*>(&delim), sizeof(char));
+          write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
         }
         const auto& name = columnNames[col];
         write(reinterpret_cast<const uint8_t*>(name.c_str()), name.length());
@@ -270,30 +277,27 @@ void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
 
   const neug::Array& column = response_->arrays(colIdx);
   auto strResult = formatValueToStr(column, rowIdx);
-  if (!strResult.ok() && !writeOpts.ignore_errors.get(schema_.options)) {
+  if (!strResult.ok() && !ignore_errors_) {
     THROW_IO_EXCEPTION(
         "Format value to string failed, rowIdx=" + std::to_string(rowIdx) +
         ", colIdx=" + std::to_string(colIdx) +
         ", error=" + strResult.status().ToString());
   }
   if (colIdx > 0) {
-    char delim = writeOpts.delimiter.get(schema_.options);
-    write(reinterpret_cast<const uint8_t*>(&delim), sizeof(char));
+    write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
   }
   if (strResult.ok()) {
     auto str = strResult.ValueOrDie();
     if (!str.empty()) {
       // add quotes for string type values
       if (column.has_string_array()) {
-        char escapeChar = writeOpts.escape_char.get(schema_.options);
-        char quoteChar = writeOpts.quote_char.get(schema_.options);
-        str = addEscapes(escapeChar, escapeChar, str);
-        if (escapeChar != quoteChar) {
-          str = addEscapes(quoteChar, escapeChar, str);
+        str = addEscapes(escape_char_, escape_char_, str);
+        if (escape_char_ != quote_char_) {
+          str = addEscapes(quote_char_, escape_char_, str);
         }
-        write(reinterpret_cast<const uint8_t*>(&quoteChar), sizeof(char));
+        write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
         write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
-        write(reinterpret_cast<const uint8_t*>(&quoteChar), sizeof(char));
+        write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
       } else {
         write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
       }
@@ -328,6 +332,9 @@ Status ArrowExportWriter::write(const execution::Context& context,
 Status ArrowCsvExportWriter::writeTable(const neug::QueryResponse* table) {
   if (schema_.paths.empty()) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Schema paths is empty");
+  }
+  if (!entry_schema_) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "entry_schema is null");
   }
   auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
   if (!stream_result.ok()) {

@@ -106,6 +106,12 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   size_t capacity_;
   uint8_t* data_;
   const reader::EntrySchema& entry_schema_;
+  // Cached WriteOptions resolved once at construction to avoid per-cell lookup.
+  bool has_header_;
+  char delimiter_;
+  bool ignore_errors_;
+  char escape_char_;
+  char quote_char_;
 
  private:
   // Format each value to string, return string or error status.

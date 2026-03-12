@@ -10,6 +10,7 @@
 #include "neug/compiler/planner/operator/simple/logical_export_db.h"
 #include "neug/compiler/planner/operator/simple/logical_import_db.h"
 #include "neug/compiler/planner/planner.h"
+#include "neug/utils/exception/exception.h"
 
 using namespace neug::binder;
 using namespace neug::storage;
@@ -22,7 +23,7 @@ namespace planner {
 
 std::unique_ptr<LogicalPlan> Planner::planExportDatabase(
     const BoundStatement& statement) {
-  return nullptr;
+  THROW_NOT_SUPPORTED_EXCEPTION("EXPORT DATABASE is not supported");
 }
 
 std::unique_ptr<LogicalPlan> Planner::planImportDatabase(

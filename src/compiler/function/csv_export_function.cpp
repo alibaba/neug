@@ -32,9 +32,10 @@ using namespace common;
 static void convertFileSchemaOptions(reader::FileSchema& schema) {
   auto& options = schema.options;
   // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
-  // options are case insensitive
+  // options are case insensitive. Use operator[] so DELIMITER overwrites DELIM
+  // when both are set (avoids silently ignoring DELIMITER).
   if (options.contains("DELIMITER")) {
-    options.insert({"DELIM", options.at("DELIMITER")});
+    options["DELIM"] = options.at("DELIMITER");
   }
   if (options.contains("DELIM")) {
     auto value = options.at("DELIM");

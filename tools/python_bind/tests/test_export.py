@@ -76,9 +76,9 @@ class TestExport:
     def test_export_person_without_header(self):
         out_path = self.tmp_path / "person_no_header.csv"
         out_path.unlink(missing_ok=True)
-        expected = _count_query(self.conn, "MATCH (v:movies) RETURN v")
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:movies) RETURN v) TO '{out_path}' (HEADER = false);"
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}' (HEADER = false);"
         )
         assert out_path.exists()
         _, rows = _parse_csv(out_path, "|", has_header=False)
