@@ -2557,6 +2557,7 @@ def test_insert_many_vertices():
     conn.close()
     db.close()
 
+
 def test_insert_string_column_exaustion():
     logging.disable(logging.CRITICAL)
     try:
@@ -2564,7 +2565,9 @@ def test_insert_string_column_exaustion():
         shutil.rmtree(db_dir, ignore_errors=True)
         db = Database(db_path=db_dir, mode="w")
         conn = db.connect()
-        conn.execute("CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));")
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
         # by default the string column has maximum length 256
         conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
         conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
