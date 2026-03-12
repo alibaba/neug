@@ -22,6 +22,7 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/reader/options.h"
 
+#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -70,7 +71,15 @@ CSVStringFormatBuffer::CSVStringFormatBuffer(
   size_t batchSize = writeOpts.batch_rows.get(schema.options);
   if (batchSize > 0 && response->arrays_size() > 0 &&
       response->row_count() > 0) {
-    capacity_ = DEFAULT_CAPACITY * batchSize * response->arrays_size();
+    size_t ncol = static_cast<size_t>(response->arrays_size());
+    if (batchSize <= SIZE_MAX / DEFAULT_CAPACITY &&
+        ncol <= SIZE_MAX / (DEFAULT_CAPACITY * batchSize)) {
+      capacity_ = DEFAULT_CAPACITY * batchSize * ncol;
+    } else {
+      LOG(WARNING) << "CSV buffer capacity overflow, batchSize=" << batchSize
+                   << ", ncol=" << ncol
+                   << ", using default capacity: " << capacity_;
+    }
   }
   has_header_ = writeOpts.has_header.get(schema.options);
   delimiter_ = writeOpts.delimiter.get(schema.options);
@@ -80,6 +89,21 @@ CSVStringFormatBuffer::CSVStringFormatBuffer(
   blob_.data = std::make_unique<uint8_t[]>(capacity_);
   blob_.size = 0;
   data_ = blob_.data.get();
+}
+
+void CSVStringFormatBuffer::addHeader() {
+  // Emit header at init so empty result sets still get a header row when
+  // HEADER = true.
+  if (has_header_ && !entry_schema_.columnNames.empty()) {
+    for (size_t col = 0; col < entry_schema_.columnNames.size(); ++col) {
+      if (col > 0) {
+        write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
+      }
+      const auto& name = entry_schema_.columnNames[col];
+      write(reinterpret_cast<const uint8_t*>(name.c_str()), name.length());
+    }
+    write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE), sizeof(char));
+  }
 }
 
 arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
@@ -259,22 +283,6 @@ void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
         "Value index out of range: rowIdx=" + std::to_string(rowIdx) +
         ", colIdx=" + std::to_string(colIdx));
   }
-  // write with header
-  if (rowIdx == 0 && colIdx == 0 && has_header_) {
-    auto& columnNames = entry_schema_.columnNames;
-    if (!columnNames.empty()) {
-      for (size_t col = 0; col < columnNames.size(); ++col) {
-        if (col > 0) {
-          write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
-        }
-        const auto& name = columnNames[col];
-        write(reinterpret_cast<const uint8_t*>(name.c_str()), name.length());
-      }
-      write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE),
-            sizeof(char));
-    }
-  }
-
   const neug::Array& column = response_->arrays(colIdx);
   auto strResult = formatValueToStr(column, rowIdx);
   if (!strResult.ok() && !ignore_errors_) {
@@ -351,6 +359,7 @@ Status ArrowCsvExportWriter::writeTable(const neug::QueryResponse* table) {
                   "Batch size should be positive");
   }
   auto csvBuffer = CSVStringFormatBuffer(table, schema_, *entry_schema_);
+  csvBuffer.addHeader();
   for (size_t i = 0; i < table->row_count(); ++i) {
     for (size_t j = 0; j < table->arrays_size(); ++j) {
       csvBuffer.addValue(i, j);
@@ -358,6 +367,7 @@ Status ArrowCsvExportWriter::writeTable(const neug::QueryResponse* table) {
     if (i % batchSize == batchSize - 1) {
       auto status = csvBuffer.flush(stream);
       if (!status.ok()) {
+        (void) stream->Close();
         return Status(StatusCode::ERR_IO_ERROR,
                       "Failed to flush CSV buffer: " + status.ToString());
       }
@@ -366,8 +376,14 @@ Status ArrowCsvExportWriter::writeTable(const neug::QueryResponse* table) {
 
   auto status = csvBuffer.flush(stream);
   if (!status.ok()) {
+    (void) stream->Close();
     return Status(StatusCode::ERR_IO_ERROR,
                   "Failed to flush CSV buffer: " + status.ToString());
+  }
+  auto close_status = stream->Close();
+  if (!close_status.ok()) {
+    return Status(StatusCode::ERR_IO_ERROR,
+                  "Failed to close output stream: " + close_status.ToString());
   }
   return Status::OK();
 }

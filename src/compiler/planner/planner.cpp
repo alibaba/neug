@@ -112,12 +112,6 @@ std::unique_ptr<LogicalPlan> Planner::getBestPlan(
   case StatementType::EXTENSION: {
     appendExtension(statement, *plan);
   } break;
-  case StatementType::EXPORT_DATABASE: {
-    plan = planExportDatabase(statement);
-  } break;
-  case StatementType::IMPORT_DATABASE: {
-    plan = planImportDatabase(statement);
-  } break;
   case StatementType::ATTACH_DATABASE: {
     appendAttachDatabase(statement, *plan);
   } break;

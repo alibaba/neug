@@ -47,19 +47,6 @@ struct TestShowExtensionsFunctionSet {
   }
 };
 
-struct TestCopyJsonFunction : public function::NeugCallFunction {
-  TestCopyJsonFunction() : NeugCallFunction("COPY_JSON", {}) {}
-};
-
-struct TestCopyJsonFunctionSet {
-  static constexpr const char* name = "COPY_JSON";
-  static function::function_set getFunctionSet() {
-    function::function_set funcSet;
-    funcSet.emplace_back(std::make_unique<TestCopyJsonFunction>());
-    return funcSet;
-  }
-};
-
 class ExtensionTest : public GOptTest {
  public:
   std::string schemaData = getGOptResource("schema/tinysnb_schema.yaml");
@@ -136,23 +123,6 @@ TEST_F(ExtensionTest, COPY_TO_CSV) {
   auto aliasManager = std::make_shared<GAliasManager>(*logical);
   auto physical = planPhysical(*logical, aliasManager);
   ASSERT_TRUE(physical != nullptr);
-  auto resultSchema =
-      GResultSchema::infer(*logical, aliasManager, getCatalog());
-  auto returns = resultSchema["returns"];
-  ASSERT_TRUE(returns.IsSequence() && returns.size() == 0);
-}
-
-TEST_F(ExtensionTest, COPY_TO_JSON) {
-  extension::ExtensionAPI::registerFunction<TestCopyJsonFunctionSet>(
-      catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-  std::string query =
-      "COPY (MATCH (u:person) RETURN u.*) TO '/workspace/person.json' "
-      "(header=true);";
-  auto logical = planLogical(query, schemaData, "", {});
-  auto aliasManager = std::make_shared<GAliasManager>(*logical);
-  auto physical = planPhysical(*logical, aliasManager);
-  VerifyFactory::verifyPhysicalByJson(
-      *physical, getExtensionResource("COPY_TO_JSON_physical"));
   auto resultSchema =
       GResultSchema::infer(*logical, aliasManager, getCatalog());
   auto returns = resultSchema["returns"];

@@ -99,6 +99,7 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
                         const reader::EntrySchema& entry_schema);
   ~CSVStringFormatBuffer() {}
   void addValue(int rowIdx, int colIdx) override;
+  void addHeader();
   arrow::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
 
  private:
