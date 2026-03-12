@@ -15,9 +15,9 @@ package com.alibaba.neug.driver;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.IOException;
 import com.alibaba.neug.driver.utils.Client;
 import com.alibaba.neug.driver.utils.Config;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
 /** Test class for {@link Client}. */

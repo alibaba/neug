@@ -13,6 +13,11 @@
  */
 package com.alibaba.neug.driver.internal;
 
+import com.alibaba.neug.driver.ResultSet;
+import com.alibaba.neug.driver.ResultSetMetaData;
+import com.alibaba.neug.driver.Results;
+import com.alibaba.neug.driver.utils.JsonUtil;
+import com.alibaba.neug.driver.utils.Types;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
@@ -23,9 +28,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import com.alibaba.neug.driver.ResultSet;
-import com.alibaba.neug.driver.Results;
-import com.alibaba.neug.driver.utils.JsonUtil;
 
 /**
  * Internal implementation of the {@link ResultSet} interface.
@@ -680,6 +682,127 @@ public class InternalResultSet implements ResultSet {
     @Override
     public boolean isAfterLast() {
         return currentIndex == response.getArraysCount() && response.getArraysCount() != 0;
+    }
+
+    @Override
+    public ResultSetMetaData getMetaData() {
+        Results.MetaDatas metaDatas = response.getSchema();
+        List<String> columnNames = new ArrayList<>();
+        List<Integer> columnNullability = new ArrayList<>();
+        List<Types> columnTypes = new ArrayList<>();
+        List<Boolean> columnSigned = new ArrayList<>();
+        for (int i = 0; i < metaDatas.getNameCount(); i++) {
+            columnNames.add(metaDatas.getName(i));
+            switch (response.getArrays(i).getTypedArrayCase()) {
+                case STRING_ARRAY:
+                    columnTypes.add(Types.STRING);
+                    columnNullability.add(
+                            response.getArrays(i).getStringArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case INT32_ARRAY:
+                    columnTypes.add(Types.INT32);
+                    columnNullability.add(
+                            response.getArrays(i).getInt32Array().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(true);
+                    break;
+                case INT64_ARRAY:
+                    columnTypes.add(Types.INT64);
+                    columnNullability.add(
+                            response.getArrays(i).getInt64Array().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(true);
+                    break;
+                case BOOL_ARRAY:
+                    columnTypes.add(Types.BOOLEAN);
+                    columnNullability.add(
+                            response.getArrays(i).getBoolArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case DOUBLE_ARRAY:
+                    columnTypes.add(Types.DOUBLE);
+                    columnNullability.add(
+                            response.getArrays(i).getDoubleArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(true);
+                    break;
+                case FLOAT_ARRAY:
+                    columnTypes.add(Types.FLOAT);
+                    columnNullability.add(
+                            response.getArrays(i).getFloatArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(true);
+                    break;
+                case TIMESTAMP_ARRAY:
+                    columnTypes.add(Types.TIMESTAMP);
+                    columnNullability.add(
+                            response.getArrays(i).getTimestampArray().getValidity().isEmpty()
+                                    ? 0
+                                    : 1);
+                    columnSigned.add(false);
+                    break;
+                case DATE_ARRAY:
+                    columnTypes.add(Types.DATE);
+                    columnNullability.add(
+                            response.getArrays(i).getDateArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case UINT32_ARRAY:
+                    columnTypes.add(Types.UINT32);
+                    columnNullability.add(
+                            response.getArrays(i).getUint32Array().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case UINT64_ARRAY:
+                    columnTypes.add(Types.UINT64);
+                    columnNullability.add(
+                            response.getArrays(i).getUint64Array().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case LIST_ARRAY:
+                    columnTypes.add(Types.LIST);
+                    columnNullability.add(
+                            response.getArrays(i).getListArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case STRUCT_ARRAY:
+                    columnTypes.add(Types.STRUCT);
+                    columnNullability.add(
+                            response.getArrays(i).getStructArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case VERTEX_ARRAY:
+                    columnTypes.add(Types.NODE);
+                    columnNullability.add(
+                            response.getArrays(i).getVertexArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case EDGE_ARRAY:
+                    columnTypes.add(Types.EDGE);
+                    columnNullability.add(
+                            response.getArrays(i).getEdgeArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case PATH_ARRAY:
+                    columnTypes.add(Types.PATH);
+                    columnNullability.add(
+                            response.getArrays(i).getPathArray().getValidity().isEmpty() ? 0 : 1);
+                    columnSigned.add(false);
+                    break;
+                case INTERVAL_ARRAY:
+                    columnTypes.add(Types.INTERVAL);
+                    columnNullability.add(
+                            response.getArrays(i).getIntervalArray().getValidity().isEmpty()
+                                    ? 0
+                                    : 1);
+                    columnSigned.add(false);
+                    break;
+                default:
+                    // For complex types, we can set type as OTHER and nullability as unknown
+                    columnTypes.add(Types.OTHER);
+                    columnNullability.add(2); // unknown
+                    columnSigned.add(false);
+            }
+        }
+        return new InternalResultSetMetaData(
+                columnNames, columnNullability, columnTypes, columnSigned);
     }
 
     private Results.QueryResponse response;

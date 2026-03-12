@@ -391,4 +391,11 @@ public interface ResultSet extends AutoCloseable {
      * @return {@code true} if the cursor is after the last row; {@code false} otherwise
      */
     boolean isAfterLast();
+
+    /**
+     * Retrieves the number, types and properties of this ResultSet object's columns.
+     *
+     * @return the description of this ResultSet object's columns
+     */
+    ResultSetMetaData getMetaData();
 }

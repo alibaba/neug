@@ -13,8 +13,8 @@
  */
 package com.alibaba.neug.driver;
 
-import java.util.Map;
 import com.alibaba.neug.driver.utils.AccessMode;
+import java.util.Map;
 
 /**
  * A session for executing queries against a NeuG database.

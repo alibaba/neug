@@ -13,13 +13,13 @@
  */
 package com.alibaba.neug.driver.internal;
 
-import java.util.Map;
 import com.alibaba.neug.driver.ResultSet;
 import com.alibaba.neug.driver.Session;
 import com.alibaba.neug.driver.utils.AccessMode;
 import com.alibaba.neug.driver.utils.Client;
 import com.alibaba.neug.driver.utils.QuerySerializer;
 import com.alibaba.neug.driver.utils.ResponseParser;
+import java.util.Map;
 
 /**
  * Internal implementation of the {@link Session} interface.

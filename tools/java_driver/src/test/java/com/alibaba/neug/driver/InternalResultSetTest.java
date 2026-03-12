@@ -15,11 +15,11 @@ package com.alibaba.neug.driver;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.alibaba.neug.driver.internal.InternalResultSet;
 import com.google.protobuf.ByteString;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
-import com.alibaba.neug.driver.internal.InternalResultSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -145,7 +145,6 @@ public class InternalResultSetTest {
         resultSet.close();
         assertTrue(resultSet.isClosed());
     }
-
 
     @Test
     public void testGetInvalidColumn() {

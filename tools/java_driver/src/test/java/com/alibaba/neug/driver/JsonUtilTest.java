@@ -15,8 +15,8 @@ package com.alibaba.neug.driver;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.alibaba.neug.driver.utils.JsonUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /** Test class for {@link JsonUtil}. */

@@ -15,12 +15,12 @@ package com.alibaba.neug.driver;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.alibaba.neug.driver.utils.AccessMode;
+import com.alibaba.neug.driver.utils.QuerySerializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.Map;
-import com.alibaba.neug.driver.utils.AccessMode;
-import com.alibaba.neug.driver.utils.QuerySerializer;
 import org.junit.jupiter.api.Test;
 
 /** Test class for {@link QuerySerializer}. */
