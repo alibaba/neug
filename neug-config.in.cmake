@@ -25,7 +25,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
-include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+include_directories(${Protobuf_INCLUDE_DIRS})
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)

@@ -96,10 +96,6 @@ struct NEUG_API ExtensionUtils {
 
   static constexpr const char* EXTENSION_FILE_NAME = "lib{}.neug_extension";
 
-  static constexpr const char* OFFICIAL_EXTENSION[] = {
-      "JSON",
-  };
-
   static constexpr const char* EXTENSION_LOADER_SUFFIX = "_loader";
 
   static constexpr const char* EXTENSION_INSTALLER_SUFFIX = "_installer";
@@ -110,8 +106,6 @@ struct NEUG_API ExtensionUtils {
       const std::string& extensionName, const std::string& extensionRepo);
 
   static std::string getExtensionFileName(const std::string& name);
-
-  static bool isOfficialExtension(const std::string& extension);
 
   template <typename T>
   static void addTableFunc(main::MetadataManager& database) {

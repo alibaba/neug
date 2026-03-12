@@ -129,16 +129,6 @@ std::string ExtensionUtils::getExtensionFileName(const std::string& name) {
                               common::StringUtils::getLower(name));
 }
 
-bool ExtensionUtils::isOfficialExtension(const std::string& extension) {
-  auto extensionUpperCase = common::StringUtils::getUpper(extension);
-  for (auto& officialExtension : OFFICIAL_EXTENSION) {
-    if (officialExtension == extensionUpperCase) {
-      return true;
-    }
-  }
-  return false;
-}
-
 ExtensionLibLoader::ExtensionLibLoader(const std::string& extensionName,
                                        const std::string& path)
     : extensionName{extensionName} {

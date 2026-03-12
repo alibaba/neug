@@ -42,7 +42,7 @@ class CreateVertexTypeOpr : public IOperator {
         dynamic_cast<StorageUpdateInterface&>(graph);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
-      property_tuples.emplace_back(prop_value.type().id(), prop_name,
+      property_tuples.emplace_back(prop_value.type(), prop_name,
                                    value_to_property(prop_value));
     }
     auto res = storage.CreateVertexType(type_name_, property_tuples, pks_,

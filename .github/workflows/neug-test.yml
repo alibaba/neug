@@ -19,7 +19,6 @@ on:
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
-      - 'extension/**'
   push:
     branches:
       - main
@@ -35,7 +34,6 @@ on:
       - 'include/**'
       - 'CMakeLists.txt'
       - 'doc/source/tutorials/**'
-      - 'extension/**'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -96,14 +94,27 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', 'include/**', 'proto/**', 'tools/python_bind/**', '.github/workflows/neug-test.yml') }}
         restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-ccache-main-
           ${{ runner.os }}-ccache-
 
     - name: Setup CCache
       run: |
         sudo apt-get update && sudo apt-get install -y ccache
-        ccache --max-size=2G
+        mkdir -p ~/.cache/ccache
+        {
+          echo "CCACHE_DIR=$HOME/.cache/ccache"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPRESS=true"
+          echo "CCACHE_COMPRESSLEVEL=6"
+          echo "CCACHE_MAXSIZE=5G"
+        } >> "$GITHUB_ENV"
+        ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+        ccache --set-config=compiler_check=content
+        ccache --set-config=compression=true
+        ccache --max-size=5G
         ccache --zero-stats
 
     - name: Increase the maximum number of opened files
@@ -111,6 +122,10 @@ jobs:
         ulimit -n 65535
         sudo chmod -R 777 /etc/security/*
         echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
 
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -129,6 +144,8 @@ jobs:
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
+        echo "CCache stats before build"
+        ccache --show-stats
         export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
@@ -145,7 +162,6 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
@@ -154,6 +170,7 @@ jobs:
         make clean
         make requirements
         make build
+        echo "CCache stats after build"
         ccache --show-stats
 
     - name: Test examples
@@ -321,36 +338,6 @@ jobs:
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
 
     # ========================================
-    # Phase 3.5: Extension Tests
-    # ========================================
-    - name: Diagnose extension linkage
-      run: |
-        EXT_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/extension/json/libjson.neug_extension
-        NEUG_LIB=${GITHUB_WORKSPACE}/tools/python_bind/build/lib.linux-x86_64-cpython-313/libneug.so
-        echo "=== Extension DT_NEEDED ==="
-        readelf -d "$EXT_LIB" | grep NEEDED || echo "(no NEEDED entries)"
-        echo "=== Extension RPATH/RUNPATH ==="
-        readelf -d "$EXT_LIB" | grep -E "RPATH|RUNPATH" || echo "(no RPATH)"
-        echo "=== libneug.so exports InvalidArgumentException? ==="
-        nm -D "$NEUG_LIB" | grep InvalidArgumentException || echo "(symbol NOT found in libneug.so)"
-        echo "=== ldd on extension ==="
-        ldd "$EXT_LIB" || echo "(ldd failed)"
-
-    - name: Run Extension C++ Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        ctest -R json_extension_test -V
-        ctest -R test_extension -V
-
-    - name: Run Extension Python Test
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        export NEUG_RUN_JSON_TESTS=true
-        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py -k "json"
-
-    # ========================================
     # Phase 4: E2E Tests
     # ========================================
     - name: Run E2E modern_graph Test
@@ -423,10 +410,10 @@ jobs:
         sudo apt install lcov -y
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
         make coverage
-        mv coverage_filtered.info coverage.info
 
     - name: Upload coverage to Codecov
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
-        file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage.info
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info

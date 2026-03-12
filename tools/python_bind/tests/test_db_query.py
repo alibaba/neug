@@ -2556,3 +2556,66 @@ def test_insert_many_vertices():
     assert records == [[10000]], f"Expected value [[10000]], got {records}"
     conn.close()
     db.close()
+
+
+def test_insert_string_column_exhaustion():
+    logging.disable(logging.CRITICAL)
+    try:
+        db_dir = "/tmp/test_insert_string_column_exhaustion"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_path=db_dir, mode="w")
+        conn = db.connect()
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        # by default the string column has maximum length 256
+        conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
+        conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        db.close()
+
+        db2 = Database(db_path=db_dir, mode="w")
+        conn2 = db2.connect()
+        str_prop = "a" * 255
+        for i in range(10000):
+            conn2.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
+        res = conn2.execute("MATCH (p: Person) RETURN count(p);")
+        records = list(res)
+        assert records == [[10002]], f"Expected value [[10002]], got {records}"
+        conn2.close()
+        db2.close()
+
+        db3 = Database(db_path=db_dir, mode="w")
+        conn3 = db3.connect()
+        conn3.execute("CREATE REL TABLE Knows(FROM Person TO Person, note STRING);")
+        conn3.execute(
+            "MATCH (a: Person), (b: Person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:Knows {note: '12'}]->(b);"
+        )
+        conn3.execute(
+            "MATCH (a: Person), (b: Person) WHERE a.id = 3 AND b.id = 4 CREATE (a)-[:Knows {note: '34'}]->(b);"
+        )
+        conn3.execute("CHECKPOINT;")
+        db3.close()
+
+        db4 = Database(db_path=db_dir, mode="w")
+        conn4 = db4.connect()
+        res4 = conn4.execute(
+            "MATCH (a: Person)-[k: Knows]->(b: Person) RETURN k.note ORDER BY k.note;"
+        )
+        records = list(res4)
+        assert records == [
+            ["12"],
+            ["34"],
+        ], f"Expected value [['12'], ['34']], got {records}"
+        str_prop = "a" * 255
+        for i in range(100):
+            conn4.execute(
+                f"MATCH (a: Person {{id: 1}}), (b: Person {{id: 2}}) CREATE (a)-[:Knows {{note: '{str_prop}'}}]->(b);"
+            )
+        conn4.close()
+        db4.close()
+    except Exception as e:
+        raise AssertionError(f"Test failed with exception: {e}")
+    finally:
+        logging.disable(logging.NOTSET)

@@ -126,10 +126,7 @@ list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
 # Remove the files in proto directory
 message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
-if (NOT BUILD_WITH_OSS)
-        list(REMOVE_ITEM UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/remote/oss_storage.cc")
-endif()
-
+set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
 set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
 if (BUILD_HTTP_SERVER)
         list(APPEND ALL_UTILS_SRC_FILES ${HTTP_SERVICE_PROTO_SRCS})

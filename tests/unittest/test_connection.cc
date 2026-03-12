@@ -132,9 +132,8 @@ TEST_F(ConnectionTest, TestReadWriteConnection) {
   auto conn1 = db.Connect();
   EXPECT_NE(conn1, nullptr);
 
-  EXPECT_THROW(
-      { auto conn2 = db.Connect(); },
-      neug::exception::TxStateConflictException);
+  EXPECT_THROW({ auto conn2 = db.Connect(); },
+               neug::exception::TxStateConflictException);
 }
 
 TEST_F(ConnectionTest, TestReadOnlyConnections) {
