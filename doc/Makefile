@@ -20,7 +20,7 @@ help:
 .PHONY: help Makefile dependencies doxygen python-docs cpp-docs api-docs html-only
 
 dependencies:
-	pip3 install -r docs-requirements.txt
+	python3 -m pip  install -r docs-requirements.txt
 
 # Generate Doxygen XML (for C++ API)
 doxygen:

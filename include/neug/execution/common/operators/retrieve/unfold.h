@@ -25,8 +25,7 @@ class Unfold {
  public:
   static neug::result<Context> unfold(Context&& ctxs, int key, int alias);
 
-  static neug::result<Context> unfold(Context&& ctxs,
-                                      const RecordExprBase& key,
+  static neug::result<Context> unfold(Context&& ctxs, const RecordExprBase& key,
                                       int alias);
 };
 

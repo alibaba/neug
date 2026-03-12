@@ -41,7 +41,7 @@ print("✅ NeuG is ready!")
 See the [Developer Guide](../../development/dev_guide) for detailed build instructions. Quick overview:
 
 ```bash
-git clone https://github.com/GraphScope/neug.git
+git clone https://github.com/alibaba/neug.git
 cd neug
 mkdir build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=/opt/neug # see CMakeLists.txt for more cmake options.

@@ -10,7 +10,7 @@ tar -I zstd -xvf social_network-sf300-CsvComposite-StringDateFormatter.tar.zst
 export PATH_TO_DATA=/path/to/data
 export NEUG_DIER=/path/to/neug
 cd $PATH_TO_DATA
-pip3 install duckdb
+python3 -m pip  install duckdb
 cp {NEUG_DIR}/tests/resources/ldbc/tools/*.py .
 python3 ./reorder_post.py ./dynamic/ ./dynamic/post_0_0.csv.rod
 python3 ./reorder_comment.py ./dynamic/ ./dynamic/comment_0_0.csv.rod

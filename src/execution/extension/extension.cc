@@ -169,17 +169,34 @@ Status install_extension(const std::string& extension_name) {
       neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
   auto localLibPath = extDir + "/" + fileName;
 
-  const std::string& repo = neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
+  const std::string& repo =
+      neug::extension::ExtensionUtils::OFFICIAL_EXTENSION_REPO;
   auto repoInfo = neug::extension::ExtensionUtils::getExtensionLibRepoInfo(
       extension_name, repo);
 
-  repoInfo.hostURL = "artifacts-and-materials.oss-cn-hangzhou.aliyuncs.com";
-
-  repoInfo.hostPath = "/neug_extension/v0.1.0/linux_amd64/sample/libsample.neug_extension";
-  
-  repoInfo.repoURL = "https://graphscope.oss-cn-hangzhou.aliyuncs.com/neug_extension/v0.1.0/linux_amd64/sample/libsample.neug_extension";
   LOG(INFO) << "[Admin] Download URL host=" << repoInfo.hostURL
             << " path=" << repoInfo.hostPath << " full=" << repoInfo.repoURL;
+
+  if (std::filesystem::exists(localLibPath)) {
+    auto verifySt = verifyExtensionChecksum(repoInfo, localLibPath);
+    // existing extension lib in local path is not consistent with the remote
+    // repo, remove it
+    if (!verifySt.ok()) {
+      std::error_code ec;
+      if (!std::filesystem::remove(localLibPath, ec)) {
+        LOG(ERROR) << "[Admin] Cannot delete existing extension file (no "
+                      "permission or error): " +
+                          localLibPath + " ec=" + ec.message() +
+                          ". Please delete it manually.";
+        return Status(
+            StatusCode::ERR_IO_ERROR,
+            "Cannot delete existing extension file (no permission or error): " +
+                localLibPath + " ec=" + ec.message() +
+                ". Please delete it manually.");
+      }
+      LOG(INFO) << "[Admin] Removed existing extension file: " << localLibPath;
+    }
+  }
 
   if (!std::filesystem::exists(localLibPath)) {
     auto st = downloadExtensionFile(repoInfo, localLibPath);
@@ -191,20 +208,13 @@ Status install_extension(const std::string& extension_name) {
     }
     LOG(INFO) << "[Admin] Extension " << extension_name << " downloaded to "
               << localLibPath;
-  } else {
-    LOG(INFO) << "[Admin] Extension file already exists: " << localLibPath;
-  }
-
-  bool checksumChecked = false;
-  auto verifySt =
-      verifyExtensionChecksum(repoInfo, localLibPath, checksumChecked);
-  if (!verifySt.ok()) {
-    std::filesystem::remove(localLibPath);
-    return Status(
-        StatusCode::ERR_IO_ERROR,
-        "Extension integrity check failed: " + verifySt.error_message());
-  }
-  if (checksumChecked) {
+    auto verifySt = verifyExtensionChecksum(repoInfo, localLibPath);
+    if (!verifySt.ok()) {
+      std::filesystem::remove(localLibPath);
+      return Status(
+          StatusCode::ERR_IO_ERROR,
+          "Extension integrity check failed: " + verifySt.error_message());
+    }
     LOG(INFO) << "[Admin] Extension integrity verified for " << extension_name;
   }
 
@@ -226,7 +236,7 @@ Status downloadExtensionFile(const ExtensionRepoInfo& repoInfo,
   trySetCaCertPaths(cli);
 
   httplib::Headers headers = {
-      {"User-Agent", common::stringFormat("gs/v{}", NEUG_EXTENSION_VERSION)}};
+      {"User-Agent", common::stringFormat("gs/v{}", getVersion())}};
 
   auto res = cli.Get(repoInfo.hostPath.c_str(), headers);
   if (!res) {
@@ -333,10 +343,7 @@ result<std::string> computeFileSHA256(const std::string& path) {
 }
 
 Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
-                               const std::string& localLibPath,
-                               bool& checksumChecked) {
-  checksumChecked = false;
-
+                               const std::string& localLibPath) {
   std::string checksumURL = libRepoInfo.repoURL + ".sha256";
   std::string checksumPath = libRepoInfo.hostPath + ".sha256";
   std::string checksumHost = libRepoInfo.hostURL;
@@ -350,7 +357,7 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
   trySetCaCertPaths(cli);
 
   httplib::Headers headers = {
-      {"User-Agent", common::stringFormat("gs/v{}", NEUG_EXTENSION_VERSION)}};
+      {"User-Agent", common::stringFormat("gs/v{}", getVersion())}};
 
   auto res = cli.Get(checksumPath.c_str(), headers);
   if (!res) {
@@ -428,7 +435,6 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
                       ", Got: " + computedChecksum);
   }
 
-  checksumChecked = true;
   LOG(INFO) << "[Admin] Checksum verification passed for " << localLibPath;
   return Status::OK();
 #else
@@ -437,8 +443,27 @@ Status verifyExtensionChecksum(const ExtensionRepoInfo& libRepoInfo,
 #endif
 }
 
+// Promote libneug.so to RTLD_GLOBAL so that extensions loaded via dlopen
+// can resolve neug symbols.  When the host process (e.g. Python) loads
+// libneug.so with RTLD_LOCAL, the symbols stay in a local scope and are
+// invisible to subsequently dlopen'd extensions even though they list
+// libneug.so in DT_NEEDED.  Re-opening with RTLD_NOLOAD | RTLD_GLOBAL
+// promotes the already-loaded instance without reloading it.
+static void ensureNeugSymbolsGlobal() {
+  static bool promoted = false;
+  if (promoted)
+    return;
+  Dl_info info;
+  if (dladdr(reinterpret_cast<void*>(&ensureNeugSymbolsGlobal), &info) &&
+      info.dli_fname) {
+    dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_GLOBAL);
+  }
+  promoted = true;
+}
+
 Status load_extension(const std::string& extension_name) {
   LOG(INFO) << "[Admin] LOAD extension: " << extension_name;
+  ensureNeugSymbolsGlobal();
   auto fileName =
       neug::extension::ExtensionUtils::getExtensionFileName(extension_name);
 

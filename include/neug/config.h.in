@@ -32,8 +32,8 @@ namespace neug {
  * @since v0.1.0
  */
 enum class DBMode {
-  READ_ONLY = 0,   ///< Read-only access for analytics workloads
-  READ_WRITE = 1   ///< Full transactional read-write access
+  READ_ONLY = 0,  ///< Read-only access for analytics workloads
+  READ_WRITE = 1  ///< Full transactional read-write access
 };
 
 /**
@@ -152,6 +152,3 @@ struct NeugDBConfig {
 };
 
 }  // namespace neug
-
-// Other build configuration options can be added here
-#cmakedefine BUILD_WITH_OSS

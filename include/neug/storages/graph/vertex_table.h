@@ -87,7 +87,7 @@ class VertexTable {
         work_dir_("") {
     assert(vertex_schema->primary_keys.size() == 1);
     pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
-    indexer_.init(pk_type_);
+    indexer_.init(pk_type_.id());
   }
 
   VertexTable(VertexTable&& other)
@@ -131,7 +131,7 @@ class VertexTable {
 
   // Return false if the reserved space is not enough.
   bool AddVertex(const Property& id, const std::vector<Property>& props,
-                 vid_t& vid, timestamp_t ts = 0);
+                 vid_t& vid, timestamp_t ts = 0, bool insert_safe = false);
 
   bool UpdateProperty(vid_t vid, int32_t prop_id, const Property& value,
                       timestamp_t ts);
@@ -181,10 +181,9 @@ class VertexTable {
 
   void AddProperties(
       const std::vector<std::string>& property_names,
-      const std::vector<DataTypeId>& property_types,
+      const std::vector<DataType>& property_types,
       const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& storage_strategies = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
+      const std::vector<StorageStrategy>& storage_strategies = {});
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -310,7 +309,7 @@ class VertexTable {
 
   IndexerType indexer_;
   std::unique_ptr<Table> table_;
-  DataTypeId pk_type_;
+  DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
   VertexTimestamp v_ts_;
   int memory_level_;

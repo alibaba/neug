@@ -342,9 +342,21 @@ GPhysicalTypeConverter::convertSimpleLogicalType(
     break;
   }
   case common::LogicalTypeID::STRING: {
+    auto extraInfo = type.getExtraTypeInfo();
+    size_t maxLen;
+    if (!extraInfo) {
+      LOG(WARNING)
+          << "Missing extra type info in string type, use default max length: "
+          << common::LogicalType::getDefaultStringMaxLen();
+      maxLen = common::LogicalType::getDefaultStringMaxLen();
+    } else {
+      auto stringTypeInfo =
+          extraInfo->constPtrCast<neug::common::StringTypeInfo>();
+      maxLen = stringTypeInfo->getMaxLength();
+    }
     auto strType = std::make_unique<::common::String>();
     auto varChar = std::make_unique<::common::String::VarChar>();
-    varChar->set_max_length(neug::Constants::VARCHAR_MAX_LENGTH);
+    varChar->set_max_length(maxLen);
     strType->set_allocated_var_char(varChar.release());
     result->set_allocated_string(strType.release());
     break;

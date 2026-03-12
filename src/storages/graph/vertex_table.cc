@@ -35,16 +35,16 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
     table_->open(vertex_table_prefix(label_name), work_dir_,
                  vertex_schema_->property_names, vertex_schema_->property_types,
                  vertex_schema_->default_property_values,
-                 vertex_schema_->storage_strategies,
-                 vertex_schema_->property_extra_infos);
+                 vertex_schema_->storage_strategies);
+
   } else if (memory_level_ == 1) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types,
                            vertex_schema_->default_property_values,
-                           vertex_schema_->storage_strategies,
-                           vertex_schema_->property_extra_infos);
+                           vertex_schema_->storage_strategies);
+
   } else if (memory_level_ >= 2) {
     indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
                                  (memory_level_ > 2));
@@ -52,8 +52,7 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
         vertex_table_prefix(label_name), work_dir_,
         vertex_schema_->property_names, vertex_schema_->property_types,
         vertex_schema_->default_property_values,
-        vertex_schema_->storage_strategies,
-        vertex_schema_->property_extra_infos, (memory_level_ > 2));
+        vertex_schema_->storage_strategies, (memory_level_ > 2));
   } else {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
                              std::to_string(memory_level_));
@@ -63,18 +62,20 @@ void VertexTable::Open(const std::string& work_dir, int memory_level,
 
 void VertexTable::insert_vertices(
     std::shared_ptr<IRecordBatchSupplier> supplier) {
-  if (pk_type_ == DataTypeId::kInt64) {
+  auto pk_type_id = pk_type_.id();
+  if (pk_type_id == DataTypeId::kInt64) {
     insert_vertices_impl<int64_t>(supplier);
-  } else if (pk_type_ == DataTypeId::kInt32) {
+  } else if (pk_type_id == DataTypeId::kInt32) {
     insert_vertices_impl<int32_t>(supplier);
-  } else if (pk_type_ == DataTypeId::kUInt32) {
+  } else if (pk_type_id == DataTypeId::kUInt32) {
     insert_vertices_impl<uint32_t>(supplier);
-  } else if (pk_type_ == DataTypeId::kUInt64) {
+  } else if (pk_type_id == DataTypeId::kUInt64) {
     insert_vertices_impl<uint64_t>(supplier);
-  } else if (pk_type_ == DataTypeId::kVarchar) {
+  } else if (pk_type_id == DataTypeId::kVarchar) {
     insert_vertices_impl<std::string_view>(supplier);
   } else {
-    LOG(FATAL) << "Unsupported primary key type for vertex, type: " << pk_type_
+    LOG(FATAL) << "Unsupported primary key type for vertex, type: "
+               << pk_type_.ToString()
                << ", label: " << vertex_schema_->label_name;
   }
 }
@@ -131,7 +132,7 @@ size_t VertexTable::LidNum() const { return indexer_.size(); }
 
 bool VertexTable::AddVertex(const Property& id,
                             const std::vector<Property>& props, vid_t& vid,
-                            timestamp_t ts) {
+                            timestamp_t ts, bool insert_safe) {
   indexer_.ensure_writable(work_dir_);
   if (indexer_.capacity() <= indexer_.size()) {
     return false;
@@ -144,7 +145,7 @@ bool VertexTable::AddVertex(const Property& id,
       return true;
     }
   }());
-  table_->insert(vid, props);
+  table_->insert(vid, props, insert_safe);
   return true;
 }
 
@@ -246,12 +247,11 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
 
 void VertexTable::AddProperties(
     const std::vector<std::string>& properties,
-    const std::vector<DataTypeId>& types,
+    const std::vector<DataType>& types,
     const std::vector<Property>& default_values,
-    const std::vector<StorageStrategy>& strategies,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
+    const std::vector<StorageStrategy>& strategies) {
   table_->add_columns(properties, types, default_values, indexer_.capacity(),
-                      strategies, extra_type_infos, memory_level_);
+                      strategies, memory_level_);
 }
 
 void VertexTable::Drop() {

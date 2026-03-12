@@ -25,5 +25,5 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /home/neug/neug/tools/python_bind/dist/wheelhouse/*.whl .
-RUN pip3 install ./*.whl
+RUN python3 -m pip  install ./*.whl
 RUN rm *.whl

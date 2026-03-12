@@ -38,7 +38,8 @@ class UnionOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     std::vector<neug::execution::Context> ctxs;
     for (auto& plan : sub_plans_) {
       neug::execution::Context n_ctx = ctx;

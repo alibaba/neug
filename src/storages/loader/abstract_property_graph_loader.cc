@@ -20,7 +20,7 @@
 namespace neug {
 
 void AbstractPropertyGraphLoader::addVerticesToVertexTable(
-    label_t v_label_id, const std::string& label_name, DataTypeId pk_type,
+    label_t v_label_id, const std::string& label_name, DataType pk_type,
     const std::string& pk_name, int pk_ind,
     const std::vector<std::string>& v_files) {
   for (auto& v_file : v_files) {
@@ -47,9 +47,10 @@ void AbstractPropertyGraphLoader::addVertices(
   auto pk_type = std::get<0>(primary_key);
   auto pk_name = std::get<1>(primary_key);
   auto pk_ind = std::get<2>(primary_key);
-  if (pk_type != DataTypeId::kInt64 && pk_type != DataTypeId::kVarchar &&
-      pk_type != DataTypeId::kInt32 && pk_type != DataTypeId::kUInt32 &&
-      pk_type != DataTypeId::kUInt32) {
+  auto pk_type_id = pk_type.id();
+  if (pk_type_id != DataTypeId::kInt64 && pk_type_id != DataTypeId::kVarchar &&
+      pk_type_id != DataTypeId::kInt32 && pk_type_id != DataTypeId::kUInt32 &&
+      pk_type_id != DataTypeId::kUInt64) {
     LOG(FATAL)
         << "Only support int64_t, uint64_t, int32_t, uint32_t and string "
            "primary key for vertex.";

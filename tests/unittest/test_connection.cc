@@ -75,12 +75,11 @@ class ConnectionTest : public ::testing::Test {
     EXPECT_TRUE(res);
     size_t person_count = 0;
     int64_t id2_sum = 0;
-    const auto& res_value = res.value().table();
-    person_count = res_value->num_rows();
-    auto id2_column = res_value->column(0)->chunk(0);
-    for (int64_t i = 0; i < id2_column->length(); ++i) {
-      auto scalar = id2_column->GetScalar(i).ValueOrDie();
-      id2_sum += std::dynamic_pointer_cast<arrow::Int64Scalar>(scalar)->value;
+    const auto& res_value = res.value().response();
+    person_count = res_value.row_count();
+    const auto& id2_column = res_value.arrays(0).int64_array();
+    for (int64_t i = 0; i < id2_column.values_size(); ++i) {
+      id2_sum += id2_column.values(i);
     }
     return {person_count, id2_sum};
   }
@@ -226,11 +225,10 @@ TEST_F(ConnectionTest, TestConnectionQueryResult) {
   EXPECT_TRUE(res);
   const auto& res_value = res.value();
   std::vector<int64_t> ids;
-  auto table = res_value.table();
-  auto id_column = table->column(0)->chunk(0);
-  for (int64_t i = 0; i < id_column->length(); ++i) {
-    auto scalar = id_column->GetScalar(i).ValueOrDie();
-    ids.push_back(std::dynamic_pointer_cast<arrow::Int64Scalar>(scalar)->value);
+  auto table = res_value.response();
+  auto id_column = table.arrays(0).int64_array();
+  for (int64_t i = 0; i < id_column.values_size(); ++i) {
+    ids.push_back(id_column.values(i));
   }
   EXPECT_EQ(ids.size(), 4);
   std::vector<int64_t> expected_ids = {1, 2, 4, 6};

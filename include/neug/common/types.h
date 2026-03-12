@@ -113,10 +113,11 @@ struct DataType {
 
   static DataType Struct(std::vector<DataType> children);
   static DataType List(const DataType& child_type);
+  static DataType Varchar(size_t max_length);
 
   inline DataTypeId id() const { return id_; }
 
-  const ExtraTypeInfo* AuxInfo() const {
+  const ExtraTypeInfo* RawExtraTypeInfo() const {
     return type_info_ ? type_info_.get() : nullptr;
   }
 

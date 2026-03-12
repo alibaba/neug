@@ -68,6 +68,9 @@ std::string getArch() {
 
 std::string getPlatform() { return getOS() + "_" + getArch(); }
 
+// Return NEUG_VERSION macro as the extension version to download
+std::string getVersion() { return NEUG_VERSION; }
+
 static bool startsWith(const std::string& str, const std::string& prefix) {
   return str.size() >= prefix.size() &&
          str.compare(0, prefix.size(), prefix) == 0;
@@ -110,8 +113,8 @@ static ExtensionRepoInfo getExtensionFilePath(const std::string& extensionName,
                                               const std::string& extensionRepo,
                                               const std::string& fileName) {
   auto extensionURL = common::stringFormat(
-      extensionRepo + ExtensionUtils::EXTENSION_FILE_REPO_PATH,
-      NEUG_EXTENSION_VERSION, getPlatform(), extensionName, fileName);
+      extensionRepo + ExtensionUtils::EXTENSION_FILE_REPO_PATH, getVersion(),
+      getPlatform(), extensionName, fileName);
   return getExtensionRepoInfo(extensionURL);
 }
 
@@ -121,92 +124,9 @@ ExtensionRepoInfo ExtensionUtils::getExtensionLibRepoInfo(
                               getExtensionFileName(extensionName));
 }
 
-ExtensionRepoInfo ExtensionUtils::getExtensionLoaderRepoInfo(
-    const std::string& extensionName, const std::string& extensionRepo) {
-  return getExtensionFilePath(
-      extensionName, extensionRepo,
-      getExtensionFileName(extensionName + EXTENSION_LOADER_SUFFIX));
-}
-
-ExtensionRepoInfo ExtensionUtils::getExtensionInstallerRepoInfo(
-    const std::string& extensionName, const std::string& extensionRepo) {
-  return getExtensionFilePath(
-      extensionName, extensionRepo,
-      getExtensionFileName(extensionName + EXTENSION_INSTALLER_SUFFIX));
-}
-
-ExtensionRepoInfo ExtensionUtils::getSharedLibRepoInfo(
-    const std::string& fileName, const std::string& extensionRepo) {
-  auto extensionURL =
-      common::stringFormat(extensionRepo + SHARED_LIB_REPO,
-                           NEUG_EXTENSION_VERSION, getPlatform(), fileName);
-  return getExtensionRepoInfo(extensionURL);
-}
-
 std::string ExtensionUtils::getExtensionFileName(const std::string& name) {
   return common::stringFormat(EXTENSION_FILE_NAME,
                               common::StringUtils::getLower(name));
-}
-
-std::string ExtensionUtils::getLocalPathForExtensionLib(
-    main::ClientContext* context, const std::string& extensionName) {
-  return common::stringFormat("{}{}/{}", context->getExtensionDir(),
-                              extensionName,
-                              getExtensionFileName(extensionName));
-}
-
-std::string ExtensionUtils::getLocalPathForExtensionLoader(
-    main::ClientContext* context, const std::string& extensionName) {
-  return common::stringFormat(
-      "{}{}/{}", context->getExtensionDir(), extensionName,
-      getExtensionFileName(extensionName + EXTENSION_LOADER_SUFFIX));
-}
-
-std::string ExtensionUtils::getLocalPathForExtensionInstaller(
-    main::ClientContext* context, const std::string& extensionName) {
-  return common::stringFormat(
-      "{}{}/{}", context->getExtensionDir(), extensionName,
-      getExtensionFileName(extensionName + EXTENSION_INSTALLER_SUFFIX));
-}
-
-std::string ExtensionUtils::getLocalExtensionDir(
-    main::ClientContext* context, const std::string& extensionName) {
-  return common::stringFormat("{}{}", context->getExtensionDir(),
-                              extensionName);
-}
-
-std::string ExtensionUtils::appendLibSuffix(const std::string& libName) {
-  auto os = getOS();
-  std::string suffix;
-  if (os == "linux" || os == "linux_old") {
-    suffix = "so";
-  } else if (os == "osx") {
-    suffix = "dylib";
-  } else {
-    NEUG_UNREACHABLE;
-  }
-  return common::stringFormat("{}.{}", libName, suffix);
-}
-
-std::string ExtensionUtils::getLocalPathForSharedLib(
-    main::ClientContext* context, const std::string& libName) {
-  return common::stringFormat("{}common/{}", context->getExtensionDir(),
-                              libName);
-}
-
-std::string ExtensionUtils::getLocalPathForSharedLib(
-    main::ClientContext* context) {
-  return common::stringFormat("{}common/", context->getExtensionDir());
-}
-
-bool ExtensionUtils::isOfficialExtension(const std::string& extension) {
-  auto extensionUpperCase = common::StringUtils::getUpper(extension);
-  for (auto& officialExtension : OFFICIAL_EXTENSION) {
-    if (officialExtension == extensionUpperCase) {
-      return true;
-    }
-  }
-  return false;
 }
 
 ExtensionLibLoader::ExtensionLibLoader(const std::string& extensionName,

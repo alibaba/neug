@@ -92,22 +92,18 @@ struct VertexSchema {
    * @param primary_keys_ Primary key specification (type, name, index)
    * @param storage_strategies_ Storage strategy for each property
    * @param default_property_values_ Default values for properties
-   * @param property_extra_infos_ Additional type information (e.g., varchar max
-   * length)
    * @param description_ Human-readable description
    * @param max_num_ Maximum number of vertices of this type
    *
    * @since v0.1.0
    */
   VertexSchema(const std::string& label_name_,
-               const std::vector<DataTypeId>& property_types_,
+               const std::vector<DataType>& property_types_,
                const std::vector<std::string>& property_names_,
-               const std::vector<std::tuple<DataTypeId, std::string, size_t>>&
+               const std::vector<std::tuple<DataType, std::string, size_t>>&
                    primary_keys_,
                const std::vector<StorageStrategy>& storage_strategies_,
                const std::vector<Property>& default_property_values_ = {},
-               const std::vector<std::shared_ptr<ExtraTypeInfo>>&
-                   property_extra_infos_ = {},
                const std::string& description_ = "",
                size_t max_num_ = static_cast<size_t>(1) << 32)
       : label_name(label_name_),
@@ -116,7 +112,6 @@ struct VertexSchema {
         primary_keys(primary_keys_),
         storage_strategies(storage_strategies_),
         default_property_values(default_property_values_),
-        property_extra_infos(property_extra_infos_),
         description(description_),
         max_num(max_num_) {
     vprop_soft_deleted.resize(property_names_.size(), false);
@@ -124,12 +119,11 @@ struct VertexSchema {
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
         default_property_values.emplace_back(
-            get_default_value(property_types_[i]));
+            get_default_value(property_types_[i].id()));
       }
     }
     assert(property_types.size() == property_names.size());
     assert(property_types.size() == default_property_values.size());
-    property_extra_infos.resize(property_types_.size(), nullptr);
     process_default_values(default_property_values, default_property_strings);
   }
 
@@ -137,18 +131,14 @@ struct VertexSchema {
 
   inline bool empty() const { return primary_keys.empty(); }
 
-  void add_properties(
-      const std::vector<std::string>& names,
-      const std::vector<DataTypeId>& types,
-      const std::vector<StorageStrategy>& strategies,
-      const std::vector<Property>& default_values = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos = {});
+  void add_properties(const std::vector<std::string>& names,
+                      const std::vector<DataType>& types,
+                      const std::vector<StorageStrategy>& strategies,
+                      const std::vector<Property>& default_values = {});
 
-  void set_properties(
-      const std::vector<DataTypeId>& types,
-      const std::vector<StorageStrategy>& strategies,
-      const std::vector<Property>& default_values = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos = {});
+  void set_properties(const std::vector<DataType>& types,
+                      const std::vector<StorageStrategy>& strategies,
+                      const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -181,14 +171,13 @@ struct VertexSchema {
   static bool is_pk_same(const VertexSchema& lhs, const VertexSchema& rhs);
 
   std::string label_name;
-  std::vector<DataTypeId> property_types;
+  std::vector<DataType> property_types;
   std::vector<std::string> property_names;
-  // <DataTypeId, property_name, index_in_property_list>
-  std::vector<std::tuple<DataTypeId, std::string, size_t>> primary_keys;
+  // <DataType, property_name, index_in_property_list>
+  std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
   std::vector<StorageStrategy> storage_strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
-  std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
   std::string description;
   size_t max_num;
 
@@ -253,7 +242,6 @@ struct EdgeSchema {
    * @param property_names_ Names for edge properties
    * @param strategies_ Storage strategy for each property
    * @param default_property_values_ Default values for properties
-   * @param property_extra_infos_ Additional type information
    *
    * @since v0.1.0
    */
@@ -263,12 +251,10 @@ struct EdgeSchema {
              const std::string& description_, bool ie_mutable_,
              bool oe_mutable_, EdgeStrategy oe_strategy_,
              EdgeStrategy ie_strategy_,
-             const std::vector<DataTypeId>& properties_,
+             const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
              const std::vector<StorageStrategy>& strategies_,
-             const std::vector<Property>& default_property_values_ = {},
-             const std::vector<std::shared_ptr<ExtraTypeInfo>>&
-                 property_extra_infos_ = {})
+             const std::vector<Property>& default_property_values_ = {})
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
         edge_label_name(edge_label_name_),
@@ -281,16 +267,15 @@ struct EdgeSchema {
         properties(properties_),
         property_names(property_names_),
         strategies(strategies_),
-        default_property_values(default_property_values_),
-        property_extra_infos(property_extra_infos_) {
+        default_property_values(default_property_values_) {
     eprop_soft_deleted.resize(property_names_.size(), false);
     strategies.resize(properties_.size(), StorageStrategy::kMem);
-    property_extra_infos.resize(properties_.size(), nullptr);
     assert(properties.size() == property_names.size());
     assert(properties.size() == strategies.size());
     if (default_property_values.empty()) {
       for (size_t i = 0; i < properties_.size(); ++i) {
-        default_property_values.emplace_back(get_default_value(properties_[i]));
+        default_property_values.emplace_back(
+            get_default_value(properties_[i].id()));
       }
     }
     assert(properties.size() == default_property_values.size());
@@ -305,12 +290,10 @@ struct EdgeSchema {
 
   bool has_property(const std::string& prop) const;
 
-  void add_properties(
-      const std::vector<std::string>& names,
-      const std::vector<DataTypeId>& types,
-      const std::vector<StorageStrategy>& new_strategies = {},
-      const std::vector<Property>& default_values = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_infos = {});
+  void add_properties(const std::vector<std::string>& names,
+                      const std::vector<DataType>& types,
+                      const std::vector<StorageStrategy>& new_strategies = {},
+                      const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
                          const std::vector<std::string>& renames);
@@ -337,12 +320,11 @@ struct EdgeSchema {
   bool oe_mutable;
   EdgeStrategy oe_strategy;
   EdgeStrategy ie_strategy;
-  std::vector<DataTypeId> properties;
+  std::vector<DataType> properties;
   std::vector<std::string> property_names;
   std::vector<StorageStrategy> strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
-  std::vector<std::shared_ptr<ExtraTypeInfo>> property_extra_infos;
 
   // Mark whether the edge property is soft deleted
   std::vector<bool> eprop_soft_deleted;
@@ -482,24 +464,19 @@ class Schema {
   }
 
   void AddVertexLabel(
-      const std::string& label, const std::vector<DataTypeId>& property_types,
+      const std::string& label, const std::vector<DataType>& property_types,
       const std::vector<std::string>& property_names,
-      const std::vector<std::tuple<DataTypeId, std::string, size_t>>&
-          primary_key,
+      const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
       const std::vector<StorageStrategy>& strategies = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos =
-          {},
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
       const std::vector<Property>& default_property_values = {});
 
   void AddEdgeLabel(const std::string& src_label, const std::string& dst_label,
                     const std::string& edge_label,
-                    const std::vector<DataTypeId>& properties,
+                    const std::vector<DataType>& properties,
                     const std::vector<std::string>& prop_names,
                     const std::vector<StorageStrategy>& strategies = {},
-                    const std::vector<std::shared_ptr<ExtraTypeInfo>>&
-                        property_extra_infos = {},
                     EdgeStrategy oe = EdgeStrategy::kMultiple,
                     EdgeStrategy ie = EdgeStrategy::kMultiple,
                     bool oe_mutable = true, bool ie_mutable = true,
@@ -529,20 +506,16 @@ class Schema {
   void AddVertexProperties(
       const std::string& label,
       const std::vector<std::string>& properties_names,
-      const std::vector<DataTypeId>& properties_types,
+      const std::vector<DataType>& properties_types,
       const std::vector<StorageStrategy>& storage_strategies,
-      const std::vector<Property>& properties_default_values,
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>&
-          properties_extra_infos = {});
+      const std::vector<Property>& properties_default_values);
 
-  void AddEdgeProperties(const std::string& src_label,
-                         const std::string& dst_label,
-                         const std::string& edge_label,
-                         const std::vector<std::string>& properties_names,
-                         const std::vector<DataTypeId>& properties_types,
-                         const std::vector<Property>& properties_default_values,
-                         const std::vector<std::shared_ptr<ExtraTypeInfo>>&
-                             properties_extra_infos = {});
+  void AddEdgeProperties(
+      const std::string& src_label, const std::string& dst_label,
+      const std::string& edge_label,
+      const std::vector<std::string>& properties_names,
+      const std::vector<DataType>& properties_types,
+      const std::vector<Property>& properties_default_values);
 
   void RenameVertexProperties(
       const std::string& label,
@@ -637,15 +610,16 @@ class Schema {
   std::vector<label_t> get_vertex_label_ids() const;
 
   void set_vertex_properties(
-      label_t label_id, const std::vector<DataTypeId>& types,
+      label_t label_id, const std::vector<DataType>& types,
       const std::vector<StorageStrategy>& strategies = {},
-      const std::vector<Property>& default_property_values = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& property_extra_infos =
-          {});
+      const std::vector<Property>& default_property_values = {});
 
-  std::vector<DataTypeId> get_vertex_properties(const std::string& label) const;
+  std::vector<DataType> get_vertex_properties(const std::string& label) const;
+  std::vector<DataTypeId> get_vertex_properties_id(
+      const std::string& label) const;
 
-  std::vector<DataTypeId> get_vertex_properties(label_t label) const;
+  std::vector<DataType> get_vertex_properties(label_t label) const;
+  std::vector<DataTypeId> get_vertex_properties_id(label_t label) const;
 
   const std::vector<Property>& get_vertex_default_property_values(
       label_t label) const;
@@ -673,13 +647,21 @@ class Schema {
   const std::vector<Property>& get_edge_default_property_values(
       label_t src_label_id, label_t dst_label_id, label_t edge_label_id) const;
 
-  std::vector<DataTypeId> get_edge_properties(const std::string& src_label,
-                                              const std::string& dst_label,
-                                              const std::string& label) const;
+  std::vector<DataType> get_edge_properties(const std::string& src_label,
+                                            const std::string& dst_label,
+                                            const std::string& label) const;
 
-  std::vector<DataTypeId> get_edge_properties(label_t src_label,
-                                              label_t dst_label,
-                                              label_t label) const;
+  std::vector<DataTypeId> get_edge_properties_id(
+      const std::string& src_label, const std::string& dst_label,
+      const std::string& label) const;
+
+  std::vector<DataType> get_edge_properties(label_t src_label,
+                                            label_t dst_label,
+                                            label_t label) const;
+
+  std::vector<DataTypeId> get_edge_properties_id(label_t src_label,
+                                                 label_t dst_label,
+                                                 label_t label) const;
 
   std::string get_edge_description(const std::string& src_label,
                                    const std::string& dst_label,
@@ -774,7 +756,7 @@ class Schema {
 
   const std::string& get_edge_label_name(label_t index) const;
 
-  const std::vector<std::tuple<DataTypeId, std::string, size_t>>&
+  const std::vector<std::tuple<DataType, std::string, size_t>>&
   get_vertex_primary_key(label_t index) const;
 
   const std::string& get_vertex_primary_key_name(label_t index) const;
@@ -855,6 +837,8 @@ class Schema {
   friend class PropertyGraph;
 };
 
+InArchive& operator<<(InArchive& arc, const DataType& type);
+OutArchive& operator>>(OutArchive& arc, DataType& type);
 InArchive& operator<<(InArchive& arc, const VertexSchema& schema);
 InArchive& operator<<(InArchive& arc, const EdgeSchema& schema);
 OutArchive& operator>>(OutArchive& arc, VertexSchema& schema);

@@ -19,7 +19,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "arrow_column_assertions.h"
+#include "column_assertions.h"
 #include "neug/main/neug_db.h"
 
 class MemoryLevelPersistenceTest : public ::testing::TestWithParam<int> {
@@ -75,10 +75,9 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
       conn2->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
   ASSERT_TRUE(res);
   const auto& val = res.value();
-  auto table = val.table();
-  ASSERT_NE(table, nullptr);
-  ASSERT_EQ(table->num_rows(), 2);
-  ASSERT_EQ(table->num_columns(), 2);
+  const auto& table = val.response();
+  ASSERT_EQ(table.row_count(), 2);
+  ASSERT_EQ(table.arrays_size(), 2);
   neug::test::AssertInt64Column(table, 0, {1, 2});
   neug::test::AssertStringColumn(table, 1, {"Alice", "Bob"});
 
@@ -86,10 +85,9 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
       "MATCH (a:person)-[r:knows]->(b:person) RETURN a.id, b.id, r.since;");
   ASSERT_TRUE(res1);
   const auto& val1 = res1.value();
-  auto table1 = val1.table();
-  ASSERT_NE(table1, nullptr);
-  ASSERT_EQ(table1->num_rows(), 1);
-  ASSERT_EQ(table1->num_columns(), 3);
+  auto table1 = val1.response();
+  ASSERT_EQ(table1.row_count(), 1);
+  ASSERT_EQ(table1.arrays_size(), 3);
   neug::test::AssertInt64Column(table1, 0, {1});
   neug::test::AssertInt64Column(table1, 1, {2});
   neug::test::AssertInt64Column(table1, 2, {2021});
@@ -117,20 +115,18 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
       conn3->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
   ASSERT_TRUE(res2);
   const auto& val2 = res2.value();
-  auto table2 = val2.table();
-  ASSERT_NE(table2, nullptr);
-  ASSERT_EQ(table2->num_rows(), 3);
-  ASSERT_EQ(table2->num_columns(), 2);
+  auto table2 = val2.response();
+  ASSERT_EQ(table2.row_count(), 3);
+  ASSERT_EQ(table2.arrays_size(), 2);
   neug::test::AssertInt64Column(table2, 0, {1, 2, 3});
   neug::test::AssertStringColumn(table2, 1, {"Alice", "Bob", "Carol"});
   auto res3 = conn3->Query(
       "MATCH (p:person)-[r:lives_in]->(c:city) RETURN p.id, c.id, r.since;");
   ASSERT_TRUE(res3);
   const auto& val3 = res3.value();
-  auto table3 = val3.table();
-  ASSERT_NE(table3, nullptr);
-  ASSERT_EQ(table3->num_rows(), 1);
-  ASSERT_EQ(table3->num_columns(), 3);
+  auto table3 = val3.response();
+  ASSERT_EQ(table3.row_count(), 1);
+  ASSERT_EQ(table3.arrays_size(), 3);
   neug::test::AssertInt64Column(table3, 0, {1});
   neug::test::AssertInt64Column(table3, 1, {1});
   neug::test::AssertInt64Column(table3, 2, {2020});
@@ -139,10 +135,9 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
       "BY a.id, b.id;");
   ASSERT_TRUE(res4);
   const auto& val4 = res4.value();
-  auto table4 = val4.table();
-  ASSERT_NE(table4, nullptr);
-  ASSERT_EQ(table4->num_rows(), 2);
-  ASSERT_EQ(table4->num_columns(), 3);
+  auto table4 = val4.response();
+  ASSERT_EQ(table4.row_count(), 2);
+  ASSERT_EQ(table4.arrays_size(), 3);
   neug::test::AssertInt64Column(table4, 0, {1, 2});
   neug::test::AssertInt64Column(table4, 1, {2, 3});
   neug::test::AssertInt64Column(table4, 2, {2021, 2022});

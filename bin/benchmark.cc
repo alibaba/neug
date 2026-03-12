@@ -201,6 +201,10 @@ void benchmark_iteration(
   for (int i = 0; i < query_num; ++i) {
     neug::execution::Context ctx;
     auto& m = parameters[i % parameters.size()];
+    google::protobuf::Arena arena;
+    // Create a QueryResponse message on the arena to hold the results.
+    neug::QueryResponse* response =
+        google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
     if (i == 0) {
       auto ctx = pipeline.Execute(graph, neug::execution::Context(), m, &timer);
       if (!ctx) {
@@ -208,9 +212,11 @@ void benchmark_iteration(
         return;
       }
       outputs[i].clear();
+
       neug::Encoder output(outputs[i]);
-      (void) neug::execution::Sink::sink_neug(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph));
+      neug::execution::Sink::sink_results(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
+          response);
     } else {
       neug::execution::OprTimer cur_timer;
       auto ctx =
@@ -218,8 +224,9 @@ void benchmark_iteration(
 
       outputs[i].clear();
       neug::Encoder output(outputs[i]);
-      (void) neug::execution::Sink::sink_neug(
-          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph));
+      neug::execution::Sink::sink_results(
+          ctx.value(), dynamic_cast<neug::StorageReadInterface&>(graph),
+          response);
       timer += cur_timer;
     }
   }
@@ -307,7 +314,7 @@ int main(int argc, char** argv) {
     for (int iter = 0; iter < 3; ++iter) {
       std::unique_ptr<neug::execution::OprTimer> timer =
           std::make_unique<neug::execution::OprTimer>();
-      benchmark_iteration(graph, pipeline.value(), params_map, query_num,
+      benchmark_iteration(graph, pipeline.value().first, params_map, query_num,
                           outputs, *timer);
       if (timer->elapsed() < best_elapsed) {
         best_timer = std::move(timer);

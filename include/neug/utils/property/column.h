@@ -64,7 +64,12 @@ class ColumnBase {
 
   virtual DataTypeId type() const = 0;
 
-  virtual void set_any(size_t index, const Property& value) = 0;
+  // insert_safe is true when the column needs to be resized to accommodate the
+  // new value, which can happen when the value is not fixed length. If the
+  // value is fixed length, we should already have enough space allocated, so
+  // insert_safe can be false.
+  virtual void set_any(size_t index, const Property& value,
+                       bool insert_safe = false) = 0;
 
   virtual Property get_prop(size_t index) const = 0;
 
@@ -166,7 +171,8 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void set_any(size_t index, const Property& value) override {
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+    // allow resize is ignored for fixed-length types
     set_value(index, PropUtils<T>::to_typed(value));
   }
 
@@ -237,7 +243,8 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   DataTypeId type() const override { return DataTypeId::kEmpty; }
 
-  void set_any(size_t index, const Property& value) override {}
+  void set_any(size_t index, const Property& value, bool insert_safe) override {
+  }
 
   void set_value(size_t index, const EmptyType& value) {}
 
@@ -356,7 +363,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (buffer_.size() != 0) {
       size_t avg_width =
           (buffer_.data_size() + buffer_.size() - 1) / buffer_.size();
-      buffer_.resize(size_, std::max(size_ * avg_width, pos_.load()));
+      buffer_.resize(
+          size_, std::max(size_ * (avg_width > 0 ? avg_width
+                                                 : STRING_DEFAULT_MAX_LENGTH),
+                          pos_.load()));
     } else {
       buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
     }
@@ -371,19 +381,23 @@ class TypedColumn<std::string_view> : public ColumnBase {
               << " exceeds the maximum length: " << width_ << ", cut off.";
       copied_val = truncate_utf8(copied_val, width_);
     }
-    if (idx < size_) {
+    if (idx < size_ && pos_.load() + copied_val.size() <= buffer_.data_size()) {
       // NOTE: Even if idx has been set before, we always append the new value
       // to the end of buffer_. The previous value is not reclaimed, and should
       // be handled by garbage collection or compaction.
       size_t offset = pos_.fetch_add(copied_val.size());
       buffer_.set(idx, offset, copied_val);
     } else {
-      LOG(FATAL) << "Index out of range: " << idx << ", size_: " << size_;
+      THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
     }
   }
 
-  void set_any(size_t idx, const Property& value) override {
-    set_value(idx, value.as_string_view());
+  void set_any(size_t idx, const Property& value, bool insert_safe) override {
+    if (insert_safe) {
+      set_value_safe(idx, PropUtils<std::string_view>::to_typed(value));
+    } else {
+      set_value(idx, value.as_string_view());
+    }
   }
 
   void set_value_safe(size_t idx, const std::string_view& value);
@@ -430,9 +444,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
 using StringColumn = TypedColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
-    DataTypeId type, Property default_value,
-    StorageStrategy strategy = StorageStrategy::kMem,
-    std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr);
+    DataType type, Property default_value,
+    StorageStrategy strategy = StorageStrategy::kMem);
 
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {

@@ -32,20 +32,22 @@ int32_t fuzzy_search_offset_from_nbr_list(const NbrList& nbr_list,
 std::pair<int32_t, int32_t> record_to_csr_offset_pair(
     const GenericView& oe, const GenericView& ie,
     const neug::execution::EdgeRecord& record,
-    const std::vector<DataTypeId>& props);
+    const std::vector<DataType>& props);
 
-int32_t search_other_offset_with_cur_offset(
-    const GenericView& cur_view, const GenericView& other_view, vid_t src_lid,
-    vid_t other_lid, int32_t cur_offset, const std::vector<DataTypeId>& props);
+int32_t search_other_offset_with_cur_offset(const GenericView& cur_view,
+                                            const GenericView& other_view,
+                                            vid_t src_lid, vid_t other_lid,
+                                            int32_t cur_offset,
+                                            const std::vector<DataType>& props);
 
 // Determine the property type to be used in searching edge offsets
 // For single property edges with non-string type, use that type directly
 // For multi-property edges or single string type property, use uint64_t as the
 // search type
 inline DataTypeId determine_search_prop_type(
-    const std::vector<DataTypeId>& props) {
-  return (props.size() == 1 && props[0] != DataTypeId::kVarchar)
-             ? props[0]
+    const std::vector<DataType>& props) {
+  return (props.size() == 1 && props[0].id() != DataTypeId::kVarchar)
+             ? props[0].id()
              : DataTypeId::kUInt64;
 }
 

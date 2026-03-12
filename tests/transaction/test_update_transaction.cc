@@ -22,7 +22,7 @@
 
 #include <limits>
 
-#include "arrow_column_assertions.h"
+#include "column_assertions.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
@@ -131,7 +131,7 @@ class UpdateTransactionTest : public ::testing::Test {
                             neug::label_t& employ_label) {
     auto person_label = interface.schema().get_vertex_label_id("person");
     auto software_label = interface.schema().get_vertex_label_id("software");
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         edge_props = {std::make_tuple(neug::DataTypeId::kDouble, "rating",
                                       neug::Property::from_double(0.0)),
                       std::make_tuple(neug::DataTypeId::kInt64, "year",
@@ -139,7 +139,7 @@ class UpdateTransactionTest : public ::testing::Test {
     EXPECT_TRUE(interface.CreateEdgeType(
         "person", "software", "developed", edge_props, true,
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple));
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         v_props = {std::make_tuple(neug::DataTypeId::kInt64, "id",
                                    neug::Property::from_int64(0)),
                    std::make_tuple(neug::DataTypeId::kVarchar, "name",
@@ -201,7 +201,7 @@ class UpdateTransactionTest : public ::testing::Test {
       neug::StorageTPUpdateInterface& graph, int num_edges) {
     auto person_label = graph.schema().get_vertex_label_id("person");
     auto software_label = graph.schema().get_vertex_label_id("software");
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         edge_props = {
             std::make_tuple(neug::DataTypeId::kVarchar, "review",
                             neug::Property::from_string_view("no review"))};
@@ -691,8 +691,8 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
         "MATCH (n:person {id: 2}) RETURN n.name AS name, n.age AS age;");
     EXPECT_TRUE(result);
     auto& value = result.value();
-    neug::test::AssertStringColumn(value.table(), 0, {"Bob"});
-    neug::test::AssertInt64Column(value.table(), 1, {25});
+    neug::test::AssertStringColumn(value.response(), 0, {"Bob"});
+    neug::test::AssertInt64Column(value.response(), 1, {25});
   }
   db.Close();
 }
@@ -764,8 +764,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
         "RETURN r.weight AS weight, r.since AS since;");
     EXPECT_TRUE(result);
     auto& value = result.value();
-    neug::test::AssertDoubleColumn(value.table(), 0, {0.8});
-    neug::test::AssertInt64Column(value.table(), 1, {2021});
+    neug::test::AssertDoubleColumn(value.response(), 0, {0.8});
+    neug::test::AssertInt64Column(value.response(), 1, {2021});
   }
 }
 
@@ -828,8 +828,8 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
         "MATCH (a:person {id: 1})-[r:knows]->(b:person {id: 2}) "
         "RETURN r.closeness AS closeness;");
     EXPECT_TRUE(result);
-    auto& value = result.value();
-    neug::test::AssertDoubleColumn(value.table(), 0, {0.9});
+    const auto& value = result.value();
+    neug::test::AssertDoubleColumn(value.response(), 0, {0.9});
   }
 }
 
@@ -1005,7 +1005,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
     auto edge_prop_types = txn.schema().get_edge_properties(
         person_label, person_label, knows_label);
     auto search_edge_prop_type = edge_prop_types.size() == 1
-                                     ? edge_prop_types[0]
+                                     ? edge_prop_types[0].id()
                                      : neug::DataTypeId::kUInt64;
     int32_t oe_offset = 0, ie_offset = 0;
     for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
@@ -1219,7 +1219,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kVarchar, "email",
                                      neug::Property::from_string_view("")),
                      std::make_tuple(neug::DataTypeId::kDouble, "height",
@@ -1239,7 +1239,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
     auto person_label = txn.schema().get_vertex_label_id("person");
     auto height_accessor =
         txn.get_vertex_property_column(person_label, "height");
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kVarchar, "address",
                                      neug::Property::from_string_view(""))};
     EXPECT_TRUE(txn.AddVertexProperties("person", new_props, true));
@@ -1282,7 +1282,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kInt64, "version",
                                      neug::Property::from_int64(0)),
                      std::make_tuple(neug::DataTypeId::kVarchar, "license",
@@ -1295,7 +1295,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     neug::StorageTPUpdateInterface interface(txn);
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kDouble, "contributions",
                                      neug::Property::from_double(0.0))};
     EXPECT_TRUE(interface.AddEdgeProperties("person", "software", "created",
@@ -1439,7 +1439,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
     neug::StorageTPUpdateInterface interface(txn);
     EXPECT_TRUE(txn.DeleteEdgeProperties("person", "software", "created",
                                          {"since"}, true));
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kDouble, "contributions",
                                      neug::Property::from_double(0.0))};
     LOG(INFO) << "Adding new edge property 'contributions'.";
@@ -1511,7 +1511,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
     // auto software_label = txn.schema().get_vertex_label_id("software");
     EXPECT_TRUE(interface.DeleteVertexProperties("person", {"age"}, true));
     EXPECT_TRUE(interface.DeleteVertexProperties("software", {"lang"}, true));
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kVarchar, "authors",
                                      neug::Property::from_string_view(""))};
     EXPECT_TRUE(interface.AddVertexProperties("software", new_props, true));
@@ -1707,7 +1707,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
                  neug::exception::Exception);
 
     // add back age property
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         new_props = {std::make_tuple(neug::DataTypeId::kInt32, "age",
                                      neug::Property::from_int32(0))};
     EXPECT_NO_THROW(interface.AddVertexProperties("person", new_props, true));
@@ -1970,7 +1970,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetUpdateTransaction();
     auto person_label = txn.schema().get_vertex_label_id("person");
-    std::vector<std::tuple<neug::DataTypeId, std::string, neug::Property>>
+    std::vector<std::tuple<neug::DataType, std::string, neug::Property>>
         edge_props = {std::make_tuple(neug::DataTypeId::kInt64, "since",
                                       neug::Property::from_int64(2020))};
     EXPECT_TRUE(txn.CreateEdgeType("person", "person", "follows", edge_props,
@@ -2435,8 +2435,8 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
         "MATCH (a:person {id: 1})-[r:created]->(b:software) "
         "RETURN r.weight AS weight, r.since AS since;");
     EXPECT_TRUE(result);
-    auto& value = result.value();
-    neug::test::AssertDoubleColumn(value.table(), 0, {0.8});
-    neug::test::AssertInt64Column(value.table(), 1, {2021});
+    const auto& value = result.value();
+    neug::test::AssertDoubleColumn(value.response(), 0, {0.8});
+    neug::test::AssertInt64Column(value.response(), 1, {2021});
   }
 }

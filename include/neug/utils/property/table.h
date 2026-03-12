@@ -34,34 +34,28 @@ class Table {
 
   void init(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
-            const std::vector<DataTypeId>& types,
+            const std::vector<DataType>& types,
             const std::vector<Property>& default_property_values,
             const std::vector<StorageStrategy>& strategies_);
 
-  void open(
-      const std::string& name, const std::string& work_dir,
-      const std::vector<std::string>& col_name,
-      const std::vector<DataTypeId>& property_types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& strategies_,
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
+  void open(const std::string& name, const std::string& work_dir,
+            const std::vector<std::string>& col_name,
+            const std::vector<DataType>& property_types,
+            const std::vector<Property>& default_property_values,
+            const std::vector<StorageStrategy>& strategies_);
 
-  void open_in_memory(
-      const std::string& name, const std::string& work_dir,
-      const std::vector<std::string>& col_name,
-      const std::vector<DataTypeId>& property_types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& strategies_,
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
+  void open_in_memory(const std::string& name, const std::string& work_dir,
+                      const std::vector<std::string>& col_name,
+                      const std::vector<DataType>& property_types,
+                      const std::vector<Property>& default_property_values,
+                      const std::vector<StorageStrategy>& strategies_);
 
-  void open_with_hugepages(
-      const std::string& name, const std::string& work_dir,
-      const std::vector<std::string>& col_name,
-      const std::vector<DataTypeId>& property_types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& strategies_,
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
-      bool force = false);
+  void open_with_hugepages(const std::string& name, const std::string& work_dir,
+                           const std::vector<std::string>& col_name,
+                           const std::vector<DataType>& property_types,
+                           const std::vector<Property>& default_property_values,
+                           const std::vector<StorageStrategy>& strategies_,
+                           bool force = false);
 
   void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
                    const std::string& work_dir);
@@ -70,13 +64,12 @@ class Table {
 
   void reset_header(const std::vector<std::string>& col_name);
 
-  void add_columns(
-      const std::vector<std::string>& col_names,
-      const std::vector<DataTypeId>& col_types,
-      const std::vector<Property>& default_property_values, size_t column_size,
-      const std::vector<StorageStrategy>& strategies_ = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {},
-      int memory_level = 0);
+  void add_columns(const std::vector<std::string>& col_names,
+                   const std::vector<DataType>& col_types,
+                   const std::vector<Property>& default_property_values,
+                   size_t column_size,
+                   const std::vector<StorageStrategy>& strategies_ = {},
+                   int memory_level = 0);
 
   const std::vector<std::string>& column_names() const;
 
@@ -104,13 +97,8 @@ class Table {
   std::vector<std::shared_ptr<ColumnBase>>& columns();
   std::vector<ColumnBase*>& column_ptrs();
 
-  void insert(size_t index, const std::vector<Property>& values);
-
-  // insert properties except for the primary key
-  // col_ind_mapping: the mapping from the column index in
-  // the raw file row to the column index in the schema
   void insert(size_t index, const std::vector<Property>& values,
-              const std::vector<int32_t>& col_ind_mapping);
+              bool insert_safe = false);
 
   void resize(size_t row_num);
 
@@ -133,12 +121,10 @@ class Table {
  private:
   void mark_column_deleted(const std::string& col_name);
   void buildColumnPtrs();
-  void initColumns(
-      const std::vector<std::string>& col_name,
-      const std::vector<DataTypeId>& types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& strategies_,
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
+  void initColumns(const std::vector<std::string>& col_name,
+                   const std::vector<DataType>& types,
+                   const std::vector<Property>& default_property_values,
+                   const std::vector<StorageStrategy>& strategies_);
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;

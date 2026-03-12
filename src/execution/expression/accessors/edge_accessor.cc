@@ -41,9 +41,6 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
           const std::vector<std::string>& names =
               graph.schema().get_edge_property_names(src_label, dst_label,
                                                      edge_label);
-          const std::vector<DataTypeId>& types =
-              graph.schema().get_edge_properties(src_label, dst_label,
-                                                 edge_label);
           for (size_t i = 0; i < names.size(); ++i) {
             if (names[i] == prop_name) {
               LabelTriplet label{src_label, dst_label, edge_label};

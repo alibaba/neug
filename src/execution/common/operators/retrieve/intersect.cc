@@ -32,10 +32,9 @@ void get_labels(
         labels) {
   std::vector<std::pair<LabelTriplet, std::vector<DataTypeId>>> labels_i;
   for (const auto& label_triplet : eep.labels) {
-    std::vector<DataTypeId> props;
-    props = graph.schema().get_edge_properties(label_triplet.src_label,
-                                               label_triplet.dst_label,
-                                               label_triplet.edge_label);
+    auto props = graph.schema().get_edge_properties_id(
+        label_triplet.src_label, label_triplet.dst_label,
+        label_triplet.edge_label);
     if (props.empty()) {
       labels_i.emplace_back(label_triplet, std::vector{DataTypeId::kEmpty});
     } else {

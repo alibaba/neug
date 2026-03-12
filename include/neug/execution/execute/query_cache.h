@@ -18,6 +18,7 @@
 #include "neug/execution/common/params_map.h"
 #include "neug/execution/execute/pipeline.h"
 #include "neug/execution/execute/plan_parser.h"
+#include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/access_mode.h"
 
 namespace neug {
@@ -26,19 +27,16 @@ namespace execution {
 struct CacheValue {
   Pipeline pipeline;
   ParamsMetaMap params_type;
-  std::string result_schema;
+  neug::MetaDatas result_schema;
   physical::ExecutionFlag flags;
 
-  CacheValue(
-    Pipeline pipeline,
-    ParamsMetaMap params_type,
-    const std::string& result_schema,      // ← 注意：const&
-    physical::ExecutionFlag flags
-  ) : pipeline(std::move(pipeline)),
-      params_type(std::move(params_type)),
-      result_schema(result_schema),
-      flags(flags)
-  {}
+  CacheValue(Pipeline pipeline, ParamsMetaMap params_type,
+             const neug::MetaDatas& result_schema,  // ← 注意：const&
+             physical::ExecutionFlag flags)
+      : pipeline(std::move(pipeline)),
+        params_type(std::move(params_type)),
+        result_schema(result_schema),
+        flags(flags) {}
 };
 
 /**
@@ -69,8 +67,18 @@ class GlobalQueryCache {
     }
     GS_AUTO(plan_result, planner_->compilePlan(query));
     ContextMeta ctx_meta;
-    GS_AUTO(pipeline_result, PlanParser::get().parse_execute_pipeline(
-                                 schema, ctx_meta, plan_result.first));
+    GS_AUTO(pipeline_result_pair, PlanParser::get().parse_execute_pipeline(
+                                      schema, ctx_meta, plan_result.first));
+    auto pipeline_result = std::move(pipeline_result_pair.first);
+
+    const auto& rt_names = parse_result_schema_column_names(plan_result.second);
+
+    neug::MetaDatas sch;
+    for (size_t i = 0; i < rt_names.size(); ++i) {
+      const auto& rt_name = rt_names[i];
+      sch.add_name(rt_name);
+    }
+
     auto params_type =
         execution::PlanParser::parse_params_type(plan_result.first);
     {
@@ -80,9 +88,9 @@ class GlobalQueryCache {
         return iter->second;
       }
       cache_.emplace(query,
-                     std::make_shared<CacheValue>(
-                         std::move(pipeline_result), std::move(params_type),
-                         plan_result.second, plan_result.first.flag()));
+                     std::make_shared<CacheValue>(std::move(pipeline_result),
+                                                  std::move(params_type), sch,
+                                                  plan_result.first.flag()));
       return cache_.at(query);
     }
   }

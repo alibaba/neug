@@ -96,34 +96,34 @@ bool multiplicity_to_storage_strategy(
 }
 
 bool primitive_type_to_property_type(
-    const common::PrimitiveType& primitive_type, DataTypeId& out_type) {
+    const common::PrimitiveType& primitive_type, DataType& out_type) {
   switch (primitive_type) {
   case common::PrimitiveType::DT_ANY:
     LOG(ERROR) << "Any type is not supported";
     return false;
   case common::PrimitiveType::DT_SIGNED_INT32:
-    out_type = DataTypeId::kInt32;
+    out_type = DataType::INT32;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT32:
-    out_type = DataTypeId::kUInt32;
+    out_type = DataType::UINT32;
     break;
   case common::PrimitiveType::DT_SIGNED_INT64:
-    out_type = DataTypeId::kInt64;
+    out_type = DataType::INT64;
     break;
   case common::PrimitiveType::DT_UNSIGNED_INT64:
-    out_type = DataTypeId::kUInt64;
+    out_type = DataType::UINT64;
     break;
   case common::PrimitiveType::DT_BOOL:
-    out_type = DataTypeId::kBoolean;
+    out_type = DataType::BOOLEAN;
     break;
   case common::PrimitiveType::DT_FLOAT:
-    out_type = DataTypeId::kFloat;
+    out_type = DataType::FLOAT;
     break;
   case common::PrimitiveType::DT_DOUBLE:
-    out_type = DataTypeId::kDouble;
+    out_type = DataType::DOUBLE;
     break;
   case common::PrimitiveType::DT_NULL:
-    out_type = DataTypeId::kEmpty;
+    out_type = DataType::SQLNULL;
     break;
   default:
     LOG(ERROR) << "Unknown primitive type: " << primitive_type;
@@ -133,14 +133,21 @@ bool primitive_type_to_property_type(
 }
 
 bool string_type_to_property_type(const common::String& string_type,
-                                  DataTypeId& out_type) {
+                                  DataType& out_type) {
   switch (string_type.item_case()) {
   case common::String::kVarChar: {
-    out_type = DataTypeId::kVarchar;
+    uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+    if (string_type.has_var_char()) {
+      auto str_info = string_type.var_char();
+      if (str_info.max_length() > 0) {
+        max_length = str_info.max_length();
+      }
+    }
+    out_type = DataType::Varchar(max_length);
     break;
   }
   case common::String::kLongText: {
-    out_type = DataTypeId::kVarchar;
+    out_type = DataType::Varchar(STRING_DEFAULT_MAX_LENGTH);
     break;
   }
   case common::String::kChar: {
@@ -159,7 +166,7 @@ bool string_type_to_property_type(const common::String& string_type,
 }
 
 bool temporal_type_to_property_type(const common::Temporal& temporal_type,
-                                    DataTypeId& out_type) {
+                                    DataType& out_type) {
   switch (temporal_type.item_case()) {
   case common::Temporal::kDate32:
     out_type = DataTypeId::kDate;
@@ -185,7 +192,7 @@ bool temporal_type_to_property_type(const common::Temporal& temporal_type,
 }
 
 bool data_type_to_property_type(const common::DataType& data_type,
-                                DataTypeId& out_type) {
+                                DataType& out_type) {
   switch (data_type.item_case()) {
   case common::DataType::kPrimitiveType: {
     return primitive_type_to_property_type(data_type.primitive_type(),
@@ -219,7 +226,7 @@ bool data_type_to_property_type(const common::DataType& data_type,
   }
 }
 
-bool common_value_to_value(const DataTypeId type, const common::Value& value,
+bool common_value_to_value(const DataType& type, const common::Value& value,
                            execution::Value& out_value) {
   switch (value.item_case()) {
   case common::Value::kBoolean:
@@ -244,25 +251,29 @@ bool common_value_to_value(const DataTypeId type, const common::Value& value,
     out_value = execution::Value::DOUBLE(value.f64());
     break;
   case common::Value::kStr:
-    if (type == DataTypeId::kDate) {
+    if (type.id() == DataTypeId::kDate) {
       // Special handling for date stored as string
       Date date(value.str());
       out_value = execution::Value::DATE(date);
       break;
-    } else if (type == DataTypeId::kTimestampMs) {
+    } else if (type.id() == DataTypeId::kTimestampMs) {
       // Special handling for datetime stored as string
       DateTime datetime(value.str());
       out_value = execution::Value::TIMESTAMPMS(datetime);
       break;
-    } else if (type == DataTypeId::kInterval) {
+    } else if (type.id() == DataTypeId::kInterval) {
       // Special handling for interval stored as string
       Interval interval(value.str());
       out_value = execution::Value::INTERVAL(interval);
       break;
     } else {
+      auto str_type_info = type.RawExtraTypeInfo();
+      uint16_t max_length =
+          str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
+                        : STRING_DEFAULT_MAX_LENGTH;
       LOG(INFO) << "Setting string value: " << value.str()
-                << " for type: " << std::to_string(type);
-      out_value = execution::Value::STRING(value.str());
+                << " for type: " << type.ToString();
+      out_value = execution::Value::VARCHAR(value.str(), max_length);
     }
     break;
   case common::Value::kDate:
@@ -283,7 +294,7 @@ property_defs_to_value(
   for (const auto& property : properties) {
     const auto& name = property.name();
     execution::Value default_value(DataType::SQLNULL);
-    DataTypeId type;
+    DataType type;
     if (!data_type_to_property_type(property.type(), type)) {
       RETURN_ERROR(Status(StatusCode::ERR_INVALID_ARGUMENT,
                           "Invalid property type: " + property.DebugString()));
@@ -300,7 +311,8 @@ property_defs_to_value(
                  << property.default_value().DebugString();
       }
     } else {
-      default_value = execution::property_to_value(get_default_value(type));
+      default_value =
+          execution::property_to_value(get_default_value(type.id()), type);
       VLOG(1) << "No default value, use type default:"
               << default_value.to_string()
               << " type: " << default_value.type().ToString();

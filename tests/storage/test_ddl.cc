@@ -18,7 +18,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "arrow_column_assertions.h"
+#include "column_assertions.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
@@ -262,10 +262,9 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   {
     auto res = conn->Query("MATCH (v:person) RETURN count(v);");
     EXPECT_TRUE(res);
-    auto table = res.value().table();
-    ASSERT_NE(table, nullptr);
-    EXPECT_EQ(table->num_rows(), 1);
-    EXPECT_EQ(table->num_columns(), 1);
-    neug::test::AssertInt64Column(table, 0, {4});
+    const auto& table = res.value();
+    EXPECT_EQ(table.length(), 1);
+    EXPECT_EQ(table.response().arrays_size(), 1);
+    neug::test::AssertInt64Column(table.response(), 0, {4});
   }
 }

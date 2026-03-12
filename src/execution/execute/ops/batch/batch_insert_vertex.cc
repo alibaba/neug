@@ -83,7 +83,6 @@ neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
   default:
     LOG(FATAL) << "Unknown vertex type: " << opr.vertex_type().DebugString();
   }
-  LOG(INFO) << "vertex_label_id: " << (int32_t) vertex_label_id;
   // <tag_id, property_name>
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);

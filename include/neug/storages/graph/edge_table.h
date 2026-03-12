@@ -96,17 +96,15 @@ class EdgeTable {
   // to allocate memory for the edge data. Should be called in tp mode.
   int32_t AddEdge(vid_t src_lid, vid_t dst_lid,
                   const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc);
+                  Allocator& alloc, bool insert_safe = false);
 
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void AddProperties(
-      const std::vector<std::string>& names,
-      const std::vector<DataTypeId>& types,
-      const std::vector<Property>& default_values = {},
-      const std::vector<StorageStrategy>& strategies = {},
-      const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos = {});
+  void AddProperties(const std::vector<std::string>& names,
+                     const std::vector<DataType>& types,
+                     const std::vector<Property>& default_values = {},
+                     const std::vector<StorageStrategy>& strategies = {});
 
   void DeleteProperties(const std::vector<std::string>& col_names);
 

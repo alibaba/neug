@@ -53,12 +53,10 @@ class VertexTableBenchmark : public ::testing::Test {
                            neug::StorageStrategy::kMem,
                            neug::StorageStrategy::kMem};
     pk_types_ = {{neug::DataTypeId::kVarchar, "name", 0}};
-    property_extra_infos_ = {};
     description = "Person vertex label";
     v_schema_ = std::make_shared<neug::VertexSchema>(
         v_label_name_, property_types_, property_names_, pk_types_,
-        storage_strategies_, default_prop_values_, property_extra_infos_,
-        description);
+        storage_strategies_, default_prop_values_, description);
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
   }
@@ -163,12 +161,12 @@ class VertexTableBenchmark : public ::testing::Test {
   std::string v_label_name_;
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
-  std::vector<neug::DataTypeId> property_types_;
+  std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
   std::vector<neug::StorageStrategy> storage_strategies_;
   std::vector<neug::Property> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
-  std::vector<std::tuple<neug::DataTypeId, std::string, size_t>> pk_types_;
+  std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;
   std::vector<std::shared_ptr<neug::ExtraTypeInfo>> property_extra_infos_;
   std::string description;
   std::mt19937 generator_;

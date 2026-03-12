@@ -39,7 +39,8 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
   if (table.LidNum() >= table.Capacity()) {
     graph_.Reserve(label, table.Capacity() * 2);
   }
-  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
+  auto status =
+      graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }
@@ -50,7 +51,7 @@ bool StorageAPUpdateInterface::AddEdge(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Property>& properties) {
   graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
-                 neug::timestamp_t(0), alloc_);
+                 neug::timestamp_t(0), alloc_, true);
   return true;
 }
 
@@ -90,8 +91,7 @@ Status StorageAPUpdateInterface::BatchDeleteEdges(
 
 Status StorageAPUpdateInterface::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   return graph_.CreateVertexType(name, properties, primary_key_names,
                                  error_on_conflict);
@@ -100,8 +100,7 @@ Status StorageAPUpdateInterface::CreateVertexType(
 Status StorageAPUpdateInterface::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
   return graph_.CreateEdgeType(src_type, dst_type, edge_type, properties,
@@ -111,7 +110,7 @@ Status StorageAPUpdateInterface::CreateEdgeType(
 
 Status StorageAPUpdateInterface::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return graph_.AddVertexProperties(vertex_type_name, add_properties,
@@ -121,7 +120,7 @@ Status StorageAPUpdateInterface::AddVertexProperties(
 Status StorageAPUpdateInterface::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return graph_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,

@@ -24,7 +24,7 @@ function(build_brpc_as_third_party)
     set(BUILD_UNIT_TESTS OFF CACHE BOOL "Build brpc unit tests" FORCE)
     
     # We will always apply brpc_cmake.patch to fix the issue of dlsym issue related to packing wheel. 
-    # https://github.com/GraphScope/neug/issues/365
+    # https://github.com/alibaba/neug/issues/365
     execute_process(COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc_cmake.patch
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc
                 RESULT_VARIABLE result
@@ -63,6 +63,6 @@ function(build_brpc_as_third_party)
             add_dependencies(${lib} protobuf::protoc)
         endif()
     endforeach()
-    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
+    include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
 endfunction(build_brpc_as_third_party)
 

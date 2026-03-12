@@ -47,7 +47,7 @@ namespace execution {
 
 namespace ops {
 
-void put_column_types_option(const std::vector<DataTypeId>& column_types,
+void put_column_types_option(const std::vector<DataType>& column_types,
                              std::vector<std::string>& column_names,
                              arrow::csv::ConvertOptions& convert_options) {
   if (column_types.size() != column_names.size()) {
@@ -124,7 +124,6 @@ void add_member(rapidjson::Value& object,
   } else if (value.type() == DataTypeId::kVarchar) {
     rapidjson::Value valueVal;
     auto str_value = value.as_string_view();
-    LOG(INFO) << "String view value: " << std::string(str_value);
     valueVal.SetString(str_value.data(), str_value.size(), allocator);
     object.AddMember(rapidjson::Value(key.c_str(), allocator).Move(), valueVal,
                      allocator);
@@ -369,7 +368,6 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>>
 create_record_batch_supplier_from_arrow_stream_column(
     const Context& ctx,
     const std::vector<std::pair<int32_t, std::string>>& prop_mappings) {
-  LOG(INFO) << "column mappings size: " << prop_mappings.size();
   for (const auto& mapping : prop_mappings) {
     auto tag_id = mapping.first;
     auto column = ctx.get(tag_id);
@@ -433,7 +431,7 @@ std::vector<std::shared_ptr<IRecordBatchSupplier>> create_record_batch_supplier(
 void to_arrow_csv_options(
     const std::string& file_path,
     const std::unordered_map<std::string, std::string>& csv_options,
-    const std::vector<DataTypeId>& column_types,
+    const std::vector<DataType>& column_types,
     arrow::csv::ConvertOptions& convert_options,
     arrow::csv::ReadOptions& read_options,
     arrow::csv::ParseOptions& parse_options) {
@@ -565,7 +563,7 @@ std::vector<std::string> match_files_with_pattern(
 }
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path, const std::vector<DataTypeId>& column_types,
+    const std::string& file_path, const std::vector<DataType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options) {
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   std::vector<std::string> file_paths = match_files_with_pattern(file_path);

@@ -43,7 +43,8 @@ class SelectIdNeOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     auto col = ctx.get(tag_);
     const auto& name = prop_name_;
     if ((!col->is_optional()) &&
@@ -99,7 +100,8 @@ class SelectOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     auto expr = pred_->bind(&graph, params);
 
     neug::execution::GeneralPred expr_wrapper(std::move(expr));
@@ -119,7 +121,7 @@ neug::result<OpBuildResultT> SelectOprBuilder::Build(
 
   std::unique_ptr<neug::execution::ExprBase> pred =
       neug::execution::parse_expression(opr.predicate(), ctx_meta,
-                                      neug::execution::VarType::kRecord);
+                                        neug::execution::VarType::kRecord);
   ContextMeta ret_meta = ctx_meta;
   if (type == SPPredicateType::kPropertyNE && op2.has_param()) {
     auto var = opr.predicate().operators(0).var();

@@ -96,7 +96,7 @@ struct EdgeNbrPredicate {
 struct EdgeAndNbrPredicate {
   EdgeAndNbrPredicate(std::unique_ptr<BindedExprBase>&& v_expr,
                       std::unique_ptr<BindedExprBase>&& e_expr)
-      : v_expr_(std::move(v_expr)), e_expr_(std::move(e_expr)) {};
+      : v_expr_(std::move(v_expr)), e_expr_(std::move(e_expr)){};
 
   bool operator()(label_t v_label, vid_t v_id, label_t nbr_label, vid_t nbr_id,
                   label_t e_label, Direction dir, const void* edata_ptr) const {

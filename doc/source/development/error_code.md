@@ -1,6 +1,6 @@
 # NeuG Error Codes
 
-NeuG defines all runtime/service error codes in the protobuf file [`error.proto`](https://github.com/GraphScope/neug/blob/main/proto/error.proto). The enums in that file are compiled into every component, so developers should treat the definitions there as the single source of truth. The table below summarizes each code and its meaning for quick reference while debugging or surfacing errors.
+NeuG defines all runtime/service error codes in the protobuf file [`error.proto`](https://github.com/alibaba/neug/blob/main/proto/error.proto). The enums in that file are compiled into every component, so developers should treat the definitions there as the single source of truth. The table below summarizes each code and its meaning for quick reference while debugging or surfacing errors.
 
 | Category | Code | Numeric Value | Meaning |
 | --- | --- | --- | --- |

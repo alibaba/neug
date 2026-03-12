@@ -39,9 +39,8 @@ using call_bind_func_t = std::function<std::unique_ptr<CallFuncInputBase>(
     const Schema& schema, const execution::ContextMeta& ctx_meta,
     const ::physical::PhysicalPlan& plan, int op_idx)>;
 
-// Extended exec function type that receives graph interface
-using call_exec_func_t =
-    std::function<execution::Context(const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
+using call_exec_func_t = std::function<execution::Context(
+    const CallFuncInputBase& input, neug::IStorageInterface& graph)>;
 
 using call_output_columns =
     std::vector<std::pair<std::string, common::LogicalTypeID>>;
@@ -50,7 +49,7 @@ struct NeugCallFunction : public TableFunction {
   call_output_columns outputColumns;
   call_bind_func_t bindFunc = nullptr;
   call_exec_func_t execFunc = nullptr;
-  
+
   NeugCallFunction() = default;
 
   NeugCallFunction(std::string name,

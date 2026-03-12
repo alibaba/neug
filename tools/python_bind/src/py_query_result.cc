@@ -14,7 +14,6 @@
  */
 
 #include "py_query_result.h"
-#include <arrow/c/bridge.h>
 #include <datetime.h>
 #include <pybind11/stl.h>
 #include "neug/storages/graph/schema.h"
@@ -25,161 +24,175 @@
 #include <datetime.h>
 namespace neug {
 
-inline int64_t get_million_seconds_from_timestamp(
-    const std::shared_ptr<arrow::TimestampArray>& timestamp_array,
-    size_t index) {
-  auto type =
-      std::static_pointer_cast<arrow::TimestampType>(timestamp_array->type());
-  switch (type->unit()) {
-  case arrow::TimeUnit::MILLI: {
-    return timestamp_array->Value(index);
-  }
-  case arrow::TimeUnit::MICRO: {
-    return timestamp_array->Value(index) / 1000;
-  }
-  case arrow::TimeUnit::NANO: {
-    return timestamp_array->Value(index) / 1000000;
-  }
-  case arrow::TimeUnit::SECOND: {
-    return timestamp_array->Value(index) * 1000;
-  }
-  default: {
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported TimeUnit type: " +
-                                  std::to_string(type->unit()));
-  }
-  }
+inline bool is_valid(const std::string& map, size_t i) {
+  return map.empty() || (static_cast<uint8_t>(map[i >> 3]) >> (i & 7)) & 1;
 }
 
-pybind11::object fetch_value_from_arrow_column(
-    std::shared_ptr<arrow::Array> column, size_t index) {
-  if (column->IsNull(index) || !column->IsValid(index)) {
+inline pybind11::object parse_json_to_py_object(const std::string& json_str) {
+  pybind11::object loads = pybind11::module_::import("json").attr("loads");
+  return loads(pybind11::str(json_str));
+}
+
+pybind11::object fetch_value_from_column(const neug::Array& column,
+                                         size_t index) {
+  if (column.has_bool_array()) {
+    const auto& col = column.bool_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::bool_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_int32_array()) {
+    const auto& col = column.int32_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::int_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_uint32_array()) {
+    const auto& col = column.uint32_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::int_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_int64_array()) {
+    const auto& col = column.int64_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::int_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_uint64_array()) {
+    const auto& col = column.uint64_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::int_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_float_array()) {
+    const auto& col = column.float_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::float_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_double_array()) {
+    const auto& col = column.double_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::float_(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_string_array()) {
+    const auto& col = column.string_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::str(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_date_array()) {
+    const auto& col = column.date_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      Date day;
+      day.from_timestamp(col.values(index));
+      return pybind11::cast<pybind11::object>(
+          PyDate_FromDate(day.year(), day.month(), day.day()));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_timestamp_array()) {
+    const auto& col = column.timestamp_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      int64_t milliseconds_since_epoch = col.values(index);
+      pybind11::object datetime =
+          pybind11::module_::import("datetime").attr("datetime");
+      pybind11::object utcfromtimestamp = datetime.attr("utcfromtimestamp");
+      auto seconds_since_epoch = milliseconds_since_epoch / 1000;
+      auto remaining_ms = milliseconds_since_epoch % 1000;
+      return pybind11::cast<pybind11::object>(
+          utcfromtimestamp(seconds_since_epoch)
+              .attr("replace")(pybind11::arg("microsecond") =
+                                   remaining_ms * 1000));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_interval_array()) {
+    const auto& col = column.interval_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      return pybind11::str(col.values(index));
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_list_array()) {
+    const auto& col = column.list_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      pybind11::list list;
+      uint32_t list_size = col.offsets(index + 1) - col.offsets(index);
+      size_t offset = col.offsets(index);
+      for (uint32_t i = 0; i < list_size; ++i) {
+        list.append(fetch_value_from_column(col.elements(), offset + i));
+      }
+      return list;
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_struct_array()) {
+    const auto& col = column.struct_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      pybind11::list list;
+      for (int i = 0; i < col.fields_size(); ++i) {
+        const auto& field = col.fields(i);
+        list.append(fetch_value_from_column(field, index));
+      }
+      return list;
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_vertex_array()) {
+    const auto& col = column.vertex_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      const auto& vertex = col.values(index);
+      return parse_json_to_py_object(vertex);
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_edge_array()) {
+    const auto& col = column.edge_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      const auto& edge = col.values(index);
+      return parse_json_to_py_object(edge);
+    } else {
+      return pybind11::none();
+    }
+  } else if (column.has_path_array()) {
+    const auto& col = column.path_array();
+    const auto& validity_map = col.validity();
+    if (is_valid(validity_map, index)) {
+      const auto& path = col.values(index);
+      return parse_json_to_py_object(path);
+    } else {
+      return pybind11::none();
+    }
+  } else {
+    LOG(ERROR) << "Failed to fetch value from column: unsupported column type."
+               << column.DebugString();
     return pybind11::none();
-  }
-  switch (column->type()->id()) {
-  case arrow::Type::BOOL: {
-    auto bool_array = std::static_pointer_cast<arrow::BooleanArray>(column);
-    return pybind11::bool_(bool_array->Value(index));
-  }
-  case arrow::Type::INT32: {
-    auto int32_array = std::static_pointer_cast<arrow::Int32Array>(column);
-    return pybind11::int_(int32_array->Value(index));
-  }
-  case arrow::Type::UINT32: {
-    auto uint32_array = std::static_pointer_cast<arrow::UInt32Array>(column);
-    return pybind11::int_(uint32_array->Value(index));
-  }
-  case arrow::Type::INT64: {
-    auto int64_array = std::static_pointer_cast<arrow::Int64Array>(column);
-    return pybind11::int_(int64_array->Value(index));
-  }
-  case arrow::Type::UINT64: {
-    auto uint64_array = std::static_pointer_cast<arrow::UInt64Array>(column);
-    return pybind11::int_(uint64_array->Value(index));
-  }
-  case arrow::Type::FLOAT: {
-    auto float_array = std::static_pointer_cast<arrow::FloatArray>(column);
-    return pybind11::float_(float_array->Value(index));
-  }
-  case arrow::Type::DOUBLE: {
-    auto double_array = std::static_pointer_cast<arrow::DoubleArray>(column);
-    return pybind11::float_(double_array->Value(index));
-  }
-  case arrow::Type::STRING: {
-    auto str_array = std::static_pointer_cast<arrow::StringArray>(column);
-    return pybind11::str(str_array->GetView(index));
-  }
-  case arrow::Type::LARGE_STRING: {
-    auto large_str_array =
-        std::static_pointer_cast<arrow::LargeStringArray>(column);
-    return pybind11::str(large_str_array->GetView(index));
-  }
-  case arrow::Type::DATE32: {
-    auto date32_array = std::static_pointer_cast<arrow::Date32Array>(column);
-    int32_t days_since_epoch = date32_array->Value(index);
-    Date day;
-    day.from_num_days(days_since_epoch);
-    return pybind11::cast<pybind11::object>(
-        PyDate_FromDate(day.year(), day.month(), day.day()));
-  }
-  case arrow::Type::DATE64: {
-    auto date64_array = std::static_pointer_cast<arrow::Date64Array>(column);
-    int64_t milliseconds_since_epoch = date64_array->Value(index);
-    pybind11::object date = pybind11::module_::import("datetime").attr("date");
-    pybind11::object fromtimestamp = date.attr("fromtimestamp");
-    auto seconds_since_epoch = milliseconds_since_epoch / 1000;
-    // construct a pydate object
-    return pybind11::cast<pybind11::object>(fromtimestamp(seconds_since_epoch));
-  }
-  case arrow::Type::TIMESTAMP: {
-    auto timestamp_array =
-        std::static_pointer_cast<arrow::TimestampArray>(column);
-    int64_t milliseconds_since_epoch =
-        get_million_seconds_from_timestamp(timestamp_array, index);
-    pybind11::object datetime =
-        pybind11::module_::import("datetime").attr("datetime");
-    pybind11::object utcfromtimestamp = datetime.attr("utcfromtimestamp");
-    auto seconds_since_epoch = milliseconds_since_epoch / 1000;
-    auto remaining_ms = milliseconds_since_epoch % 1000;
-    return pybind11::cast<pybind11::object>(
-        utcfromtimestamp(seconds_since_epoch)
-            .attr("replace")(pybind11::arg("microsecond") =
-                                 remaining_ms * 1000));
-  }
-  case arrow::Type::STRUCT: {
-    auto struct_array = std::static_pointer_cast<arrow::StructArray>(column);
-    pybind11::dict dict;
-    for (int i = 0; i < struct_array->num_fields(); ++i) {
-      auto field = struct_array->type()->field(i);
-      auto child_array = struct_array->field(i);
-      dict[pybind11::str(field->name())] =
-          fetch_value_from_arrow_column(child_array, index);
-    }
-    // If the s
-    return dict;
-  }
-  case arrow::Type::LIST: {
-    auto list_array = std::static_pointer_cast<arrow::ListArray>(column);
-    auto value_array = list_array->values();
-    int32_t start = list_array->value_offset(index);
-    int32_t end = list_array->value_offset(index + 1);
-    pybind11::list list;
-    for (int32_t i = start; i < end; ++i) {
-      list.append(fetch_value_from_arrow_column(value_array, i));
-    }
-    return list;
-  }
-  case arrow::Type::SPARSE_UNION: {
-    auto union_array = std::static_pointer_cast<arrow::UnionArray>(column);
-    int8_t type_id = union_array->type_code(index);
-    auto child_array = union_array->field(type_id);
-    // If the child_field's name is _LABEL, we need to return the label
-    auto obj = fetch_value_from_arrow_column(child_array, index);
-    if (pybind11::isinstance<pybind11::dict>(obj)) {
-      pybind11::dict dic = pybind11::cast<pybind11::dict>(obj);
-    }
-    return obj;
-  }
-  case arrow::Type::MAP: {
-    auto map_array = std::static_pointer_cast<arrow::MapArray>(column);
-    auto keys_array = map_array->keys();
-    auto items_array = map_array->items();
-    pybind11::dict dict;
-    int32_t start = map_array->value_offset(index);
-    int32_t end = map_array->value_offset(index + 1);
-    for (int32_t i = start; i < end; ++i) {
-      auto key = fetch_value_from_arrow_column(keys_array, i);
-      auto value = fetch_value_from_arrow_column(items_array, i);
-      dict[key] = value;
-    }
-    return dict;
-  }
-  case arrow::Type::NA: {
-    return pybind11::none();
-  }
-  default: {
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported Arrow type: " +
-                                  column->type()->ToString());
-  }
   }
 }
 
@@ -274,13 +287,11 @@ pybind11::list PyQueryResult::getNext() {
   }
 
   pybind11::list list;
-  for (int i = 0; i < columns_.size(); ++i) {
-    if (!columns_[i] || columns_[i]->IsNull(index_) ||
-        !columns_[i]->IsValid(index_)) {
-      list.append(pybind11::none());
-    } else {
-      list.append(fetch_value_from_arrow_column(columns_[i], index_));
-    }
+  const auto& response = query_result_.response();
+  int num_columns = response.arrays_size();
+  for (int i = 0; i < num_columns; ++i) {
+    const auto& column = response.arrays(i);
+    list.append(fetch_value_from_column(column, index_));
   }
   ++index_;
   return list;
@@ -294,13 +305,11 @@ pybind11::list PyQueryResult::operator[](int32_t index) {
     throw pybind11::index_error("Index out of range");
   }
   pybind11::list list;
-  for (int i = 0; i < columns_.size(); ++i) {
-    if (!columns_[i] || columns_[i]->IsNull(index) ||
-        !columns_[i]->IsValid(index)) {
-      list.append(pybind11::none());
-    } else {
-      list.append(fetch_value_from_arrow_column(columns_[i], index));
-    }
+  const auto& response = query_result_.response();
+  int num_columns = response.arrays_size();
+  for (int i = 0; i < num_columns; ++i) {
+    const auto& column = response.arrays(i);
+    list.append(fetch_value_from_column(column, index));
   }
   return list;
 }
@@ -310,14 +319,10 @@ void PyQueryResult::close() {}
 int32_t PyQueryResult::length() const { return query_result_.length(); }
 
 std::vector<std::string> PyQueryResult::column_names() const {
-  std::vector<std::string> names;
-  auto table = query_result_.table();
-  if (!table) {
-    return names;
-  }
-  auto schema = table->schema();
-  for (int i = 0; i < schema->num_fields(); ++i) {
-    names.emplace_back(schema->field(i)->name());
+  const auto& schema = query_result_.result_schema();
+  std::vector<std::string> names(schema.name_size());
+  for (int i = 0; i < schema.name_size(); ++i) {
+    names[i] = schema.name(i);
   }
   return names;
 }
@@ -329,7 +334,7 @@ const std::string& PyQueryResult::status_message() const {
 }
 
 std::string PyQueryResult::get_bolt_response() const {
-  return arrow_table_to_bolt_response(query_result_.table());
+  return results_to_bolt_response(query_result_.response(), column_names());
 }
 
 }  // namespace neug

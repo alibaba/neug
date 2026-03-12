@@ -41,7 +41,8 @@ class GetVFromEdgesOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     if (pred_ != nullptr) {
       auto expr = pred_->bind(&graph, params);
       GeneralPred pred(std::move(expr));

@@ -134,11 +134,6 @@ const main::ExtensionOption* ClientContext::getExtensionOption(
   return localDatabase->extensionManager->getExtensionOption(optionName);
 }
 
-std::string ClientContext::getExtensionDir() const {
-  return stringFormat("{}/.gs/extension/{}/{}/", clientConfig.homeDirectory,
-                      NEUG_EXTENSION_VERSION, extension::getPlatform());
-}
-
 std::shared_ptr<storage::StatsManager> ClientContext::getStatsManager() const {
   return localDatabase->getStatsManager();
 }

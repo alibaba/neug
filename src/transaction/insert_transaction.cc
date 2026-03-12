@@ -79,7 +79,7 @@ Property InsertTransaction::GetVertexId(label_t label, vid_t lid) const {
 bool InsertTransaction::AddVertex(label_t label, const Property& id,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
-  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
+  std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     std::string label_name = graph_.schema().get_vertex_label_name(label);
     LOG(ERROR) << "Vertex [" << label_name
@@ -90,11 +90,12 @@ bool InsertTransaction::AddVertex(label_t label, const Property& id,
   int col_num = props.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
     auto& prop = props[col_i];
-    if (prop.type() != types[col_i]) {
+    if (prop.type() != types[col_i].id()) {
       std::string label_name = graph_.schema().get_vertex_label_name(label);
       LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
-                 << "] property type not match, expected " << types[col_i]
-                 << ", but got " << std::to_string(prop.type());
+                 << "] property type not match, expected "
+                 << types[col_i].ToString() << ", but got "
+                 << std::to_string(prop.type());
       return false;
     }
   }
@@ -124,11 +125,11 @@ bool InsertTransaction::AddEdge(label_t src_label, vid_t src_vid,
     return false;
   }
   for (size_t i = 0; i < properties.size(); ++i) {
-    if (properties[i].type() != types[i]) {
+    if (properties[i].type() != types[i].id()) {
       std::string label_name = graph_.schema().get_edge_label_name(edge_label);
       LOG(ERROR) << "Edge property " << label_name
-                 << " type not match, expected " << types[i] << ", got "
-                 << std::to_string(properties[i].type());
+                 << " type not match, expected " << types[i].ToString()
+                 << ", got " << std::to_string(properties[i].type());
       return false;
     }
   }
@@ -245,7 +246,7 @@ void InsertTransaction::create_id_indexer_if_not_exists(label_t label) {
   }
   if (added_vertices_[label] == nullptr) {
     const auto& pks = graph_.schema().get_vertex_primary_key(label);
-    DataTypeId type = std::get<0>(pks[0]);
+    DataTypeId type = std::get<0>(pks[0]).id();
     if (type == DataTypeId::kInt64) {
       added_vertices_[label] = std::make_unique<IdIndexer<int64_t, vid_t>>();
     } else if (type == DataTypeId::kUInt64) {

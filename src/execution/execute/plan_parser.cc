@@ -344,14 +344,15 @@ PlanParser::parse_execute_pipeline_with_meta(
   return std::make_pair(Pipeline(std::move(operators)), cur_ctx_meta);
 }
 
-neug::result<Pipeline> PlanParser::parse_execute_pipeline(
-    const neug::Schema& schema, const ContextMeta& ctx_meta,
-    const physical::PhysicalPlan& plan) {
+neug::result<std::pair<Pipeline, ContextMeta>>
+PlanParser::parse_execute_pipeline(const neug::Schema& schema,
+                                   const ContextMeta& ctx_meta,
+                                   const physical::PhysicalPlan& plan) {
   auto ret = parse_execute_pipeline_with_meta(schema, ctx_meta, plan);
   if (!ret) {
     RETURN_ERROR(ret.error());
   }
-  return std::move(ret.value().first);
+  return ret;
 }
 
 static void expression_parse(const ::common::Expression& expr,

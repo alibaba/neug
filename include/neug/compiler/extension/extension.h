@@ -55,6 +55,8 @@ typedef void (*ext_install_func_t)(const std::string&, main::ClientContext&);
 
 std::string getPlatform();
 
+std::string getVersion();
+
 class NEUG_API Extension {
  public:
   virtual ~Extension() = default;
@@ -94,11 +96,6 @@ struct NEUG_API ExtensionUtils {
 
   static constexpr const char* EXTENSION_FILE_NAME = "lib{}.neug_extension";
 
-  static constexpr const char* OFFICIAL_EXTENSION[] = {
-      "JSON",
-      "SAMPLED_MATCH",
-  };
-
   static constexpr const char* EXTENSION_LOADER_SUFFIX = "_loader";
 
   static constexpr const char* EXTENSION_INSTALLER_SUFFIX = "_installer";
@@ -108,37 +105,7 @@ struct NEUG_API ExtensionUtils {
   static ExtensionRepoInfo getExtensionLibRepoInfo(
       const std::string& extensionName, const std::string& extensionRepo);
 
-  static ExtensionRepoInfo getExtensionLoaderRepoInfo(
-      const std::string& extensionName, const std::string& extensionRepo);
-
-  static ExtensionRepoInfo getExtensionInstallerRepoInfo(
-      const std::string& extensionName, const std::string& extensionRepo);
-
-  static ExtensionRepoInfo getSharedLibRepoInfo(
-      const std::string& fileName, const std::string& extensionRepo);
-
   static std::string getExtensionFileName(const std::string& name);
-
-  static std::string getLocalPathForExtensionLib(
-      main::ClientContext* context, const std::string& extensionName);
-
-  static std::string getLocalPathForExtensionLoader(
-      main::ClientContext* context, const std::string& extensionName);
-
-  static std::string getLocalPathForExtensionInstaller(
-      main::ClientContext* context, const std::string& extensionName);
-
-  static std::string getLocalExtensionDir(main::ClientContext* context,
-                                          const std::string& extensionName);
-
-  static std::string appendLibSuffix(const std::string& libName);
-
-  static std::string getLocalPathForSharedLib(main::ClientContext* context,
-                                              const std::string& libName);
-
-  static std::string getLocalPathForSharedLib(main::ClientContext* context);
-
-  static bool isOfficialExtension(const std::string& extension);
 
   template <typename T>
   static void addTableFunc(main::MetadataManager& database) {

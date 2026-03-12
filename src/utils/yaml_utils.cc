@@ -48,9 +48,10 @@ template YAML::detail::node& YAML::detail::node_data::get<char[9]>(
     char const (&)[9], std::shared_ptr<YAML::detail::memory_holder>);
 namespace neug {
 
-YAML::Node property_type_to_yaml(const DataTypeId& type) {
+YAML::Node property_type_to_yaml(const DataType& type) {
+  auto type_info = type.RawExtraTypeInfo();
   YAML::Node node;
-  switch (type) {
+  switch (type.id()) {
   case DataTypeId::kBoolean:
   case DataTypeId::kInt32:
   case DataTypeId::kUInt32:
@@ -59,24 +60,25 @@ YAML::Node property_type_to_yaml(const DataTypeId& type) {
   case DataTypeId::kFloat:
   case DataTypeId::kDouble:
     node["primitive_type"] =
-        config_parsing::PrimitivePropertyTypeToString(type);
+        config_parsing::PrimitivePropertyTypeToString(type.id());
     break;
   case DataTypeId::kVarchar:
-    node["string"]["long_text"] = "";
+    node["string"]["var_char"]["max_length"] =
+        type_info ? type_info->Cast<StringTypeInfo>().max_length
+                  : STRING_DEFAULT_MAX_LENGTH;
     break;
   case DataTypeId::kDate:
-    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    node["temporal"] = config_parsing::TemporalTypeToYAML(type.id());
     break;
   case DataTypeId::kTimestampMs:
-    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    node["temporal"] = config_parsing::TemporalTypeToYAML(type.id());
     break;
   case DataTypeId::kInterval:
-    node["temporal"] = config_parsing::TemporalTypeToYAML(type);
+    node["temporal"] = config_parsing::TemporalTypeToYAML(type.id());
     break;
   default:
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Unrecognized property type for YAML encoding: " +
-        std::to_string(type));
+        "Unrecognized property type for YAML encoding: " + type.ToString());
   }
   return node;
 }

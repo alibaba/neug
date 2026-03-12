@@ -39,7 +39,8 @@ class UnfoldOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     if (key_.has_value()) {
       return Unfold::unfold(std::move(ctx), key_.value(), alias_);
     } else {
@@ -61,8 +62,8 @@ neug::result<OpBuildResultT> UnfoldOprBuilder::Build(
   ContextMeta ret_meta = ctx_meta;
   int alias = plan.plan(op_idx).opr().unfold().alias().value();
   const auto& expression = plan.plan(op_idx).opr().unfold().input_expr();
-  auto expr = neug::execution::parse_expression(expression, ctx_meta,
-                                              neug::execution::VarType::kRecord);
+  auto expr = neug::execution::parse_expression(
+      expression, ctx_meta, neug::execution::VarType::kRecord);
   ret_meta.set(alias, ListType::GetChildType(expr->type()));
   bool unfold_col = expression.operators_size() == 1 &&
                     expression.operators(0).has_var() &&

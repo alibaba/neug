@@ -203,11 +203,19 @@ std::vector<EdgeRecord> Path::relationships() const {
   std::reverse(nodes.begin(), nodes.end());
   for (size_t i = 0; i + 1 < nodes.size(); ++i) {
     EdgeRecord r;
-    r.label = {nodes[i]->v_label_, nodes[i + 1]->v_label_,
-               nodes[i + 1]->e_label_};
-    r.src = nodes[i]->vid_;
-    r.dst = nodes[i + 1]->vid_;
     r.dir = nodes[i + 1]->direction_;
+    if (r.dir == Direction::kOut) {
+      r.label = {nodes[i]->v_label_, nodes[i + 1]->v_label_,
+                 nodes[i + 1]->e_label_};
+      r.src = nodes[i]->vid_;
+      r.dst = nodes[i + 1]->vid_;
+
+    } else {
+      r.label = {nodes[i + 1]->v_label_, nodes[i]->v_label_,
+                 nodes[i + 1]->e_label_};
+      r.src = nodes[i + 1]->vid_;
+      r.dst = nodes[i]->vid_;
+    }
     r.prop = nodes[i + 1]->payload_;
     relations.push_back(r);
   }

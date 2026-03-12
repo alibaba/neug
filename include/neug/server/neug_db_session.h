@@ -178,7 +178,7 @@ class NeugDBSession {
    * @param query JSON string containing query, access_mode, and parameters
    * @return Result containing QueryResult on success, or error status
    */
-  result<QueryResult> Eval(const std::string& query);
+  result<std::string> Eval(const std::string& query);
 
   int SessionId() const;
 

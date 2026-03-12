@@ -60,6 +60,11 @@ class StructColumn : public IContextColumn {
     return valids_[idx];
   }
 
+  const std::vector<std::shared_ptr<IContextColumn>>& children() const {
+    return children_;
+  }
+
+  const std::vector<bool>& validity_bitmap() const { return valids_; }
   friend class StructColumnBuilder;
 
  private:

@@ -1,5 +1,5 @@
 <!--
-Thanks for your contribution! please review https://github.com/GraphScope/neug/blob/main/CONTRIBUTING.md before opening an issue.
+Thanks for your contribution! please review https://github.com/alibaba/neug/blob/main/CONTRIBUTING.md before opening an issue.
 -->
 
 ## What do these changes do?

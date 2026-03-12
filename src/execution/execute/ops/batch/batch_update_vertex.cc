@@ -15,9 +15,10 @@
 
 #include "neug/execution/execute/ops/batch/batch_update_vertex.h"
 #include "neug/execution/common/columns/vertex_columns.h"
-
 #include "neug/execution/expression/expr.h"
 #include "neug/utils/pb_utils.h"
+
+#include <glog/logging.h>
 
 namespace neug {
 namespace execution {
@@ -101,14 +102,13 @@ neug::result<Context> UpdateVertexOpr::eval_impl(StorageUpdateInterface& graph,
       int32_t col_id = std::distance(property_names.begin(), pos);
       assert(col_id >= 0 &&
              col_id < static_cast<int32_t>(property_names.size()));
-      if (property_types[col_id] != value.type()) {
+      if (property_types[col_id].id() != value.type()) {
         LOG(ERROR) << "Property type mismatch for property " << prop_name
-                   << ": expected " << std::to_string(property_types[col_id])
+                   << ": expected " << property_types[col_id].ToString()
                    << ", got " << std::to_string(value.type());
         THROW_RUNTIME_ERROR("Property type mismatch for property " + prop_name +
-                            ": expected " +
-                            std::to_string(property_types[col_id]) + ", got " +
-                            std::to_string(value.type()));
+                            ": expected " + property_types[col_id].ToString() +
+                            ", got " + std::to_string(value.type()));
       }
       graph.UpdateVertexProperty(vr.label(), vr.vid(), col_id, value);
     }

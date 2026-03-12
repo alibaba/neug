@@ -15,11 +15,11 @@
 #pragma once
 
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 namespace neug {
 

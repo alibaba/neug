@@ -47,7 +47,6 @@ void VertexTimestamp::Dump(const std::string& tracker_file_prefix) {
   Compact();
   dump_meta(meta_filename);
   dump_ts(ts_filename);
-  LOG(INFO) << "VertexTimestamp dumped to " << tracker_file_prefix;
 }
 
 void VertexTimestamp::Init(vid_t init_vertex_num, vid_t max_vertex_num) {

@@ -1,7 +1,7 @@
 # Introduction
 
 
-Welcome to NeuG (pronounced "new-gee"), a high-performance embedded graph database for analytics and real-time transactions. For questions and community support, visit our [GitHub repository](https://github.com/GraphScope/neug).
+Welcome to NeuG (pronounced "new-gee"), a high-performance embedded graph database for analytics and real-time transactions. For questions and community support, visit our [GitHub repository](https://github.com/alibaba/neug).
 
 NeuG follows the same design philosophy as [DuckDB](https://duckdb.org/) — but for graph databases: **lightweight, minimal dependencies, and easy to embed**. Just as DuckDB revolutionized how developers work with relational data, NeuG brings that same simplicity to graph data.
 
@@ -9,7 +9,7 @@ The core library stays simple by design. When you need to serve concurrent users
 
 **Two Modes, One Lightweight Library**:
 
-- **Embedded Mode**: Import as a Python library with zero external dependencies. Perfect for data science workflows, ML/AI pipelines, and batch analytics
+- **Embedded Mode**: Import as a Python library with minimal external dependencies. Perfect for data science workflows, ML/AI pipelines, and batch analytics
 - **Service Mode**: Call `db.serve()` to start a network service for concurrent access and real-time queries. The same lightweight core, now accessible over the network
 
 This design makes NeuG easy to integrate into Python applications, Jupyter notebooks, and upcoming environments like Node.js — wherever you need graph capabilities without the overhead of running a JVM, or configuring complex infrastructure.
@@ -21,10 +21,10 @@ import neug
 
 # Step 1: Load and analyze data (Embedded Mode)
 db = neug.Database("/path/to/database") 
-conn = db.connect()
-
 # Load sample data
 db.load_builtin_dataset("tinysnb")
+
+conn = db.connect()
 
 # Run analytics
 result = conn.execute("""
@@ -77,7 +77,7 @@ NeuG is actively evolving. Here's what we're working on for v0.2:
 - **Data Lake Support** — S3/OSS + Parquet integration
 - **Vector DB Extension** — RAG & GraphRAG support
 
-Star us on [GitHub](https://github.com/GraphScope/neug) to stay updated on new releases.
+Star us on [GitHub](https://github.com/alibaba/neug) to stay updated on new releases.
 
 ## Next Steps
 

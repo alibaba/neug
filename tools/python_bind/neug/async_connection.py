@@ -69,7 +69,12 @@ class AsyncConnection(object):
             self._py_connection.close()
             self._py_connection = None
         if self._executor:
-            self._executor.shutdown(wait=True, cancel_futures=True)
+            # cancel_future is only available in Python 3.9+, it will cancel all the pending futures in the executor,
+            if hasattr(self._executor, "shutdown"):
+                if hasattr(self._executor, "cancel_futures"):
+                    self._executor.shutdown(wait=False, cancel_futures=True)
+                else:
+                    self._executor.shutdown(wait=False)
             self._executor = None
 
     async def execute(self, query: str) -> QueryResult:

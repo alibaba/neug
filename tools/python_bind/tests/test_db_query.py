@@ -1007,97 +1007,197 @@ def test_path_expand():
     expected_result = [
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 1},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 1, "_LABEL": "person", "id": 2, "name": "vadas", "age": 27},
                 ],
-                "edges": [{"label": "knows", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 1,
+                        "weight": 0.5,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 2},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
                 ],
-                "edges": [{"label": "knows", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 2,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 2,
+                        "weight": 1.0,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "software", "id": 72057594037927936},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {
+                        "_ID": 72057594037927936,
+                        "_LABEL": "software",
+                        "id": 3,
+                        "name": "lop",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [{"label": "created", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1103806595072,
+                        "_LABEL": "created",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 72057594037927936,
+                        "weight": 0.4,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 2},
-                    {"label": "software", "id": 72057594037927936},
+                "nodes": [
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
+                    {
+                        "_ID": 72057594037927936,
+                        "_LABEL": "software",
+                        "id": 3,
+                        "name": "lop",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [{"label": "created", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1103808692224,
+                        "_LABEL": "created",
+                        "_SRC_ID": 2,
+                        "_DST_ID": 72057594037927936,
+                        "weight": 0.4,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 2},
-                    {"label": "software", "id": 72057594037927937},
+                "nodes": [
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
+                    {
+                        "_ID": 72057594037927937,
+                        "_LABEL": "software",
+                        "id": 5,
+                        "name": "ripple",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [{"label": "created", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1103808692225,
+                        "_LABEL": "created",
+                        "_SRC_ID": 2,
+                        "_DST_ID": 72057594037927937,
+                        "weight": 1.0,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 3},
-                    {"label": "software", "id": 72057594037927936},
+                "nodes": [
+                    {"_ID": 3, "_LABEL": "person", "id": 6, "name": "peter", "age": 35},
+                    {
+                        "_ID": 72057594037927936,
+                        "_LABEL": "software",
+                        "id": 3,
+                        "name": "lop",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [{"label": "created", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1103809740800,
+                        "_LABEL": "created",
+                        "_SRC_ID": 3,
+                        "_DST_ID": 72057594037927936,
+                        "weight": 0.2,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 2},
-                    {"label": "software", "id": 72057594037927936},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
+                    {
+                        "_ID": 72057594037927936,
+                        "_LABEL": "software",
+                        "id": 3,
+                        "name": "lop",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [
-                    {"label": "knows", "direction": "OUT"},
-                    {"label": "created", "direction": "OUT"},
+                "rels": [
+                    {
+                        "_ID": 2,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 2,
+                        "weight": 1.0,
+                    },
+                    {
+                        "_ID": 1103808692224,
+                        "_LABEL": "created",
+                        "_SRC_ID": 2,
+                        "_DST_ID": 72057594037927936,
+                        "weight": 0.4,
+                    },
                 ],
-                "weight": 0.0,
                 "length": 2,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 2},
-                    {"label": "software", "id": 72057594037927937},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
+                    {
+                        "_ID": 72057594037927937,
+                        "_LABEL": "software",
+                        "id": 5,
+                        "name": "ripple",
+                        "lang": "java",
+                    },
                 ],
-                "edges": [
-                    {"label": "knows", "direction": "OUT"},
-                    {"label": "created", "direction": "OUT"},
+                "rels": [
+                    {
+                        "_ID": 2,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 2,
+                        "weight": 1.0,
+                    },
+                    {
+                        "_ID": 1103808692225,
+                        "_LABEL": "created",
+                        "_SRC_ID": 2,
+                        "_DST_ID": 72057594037927937,
+                        "weight": 1.0,
+                    },
                 ],
-                "weight": 0.0,
                 "length": 2,
             }
         ],
@@ -1114,23 +1214,37 @@ def test_path_expand():
     expected_result = [
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 1},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 1, "_LABEL": "person", "id": 2, "name": "vadas", "age": 27},
                 ],
-                "edges": [{"label": "knows", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 1,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 1,
+                        "weight": 0.5,
+                    }
+                ],
                 "length": 1,
             }
         ],
         [
             {
-                "vertices": [
-                    {"label": "person", "id": 0},
-                    {"label": "person", "id": 2},
+                "nodes": [
+                    {"_ID": 0, "_LABEL": "person", "id": 1, "name": "marko", "age": 29},
+                    {"_ID": 2, "_LABEL": "person", "id": 4, "name": "josh", "age": 32},
                 ],
-                "edges": [{"label": "knows", "direction": "OUT"}],
-                "weight": 0.0,
+                "rels": [
+                    {
+                        "_ID": 2,
+                        "_LABEL": "knows",
+                        "_SRC_ID": 0,
+                        "_DST_ID": 2,
+                        "weight": 1.0,
+                    }
+                ],
                 "length": 1,
             }
         ],
@@ -1240,13 +1354,12 @@ def test_list_return_basic(tmp_path):
 
     records = list(result)
     assert len(records) == 3
-    assert records[0][0]["f0"] == "Alice"
-    assert records[1][0]["f0"] == "Bob"
-    assert records[2][0]["f0"] == "Charlie"
-    assert abs(records[0][0]["f1"] - 1.11) < 1e-5
-    assert abs(records[1][0]["f1"] - 2.22) < 1e-5
-    assert abs(records[2][0]["f1"] - 3.33) < 1e-5
-
+    assert records[0][0][0] == "Alice"
+    assert records[1][0][0] == "Bob"
+    assert records[2][0][0] == "Charlie"
+    assert abs(records[0][0][1] - 1.11) < 1e-5
+    assert abs(records[1][0][1] - 2.22) < 1e-5
+    assert abs(records[2][0][1] - 3.33) < 1e-5
     conn.close()
     db.close()
 
@@ -1565,10 +1678,10 @@ def test_nested_tuple():
     conn = db.connect()
     result = conn.execute("Match (n {name: 'marko'}) Return [[n.name, n.age], n.id]")
     for record in result:
-        assert record[0] == {
-            "f0": {"f0": "marko", "f1": 29},
-            "f1": 1,
-        }, f"Expected value '(('marko', 29), 1)', got {record[0]}"
+        assert record[0] == [
+            ["marko", 29],
+            1,
+        ], f"Expected value '[['marko', 29], 1]', got {record[0]}"
     conn.close()
     db.close()
 
@@ -1579,10 +1692,10 @@ def test_null_value_tuple():
     conn = db.connect()
     result = conn.execute("Match (n {name: 'lop'}) Return [n.name, n.age]")
     for record in result:
-        assert record[0] == {
-            "f0": "lop",
-            "f1": None,
-        }, f"Expected value '['lop', None]', got {record[0]}"
+        assert record[0] == [
+            "lop",
+            None,
+        ], f"Expected value '['lop', None]', got {record[0]}"
     conn.close()
     db.close()
 

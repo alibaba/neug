@@ -75,7 +75,8 @@ class TCOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     auto& graph = dynamic_cast<const StorageReadInterface&>(graph_interface);
     return EdgeExpand::tc<T1>(graph, std::move(ctx), labels_, input_tag_,
                               alias1_, alias2_, is_lt_, params.at(param_name_));
@@ -216,7 +217,7 @@ inline bool parse_edge_type(const Schema& schema, const LabelTriplet& label,
     return true;
   } else {
     if (1 == properties0.size()) {
-      ep = properties0[0];
+      ep = properties0[0].id();
       return true;
     }
   }

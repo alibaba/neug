@@ -23,15 +23,14 @@
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
+using neug::DataType;
 using neug::DataTypeId;
 using neug::EdgeStrategy;
 using neug::StorageStrategy;
 
-namespace {
-
 // Small helpers to construct common inputs
-std::vector<DataTypeId> VProps(std::initializer_list<DataTypeId> il) {
-  return std::vector<DataTypeId>(il);
+std::vector<DataType> VProps(std::initializer_list<DataType> il) {
+  return std::vector<DataType>(il);
 }
 std::vector<std::string> VNames(std::initializer_list<const char*> il) {
   std::vector<std::string> out;
@@ -43,26 +42,24 @@ std::vector<StorageStrategy> VStrats(size_t n, StorageStrategy s) {
   return std::vector<StorageStrategy>(n, s);
 }
 
-std::vector<std::tuple<DataTypeId, std::string, size_t>> VPk(
-    const DataTypeId& t, const std::string& name, size_t idx) {
+std::vector<std::tuple<DataType, std::string, size_t>> VPk(
+    const DataType& t, const std::string& name, size_t idx) {
   return {std::make_tuple(t, name, idx)};
 }
-
-}  // namespace
 
 TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   neug::Schema schema;
 
   // 1) Add a vertex label "Person" with 2 props and a single primary key
-  auto v_types = VProps({DataTypeId::kVarchar});
+  auto v_types = VProps({DataType::VARCHAR});
   auto v_names = VNames({"name"});
-  auto v_pk = VPk(DataTypeId::kInt64, "id", /*idx in props*/ 0);
+  auto v_pk = VPk(DataType::INT64, "id", /*idx in props*/ 0);
   auto v_strats = VStrats(v_types.size(), StorageStrategy::kMem);
 
   schema.AddVertexLabel("Person", v_types,
                         /*property_names*/ {v_names.begin(), v_names.end()},
                         v_pk,
-                        /*strategies*/ {v_strats.begin(), v_strats.end()}, {},
+                        /*strategies*/ {v_strats.begin(), v_strats.end()},
                         /*max_vnum*/ 1024, /*desc*/ "person vertex");
 
   // Check basics
@@ -81,7 +78,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
 
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
-  std::vector<DataTypeId> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
+  std::vector<DataType> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
   std::vector<StorageStrategy> add_strats = {StorageStrategy::kMem,
                                              StorageStrategy::kMem};
   std::vector<neug::Property> add_defaults;  // not used currently
@@ -125,15 +122,15 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
     auto pk = VPk(DataTypeId::kInt64, "id", 0);
     auto s = VStrats(t.size(), StorageStrategy::kMem);
     schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
-                          {s.begin(), s.end()}, {}, 1024, "");
+                          {s.begin(), s.end()}, 1024, "");
     schema.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk,
-                          {s.begin(), s.end()}, {}, 1024, "");
+                          {s.begin(), s.end()}, 1024, "");
   }
 
   // 1) Add an edge label Person -[WorksAt]-> Company
-  std::vector<DataTypeId> e_types = {DataTypeId::kInt32};
+  std::vector<DataType> e_types = {DataTypeId::kInt32};
   std::vector<std::string> e_names = {"since"};
-  schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {}, {},
+  schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {},
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
                       /*oe_mutable*/ true, /*ie_mutable*/ false,
@@ -164,8 +161,8 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
 
   // 2) Add edge properties
   std::vector<std::string> add_e_names = {"role", "salary"};
-  std::vector<DataTypeId> add_e_types = {DataTypeId::kVarchar,
-                                         DataTypeId::kInt64};
+  std::vector<DataType> add_e_types = {DataTypeId::kVarchar,
+                                       DataTypeId::kInt64};
   std::vector<neug::Property> dummy_defaults;
   schema.AddEdgeProperties("Person", "Company", "WorksAt", add_e_names,
                            add_e_types, dummy_defaults);
@@ -208,7 +205,7 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
-                        {s.begin(), s.end()}, {}, 100, "");
+                        {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
 
   schema.DeleteVertexLabel("City", true);
@@ -216,7 +213,7 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
 
   schema.AddVertexLabel("City", {DataTypeId::kVarchar}, {"name"},
                         VPk(DataTypeId::kVarchar, "name", 0),
-                        /*strategies*/ {}, {}, /*max_vnum*/ 100, "");
+                        /*strategies*/ {}, /*max_vnum*/ 100, "");
   EXPECT_TRUE(schema.contains_vertex_label("City"));
   EXPECT_EQ(schema.get_vertex_property_names("City")[0], "name");
 }
@@ -228,14 +225,14 @@ TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("Project", t, {n.begin(), n.end()}, pk,
-                        {s.begin(), s.end()}, {}, 100, "");
+                        {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("Project"));
 
   schema.DeleteVertexLabel("Project");
   EXPECT_FALSE(schema.contains_vertex_label("Project"));
 
   schema.AddVertexLabel("Project", {DataTypeId::kVarchar}, {"name"},
-                        VPk(DataTypeId::kVarchar, "name", 0), {}, {}, 100, "");
+                        VPk(DataTypeId::kVarchar, "name", 0), {}, 100, "");
   EXPECT_TRUE(schema.contains_vertex_label("Project"));
 }
 
@@ -247,12 +244,12 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
     auto pk = VPk(DataTypeId::kInt64, "id", 0);
     auto s = VStrats(t.size(), StorageStrategy::kMem);
     schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk,
-                          {s.begin(), s.end()}, {}, 100, "");
+                          {s.begin(), s.end()}, 100, "");
     schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk,
-                          {s.begin(), s.end()}, {}, 100, "");
+                          {s.begin(), s.end()}, 100, "");
   }
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
 
@@ -265,7 +262,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
   EXPECT_FALSE(schema.exist(src, dst, el));
   EXPECT_FALSE(schema.exist(src, dst, el));
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   EXPECT_TRUE(schema.edge_triplet_valid(src, dst, el));
@@ -273,7 +270,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
   schema.DeleteEdgeLabel(src, dst, el);
   EXPECT_FALSE(schema.exist(src, dst, el));
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   EXPECT_TRUE(schema.exist(src, dst, el));
@@ -292,7 +289,7 @@ TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
   auto strats = VStrats(types.size(), StorageStrategy::kMem);
   // Only non-PK properties go into vproperties_/vprop_names_
   schema.AddVertexLabel("Person", types, {names.begin(), names.end()}, pk,
-                        {strats.begin(), strats.end()}, {}, 1024, "");
+                        {strats.begin(), strats.end()}, 1024, "");
 
   // Pre-condition
   ASSERT_TRUE(schema.vertex_has_property("Person", "name"));
@@ -315,13 +312,13 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   auto vpk = VPk(DataTypeId::kInt64, "id", 0);
   auto vs = VStrats(vt.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", vt, {vn.begin(), vn.end()}, vpk,
-                        {vs.begin(), vs.end()}, {}, 100, "");
+                        {vs.begin(), vs.end()}, 100, "");
   schema.AddVertexLabel("B", vt, {vn.begin(), vn.end()}, vpk,
-                        {vs.begin(), vs.end()}, {}, 100, "");
+                        {vs.begin(), vs.end()}, 100, "");
 
-  std::vector<DataTypeId> e_types = {DataTypeId::kInt32, DataTypeId::kVarchar};
+  std::vector<DataType> e_types = {DataTypeId::kInt32, DataTypeId::kVarchar};
   std::vector<std::string> e_names = {"w", "tag"};
-  schema.AddEdgeLabel("A", "B", "Link", e_types, e_names, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", e_types, e_names, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
 
@@ -344,7 +341,7 @@ TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
-                        {s.begin(), s.end()}, {}, 100, "");
+                        {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
 
   schema.DeleteVertexLabel("City", true);
@@ -362,11 +359,11 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
-                        {}, 100, "");
+                        100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
-                        {}, 100, "");
+                        100, "");
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   ASSERT_TRUE(schema.contains_edge_label("Link"));
@@ -386,11 +383,11 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
-                        {}, 100, "");
+                        100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
-                        {}, 100, "");
+                        100, "");
 
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {}, {},
+  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"}, {},
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "");
   auto src = schema.get_vertex_label_id("A");
@@ -417,7 +414,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
       VStrats(person_property_types_.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("person", person_property_types_,
                         person_property_names_, person_pk_, person_strategies_,
-                        {}, 4096, "person vertex");
+                        4096, "person vertex");
 
   // Add vertex label "company"
   auto company_property_types_ =
@@ -429,7 +426,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
 
   schema.AddVertexLabel("company", company_property_types_,
                         company_property_names_, company_pk_,
-                        company_strategies_, {}, 2048, "company vertex");
+                        company_strategies_, 2048, "company vertex");
 
   // Add edge label "knows"
   auto edge_property_types_ = VProps({DataTypeId::kInt64});
@@ -438,13 +435,13 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
       VStrats(edge_property_types_.size(), StorageStrategy::kMem);
 
   schema.AddEdgeLabel("person", "person", "knows", edge_property_types_,
-                      edge_property_names_, edge_strategies_, {},
+                      edge_property_names_, edge_strategies_,
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "knows edge");
 
   // Add edge label "worksAt"
   schema.AddEdgeLabel("person", "company", "knows", edge_property_types_,
-                      edge_property_names_, edge_strategies_, {},
+                      edge_property_names_, edge_strategies_,
                       EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
                       true, false, "knows edge");
 
@@ -472,7 +469,7 @@ class SchemaDeleteTest : public ::testing::Test {
 
     schema_->AddVertexLabel("person", person_property_types_,
                             person_property_names_, person_pk_,
-                            person_strategies_, {}, 4096, "person vertex");
+                            person_strategies_, 4096, "person vertex");
 
     // Add vertex label "company"
     company_property_types_ = {neug::DataTypeId::kVarchar,
@@ -484,7 +481,7 @@ class SchemaDeleteTest : public ::testing::Test {
 
     schema_->AddVertexLabel("company", company_property_types_,
                             company_property_names_, company_pk_,
-                            company_strategies_, {}, 2048, "company vertex");
+                            company_strategies_, 2048, "company vertex");
 
     // Add edge label "knows"
     edge_property_types_ = {neug::DataTypeId::kInt64};
@@ -493,32 +490,31 @@ class SchemaDeleteTest : public ::testing::Test {
 
     schema_->AddEdgeLabel(
         "person", "person", "knows", edge_property_types_, edge_property_names_,
-        edge_strategies_, {}, neug::EdgeStrategy::kMultiple,
+        edge_strategies_, neug::EdgeStrategy::kMultiple,
         neug::EdgeStrategy::kMultiple, true, true, false, "knows edge");
 
     // Add edge label "worksAt"
-    schema_->AddEdgeLabel("person", "company", "worksAt", edge_property_types_,
-                          edge_property_names_, edge_strategies_, {},
-                          neug::EdgeStrategy::kMultiple,
-                          neug::EdgeStrategy::kMultiple, true, true, false,
-                          "worksAt edge");
+    schema_->AddEdgeLabel(
+        "person", "company", "worksAt", edge_property_types_,
+        edge_property_names_, edge_strategies_, neug::EdgeStrategy::kMultiple,
+        neug::EdgeStrategy::kMultiple, true, true, false, "worksAt edge");
   }
 
   void TearDown() override { schema_.reset(); }
 
   std::unique_ptr<neug::Schema> schema_;
 
-  std::vector<neug::DataTypeId> person_property_types_;
+  std::vector<neug::DataType> person_property_types_;
   std::vector<std::string> person_property_names_;
-  std::vector<std::tuple<neug::DataTypeId, std::string, size_t>> person_pk_;
+  std::vector<std::tuple<neug::DataType, std::string, size_t>> person_pk_;
   std::vector<neug::StorageStrategy> person_strategies_;
 
-  std::vector<neug::DataTypeId> company_property_types_;
+  std::vector<neug::DataType> company_property_types_;
   std::vector<std::string> company_property_names_;
-  std::vector<std::tuple<neug::DataTypeId, std::string, size_t>> company_pk_;
+  std::vector<std::tuple<neug::DataType, std::string, size_t>> company_pk_;
   std::vector<neug::StorageStrategy> company_strategies_;
 
-  std::vector<neug::DataTypeId> edge_property_types_;
+  std::vector<neug::DataType> edge_property_types_;
   std::vector<std::string> edge_property_names_;
   std::vector<neug::StorageStrategy> edge_strategies_;
 };
@@ -867,10 +863,10 @@ TEST(VertexSchemaTest, TestVertexSchemaIndex) {
   neug::VertexSchema schema(
       "test",
       {
-          neug::DataTypeId::kVarchar,  // name
-          neug::DataTypeId::kDouble    // score
+          neug::DataType::VARCHAR,  // name
+          neug::DataType::DOUBLE    // score
       },
-      {"name", "score"}, VPk(neug::DataTypeId::kInt64, "id", 1),
+      {"name", "score"}, VPk(neug::DataType::INT64, "id", 1),
       {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem,
        neug::StorageStrategy::kMem});
   // id is at index 1
@@ -889,19 +885,19 @@ TEST(SchemaTest, TestSchemaEqual) {
   neug::Schema schema;
 
   // Prepare two vertex labels first
-  auto t = VProps({DataTypeId::kVarchar});
+  auto t = VProps({DataType::VARCHAR});
   auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
+  auto pk = VPk(DataType::INT64, "id", 0);
   auto s = VStrats(t.size(), StorageStrategy::kMem);
   schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
-                        {s.begin(), s.end()}, {}, 1024, "");
+                        {s.begin(), s.end()}, 1024, "");
   schema.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk,
-                        {s.begin(), s.end()}, {}, 1024, "");
+                        {s.begin(), s.end()}, 1024, "");
 
   // 1) Add an edge label Person -[WorksAt]-> Company
-  std::vector<DataTypeId> e_types = {DataTypeId::kInt32};
+  std::vector<DataType> e_types = {DataType::INT32};
   std::vector<std::string> e_names = {"since"};
-  schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {}, {},
+  schema.AddEdgeLabel("Person", "Company", "WorksAt", e_types, e_names, {},
                       /*oe*/ EdgeStrategy::kMultiple,
                       /*ie*/ EdgeStrategy::kSingle,
                       /*oe_mutable*/ true, /*ie_mutable*/ false,

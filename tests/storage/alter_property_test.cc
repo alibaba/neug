@@ -121,7 +121,8 @@ void testLoadVertexBatch(PropertyGraph& graph, std::string vertex_type_name,
       VLOG(10) << "vertex_label: "
                << graph.schema().get_vertex_label_name(v_label)
                << " property_name: " << property_name
-               << " property_type: " << property_type << " ind: " << ind;
+               << " property_type: " << property_type.ToString()
+               << " ind: " << ind;
       arrow_types.insert(
           {included_col_names[ind], PropertyTypeToArrowType(property_type)});
     }
@@ -237,7 +238,7 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
     }
     {
       // add primary key types;
-      DataTypeId src_col_type, dst_col_type;
+      DataType src_col_type, dst_col_type;
       {
         auto src_primary_keys =
             graph.schema().get_vertex_primary_key(src_label_id);
@@ -274,15 +275,15 @@ void testOpenEmptyGraph(const std::string& graph_dir,
   {
     LOG(INFO) << "Create vertex type PERSON";
     std::string vertex_label_name = "PERSON";
-    std::vector<std::tuple<DataTypeId, std::string, Property>> properties;
+    std::vector<std::tuple<DataType, std::string, Property>> properties;
     std::vector<std::string> primary_keys;
     primary_keys.emplace_back("id");
-    properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
+    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
         DataTypeId::kInt32, std::string("id"), Property::from_int32(0)));
-    properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
+    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
         DataTypeId::kVarchar, std::string("name"),
         Property::from_string_view("")));
-    properties.emplace_back(std::make_tuple<DataTypeId, std::string, Property>(
+    properties.emplace_back(std::make_tuple<DataType, std::string, Property>(
         DataTypeId::kInt32, std::string("age"), Property::from_int32(0)));
     // testCreateVertexType(graph, vertex_label_name, properties, primary_keys);
     auto status =
@@ -298,9 +299,9 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_label = "PERSON";
     std::string edge_label_name = "KNOWS";
     std::string dst_vertex_label = "PERSON";
-    std::vector<std::tuple<DataTypeId, std::string, Property>> edge_properties;
+    std::vector<std::tuple<DataType, std::string, Property>> edge_properties;
     edge_properties.emplace_back(
-        std::make_tuple<DataTypeId, std::string, Property>(
+        std::make_tuple<DataType, std::string, Property>(
             DataTypeId::kFloat, std::string("weight"),
             Property::from_float(0.0)));
     auto status = graph.CreateEdgeType(src_vertex_label, dst_vertex_label,
@@ -356,7 +357,7 @@ void testOpenEmptyGraph(const std::string& graph_dir,
     std::string src_vertex_type = "PERSON";
     std::string dst_vertex_type = "PERSON";
     std::string edge_type_name = "KNOWS";
-    std::vector<std::tuple<DataTypeId, std::string, Property>> add_properties;
+    std::vector<std::tuple<DataType, std::string, Property>> add_properties;
     add_properties.emplace_back(
         std::make_tuple(DataTypeId::kTimestampMs, "creationDate",
                         Property::from_datetime(DateTime(0))));

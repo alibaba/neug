@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-01-19  
-**Feature Issue**: [#1416](https://github.com/GraphScope/neug/issues/1416)  
+**Feature Issue**: [#1416](https://github.com/alibaba/neug/issues/1416)  
 **Feature**: [Link to spec.md](../spec.md)
 
 ## Content Quality

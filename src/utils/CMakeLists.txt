@@ -2,7 +2,11 @@
 set(HTTP_SERVICE_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto)
 set(HTTP_SERVICE_PROTO_FILES
         ${HTTP_SERVICE_PROTO_DIR}/http_svc.proto)
+set(QUERY_RESPONSE_PROTO_FILES
+        ${HTTP_SERVICE_PROTO_DIR}/response.proto
+)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/http_service)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/response)
 
 function(compile_proto OUT_HDRS OUT_SRCS DESTDIR HDR_OUTPUT_DIR PROTO_DIR PROTO_FILES)
         # Prefer the built protoc target; fall back to found executable
@@ -76,29 +80,24 @@ compile_proto(HTTP_SERVICE_PROTO_HDRS HTTP_SERVICE_PROTO_SRCS
         "${HTTP_SERVICE_PROTO_FILES}"
 )
 
+message(STATUS "Using system protobuf for query response proto generation")
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response)
+compile_proto(QUERY_RESPONSE_PROTO_HDRS QUERY_RESPONSE_PROTO_SRCS
+        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response
+        ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/response
+        ${HTTP_SERVICE_PROTO_DIR}
+        "${QUERY_RESPONSE_PROTO_FILES}"
+)
+
 ############################################ Generate Physical Plan Proto ############################################
 set(GIE_COMPILER_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
 set(GIE_COMPILER_WRITE_PROTO_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/)
-# proto files of gie compiler
-set(CODE_GEN_PROTOBUF_FILES
-        algebra.proto
-        common.proto
-        expr.proto
-        schema.proto
-        type.proto
-        stored_procedure.proto
-        basic_type.proto
-        physical.proto
-        cypher_write.proto  
-        cypher_dml.proto
-        cypher_ddl.proto
-        error.proto
-)
 
 # Remove the comments when you want to generate the proto files automatically.
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan)
 file(GLOB CODE_GEN_PROTOBUF_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/*.proto")
 list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*http_svc\\.proto$")
+list(FILTER CODE_GEN_PROTOBUF_FILES EXCLUDE REGEX ".*response\\.proto$")
 compile_proto(PROTO_HDRS_GIE PROTO_SRCS_GIE
         ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
         ${CMAKE_CURRENT_BINARY_DIR}/neug/generated/proto/plan
@@ -127,14 +126,12 @@ list(FILTER UTILS_SRC_FILES EXCLUDE REGEX ".*\\.pb\\.cc$")
 # Remove the files in proto directory
 message(STATUS "Utils source files: ${UTILS_SRC_FILES}")
 
-if (NOT BUILD_WITH_OSS)
-        list(REMOVE_ITEM UTILS_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/remote/oss_storage.cc")
-endif()
-
+set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
 set(ALL_UTILS_SRC_FILES ${UTILS_SRC_FILES})
 if (BUILD_HTTP_SERVER)
         list(APPEND ALL_UTILS_SRC_FILES ${HTTP_SERVICE_PROTO_SRCS})
 endif()
+list(APPEND ALL_UTILS_SRC_FILES ${QUERY_RESPONSE_PROTO_SRCS})
 
 
 add_library(neug_utils OBJECT ${ALL_UTILS_SRC_FILES})

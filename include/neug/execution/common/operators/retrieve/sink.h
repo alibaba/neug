@@ -14,8 +14,8 @@
  */
 #pragma once
 
+#include "neug/generated/proto/response/response.pb.h"
 #include "neug/main/query_result.h"
-
 namespace neug {
 
 class Encoder;
@@ -26,8 +26,9 @@ namespace execution {
 class Context;
 class Sink {
  public:
-  static QueryResult sink_neug(const Context& ctx,
-                               const StorageReadInterface& graph);
+  static void sink_results(const Context& ctx,
+                           const StorageReadInterface& graph,
+                           neug::QueryResponse* response);
 };
 
 }  // namespace execution

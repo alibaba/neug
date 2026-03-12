@@ -1,7 +1,7 @@
 # Feature Specification: 新增针对insert的elle测试
 
 **Feature Branch**: `003-elle-insert(#1416)`  
-**Feature Issue**: [#1416](https://github.com/GraphScope/neug/issues/1416)  
+**Feature Issue**: [#1416](https://github.com/alibaba/neug/issues/1416)  
 **Created**: 2026-01-19  
 **Status**: Draft  
 **Input**: User description: "新增针对insert的elle测试，主要包含以下两部分：1. read/insert并发的依赖关系。2. read/insert/delete并发的依赖关系。"

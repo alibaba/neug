@@ -22,6 +22,7 @@
 #include <arrow/type.h>
 #include <glog/logging.h>
 #include <unordered_map>
+#include "neug/execution/common/columns/columns_utils.h"
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
@@ -475,6 +476,15 @@ void ArrowArrayContextColumn::generate_dedup_offset(
 
   auto arrow_type = columns_[0]->type();
   dispatch_generate_dedup_offset(columns_, size_, arrow_type, offsets);
+}
+
+std::shared_ptr<IContextColumn> ArrowArrayContextColumn::cast_to_value_column()
+    const {
+  auto builder = ColumnsUtils::create_builder(elem_type());
+  for (size_t i = 0; i < size_; ++i) {
+    builder->push_back_elem(get_elem(i));
+  }
+  return builder->finish();
 }
 
 }  // namespace execution

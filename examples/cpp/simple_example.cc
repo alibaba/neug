@@ -29,14 +29,9 @@ int main(int argc, char** argv) {
       conn->Query("MATCH (n: person) WHERE n.age > 26 RETURN n.name;");
   CHECK(result);
   LOG(INFO) << result.value().ToString();
-  CHECK(result.value().table()->num_rows() == 1);
-  CHECK(result.value()
-            .table()
-            ->column(0)
-            ->chunk(0)
-            ->GetScalar(0)
-            .ValueOrDie()
-            ->ToString() == "Alice");
+  CHECK(result.value().length() == 1);
+  CHECK(result.value().response().arrays(0).string_array().values(0) ==
+        "Alice");
   db.Close();
   return 0;
 }

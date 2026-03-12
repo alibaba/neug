@@ -14,9 +14,9 @@ set -e
 #   --help                    Show this help message
 
 # Default values
-EXTENSIONS="sampled_match"
+EXTENSIONS="json"
 VERSION="0.1.0"
-PLATFORM="osx_arm64"
+PLATFORM="linux_x86_64"
 WORKSPACE_DIR="$(pwd)"
 SKIP_BUILD=false
 SKIP_UPLOAD=false
@@ -220,7 +220,7 @@ if [ "${SKIP_UPLOAD}" = false ]; then
     # Install oss2 if not available (urllib3<2 for OpenSSL 1.0.2 compatibility, e.g. RHEL 7)
     if ! python3 -c "import oss2" 2>/dev/null; then
         echo "Installing oss2..."
-        pip3 install 'urllib3<2' oss2
+        python3 -m pip  install 'urllib3<2' oss2
     fi
     
     # Upload using Python script

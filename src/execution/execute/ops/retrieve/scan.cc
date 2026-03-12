@@ -41,8 +41,9 @@ class FilterOidsGPredOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override {
     ctx = Context();
-    DataTypeId type = std::get<0>(
-        graph.schema().get_vertex_primary_key(params_.tables[0])[0]);
+    DataTypeId type =
+        std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
+            .id();
 
     std::vector<Property> oids =
         ScanUtils::parse_ids_with_type(type, oids_, params);

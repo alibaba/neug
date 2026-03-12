@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "flat_hash_map/flat_hash_map.hpp"
+#include "neug/common/extra_type_info.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
@@ -158,7 +159,7 @@ class UpdateTransaction {
 
   Status CreateVertexType(
       const std::string& name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict);
@@ -166,21 +167,21 @@ class UpdateTransaction {
   Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy);
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict);
 
   Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict);
 
@@ -431,26 +432,26 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
       const std::vector<std::pair<vid_t, int32_t>>& ie_edges) override;
   Status CreateVertexType(
       const std::string& name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict) override;
   Status CreateEdgeType(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       bool error_on_conflict, EdgeStrategy oe_edge_strategy,
       EdgeStrategy ie_edge_strategy) override;
   Status AddVertexProperties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) override;
   Status AddEdgeProperties(
       const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict) override;
   Status RenameVertexProperties(

@@ -1,9 +1,11 @@
 # NeuG
 
-[![NeuG Test](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/neug-test.yml)
-[![NeuG Wheel Packaging](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/build-wheel.yml)
-[![NeuG Documentation](https://github.com/GraphScope/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/GraphScope/neug/actions/workflows/docs.yml)
-[![Coverage](https://codecov.io/gh/GraphScope/neug/branch/main/graph/badge.svg)](https://codecov.io/gh/GraphScope/neug)
+[![NeuG Test](https://github.com/alibaba/neug/actions/workflows/neug-test.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/neug-test.yml)
+[![NeuG Wheel Packaging](https://github.com/alibaba/neug/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/build-wheel.yml)
+[![NeuG Documentation](https://github.com/alibaba/neug/actions/workflows/docs.yml/badge.svg)](https://github.com/alibaba/neug/actions/workflows/docs.yml)
+[![Coverage](https://codecov.io/gh/alibaba/neug/branch/main/graph/badge.svg)](https://codecov.io/gh/alibaba/neug)
+[![Discord](https://img.shields.io/badge/Discord-NeuG-7289da?logo=discord&logoColor=white)](https://discord.gg/2S8344ew)
+[![Twitter](https://img.shields.io/badge/Twitter-@graphscope2021-1da1f2?logo=x&logoColor=white)](https://x.com/graphscope2021)
 
 
 **NeuG** (pronounced "new-gee") is a graph database for HTAP (Hybrid Transactional/Analytical Processing) workloads. NeuG provides **two modes** that you can switch between based on your needs:
@@ -14,7 +16,7 @@
 For more information on using NeuG, please refer to the [NeuG documentation](https://graphscope.io/neug/en/overview/introduction/).
 
 ## News
-- **2026-02**: We officially release NeuG v0.1
+- **2026-03**: We officially release NeuG v0.1
 - **2025-06**: We shatter [LDBC SNB Interactive Benchmark world record](https://graphscope.io/blog/tech/2025/06/12/graphscope-flex-achieved-record-breaking-on-ldbc-snb-interactive-workload-declarative) with 80,000+ QPS for declarative queries
 
 ## Installation
@@ -34,10 +36,12 @@ import neug
 
 # Step 1: Load and analyze data (Embedded Mode)
 db = neug.Database("/path/to/database") 
-conn = db.connect()
 
-# Load sample data
+# Load sample data (must load data before creating connection)
 db.load_builtin_dataset("tinysnb")
+
+# Create connection to execute queries
+conn = db.connect()
 
 # Run analytics - find triangles in the graph
 result = conn.execute("""
@@ -46,8 +50,9 @@ result = conn.execute("""
     RETURN a.fName, b.fName, c.fName
 """)
 
+# Access results by index (QueryResult returns a list for each row)
 for record in result:
-    print(f"{record['a.fName']}, {record['b.fName']}, {record['c.fName']} are mutual friends")
+    print(f"{record[0]}, {record[1]}, {record[2]} are mutual friends")
 
 # Step 2: Serve applications (Service Mode)  
 conn.close()
@@ -66,8 +71,8 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 We apply an AI-assisted **Spec-Driven** workflow inspired by [GitHub Spec-Kit](https://github.com/github/spec-kit). We provide convenient commands for contributions:
 
-- 🐛 **Bug Reports**: Use `/create-issue` command in your IDE, or [submit an issue](https://github.com/GraphScope/neug/issues) manually
-- 💻 **Pull Requests**: Use `/create-pr` command in your IDE, or [submit a PR](https://github.com/GraphScope/neug/pulls) manually
+- 🐛 **Bug Reports**: Use `/create-issue` command in your IDE, or [submit an issue](https://github.com/alibaba/neug/issues) manually
+- 💻 **Pull Requests**: Use `/create-pr` command in your IDE, or [submit a PR](https://github.com/alibaba/neug/pulls) manually
 
 For more details, see the [AI-Assisted Development Guide](./doc/source/development/ai_coding.md).
 

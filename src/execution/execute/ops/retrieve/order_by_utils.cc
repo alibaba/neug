@@ -77,7 +77,7 @@ bool vertex_property_topN(bool asc, size_t limit,
   for (auto l : labels) {
     const auto& pk = graph.schema().get_vertex_primary_key(l)[0];
     if (prop_name == std::get<1>(pk)) {
-      prop_types.emplace_back(std::get<0>(pk));
+      prop_types.emplace_back(std::get<0>(pk).id());
       break;
     }
 
@@ -85,7 +85,8 @@ bool vertex_property_topN(bool asc, size_t limit,
     int prop_names_size = prop_names.size();
     for (int prop_id = 0; prop_id < prop_names_size; ++prop_id) {
       if (prop_names[prop_id] == prop_name) {
-        prop_types.push_back(graph.schema().get_vertex_properties(l)[prop_id]);
+        prop_types.push_back(
+            graph.schema().get_vertex_properties(l)[prop_id].id());
         break;
       }
     }
@@ -95,7 +96,6 @@ bool vertex_property_topN(bool asc, size_t limit,
   }
   for (size_t k = 1; k < prop_types.size(); ++k) {
     if (prop_types[k] != prop_types[0]) {
-      LOG(INFO) << "multiple types...";
       return false;
     }
   }
@@ -110,7 +110,7 @@ bool vertex_property_topN(bool asc, size_t limit,
     return vertex_property_topN_impl<std::string_view>(asc, limit, col, graph,
                                                        prop_name, offsets);
   default:
-    LOG(INFO) << "prop type not support..." << static_cast<int>(prop_types[0]);
+    LOG(ERROR) << "prop type not support..." << static_cast<int>(prop_types[0]);
     return false;
   }
 }

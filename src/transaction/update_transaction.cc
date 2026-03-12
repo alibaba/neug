@@ -25,6 +25,7 @@
 #include <string_view>
 
 #include <flat_hash_map.hpp>
+#include "neug/common/extra_type_info.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/file_names.h"
@@ -45,7 +46,7 @@
 namespace neug {
 
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
-fetch_edges_related_to_vertex_from_view(const std::vector<DataTypeId>& props,
+fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
                                         const GenericView& oe,
                                         const GenericView& ie, vid_t lid,
                                         bool is_src, timestamp_t ts) {
@@ -199,8 +200,7 @@ void UpdateTransaction::revert_changes() {
 
 Status UpdateTransaction::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   if (graph_.schema().contains_vertex_label(name)) {
     LOG(ERROR) << "Vertex type " << name << " already exists.";
@@ -226,7 +226,7 @@ Status UpdateTransaction::CreateVertexType(
     return status;
   }
   auto label_id = graph_.schema().get_vertex_label_id(name);
-  if (deleted_vertex_labels_.contains(label_id)) {
+  if (deleted_vertex_labels_.find(label_id) != deleted_vertex_labels_.end()) {
     deleted_vertex_labels_.erase(label_id);
   }
   schema_changed_ = true;
@@ -236,8 +236,7 @@ Status UpdateTransaction::CreateVertexType(
 Status UpdateTransaction::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
   if (graph_.schema().exist(src_type, dst_type, edge_type)) {
@@ -272,8 +271,9 @@ Status UpdateTransaction::CreateEdgeType(
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
-  if (deleted_edge_labels_.contains(
-          std::make_tuple(src_label_id, dst_label_id, edge_label_id))) {
+  if (deleted_edge_labels_.find(
+          std::make_tuple(src_label_id, dst_label_id, edge_label_id)) !=
+      deleted_edge_labels_.end()) {
     deleted_edge_labels_.erase(
         std::make_tuple(src_label_id, dst_label_id, edge_label_id));
   }
@@ -283,7 +283,7 @@ Status UpdateTransaction::CreateEdgeType(
 
 Status UpdateTransaction::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   if (!graph_.schema().contains_vertex_label(vertex_type_name)) {
@@ -318,7 +318,8 @@ Status UpdateTransaction::AddVertexProperties(
   }
   if (deleted_vertex_properties_.size() > v_label) {
     for (const auto& prop : add_properties) {
-      if (deleted_vertex_properties_[v_label].contains(std::get<1>(prop))) {
+      if (deleted_vertex_properties_[v_label].find(std::get<1>(prop)) !=
+          deleted_vertex_properties_[v_label].end()) {
         deleted_vertex_properties_[v_label].erase(std::get<1>(prop));
       }
     }
@@ -330,7 +331,7 @@ Status UpdateTransaction::AddVertexProperties(
 Status UpdateTransaction::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   if (!graph_.schema().exist(src_type, dst_type, edge_type)) {
@@ -373,7 +374,8 @@ Status UpdateTransaction::AddEdgeProperties(
                                                    edge_label_id);
   if (deleted_edge_properties_.find(index) != deleted_edge_properties_.end()) {
     for (const auto& prop : add_properties) {
-      if (deleted_edge_properties_[index].contains(std::get<1>(prop))) {
+      if (deleted_edge_properties_[index].find(std::get<1>(prop)) !=
+          deleted_edge_properties_[index].end()) {
         deleted_edge_properties_[index].erase(std::get<1>(prop));
       }
     }
@@ -667,24 +669,24 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
                                   const std::vector<Property>& props,
                                   vid_t& vid) {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
+  std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (types.size() != props.size()) {
     return false;
   }
   int col_num = types.size();
   for (int col_i = 0; col_i != col_num; ++col_i) {
-    if (props[col_i].type() != types[col_i]) {
+    if (props[col_i].type() != types[col_i].id()) {
       return false;
     }
   }
 
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
-  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
   if (!status.ok()) {
     // The most possible reason is that the space is not enough.
     graph_.Reserve(label, std::max((vid_t) 1024, graph_.LidNum(label) * 2));
-    status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+    status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
   }
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
@@ -735,8 +737,9 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
-  auto oe_offset = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
-                                  edge_label, properties, timestamp_, alloc_);
+  auto oe_offset =
+      graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
+                     properties, timestamp_, alloc_, true);
   auto ie_offset = search_other_offset_with_cur_offset(
       graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
       graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
@@ -767,9 +770,8 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
                       .get_edges(src_lid);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
                       .get_edges(dst_lid);
-  auto edge_prop_types =
-      graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
-  auto search_edge_prop_type = determine_search_prop_type(edge_prop_types);
+  auto search_edge_prop_type = determine_search_prop_type(
+      graph_.schema().get_edge_properties(src_label, dst_label, edge_label));
   int32_t oe_offset = 0;
   for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
     if (it.get_vertex() == dst_lid) {
@@ -870,11 +872,11 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
                << " is not valid in this transaction.";
     return false;
   }
-  std::vector<DataTypeId> types = graph_.schema().get_vertex_properties(label);
+  std::vector<DataType> types = graph_.schema().get_vertex_properties(label);
   if (static_cast<size_t>(col_id) >= types.size()) {
     return false;
   }
-  if (types[col_id] != value.type()) {
+  if (types[col_id].id() != value.type()) {
     return false;
   }
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
@@ -1034,8 +1036,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
         if (v_table.Capacity() < v_table.LidNum() + 1) {
           graph.Reserve(redo.label, v_table.Capacity() * 2);
         }
-        auto ret =
-            graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+        auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
+                                   timestamp, true);
         if (!ret.ok()) {
           THROW_STORAGE_EXCEPTION(
               "Failed to add vertex during WAL ingestion: " + ret.ToString());
@@ -1048,7 +1050,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
       graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                    redo.edge_label, redo.properties, timestamp, alloc);
+                    redo.edge_label, redo.properties, timestamp, alloc, true);
     } else if (op_type == OpType::kUpdateVertexProp) {
       UpdateVertexPropRedo redo;
       arc >> redo;
@@ -1301,8 +1303,7 @@ Status StorageTPUpdateInterface::BatchDeleteEdges(
 
 Status StorageTPUpdateInterface::CreateVertexType(
     const std::string& name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     const std::vector<std::string>& primary_key_names, bool error_on_conflict) {
   return txn_.CreateVertexType(name, properties, primary_key_names,
                                error_on_conflict);
@@ -1311,8 +1312,7 @@ Status StorageTPUpdateInterface::CreateVertexType(
 Status StorageTPUpdateInterface::CreateEdgeType(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     bool error_on_conflict, EdgeStrategy oe_edge_strategy,
     EdgeStrategy ie_edge_strategy) {
   return txn_.CreateEdgeType(src_type, dst_type, edge_type, properties,
@@ -1322,7 +1322,7 @@ Status StorageTPUpdateInterface::CreateEdgeType(
 
 Status StorageTPUpdateInterface::AddVertexProperties(
     const std::string& vertex_type_name,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return txn_.AddVertexProperties(vertex_type_name, add_properties,
@@ -1332,7 +1332,7 @@ Status StorageTPUpdateInterface::AddVertexProperties(
 Status StorageTPUpdateInterface::AddEdgeProperties(
     const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         add_properties,
     bool error_on_conflict) {
   return txn_.AddEdgeProperties(src_type, dst_type, edge_type, add_properties,

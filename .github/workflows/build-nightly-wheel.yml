@@ -27,10 +27,6 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
-      - name: Clean the tool directory for self-hosted runner
-        run: |
-          rm -rf /__w/_tool/Python
-
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -63,7 +59,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -77,7 +73,7 @@ jobs:
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
@@ -89,7 +85,7 @@ jobs:
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
       - name: Run NeuG-Cli test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         run: |
           neug-cli --help
           neug-cli --version
@@ -102,12 +98,8 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
-      - name: Clean the tool directory for self-hosted runner
-        run: |
-          rm -rf /__w/_tool/Python
-
       - name: Setup Python 3.13
-        if: runner.name != 'iZj6ceai23dyzfm63tvmu7Z'
+        if: runner.name != 'arm64-1'
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -139,7 +131,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -153,7 +145,7 @@ jobs:
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
@@ -165,7 +157,7 @@ jobs:
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
       - name: Run NeuG-Cli test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         run: |
           neug-cli --help
           neug-cli --version
@@ -178,10 +170,6 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
 
-      - name: Clean the tool directory for self-hosted runner
-        run: |
-          rm -rf /__w/_tool/Python
-
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -223,7 +211,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -237,7 +225,7 @@ jobs:
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
     
       - name: Run simple test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
@@ -249,7 +237,7 @@ jobs:
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
       - name: Run NeuG-Cli test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         run: |
           neug-cli --help
           neug-cli --version
@@ -261,10 +249,6 @@ jobs:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
-
-      - name: Clean the tool directory for self-hosted runner
-        run: |
-          rm -rf /__w/_tool/Python
 
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
@@ -307,7 +291,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -321,7 +305,7 @@ jobs:
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
 
       - name: Run simple test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
@@ -333,7 +317,7 @@ jobs:
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
       - name: Run NeuG-Cli test
-        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug'
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
         run: |
           neug-cli --help
           neug-cli --version

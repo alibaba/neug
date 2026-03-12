@@ -1017,3 +1017,41 @@ def test_iu_7():
     session.close()
     db.stop_serving()
     db.close()
+
+
+def test_insert_string_column_exaustion():
+    logging.disable(logging.CRITICAL)
+    try:
+        db_dir = "/tmp/test_insert_string_column_exhaustion"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_path=db_dir, mode="w")
+        conn = db.connect()
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        # by default the string column has maximum length 256
+        conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
+        conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        db.close()
+
+        db2 = Database(db_path=db_dir, mode="w")
+        endpoint = db2.serve(10005, "localhost", False)
+        sess = Session.open(endpoint, timeout="10s")
+        str_prop = "a" * 256
+        for i in range(7000):
+            sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
+    except Exception as e:
+        raise AssertionError("Failed to insert string column with large length") from e
+    finally:
+        try:
+            sess.close()
+            db2.stop_serving()
+            db2.close()
+        except Exception as e:
+            logger.exception(
+                "Error while cleaning up resources in test_insert_string_column_exaustion: %s",
+                e,
+            )
+        logging.disable(logging.NOTSET)

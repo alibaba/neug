@@ -43,7 +43,8 @@ class IntersectOprMultip : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::vector<EdgeAndNbrPredicate> preds;
@@ -94,7 +95,8 @@ class IntersectWithEdgeOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph_interface, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     const auto& graph =
         dynamic_cast<const StorageReadInterface&>(graph_interface);
     std::unique_ptr<BindedExprBase> left_v_pred =
@@ -165,7 +167,6 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
     if (edge.has_params() && edge.params().has_predicate()) {
       epred =
           parse_expression(edge.params().predicate(), ctx_meta, VarType::kEdge);
-      LOG(INFO) << "Edge predicate found in sub-plan";
     }
   }
   if (plan.plan_size() == 2) {
@@ -179,7 +180,6 @@ void parse(const physical::PhysicalPlan& plan, EdgeExpandParams& params,
     if (vertex.has_params() && vertex.params().has_predicate()) {
       vpred = parse_expression(vertex.params().predicate(), ctx_meta,
                                VarType::kVertex);
-      LOG(INFO) << "Vertex predicate found in sub-plan";
     }
   }
 }

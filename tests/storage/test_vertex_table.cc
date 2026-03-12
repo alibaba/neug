@@ -60,8 +60,7 @@ class VertexTableTest : public ::testing::Test {
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
                            {std::make_tuple(pk_type_, "id", 0)},
-                           storage_strategies_, {}, 4096, "",
-                           default_prop_values_);
+                           storage_strategies_, 4096, "", default_prop_values_);
     v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
   }
   void TearDown() override {
@@ -101,7 +100,7 @@ class VertexTableTest : public ::testing::Test {
   std::string v_label_name_;
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
-  std::vector<neug::DataTypeId> property_types_;
+  std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
   std::vector<neug::StorageStrategy> storage_strategies_;
   std::vector<neug::Property> default_prop_values_;

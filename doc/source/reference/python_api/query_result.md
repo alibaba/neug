@@ -55,7 +55,6 @@ def get_bolt_response() -> str
 ```
 
 Get the result in Bolt response format.
-TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response.
 
 - **Returns:**
   - **str**

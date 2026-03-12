@@ -142,14 +142,8 @@ class EdgeRecord {
     return std::tie(src, dst, label) == std::tie(e.src, e.dst, e.label);
   }
 
-  VertexRecord start_node() const {
-    return dir == Direction::kOut ? VertexRecord{label.src_label, src}
-                                  : VertexRecord{label.dst_label, dst};
-  }
-  VertexRecord end_node() const {
-    return dir == Direction::kOut ? VertexRecord{label.dst_label, dst}
-                                  : VertexRecord{label.src_label, src};
-  }
+  VertexRecord start_node() const { return VertexRecord(label.src_label, src); }
+  VertexRecord end_node() const { return VertexRecord(label.dst_label, dst); }
 
   std::string to_string() const;
 

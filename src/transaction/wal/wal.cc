@@ -152,8 +152,7 @@ WalParserFactory::getKnownWalParsers() {
 
 void CreateVertexTypeRedo::Serialize(
     InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     const std::vector<std::string>& primary_key_names) {
   arc << static_cast<uint8_t>(OpType::kCreateVertexType);
   arc << vertex_type;
@@ -189,8 +188,7 @@ void CreateVertexTypeRedo::Deserialize(OutArchive& arc,
 void CreateEdgeTypeRedo::Serialize(
     InArchive& arc, const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
-        properties,
+    const std::vector<std::tuple<DataType, std::string, Property>>& properties,
     EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy) {
   arc << static_cast<uint8_t>(OpType::kCreateEdgeType);
   arc << src_type << dst_type << edge_type;
@@ -215,7 +213,7 @@ void CreateEdgeTypeRedo::Deserialize(OutArchive& arc,
 
 void AddVertexPropertiesRedo::Serialize(
     InArchive& arc, const std::string& vertex_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         properties) {
   arc << static_cast<uint8_t>(OpType::kAddVertexProp);
   arc << vertex_type;
@@ -239,7 +237,7 @@ void AddVertexPropertiesRedo::Deserialize(OutArchive& arc,
 void AddEdgePropertiesRedo::Serialize(
     InArchive& arc, const std::string& src_type, const std::string& dst_type,
     const std::string& edge_type,
-    const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+    const std::vector<std::tuple<DataType, std::string, Property>>&
         properties) {
   arc << static_cast<uint8_t>(OpType::kAddEdgeProp);
   arc << src_type << dst_type << edge_type;

@@ -48,7 +48,8 @@ class JoinOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     neug::execution::Context ret_dup(ctx);
 
     std::unique_ptr<neug::execution::OprTimer> left_timer =
@@ -175,7 +176,8 @@ class PrimaryKeyJoinOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     neug::execution::Context ret_dup(ctx);
     std::unique_ptr<neug::execution::OprTimer> right_timer =
         (timer != nullptr) ? std::make_unique<neug::execution::OprTimer>()

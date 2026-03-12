@@ -4,18 +4,6 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
-  # Comment out to save some actions minutes
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'cmake/**'
-  #     - 'src/**'
-  #     - 'proto/**'
-  #     - '.github/workflows/python-test.yml'
-  #     - 'third_party/**'
-  #     - 'tools/python_bind/**'
-  #     - 'tests/**'
   pull_request:
     branches:
       - main
@@ -26,7 +14,6 @@ on:
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tests/**'
-      - '!tests/extension/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
       - 'include/**'
@@ -42,7 +29,6 @@ on:
       - 'third_party/**'
       - 'tools/python_bind/**'
       - 'tests/**'
-      - '!tests/extension/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
       - 'include/**'
@@ -55,61 +41,80 @@ concurrency:
 
 jobs:
   # ============================================================
-  # Job 1: Build NeuG — compile C++ and Python bindings
+  # Unified Job: Build NeuG + run C++, Python, and E2E tests
   # ============================================================
-  build:
+  build_and_test:
     runs-on: [self-hosted]
-    outputs:
-      runner-arch: ${{ steps.capture-arch.outputs.runner-arch }}
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
     steps:
-    - name: Capture Runner Architecture
-      id: capture-arch
-      run: |
-        arch=$(uname -m)
-        echo "Runner architecture: $arch"
-
-        case "$arch" in
-          *arm*|*aarch64*)
-            echo "runner-arch=arm64" >>"$GITHUB_OUTPUT"
-            echo "Detected ARM architecture: $arch"
-            ;;
-          *)
-            echo "runner-arch=x64" >>"$GITHUB_OUTPUT"
-            echo "Detected x86 architecture: $arch"
-            ;;
-        esac
-
     - name: checkout
       id: checkout
       uses: actions/checkout@v4
       with:
         submodules: recursive
+        fetch-depth: 0
 
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
+    - name: Detect changed paths
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          extension:
+            - 'extension/**'
+            - 'tests/extension/**'
+            - 'tests/extensions/**'
+          non_extension:
+            - 'cmake/**'
+            - 'src/**'
+            - 'proto/**'
+            - 'third_party/**'
+            - 'tools/python_bind/**'
+            - 'tests/**'
+            - '!tests/extension/**'
+            - '!tests/extensions/**'
+            - '.github/workflows/neug-test.yml'
+            - 'scripts/install_deps.sh'
+            - 'include/**'
+            - 'CMakeLists.txt'
+            - 'doc/source/tutorials/**'
 
-    - name: Clean the tool directory for self-hosted runner
+    - name: Decide test scope
+      id: scope
       run: |
-        rm -rf /__w/_tool/Python
+        if [[ "${{ steps.changes.outputs.extension }}" == "true" && "${{ steps.changes.outputs.non_extension }}" != "true" ]]; then
+          echo "extension_only=true" >> "$GITHUB_OUTPUT"
+          echo "Detected extension-only changes. Run extension tests only."
+        else
+          echo "extension_only=false" >> "$GITHUB_OUTPUT"
+          echo "Detected non-extension changes. Run full test suite."
+        fi
 
     - name: Cache CCache
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', 'include/**', 'proto/**', 'tools/python_bind/**', '.github/workflows/neug-test.yml') }}
         restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-ccache-main-
           ${{ runner.os }}-ccache-
 
     - name: Setup CCache
       run: |
         sudo apt-get update && sudo apt-get install -y ccache
-        ccache --max-size=2G
+        mkdir -p ~/.cache/ccache
+        {
+          echo "CCACHE_DIR=$HOME/.cache/ccache"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPRESS=true"
+          echo "CCACHE_COMPRESSLEVEL=6"
+          echo "CCACHE_MAXSIZE=5G"
+        } >> "$GITHUB_ENV"
+        ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+        ccache --set-config=compiler_check=content
+        ccache --set-config=compression=true
+        ccache --max-size=5G
         ccache --zero-stats
 
     - name: Increase the maximum number of opened files
@@ -118,15 +123,19 @@ jobs:
         sudo chmod -R 777 /etc/security/*
         echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
 
+    - name: Clean the tool directory for self-hosted runner
+      run: |
+        rm -rf /__w/_tool/Python
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
 
     - name: Set ENABLE_GCOV for main branch
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
       run: |
-        pip3 install fastcov
+        python3 -m pip  install fastcov
         sudo apt update
         sudo apt install lcov -y
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
@@ -135,11 +144,20 @@ jobs:
       run: |
         . /home/neug/.neug_env
         cd ${GITHUB_WORKSPACE}/
+        echo "CCache stats before build"
+        ccache --show-stats
         export CI=ON # Mark CI environment to enable CI-specific settings(use system level arrow)
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
-        export BUILD_EXECUTABLES=ON
-        export BUILD_HTTP_SERVER=ON
+        if [[ "${{ steps.scope.outputs.extension_only }}" == "true" ]]; then
+          export BUILD_EXECUTABLES=OFF
+          export BUILD_HTTP_SERVER=OFF
+          echo "Extension-only mode: disable executables and HTTP server build"
+        else
+          export BUILD_EXECUTABLES=ON
+          export BUILD_HTTP_SERVER=ON
+          echo "Full mode: build executables and HTTP server"
+        fi
         export BUILD_TEST=ON
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
@@ -152,90 +170,27 @@ jobs:
         make clean
         make requirements
         make build
+        echo "CCache stats after build"
         ccache --show-stats
 
     - name: Test examples
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         ./build/neug_py_bind/examples/cpp/simple_example
 
-    - name: Trim build tree
-      if: (!(github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push'))
+    - name: Install Python requirements
       run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build
-        # Drop per-target object directories; binaries and CTest files stay.
-        find . -path '*/CMakeFiles/*.dir' -prune -exec rm -rf {} +
-        find . -type f \( -name '*.o' -o -name '*.o.d' -o -name '*.obj' \) -delete
-        find . -type f -name '*.log' -delete
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pip install -r requirements.txt
+        python3 -m pip install -r requirements_dev.txt
+        python3 -m pip install pytest-cov coverage
 
-    - name: Package build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar czf /tmp/neug-build.tar.gz \
-          --exclude='*.o.d' \
-          build/
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: neug-build-${{ github.sha }}-${{ steps.capture-arch.outputs.runner-arch }}
-        path: /tmp/neug-build.tar.gz
-        retention-days: 1
-
-  # ============================================================
-  # Job 2: C++ Tests — run ctest (no bulk loader needed)
-  # ============================================================
-  test-cpp:
-    needs: build
-    runs-on: 
-      - self-hosted
-      - ${{ needs.build.outputs.runner-arch }}
-    container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Cache CCache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-ccache-
-
-    - name: Setup CCache
-      run: |
-        sudo apt-get update && sudo apt-get install -y ccache
-        ccache --max-size=2G
-        ccache --zero-stats
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
-        path: /tmp/
-
-    - name: Extract build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar xzf /tmp/neug-build.tar.gz
-
+    # ========================================
+    # Phase 1: C++ Tests
+    # ========================================
     - name: Run C++ Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
@@ -258,88 +213,11 @@ jobs:
         ctest -R test_request -V
         ctest -R sink_test -V
 
-    - name: Generate Coverage Report
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      run: |
-        pip3 install fastcov
-        sudo apt update
-        sudo apt install lcov -y
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
-        make coverage
-        mv coverage_filtered.info coverage_cpp.info
-
-    - name: Upload coverage report as artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-cpp-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_cpp.info
-
-  # ============================================================
-  # Job 3: Python Tests — bulk load data, run all pytest suites
-  # ============================================================
-  test-python:
-    needs: build
-    runs-on:
-      - self-hosted
-      - ${{ needs.build.outputs.runner-arch }}
-    container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
-
-    - name: Clean the tool directory for self-hosted runner
-      run: |
-        rm -rf /__w/_tool/Python
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Cache CCache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-ccache-
-
-    - name: Setup CCache
-      run: |
-        sudo apt-get update && sudo apt-get install -y ccache
-        ccache --max-size=2G
-        ccache --zero-stats
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
-        path: /tmp/
-
-    - name: Extract build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar xzf /tmp/neug-build.tar.gz
-
-    - name: Install Python requirements
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        pip3 install -r requirements.txt
-        pip3 install -r requirements_dev.txt
-        pip3 install pytest-cov coverage
-
+    # ========================================
+    # Phase 2: Bulk load test data
+    # ========================================
     - name: Bulk Loader - Prepare test data
+      if: steps.scope.outputs.extension_only != 'true'
       env:
         GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
@@ -357,7 +235,11 @@ jobs:
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
 
+    # ========================================
+    # Phase 3: Python Tests
+    # ========================================
     - name: Run Python Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
@@ -374,185 +256,99 @@ jobs:
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py
 
     - name: Run lsqb test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export LSQB_DATA_DIR=/tmp/lsqb
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_lsqb.py
 
     - name: Run DB Init Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_init.py
 
     - name: Run DB Connection Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_connection.py
 
     - name: Run Query Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_query.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_dataset.py
 
     - name: Run TinySNB Tutorial Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tinysnb_tutorial.py
 
     - name: Run Transaction Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_transaction.py
 
     - name: Run Import/Export Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_import_export.py
 
     - name: Run Data I/O Documentation Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_data_io_docs.py
 
     - name: Run Complex Query Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_cases.py
 
     - name: Run List Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_list.py
 
     - name: Run Concurrency Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_db_concurrent.py
 
     - name: Run Transaction Concurrent Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/transaction/elle_tester_insert.py
 
     - name: Test CLI tool
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_commands.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
 
-    - name: Generate Coverage Report
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      run: |
-        pip3 install fastcov
-        sudo apt update
-        sudo apt install lcov -y
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
-        make coverage
-        mv coverage_filtered.info coverage_py.info
-
-    - name: Upload coverage report as artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-python-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_py.info
-
-  # ============================================================
-  # Job 4: E2E Tests — bulk load data, run end-to-end tests
-  # ============================================================
-  test-e2e:
-    needs: build
-    runs-on:
-      - self-hosted
-      - ${{ needs.build.outputs.runner-arch }}
-    container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
-
-    - name: Clean the tool directory for self-hosted runner
-      run: |
-        rm -rf /__w/_tool/Python
-
-    - name: Increase the maximum number of opened files
-      run: |
-        ulimit -n 65535
-        sudo chmod -R 777 /etc/security/*
-        echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Cache CCache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-ccache-
-
-    - name: Setup CCache
-      run: |
-        sudo apt-get update && sudo apt-get install -y ccache
-        ccache --max-size=2G
-        ccache --zero-stats
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: neug-build-${{ github.sha }}-${{ needs.build.outputs.runner-arch }}
-        path: /tmp/
-
-    - name: Extract build artifacts
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind
-        tar xzf /tmp/neug-build.tar.gz
-
-    - name: Install Python requirements
-      run: |
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        pip3 install -r requirements.txt
-        pip3 install -r requirements_dev.txt
-
-    - name: Bulk Loader - Prepare test data
-      env:
-        GS_TEST_DIR: ${{ github.workspace }}/gstest
-      run: |
-        git clone -b master --single-branch --depth=1 https://github.com/GraphScope/gstest.git ${GS_TEST_DIR}
-        rm -rf /tmp/modern_graph && rm -rf /tmp/lsqb && rm -rf /tmp/ldbc && rm -rf /tmp/tinysnb
-        cd ${GITHUB_WORKSPACE}/tools/python_bind/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/modern_graph/graph.yaml -l ../../example_dataset/modern_graph/import.yaml -d /tmp/modern_graph
-        export FLEX_DATA_DIR=${GS_TEST_DIR}/neug/lsqb-sf01
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ${GS_TEST_DIR}/neug/lsqb-sf01/graph.yaml -l ${GS_TEST_DIR}/neug/lsqb-sf01/import.yaml -d /tmp/lsqb
-        export FLEX_DATA_DIR=${GS_TEST_DIR}/flex/ldbc-sf01-long-date
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/ldbc/graph.yaml -l ../../example_dataset/ldbc/import.yaml -d /tmp/ldbc/
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
-        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
-
+    # ========================================
+    # Phase 4: E2E Tests
+    # ========================================
     - name: Run E2E modern_graph Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_e2e_test.sh neug_ap_test modern_graph /tmp/modern_graph basic_test,match,optional_match
         ./scripts/run_e2e_test.sh neug_tp_test modern_graph /tmp/modern_graph basic_test,match,optional_match
 
     - name: Run E2E tinysnb Test
+      if: steps.scope.outputs.extension_only != 'true'
       env:
         GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
@@ -564,6 +360,7 @@ jobs:
         ./scripts/run_e2e_test.sh neug_tp_test tinysnb /tmp/tinysnb update true
 
     - name: Run E2E LSQB Test
+      if: steps.scope.outputs.extension_only != 'true'
       env:
         GS_TEST_DIR: ${{ github.workspace }}/gstest
       run: |
@@ -572,18 +369,21 @@ jobs:
         ./scripts/run_e2e_test.sh neug_tp_test lsqb /tmp/lsqb lsqb
 
     - name: Run E2E LDBC Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_e2e_test.sh neug_ap_test ldbc /tmp/ldbc agg,match,ldbc
         ./scripts/run_e2e_test.sh neug_tp_test ldbc /tmp/ldbc agg,match,ldbc
 
     - name: Run E2E COMPREHENSIVE_GRAPH Test
+      if: steps.scope.outputs.extension_only != 'true'
       run: |
         cd ${GITHUB_WORKSPACE}/tests/e2e
         ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path,dynamic_param
         ./scripts/run_e2e_test.sh neug_tp_test comprehensive_graph /tmp/comprehensive_graph path
 
     - name: Test installation c++ sdk
+      if: steps.scope.outputs.extension_only != 'true'
       env:
         CI: ON
       run: |
@@ -599,65 +399,21 @@ jobs:
         cmake .. && make -j1
         ./test
 
+    # ========================================
+    # Phase 5: Coverage Report (if main branch)
+    # ========================================
     - name: Generate Coverage Report
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
+      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
       run: |
-        pip3 install fastcov
+        python3 -m pip install fastcov
         sudo apt update
         sudo apt install lcov -y
         cd ${GITHUB_WORKSPACE}/tools/python_bind/build/neug_py_bind
         make coverage
-        mv coverage_filtered.info coverage_e2e.info
-
-    - name: Upload coverage report as artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-e2e-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_e2e.info
-
-  # ============================================================
-  # Job 5: Coverage — generate and upload the coverage report.
-  # ============================================================
-  coverage-report:
-    needs: [build, test-cpp, test-python, test-e2e]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Download cpp coverage report artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-cpp-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}
-
-    - name: Download python coverage report artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-python-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}
-
-    - name: Download e2e coverage report artifact
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage_report-${{ github.sha }}-e2e-${{ needs.build.outputs.runner-arch }}
-        path: ${{ github.workspace }}
-
-    - name: Generate Coverage Report
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      run: |
-        sudo apt update
-        sudo apt install lcov -y
-        lcov \
-          --add-tracefile ./coverage_cpp.info \
-          --add-tracefile ./coverage_py.info \
-          --add-tracefile ./coverage_e2e.info \
-          --output-file coverage.info
 
     - name: Upload coverage to Codecov
-      if: (github.ref == 'refs/heads/main' && github.repository == 'GraphScope/neug' && github.event_name == 'push')
-      uses: codecov/codecov-action@v4
+      if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
+      uses: codecov/codecov-action@v5
       with:
-        file: ${{ github.workspace }}/coverage.info
-
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info

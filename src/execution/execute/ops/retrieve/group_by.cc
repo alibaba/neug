@@ -39,7 +39,8 @@ class GroupByOpr : public IOperator {
 
   neug::result<neug::execution::Context> Eval(
       IStorageInterface& graph, const ParamsMap& params,
-      neug::execution::Context&& ctx, neug::execution::OprTimer* timer) override {
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
     auto key = create_key_func(mappings_, graph, ctx);
     std::vector<ReduceOp> reducers;
     for (auto& aggr : aggrs_) {

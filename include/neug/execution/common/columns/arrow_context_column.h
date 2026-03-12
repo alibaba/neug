@@ -95,6 +95,8 @@ class ArrowArrayContextColumn : public IContextColumn {
 
   void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
+  std::shared_ptr<IContextColumn> cast_to_value_column() const;
+
  private:
   std::vector<std::shared_ptr<arrow::Array>> columns_;
   size_t size_;

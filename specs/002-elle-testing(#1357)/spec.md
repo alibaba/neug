@@ -1,7 +1,7 @@
 # 功能规格说明：NeuG数据库事务ACID能力全面测试
 
 **功能分支**: `002-elle-testing-spec(#1357)`  
-**Feature Issue**: [#1357](https://github.com/GraphScope/neug/issues/1357)  
+**Feature Issue**: [#1357](https://github.com/alibaba/neug/issues/1357)  
 **创建时间**: 2025-12-31  
 **状态**: 草稿  
 **输入**: 用户描述："修改当前的spec.md，改为全面测试neug数据库的transaction能力，主要从ACID层面测试，三个模块分别是'Atomicity', 'Isolation', 'Consistency and Durability'. 其中Isolation可能涉及Dirty Write, Dirty Read, Cut Anomalies, Observed Transaction Vanishes, Fractured Read, Lost Update, Write Skew. 其中部分可以用elle算法直接通过环检测得到，部分需要另外写查询语言得到。"

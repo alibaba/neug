@@ -150,7 +150,8 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
   parse_property_mappings(opr.destination_vertex_binding(), dst_vertex_binds);
 
   std::vector<DataTypeId> edge_prop_types;
-  auto edge_props = schema.get_edge_properties(src_type, dst_type, edge_type);
+  auto edge_props =
+      schema.get_edge_properties_id(src_type, dst_type, edge_type);
   if (edge_props.empty()) {
     edge_prop_types.emplace_back(DataTypeId::kEmpty);
   } else {
@@ -158,9 +159,6 @@ neug::result<OpBuildResultT> BatchInsertEdgeOprBuilder::Build(
       edge_prop_types.emplace_back(prop);
     }
   }
-
-  std::vector<std::tuple<DataTypeId, std::string, size_t>> src_primary_key,
-      dst_primary_key;
 
   return std::make_pair(
       std::make_unique<BatchInsertEdgeOpr>(

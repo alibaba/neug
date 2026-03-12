@@ -19,12 +19,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "neug/execution/common/columns/i_context_column.h"
-#include "neug/execution/common/context.h"
-#include "neug/execution/common/types/value.h"
-#include "neug/main/serialization_protocol.h"
 
-#include <arrow/api.h>
+#include "glog/logging.h"
+#include "neug/generated/proto/response/response.pb.h"
 
 namespace neug {
 
@@ -47,44 +44,18 @@ class QueryResult {
 
   QueryResult(QueryResult&& other) noexcept = default;
 
+  QueryResult(const neug::QueryResponse& response) {
+    response_.CopyFrom(response);
+  }
+
   QueryResult(const QueryResult& other) = delete;
   QueryResult& operator=(const QueryResult& other) = delete;
 
-  QueryResult(
-      std::vector<std::shared_ptr<arrow::Field>>&& fields,
-      std::vector<std::shared_ptr<arrow::Array>>&& arrays,
-      std::vector<std::shared_ptr<execution::IContextColumn>>&& columns = {},
-      SerializationProtocol protocol = SerializationProtocol::kArrowIPC)
-      : fields_(std::move(fields)),
-        arrays_(std::move(arrays)),
-        columns_(std::move(columns)),
-        serialization_protocol_(protocol) {}
-
-  QueryResult(const std::vector<std::shared_ptr<arrow::Field>>& fields,
-              const std::vector<std::shared_ptr<arrow::Array>>& arrays,
-              const std::vector<std::shared_ptr<execution::IContextColumn>>&
-                  columns = {},
-              SerializationProtocol protocol = SerializationProtocol::kArrowIPC)
-      : fields_(fields),
-        arrays_(arrays),
-        columns_(columns),
-        serialization_protocol_(protocol) {}
-
-  void Swap(QueryResult& other) noexcept {
-    fields_.swap(other.fields_);
-    arrays_.swap(other.arrays_);
-    columns_.swap(other.columns_);
-    std::swap(serialization_protocol_, other.serialization_protocol_);
-  }
-
-  void Swap(QueryResult&& other) noexcept {
-    fields_.swap(other.fields_);
-    arrays_.swap(other.arrays_);
-    columns_.swap(other.columns_);
-    std::swap(serialization_protocol_, other.serialization_protocol_);
-  }
-
   ~QueryResult() {}
+
+  void Swap(QueryResult& other) noexcept { response_.Swap(&other.response_); }
+
+  void Swap(QueryResult&& other) noexcept { response_.Swap(&other.response_); }
 
   /**
    * @brief Convert entire result set to string.
@@ -94,41 +65,15 @@ class QueryResult {
   /**
    * @brief Get total number of rows.
    */
-  size_t length() const { return arrays_.empty() ? 0 : arrays_[0]->length(); }
+  size_t length() const { return response_.row_count(); }
 
-  /**
-   * @brief Access underlying Arrow table without copy.
-   */
-  inline std::shared_ptr<arrow::Table> table() const {
-    if (arrays_.empty()) {
-      return nullptr;
-    }
-    return arrow::Table::Make(arrow::schema(fields_), arrays_);
-  }
+  const neug::MetaDatas& result_schema() const { return response_.schema(); }
+  const neug::QueryResponse& response() const { return response_; }
 
-  inline const std::vector<std::shared_ptr<arrow::Field>>& fields() const {
-    return fields_;
-  }
-  inline const std::vector<std::shared_ptr<arrow::Array>>& arrays() const {
-    return arrays_;
-  }
-
-  std::vector<char> Serialize() const;
-
-  void set_result_schema(const std::string& schema);
-
-  inline void set_serialization_protocol(SerializationProtocol protocol) {
-    serialization_protocol_ = protocol;
-  }
+  std::string Serialize() const;
 
  private:
-  std::vector<std::shared_ptr<arrow::Field>> fields_;
-  std::vector<std::shared_ptr<arrow::Array>> arrays_;
-  // Holding the primitive context columns, since the corresponding array is
-  // wrapped from them
-  std::vector<std::shared_ptr<execution::IContextColumn>> columns_;
-  SerializationProtocol serialization_protocol_ =
-      SerializationProtocol::kArrowIPC;
+  neug::QueryResponse response_;
 };
 
 }  // namespace neug

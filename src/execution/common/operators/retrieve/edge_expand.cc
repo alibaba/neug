@@ -346,7 +346,7 @@ neug::result<Context> EdgeExpand::expand_vertex_ep_cmp(
         LOG(ERROR) << "not support edge type";
         RETURN_UNSUPPORTED_ERROR("not support edge type");
       }
-      auto pt = properties[0];
+      auto pt = properties[0].id();
       if (pt != DataTypeId::kTimestampMs && pt != DataTypeId::kInt64 &&
           pt != DataTypeId::kInt32) {
         LOG(ERROR) << "not support edge type";

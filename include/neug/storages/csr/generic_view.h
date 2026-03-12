@@ -49,8 +49,8 @@ struct NbrIterConfig {
  * **Usage Example:**
  * @code{.cpp}
  * // Get edges from a GenericView
- * GenericView view = graph.GetGenericOutgoingGraphView(src_label, dst_label, edge_label, ts);
- * NbrList edges = view.get_edges(vertex_id);
+ * GenericView view = graph.GetGenericOutgoingGraphView(src_label, dst_label,
+ * edge_label, ts); NbrList edges = view.get_edges(vertex_id);
  *
  * // Iterate over neighbors
  * for (NbrIterator it = edges.begin(); it != edges.end(); ++it) {
@@ -82,7 +82,7 @@ struct NbrIterator {
    * @brief Initialize iterator with range and visibility settings.
    *
    * @param ptr Start pointer of neighbor data
-   * @param end End pointer of neighbor data  
+   * @param end End pointer of neighbor data
    * @param cfg Memory layout configuration
    * @param timestamp Read timestamp for MVCC visibility
    */
@@ -153,10 +153,10 @@ struct NbrIterator {
                      static_cast<const char*>(cur) + cfg.ts_offset);
   }
 
-  const void* cur;         ///< Current position pointer
-  const void* end;         ///< End position pointer
-  NbrIterConfig cfg;       ///< Memory layout configuration
-  timestamp_t timestamp;   ///< Read timestamp for visibility
+  const void* cur;        ///< Current position pointer
+  const void* end;        ///< End position pointer
+  NbrIterConfig cfg;      ///< Memory layout configuration
+  timestamp_t timestamp;  ///< Read timestamp for visibility
 };
 
 static_assert(std::is_pod<NbrIterator>::value, "NbrIterator should be POD");
@@ -213,10 +213,10 @@ struct NbrList {
   /** @brief Check if neighbor list is empty. */
   bool empty() const { return start_ptr == end_ptr; }
 
-  const void* start_ptr;   ///< Start of neighbor data
-  const void* end_ptr;     ///< End of neighbor data
-  NbrIterConfig cfg;       ///< Memory layout configuration
-  timestamp_t timestamp;   ///< Read timestamp for MVCC
+  const void* start_ptr;  ///< Start of neighbor data
+  const void* end_ptr;    ///< End of neighbor data
+  NbrIterConfig cfg;      ///< Memory layout configuration
+  timestamp_t timestamp;  ///< Read timestamp for MVCC
 };
 
 static_assert(std::is_pod<NbrList>::value, "NbrList should be POD");
@@ -334,14 +334,10 @@ struct EdgeDataAccessor {
   }
         FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-      case DataTypeId::kVarchar: {
-        *reinterpret_cast<std::string_view*>(const_cast<void*>(
-            it.get_data_ptr())) = PropUtils<std::string_view>::to_typed(prop);
-        break;
-      }
       default:
-        LOG(FATAL) << "type - " << std::to_string(data_type_)
-                   << " - not implemented";
+        THROW_RUNTIME_ERROR("Could not set bundled data for type " +
+                            std::to_string(data_type_));
+        break;
       }
     }
   }
@@ -370,13 +366,9 @@ struct EdgeDataAccessor {
   }
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-    case DataTypeId::kVarchar: {
-      return PropUtils<std::string_view>::to_prop(
-          get_bundled_data_from_ptr<std::string_view>(data_ptr));
-    }
     default:
-      LOG(FATAL) << "type - " << std::to_string(data_type_)
-                 << " - not implemented";
+      THROW_RUNTIME_ERROR("Could not get bundled data for type " +
+                          std::to_string(data_type_));
       return Property::empty();
     }
   }

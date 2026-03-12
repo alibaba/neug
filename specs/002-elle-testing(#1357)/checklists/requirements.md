@@ -2,7 +2,7 @@
 
 **目的**: 在进入计划阶段之前验证规格说明的完整性和质量  
 **创建时间**: 2025-12-31  
-**Feature Issue**: [#1357](https://github.com/GraphScope/neug/issues/1357)  
+**Feature Issue**: [#1357](https://github.com/alibaba/neug/issues/1357)  
 **功能**: [链接到 spec.md](../spec.md)
 
 ## 内容质量

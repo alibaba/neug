@@ -16,7 +16,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <string>
-#include "arrow_column_assertions.h"
+#include "column_assertions.h"
 #include "neug/execution/execute/plan_parser.h"
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
@@ -72,7 +72,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
     auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
     EXPECT_TRUE(res);
     const auto& res_val = res.value();
-    neug::test::AssertInt64Column(res_val.table(), 0, {3});
+    neug::test::AssertInt64Column(res_val.response(), 0, {3});
   }
 
   // Set the vertex property by expression
@@ -82,13 +82,13 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=1 RETURN v.score;");
       EXPECT_TRUE(res);
       const auto& res_val = res.value();
-      neug::test::AssertInt64Column(res_val.table(), 0, {5});
+      neug::test::AssertInt64Column(res_val.response(), 0, {5});
     }
     {
       auto res = conn->Query("MATCH (v:person) WHERE v.id=2 RETURN v.score;");
       EXPECT_TRUE(res);
       const auto& res_val = res.value();
-      neug::test::AssertInt64Column(res_val.table(), 0, {6});
+      neug::test::AssertInt64Column(res_val.response(), 0, {6});
     }
   }
   // Set the edge property to a constant value.
@@ -99,7 +99,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
         "MATCH (:person)-[e:knows]->(v:person) WHERE v.id=2 RETURN e.weight;");
     EXPECT_TRUE(res);
     const auto& res_val = res.value();
-    neug::test::AssertDoubleColumn(res_val.table(), 0, {3.0});
+    neug::test::AssertDoubleColumn(res_val.response(), 0, {3.0});
   }
 
   // Set the edge property by expression
@@ -113,7 +113,7 @@ TEST(StorageDMLTest, SetVertexAndEdgeProperty) {
           "e.weight;");
       EXPECT_TRUE(res);
       const auto& res_val = res.value();
-      neug::test::AssertDoubleColumn(res_val.table(), 0, {6.0});
+      neug::test::AssertDoubleColumn(res_val.response(), 0, {6.0});
     }
   }
 }

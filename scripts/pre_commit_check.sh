@@ -10,7 +10,7 @@
 #
 # Environment Variables:
 #   PYTHON_CMD       Python command to use (default: python3)
-#   PIP_CMD          Pip command to use (default: pip3)
+#   PIP_CMD          Pip command to use (default: python3 -m pip )
 #
 # Options:
 #   --quick          Run only format checks and quick compilation (default)
@@ -39,7 +39,7 @@ set -o pipefail  # Catch errors in pipes
 
 # Python configuration - can be overridden by environment variables
 PYTHON_CMD="${PYTHON_CMD:-python3}"
-PIP_CMD="${PIP_CMD:-pip3}"
+PIP_CMD="${PIP_CMD:-python3 -m pip }"
 
 # Color output
 RED='\033[0;31m'
@@ -90,7 +90,7 @@ Usage:
 
 Environment Variables:
   PYTHON_CMD       Python command to use (default: python3)
-  PIP_CMD          Pip command to use (default: pip3)
+  PIP_CMD          Pip command to use (default: python3 -m pip )
 
 Options:
   --quick          Run only format checks and quick compilation (default)
@@ -208,14 +208,15 @@ check_cpp_format() {
     cd "$PROJECT_ROOT"
     
     # Run clang-format on source files (except protobuf generated files)
+    # NOTE: ./include added to align with CI format-check.yml (PR #1711)
     print_info "Running clang-format on C++ files..."
-    find ./src ./tests ./tools -name "*.h" ! -name "*pb.h" ! -name "*pb.cc" -exec clang-format -i --style=file {} + 2>/dev/null || true
+    find ./include ./src ./tests ./tools -name "*.h" ! -name "*pb.h" ! -name "*pb.cc" -exec clang-format -i --style=file {} + 2>/dev/null || true
     
     # Check if clang-format made any changes (only in directories we formatted)
-    local git_diff=$(git diff --ignore-submodules -- src/ tests/ tools/ ':(exclude)*.md')
+    local git_diff=$(git diff --ignore-submodules -- include/ src/ tests/ tools/ ':(exclude)*.md')
     if [[ -n $git_diff ]]; then
         print_warning "C++ format issues found and auto-fixed:"
-        git diff --ignore-submodules --name-only -- src/ tests/ tools/ ':(exclude)*.md'
+        git diff --ignore-submodules --name-only -- include/ src/ tests/ tools/ ':(exclude)*.md'
         print_success "Files have been formatted in-place. Please review and commit the changes."
         return 1
     fi
@@ -314,42 +315,51 @@ check_python_format() {
 check_build() {
     print_header "Build Check"
     
-    cd "$PROJECT_ROOT"
-    
-    # Check if build directory exists and has been built before
-    if [ -d "tools/python_bind/build" ]; then
-        print_info "Build directory exists, performing incremental build..."
-    else
-        print_info "No previous build found, performing clean build..."
-    fi
-    
     cd "$PROJECT_ROOT/tools/python_bind"
     
-    # Install requirements if needed
-    if ! $PYTHON_CMD -c "import pybind11" 2>/dev/null; then
-        print_info "Installing Python requirements..."
-        if ! make requirements 2>&1; then
-            print_warning "Failed to install requirements with make"
-            print_info "Trying direct pip install..."
+    # Check whether C++ sources have changed since last build.
+    # If the .so already exists and no C++/cmake files are dirty, skip the
+    # expensive cmake/compile step entirely (incremental shortcut).
+    local so_file=$(find ./build -maxdepth 3 -name 'neug_py_bind*.so' 2>/dev/null | head -1)
+    local cpp_diff=$(cd "$PROJECT_ROOT" && git diff --ignore-submodules --name-only HEAD -- include/ src/ tests/ tools/python_bind/src/ CMakeLists.txt cmake/ 2>/dev/null)
+    
+    if [[ -n "$so_file" && -z "$cpp_diff" && -d "build/neug_py_bind" ]]; then
+        print_info "No C++/cmake changes detected and .so exists — skipping rebuild"
+        print_success "Build check passed (cached)"
+    else
+        if [ -d "build/neug_py_bind" ]; then
+            print_info "Build directory exists, performing incremental build..."
+        else
+            print_info "No previous build found, performing clean build..."
+        fi
+        
+        # Install requirements if needed
+        if ! $PYTHON_CMD -c "import pybind11" 2>/dev/null; then
+            print_info "Installing Python requirements..."
             if ! $PIP_CMD install -r requirements.txt -q 2>&1; then
                 print_error "Failed to install requirements"
                 print_info "You may need to use a virtual environment or conda"
                 return 1
             fi
         fi
+        
+        # Build using the configured Python (cmake is incremental)
+        print_info "Building NeuG with $PYTHON_CMD ..."
+        if $PYTHON_CMD setup.py build_ext 2>&1 | tee /tmp/neug_build.log; then
+            print_success "Build successful"
+        else
+            print_error "Build failed"
+            echo ""
+            echo "Check /tmp/neug_build.log for details"
+            return 1
+        fi
     fi
     
-    # Build
-    print_info "Building NeuG..."
-    if make build 2>&1 | tee /tmp/neug_build.log; then
-        print_success "Build successful"
-        return 0
-    else
-        print_error "Build failed"
-        echo ""
-        echo "Check /tmp/neug_build.log for details"
-        return 1
-    fi
+    # Make neug importable for all subsequent tests via PYTHONPATH
+    # (avoids the slow pip install -e . which re-triggers a full build)
+    export PYTHONPATH="$PROJECT_ROOT/tools/python_bind${PYTHONPATH:+:$PYTHONPATH}"
+    print_success "PYTHONPATH set — neug importable from tools/python_bind"
+    return 0
 }
 
 ################################################################################
@@ -381,20 +391,15 @@ run_cpp_tests() {
         "schema_test"
     )
     
-    local test_failed=false
     for test in "${tests[@]}"; do
         print_info "Running $test..."
         if ctest -R "$test" --output-on-failure 2>&1; then
             print_success "$test passed"
         else
-            print_error "$test failed"
-            test_failed=true
+            print_error "$test failed — aborting remaining C++ tests"
+            return 1
         fi
     done
-    
-    if [ "$test_failed" = true ]; then
-        return 1
-    fi
     
     print_success "C++ tests passed"
     return 0
@@ -456,7 +461,6 @@ run_python_tests() {
         "tests/test_db_transaction.py"
     )
     
-    local test_failed=false
     for test in "${tests[@]}"; do
         if [ -f "$test" ]; then
             print_info "Running $test..."
@@ -469,14 +473,22 @@ run_python_tests() {
             if $PYTHON_CMD -m pytest -sv "$test" "${deselect_args[@]}" 2>&1; then
                 print_success "$test passed"
             else
-                print_error "$test failed"
-                test_failed=true
+                print_error "$test failed — aborting remaining Python tests"
+                return 1
             fi
         fi
     done
     
-    if [ "$test_failed" = true ]; then
-        return 1
+    # Run complex_test.py (comprehensive capability test script)
+    local complex_test="example/complex_test.py"
+    if [ -f "$complex_test" ]; then
+        print_info "Running $complex_test..."
+        if $PYTHON_CMD "$complex_test" 2>&1; then
+            print_success "$complex_test passed"
+        else
+            print_error "$complex_test failed"
+            return 1
+        fi
     fi
     
     print_success "Python tests passed"
@@ -513,7 +525,7 @@ main() {
             ;;
         test-only)
             run_cpp_tests || all_passed=false
-            run_python_tests || all_passed=false
+            [ "$all_passed" = true ] && { run_python_tests || all_passed=false; }
             ;;
         quick)
             check_cpp_format || all_passed=false
@@ -525,7 +537,7 @@ main() {
             check_python_format || all_passed=false
             check_build || all_passed=false
             run_cpp_tests || all_passed=false
-            run_python_tests || all_passed=false
+            [ "$all_passed" = true ] && { run_python_tests || all_passed=false; }
             ;;
     esac
     

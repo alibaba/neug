@@ -7,8 +7,8 @@ all: wheel dev
 .PHONY: requirements
 requirements:  ## Install requirements
 	@echo "Installing requirements..."
-	pip3 install -r requirements.txt 
-	pip3 install -r requirements_dev.txt
+	python3 -m pip install -r requirements.txt
+	python3 -m pip install -r requirements_dev.txt
 
 .PHONY: proto
 proto:  ## Compile protobuf files. proto is not included in dev since it may not be frequently changed

@@ -53,9 +53,7 @@ using namespace neug::transaction;
 namespace neug {
 namespace catalog {
 
-Catalog::Catalog() : version{0} {
-  initCatalogSets();
-}
+Catalog::Catalog() : version{0} { initCatalogSets(); }
 
 Catalog::Catalog(const std::string& directory, VirtualFileSystem* vfs)
     : version{0} {}
@@ -356,14 +354,6 @@ static std::string getInstallExtensionMessage(std::string_view extensionName,
 static std::string getTypeDoesNotExistMessage(std::string_view entryName) {
   std::string message = stringFormat(
       "{} is neither an internal type nor a user defined type.", entryName);
-  const auto matchingExtensionFunction =
-      extension::ExtensionManager::lookupExtensionsByTypeName(entryName);
-  if (matchingExtensionFunction.has_value()) {
-    message =
-        stringFormat("{} {}", message,
-                     getInstallExtensionMessage(
-                         matchingExtensionFunction->extensionName, "type"));
-  }
   return message;
 }
 
@@ -455,14 +445,6 @@ void Catalog::addFunction(Transaction* transaction, CatalogEntryType entryType,
 
 static std::string getFunctionDoesNotExistMessage(std::string_view entryName) {
   std::string message = stringFormat("function {} does not exist.", entryName);
-  const auto matchingExtensionFunction =
-      extension::ExtensionManager::lookupExtensionsByFunctionName(entryName);
-  if (matchingExtensionFunction.has_value()) {
-    message =
-        stringFormat("function {} is not defined. {}", entryName,
-                     getInstallExtensionMessage(
-                         matchingExtensionFunction->extensionName, "function"));
-  }
   return message;
 }
 

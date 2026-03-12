@@ -90,7 +90,7 @@ void to_arrow_csv_options(
 std::vector<std::string> match_files_with_pattern(const std::string& file_path);
 
 std::vector<std::shared_ptr<IRecordBatchSupplier>> create_csv_record_suppliers(
-    const std::string& file_path, const std::vector<DataTypeId>& column_types,
+    const std::string& file_path, const std::vector<DataType>& column_types,
     const std::unordered_map<std::string, std::string> csv_options);
 
 void parse_property_mappings(

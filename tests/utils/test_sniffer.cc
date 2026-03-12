@@ -46,10 +46,14 @@ TEST_F(SnifferTest, TestSniffBasic) {
 
   auto& columnTypes = schema->columnTypes;
   EXPECT_EQ(columnTypes.size(), 4);
-  EXPECT_EQ(columnTypes[0]->primitive_type(), ::common::PrimitiveType::DT_SIGNED_INT64);
-  EXPECT_EQ(columnTypes[1]->string().item_case(), ::common::String::ItemCase::kVarChar);
-  EXPECT_EQ(columnTypes[2]->primitive_type(), ::common::PrimitiveType::DT_SIGNED_INT64);
-  EXPECT_EQ(columnTypes[3]->primitive_type(), ::common::PrimitiveType::DT_DOUBLE);
+  EXPECT_EQ(columnTypes[0]->primitive_type(),
+            ::common::PrimitiveType::DT_SIGNED_INT64);
+  EXPECT_EQ(columnTypes[1]->string().item_case(),
+            ::common::String::ItemCase::kVarChar);
+  EXPECT_EQ(columnTypes[2]->primitive_type(),
+            ::common::PrimitiveType::DT_SIGNED_INT64);
+  EXPECT_EQ(columnTypes[3]->primitive_type(),
+            ::common::PrimitiveType::DT_DOUBLE);
 }
 
 }  // namespace test

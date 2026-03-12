@@ -10,11 +10,11 @@ To build a wheel for the local environment, run:
 source ~/.neug_env
 cd tools/python_bind
 export DEBUG=1
-pip3 install -r requirements.txt
-pip3 install -r requirements_dev.txt
+python3 -m pip  install -r requirements.txt
+python3 -m pip  install -r requirements_dev.txt
 python3 setup.py build_ext
 python3 setup.py bdist_wheel
-pip3 install dist/*
+python3 -m pip  install dist/*
 ```
 
 ### Distribution
@@ -22,7 +22,7 @@ pip3 install dist/*
 To build wheels for all supported Python versions on this platform, use the following commands:
 
 ```bash
-pip3 install cibuildwheel
+python3 -m pip  install cibuildwheel
 cd ${ROOT_DIR}
 cibuildwheel ./tools/python_bind --output-dir wheelhouse
 ```

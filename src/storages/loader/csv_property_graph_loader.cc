@@ -29,18 +29,18 @@ std::shared_ptr<IFragmentLoader> CSVPropertyGraphLoader::Make(
 std::vector<std::shared_ptr<IRecordBatchSupplier>>
 CSVPropertyGraphLoader::createVertexRecordBatchSupplier(
     label_t v_label, const std::string& v_label_name, const std::string& v_file,
-    DataTypeId pk_type, const std::string& pk_name, int pk_ind,
+    DataType pk_type, const std::string& pk_name, int pk_ind,
     const LoadingConfig& loading_config, int thread_id) const {
   auto vertex_property_names = schema_.get_vertex_property_names(v_label);
-  auto vertex_property_types = schema_.get_vertex_properties(v_label);
+  auto vertex_property_types = schema_.get_vertex_properties_id(v_label);
 
   arrow::csv::ConvertOptions convert_options;
   arrow::csv::ReadOptions read_options;
   arrow::csv::ParseOptions parse_options;
   fillVertexReaderMeta(v_label, v_label_name, v_file, loading_config,
-                       vertex_property_names, vertex_property_types, pk_type,
-                       pk_name, pk_ind, read_options, parse_options,
-                       convert_options);
+                       vertex_property_names, vertex_property_types,
+                       pk_type.id(), pk_name, pk_ind, read_options,
+                       parse_options, convert_options);
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   if (loading_config.GetIsBatchReader()) {
     auto res = std::make_shared<CSVStreamRecordBatchSupplier>(
@@ -64,7 +64,7 @@ CSVPropertyGraphLoader::createEdgeRecordBatchSupplier(
   auto edge_property_names =
       schema_.get_edge_property_names(src_label_id, dst_label_id, e_label_id);
   auto edge_property_types =
-      schema_.get_edge_properties(src_label_id, dst_label_id, e_label_id);
+      schema_.get_edge_properties_id(src_label_id, dst_label_id, e_label_id);
   auto src_pk_type =
       std::get<0>(schema_.get_vertex_primary_key(src_label_id)[0]);
   auto dst_pk_type =
@@ -75,8 +75,8 @@ CSVPropertyGraphLoader::createEdgeRecordBatchSupplier(
   fillEdgeReaderMeta(src_label_id, dst_label_id, e_label_id,
                      schema_.get_edge_label_name(e_label_id), e_file,
                      loading_config_, edge_property_names, edge_property_types,
-                     src_pk_type, dst_pk_type, read_options, parse_options,
-                     convert_options);
+                     src_pk_type.id(), dst_pk_type.id(), read_options,
+                     parse_options, convert_options);
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   if (loading_config.GetIsBatchReader()) {
     auto res = std::make_shared<CSVStreamRecordBatchSupplier>(

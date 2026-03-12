@@ -81,16 +81,4 @@ static std::optional<ExtensionEntry> lookupExtensionsByEntryName(
   }
   return {};
 }
-
-std::optional<ExtensionEntry> ExtensionManager::lookupExtensionsByFunctionName(
-    std::string_view functionName) {
-  return lookupExtensionsByEntryName(
-      common::StringUtils::getUpper(functionName), functionsForExtensions);
-}
-
-std::optional<ExtensionEntry> ExtensionManager::lookupExtensionsByTypeName(
-    std::string_view typeName) {
-  return lookupExtensionsByEntryName(common::StringUtils::getUpper(typeName),
-                                     typesForExtensions);
-}
 }  // namespace neug::extension

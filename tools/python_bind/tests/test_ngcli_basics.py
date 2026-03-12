@@ -72,17 +72,17 @@ def test_shell_do_max_rows(capsys):
 +-----------------------------------------------------------------------------+
 | n                                                                           |
 +=============================================================================+
-| {_LABEL: person, _ID: 0, id: 1, name: marko, age: 29}                       |
+| {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29}                       |
 +-----------------------------------------------------------------------------+
-| {_LABEL: person, _ID: 1, id: 2, name: vadas, age: 27}                       |
+| {_ID: 1, _LABEL: person, id: 2, name: vadas, age: 27}                       |
 +-----------------------------------------------------------------------------+
-| {_LABEL: person, _ID: 2, id: 4, name: josh, age: 32}                        |
+| {_ID: 2, _LABEL: person, id: 4, name: josh, age: 32}                        |
 +-----------------------------------------------------------------------------+
-| {_LABEL: person, _ID: 3, id: 6, name: peter, age: 35}                       |
+| {_ID: 3, _LABEL: person, id: 6, name: peter, age: 35}                       |
 +-----------------------------------------------------------------------------+
-| {_LABEL: software, _ID: 72057594037927936, id: 3, name: lop, lang: java}    |
+| {_ID: 72057594037927936, _LABEL: software, id: 3, name: lop, lang: java}    |
 +-----------------------------------------------------------------------------+
-| {_LABEL: software, _ID: 72057594037927937, id: 5, name: ripple, lang: java} |
+| {_ID: 72057594037927937, _LABEL: software, id: 5, name: ripple, lang: java} |
     """
     print("OKKKKKKKKKKk")
     print(captured.out.strip())
@@ -129,7 +129,7 @@ def test_shell_do_query(capsys):
 +-------------------------------------------------------+
 | n                                                     |
 +=======================================================+
-| {_LABEL: person, _ID: 0, id: 1, name: marko, age: 29} |
+| {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29} |
 +-------------------------------------------------------+
     """
     assert expected_output.strip() == captured.out.strip()
@@ -170,7 +170,7 @@ def test_shell_do_query_multiline(capsys):
 +-------------------------------------------------------+
 | n                                                     |
 +=======================================================+
-| {_LABEL: person, _ID: 0, id: 1, name: marko, age: 29} |
+| {_ID: 0, _LABEL: person, id: 1, name: marko, age: 29} |
 +-------------------------------------------------------+
     """
     assert expected_output.strip() == captured.out.strip()

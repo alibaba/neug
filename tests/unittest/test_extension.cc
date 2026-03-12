@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <filesystem>
-#include "arrow_column_assertions.h"
+#include "column_assertions.h"
 #include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/gopt/g_vfs_holder.h"
 #include "neug/main/neug_db.h"
@@ -81,27 +81,24 @@ TEST_F(TestJsonExtension, VPersonJson) {
 
   auto count_res = conn->Query("MATCH (p:person) RETURN count(p);");
   EXPECT_TRUE(count_res);
-  auto count_table = count_res.value().table();
-  ASSERT_NE(count_table, nullptr);
-  EXPECT_EQ(count_table->num_rows(), 1);
-  EXPECT_EQ(count_table->num_columns(), 1);
+  auto count_table = count_res.value().response();
+  EXPECT_EQ(count_table.row_count(), 1);
+  EXPECT_EQ(count_table.arrays_size(), 1);
   neug::test::AssertInt64Column(count_table, 0, {8});
 
   auto q_alice = conn->Query("MATCH (p:person) WHERE p.ID = 0 RETURN p.fName;");
   EXPECT_TRUE(q_alice);
-  auto q_alice_table = q_alice.value().table();
-  ASSERT_NE(q_alice_table, nullptr);
-  EXPECT_EQ(q_alice_table->num_rows(), 1);
-  EXPECT_EQ(q_alice_table->num_columns(), 1);
+  auto q_alice_table = q_alice.value().response();
+  EXPECT_EQ(q_alice_table.row_count(), 1);
+  EXPECT_EQ(q_alice_table.arrays_size(), 1);
   neug::test::AssertStringColumn(q_alice_table, 0, {"Alice"});
 
   auto q_bob =
       conn->Query("MATCH (p:person) WHERE p.ID = 2 RETURN p.fName, p.age;");
   EXPECT_TRUE(q_bob);
-  auto q_bob_table = q_bob.value().table();
-  ASSERT_NE(q_bob_table, nullptr);
-  EXPECT_EQ(q_bob_table->num_rows(), 1);
-  EXPECT_EQ(q_bob_table->num_columns(), 2);
+  auto q_bob_table = q_bob.value().response();
+  EXPECT_EQ(q_bob_table.row_count(), 1);
+  EXPECT_EQ(q_bob_table.arrays_size(), 2);
   neug::test::AssertStringColumn(q_bob_table, 0, {"Bob"});
   neug::test::AssertInt64Column(q_bob_table, 1, {30});
 
@@ -135,27 +132,24 @@ TEST_F(TestJsonExtension, VPersonJsonl) {
 
   auto count_res = conn->Query("MATCH (p:person) RETURN count(p);");
   EXPECT_TRUE(count_res);
-  auto count_table = count_res.value().table();
-  ASSERT_NE(count_table, nullptr);
-  EXPECT_EQ(count_table->num_rows(), 1);
-  EXPECT_EQ(count_table->num_columns(), 1);
+  auto count_table = count_res.value().response();
+  EXPECT_EQ(count_table.row_count(), 1);
+  EXPECT_EQ(count_table.arrays_size(), 1);
   neug::test::AssertInt64Column(count_table, 0, {8});
 
   auto q_alice = conn->Query("MATCH (p:person) WHERE p.ID = 0 RETURN p.fName;");
   EXPECT_TRUE(q_alice);
-  auto q_alice_table = q_alice.value().table();
-  ASSERT_NE(q_alice_table, nullptr);
-  EXPECT_EQ(q_alice_table->num_rows(), 1);
-  EXPECT_EQ(q_alice_table->num_columns(), 1);
+  auto q_alice_table = q_alice.value().response();
+  EXPECT_EQ(q_alice_table.row_count(), 1);
+  EXPECT_EQ(q_alice_table.arrays_size(), 1);
   neug::test::AssertStringColumn(q_alice_table, 0, {"Alice"});
 
   auto q_carol =
       conn->Query("MATCH (p:person) WHERE p.ID = 3 RETURN p.fName, p.age;");
   EXPECT_TRUE(q_carol);
-  auto q_carol_table = q_carol.value().table();
-  ASSERT_NE(q_carol_table, nullptr);
-  EXPECT_EQ(q_carol_table->num_rows(), 1);
-  EXPECT_EQ(q_carol_table->num_columns(), 2);
+  auto q_carol_table = q_carol.value().response();
+  EXPECT_EQ(q_carol_table.row_count(), 1);
+  EXPECT_EQ(q_carol_table.arrays_size(), 2);
   neug::test::AssertStringColumn(q_carol_table, 0, {"Carol"});
   neug::test::AssertInt64Column(q_carol_table, 1, {45});
 

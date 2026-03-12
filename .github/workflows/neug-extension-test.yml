@@ -1,35 +1,13 @@
 name: NeuG Extension Test
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'extension/**'
-      - 'tests/extension/**'
-      - '.github/workflows/neug-extension-test.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'cmake/**'
-      - 'src/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - 'extension/**'
-      - 'tests/extension/**'
-      - '.github/workflows/neug-extension-test.yml'
+  workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
+    inputs:
+      branch:
+        description: 'Branch to run the workflow on'
+        required: true
+        default: 'main'
+        type: string
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -86,6 +64,9 @@ jobs:
       with:
         python-version: '3.13'
 
+    # TODO: After unifying wheel build (neug-manylinux:v0.1.0-x86_64) and dev images (neug-dev:v0.1.0), 
+    # skip the build process and use `pip3 install neug` to test the locally built json extension 
+    # with the released wheel package.
     - name: Build NeuG with extensions
       run: |
         . /home/neug/.neug_env

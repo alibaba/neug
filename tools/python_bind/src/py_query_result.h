@@ -29,14 +29,11 @@ class PyQueryResult {
   static void initialize(pybind11::handle& m);
 
   PyQueryResult(QueryResult&& result)
-      : status_(Status::OK()), query_result_(std::move(std::move(result))) {
-    init_columns();
-  }
+      : status_(Status::OK()), query_result_(std::move(std::move(result))) {}
 
   PyQueryResult(std::string&& result_str) : status_(Status::OK()) {
     LOG(INFO) << "Deserializing QueryResult from string: " << result_str.size();
     query_result_.Swap(QueryResult::From(std::move(result_str)));
-    init_columns();
   }
 
   PyQueryResult(const Status& status) : status_(status) {
@@ -64,28 +61,9 @@ class PyQueryResult {
   std::string get_bolt_response() const;
 
  private:
-  void init_columns() {
-    columns_.clear();
-    auto table = query_result_.table();
-    if (table) {
-      for (int i = 0; i < table->num_columns(); ++i) {
-        std::shared_ptr<arrow::ChunkedArray> chunked_array = table->column(i);
-        if (chunked_array->num_chunks() == 1) {
-          columns_.push_back(chunked_array->chunk(0));
-        } else if (chunked_array->num_chunks() > 1) {
-          THROW_INTERNAL_EXCEPTION(
-              "Expect only one chunk per column, but got " +
-              std::to_string(chunked_array->num_chunks()));
-        } else {
-          columns_.push_back(nullptr);
-        }
-      }
-    }
-  }
   size_t index_{0};
   Status status_;
   QueryResult query_result_;
-  std::vector<std::shared_ptr<arrow::Array>> columns_;
 };
 
 }  // namespace neug

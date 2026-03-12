@@ -164,7 +164,6 @@ Status CsvExportWriter::Write(
       }
       if (columns_map[j]->column_type() == ContextColumnType::kVertex) {
         auto vertex = columns_map[j]->get_elem(i).GetValue<vertex_t>();
-        LOG(INFO) << "Start write vertex " << vertex.vid_;
         ofs << ops::vertex_to_json_string(vertex.label_, vertex.vid_, graph);
       } else if (columns_map[j]->column_type() == ContextColumnType::kEdge) {
         auto edge = columns_map[j]->get_elem(i).GetValue<edge_t>();

@@ -148,12 +148,12 @@ class WalParserFactory {
 
 struct CreateVertexTypeRedo {
   std::string vertex_type;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties;
+  std::vector<std::tuple<DataType, std::string, Property>> properties;
   std::vector<std::string> primary_key_names;
 
   static void Serialize(
       InArchive& arc, const std::string& vertex_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names);
   static void Deserialize(OutArchive& arc, CreateVertexTypeRedo& redo);
@@ -161,13 +161,13 @@ struct CreateVertexTypeRedo {
 
 struct CreateEdgeTypeRedo {
   std::string src_type, dst_type, edge_type;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties;
+  std::vector<std::tuple<DataType, std::string, Property>> properties;
   EdgeStrategy oe_edge_strategy, ie_edge_strategy;
 
   static void Serialize(
       InArchive& arc, const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       EdgeStrategy oe_edge_strategy, EdgeStrategy ie_edge_strategy);
   static void Deserialize(OutArchive& arc, CreateEdgeTypeRedo& redo);
@@ -175,23 +175,23 @@ struct CreateEdgeTypeRedo {
 
 struct AddVertexPropertiesRedo {
   std::string vertex_type;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties;
+  std::vector<std::tuple<DataType, std::string, Property>> properties;
 
   static void Serialize(
       InArchive& arc, const std::string& vertex_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties);
   static void Deserialize(OutArchive& arc, AddVertexPropertiesRedo& redo);
 };
 
 struct AddEdgePropertiesRedo {
   std::string src_type, dst_type, edge_type;
-  std::vector<std::tuple<DataTypeId, std::string, Property>> properties;
+  std::vector<std::tuple<DataType, std::string, Property>> properties;
 
   static void Serialize(
       InArchive& arc, const std::string& src_type, const std::string& dst_type,
       const std::string& edge_type,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties);
   static void Deserialize(OutArchive& arc, AddEdgePropertiesRedo& redo);
 };

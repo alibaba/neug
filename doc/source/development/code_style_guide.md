@@ -34,7 +34,7 @@ For Python:
 
 ```bash
 $ pushd tools/python_bind
-$ pip3 install -r requirements_dev.txt
+$ python3 -m pip  install -r requirements_dev.txt
 $ popd
 ```
 

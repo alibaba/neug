@@ -65,14 +65,14 @@ bool DataType::operator==(const DataType& rhs) const {
 
 const DataType& ListType::GetChildType(const DataType& type) {
   assert(type.id() == DataTypeId::kList);
-  auto info = type.AuxInfo();
+  auto info = type.RawExtraTypeInfo();
   assert(info);
   return info->Cast<ListTypeInfo>().child_type;
 }
 
 const std::vector<DataType>& StructType::GetChildTypes(const DataType& type) {
   assert(type.id() == DataTypeId::kStruct);
-  auto info = type.AuxInfo();
+  auto info = type.RawExtraTypeInfo();
   assert(info);
   return info->Cast<StructTypeInfo>().child_types;
 }
@@ -93,6 +93,12 @@ DataType DataType::List(const DataType& child_type) {
   std::shared_ptr<ExtraTypeInfo> type_info =
       std::make_shared<ListTypeInfo>(child_type);
   return DataType(DataTypeId::kList, type_info);
+}
+
+DataType DataType::Varchar(size_t max_length) {
+  std::shared_ptr<ExtraTypeInfo> type_info =
+      std::make_shared<StringTypeInfo>(max_length);
+  return DataType(DataTypeId::kVarchar, type_info);
 }
 
 DataType parse_from_data_type(const ::common::DataType& ddt) {

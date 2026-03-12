@@ -14,7 +14,7 @@ If you have discovered a security vulnerability in this project, please report i
 
 Please report security vulnerabilities via one of the following methods:
 
-1. **GitHub Security Advisory**: [Create a private security advisory](https://github.com/GraphScope/neug/security/advisories/new)
+1. **GitHub Security Advisory**: [Create a private security advisory](https://github.com/alibaba/neug/security/advisories/new)
 2. **Email**: Contact the GraphScope team at graphscope@alibaba-inc.com
 
 Please include the following information in your report:

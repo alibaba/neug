@@ -77,7 +77,7 @@ PyConnection PyDatabase::connect() {
 
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t num_thread, bool blocking) {
-                                #ifdef BUILD_HTTP_SERVER
+#ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
   }

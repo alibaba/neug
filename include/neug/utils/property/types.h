@@ -552,19 +552,24 @@ struct convert<std::shared_ptr<neug::ExtraTypeInfo>> {
 };
 
 template <>
-struct convert<neug::DataTypeId> {
+struct convert<neug::DataType> {
   // concurrently preserve backwards compatibility with old config files
-  static bool decode(const Node& config, neug::DataTypeId& property_type) {
+  static bool decode(const Node& config, neug::DataType& property_type) {
     if (config["primitive_type"]) {
       property_type = neug::config_parsing::StringToPrimitivePropertyType(
           config["primitive_type"].as<std::string>());
     } else if (config["string"]) {
       if (config["string"].IsMap()) {
-        if (config["string"]["long_text"]) {
-          property_type = neug::DataTypeId::kVarchar;
-        } else if (config["string"]["var_char"]) {
+        if (config["string"]["var_char"]) {
           LOG(WARNING) << "var_char is deprecated, use long_text instead.";
-          property_type = neug::DataTypeId::kVarchar;
+          property_type = neug::DataType(
+              neug::DataTypeId::kVarchar,
+              std::make_shared<neug::StringTypeInfo>(
+                  config["string"]["var_char"]["max_length"].as<size_t>()));
+        } else if (config["string"]["long_text"]) {
+          property_type = neug::DataType(neug::DataTypeId::kVarchar,
+                                         std::make_shared<neug::StringTypeInfo>(
+                                             neug::STRING_DEFAULT_MAX_LENGTH));
         } else {
           LOG(ERROR) << "Unrecognized string type";
         }
@@ -594,7 +599,7 @@ struct convert<neug::DataTypeId> {
     return true;
   }
 
-  static Node encode(const neug::DataTypeId& type) {
+  static Node encode(const neug::DataType& type) {
     YAML::Node node;
     if (type == neug::DataTypeId::kBoolean ||
         type == neug::DataTypeId::kInt32 || type == neug::DataTypeId::kUInt32 ||
@@ -602,13 +607,18 @@ struct convert<neug::DataTypeId> {
         type == neug::DataTypeId::kUInt64 ||
         type == neug::DataTypeId::kDouble) {
       node["primitive_type"] =
-          neug::config_parsing::PrimitivePropertyTypeToString(type);
+          neug::config_parsing::PrimitivePropertyTypeToString(type.id());
     } else if (type == neug::DataTypeId::kVarchar) {
-      node["string"]["long_text"] = "";
+      const auto* extra_type_info = type.RawExtraTypeInfo();
+      const auto* string_type_info =
+          dynamic_cast<const neug::StringTypeInfo*>(extra_type_info);
+      node["string"]["varchar"]["max_length"] =
+          string_type_info ? string_type_info->max_length
+                           : neug::STRING_DEFAULT_MAX_LENGTH;
     } else if (type == neug::DataTypeId::kDate) {
       node["temporal"]["datetime"] = "";
     } else {
-      LOG(ERROR) << "Unrecognized property type: " << type;
+      LOG(ERROR) << "Unrecognized property type: " << type.ToString();
     }
     return node;
   }

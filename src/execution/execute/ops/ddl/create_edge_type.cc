@@ -41,10 +41,9 @@ class CreateEdgeTypeOpr : public IOperator {
     Status status;
     while (succeed_index < defs_size) {
       const auto& create_edge_def = create_edge_types_[succeed_index];
-      std::vector<std::tuple<DataTypeId, std::string, Property>>
-          property_tuples;
+      std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
       for (const auto& [prop_name, prop_value] : std::get<3>(create_edge_def)) {
-        property_tuples.emplace_back(prop_value.type().id(), prop_name,
+        property_tuples.emplace_back(prop_value.type(), prop_name,
                                      value_to_property(prop_value));
       }
       status = storage.CreateEdgeType(

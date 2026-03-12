@@ -75,7 +75,7 @@ For better visualization, you can also use Allure:
 
 **Install Allure dependencies:**
     ```bash
-    pip3 install allure-pytest
+    python3 -m pip  install allure-pytest
     ```
 
 **View the report:**
@@ -172,7 +172,7 @@ After completing the tests, you can generate a coverage report by following thes
 ```
 sudo apt update
 sudo apt install lcov -y
-pip3 install fastcov
+python3 -m pip  install fastcov
 cd tools/python_bind/build/neug_py_bind
 make coverage
 genhtml coverage_filtered.info --output-directory coverage_html --branch-coverage

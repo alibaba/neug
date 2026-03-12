@@ -18,7 +18,25 @@ version = "0.1.0"
 description = "GraphScope NeuG for python"
 authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
 readme = "README.md"
+license = {text = "Apache License 2.0"}
 keywords = ["Graph", "Python", "Embedded", "Graph Database"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Software Development :: Libraries",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "packaging>=24.2",
     "protobuf==5.29.6",

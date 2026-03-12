@@ -59,7 +59,8 @@ Property get_default_value(const DataTypeId& type) {
     break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
-        "Unsupported property type for default value: " + std::to_string(type));
+        "Unsupported property type for default value: " + std::to_string(type) +
+        ", " + std::to_string((int) type));
   }
   return default_value;
 }

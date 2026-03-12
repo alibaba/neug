@@ -6,6 +6,6 @@ newIssueWelcomeComment: >
 newPRWelcomeComment: >
   Thanks for submitting your first pull request! You are awesome! 🤗
 
-  Please make sure you have signed the [CLA](https://cla-assistant.io/GraphScope/neug), as this is a mandatory check before a PR being merged.
+  Please make sure you have signed the [CLA](https://cla-assistant.io/alibaba/neug), as this is a mandatory check before a PR being merged.
 
   Welcome to the NeuG community! 🎉

@@ -16,13 +16,16 @@ find_dependency(Threads)
 find_dependency(ZLIB)
 find_dependency(OpenSSL)
 find_package(absl REQUIRED CONFIG)
+set(_neug_glog_module_dir "${NEUG_HOME}/share/glog/cmake")
+list(APPEND CMAKE_MODULE_PATH "${_neug_glog_module_dir}")
+find_dependency(Unwind)
 
 include("${CMAKE_CURRENT_LIST_DIR}/neug-targets.cmake")
 
 set(NEUG_LIBRARIES @NEUG_LIBRARIES@)
 set(NEUG_INCLUDE_DIR "${NEUG_HOME}/include")
 set(NEUG_INCLUDE_DIRS "${NEUG_INCLUDE_DIR}")
-include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+include_directories(${Protobuf_INCLUDE_DIRS})
 
 add_definitions(-DRAPIDJSON_HAS_CXX11=1)
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)

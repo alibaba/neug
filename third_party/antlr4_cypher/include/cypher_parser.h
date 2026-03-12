@@ -38,13 +38,14 @@ public:
     TABLE = 135, THEN = 136, TO = 137, TRAIL = 138, TRANSACTION = 139, TYPE = 140, 
     UNINSTALL = 141, UNION = 142, UNWIND = 143, USE = 144, WHEN = 145, WHERE = 146, 
     WITH = 147, WRITE = 148, WSHORTEST = 149, XOR = 150, SINGLE = 151, YIELD = 152, 
-    DECIMAL = 153, STAR = 154, L_SKIP = 155, INVALID_NOT_EQUAL = 156, MINUS = 157, 
-    FACTORIAL = 158, COLON = 159, BTRUE = 160, BFALSE = 161, StringLiteral = 162, 
-    EscapedChar = 163, DecimalInteger = 164, HexLetter = 165, HexDigit = 166, 
-    Digit = 167, NonZeroDigit = 168, NonZeroOctDigit = 169, ZeroDigit = 170, 
-    ExponentDecimalReal = 171, RegularDecimalReal = 172, UnescapedSymbolicName = 173, 
-    IdentifierStart = 174, IdentifierPart = 175, EscapedSymbolicName = 176, 
-    SP = 177, WHITESPACE = 178, CypherComment = 179, Unknown = 180
+    DECIMAL = 153, VARCHAR = 154, STAR = 155, L_SKIP = 156, INVALID_NOT_EQUAL = 157, 
+    MINUS = 158, FACTORIAL = 159, COLON = 160, BTRUE = 161, BFALSE = 162, 
+    StringLiteral = 163, EscapedChar = 164, DecimalInteger = 165, HexLetter = 166, 
+    HexDigit = 167, Digit = 168, NonZeroDigit = 169, NonZeroOctDigit = 170, 
+    ZeroDigit = 171, ExponentDecimalReal = 172, RegularDecimalReal = 173, 
+    UnescapedSymbolicName = 174, IdentifierStart = 175, IdentifierPart = 176, 
+    EscapedSymbolicName = 177, SP = 178, WHITESPACE = 179, CypherComment = 180, 
+    Unknown = 181
   };
 
   enum {
@@ -1081,6 +1082,7 @@ public:
     antlr4::tree::TerminalNode *DECIMAL();
     std::vector<OC_IntegerLiteralContext *> oC_IntegerLiteral();
     OC_IntegerLiteralContext* oC_IntegerLiteral(size_t i);
+    antlr4::tree::TerminalNode *VARCHAR();
     NEUG_ListIdentifiersContext *nEUG_ListIdentifiers();
 
    

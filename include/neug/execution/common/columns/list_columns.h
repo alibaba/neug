@@ -72,6 +72,31 @@ class ListColumn : public ListColumnBase {
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold()
       const override;
 
+  std::shared_ptr<IContextColumn> data_column() const { return datas_; }
+
+  const std::vector<list_item>& items() const { return items_; }
+
+  std::shared_ptr<IContextColumn> reorder() const {
+    auto ptr = std::make_shared<ListColumn>(elem_type_);
+    std::vector<list_item> new_items(items_.size());
+    size_t cur_offset = 0;
+    std::vector<size_t> indices;
+    indices.reserve(datas_->size());
+    for (size_t i = 0; i < items_.size(); ++i) {
+      new_items[i].offset = cur_offset;
+      new_items[i].length = items_[i].length;
+      cur_offset += items_[i].length;
+      for (size_t j = items_[i].offset; j < items_[i].offset + items_[i].length;
+           ++j) {
+        indices.push_back(j);
+      }
+    }
+    ptr->items_.swap(new_items);
+
+    ptr->datas_ = datas_->shuffle(indices);
+    return ptr;
+  }
+
  private:
   template <typename T>
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold_impl()

@@ -20,6 +20,7 @@
 #include <vector>
 #include "glog/logging.h"
 
+#include "neug/common/types.h"
 #include "neug/utils/result.h"
 
 namespace YAML {
@@ -30,7 +31,7 @@ namespace neug {
 
 enum class DataTypeId : uint8_t;
 
-YAML::Node property_type_to_yaml(const DataTypeId& type);
+YAML::Node property_type_to_yaml(const DataType& property_type);
 
 std::vector<std::string> get_yaml_files(const std::string& plugin_dir);
 

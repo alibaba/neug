@@ -50,7 +50,7 @@ class PlanParser {
                                    const ContextMeta& ctx_meta,
                                    const physical::PhysicalPlan& plan);
 
-  neug::result<Pipeline> parse_execute_pipeline(
+  neug::result<std::pair<Pipeline, ContextMeta>> parse_execute_pipeline(
       const neug::Schema& schema, const ContextMeta& ctx_meta,
       const physical::PhysicalPlan& plan);
 

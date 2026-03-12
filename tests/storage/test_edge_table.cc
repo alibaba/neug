@@ -45,27 +45,27 @@ class EdgeTableTest : public ::testing::Test {
 
     schema_.AddVertexLabel("person", {}, {},
                            {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-                           {neug::StorageStrategy::kMem}, {},
+                           {neug::StorageStrategy::kMem},
                            static_cast<size_t>(1) << 32, "person vertex label");
     schema_.AddVertexLabel(
         "comment", {}, {}, {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-        {neug::StorageStrategy::kMem}, {}, static_cast<size_t>(1) << 32,
+        {neug::StorageStrategy::kMem}, static_cast<size_t>(1) << 32,
         "comment vertex label");
     schema_.AddEdgeLabel(
         "person", "comment", "create1", {neug::DataTypeId::kInt32}, {"data"},
-        {neug::StorageStrategy::kMem}, {}, neug::EdgeStrategy::kMultiple,
+        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
         neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create2", {neug::DataTypeId::kVarchar}, {"data"},
-        {neug::StorageStrategy::kMem}, {}, neug::EdgeStrategy::kMultiple,
+        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
         neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create3",
         {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
         {"data0", "data1"},
-        {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem}, {},
+        {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem},
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
         true, false, "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
@@ -1118,70 +1118,70 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path;
-  std::vector<DataTypeId> column_types = {DataTypeId::kUInt32,
-                                          DataTypeId::kUInt32};
+  std::vector<DataType> column_types = {DataTypeId::kUInt32,
+                                        DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
   if constexpr (std::is_same_v<EdType, int32_t>) {
     file_path = resource_path + "/edges_i32.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kInt32};
+    std::vector<DataType> property_type = {DataTypeId::kInt32};
     column_types.emplace_back(DataTypeId::kInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
     file_path = resource_path + "/edges_i64.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kInt64};
+    std::vector<DataType> property_type = {DataTypeId::kInt64};
     column_types.emplace_back(DataTypeId::kInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
     file_path = resource_path + "/edges_u32.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kUInt32};
+    std::vector<DataType> property_type = {DataTypeId::kUInt32};
     column_types.emplace_back(DataTypeId::kUInt32);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
     file_path = resource_path + "/edges_u64.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kUInt64};
+    std::vector<DataType> property_type = {DataTypeId::kUInt64};
     column_types.emplace_back(DataTypeId::kUInt64);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, float>) {
     file_path = resource_path + "/edges_float.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kFloat};
+    std::vector<DataType> property_type = {DataTypeId::kFloat};
     column_types.emplace_back(DataTypeId::kFloat);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, double>) {
     file_path = resource_path + "/edges_double.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kDouble};
+    std::vector<DataType> property_type = {DataTypeId::kDouble};
     column_types.emplace_back(DataTypeId::kDouble);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Date>) {
     file_path = resource_path + "/edges_date.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kDate};
+    std::vector<DataType> property_type = {DataTypeId::kDate};
     column_types.emplace_back(DataTypeId::kDate);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
     file_path = resource_path + "/edges_datetime.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kTimestampMs};
+    std::vector<DataType> property_type = {DataTypeId::kTimestampMs};
     column_types.emplace_back(DataTypeId::kTimestampMs);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Interval>) {
     file_path = resource_path + "/edges_interval.csv";
-    std::vector<DataTypeId> property_type = {DataTypeId::kInterval};
+    std::vector<DataType> property_type = {DataTypeId::kInterval};
     column_types.emplace_back(DataTypeId::kInterval);
     edge_schema->add_properties(property_name, property_type, storage_strategy);
     suppliers = execution::ops::create_csv_record_suppliers(
@@ -1205,7 +1205,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   EXPECT_EQ(e_table.EdgeNum(), 10);
 
   std::vector<std::string> new_property_name = {"new_property"};
-  std::vector<DataTypeId> new_property_type = {DataTypeId::kInt32};
+  std::vector<DataType> new_property_type = {DataTypeId::kInt32};
   edge_schema->add_properties(new_property_name, new_property_type);
   e_table.AddProperties(new_property_name, new_property_type);
   EXPECT_EQ(e_table.PropertyNum(), 2);
@@ -1224,8 +1224,8 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path = resource_path + "/edges_empty.csv";
-  std::vector<DataTypeId> column_types = {DataTypeId::kUInt32,
-                                          DataTypeId::kUInt32};
+  std::vector<DataType> column_types = {DataTypeId::kUInt32,
+                                        DataTypeId::kUInt32};
   std::unordered_map<std::string, std::string> csv_options;
   csv_options.insert({"HEADER", "FALSE"});
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers;
@@ -1243,7 +1243,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   }
 
   std::vector<std::string> new_property_name = {"new_property"};
-  std::vector<DataTypeId> new_property_type;
+  std::vector<DataType> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);

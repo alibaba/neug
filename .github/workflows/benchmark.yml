@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   test-py-neug:
-    runs-on: [self-hosted]
+    runs-on: ubuntu-22.04
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
       # options: --user root
@@ -34,17 +34,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
-
-    - name: Mark directory safe
-      run: |
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/aliyun-oss-cpp-sdk"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/parallel-hashmap"
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/pybind11"
-
-    - name: Clean the tool directory for self-hosted runner
-      run: |
-        rm -rf /__w/_tool/Python
 
     - name: Cache CCache
       if: false

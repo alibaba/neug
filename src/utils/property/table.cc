@@ -31,12 +31,10 @@ namespace neug {
 Table::Table() : touched_(false) {}
 Table::~Table() { close(); }
 
-void Table::initColumns(
-    const std::vector<std::string>& col_name,
-    const std::vector<DataTypeId>& property_types,
-    const std::vector<Property>& default_property_values,
-    const std::vector<StorageStrategy>& strategies_,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
+void Table::initColumns(const std::vector<std::string>& col_name,
+                        const std::vector<DataType>& property_types,
+                        const std::vector<Property>& default_property_values,
+                        const std::vector<StorageStrategy>& strategies_) {
   size_t col_num = col_name.size();
   columns_.clear();
   col_names_.clear();
@@ -45,8 +43,6 @@ void Table::initColumns(
   columns_.resize(col_num, nullptr);
   auto strategies = strategies_;
   strategies.resize(col_num, StorageStrategy::kMem);
-  auto extra_infos = extra_type_infos;
-  extra_infos.resize(col_num, nullptr);
 
   for (size_t i = 0; i < col_num; ++i) {
     int col_id = col_names_.size();
@@ -56,16 +52,15 @@ void Table::initColumns(
     col_default_values_.emplace_back(
         i < default_property_values.size()
             ? default_property_values[i]
-            : get_default_value(property_types[i]));
-    columns_[col_id] = CreateColumn(property_types[i], col_default_values_[i],
-                                    strategies[i], extra_infos[i]);
+            : get_default_value(property_types[i].id()));
+    columns_[col_id] = CreateColumn(property_types[i], col_default_values_[i]);
   }
   columns_.resize(col_id_map_.size());
 }
 
 void Table::init(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
-                 const std::vector<DataTypeId>& property_types,
+                 const std::vector<DataType>& property_types,
                  const std::vector<Property>& default_property_values,
                  const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
@@ -78,18 +73,15 @@ void Table::init(const std::string& name, const std::string& work_dir,
   buildColumnPtrs();
 }
 
-void Table::open(
-    const std::string& name, const std::string& work_dir,
-    const std::vector<std::string>& col_name,
-    const std::vector<DataTypeId>& property_types,
-    const std::vector<Property>& default_property_values,
-    const std::vector<StorageStrategy>& strategies_,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
+void Table::open(const std::string& name, const std::string& work_dir,
+                 const std::vector<std::string>& col_name,
+                 const std::vector<DataType>& property_types,
+                 const std::vector<Property>& default_property_values,
+                 const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir_);
-  initColumns(col_name, property_types, default_property_values, strategies_,
-              extra_type_infos);
+  initColumns(col_name, property_types, default_property_values, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
                       tmp_dir(work_dir));
@@ -98,18 +90,15 @@ void Table::open(
   buildColumnPtrs();
 }
 
-void Table::open_in_memory(
-    const std::string& name, const std::string& work_dir,
-    const std::vector<std::string>& col_name,
-    const std::vector<DataTypeId>& property_types,
-    const std::vector<Property>& default_property_values,
-    const std::vector<StorageStrategy>& strategies_,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos) {
+void Table::open_in_memory(const std::string& name, const std::string& work_dir,
+                           const std::vector<std::string>& col_name,
+                           const std::vector<DataType>& property_types,
+                           const std::vector<Property>& default_property_values,
+                           const std::vector<StorageStrategy>& strategies_) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir_);
-  initColumns(col_name, property_types, default_property_values, strategies_,
-              extra_type_infos);
+  initColumns(col_name, property_types, default_property_values, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
                                 std::to_string(i));
@@ -121,16 +110,13 @@ void Table::open_in_memory(
 void Table::open_with_hugepages(
     const std::string& name, const std::string& work_dir,
     const std::vector<std::string>& col_name,
-    const std::vector<DataTypeId>& property_types,
+    const std::vector<DataType>& property_types,
     const std::vector<Property>& default_property_values,
-    const std::vector<StorageStrategy>& strategies_,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos,
-    bool force) {
+    const std::vector<StorageStrategy>& strategies_, bool force) {
   name_ = name;
   work_dir_ = work_dir;
   snapshot_dir_ = checkpoint_dir(work_dir);
-  initColumns(col_name, property_types, default_property_values, strategies_,
-              extra_type_infos);
+  initColumns(col_name, property_types, default_property_values, strategies_);
   for (size_t i = 0; i < columns_.size(); ++i) {
     columns_[i]->open_with_hugepages(
         snapshot_dir_ + "/" + name + ".col_" + std::to_string(i), force);
@@ -170,13 +156,12 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_map_.swap(new_col_id_map);
 }
 
-void Table::add_columns(
-    const std::vector<std::string>& col_names,
-    const std::vector<DataTypeId>& col_types,
-    const std::vector<Property>& default_property_values, size_t column_size,
-    const std::vector<StorageStrategy>& strategies_,
-    const std::vector<std::shared_ptr<ExtraTypeInfo>>& extra_type_infos,
-    int memory_level) {
+void Table::add_columns(const std::vector<std::string>& col_names,
+                        const std::vector<DataType>& col_types,
+                        const std::vector<Property>& default_property_values,
+                        size_t column_size,
+                        const std::vector<StorageStrategy>& strategies_,
+                        int memory_level) {
   // When add_columns are called, the table is already initialized and col_files
   // are opened.
   std::stringstream ss;
@@ -193,8 +178,7 @@ void Table::add_columns(
     col_default_values_.emplace_back(default_property_values[i]);
     columns_[col_id] = CreateColumn(
         col_types[i], default_property_values[i],
-        i < strategies_.size() ? strategies_[i] : StorageStrategy::kMem,
-        i < extra_type_infos.size() ? extra_type_infos[i] : nullptr);
+        i < strategies_.size() ? strategies_[i] : StorageStrategy::kMem);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     if (memory_level == 0) {
@@ -328,25 +312,13 @@ std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 // get column pointers
 std::vector<ColumnBase*>& Table::column_ptrs() { return column_ptrs_; }
 
-void Table::insert(size_t index, const std::vector<Property>& values) {
+void Table::insert(size_t index, const std::vector<Property>& values,
+                   bool insert_safe) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
   size_t col_num = columns_.size();
   for (size_t i = 0; i < col_num; ++i) {
-    columns_[i]->set_any(index, values[i]);
-  }
-}
-
-// column_id_mapping is the mapping from the column id in the input table to
-// the column id in the current table
-void Table::insert(size_t index, const std::vector<Property>& values,
-                   const std::vector<int32_t>& col_ind_mapping) {
-  assert(values.size() == columns_.size() + 1);
-  CHECK_EQ(values.size(), columns_.size() + 1);
-  for (size_t i = 0; i < values.size(); ++i) {
-    if (col_ind_mapping[i] != -1) {
-      columns_[col_ind_mapping[i]]->set_any(index, values[i]);
-    }
+    columns_[i]->set_any(index, values[i], insert_safe);
   }
 }
 

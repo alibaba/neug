@@ -8,10 +8,5 @@ file(GLOB_RECURSE EXECUTION_SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cc"
 
 add_library(neug_execution OBJECT ${EXECUTION_SRC_FILES})
 add_dependencies(neug_execution neug_plan_proto)
-
-find_package(OpenSSL REQUIRED)
-target_compile_definitions(neug_execution PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
-target_include_directories(neug_execution PRIVATE ${OPENSSL_INCLUDE_DIR})
-
 set(ALL_OBJECT_FILES ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:neug_execution> PARENT_SCOPE)
 target_include_directories(neug_execution PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)

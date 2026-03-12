@@ -13,15 +13,13 @@
  * limitations under the License.
  */
 
+#include "neug/utils/bolt_utils.h"
+
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
-#include <yaml-cpp/exceptions.h>
-#include <yaml-cpp/node/impl.h>
-#include <yaml-cpp/node/iterator.h>
-#include <yaml-cpp/node/node.h>
-#include <yaml-cpp/node/parse.h>
+
 #include <iomanip>
 #include <limits>
 #include <memory>
@@ -33,31 +31,10 @@
 #include <utility>
 #include "glog/logging.h"
 
-#include "neug/utils/bolt_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 
 namespace neug {
-
-namespace {
-
-template <typename ArrowArray>
-rapidjson::Value arrow_numeric_to_json(
-    const std::shared_ptr<arrow::Array>& column, int64_t index) {
-  return rapidjson::Value(
-      std::static_pointer_cast<ArrowArray>(column)->Value(index));
-}
-
-template <typename ArrowArray>
-rapidjson::Value arrow_string_to_json(
-    const std::shared_ptr<arrow::Array>& column, int64_t index,
-    rapidjson::Document::AllocatorType& allocator) {
-  auto view = std::static_pointer_cast<ArrowArray>(column)->GetView(index);
-  return rapidjson::Value(
-      view.data(), static_cast<rapidjson::SizeType>(view.size()), allocator);
-}
-
-}  // namespace
 
 rapidjson::Value create_bolt_summary(
     const std::string& query_text,
@@ -155,591 +132,363 @@ rapidjson::Value create_bolt_summary(
 }
 
 // Helper function to extract value from Arrow array at given index
-rapidjson::Value arrow_value_to_json(
-    std::shared_ptr<arrow::Array> column, int64_t index,
-    rapidjson::Document::AllocatorType& allocator);
+rapidjson::Value value_to_bolt(const neug::Array& column, int64_t index,
+                               rapidjson::Document::AllocatorType& allocator);
 
-// Helper function to convert Arrow STRUCT (Vertex/Edge/Path) to Bolt format
-rapidjson::Value arrow_struct_to_bolt_element(
-    std::shared_ptr<arrow::StructArray> struct_array, int64_t index,
-    const std::string& label, rapidjson::Value& nodes, rapidjson::Value& edges,
-    std::unordered_set<int64_t>& node_ids,
-    std::unordered_set<int64_t>& edge_ids,
-    rapidjson::Document::AllocatorType& allocator) {
-  auto struct_type =
-      std::static_pointer_cast<arrow::StructType>(struct_array->type());
+inline bool is_valid(const std::string& map, size_t i) {
+  return map.empty() || (static_cast<uint8_t>(map[i >> 3]) >> (i & 7)) & 1;
+}
 
-  // Check if this is a path structure (has vertices and edges fields)
-  bool has_vertices = false;
-  bool has_edges_field = false;
-  for (int i = 0; i < struct_type->num_fields(); ++i) {
-    auto field_name = struct_type->field(i)->name();
-    if (field_name == "vertices") {
-      has_vertices = true;
-    } else if (field_name == "edges") {
-      has_edges_field = true;
-    }
-  }
+static rapidjson::Value make_bolt_int64(
+    int64_t value, rapidjson::Document::AllocatorType& allocator) {
+  uint64_t u = static_cast<uint64_t>(value);
+  int32_t low = static_cast<int32_t>(u & 0xFFFFFFFFULL);
+  int32_t high = static_cast<int32_t>(u >> 32);
 
-  // If it's a path, handle it specially
-  if (has_vertices && has_edges_field) {
-    return arrow_path_to_bolt_path(struct_array, index, nodes, edges, node_ids,
-                                   edge_ids, allocator);
-  }
-
-  // Check if this is a vertex or edge by looking for required fields
-  bool has_id = false;
-  bool has_src_id = false;
-  bool has_dst_id = false;
-  int id_idx = -1, src_id_idx = -1, dst_id_idx = -1;
-
-  for (int i = 0; i < struct_type->num_fields(); ++i) {
-    auto field_name = struct_type->field(i)->name();
-    if (field_name == "_ID") {
-      has_id = true;
-      id_idx = i;
-    } else if (field_name == "_SRC_ID") {
-      has_src_id = true;
-      src_id_idx = i;
-    } else if (field_name == "_DST_ID") {
-      has_dst_id = true;
-      dst_id_idx = i;
-    }
-  }
-
-  if (has_id && has_src_id && has_dst_id) {
-    // This is an Edge
-    auto id_array = std::static_pointer_cast<arrow::Int64Array>(
-        struct_array->field(id_idx));
-    int64_t edge_id = id_array->Value(index);
-
-    if (edge_ids.find(edge_id) == edge_ids.end()) {
-      edge_ids.insert(edge_id);
-
-      rapidjson::Value edge_obj(rapidjson::kObjectType);
-      rapidjson::Value identity(rapidjson::kObjectType);
-      identity.AddMember("low", rapidjson::Value(edge_id), allocator);
-      identity.AddMember("high", rapidjson::Value(0), allocator);
-      edge_obj.AddMember("identity", identity, allocator);
-
-      edge_obj.AddMember("type", rapidjson::Value(label.c_str(), allocator),
-                         allocator);
-
-      // Start node
-      auto src_id_array = std::static_pointer_cast<arrow::Int64Array>(
-          struct_array->field(src_id_idx));
-      int64_t src_id = src_id_array->Value(index);
-      rapidjson::Value start(rapidjson::kObjectType);
-      start.AddMember("low", rapidjson::Value(src_id), allocator);
-      start.AddMember("high", rapidjson::Value(0), allocator);
-      edge_obj.AddMember("start", start, allocator);
-
-      // End node
-      auto dst_id_array = std::static_pointer_cast<arrow::Int64Array>(
-          struct_array->field(dst_id_idx));
-      int64_t dst_id = dst_id_array->Value(index);
-      rapidjson::Value end(rapidjson::kObjectType);
-      end.AddMember("low", rapidjson::Value(dst_id), allocator);
-      end.AddMember("high", rapidjson::Value(0), allocator);
-      edge_obj.AddMember("end", end, allocator);
-
-      // Properties
-      rapidjson::Value properties(rapidjson::kObjectType);
-      for (int i = 0; i < struct_type->num_fields(); ++i) {
-        auto field_name = struct_type->field(i)->name();
-        if (field_name != "_ID" && field_name != "_LABEL" &&
-            field_name != "_SRC_ID" && field_name != "_DST_ID" &&
-            field_name != "_SRC_LABEL" && field_name != "_DST_LABEL") {
-          auto child_array = struct_array->field(i);
-          if (!child_array->IsNull(index)) {
-            properties.AddMember(
-                rapidjson::Value(field_name.c_str(), allocator),
-                arrow_value_to_json(child_array, index, allocator), allocator);
-          }
-        }
-      }
-      edge_obj.AddMember("properties", properties, allocator);
-
-      std::string element_id = std::to_string(edge_id);
-      edge_obj.AddMember("elementId",
-                         rapidjson::Value(element_id.c_str(), allocator),
-                         allocator);
-
-      edges.PushBack(edge_obj, allocator);
-    }
-
-    // Return reference to edge
-    rapidjson::Value edge_ref(rapidjson::kObjectType);
-    rapidjson::Value identity(rapidjson::kObjectType);
-    identity.AddMember("low", rapidjson::Value(edge_id), allocator);
-    identity.AddMember("high", rapidjson::Value(0), allocator);
-    edge_ref.AddMember("identity", identity, allocator);
-    edge_ref.AddMember("type", rapidjson::Value(label.c_str(), allocator),
-                       allocator);
-
-    auto src_id_array = std::static_pointer_cast<arrow::Int64Array>(
-        struct_array->field(src_id_idx));
-    int64_t src_id = src_id_array->Value(index);
-    rapidjson::Value start(rapidjson::kObjectType);
-    start.AddMember("low", rapidjson::Value(src_id), allocator);
-    start.AddMember("high", rapidjson::Value(0), allocator);
-    edge_ref.AddMember("start", start, allocator);
-
-    auto dst_id_array = std::static_pointer_cast<arrow::Int64Array>(
-        struct_array->field(dst_id_idx));
-    int64_t dst_id = dst_id_array->Value(index);
-    rapidjson::Value end(rapidjson::kObjectType);
-    end.AddMember("low", rapidjson::Value(dst_id), allocator);
-    end.AddMember("high", rapidjson::Value(0), allocator);
-    edge_ref.AddMember("end", end, allocator);
-
-    rapidjson::Value properties(rapidjson::kObjectType);
-    for (int i = 0; i < struct_type->num_fields(); ++i) {
-      auto field_name = struct_type->field(i)->name();
-      if (field_name != "_ID" && field_name != "_LABEL" &&
-          field_name != "_SRC_ID" && field_name != "_DST_ID" &&
-          field_name != "_SRC_LABEL" && field_name != "_DST_LABEL") {
-        auto child_array = struct_array->field(i);
-        if (!child_array->IsNull(index)) {
-          properties.AddMember(
-              rapidjson::Value(field_name.c_str(), allocator),
-              arrow_value_to_json(child_array, index, allocator), allocator);
-        }
-      }
-    }
-    edge_ref.AddMember("properties", properties, allocator);
-
-    std::string element_id = std::to_string(edge_id);
-    edge_ref.AddMember("elementId",
-                       rapidjson::Value(element_id.c_str(), allocator),
-                       allocator);
-
-    return edge_ref;
-
-  } else if (has_id) {
-    // This is a Vertex
-    auto id_array = std::static_pointer_cast<arrow::Int64Array>(
-        struct_array->field(id_idx));
-    int64_t node_id = id_array->Value(index);
-
-    if (node_ids.find(node_id) == node_ids.end()) {
-      node_ids.insert(node_id);
-
-      rapidjson::Value node_obj(rapidjson::kObjectType);
-      rapidjson::Value identity(rapidjson::kObjectType);
-      identity.AddMember("low", rapidjson::Value(node_id), allocator);
-      identity.AddMember("high", rapidjson::Value(0), allocator);
-      node_obj.AddMember("identity", identity, allocator);
-
-      rapidjson::Value labels(rapidjson::kArrayType);
-      labels.PushBack(rapidjson::Value(label.c_str(), allocator), allocator);
-      node_obj.AddMember("labels", labels, allocator);
-
-      // Properties
-      rapidjson::Value properties(rapidjson::kObjectType);
-      for (int i = 0; i < struct_type->num_fields(); ++i) {
-        auto field_name = struct_type->field(i)->name();
-        if (field_name != "_ID" && field_name != "_LABEL") {
-          auto child_array = struct_array->field(i);
-          if (!child_array->IsNull(index)) {
-            properties.AddMember(
-                rapidjson::Value(field_name.c_str(), allocator),
-                arrow_value_to_json(child_array, index, allocator), allocator);
-          }
-        }
-      }
-      node_obj.AddMember("properties", properties, allocator);
-
-      std::string element_id = std::to_string(node_id);
-      node_obj.AddMember("elementId",
-                         rapidjson::Value(element_id.c_str(), allocator),
-                         allocator);
-
-      nodes.PushBack(node_obj, allocator);
-    }
-
-    // Return reference to vertex
-    rapidjson::Value node_ref(rapidjson::kObjectType);
-    rapidjson::Value identity(rapidjson::kObjectType);
-    identity.AddMember("low", rapidjson::Value(node_id), allocator);
-    identity.AddMember("high", rapidjson::Value(0), allocator);
-    node_ref.AddMember("identity", identity, allocator);
-
-    rapidjson::Value labels(rapidjson::kArrayType);
-    labels.PushBack(rapidjson::Value(label.c_str(), allocator), allocator);
-    node_ref.AddMember("labels", labels, allocator);
-
-    rapidjson::Value properties(rapidjson::kObjectType);
-    for (int i = 0; i < struct_type->num_fields(); ++i) {
-      auto field_name = struct_type->field(i)->name();
-      if (field_name != "_ID" && field_name != "_LABEL") {
-        auto child_array = struct_array->field(i);
-        if (!child_array->IsNull(index)) {
-          properties.AddMember(
-              rapidjson::Value(field_name.c_str(), allocator),
-              arrow_value_to_json(child_array, index, allocator), allocator);
-        }
-      }
-    }
-    node_ref.AddMember("properties", properties, allocator);
-
-    std::string element_id = std::to_string(node_id);
-    node_ref.AddMember("elementId",
-                       rapidjson::Value(element_id.c_str(), allocator),
-                       allocator);
-
-    return node_ref;
-  }
-
-  // If neither vertex nor edge, return a generic object
   rapidjson::Value obj(rapidjson::kObjectType);
-  for (int i = 0; i < struct_type->num_fields(); ++i) {
-    auto field_name = struct_type->field(i)->name();
-    auto child_array = struct_array->field(i);
-    if (!child_array->IsNull(index)) {
-      obj.AddMember(rapidjson::Value(field_name.c_str(), allocator),
-                    arrow_value_to_json(child_array, index, allocator),
-                    allocator);
-    }
-  }
+  obj.AddMember("low", rapidjson::Value(low), allocator);
+  obj.AddMember("high", rapidjson::Value(high), allocator);
   return obj;
 }
 
-rapidjson::Value arrow_value_to_json(
-    std::shared_ptr<arrow::Array> column, int64_t index,
-    rapidjson::Document::AllocatorType& allocator) {
-  if (column->IsNull(index)) {
-    rapidjson::Value null_val;
-    null_val.SetNull();
-    return null_val;
-  }
-
-  switch (column->type()->id()) {
-  case arrow::Type::BOOL: {
-    return arrow_numeric_to_json<arrow::BooleanArray>(column, index);
-  }
-  case arrow::Type::INT32: {
-    return arrow_numeric_to_json<arrow::Int32Array>(column, index);
-  }
-  case arrow::Type::UINT32: {
-    return arrow_numeric_to_json<arrow::UInt32Array>(column, index);
-  }
-  case arrow::Type::INT64: {
-    return arrow_numeric_to_json<arrow::Int64Array>(column, index);
-  }
-  case arrow::Type::UINT64: {
-    return arrow_numeric_to_json<arrow::UInt64Array>(column, index);
-  }
-  case arrow::Type::FLOAT: {
-    return arrow_numeric_to_json<arrow::FloatArray>(column, index);
-  }
-  case arrow::Type::DOUBLE: {
-    return arrow_numeric_to_json<arrow::DoubleArray>(column, index);
-  }
-  case arrow::Type::STRING: {
-    return arrow_string_to_json<arrow::StringArray>(column, index, allocator);
-  }
-  case arrow::Type::LARGE_STRING: {
-    return arrow_string_to_json<arrow::LargeStringArray>(column, index,
-                                                         allocator);
-  }
-  case arrow::Type::DATE32: {
-    auto date32_array = std::static_pointer_cast<arrow::Date32Array>(column);
-    int32_t days = date32_array->Value(index);
-    Date day;
-    day.from_num_days(days);
-    std::stringstream ss;
-    ss << day.year() << "-" << std::setfill('0') << std::setw(2) << day.month()
-       << "-" << std::setfill('0') << std::setw(2) << day.day();
-    return rapidjson::Value(ss.str().c_str(), allocator);
-  }
-  case arrow::Type::DATE64: {
-    auto date64_array = std::static_pointer_cast<arrow::Date64Array>(column);
-    int64_t milliseconds = date64_array->Value(index);
-    std::time_t seconds = milliseconds / 1000;
-    std::tm* tm_info = std::gmtime(&seconds);
-    char buffer[20];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", tm_info);
-    return rapidjson::Value(buffer, allocator);
-  }
-  case arrow::Type::TIMESTAMP: {
-    auto timestamp_array =
-        std::static_pointer_cast<arrow::TimestampArray>(column);
-    auto type =
-        std::static_pointer_cast<arrow::TimestampType>(timestamp_array->type());
-    int64_t milliseconds;
-    switch (type->unit()) {
-    case arrow::TimeUnit::MILLI:
-      milliseconds = timestamp_array->Value(index);
-      break;
-    case arrow::TimeUnit::MICRO:
-      milliseconds = timestamp_array->Value(index) / 1000;
-      break;
-    case arrow::TimeUnit::NANO:
-      milliseconds = timestamp_array->Value(index) / 1000000;
-      break;
-    case arrow::TimeUnit::SECOND:
-      milliseconds = timestamp_array->Value(index) * 1000;
-      break;
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported TimeUnit");
-    }
-    // Convert to ISO 8601 string format
-    std::time_t seconds = milliseconds / 1000;
-    int ms = milliseconds % 1000;
-    std::tm* tm_info = std::gmtime(&seconds);
-    std::stringstream ss;
-    ss << std::put_time(tm_info, "%Y-%m-%dT%H:%M:%S");
-    if (ms > 0) {
-      ss << "." << std::setfill('0') << std::setw(3) << ms;
-    }
-    ss << "Z";
-    return rapidjson::Value(ss.str().c_str(), allocator);
-  }
-  case arrow::Type::LIST: {
-    auto list_array = std::static_pointer_cast<arrow::ListArray>(column);
-    auto value_array = list_array->values();
-    int32_t start = list_array->value_offset(index);
-    int32_t end = list_array->value_offset(index + 1);
-    rapidjson::Value list_val(rapidjson::kArrayType);
-    for (int32_t i = start; i < end; ++i) {
-      list_val.PushBack(arrow_value_to_json(value_array, i, allocator),
-                        allocator);
-    }
-    return list_val;
-  }
-  case arrow::Type::STRUCT: {
-    auto struct_array = std::static_pointer_cast<arrow::StructArray>(column);
-    auto struct_type =
-        std::static_pointer_cast<arrow::StructType>(struct_array->type());
-    rapidjson::Value obj(rapidjson::kObjectType);
-    for (int i = 0; i < struct_type->num_fields(); ++i) {
-      auto field_name = struct_type->field(i)->name();
-      auto child_array = struct_array->field(i);
-      if (!child_array->IsNull(index)) {
-        obj.AddMember(rapidjson::Value(field_name.c_str(), allocator),
-                      arrow_value_to_json(child_array, index, allocator),
-                      allocator);
+void convert_vertex_to_node(const rapidjson::Value& doc,
+                            rapidjson::Value& nodes,
+                            std::unordered_set<std::string>& node_ids,
+                            rapidjson::Document::AllocatorType& allocator) {
+  int64_t gid = doc["_ID"].GetInt64();
+  std::string element_id = std::to_string(gid);
+  if (node_ids.find(element_id) == node_ids.end()) {
+    rapidjson::Value node(rapidjson::kObjectType);
+    std::string id_str = element_id;
+    node.AddMember(
+        "id",
+        rapidjson::Value(id_str.c_str(),
+                         static_cast<rapidjson::SizeType>(id_str.size()),
+                         allocator),
+        allocator);
+    node.AddMember("label",
+                   rapidjson::Value(doc["_LABEL"].GetString(),
+                                    doc["_LABEL"].GetStringLength(), allocator),
+                   allocator);
+    rapidjson::Value properties(rapidjson::kObjectType);
+    for (auto it = doc.MemberBegin(); it != doc.MemberEnd(); ++it) {
+      const auto& name = it->name;
+      const char* k = name.GetString();
+      if (std::strcmp(k, "_ID") != 0 && std::strcmp(k, "_LABEL") != 0) {
+        rapidjson::Value jsonKey(name.GetString(), name.GetStringLength(),
+                                 allocator);
+        rapidjson::Value jsonValue(it->value, allocator);
+        properties.AddMember(jsonKey, jsonValue, allocator);
       }
     }
-    return obj;
+    node.AddMember("properties", properties, allocator);
+    node_ids.insert(element_id);
+    nodes.PushBack(node.Move(), allocator);
   }
-  case arrow::Type::NA: {
-    rapidjson::Value null_val;
-    null_val.SetNull();
+}
+
+void convert_edge_to_relationship(
+    const rapidjson::Value& doc, rapidjson::Value& relationships,
+    std::unordered_set<std::string>& edge_ids,
+    rapidjson::Document::AllocatorType& allocator) {
+  int64_t gid = doc["_ID"].GetInt64();
+  std::string element_id = std::to_string(gid);
+  if (edge_ids.find(element_id) == edge_ids.end()) {
+    rapidjson::Value relationship(rapidjson::kObjectType);
+    relationship.AddMember(
+        "id",
+        rapidjson::Value(element_id.c_str(),
+                         static_cast<rapidjson::SizeType>(element_id.size()),
+                         allocator),
+        allocator);
+    relationship.AddMember(
+        "label",
+        rapidjson::Value(doc["_LABEL"].GetString(),
+                         doc["_LABEL"].GetStringLength(), allocator),
+        allocator);
+    std::string source_id_str = std::to_string(doc["_SRC_ID"].GetInt64());
+    std::string target_id_str = std::to_string(doc["_DST_ID"].GetInt64());
+    relationship.AddMember(
+        "source",
+        rapidjson::Value(source_id_str.c_str(),
+                         static_cast<rapidjson::SizeType>(source_id_str.size()),
+                         allocator),
+        allocator);
+    relationship.AddMember(
+        "target",
+        rapidjson::Value(target_id_str.c_str(),
+                         static_cast<rapidjson::SizeType>(target_id_str.size()),
+                         allocator),
+        allocator);
+    rapidjson::Value properties(rapidjson::kObjectType);
+    for (auto it = doc.MemberBegin(); it != doc.MemberEnd(); ++it) {
+      const auto& name = it->name;
+      const char* k = name.GetString();
+      if (std::strcmp(k, "_ID") != 0 && std::strcmp(k, "_LABEL") != 0 &&
+          std::strcmp(k, "_SRC_ID") != 0 && std::strcmp(k, "_DST_ID") != 0) {
+        rapidjson::Value jsonKey(name.GetString(), name.GetStringLength(),
+                                 allocator);
+        rapidjson::Value jsonValue(it->value, allocator);
+        properties.AddMember(jsonKey, jsonValue, allocator);
+      }
+    }
+    relationship.AddMember("properties", properties, allocator);
+    relationships.PushBack(relationship.Move(), allocator);
+    edge_ids.insert(element_id);
+  }
+}
+
+rapidjson::Value vertex_to_bolt(const rapidjson::Value& doc,
+                                rapidjson::Document::AllocatorType& allocator,
+                                std::unordered_set<std::string>& element_ids,
+                                rapidjson::Value& nodes) {
+  rapidjson::Value vertex(rapidjson::kObjectType);
+  int64_t gid = doc["_ID"].GetInt64();
+  auto identity = make_bolt_int64(gid, allocator);
+  vertex.AddMember("identity", identity, allocator);
+  rapidjson::Value labelsArr(rapidjson::kArrayType);
+  labelsArr.PushBack(
+      rapidjson::Value(doc["_LABEL"].GetString(),
+                       doc["_LABEL"].GetStringLength(), allocator),
+      allocator);
+  vertex.AddMember("labels", labelsArr, allocator);
+  rapidjson::Value properties(rapidjson::kObjectType);
+  for (auto it = doc.MemberBegin(); it != doc.MemberEnd(); ++it) {
+    const auto& name = it->name;
+    const char* k = name.GetString();
+    if (std::strcmp(k, "_ID") != 0 && std::strcmp(k, "_LABEL") != 0) {
+      rapidjson::Value jsonKey(name.GetString(), name.GetStringLength(),
+                               allocator);
+
+      rapidjson::Value jsonValue(it->value, allocator);
+      properties.AddMember(jsonKey, jsonValue, allocator);
+    }
+  }
+  vertex.AddMember("properties", properties, allocator);
+  std::string element_id = std::to_string(gid);
+  vertex.AddMember(
+      "elementId",
+      rapidjson::Value(element_id.c_str(),
+                       static_cast<rapidjson::SizeType>(element_id.size()),
+                       allocator),
+      allocator);
+  convert_vertex_to_node(doc, nodes, element_ids, allocator);
+
+  return vertex;
+}
+
+rapidjson::Value edge_to_bolt(const rapidjson::Value& doc,
+                              rapidjson::Document::AllocatorType& allocator,
+                              std::unordered_set<std::string>& element_ids,
+                              rapidjson::Value& edges) {
+  rapidjson::Value edge(rapidjson::kObjectType);
+  int64_t gid = doc["_ID"].GetInt64();
+  auto identity = make_bolt_int64(gid, allocator);
+  edge.AddMember("identity", identity, allocator);
+  edge.AddMember("type",
+                 rapidjson::Value(doc["_LABEL"].GetString(),
+                                  doc["_LABEL"].GetStringLength(), allocator),
+                 allocator);
+
+  // Start node
+  int64_t src_id = doc["_SRC_ID"].GetInt64();
+  rapidjson::Value start(rapidjson::kObjectType);
+  int32_t src_low = static_cast<int32_t>(src_id & 0xFFFFFFFFULL);
+  int32_t src_high = static_cast<int32_t>(src_id >> 32);
+  start.AddMember("low", rapidjson::Value(src_low), allocator);
+  start.AddMember("high", rapidjson::Value(src_high), allocator);
+  edge.AddMember("start", start, allocator);
+
+  // End node
+  int64_t dst_id = doc["_DST_ID"].GetInt64();
+  rapidjson::Value end(rapidjson::kObjectType);
+  int32_t dst_low = static_cast<int32_t>(dst_id & 0xFFFFFFFFULL);
+  int32_t dst_high = static_cast<int32_t>(dst_id >> 32);
+  end.AddMember("low", rapidjson::Value(dst_low), allocator);
+  end.AddMember("high", rapidjson::Value(dst_high), allocator);
+  edge.AddMember("end", end, allocator);
+
+  // Properties
+  rapidjson::Value properties(rapidjson::kObjectType);
+  for (auto it = doc.MemberBegin(); it != doc.MemberEnd(); ++it) {
+    const auto& name = it->name;
+    const char* k = name.GetString();
+    if (std::strcmp(k, "_ID") != 0 && std::strcmp(k, "_LABEL") != 0 &&
+        std::strcmp(k, "_SRC_ID") != 0 && std::strcmp(k, "_DST_ID") != 0) {
+      rapidjson::Value jsonKey(name.GetString(), name.GetStringLength(),
+                               allocator);
+
+      rapidjson::Value jsonValue(it->value, allocator);
+      properties.AddMember(jsonKey, jsonValue, allocator);
+    }
+  }
+  edge.AddMember("properties", properties, allocator);
+  std::string element_id = std::to_string(gid);
+  edge.AddMember(
+      "elementId",
+      rapidjson::Value(element_id.c_str(),
+                       static_cast<rapidjson::SizeType>(element_id.size()),
+                       allocator),
+      allocator);
+  convert_edge_to_relationship(doc, edges, element_ids, allocator);
+  return edge;
+}
+
+rapidjson::Value value_to_bolt(const neug::Array& column, int64_t index,
+                               rapidjson::Document::AllocatorType& allocator) {
+  rapidjson::Value null_val;
+  null_val.SetNull();
+  if (column.has_bool_array()) {
+    const auto& bool_col = column.bool_array();
+    const auto& bool_map = bool_col.validity();
+    if (is_valid(bool_map, index)) {
+      return rapidjson::Value(bool_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_int32_array()) {
+    const auto& int32_col = column.int32_array();
+    const auto& int32_map = int32_col.validity();
+    if (is_valid(int32_map, index)) {
+      return rapidjson::Value(int32_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_uint32_array()) {
+    const auto& uint32_col = column.uint32_array();
+    const auto& uint32_map = uint32_col.validity();
+    if (is_valid(uint32_map, index)) {
+      return rapidjson::Value(uint32_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_int64_array()) {
+    const auto& int64_col = column.int64_array();
+    const auto& int64_map = int64_col.validity();
+    if (is_valid(int64_map, index)) {
+      return rapidjson::Value(int64_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_uint64_array()) {
+    const auto& uint64_col = column.uint64_array();
+    const auto& uint64_map = uint64_col.validity();
+    if (is_valid(uint64_map, index)) {
+      return rapidjson::Value(uint64_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_float_array()) {
+    const auto& float_col = column.float_array();
+    const auto& float_map = float_col.validity();
+    if (is_valid(float_map, index)) {
+      return rapidjson::Value(float_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_double_array()) {
+    const auto& double_col = column.double_array();
+    const auto& double_map = double_col.validity();
+    if (is_valid(double_map, index)) {
+      return rapidjson::Value(double_col.values(index));
+    } else {
+      return null_val;
+    }
+  } else if (column.has_string_array()) {
+    const auto& string_col = column.string_array();
+    const auto& string_map = string_col.validity();
+    if (is_valid(string_map, index)) {
+      auto view = string_col.values(index);
+      return rapidjson::Value(view.data(),
+                              static_cast<rapidjson::SizeType>(view.size()),
+                              allocator);
+    } else {
+      return null_val;
+    }
+  } else if (column.has_date_array()) {
+    const auto& date_col = column.date_array();
+    const auto& date_map = date_col.validity();
+    if (is_valid(date_map, index)) {
+      int64_t days = date_col.values(index);
+      Date day;
+      day.from_timestamp(days);
+      std::stringstream ss;
+      ss << day.year() << "-" << std::setfill('0') << std::setw(2)
+         << day.month() << "-" << std::setfill('0') << std::setw(2)
+         << day.day();
+      return rapidjson::Value(ss.str().c_str(), allocator);
+    } else {
+      return null_val;
+    }
+  } else if (column.has_timestamp_array()) {
+    const auto& timestamp_col = column.timestamp_array();
+    const auto& timestamp_map = timestamp_col.validity();
+    if (is_valid(timestamp_map, index)) {
+      int64_t milliseconds = timestamp_col.values(index);
+      std::time_t seconds = milliseconds / 1000;
+      int ms = milliseconds % 1000;
+      std::tm* tm_info = std::gmtime(&seconds);
+      std::stringstream ss;
+      ss << std::put_time(tm_info, "%Y-%m-%dT%H:%M:%S");
+      if (ms > 0) {
+        ss << "." << std::setfill('0') << std::setw(3) << ms;
+      }
+      ss << "Z";
+      return rapidjson::Value(ss.str().c_str(), allocator);
+    } else {
+      return null_val;
+    }
+  } else if (column.has_interval_array()) {
+    const auto& interval_col = column.interval_array();
+    const auto& interval_map = interval_col.validity();
+    if (is_valid(interval_map, index)) {
+      const auto& interval = interval_col.values(index);
+      return rapidjson::Value(interval.c_str(),
+                              static_cast<rapidjson::SizeType>(interval.size()),
+                              allocator);
+    } else {
+      return null_val;
+    }
+  } else {
+    // Unsupported type, return null
+    LOG(WARNING) << "Unsupported column type: " << column.DebugString();
     return null_val;
-  }
-  default: {
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported Arrow type: " +
-                                  column->type()->ToString());
-  }
   }
 }
 
 // Helper function to convert Arrow Path STRUCT to Bolt path format
-rapidjson::Value arrow_path_to_bolt_path(
-    std::shared_ptr<arrow::StructArray> path_struct, int64_t index,
-    rapidjson::Value& nodes, rapidjson::Value& edges,
-    std::unordered_set<int64_t>& node_ids,
-    std::unordered_set<int64_t>& edge_ids,
-    rapidjson::Document::AllocatorType& allocator) {
-  auto struct_type =
-      std::static_pointer_cast<arrow::StructType>(path_struct->type());
-
-  // Find the vertices and edges fields
-  int vertices_idx = -1, edges_idx = -1;
-  for (int i = 0; i < struct_type->num_fields(); ++i) {
-    auto field_name = struct_type->field(i)->name();
-    if (field_name == "vertices") {
-      vertices_idx = i;
-    } else if (field_name == "edges") {
-      edges_idx = i;
-    }
-  }
-
+rapidjson::Value path_to_bolt(const rapidjson::Value& doc, int64_t index,
+                              rapidjson::Value& nodes, rapidjson::Value& edges,
+                              std::unordered_set<std::string>& node_ids,
+                              std::unordered_set<std::string>& edge_ids,
+                              rapidjson::Document::AllocatorType& allocator) {
   rapidjson::Value segments(rapidjson::kArrayType);
   rapidjson::Value start_node(rapidjson::kNullType);
   rapidjson::Value end_node(rapidjson::kNullType);
   int path_length = 0;
 
   // Process vertices
-  std::vector<rapidjson::Value> vertex_refs;
-  if (vertices_idx >= 0) {
-    auto vertices_list = std::static_pointer_cast<arrow::ListArray>(
-        path_struct->field(vertices_idx));
-    auto vertex_values = vertices_list->values();
-    auto vertex_struct_array =
-        std::static_pointer_cast<arrow::StructArray>(vertex_values);
-    auto vertex_struct_type = std::static_pointer_cast<arrow::StructType>(
-        vertex_struct_array->type());
+  if (doc.HasMember("nodes") && doc["nodes"].IsArray()) {
+    auto nodes_array = doc["nodes"].GetArray();
 
-    int32_t start_offset = vertices_list->value_offset(index);
-    int32_t end_offset = vertices_list->value_offset(index + 1);
-
-    // Find label and id field indices
-    int label_idx = -1, id_idx = -1;
-    for (int i = 0; i < vertex_struct_type->num_fields(); ++i) {
-      auto field_name = vertex_struct_type->field(i)->name();
-      if (field_name == "label") {
-        label_idx = i;
-      } else if (field_name == "id") {
-        id_idx = i;
+    for (int32_t i = 0; i < nodes_array.Size(); ++i) {
+      auto vertex_ref =
+          vertex_to_bolt(nodes_array[i], allocator, node_ids, nodes);
+      if (i == 0) {
+        start_node.CopyFrom(vertex_ref, allocator);
       }
-    }
-
-    auto label_array = std::static_pointer_cast<arrow::StringArray>(
-        vertex_struct_array->field(label_idx));
-    auto id_array = std::static_pointer_cast<arrow::Int64Array>(
-        vertex_struct_array->field(id_idx));
-
-    for (int32_t i = start_offset; i < end_offset; ++i) {
-      int64_t node_id = id_array->Value(i);
-      std::string_view label = label_array->GetView(i);
-
-      // Add to nodes collection if not already present
-      if (node_ids.find(node_id) == node_ids.end()) {
-        node_ids.insert(node_id);
-
-        rapidjson::Value node_obj(rapidjson::kObjectType);
-        rapidjson::Value identity(rapidjson::kObjectType);
-        identity.AddMember("low", rapidjson::Value(node_id), allocator);
-        identity.AddMember("high", rapidjson::Value(0), allocator);
-        node_obj.AddMember("identity", identity, allocator);
-
-        rapidjson::Value labels(rapidjson::kArrayType);
-        labels.PushBack(
-            rapidjson::Value(label.data(),
-                             static_cast<rapidjson::SizeType>(label.size()),
-                             allocator),
-            allocator);
-        node_obj.AddMember("labels", labels, allocator);
-
-        rapidjson::Value properties(rapidjson::kObjectType);
-        node_obj.AddMember("properties", properties, allocator);
-
-        std::string element_id = std::to_string(node_id);
-        node_obj.AddMember("elementId",
-                           rapidjson::Value(element_id.c_str(), allocator),
-                           allocator);
-
-        nodes.PushBack(node_obj, allocator);
-      }
-
-      // Create vertex reference
-      rapidjson::Value node_ref(rapidjson::kObjectType);
-      rapidjson::Value identity(rapidjson::kObjectType);
-      identity.AddMember("low", rapidjson::Value(node_id), allocator);
-      identity.AddMember("high", rapidjson::Value(0), allocator);
-      node_ref.AddMember("identity", identity, allocator);
-
-      rapidjson::Value labels(rapidjson::kArrayType);
-      labels.PushBack(
-          rapidjson::Value(label.data(),
-                           static_cast<rapidjson::SizeType>(label.size()),
-                           allocator),
-          allocator);
-      node_ref.AddMember("labels", labels, allocator);
-
-      rapidjson::Value properties(rapidjson::kObjectType);
-      node_ref.AddMember("properties", properties, allocator);
-
-      std::string element_id = std::to_string(node_id);
-      node_ref.AddMember("elementId",
-                         rapidjson::Value(element_id.c_str(), allocator),
-                         allocator);
-
-      vertex_refs.push_back(std::move(node_ref));
-    }
-
-    if (!vertex_refs.empty()) {
-      start_node = rapidjson::Value(vertex_refs.front(), allocator);
-      end_node = rapidjson::Value(vertex_refs.back(), allocator);
+      end_node.CopyFrom(vertex_ref, allocator);
+      segments.PushBack(vertex_ref, allocator);
     }
   }
 
   // Process edges and create segments
-  if (edges_idx >= 0 && vertex_refs.size() > 1) {
-    auto edges_list = std::static_pointer_cast<arrow::ListArray>(
-        path_struct->field(edges_idx));
-    auto edge_values = edges_list->values();
-    auto edge_struct_array =
-        std::static_pointer_cast<arrow::StructArray>(edge_values);
-    auto edge_struct_type =
-        std::static_pointer_cast<arrow::StructType>(edge_struct_array->type());
+  if (doc.HasMember("rels") && doc["rels"].IsArray()) {
+    const auto& edges_array = doc["rels"].GetArray();
 
-    int32_t start_offset = edges_list->value_offset(index);
-    int32_t end_offset = edges_list->value_offset(index + 1);
-
-    // Find label and direction field indices
-    int label_idx = -1;
-    for (int i = 0; i < edge_struct_type->num_fields(); ++i) {
-      auto field_name = edge_struct_type->field(i)->name();
-      if (field_name == "label") {
-        label_idx = i;
-      }
-    }
-
-    auto label_array = std::static_pointer_cast<arrow::StringArray>(
-        edge_struct_array->field(label_idx));
-
-    for (int32_t i = start_offset;
-         i < end_offset && i - start_offset < vertex_refs.size() - 1; ++i) {
-      std::string_view edge_label = label_array->GetView(i);
-      int edge_idx = i - start_offset;
-
-      // Create a segment with start node, relationship, and end node
-      rapidjson::Value segment(rapidjson::kObjectType);
-      segment.AddMember("start",
-                        rapidjson::Value(vertex_refs[edge_idx], allocator),
-                        allocator);
-
-      // Create relationship object (simplified without actual edge ID)
-      rapidjson::Value relationship(rapidjson::kObjectType);
-      rapidjson::Value rel_identity(rapidjson::kObjectType);
-      // Use a synthetic ID based on position
-      int64_t synthetic_edge_id = -(i + 1);
-      rel_identity.AddMember("low", rapidjson::Value(synthetic_edge_id),
-                             allocator);
-      rel_identity.AddMember("high", rapidjson::Value(0), allocator);
-      relationship.AddMember("identity", rel_identity, allocator);
-
-      relationship.AddMember(
-          "type",
-          rapidjson::Value(edge_label.data(),
-                           static_cast<rapidjson::SizeType>(edge_label.size()),
-                           allocator),
-          allocator);
-
-      // Start and end should reference the actual vertex IDs
-      rapidjson::Value rel_start(rapidjson::kObjectType);
-      rel_start.AddMember(
-          "low",
-          rapidjson::Value(vertex_refs[edge_idx]["identity"]["low"].GetInt64()),
-          allocator);
-      rel_start.AddMember("high", rapidjson::Value(0), allocator);
-      relationship.AddMember("start", rel_start, allocator);
-
-      rapidjson::Value rel_end(rapidjson::kObjectType);
-      rel_end.AddMember(
-          "low",
-          rapidjson::Value(
-              vertex_refs[edge_idx + 1]["identity"]["low"].GetInt64()),
-          allocator);
-      rel_end.AddMember("high", rapidjson::Value(0), allocator);
-      relationship.AddMember("end", rel_end, allocator);
-
-      rapidjson::Value rel_properties(rapidjson::kObjectType);
-      relationship.AddMember("properties", rel_properties, allocator);
-
-      std::string rel_element_id = std::to_string(synthetic_edge_id);
-      relationship.AddMember(
-          "elementId", rapidjson::Value(rel_element_id.c_str(), allocator),
-          allocator);
-
-      segment.AddMember("relationship", relationship, allocator);
-      segment.AddMember("end",
-                        rapidjson::Value(vertex_refs[edge_idx + 1], allocator),
-                        allocator);
+    for (int32_t i = 0; i < edges_array.Size(); ++i) {
+      rapidjson::Value segment =
+          edge_to_bolt(edges_array[i], allocator, edge_ids, edges);
 
       segments.PushBack(segment, allocator);
       path_length++;
@@ -756,8 +505,174 @@ rapidjson::Value arrow_path_to_bolt_path(
   return path_obj;
 }
 
-std::string arrow_table_to_bolt_response(
-    const arrow::Table& table, const std::vector<std::string>& column_names) {
+void convert_entry_to_table(const neug::Array& column, size_t index,
+                            rapidjson::Value& val,
+                            rapidjson::Document::AllocatorType& allocator) {
+  if (column.has_vertex_array()) {
+    const auto& vertex_col = column.vertex_array();
+    const auto& vertex_map = vertex_col.validity();
+    if (is_valid(vertex_map, index)) {
+      const std::string vertex_str = vertex_col.values(index);
+      val = rapidjson::Value(
+          vertex_str.c_str(),
+          static_cast<rapidjson::SizeType>(vertex_str.size()), allocator);
+    } else {
+      val.SetNull();
+    }
+  } else if (column.has_edge_array()) {
+    const auto& edge_col = column.edge_array();
+    const auto& edge_map = edge_col.validity();
+    if (is_valid(edge_map, index)) {
+      const std::string edge_str = edge_col.values(index);
+      val = rapidjson::Value(edge_str.c_str(),
+                             static_cast<rapidjson::SizeType>(edge_str.size()),
+                             allocator);
+    } else {
+      val.SetNull();
+    }
+  } else if (column.has_path_array()) {
+    const auto& path_col = column.path_array();
+    const auto& path_map = path_col.validity();
+    if (is_valid(path_map, index)) {
+      const std::string path_str = path_col.values(index);
+      val = rapidjson::Value(path_str.c_str(),
+                             static_cast<rapidjson::SizeType>(path_str.size()),
+                             allocator);
+    } else {
+      val.SetNull();
+    }
+  } else if (column.has_list_array()) {
+    const auto& list_col = column.list_array();
+    const auto& list_map = list_col.validity();
+    if (is_valid(list_map, index)) {
+      const auto& offsets = list_col.offsets();
+      auto start = offsets[index];
+      auto end = offsets[index + 1];
+      const auto& child = list_col.elements();
+      rapidjson::Value list_val(rapidjson::kArrayType);
+      for (uint32_t i = start; i < end; ++i) {
+        rapidjson::Value item;
+        convert_entry_to_table(child, i, item, allocator);
+        list_val.PushBack(item, allocator);
+      }
+      val = list_val;
+    } else {
+      val.SetNull();
+    }
+  } else if (column.has_struct_array()) {
+    const auto& struct_column = column.struct_array();
+    const auto& struct_map = struct_column.validity();
+    if (is_valid(struct_map, index)) {
+      rapidjson::Value list_val(rapidjson::kArrayType);
+      size_t num_fields = struct_column.fields_size();
+      for (size_t i = 0; i < num_fields; ++i) {
+        rapidjson::Value item;
+        convert_entry_to_table(struct_column.fields(i), index, item, allocator);
+        list_val.PushBack(item, allocator);
+      }
+      val = list_val;
+    } else {
+      val.SetNull();
+    }
+  } else {
+    val = value_to_bolt(column, index, allocator);
+  }
+}
+
+void convert_entry_to_field(const neug::Array& column, size_t index,
+                            rapidjson::Value& field,
+                            rapidjson::Document::AllocatorType& allocator,
+                            std::unordered_set<std::string>& node_ids,
+                            std::unordered_set<std::string>& edge_ids,
+                            rapidjson::Value& nodes, rapidjson::Value& edges) {
+  if (column.has_vertex_array()) {
+    const auto& vertex_col = column.vertex_array();
+    const auto& vertex_map = vertex_col.validity();
+    if (is_valid(vertex_map, index)) {
+      const std::string vertex_str = column.vertex_array().values(index);
+      rapidjson::Document doc;
+      if (doc.Parse(vertex_str.c_str()).HasParseError()) {
+        LOG(ERROR) << "Failed to parse vertex struct string: " << vertex_str;
+        field.SetNull();
+        return;
+      }
+      field = vertex_to_bolt(doc, allocator, node_ids, nodes);
+    } else {
+      field.SetNull();
+    }
+  } else if (column.has_edge_array()) {
+    const auto& edge_col = column.edge_array();
+    const auto& edge_map = edge_col.validity();
+    if (is_valid(edge_map, index)) {
+      const std::string edge_str = column.edge_array().values(index);
+      rapidjson::Document doc;
+      if (doc.Parse(edge_str.c_str()).HasParseError()) {
+        LOG(ERROR) << "Failed to parse edge struct string: " << edge_str;
+        field.SetNull();
+        return;
+      }
+      field = edge_to_bolt(doc, allocator, edge_ids, edges);
+    } else {
+      field.SetNull();
+    }
+  } else if (column.has_path_array()) {
+    const auto& path_col = column.path_array();
+    const auto& path_map = path_col.validity();
+    if (is_valid(path_map, index)) {
+      const std::string path_str = column.path_array().values(index);
+      rapidjson::Document doc;
+      if (doc.Parse(path_str.c_str()).HasParseError()) {
+        LOG(ERROR) << "Failed to parse path struct string: " << path_str;
+        field.SetNull();
+        return;
+      }
+      field =
+          path_to_bolt(doc, index, nodes, edges, node_ids, edge_ids, allocator);
+    } else {
+      field.SetNull();
+    }
+  } else if (column.has_list_array()) {
+    const auto& list_col = column.list_array();
+    const auto& list_map = list_col.validity();
+    if (is_valid(list_map, index)) {
+      const auto& offsets = list_col.offsets();
+      auto start = offsets[index];
+      auto end = offsets[index + 1];
+      const auto& child = list_col.elements();
+      rapidjson::Value list_val(rapidjson::kArrayType);
+      for (uint32_t i = start; i < end; ++i) {
+        rapidjson::Value item;
+        convert_entry_to_field(child, i, item, allocator, node_ids, edge_ids,
+                               nodes, edges);
+        list_val.PushBack(item, allocator);
+      }
+      field = list_val;
+    } else {
+      field.SetNull();
+    }
+  } else if (column.has_struct_array()) {
+    const auto& struct_column = column.struct_array();
+    const auto& struct_map = struct_column.validity();
+    if (is_valid(struct_map, index)) {
+      rapidjson::Value struct_val(rapidjson::kArrayType);
+      size_t num_fields = struct_column.fields_size();
+      for (size_t i = 0; i < num_fields; ++i) {
+        rapidjson::Value item;
+        convert_entry_to_field(struct_column.fields(i), index, item, allocator,
+                               node_ids, edge_ids, nodes, edges);
+        struct_val.PushBack(item, allocator);
+      }
+      field = struct_val;
+    } else {
+      field.SetNull();
+    }
+  } else {
+    field = value_to_bolt(column, index, allocator);
+  }
+}
+std::string results_to_bolt_response(
+    const neug::QueryResponse& table,
+    const std::vector<std::string>& column_names) {
   rapidjson::Document response;
   response.SetObject();
   auto& allocator = response.GetAllocator();
@@ -767,12 +682,12 @@ std::string arrow_table_to_bolt_response(
   rapidjson::Value records(rapidjson::kArrayType);
   rapidjson::Value table_json(rapidjson::kArrayType);
 
-  std::unordered_set<int64_t> node_ids;
-  std::unordered_set<int64_t> edge_ids;
+  std::unordered_set<std::string> node_ids;
+  std::unordered_set<std::string> edge_ids;
 
   // Get the number of rows and columns
-  int64_t num_rows = table.num_rows();
-  int num_columns = table.num_columns();
+  int64_t num_rows = table.row_count();
+  int num_columns = table.arrays_size();
 
   // Process each row
   for (int64_t row = 0; row < num_rows; ++row) {
@@ -788,91 +703,27 @@ std::string arrow_table_to_bolt_response(
       if (col < (int) column_names.size() && !column_names[col].empty()) {
         column_name = column_names[col];
       } else {
-        column_name = table.schema()->field(col)->name();
+        column_name = "column" + std::to_string(col);
       }
-
       keys.PushBack(rapidjson::Value(column_name.c_str(), allocator),
                     allocator);
 
-      auto chunked_array = table.column(col);
-      if (chunked_array->num_chunks() != 1) {
-        THROW_INTERNAL_EXCEPTION("Expected single chunk per column, got " +
-                                 std::to_string(chunked_array->num_chunks()));
-      }
-      auto column_array = chunked_array->chunk(0);
+      auto column = table.arrays(col);
 
       rapidjson::Value field_value;
-
-      // Handle SPARSE_UNION type (for Vertex/Edge)
-      if (column_array->type()->id() == arrow::Type::SPARSE_UNION) {
-        auto union_array =
-            std::static_pointer_cast<arrow::UnionArray>(column_array);
-        int8_t type_code = union_array->type_code(row);
-        auto union_type =
-            std::static_pointer_cast<arrow::UnionType>(union_array->type());
-        std::string label = union_type->field(type_code)->name();
-        auto child_array = union_array->field(type_code);
-
-        if (child_array->type()->id() == arrow::Type::STRUCT) {
-          auto struct_array =
-              std::static_pointer_cast<arrow::StructArray>(child_array);
-          field_value = arrow_struct_to_bolt_element(struct_array, row, label,
-                                                     nodes, edges, node_ids,
-                                                     edge_ids, allocator);
-        } else {
-          field_value = arrow_value_to_json(child_array, row, allocator);
-        }
-      } else {
-        // Check if this is a STRUCT that might be a Path
-        if (column_array->type()->id() == arrow::Type::STRUCT) {
-          auto struct_array =
-              std::static_pointer_cast<arrow::StructArray>(column_array);
-          auto struct_type =
-              std::static_pointer_cast<arrow::StructType>(struct_array->type());
-
-          // Check if it's a path structure
-          bool has_vertices = false;
-          bool has_edges_field = false;
-          for (int i = 0; i < struct_type->num_fields(); ++i) {
-            auto field_name = struct_type->field(i)->name();
-            if (field_name == "vertices") {
-              has_vertices = true;
-            } else if (field_name == "edges") {
-              has_edges_field = true;
-            }
-          }
-
-          if (has_vertices && has_edges_field) {
-            // This is a path, process it specially
-            field_value = arrow_path_to_bolt_path(
-                struct_array, row, nodes, edges, node_ids, edge_ids, allocator);
-          } else {
-            field_value = arrow_value_to_json(column_array, row, allocator);
-          }
-        } else {
-          field_value = arrow_value_to_json(column_array, row, allocator);
-        }
-      }
-
+      convert_entry_to_field(column, row, field_value, allocator, node_ids,
+                             edge_ids, nodes, edges);
       fields.PushBack(rapidjson::Value(field_value, allocator), allocator);
-      field_lookup.AddMember(rapidjson::Value(column_name.c_str(), allocator),
-                             rapidjson::Value(col), allocator);
+      field_lookup.AddMember(
+          rapidjson::Value(column_name.c_str(),
+                           static_cast<rapidjson::SizeType>(column_name.size()),
+                           allocator),
+          rapidjson::Value(col), allocator);
 
       // Add to table
-      if (column_array->IsNull(row)) {
-        table_row.AddMember(rapidjson::Value(column_name.c_str(), allocator),
-                            rapidjson::Value().SetNull(), allocator);
-      } else {
+      {
         rapidjson::Value table_value;
-        if (column_array->type()->id() == arrow::Type::SPARSE_UNION) {
-          auto union_array =
-              std::static_pointer_cast<arrow::UnionArray>(column_array);
-          int8_t type_code = union_array->type_code(row);
-          auto child_array = union_array->field(type_code);
-          table_value = arrow_value_to_json(child_array, row, allocator);
-        } else {
-          table_value = arrow_value_to_json(column_array, row, allocator);
-        }
+        convert_entry_to_table(column, row, table_value, allocator);
         table_row.AddMember(rapidjson::Value(column_name.c_str(), allocator),
                             table_value, allocator);
       }
@@ -905,19 +756,6 @@ std::string arrow_table_to_bolt_response(
   response.Accept(writer);
 
   return buffer.GetString();
-}
-
-std::string arrow_table_to_bolt_response(
-    const std::shared_ptr<arrow::Table>& table) {
-  if (!table) {
-    return "{}";
-  }
-  std::vector<std::string> column_names;
-  for (int i = 0; i < table->num_columns(); ++i) {
-    column_names.push_back(table->schema()->field(i)->name());
-  }
-
-  return arrow_table_to_bolt_response(*table, column_names);
 }
 
 }  // namespace neug

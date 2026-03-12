@@ -33,8 +33,6 @@ QueryProcessor::check_and_retrieve_pipeline(const std::string& query_string,
   if (num_threads > max_num_threads_) {
     num_threads = max_num_threads_;
   }
-  LOG(INFO) << "Executing plan with " << num_threads
-            << " threads, max_num_threads: " << max_num_threads_;
   if (num_threads < 1) {
     RETURN_ERROR(neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
                               "Number of threads must be greater than 0"));
@@ -126,8 +124,15 @@ result<QueryResult> QueryProcessor::execute_internal(
                << ", message: " << ctx_res.error().error_message();
     RETURN_ERROR(ctx_res.error());
   }
-  auto ret = execution::Sink::sink_neug(ctx_res.value(), graph);
-  ret.set_result_schema(cache_value->result_schema);
+
+  google::protobuf::Arena arena;
+  // Create a QueryResponse message on the arena to hold the results.
+  neug::QueryResponse* response =
+      google::protobuf::Arena::CreateMessage<neug::QueryResponse>(&arena);
+  neug::execution::Sink::sink_results(ctx_res.value(), graph, response);
+  response->mutable_schema()->CopyFrom(cache_value->result_schema);
+  QueryResult ret = QueryResult::From(response->SerializeAsString());
+
   update_compiler_meta_if_needed(cache_value->flags, access_mode);
   return ret;
 }
@@ -141,7 +146,6 @@ bool QueryProcessor::need_exclusive_lock(AccessMode access_mode) {
 
 void QueryProcessor::update_compiler_meta_if_needed(
     const physical::ExecutionFlag& flags, AccessMode mode) {
-  LOG(INFO) << "Updating compiler meta if needed.";
   YAML::Node schema_yaml;
   std::string statistics_json;
   if (flags.schema() || flags.create_temp_table() ||

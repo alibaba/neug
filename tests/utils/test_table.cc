@@ -72,11 +72,13 @@ TEST(TableTest, TestTableBasic) {
       "uint64_column",   "float_column",    "double_column", "date_column",
       "datetime_column", "interval_column", "string_column"};
 
-  std::vector<DataTypeId> property_types = {
-      DataTypeId::kBoolean,  DataTypeId::kInt32,  DataTypeId::kUInt32,
-      DataTypeId::kInt64,    DataTypeId::kUInt64, DataTypeId::kFloat,
-      DataTypeId::kDouble,   DataTypeId::kDate,   DataTypeId::kTimestampMs,
-      DataTypeId::kInterval, DataTypeId::kVarchar};
+  std::vector<DataType> property_types = {
+      {DataTypeId::kBoolean},     {DataTypeId::kInt32},
+      {DataTypeId::kUInt32},      {DataTypeId::kInt64},
+      {DataTypeId::kUInt64},      {DataTypeId::kFloat},
+      {DataTypeId::kDouble},      {DataTypeId::kDate},
+      {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
+      {DataTypeId::kVarchar}};
 
   std::vector<Property> default_values = {
       Property::from_bool(false),

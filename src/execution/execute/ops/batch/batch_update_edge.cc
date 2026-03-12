@@ -78,9 +78,6 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
       auto label_id = er.label.edge_label;
       auto src_label = er.label.src_label;
       auto dst_label = er.label.dst_label;
-      LOG(INFO) << "edge: , label_id: " << static_cast<int>(label_id)
-                << ", src_label: " << static_cast<int>(src_label)
-                << ", dst_label: " << static_cast<int>(dst_label);
       auto property_names = graph.schema().get_edge_property_names(
           src_label, dst_label, label_id);
       int col_id = -1;
@@ -100,7 +97,6 @@ neug::result<Context> UpdateEdgeOpr::Eval(IStorageInterface& graph_interface,
       }
       Property prop;
       auto val_type = value.type();
-      LOG(INFO) << "value type: " << static_cast<int>(val_type.id());
       if (val_type.id() == DataTypeId::kEmpty) {
       } else if (val_type.id() == DataTypeId::kInt32) {
         prop.set_int32(value.GetValue<int32_t>());

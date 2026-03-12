@@ -181,10 +181,10 @@ class PropertyGraph {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * std::vector<std::tuple<DataTypeId, std::string, Property>> props = {
-   *     {DataTypeId::kInt64, "id", Property()},
-   *     {DataTypeId::kVarchar, "name", Property()},
-   *     {DataTypeId::kInt32, "age", Property()}
+   * std::vector<std::tuple<DataType, std::string, Property>> props = {
+   *     {{DataType::kInt64}, "id", Property()},
+   *     {{DataType::kVarchar}, "name", Property()},
+   *     {{DataType::kInt32}, "age", Property()}
    * };
    * graph.CreateVertexType("Person", props, {"id"});
    * @endcode
@@ -201,7 +201,7 @@ class PropertyGraph {
    */
   Status CreateVertexType(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       const std::vector<std::string>& primary_key_names,
       bool error_on_conflict = true);
@@ -213,9 +213,9 @@ class PropertyGraph {
    *
    * **Usage Example:**
    * @code{.cpp}
-   * std::vector<std::tuple<DataTypeId, std::string, Property>> props = {
-   *     {DataTypeId::kInt64, "since", Property()},
-   *     {DataTypeId::kDouble, "weight", Property()}
+   * std::vector<std::tuple<DataType, std::string, Property>> props = {
+   *     {{DataType::kInt64}, "since", Property()},
+   *     {{DataType::kDouble}, "weight", Property()}
    * };
    * graph.CreateEdgeType("Person", "Person", "KNOWS", props);
    * @endcode
@@ -236,7 +236,7 @@ class PropertyGraph {
   Status CreateEdgeType(
       const std::string& src_vertex_type, const std::string& dst_vertex_type,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           properties,
       bool error_on_conflict = true,
       EdgeStrategy oe_strategy = EdgeStrategy::kMultiple,
@@ -263,14 +263,14 @@ class PropertyGraph {
 
   Status AddVertexProperties(
       const std::string& vertex_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 
   Status AddEdgeProperties(
       const std::string& src_type_name, const std::string& dst_type_name,
       const std::string& edge_type_name,
-      const std::vector<std::tuple<DataTypeId, std::string, Property>>&
+      const std::vector<std::tuple<DataType, std::string, Property>>&
           add_properties,
       bool error_on_conflict = true);
 
@@ -378,12 +378,12 @@ class PropertyGraph {
 
   Status AddVertex(label_t label, const Property& id,
                    const std::vector<Property>& props, vid_t& vid,
-                   timestamp_t ts);
+                   timestamp_t ts, bool insert_safe = false);
 
   int32_t AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                   vid_t dst_lid, label_t edge_label,
                   const std::vector<Property>& properties, timestamp_t ts,
-                  Allocator& alloc);
+                  Allocator& alloc, bool insert_safe = false);
 
   Status UpdateVertexProperty(label_t v_label, vid_t vid, int32_t prop_id,
                               const Property& value, timestamp_t ts);

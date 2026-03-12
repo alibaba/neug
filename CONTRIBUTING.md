@@ -55,7 +55,7 @@ When reporting bugs, please include:
 ## Questions?
 
 - 📖 Check the [Development Guide](./doc/source/development/dev_guide.md)
-- 🐛 [Open an issue](https://github.com/GraphScope/neug/issues) for bugs or questions
+- 🐛 [Open an issue](https://github.com/alibaba/neug/issues) for bugs or questions
 - 💬 Start a discussion for feature ideas
 
 ## Code of Conduct
