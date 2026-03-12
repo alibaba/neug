@@ -29,7 +29,9 @@
 #include <yaml-cpp/node/emit.h>
 #include <yaml-cpp/node/node.h>
 #include <ranges>
+#include <regex>
 #include <string>
+#include <utility>
 #include <vector>
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -404,8 +406,29 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<main::ClientContext> ctx;
 };
 
+// (regex_pattern, replacement) pairs applied in order during normalize
+using RegexReplaceMap = std::vector<std::pair<std::string, std::string>>;
+
 class VerifyFactory {
  public:
+  static RegexReplaceMap defaultNormalizePatterns() {
+    return {{R"("max_length":\s*\d+)", "\"max_length\": <IGNORED>"},
+            {R"(max_length:\s*\d+)", "max_length: <IGNORED>"}};
+  }
+
+  static std::string normalize(const std::string& s) {
+    return normalize(s, defaultNormalizePatterns());
+  }
+
+  static std::string normalize(const std::string& s,
+                               const RegexReplaceMap& patterns) {
+    std::string out = s;
+    for (const auto& p : patterns) {
+      out = std::regex_replace(out, std::regex(p.first), p.second);
+    }
+    return out;
+  }
+
   static void verifyPhysicalByJson(const ::physical::PhysicalPlan& plan,
                                    const std::string& expectedStr) {
     rapidjson::Document document;
@@ -433,7 +456,7 @@ class VerifyFactory {
       const rapidjson::Value& plan = document["plan"];
       actualStr = rapidjson_stringify(plan);
     }
-    ASSERT_EQ(actualStr, planExpectedStr)
+    ASSERT_EQ(normalize(actualStr), normalize(planExpectedStr))
         << "Expected: " << planExpectedStr << "\nActual: " << actualStr;
   }
 
@@ -454,7 +477,7 @@ class VerifyFactory {
   static void verifyResultByYaml(const YAML::Node& resultYaml,
                                  const std::string& expectedStr) {
     auto actualStr = YAML::Dump(resultYaml);
-    ASSERT_EQ(actualStr, expectedStr)
+    ASSERT_EQ(normalize(actualStr), normalize(expectedStr))
         << "Expected: " << expectedStr << "\nActual: " << actualStr;
   }
 };

@@ -5,24 +5,6 @@
 message(STATUS "Generating ANTLR4 Cypher grammar files...")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-set(HASH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/hash.md5")
-if (NOT EXISTS ${HASH_FILE})
-    file(WRITE ${HASH_FILE} "")
-endif()
-file(READ ${HASH_FILE} OLDHASH)
-
-#NOTE: Commented out by zhanglei, we regenerate the grammar files every time.
-message(STATUS " generating keywords hash...")
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} hash.py ${ROOT_DIR}/src/compiler/antlr4/keywords.txt ${ROOT_DIR}/src/compiler/antlr4/Cypher.g4 OUTPUT_VARIABLE NEWHASH)
-
-if("${OLDHASH}" STREQUAL "${NEWHASH}")
-    message(INFO " Not regenerating grammar files as Cypher.g4 and keywords.txt is unchanged.")
-    return() # Exit.
-endif()
-
-file(WRITE hash.md5 "${NEWHASH}")
-
 message(STATUS " Regenerating grammar files...")
 
 if(NOT EXISTS antlr4.jar)
@@ -35,10 +17,11 @@ endif()
 # create the directory for the generated grammar
 file(MAKE_DIRECTORY generated)
 
+# Only require Java when we actually need to regenerate (after hash check).
 find_package(Java REQUIRED)
 
 # use script to generate final Cypher.g4 file and update tools/shell/include/keywords.h
-execute_process(COMMAND ${Python3_EXECUTABLE} keywordhandler.py ${ROOT_DIR}/src/compiler/antlr4/Cypher.g4 ${ROOT_DIR}/src/compiler/antlr4/keywords.txt Cypher.g4 ${ROOT_DIR}/src/compiler/tools/shell/include/keywords.h)
+execute_process(COMMAND ${Python3_EXECUTABLE} keywordhandler.py ${ROOT_DIR}/src/compiler/antlr4/Cypher.g4 ${ROOT_DIR}/src/compiler/antlr4/keywords.txt Cypher.g4 ${ROOT_DIR}/include/neug/compiler/tools/shell/include/keywords.h)
 
 # Generate files.
 message(INFO " Generating files...")

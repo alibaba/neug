@@ -63,6 +63,6 @@ function(build_brpc_as_third_party)
             add_dependencies(${lib} protobuf::protoc)
         endif()
     endforeach()
-    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
+    include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/brpc/output/include)
 endfunction(build_brpc_as_third_party)
 

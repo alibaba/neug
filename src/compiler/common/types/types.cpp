@@ -343,6 +343,20 @@ uint32_t PhysicalTypeUtils::getFixedTypeSize(PhysicalTypeID physicalType) {
   }
 }
 
+void StringTypeInfo::serializeInternal(Serializer& serializer) const {};
+
+bool StringTypeInfo::operator==(const ExtraTypeInfo& other) const {
+  auto otherStringTypeInfo = dynamic_cast<const StringTypeInfo*>(&other);
+  if (otherStringTypeInfo) {
+    return max_length == otherStringTypeInfo->max_length;
+  }
+  return false;
+}
+
+std::unique_ptr<ExtraTypeInfo> StringTypeInfo::copy() const {
+  return std::make_unique<StringTypeInfo>(max_length);
+}
+
 bool DecimalTypeInfo::operator==(const ExtraTypeInfo& other) const {
   auto otherDecimalTypeInfo = neug_dynamic_cast<const DecimalTypeInfo*>(&other);
   if (otherDecimalTypeInfo) {
@@ -603,6 +617,11 @@ bool LogicalType::operator==(const LogicalType& other) const {
   if (typeID != other.typeID || category != other.category) {
     return false;
   }
+  // We think the string type with different max_length are equal, so skip the
+  // comparison of extraTypeInfo.
+  if (typeID == LogicalTypeID::STRING) {
+    return true;
+  }
   if (extraTypeInfo) {
     return *extraTypeInfo == *other.extraTypeInfo;
   }
@@ -744,6 +763,8 @@ static LogicalType parseUnionType(const std::string& trimmedStr,
                                   main::ClientContext* context = nullptr);
 static LogicalType parseDecimalType(const std::string& trimmedStr);
 
+static LogicalType parseStringType(const std::string& trimmedStr);
+
 bool LogicalType::isBuiltInType(const std::string& str) {
   auto trimmedStr = StringUtils::ltrim(StringUtils::rtrim(str));
   auto upperDataTypeString = StringUtils::getUpper(trimmedStr);
@@ -787,6 +808,10 @@ LogicalType LogicalType::convertFromString(const std::string& str,
   } else if (upperDataTypeString.starts_with("DECIMAL") ||
              upperDataTypeString.starts_with("NUMERIC")) {
     type = parseDecimalType(trimmedStr);
+  } else if (upperDataTypeString == "STRING") {
+    type = LogicalType::STRING();
+  } else if (upperDataTypeString.starts_with("VARCHAR")) {
+    type = parseStringType(trimmedStr);
   } else if (tryGetIDFromString(upperDataTypeString, type.typeID)) {
     type.physicalType =
         LogicalType::getPhysicalType(type.typeID, type.extraTypeInfo);
@@ -1472,6 +1497,28 @@ LogicalType parseUnionType(const std::string& trimmedStr,
   return LogicalType::UNION(parseStructTypeInfo(trimmedStr, context));
 }
 
+LogicalType parseStringType(const std::string& trimmedStr) {
+  auto leftBracketPos = trimmedStr.find('(');
+  auto rightBracketPos = trimmedStr.find_last_of(')');
+  if (leftBracketPos == std::string::npos ||
+      rightBracketPos == std::string::npos) {
+    THROW_BINDER_EXCEPTION(
+        "Invalid format for VARCHAR type, should be VARCHAR(max_length). "
+        "Given: " +
+        trimmedStr);
+  }
+  auto maxLenStr = StringUtils::ltrim(StringUtils::rtrim(trimmedStr.substr(
+      leftBracketPos + 1, rightBracketPos - leftBracketPos - 1)));
+  char* endPtr = nullptr;
+  auto maxLen = std::strtoll(maxLenStr.c_str(), &endPtr, 10);
+  if (endPtr == maxLenStr.c_str() || *endPtr != '\0') {
+    THROW_BINDER_EXCEPTION(
+        "The max length of string must be a positive integer. Given: " +
+        maxLenStr);
+  }
+  return LogicalType::STRING(maxLen);
+}
+
 LogicalType parseDecimalType(const std::string& trimmedStr) {
   auto leftBracketPos = trimmedStr.find_last_of('(');
   auto rightBracketPos = trimmedStr.find_last_of(')');
@@ -1512,6 +1559,20 @@ LogicalType LogicalType::DECIMAL(uint32_t precision, uint32_t scale) {
 LogicalType LogicalType::STRUCT(std::vector<StructField>&& fields) {
   return LogicalType(LogicalTypeID::STRUCT,
                      std::make_unique<StructTypeInfo>(std::move(fields)));
+}
+
+LogicalType LogicalType::STRING() { return STRING(getDefaultStringMaxLen()); }
+
+LogicalType LogicalType::STRING(size_t max_length) {
+  size_t maxLimit = getMaxStringMaxLen();
+  if (max_length > maxLimit) {
+    LOG(WARNING) << "The max length of string is greater than the maximum "
+                    "limit, the maximum limit is "
+                 << maxLimit;
+    max_length = maxLimit;
+  }
+  return LogicalType(LogicalTypeID::STRING,
+                     std::make_unique<StringTypeInfo>(max_length));
 }
 
 LogicalType LogicalType::RECURSIVE_REL(

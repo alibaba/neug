@@ -257,6 +257,13 @@ Value Value::STRING(const std::string& str) {
   return result;
 }
 
+Value Value::VARCHAR(const std::string& str, uint16_t max_length) {
+  Value result(DataType::Varchar(max_length));
+  result.value_info_ = std::make_shared<StringValueInfo>(str);
+  result.is_null_ = false;
+  return result;
+}
+
 Value Value::VERTEX(const vertex_t& vertex) {
   Value result(DataType::VERTEX);
   result.value_.vertex = vertex;
@@ -765,7 +772,7 @@ Property value_to_property(const Value& value) {
   }
 }
 
-Value property_to_value(const Property& property) {
+Value property_to_value(const Property& property, const DataType& type) {
   switch (property.type()) {
   case DataTypeId::kBoolean:
     return Value::BOOLEAN(property.as_bool());
@@ -781,8 +788,13 @@ Value property_to_value(const Property& property) {
     return Value::FLOAT(property.as_float());
   case DataTypeId::kDouble:
     return Value::DOUBLE(property.as_double());
-  case DataTypeId::kVarchar:
-    return Value::STRING(std::string(property.as_string_view()));
+  case DataTypeId::kVarchar: {
+    auto str_type_info = type.RawExtraTypeInfo();
+    auto max_length = str_type_info
+                          ? str_type_info->Cast<StringTypeInfo>().max_length
+                          : STRING_DEFAULT_MAX_LENGTH;
+    return Value::VARCHAR(std::string(property.as_string_view()), max_length);
+  }
   case DataTypeId::kDate:
     return Value::DATE(property.as_date());
   case DataTypeId::kTimestampMs:

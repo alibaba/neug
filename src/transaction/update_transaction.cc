@@ -682,11 +682,11 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
 
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
-  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
   if (!status.ok()) {
     // The most possible reason is that the space is not enough.
     graph_.Reserve(label, std::max((vid_t) 1024, graph_.LidNum(label) * 2));
-    status = graph_.AddVertex(label, oid, props, vid, timestamp_);
+    status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
   }
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
@@ -737,8 +737,9 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
-  auto oe_offset = graph_.AddEdge(src_label, src_lid, dst_label, dst_lid,
-                                  edge_label, properties, timestamp_, alloc_);
+  auto oe_offset =
+      graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
+                     properties, timestamp_, alloc_, true);
   auto ie_offset = search_other_offset_with_cur_offset(
       graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
       graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
@@ -1035,8 +1036,8 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
         if (v_table.Capacity() < v_table.LidNum() + 1) {
           graph.Reserve(redo.label, v_table.Capacity() * 2);
         }
-        auto ret =
-            graph.AddVertex(redo.label, redo.oid, redo.props, vid, timestamp);
+        auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
+                                   timestamp, true);
         if (!ret.ok()) {
           THROW_STORAGE_EXCEPTION(
               "Failed to add vertex during WAL ingestion: " + ret.ToString());
@@ -1049,7 +1050,7 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       CHECK(graph.get_lid(redo.src_label, redo.src, src_vid, timestamp));
       CHECK(graph.get_lid(redo.dst_label, redo.dst, dst_vid, timestamp));
       graph.AddEdge(redo.src_label, src_vid, redo.dst_label, dst_vid,
-                    redo.edge_label, redo.properties, timestamp, alloc);
+                    redo.edge_label, redo.properties, timestamp, alloc, true);
     } else if (op_type == OpType::kUpdateVertexProp) {
       UpdateVertexPropRedo redo;
       arc >> redo;

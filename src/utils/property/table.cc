@@ -312,25 +312,13 @@ std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 // get column pointers
 std::vector<ColumnBase*>& Table::column_ptrs() { return column_ptrs_; }
 
-void Table::insert(size_t index, const std::vector<Property>& values) {
+void Table::insert(size_t index, const std::vector<Property>& values,
+                   bool insert_safe) {
   assert(values.size() == columns_.size());
   CHECK_EQ(values.size(), columns_.size());
   size_t col_num = columns_.size();
   for (size_t i = 0; i < col_num; ++i) {
-    columns_[i]->set_any(index, values[i]);
-  }
-}
-
-// column_id_mapping is the mapping from the column id in the input table to
-// the column id in the current table
-void Table::insert(size_t index, const std::vector<Property>& values,
-                   const std::vector<int32_t>& col_ind_mapping) {
-  assert(values.size() == columns_.size() + 1);
-  CHECK_EQ(values.size(), columns_.size() + 1);
-  for (size_t i = 0; i < values.size(); ++i) {
-    if (col_ind_mapping[i] != -1) {
-      columns_[col_ind_mapping[i]]->set_any(index, values[i]);
-    }
+    columns_[i]->set_any(index, values[i], insert_safe);
   }
 }
 

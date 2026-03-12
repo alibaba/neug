@@ -35,7 +35,6 @@ option(BUILD_TEST "Whether to build test" OFF)
 option(BUILD_DOC "Whether to build doc" OFF)
 option(BUILD_ODPS_FRAGMENT_LOADER "Whether to build odps fragment loader" OFF)
 option(OPTIMIZE_FOR_HOST "Whether to optimize on host" ON) # Whether to build optimized code on host
-option(BUILD_WITH_OSS "Whether to build with oss support" OFF) # Whether to build with oss support, default is OFF
 option(BUILD_EXECUTABLES "When to build executors" OFF) # Whether to build executables, default is OFF
 option(BUILD_HTTP_SERVER "Whether to build http server" OFF) # Whether to build http server, default is OFF
 option(WITH_MIMALLOC "Whether to use mimalloc" ON) # Whether to use mimalloc, default is ON
@@ -73,7 +72,7 @@ option(ENABLE_THREAD_SANITIZER "Enable thread sanitizer." FALSE)
 option(ENABLE_UBSAN "Enable undefined behavior sanitizer." FALSE)
 option(ENABLE_RUNTIME_CHECKS "Enable runtime coherency checks (e.g. asserts)" FALSE)
 option(ENABLE_LTO "Enable Link-Time Optimization" FALSE)
-option(AUTO_UPDATE_GRAMMAR "Automatically regenerate C++ grammar files on change." TRUE)
+option(AUTO_UPDATE_GRAMMAR "Automatically regenerate C++ grammar files on change." FALSE)
 option(BUILD_EXTENSIONS "Semicolon-separated list of extensions to build." "")
 option(BUILD_SINGLE_FILE_HEADER "Build single file header. Requires Python >= 3.9." FALSE)
 option(BUILD_TEST "Build C++ tests." TRUE)
@@ -475,13 +474,6 @@ if (NOT OpenSSL_FOUND)
 endif()
 include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
-if (BUILD_WITH_OSS)
-    add_definitions(-DBUILD_WITH_OSS)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/aliyun-oss-cpp-sdk/sdk/include)
-    set(TARGET_OUTPUT_NAME_PREFIX "alibabacloud-oss-" CACHE STRING "The target's output name prefix")
-    add_subdirectory(third_party/aliyun-oss-cpp-sdk)
-endif()
-
 if (BUILD_PYTHON)
     message("Build python embedded")
     # To build wheel in manylinux docker, we should not link to a specific python library.
@@ -519,8 +511,8 @@ find_package(Threads REQUIRED)
 # We need gflags for brpc, so we build it as a third party library
 include(cmake/BuildGflagsAsThirdParty.cmake)
 build_gflags_as_third_party()
-include_directories(SYSTEM ${GFLAGS_INCLUDE_DIRS})
-include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include)
+include_directories(${GFLAGS_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/third_party/gflags/include)
 message(STATUS "gflags libraries: ${GFLAGS_LIBRARIES}")
 message(STATUS "gflags found: ${gflags_FOUND}")
 message(STATUS "gflags dir: ${gflags_DIR}")
@@ -528,19 +520,19 @@ message(STATUS "gflags dir: ${gflags_DIR}")
 #find glog
 include(cmake/BuildGlogAsThirdParty.cmake)
 build_glog_as_third_party()
-include_directories(SYSTEM ${GLOG_INCLUDE_DIRS})
+include_directories(${GLOG_INCLUDE_DIRS})
 message(STATUS "glog libraries: ${GLOG_LIBRARIES}")
 
 include(cmake/BuildYamlCppAsThirdParty.cmake)
 build_yaml_cpp_as_third_party()
 message(STATUS "yaml-cpp libraries: ${YAML_CPP_LIBRARIES}, include dir: ${YAML_CPP_INCLUDE_DIRS}")
-include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIRS})
+include_directories(${YAML_CPP_INCLUDE_DIRS})
 
 #find protobuf-------------------------------------------------------------------
 include(cmake/BuildProtobufThirdParty.cmake)
 build_protobuf_as_third_party()
 
-include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+include_directories(${Protobuf_INCLUDE_DIRS})
 message(STATUS "protobuf include dir: ${Protobuf_INCLUDE_DIR}, ${Protobuf_INCLUDE_DIRS}")
 message(STATUS "protobuf libraries: ${Protobuf_LIBRARIES}")
 
@@ -586,7 +578,7 @@ if (BUILD_HTTP_SERVER)
         include(cmake/BuildBRPCAsThirdParty.cmake)
         build_brpc_as_third_party(${APPLY_BRPC_PATCH})
     endif()
-    include_directories(SYSTEM ${BRPC_INCLUDE_PATH})
+    include_directories(${BRPC_INCLUDE_PATH})
 endif()
 
 #find arrow----------------------------------------------------------------------
@@ -696,7 +688,7 @@ endif()
 
 # Add Arrow include directories after building
 if(ARROW_INCLUDE_DIRS)
-    include_directories(SYSTEM ${ARROW_INCLUDE_DIRS})
+    include_directories(${ARROW_INCLUDE_DIRS})
     message(STATUS "Arrow include directories: ${ARROW_INCLUDE_DIRS}")
 endif()
 
