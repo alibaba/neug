@@ -5,7 +5,7 @@
 
 1. Install to local Maven repository:
 ```bash
-cd tools/java
+cd tools/java_driver
 mvn clean install -DskipTests
 ```
 
@@ -24,7 +24,6 @@ mvn clean install -DskipTests
 ### Basic Connection
 
 ```java
-cd tools/java_driver
 
 public class Example {
     public static void main(String[] args) {
@@ -60,7 +59,7 @@ import org.alibaba.neug.driver.utils.*;
 public class ConfigExample {
     public static void main(String[] args) {
         Config config = Config.builder()
-            .withConnectionTimeout(3000)
+            .withConnectionTimeoutMillis(3000)
             .build();
         
         Driver driver = GraphDatabase.driver("http://localhost:10000", config);
@@ -79,9 +78,6 @@ public class ConfigExample {
         }
     }
 }
-        Config config = Config.builder()
-            .withConnectionTimeoutMillis(3000)
-            .build();
 ### Parameterized Query
 
 ```java
