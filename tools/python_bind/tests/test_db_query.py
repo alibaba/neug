@@ -2558,7 +2558,7 @@ def test_insert_many_vertices():
     db.close()
 
 
-def test_insert_string_column_exaustion():
+def test_insert_string_column_exhaustion():
     logging.disable(logging.CRITICAL)
     try:
         db_dir = "/tmp/test_insert_string_column_exhaustion"
