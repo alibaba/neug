@@ -12,7 +12,7 @@ mvn clean install -DskipTests
 2. Add dependency to your project's `pom.xml`:
 ```xml
 <dependency>
-    <groupId>org.alibaba.neug</groupId>
+    <groupId>com.alibaba.neug</groupId>
     <artifactId>neug-java-driver</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
@@ -53,8 +53,8 @@ public class Example {
 ### Connection with Configuration
 
 ```java
-import org.alibaba.neug.driver.*;
-import org.alibaba.neug.driver.utils.*;
+import com.alibaba.neug.driver.*;
+import com.alibaba.neug.driver.utils.*;
 
 public class ConfigExample {
     public static void main(String[] args) {
