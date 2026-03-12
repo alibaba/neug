@@ -17,6 +17,7 @@
 #
 
 import csv
+import json
 import os
 import shutil
 import sys
@@ -26,6 +27,17 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug.database import Database
+
+JSON_TESTS_ENABLED = os.environ.get("NEUG_RUN_JSON_TESTS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+json_test = pytest.mark.skipif(
+    not JSON_TESTS_ENABLED,
+    reason="JSON tests disabled by default; set NEUG_RUN_JSON_TESTS=1 to enable.",
+)
 
 
 def _count_query(conn, cypher):
@@ -45,6 +57,29 @@ def _parse_csv(path, delimiter="|", has_header=True):
     return (None, rows)
 
 
+def _parse_json_array(path):
+    """Parse a JSON array file; returns list of objects. Empty file returns []."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read().strip()
+    if not text:
+        return []
+    data = json.loads(text)
+    assert isinstance(data, list), f"Expected JSON array, got {type(data)}"
+    return data
+
+
+def _parse_jsonl(path):
+    """Parse a JSONL file (one JSON object per line); returns list of objects."""
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rows.append(json.loads(line))
+    return rows
+
+
 class TestExport:
     """COPY TO CSV tests using tinysnb. Assert header and data row count only."""
 
@@ -59,7 +94,7 @@ class TestExport:
         yield
         self.conn.close()
         self.db.close()
-        shutil.rmtree(self.tmp_path, ignore_errors=True)
+        # shutil.rmtree(self.tmp_path, ignore_errors=True)
 
     def test_export_person_with_header(self):
         out_path = self.tmp_path / "person.csv"
@@ -482,3 +517,94 @@ class TestExport:
                 assert content == '"John\\"s"\n'
         finally:
             self.conn.execute("MATCH (v:person {ID: 1006}) DELETE v")
+
+    @json_test
+    def test_export_person_json_array(self):
+        """Export scalar columns to a single JSON array; verify row count and keys."""
+        out_path = self.tmp_path / "person.json"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(
+            self.conn, "MATCH (v:person) RETURN v.fName, v.age"
+        )
+        self.conn.execute("LOAD JSON")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        data = _parse_json_array(out_path)
+        assert len(data) == expected, (
+            f"Expected {expected} rows in JSON array, got {len(data)}"
+        )
+        if data:
+            first = data[0]
+            assert isinstance(first, dict), "Each row should be a JSON object"
+            assert "fName" in first or "v.fName" in first, (
+                "First row should have fName (or v.fName) key"
+            )
+            assert "age" in first or "v.age" in first, (
+                "First row should have age (or v.age) key"
+            )
+
+    @json_test
+    def test_export_person_node_json_array(self):
+        """Export full node to a single JSON array; verify row count and structure."""
+        out_path = self.tmp_path / "person_node.json"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
+        self.conn.execute("LOAD JSON")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        data = _parse_json_array(out_path)
+        assert len(data) == expected, (
+            f"Expected {expected} rows in JSON array, got {len(data)}"
+        )
+        if data:
+            first = data[0]
+            assert isinstance(first, dict), "Each row should be a JSON object"
+
+    @json_test
+    def test_export_person_jsonl(self):
+        """Export scalar columns to JSONL (one JSON object per line); verify count and keys."""
+        out_path = self.tmp_path / "person.jsonl"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(
+            self.conn, "MATCH (v:person) RETURN v.fName, v.age"
+        )
+        self.conn.execute("LOAD JSON")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        rows = _parse_jsonl(out_path)
+        assert len(rows) == expected, (
+            f"Expected {expected} lines in JSONL, got {len(rows)}"
+        )
+        if rows:
+            first = rows[0]
+            assert isinstance(first, dict), "Each line should be a JSON object"
+            assert "fName" in first or "v.fName" in first, (
+                "First row should have fName (or v.fName) key"
+            )
+            assert "age" in first or "v.age" in first, (
+                "First row should have age (or v.age) key"
+            )
+
+    @json_test
+    def test_export_person_node_jsonl(self):
+        """Export full node to JSONL (one JSON object per line); verify row count."""
+        out_path = self.tmp_path / "person_node.jsonl"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
+        self.conn.execute("LOAD JSON")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        rows = _parse_jsonl(out_path)
+        assert len(rows) == expected, (
+            f"Expected {expected} lines in JSONL, got {len(rows)}"
+        )
+        if rows:
+            assert isinstance(rows[0], dict), "Each line should be a JSON object"

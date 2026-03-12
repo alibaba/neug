@@ -50,7 +50,7 @@ static void convertFileSchemaOptions(reader::FileSchema& schema) {
   }
 }
 
-execution::Context writeExecFunc(
+execution::Context jsonExecFunc(
     neug::execution::Context& ctx, reader::FileSchema& schema,
     const std::shared_ptr<reader::EntrySchema>& entry_schema,
     const neug::StorageReadInterface& graph) {
@@ -80,7 +80,7 @@ function_set ExportCSVFunction::getFunctionSet() {
   function_set functionSet;
   auto exportFunc = std::make_unique<ExportFunction>(name);
   exportFunc->bind = bindFunc;
-  exportFunc->execFunc = writeExecFunc;
+  exportFunc->execFunc = jsonExecFunc;
   functionSet.push_back(std::move(exportFunc));
   return functionSet;
 }
