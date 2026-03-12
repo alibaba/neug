@@ -2599,9 +2599,7 @@ def test_insert_string_column_exhaustion():
         db3.close()
 
         db4 = Database(db_path=db_dir, mode="w")
-        conn3.execute("CHECKPOINT;")
-        conn3.close()
-        db3.close()
+        conn4 = db4.connect()
         records = list(res)
         assert records == [
             ["12"],
@@ -2613,8 +2611,8 @@ def test_insert_string_column_exhaustion():
                 f"MATCH (a: Person {{id: 1}}), (b: Person {{id: 2}}) CREATE (a)-[:Knows {{note: '{str_prop}'}}]->(b);"
             )
         conn4.close()
-        conn4.close()
         db4.close()
-        db4.close()
-
+    except Exception as e:
+        raise AssertionError(f"Test failed with exception: {e}")
+    finally:
         logging.disable(logging.NOTSET)
