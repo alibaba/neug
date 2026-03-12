@@ -119,7 +119,7 @@ std::unique_ptr<arrow::ArrayBuilder> create_primitive_array_builder(
 std::unique_ptr<arrow::ArrayBuilder> create_arrow_list_array_builder(
     const StorageReadInterface& graph, DataType type,
     std::shared_ptr<execution::IContextColumn> col) {
-  auto aux_info = dynamic_cast<const ListTypeInfo*>(type.AuxInfo());
+  auto aux_info = dynamic_cast<const ListTypeInfo*>(type.RawExtraTypeInfo());
   assert(aux_info != nullptr);
   assert(aux_info->child_type.id() != DataTypeId::kInvalid);
   assert(aux_info->child_type.id() != DataTypeId::kUnknown);
