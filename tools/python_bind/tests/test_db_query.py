@@ -2599,8 +2599,9 @@ def test_insert_string_column_exaustion():
         db3.close()
 
         db4 = Database(db_path=db_dir, mode="w")
-        conn4 = db4.connect()
-        res = conn4.execute("MATCH (a: Person)-[k: Knows]->(b: Person) RETURN k.note;")
+        conn3.execute("CHECKPOINT;")
+        conn3.close()
+        db3.close()
         records = list(res)
         assert records == [
             ["12"],
