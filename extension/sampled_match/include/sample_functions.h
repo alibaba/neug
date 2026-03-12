@@ -41,8 +41,8 @@
 #include "neug/storages/graph/property_graph.h"
 
 #include "data_graph_meta.h"
-#include "FaSTest/lib/SubgraphMatching/PatternGraph.h"
-#include "FaSTest/lib/SubgraphCounting/CardinalityEstimation.h"
+#include "FaSTest/src/SubgraphMatching/PatternGraph.h"
+#include "FaSTest/src/SubgraphCounting/CardinalityEstimation.h"
 
 namespace neug {
 namespace function {
@@ -998,7 +998,7 @@ class SampledSubgraphMatcher {
                     size_t idx = std::distance(v_schema->property_names.begin(), it);
                     if (!first_prop) ofs << ",";
                     first_prop = false;
-                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(v_schema->property_types[idx]) << "\"";
+                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(v_schema->property_types[idx].id()) << "\"";
                 }
             }
             ofs << "}}";
@@ -1027,7 +1027,7 @@ class SampledSubgraphMatcher {
                     size_t idx = std::distance(e_schema->property_names.begin(), it);
                     if (!first_prop) ofs << ",";
                     first_prop = false;
-                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(e_schema->properties[idx]) << "\"";
+                    ofs << "\"" << pname << "\":\"" << DataTypeIdToString(e_schema->properties[idx].id()) << "\"";
                 }
             }
             ofs << "}}";
