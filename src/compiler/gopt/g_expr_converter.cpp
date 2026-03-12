@@ -416,8 +416,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertRegexFunc(
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Right child of regex function should be a literal");
   }
-  auto* literalExpr = const_cast<binder::LiteralExpression*>(
-      right->constPtrCast<binder::LiteralExpression>());
+  auto* literalExpr = right->ptrCast<binder::LiteralExpression>();
   std::string pattern = literalExpr->getValue().getValue<std::string>();
   std::string regexPattern = convertRegexValue(pattern, scalarType);
   literalExpr->value = common::Value(regexPattern);

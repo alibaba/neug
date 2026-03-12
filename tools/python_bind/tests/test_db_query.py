@@ -1749,7 +1749,7 @@ def test_ends_with_and_contains_with_slash_in_string(tmp_path):
     conn.execute("CREATE (n:path_node {path: 'no_slash_here'});")
     conn.execute("CREATE (n:path_node {path: 'trailing/'});")
 
-    # Test ends with: should match 'path/to/file' and 'trailing/'
+    # Test ends with: should match only 'path/to/file'
     result = conn.execute(
         "MATCH (n:path_node) WHERE n.path ends with '/file' RETURN n.path ORDER BY n.path"
     )
