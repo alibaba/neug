@@ -112,3 +112,4 @@ jobs:
         export NEUG_RUN_JSON_TESTS=true
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         python3 -m pytest -sv tests/test_load.py -k "json"
+        python3 -m pytest -sv tests/test_export.py -k "json"

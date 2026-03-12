@@ -129,5 +129,3 @@ JSONL is well-suited for large result sets and streaming. You can control how ma
 | `BATCH_SIZE` | Maximum number of rows to write in a single batch.        | `1024`  |
 
 For more on export options and best practices, see [Export Data](../data_io/export_data).
-
-
