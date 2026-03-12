@@ -28,7 +28,7 @@ void Init() {
         neug::function::JsonReadFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
-    neug::extension::ExtensionAPI::registerFunctionAlias<
+    neug::extension::ExtensionAPI::registerFunction<
         neug::function::JsonLReadFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 

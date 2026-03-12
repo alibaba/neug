@@ -171,7 +171,7 @@ def run_jsonl_tests(conn_json):
     run_query_with_handler(
         conn_json,
         "LOAD FROM JSONL file",
-        f'LOAD FROM "{JSONL_FILE}" (newline_delimited=true) RETURN *;',
+        f'LOAD FROM "{JSONL_FILE}" RETURN *;',
         _load_all,
         print_traceback=True,
     )
@@ -183,7 +183,7 @@ def run_jsonl_tests(conn_json):
     run_query_with_handler(
         conn_json,
         "JSONL column projection",
-        f'LOAD FROM "{JSONL_FILE}" (newline_delimited=true) RETURN fName, age;',
+        f'LOAD FROM "{JSONL_FILE}" RETURN fName, age;',
         _projection,
     )
 

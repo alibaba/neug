@@ -62,10 +62,10 @@ RETURN *;
 
 #### JSONL Format Loading
 
-Load data from a JSONL file. When the path has a `.jsonl` extension, the format is auto-detected; you can also set `newline_delimited=true` explicitly:
+Load data from a JSONL file. When the path has a `.jsonl` extension, the format is auto-detected;
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN *;
 ```
 
@@ -74,7 +74,7 @@ RETURN *;
 Return only specific columns from JSON data:
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN fName, age;
 ```
 
@@ -83,7 +83,7 @@ RETURN fName, age;
 Use `AS` to assign aliases to columns:
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN fName AS name, age AS years;
 ```
 

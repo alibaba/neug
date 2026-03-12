@@ -860,7 +860,7 @@ class TestLoadFrom:
         self.conn.execute("LOAD JSON")
 
         query = f"""
-        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        LOAD FROM "{jsonl_path}"
         RETURN fName AS name, age AS years
         """
         result = self.conn.execute(query)
@@ -885,7 +885,7 @@ class TestLoadFrom:
         self.conn.execute("LOAD JSON")
 
         query = f"""
-        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        LOAD FROM "{jsonl_path}"
         RETURN fName, age
         """
         result = self.conn.execute(query)
@@ -911,7 +911,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age > 25 AND age < 40 AND gender == 1
         query = f"""
-        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        LOAD FROM "{jsonl_path}"
         WHERE age > 25 AND age < 40 AND gender = 1
         RETURN fName, age, gender, eyeSight
         """
@@ -939,7 +939,7 @@ class TestLoadFrom:
 
         # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         query = f"""
-        LOAD FROM "{jsonl_path}" (newline_delimited=true)
+        LOAD FROM "{jsonl_path}"
         WHERE age >= 30 AND eyeSight >= 5.0 AND height > 1.0
         RETURN fName, age, eyeSight, height
         """
@@ -1093,7 +1093,7 @@ class TestCopyFrom:
         # We want: ID, age, fName, gender, eyeSight, isStudent
         copy_query = f"""
         COPY person_jsonl_remap FROM (
-            LOAD FROM "{jsonl_path}" (newline_delimited=true)
+            LOAD FROM "{jsonl_path}"
             RETURN ID, age, fName, gender, eyeSight, isStudent
         )
         """

@@ -94,7 +94,7 @@ class TestExport:
         yield
         self.conn.close()
         self.db.close()
-        # shutil.rmtree(self.tmp_path, ignore_errors=True)
+        shutil.rmtree(self.tmp_path, ignore_errors=True)
 
     def test_export_person_with_header(self):
         out_path = self.tmp_path / "person.csv"
@@ -523,27 +523,25 @@ class TestExport:
         """Export scalar columns to a single JSON array; verify row count and keys."""
         out_path = self.tmp_path / "person.json"
         out_path.unlink(missing_ok=True)
-        expected = _count_query(
-            self.conn, "MATCH (v:person) RETURN v.fName, v.age"
-        )
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
         self.conn.execute("LOAD JSON")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
-        assert len(data) == expected, (
-            f"Expected {expected} rows in JSON array, got {len(data)}"
-        )
+        assert (
+            len(data) == expected
+        ), f"Expected {expected} rows in JSON array, got {len(data)}"
         if data:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
-            assert "fName" in first or "v.fName" in first, (
-                "First row should have fName (or v.fName) key"
-            )
-            assert "age" in first or "v.age" in first, (
-                "First row should have age (or v.age) key"
-            )
+            assert (
+                "fName" in first or "v.fName" in first
+            ), "First row should have fName (or v.fName) key"
+            assert (
+                "age" in first or "v.age" in first
+            ), "First row should have age (or v.age) key"
 
     @json_test
     def test_export_person_node_json_array(self):
@@ -552,14 +550,12 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute("LOAD JSON")
-        self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';"
-        )
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
-        assert len(data) == expected, (
-            f"Expected {expected} rows in JSON array, got {len(data)}"
-        )
+        assert (
+            len(data) == expected
+        ), f"Expected {expected} rows in JSON array, got {len(data)}"
         if data:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
@@ -569,27 +565,25 @@ class TestExport:
         """Export scalar columns to JSONL (one JSON object per line); verify count and keys."""
         out_path = self.tmp_path / "person.jsonl"
         out_path.unlink(missing_ok=True)
-        expected = _count_query(
-            self.conn, "MATCH (v:person) RETURN v.fName, v.age"
-        )
+        expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
         self.conn.execute("LOAD JSON")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
-        assert len(rows) == expected, (
-            f"Expected {expected} lines in JSONL, got {len(rows)}"
-        )
+        assert (
+            len(rows) == expected
+        ), f"Expected {expected} lines in JSONL, got {len(rows)}"
         if rows:
             first = rows[0]
             assert isinstance(first, dict), "Each line should be a JSON object"
-            assert "fName" in first or "v.fName" in first, (
-                "First row should have fName (or v.fName) key"
-            )
-            assert "age" in first or "v.age" in first, (
-                "First row should have age (or v.age) key"
-            )
+            assert (
+                "fName" in first or "v.fName" in first
+            ), "First row should have fName (or v.fName) key"
+            assert (
+                "age" in first or "v.age" in first
+            ), "First row should have age (or v.age) key"
 
     @json_test
     def test_export_person_node_jsonl(self):
@@ -598,13 +592,11 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute("LOAD JSON")
-        self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';"
-        )
+        self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
-        assert len(rows) == expected, (
-            f"Expected {expected} lines in JSONL, got {len(rows)}"
-        )
+        assert (
+            len(rows) == expected
+        ), f"Expected {expected} lines in JSONL, got {len(rows)}"
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
