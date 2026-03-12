@@ -24,7 +24,7 @@ mvn clean install -DskipTests
 ### Basic Connection
 
 ```java
-import org.alibaba.neug.driver.*;
+cd tools/java_driver
 
 public class Example {
     public static void main(String[] args) {
@@ -79,8 +79,9 @@ public class ConfigExample {
         }
     }
 }
-```
-
+        Config config = Config.builder()
+            .withConnectionTimeoutMillis(3000)
+            .build();
 ### Parameterized Query
 
 ```java
