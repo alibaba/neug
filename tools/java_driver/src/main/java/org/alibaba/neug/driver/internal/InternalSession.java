@@ -21,45 +21,40 @@ import org.alibaba.neug.driver.utils.Client;
 import org.alibaba.neug.driver.utils.QuerySerializer;
 import org.alibaba.neug.driver.utils.ResponseParser;
 
+/**
+ * Internal implementation of the {@link Session} interface.
+ *
+ * <p>This class handles query execution by serializing queries, sending them to the database server
+ * via HTTP, and parsing the responses into ResultSet objects.
+ */
 public class InternalSession implements Session {
 
     private final Client client;
+    private boolean closed;
 
+    /**
+     * Constructs a new InternalSession with the specified client.
+     *
+     * @param client the HTTP client used to communicate with the database
+     */
     public InternalSession(Client client) {
         this.client = client;
+        this.closed = false;
     }
 
     @Override
     public ResultSet run(String query) {
-        try {
-            byte[] request = QuerySerializer.serialize(query);
-            byte[] response = client.syncPost(request);
-            return ResponseParser.parse(response);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to execute query", e);
-        }
+        return run(query, null, null);
     }
 
     @Override
     public ResultSet run(String query, Map<String, Object> parameters) {
-        try {
-            byte[] request = QuerySerializer.serialize(query, parameters);
-            byte[] response = client.syncPost(request);
-            return ResponseParser.parse(response);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to execute query", e);
-        }
+        return run(query, parameters, null);
     }
 
     @Override
     public ResultSet run(String query, AccessMode mode) {
-        try {
-            byte[] request = QuerySerializer.serialize(query, mode);
-            byte[] response = client.syncPost(request);
-            return ResponseParser.parse(response);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to execute query", e);
-        }
+        return run(query, null, mode);
     }
 
     @Override
@@ -74,10 +69,12 @@ public class InternalSession implements Session {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        closed = true;
+    }
 
     @Override
     public boolean isClosed() {
-        return false;
+        return closed;
     }
 }

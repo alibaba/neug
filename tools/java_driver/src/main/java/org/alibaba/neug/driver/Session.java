@@ -29,7 +29,7 @@ import org.alibaba.neug.driver.utils.AccessMode;
  *     ResultSet results = session.run("MATCH (n:Person) WHERE n.age > $age RETURN n",
  *         Map.of("age", 30));
  *     while (results.next()) {
- *         System.out.println(results.getString("n"));
+ *         System.out.println(results.getObject("n").toString());
  *     }
  * }
  * }</pre>
@@ -75,9 +75,7 @@ public interface Session extends AutoCloseable {
      */
     ResultSet run(String statement, Map<String, Object> parameters, AccessMode mode);
 
-    /**
-     * Closes the session and releases all associated resources.
-     */
+    /** Closes the session and releases all associated resources. */
     @Override
     void close();
 

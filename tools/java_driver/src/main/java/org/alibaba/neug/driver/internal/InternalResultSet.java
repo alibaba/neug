@@ -16,6 +16,8 @@ package org.alibaba.neug.driver.internal;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -25,11 +27,26 @@ import org.alibaba.neug.driver.ResultSet;
 import org.alibaba.neug.driver.Results;
 import org.alibaba.neug.driver.utils.JsonUtil;
 
+/**
+ * Internal implementation of the {@link ResultSet} interface.
+ *
+ * <p>This class provides access to query results returned from the database server. It wraps a
+ * Protocol Buffers QueryResponse object and provides methods to navigate through rows and extract
+ * column values in various data types.
+ *
+ * <p>The ResultSet maintains a cursor position and supports both forward and backward navigation,
+ * as well as absolute and relative positioning.
+ */
 public class InternalResultSet implements ResultSet {
+    /**
+     * Constructs a new InternalResultSet from a Protocol Buffers query response.
+     *
+     * @param response the query response from the database server
+     */
     public InternalResultSet(Results.QueryResponse response) {
         this.response = response;
         this.currentIndex = -1;
-        this.is_null = false;
+        this.was_null = false;
         this.closed = false;
     }
 
@@ -79,6 +96,7 @@ public class InternalResultSet implements ResultSet {
     @Override
     public Object getObject(int columnIndex) {
         // Return the appropriate type based on the array type
+        checkIndex(columnIndex);
         Results.Array array = response.getArrays(columnIndex);
         try {
             return getObject(array, currentIndex, false);
@@ -94,7 +112,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getStringArray().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -105,7 +123,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getInt32Array().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -116,7 +134,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getInt64Array().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -127,7 +145,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getBoolArray().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -138,7 +156,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getDoubleArray().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -149,7 +167,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getTimestampArray().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -160,7 +178,7 @@ public class InternalResultSet implements ResultSet {
                 {
                     if (!isNullSetted) {
                         ByteString nullBitmap = array.getDateArray().getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -173,7 +191,7 @@ public class InternalResultSet implements ResultSet {
 
                     if (!isNullSetted) {
                         ByteString nullBitmap = listArray.getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -193,7 +211,7 @@ public class InternalResultSet implements ResultSet {
 
                     if (!isNullSetted) {
                         ByteString nullBitmap = structArray.getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -210,7 +228,7 @@ public class InternalResultSet implements ResultSet {
                     ObjectMapper mapper = JsonUtil.getInstance();
                     if (!isNullSetted) {
                         ByteString nullBitmap = vertexArray.getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -227,7 +245,7 @@ public class InternalResultSet implements ResultSet {
                     ObjectMapper mapper = JsonUtil.getInstance();
                     if (!isNullSetted) {
                         ByteString nullBitmap = edgeArray.getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -244,7 +262,7 @@ public class InternalResultSet implements ResultSet {
                     ObjectMapper mapper = JsonUtil.getInstance();
                     if (!isNullSetted) {
                         ByteString nullBitmap = pathArray.getValidity();
-                        is_null =
+                        was_null =
                                 !nullBitmap.isEmpty()
                                         && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
                                                 == 0;
@@ -255,8 +273,48 @@ public class InternalResultSet implements ResultSet {
                                     new TypeReference<Map<String, Object>>() {});
                     return map;
                 }
+            case INTERVAL_ARRAY:
+                {
+                    Results.IntervalArray intervalArray = array.getIntervalArray();
+                    ObjectMapper mapper = JsonUtil.getInstance();
+                    if (!isNullSetted) {
+                        ByteString nullBitmap = intervalArray.getValidity();
+                        was_null =
+                                !nullBitmap.isEmpty()
+                                        && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
+                                                == 0;
+                    }
+                    return intervalArray.getValues(rowIndex);
+                }
+            case UINT32_ARRAY:
+                {
+                    Results.UInt32Array uint32Array = array.getUint32Array();
+                    if (!isNullSetted) {
+                        ByteString nullBitmap = uint32Array.getValidity();
+                        was_null =
+                                !nullBitmap.isEmpty()
+                                        && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
+                                                == 0;
+                    }
+                    // Convert uint32 to long to avoid overflow
+                    return Integer.toUnsignedLong(uint32Array.getValues(rowIndex));
+                }
+            case UINT64_ARRAY:
+                {
+                    Results.UInt64Array uint64Array = array.getUint64Array();
+                    if (!isNullSetted) {
+                        ByteString nullBitmap = uint64Array.getValidity();
+                        was_null =
+                                !nullBitmap.isEmpty()
+                                        && (nullBitmap.byteAt(rowIndex / 8) & (1 << (rowIndex % 8)))
+                                                == 0;
+                    }
+                    // Convert uint64 to BigInteger to avoid overflow
+                    long value = uint64Array.getValues(rowIndex);
+                    return new BigInteger(Long.toUnsignedString(value));
+                }
             default:
-                throw new IllegalArgumentException(
+                throw new UnsupportedOperationException(
                         "Unsupported array type: " + array.getTypedArrayCase());
         }
     }
@@ -269,17 +327,18 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public int getInt(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if (!arr.hasInt32Array()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type int32");
+        if(arr.hasInt32Array()) {
+            Results.Int32Array array = arr.getInt32Array();
+            ByteString nullBitmap = array.getValidity();
+            int value = array.getValues(currentIndex);
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+            return value;
         }
-        Results.Int32Array array = arr.getInt32Array();
-        ByteString nullBitmap = array.getValidity();
-        int value = array.getValues(currentIndex);
-        is_null =
-                !nullBitmap.isEmpty()
-                        && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
-        return value;
+        return getNumericValue(arr).intValue();
     }
 
     @Override
@@ -290,17 +349,18 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public long getLong(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if (!arr.hasInt64Array()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type int64");
+        if(arr.hasInt64Array()) {
+            Results.Int64Array array = arr.getInt64Array();
+            ByteString nullBitmap = array.getValidity();
+            long value = array.getValues(currentIndex);
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+            return value;
         }
-        Results.Int64Array array = arr.getInt64Array();
-        ByteString nullBitmap = array.getValidity();
-        long value = array.getValues(currentIndex);
-        is_null =
-                !nullBitmap.isEmpty()
-                        && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
-        return value;
+        return getNumericValue(arr).longValue();
     }
 
     @Override
@@ -311,14 +371,15 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public String getString(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
         if (!arr.hasStringArray()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type string");
+            return getObject(columnIndex).toString();
         }
         Results.StringArray array = arr.getStringArray();
         ByteString nullBitmap = array.getValidity();
         String value = array.getValues(currentIndex);
-        is_null =
+        was_null =
                 !nullBitmap.isEmpty()
                         && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
         return value;
@@ -332,14 +393,15 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public Date getDate(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
         if (!arr.hasDateArray()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type date");
+            throw new ClassCastException("Column " + columnIndex + " is not of type date");
         }
         Results.DateArray array = arr.getDateArray();
         ByteString nullBitmap = array.getValidity();
         long timestamp = array.getValues(currentIndex);
-        is_null =
+        was_null =
                 !nullBitmap.isEmpty()
                         && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
         return new Date(timestamp);
@@ -353,15 +415,15 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
         if (!arr.hasTimestampArray()) {
-            throw new IllegalArgumentException(
-                    "Column " + columnIndex + " is not of type timestamp");
+            throw new ClassCastException("Column " + columnIndex + " is not of type timestamp");
         }
         Results.TimestampArray array = arr.getTimestampArray();
         ByteString nullBitmap = array.getValidity();
         long timestamp = array.getValues(currentIndex);
-        is_null =
+        was_null =
                 !nullBitmap.isEmpty()
                         && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
         return new Timestamp(timestamp);
@@ -375,14 +437,15 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public boolean getBoolean(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
         if (!arr.hasBoolArray()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type boolean");
+            throw new ClassCastException("Column " + columnIndex + " is not of type boolean");
         }
         Results.BoolArray array = arr.getBoolArray();
         ByteString nullBitmap = array.getValidity();
         boolean value = array.getValues(currentIndex);
-        is_null =
+        was_null =
                 !nullBitmap.isEmpty()
                         && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
         return value;
@@ -396,17 +459,18 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public double getDouble(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if (!arr.hasDoubleArray()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type double");
+        if(arr.hasFloatArray()) {
+            Results.FloatArray array = arr.getFloatArray();
+            ByteString nullBitmap = array.getValidity();
+            float value = array.getValues(currentIndex);
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+            return value;
         }
-        Results.DoubleArray array = arr.getDoubleArray();
-        ByteString nullBitmap = array.getValidity();
-        double value = array.getValues(currentIndex);
-        is_null =
-                !nullBitmap.isEmpty()
-                        && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
-        return value;
+        return getNumericValue(arr).doubleValue();
     }
 
     @Override
@@ -417,22 +481,48 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public float getFloat(int columnIndex) {
+        checkIndex(columnIndex);
         Results.Array arr = response.getArrays(columnIndex);
-        if (!arr.hasFloatArray()) {
-            throw new IllegalArgumentException("Column " + columnIndex + " is not of type float");
+        if(arr.hasFloatArray()) {
+            Results.FloatArray array = arr.getFloatArray();
+            ByteString nullBitmap = array.getValidity();
+            float value = array.getValues(currentIndex);
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
+            return value;
         }
-        Results.FloatArray array = arr.getFloatArray();
-        ByteString nullBitmap = array.getValidity();
-        float value = array.getValues(currentIndex);
-        is_null =
-                !nullBitmap.isEmpty()
-                        && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8))) == 0;
-        return value;
+        return getNumericValue(arr).floatValue();
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(String columnName) {
+        int columnIndex = getColumnIndex(columnName);
+        return getBigDecimal(columnIndex);
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex) {
+        checkIndex(columnIndex);
+        Results.Array arr = response.getArrays(columnIndex);
+        Number value = getNumericValue(arr);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigInteger) {
+            return new BigDecimal((BigInteger) value);
+        } else if (value instanceof Integer || value instanceof Long) {
+            return new BigDecimal(value.longValue());
+        } else if (value instanceof Float || value instanceof Double) {
+            return BigDecimal.valueOf(value.doubleValue());
+        }
+        throw new ClassCastException(
+                "Column " + columnIndex + " cannot be converted to BigDecimal");
     }
 
     @Override
     public boolean wasNull() {
-        return is_null;
+        return was_null;
     }
 
     @Override
@@ -466,8 +556,89 @@ public class InternalResultSet implements ResultSet {
         throw new IllegalArgumentException("Column not found: " + columnName);
     }
 
+    private void checkIndex(int columnIndex) {
+        if (columnIndex < 0 || columnIndex >= response.getArraysCount()) {
+            throw new IndexOutOfBoundsException("Invalid column index: " + columnIndex);
+        }
+    }
+
+    /**
+     * Generic method to extract numeric value from any numeric array type.
+     *
+     * @param arr the array to extract from
+     * @return the numeric value as a Number object
+     */
+    private Number getNumericValue(Results.Array arr) {
+        ByteString nullBitmap;
+
+        if (arr.hasInt32Array()) {
+            Results.Int32Array array = arr.getInt32Array();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            return array.getValues(currentIndex);
+        }
+
+        if (arr.hasInt64Array()) {
+            Results.Int64Array array = arr.getInt64Array();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            return array.getValues(currentIndex);
+        }
+
+        if (arr.hasFloatArray()) {
+            Results.FloatArray array = arr.getFloatArray();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            return array.getValues(currentIndex);
+        }
+
+        if (arr.hasDoubleArray()) {
+            Results.DoubleArray array = arr.getDoubleArray();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            return array.getValues(currentIndex);
+        }
+
+        if (arr.hasUint32Array()) {
+            Results.UInt32Array array = arr.getUint32Array();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            // Convert unsigned int32 to signed long to avoid overflow
+            return Integer.toUnsignedLong(array.getValues(currentIndex));
+        }
+
+        if (arr.hasUint64Array()) {
+            Results.UInt64Array array = arr.getUint64Array();
+            nullBitmap = array.getValidity();
+            was_null =
+                    !nullBitmap.isEmpty()
+                            && (nullBitmap.byteAt(currentIndex / 8) & (1 << (currentIndex % 8)))
+                                    == 0;
+            // Convert unsigned int64 to BigInteger to avoid overflow
+            long value = array.getValues(currentIndex);
+            return new BigInteger(Long.toUnsignedString(value));
+        }
+
+        throw new ClassCastException("Column is not a numeric type");
+    }
+
     private Results.QueryResponse response;
     private int currentIndex;
-    private boolean is_null;
+    private boolean was_null;
     private boolean closed;
 }

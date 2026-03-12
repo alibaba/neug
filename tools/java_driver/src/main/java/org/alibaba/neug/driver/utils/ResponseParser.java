@@ -17,8 +17,21 @@ import org.alibaba.neug.driver.ResultSet;
 import org.alibaba.neug.driver.Results;
 import org.alibaba.neug.driver.internal.InternalResultSet;
 
+/**
+ * Utility class for parsing database server responses.
+ *
+ * <p>This class converts Protocol Buffers response bytes into ResultSet objects that can be used to
+ * access query results.
+ */
 public class ResponseParser {
 
+    /**
+     * Parses a response byte array into a ResultSet.
+     *
+     * @param response the response bytes from the database server
+     * @return a ResultSet containing the query results
+     * @throws RuntimeException if the response cannot be parsed
+     */
     public static ResultSet parse(byte[] response) {
         try {
             Results.QueryResponse queryResponse = Results.QueryResponse.parseFrom(response);

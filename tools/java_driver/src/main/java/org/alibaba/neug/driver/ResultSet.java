@@ -13,6 +13,7 @@
  */
 package org.alibaba.neug.driver;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
@@ -26,10 +27,10 @@ import java.util.List;
  * <p>Example usage:
  *
  * <pre>{@code
- * ResultSet results = session.run("MATCH (n:Person) RETURN n.name, n.age");
+ * ResultSet results = session.run("MATCH (n:Person) RETURN n.name as name, n.age as age");
  * while (results.next()) {
- *     String name = results.getString("n.name");
- *     int age = results.getInt("n.age");
+ *     String name = results.getString("name");
+ *     int age = results.getInt("age");
  *     System.out.println(name + " is " + age + " years old");
  * }
  * results.close();
@@ -79,6 +80,7 @@ public interface ResultSet extends AutoCloseable {
      *
      * @param columnName the name of the column
      * @return the column value
+     * @throws IllegalArgumentException if the column name is not valid
      */
     Object getObject(String columnName);
 
@@ -87,136 +89,233 @@ public interface ResultSet extends AutoCloseable {
      *
      * @param columnIndex the column index (0-based)
      * @return the column value
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
      */
     Object getObject(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as an int.
      *
+     * <p><b>Type requirement:</b> The column must be of type INT32 or compatible numeric type.
+     *
      * @param columnName the name of the column
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of a compatible type
      */
     int getInt(String columnName);
 
     /**
      * Retrieves the value of the designated column as an int.
      *
+     * <p><b>Type requirement:</b> The column must be of type INT32 or compatible numeric type.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of a compatible type
      */
     int getInt(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a long.
      *
+     * <p><b>Type requirement:</b> The column must be of type INT64 or compatible numeric type.
+     *
      * @param columnName the name of the column
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of a compatible type
      */
     long getLong(String columnName);
 
     /**
      * Retrieves the value of the designated column as a long.
      *
+     * <p><b>Type requirement:</b> The column must be of type INT64 or compatible numeric type.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of a compatible type
      */
     long getLong(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a String.
      *
+     * <p><b>Type requirement:</b> The column must be of type STRING or a type that can be converted
+     * to string.
+     *
      * @param columnName the name of the column
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of a compatible type
      */
     String getString(String columnName);
 
     /**
      * Retrieves the value of the designated column as a String.
      *
+     * <p><b>Type requirement:</b> The column must be of type STRING or a type that can be converted
+     * to string.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of a compatible type
      */
     String getString(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a Date.
      *
+     * <p><b>Type requirement:</b> The column must be of type DATE.
+     *
      * @param columnName the name of the column
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of type DATE
      */
     Date getDate(String columnName);
 
     /**
      * Retrieves the value of the designated column as a Date.
      *
+     * <p><b>Type requirement:</b> The column must be of type DATE.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of type DATE
      */
     Date getDate(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a Timestamp.
      *
+     * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
+     *
      * @param columnName the name of the column
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of type TIMESTAMP
      */
     Timestamp getTimestamp(String columnName);
 
     /**
      * Retrieves the value of the designated column as a Timestamp.
      *
+     * <p><b>Type requirement:</b> The column must be of type TIMESTAMP.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of type TIMESTAMP
      */
     Timestamp getTimestamp(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a boolean.
      *
+     * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
+     *
      * @param columnName the name of the column
      * @return the column value; {@code false} if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of type BOOLEAN
      */
     boolean getBoolean(String columnName);
 
     /**
      * Retrieves the value of the designated column as a boolean.
      *
+     * <p><b>Type requirement:</b> The column must be of type BOOLEAN.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; {@code false} if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of type BOOLEAN
      */
     boolean getBoolean(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a double.
      *
+     * <p><b>Type requirement:</b> The column must be of type DOUBLE or compatible numeric type.
+     *
      * @param columnName the name of the column
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of a compatible type
      */
     double getDouble(String columnName);
 
     /**
      * Retrieves the value of the designated column as a double.
      *
+     * <p><b>Type requirement:</b> The column must be of type DOUBLE or compatible numeric type.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of a compatible type
      */
     double getDouble(int columnIndex);
 
     /**
      * Retrieves the value of the designated column as a float.
      *
+     * <p><b>Type requirement:</b> The column must be of type FLOAT or compatible numeric type.
+     *
      * @param columnName the name of the column
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not of a compatible type
      */
     float getFloat(String columnName);
 
     /**
      * Retrieves the value of the designated column as a float.
      *
+     * <p><b>Type requirement:</b> The column must be of type FLOAT or compatible numeric type.
+     *
      * @param columnIndex the column index (0-based)
      * @return the column value; 0 if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not of a compatible type
      */
     float getFloat(int columnIndex);
+
+    /**
+     * Retrieves the value of the designated column as a BigDecimal.
+     *
+     * <p><b>Type requirement:</b> The column must be a numeric type (INT32, INT64, FLOAT, DOUBLE).
+     *
+     * <p>BigDecimal provides arbitrary precision and is ideal for financial calculations or when
+     * precision is critical.
+     *
+     * @param columnName the name of the column
+     * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IllegalArgumentException if the column name is not valid
+     * @throws ClassCastException if the column is not a numeric type
+     */
+    BigDecimal getBigDecimal(String columnName);
+
+    /**
+     * Retrieves the value of the designated column as a BigDecimal.
+     *
+     * <p><b>Type requirement:</b> The column must be a numeric type (INT32, INT64, FLOAT, DOUBLE).
+     *
+     * <p>BigDecimal provides arbitrary precision and is ideal for financial calculations or when
+     * precision is critical.
+     *
+     * @param columnIndex the column index (0-based)
+     * @return the column value; {@code null} if the value is SQL NULL
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the column is not a numeric type
+     */
+    BigDecimal getBigDecimal(int columnIndex);
 
     /**
      * Reports whether the last column read had a value of SQL NULL.

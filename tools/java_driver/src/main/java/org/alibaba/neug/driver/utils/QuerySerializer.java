@@ -17,20 +17,54 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
 
+/**
+ * Utility class for serializing queries to JSON format for transmission to the database server.
+ *
+ * <p>This class converts query strings, parameters, and access modes into JSON bytes that can be
+ * sent over HTTP.
+ */
 public class QuerySerializer {
 
+    /**
+     * Serializes a query without parameters or access mode.
+     *
+     * @param query the query string
+     * @return the serialized query as a byte array
+     */
     public static byte[] serialize(String query) {
         return serialize(query, null, null);
     }
 
+    /**
+     * Serializes a query with parameters but without access mode.
+     *
+     * @param query the query string
+     * @param parameters the query parameters as a map of name-value pairs
+     * @return the serialized query as a byte array
+     */
     public static byte[] serialize(String query, Map<String, Object> parameters) {
         return serialize(query, parameters, null);
     }
 
+    /**
+     * Serializes a query with access mode but without parameters.
+     *
+     * @param query the query string
+     * @param accessMode the access mode for the query
+     * @return the serialized query as a byte array
+     */
     public static byte[] serialize(String query, AccessMode accessMode) {
         return serialize(query, null, accessMode);
     }
 
+    /**
+     * Serializes a query with parameters and access mode.
+     *
+     * @param query the query string
+     * @param parameters the query parameters as a map of name-value pairs (nullable)
+     * @param accessMode the access mode for the query (nullable)
+     * @return the serialized query as a byte array
+     */
     public static byte[] serialize(
             String query, Map<String, Object> parameters, AccessMode accessMode) {
         try {

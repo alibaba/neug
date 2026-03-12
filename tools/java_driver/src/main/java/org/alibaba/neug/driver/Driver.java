@@ -18,13 +18,13 @@ import java.io.Closeable;
 /**
  * The main driver interface for NeuG database connections.
  *
- * <p>A driver manages database connections and provides sessions for executing queries.
- * It is responsible for connection pooling, resource management, and cleanup.
+ * <p>A driver manages database connections and provides sessions for executing queries. It is
+ * responsible for connection pooling, resource management, and cleanup.
  *
  * <p>Example usage:
  *
  * <pre>{@code
- * Driver driver = GraphDatabase.driver("http://localhost:8080");
+ * Driver driver = GraphDatabase.driver("http://localhost:10000");
  * try (Session session = driver.session()) {
  *     ResultSet results = session.run("MATCH (n) RETURN n");
  *     // Process results

@@ -26,13 +26,13 @@ import org.alibaba.neug.driver.utils.Config;
  *
  * <pre>{@code
  * // Create a driver with default configuration
- * Driver driver = GraphDatabase.driver("http://localhost:8080");
+ * Driver driver = GraphDatabase.driver("http://localhost:10000");
  *
  * // Create a driver with custom configuration
  * Config config = Config.builder()
  *     .withMaxConnectionPoolSize(10)
  *     .build();
- * Driver driver = GraphDatabase.driver("http://localhost:8080", config);
+ * Driver driver = GraphDatabase.driver("http://localhost:10000", config);
  * }</pre>
  */
 public final class GraphDatabase {
@@ -44,23 +44,36 @@ public final class GraphDatabase {
     /**
      * Creates a new driver instance with default configuration.
      *
-     * @param uri the URI of the NeuG database server (e.g., "http://localhost:8080")
+     * @param uri the URI of the NeuG database server (e.g., "http://localhost:10000")
      * @return a new {@link Driver} instance
      * @throws IllegalArgumentException if the URI is null or invalid
      */
     public static Driver driver(String uri) {
+        if (uri == null || uri.isEmpty()) {
+            throw new IllegalArgumentException("URI cannot be null or empty");
+        }
+        if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
+            throw new IllegalArgumentException("URI must start with http:// or https://");
+        }
         return new InternalDriver(uri, Config.builder().build());
     }
 
     /**
      * Creates a new driver instance with custom configuration.
      *
-     * @param uri the URI of the NeuG database server (e.g., "http://localhost:8080")
+     * @param uri the URI of the NeuG database server (e.g., "http://localhost:10000")
      * @param config the configuration settings for the driver
      * @return a new {@link Driver} instance
      * @throws IllegalArgumentException if the URI or config is null or invalid
      */
     public static Driver driver(String uri, Config config) {
+        if (uri == null || uri.isEmpty()) {
+            throw new IllegalArgumentException("URI cannot be null or empty");
+        }
+        if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
+            throw new IllegalArgumentException("URI must start with http:// or https://");
+        }
+
         return new InternalDriver(uri, config);
     }
 }

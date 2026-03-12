@@ -13,9 +13,25 @@
  */
 package org.alibaba.neug.driver.utils;
 
+/**
+ * Enumeration of access modes for database operations.
+ *
+ * <p>The access mode indicates the type of operation being performed on the database:
+ *
+ * <ul>
+ *   <li>{@link #READ} - Read-only operations (queries)
+ *   <li>{@link #INSERT} - Insert operations
+ *   <li>{@link #UPDATE} - Update operations
+ *   <li>{@link #SCHEMA} - Schema modification operations
+ * </ul>
+ */
 public enum AccessMode {
+    /** Read-only access mode for query operations. */
     READ,
+    /** Insert access mode for adding new data. */
     INSERT,
+    /** Update access mode for modifying existing data. */
     UPDATE,
+    /** Schema access mode for DDL operations. */
     SCHEMA,
 }

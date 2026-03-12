@@ -21,14 +21,26 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+/**
+ * HTTP client for communicating with the NeuG database server.
+ *
+ * <p>This class manages HTTP connections using OkHttp and provides synchronous POST operations for
+ * sending query requests to the database server.
+ */
 public class Client {
 
     private final String uri;
     private static OkHttpClient httpClient = null;
     private boolean closed = false;
 
+    /**
+     * Constructs a new Client with the specified URI and configuration.
+     *
+     * @param uri the URI of the database server
+     * @param config the configuration for connection pooling and timeouts
+     */
     public Client(String uri, Config config) {
-        this.uri = uri;
+        this.uri = uri + "/cypher";
         this.closed = false;
 
         httpClient =
@@ -45,6 +57,13 @@ public class Client {
                         .build();
     }
 
+    /**
+     * Sends a synchronous POST request to the database server.
+     *
+     * @param request the request body as a byte array
+     * @return the response body as a byte array
+     * @throws IOException if an I/O error occurs during the request
+     */
     public byte[] syncPost(byte[] request) throws IOException {
         RequestBody body = RequestBody.create(request);
         Request httpRequest = new Request.Builder().url(uri).post(body).build();
@@ -56,10 +75,21 @@ public class Client {
         }
     }
 
+    /**
+     * Checks whether this client has been closed.
+     *
+     * @return {@code true} if the client is closed, {@code false} otherwise
+     */
     public boolean isClosed() {
         return closed;
     }
 
+    /**
+     * Closes this client and releases all associated resources.
+     *
+     * <p>This method evicts all connections from the connection pool and marks the client as
+     * closed.
+     */
     public void close() {
         if (!closed) {
             httpClient.connectionPool().evictAll();

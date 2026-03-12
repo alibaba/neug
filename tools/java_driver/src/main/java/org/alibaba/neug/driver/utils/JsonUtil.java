@@ -15,6 +15,12 @@ package org.alibaba.neug.driver.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Utility class providing a shared Jackson ObjectMapper instance.
+ *
+ * <p>This class uses the singleton pattern to ensure a single ObjectMapper instance is reused
+ * throughout the application, improving performance.
+ */
 public class JsonUtil {
 
     private JsonUtil() {}
@@ -23,6 +29,11 @@ public class JsonUtil {
         private static final ObjectMapper INSTANCE = initMapper();
     }
 
+    /**
+     * Gets the singleton ObjectMapper instance.
+     *
+     * @return the shared ObjectMapper instance
+     */
     public static ObjectMapper getInstance() {
         return Holder.INSTANCE;
     }

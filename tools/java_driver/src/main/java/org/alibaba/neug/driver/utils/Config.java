@@ -15,53 +15,83 @@ package org.alibaba.neug.driver.utils;
 
 import java.io.Serializable;
 
+/**
+ * Configuration for the NeuG driver.
+ *
+ * <p>This class holds various timeout and connection pool settings. Use the {@link ConfigBuilder}
+ * to create instances.
+ */
 public final class Config implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** Builder for creating {@link Config} instances with custom settings. */
     public static final class ConfigBuilder {
         private int connectionTimeoutMillis = 30000;
         private int readTimeoutMillis = 30000;
         private int writeTimeoutMillis = 30000;
         private int keepAliveIntervalMillis = 30000;
         private int maxConnectionPoolSize = 100;
-        private int maxRequestsPerHost = 1000;
-        private int maxRequests = 10000;
 
+        /**
+         * Sets the connection timeout in milliseconds.
+         *
+         * @param connectionTimeoutMillis the connection timeout
+         * @return this builder
+         */
         public ConfigBuilder withConnectionTimeoutMillis(int connectionTimeoutMillis) {
             this.connectionTimeoutMillis = connectionTimeoutMillis;
             return this;
         }
 
+        /**
+         * Sets the read timeout in milliseconds.
+         *
+         * @param readTimeoutMillis the read timeout
+         * @return this builder
+         */
         public ConfigBuilder withReadTimeoutMillis(int readTimeoutMillis) {
             this.readTimeoutMillis = readTimeoutMillis;
             return this;
         }
 
+        /**
+         * Sets the write timeout in milliseconds.
+         *
+         * @param writeTimeoutMillis the write timeout
+         * @return this builder
+         */
         public ConfigBuilder withWriteTimeoutMillis(int writeTimeoutMillis) {
             this.writeTimeoutMillis = writeTimeoutMillis;
             return this;
         }
 
+        /**
+         * Sets the keep-alive interval in milliseconds.
+         *
+         * @param keepAliveIntervalMillis the keep-alive interval
+         * @return this builder
+         */
         public ConfigBuilder withKeepAliveIntervalMillis(int keepAliveIntervalMillis) {
             this.keepAliveIntervalMillis = keepAliveIntervalMillis;
             return this;
         }
 
+        /**
+         * Sets the maximum connection pool size.
+         *
+         * @param maxConnectionPoolSize the maximum number of connections in the pool
+         * @return this builder
+         */
         public ConfigBuilder withMaxConnectionPoolSize(int maxConnectionPoolSize) {
             this.maxConnectionPoolSize = maxConnectionPoolSize;
             return this;
         }
 
-        public ConfigBuilder withMaxRequestsPerHost(int maxRequestsPerHost) {
-            this.maxRequestsPerHost = maxRequestsPerHost;
-            return this;
-        }
-
-        public ConfigBuilder withMaxRequests(int maxRequests) {
-            this.maxRequests = maxRequests;
-            return this;
-        }
-
+        /**
+         * Builds a new {@link Config} instance with the configured settings.
+         *
+         * @return a new Config instance
+         */
         public Config build() {
             Config config = new Config();
             config.connectionTimeoutMillis = connectionTimeoutMillis;
@@ -69,43 +99,62 @@ public final class Config implements Serializable {
             config.writeTimeoutMillis = writeTimeoutMillis;
             config.keepAliveIntervalMillis = keepAliveIntervalMillis;
             config.maxConnectionPoolSize = maxConnectionPoolSize;
-            config.maxRequestsPerHost = maxRequestsPerHost;
-            config.maxRequests = maxRequests;
             return config;
         }
     }
-    ;
 
+    /**
+     * Creates a new ConfigBuilder for constructing Config instances.
+     *
+     * @return a new ConfigBuilder
+     */
     public static ConfigBuilder builder() {
         return new ConfigBuilder();
     }
 
+    /**
+     * Gets the connection timeout in milliseconds.
+     *
+     * @return the connection timeout
+     */
     public int getConnectionTimeoutMillis() {
         return connectionTimeoutMillis;
     }
 
+    /**
+     * Gets the read timeout in milliseconds.
+     *
+     * @return the read timeout
+     */
     public int getReadTimeoutMillis() {
         return readTimeoutMillis;
     }
 
+    /**
+     * Gets the write timeout in milliseconds.
+     *
+     * @return the write timeout
+     */
     public int getWriteTimeoutMillis() {
         return writeTimeoutMillis;
     }
 
+    /**
+     * Gets the keep-alive interval in milliseconds.
+     *
+     * @return the keep-alive interval
+     */
     public int getKeepAliveIntervalMillis() {
         return keepAliveIntervalMillis;
     }
 
+    /**
+     * Gets the maximum connection pool size.
+     *
+     * @return the maximum connection pool size
+     */
     public int getMaxConnectionPoolSize() {
         return maxConnectionPoolSize;
-    }
-
-    public int getMaxRequestsPerHost() {
-        return maxRequestsPerHost;
-    }
-
-    public int getMaxRequests() {
-        return maxRequests;
     }
 
     private int connectionTimeoutMillis;
@@ -113,6 +162,4 @@ public final class Config implements Serializable {
     private int writeTimeoutMillis;
     private int keepAliveIntervalMillis;
     private int maxConnectionPoolSize;
-    private int maxRequestsPerHost;
-    private int maxRequests;
 }

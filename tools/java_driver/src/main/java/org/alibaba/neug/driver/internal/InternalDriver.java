@@ -19,10 +19,22 @@ import org.alibaba.neug.driver.utils.AccessMode;
 import org.alibaba.neug.driver.utils.Client;
 import org.alibaba.neug.driver.utils.Config;
 
+/**
+ * Internal implementation of the {@link Driver} interface.
+ *
+ * <p>This class manages the lifecycle of database connections and provides session creation
+ * capabilities. It uses an HTTP client to communicate with the NeuG database server.
+ */
 public class InternalDriver implements Driver {
 
     private static Client client = null;
 
+    /**
+     * Constructs a new InternalDriver with the specified URI and configuration.
+     *
+     * @param uri the URI of the database server
+     * @param config the configuration for the driver
+     */
     public InternalDriver(String uri, Config config) {
         client = new Client(uri, config);
     }
