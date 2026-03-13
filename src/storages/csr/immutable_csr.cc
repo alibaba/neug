@@ -26,6 +26,10 @@
 #include <memory>
 #include <thread>
 #include <utility>
+#include "neug/storages/column/anon_mmap_container.h"
+#include "neug/storages/column/file_header.h"
+#include "neug/storages/column/file_mmap_container.h"
+#include "neug/storages/column/i_container.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/property/types.h"
 
@@ -37,62 +41,118 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
                                  const std::string& work_dir) {
   // Changes made to the CSR will not be synchronized to the file
   // TODO(luoxiaojian): Implement the insert operation on ImmutableCsr.
-  if (snapshot_dir != "") {
-    degree_list_.open(snapshot_dir + "/" + name + ".deg", false);
-    nbr_list_.open(snapshot_dir + "/" + name + ".nbr", false);
-    load_meta(snapshot_dir + "/" + name);
+  close();
+  auto prefix = snapshot_dir + "/" + name;
+  auto degree_file_name = prefix + ".deg";
+  auto nbr_file_name = prefix + ".nbr";
+  auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
+  auto tmp_degree_file_name = tmp_dir(work_dir) + "/" + name + ".deg";
+  if (snapshot_dir.empty() || !std::filesystem::exists(snapshot_dir)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Snapshot directory is required for disk-backed open()");
   }
+  if (!std::filesystem::exists(degree_file_name)) {
+    file_utils::create_file(tmp_degree_file_name, sizeof(FileHeader));
+  } else {
+    file_utils::copy_file(degree_file_name, tmp_degree_file_name, true);
+  }
+  degree_list_buffer_ = std::make_unique<FileSharedMMap>();
+  degree_list_buffer_->Open(tmp_degree_file_name);
 
-  adj_lists_.open(tmp_dir(work_dir) + "/" + name + ".adj", true);
-  adj_lists_.resize(degree_list_.size());
+  if (!std::filesystem::exists(nbr_file_name)) {
+    file_utils::create_file(tmp_nbr_file_name, sizeof(FileHeader));
+  } else {
+    file_utils::copy_file(nbr_file_name, tmp_nbr_file_name, true);
+  }
+  nbr_list_buffer_ = std::make_unique<FileSharedMMap>();
+  nbr_list_buffer_->Open(tmp_nbr_file_name);
+  load_meta(prefix);
 
-  nbr_t* ptr = nbr_list_.data();
-  for (size_t i = 0; i < degree_list_.size(); ++i) {
-    int deg = degree_list_[i];
-    adj_lists_[i] = ptr;
-    ptr += deg;
+  adj_list_buffer_ = std::make_unique<FileSharedMMap>();
+  auto tmp_adj_list_file_name = tmp_dir(work_dir) + "/" + name + ".adj";
+  std::filesystem::remove(tmp_adj_list_file_name);
+  file_utils::create_file(tmp_adj_list_file_name, sizeof(FileHeader));
+  adj_list_buffer_->Open(tmp_adj_list_file_name);
+  auto v_cap = size();
+  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
+
+  auto cur_nbr_list_ptr = nbr_list_ptr();
+  for (size_t i = 0; i < v_cap; ++i) {
+    int deg = degree_list_ptr()[i];
+    if (deg != 0) {
+      adj_lists_ptr()[i] = cur_nbr_list_ptr;
+    } else {
+      adj_lists_ptr()[i] = NULL;
+    }
+    cur_nbr_list_ptr += deg;
   }
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  degree_list_.open(prefix + ".deg", false);
-  load_meta(prefix);
-  nbr_list_.open(prefix + ".nbr", false);
-  adj_lists_.reset();
-  auto v_cap = degree_list_.size();
-  adj_lists_.resize(v_cap);
+  close();
+  auto degree_file_name = prefix + ".deg";
+  auto nbr_file_name = prefix + ".nbr";
+  if (std::filesystem::exists(degree_file_name)) {
+    degree_list_buffer_ = std::make_unique<FilePrivateMMap>();
+    degree_list_buffer_->Open(degree_file_name);
+  } else {
+    degree_list_buffer_ = std::make_unique<AnonMMap>();
+  }
 
-  nbr_t* ptr = nbr_list_.data();
+  if (std::filesystem::exists(nbr_file_name)) {
+    nbr_list_buffer_ = std::make_unique<FilePrivateMMap>();
+    nbr_list_buffer_->Open(nbr_file_name);
+  } else {
+    nbr_list_buffer_ = std::make_unique<AnonMMap>();
+  }
+  load_meta(prefix);
+
+  adj_list_buffer_ = std::make_unique<AnonMMap>();
+  auto v_cap = size();
+  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
+
+  auto cur_nbr_list_ptr = nbr_list_ptr();
   for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg != 0) {
-      adj_lists_[i] = ptr;
+      adj_lists_ptr()[i] = cur_nbr_list_ptr;
     } else {
-      adj_lists_[i] = NULL;
+      adj_lists_ptr()[i] = NULL;
     }
-    ptr += deg;
+    cur_nbr_list_ptr += deg;
   }
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  degree_list_.open_with_hugepages(prefix + ".deg");
-  load_meta(prefix);
-  nbr_list_.open_with_hugepages(prefix + ".nbr");
-  adj_lists_.reset();
-  auto v_cap = degree_list_.size();
-  adj_lists_.resize(v_cap);
+  close();
+  auto degree_file_name = prefix + ".deg";
+  auto nbr_file_name = prefix + ".nbr";
+  degree_list_buffer_ = std::make_unique<AnonHugeMMap>();
+  if (std::filesystem::exists(degree_file_name)) {
+    degree_list_buffer_->Open(degree_file_name);
+  }
 
-  nbr_t* ptr = nbr_list_.data();
+  nbr_list_buffer_ = std::make_unique<AnonHugeMMap>();
+  if (std::filesystem::exists(nbr_file_name)) {
+    nbr_list_buffer_->Open(nbr_file_name);
+  }
+  load_meta(prefix);
+
+  auto v_cap = size();
+  adj_list_buffer_ = std::make_unique<AnonHugeMMap>();
+  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
+  auto cur_nbr_list_ptr = nbr_list_ptr();
+
   for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg != 0) {
-      adj_lists_[i] = ptr;
+      adj_lists_ptr()[i] = cur_nbr_list_ptr;
     } else {
-      adj_lists_[i] = NULL;
+      adj_lists_ptr()[i] = NULL;
     }
-    ptr += deg;
+    cur_nbr_list_ptr += deg;
   }
 }
 
@@ -100,23 +160,56 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::dump(const std::string& name,
                                  const std::string& new_snapshot_dir) {
   dump_meta(new_snapshot_dir + "/" + name);
-  size_t vnum = adj_lists_.size();
-  {
-    FILE* fout = fopen((new_snapshot_dir + "/" + name + ".deg").c_str(), "wb");
-    fwrite(degree_list_.data(), sizeof(int), vnum, fout);
-    fflush(fout);
+  degree_list_buffer_->Sync();
+  nbr_list_buffer_->Sync();
+  degree_list_buffer_->Dump(new_snapshot_dir + "/" + name + ".deg");
+  auto vnum = size();
+  FILE* fout = fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
+  FileHeader header{};
+  if (fwrite(&header, sizeof(FileHeader), 1, fout) != 1) {
     fclose(fout);
+    std::stringstream ss;
+    ss << "Failed to fwrite file [ " << new_snapshot_dir + "/" + name + ".nbr"
+       << " ], " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
   }
-  {
-    FILE* fout = fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
-    for (size_t k = 0; k < vnum; ++k) {
-      if (adj_lists_[k] != NULL && degree_list_[k] != 0) {
-        fwrite(adj_lists_[k], sizeof(nbr_t), degree_list_[k], fout);
+  MD5_CTX md5_ctx;
+  MD5_Init(&md5_ctx);
+  for (size_t k = 0; k < vnum; ++k) {
+    int deg = degree_list_ptr()[k];
+    if (deg != 0 && adj_lists_ptr()[k] != NULL) {
+      const nbr_t* nbrs = adj_lists_ptr()[k];
+      if (fwrite(nbrs, sizeof(nbr_t), deg, fout) != static_cast<size_t>(deg)) {
+        std::stringstream ss;
+        ss << "Failed to fwrite file [ "
+           << new_snapshot_dir + "/" + name + ".nbr"
+           << " ], " << strerror(errno);
+        LOG(ERROR) << ss.str();
+        THROW_RUNTIME_ERROR(ss.str());
       }
+      MD5_Update(&md5_ctx, nbrs, sizeof(nbr_t) * deg);
     }
-    fflush(fout);
-    fclose(fout);
   }
+  MD5_Final(header.data_md5, &md5_ctx);
+  if (fseek(fout, 0, SEEK_SET) != 0) {
+    fclose(fout);
+    std::stringstream ss;
+    ss << "Failed to fseek file [ " << new_snapshot_dir + "/" + name + ".nbr"
+       << " ], " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  if (fwrite(&header, sizeof(FileHeader), 1, fout) != 1) {
+    fclose(fout);
+    std::stringstream ss;
+    ss << "Failed to fwrite file [ " << new_snapshot_dir + "/" + name + ".nbr"
+       << " ], " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  fflush(fout);
+  fclose(fout);
 }
 
 template <typename EDATA_T>
@@ -125,18 +218,19 @@ void ImmutableCsr<EDATA_T>::reset_timestamp() {}
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
   // For current adj_list where the dst vertex is invalid, swap it to the end.
-  vid_t vnum = adj_lists_.size();
+  // vid_t vnum = adj_lists_.size();
+  vid_t vnum = size();
   if (vnum <= 0) {
     return;
   }
   size_t removed = 0;
-  nbr_t* write_ptr = adj_lists_[0];
+  nbr_t* write_ptr = adj_lists_ptr()[0];
   for (vid_t i = 0; i < vnum; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg == 0) {
       continue;
     }
-    const nbr_t* read_ptr = adj_lists_[i];
+    const nbr_t* read_ptr = adj_lists_ptr()[i];
     const nbr_t* read_end = read_ptr + deg;
     while (read_ptr != read_end) {
       if (read_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
@@ -145,33 +239,34 @@ void ImmutableCsr<EDATA_T>::compact() {
         }
         ++write_ptr;
       } else {
-        --degree_list_[i];
+        --degree_list_ptr()[i];
         ++removed;
       }
       ++read_ptr;
     }
   }
-  nbr_list_.resize(nbr_list_.size() - removed);
-  nbr_t* ptr = nbr_list_.data();
+  nbr_list_buffer_->Resize(nbr_list_buffer_->GetDataSize() -
+                           removed * sizeof(nbr_t));
+  nbr_t* ptr = nbr_list_ptr();
   for (vid_t i = 0; i < vnum; ++i) {
-    adj_lists_[i] = ptr;
-    ptr += degree_list_[i];
+    adj_lists_ptr()[i] = ptr;
+    ptr += degree_list_ptr()[i];
   }
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
-  if (vnum > adj_lists_.size()) {
-    size_t old_size = adj_lists_.size();
-    adj_lists_.resize(vnum);
-    degree_list_.resize(vnum);
-    for (size_t k = old_size; k != vnum; ++k) {
-      adj_lists_[k] = NULL;
-      degree_list_[k] = 0;
+  auto old_v_cap = size();
+  if (vnum > old_v_cap) {
+    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
+    degree_list_buffer_->Resize(vnum * sizeof(int));
+    for (vid_t i = old_v_cap; i < vnum; ++i) {
+      adj_lists_ptr()[i] = NULL;
+      degree_list_ptr()[i] = 0;
     }
   } else {
-    adj_lists_.resize(vnum);
-    degree_list_.resize(vnum);
+    adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
+    degree_list_buffer_->Resize(vnum * sizeof(int));
   }
 }
 
@@ -183,17 +278,21 @@ size_t ImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::close() {
-  adj_lists_.reset();
-  degree_list_.reset();
-  nbr_list_.reset();
+  CLOSE_AND_RESET(adj_list_buffer_);
+  CLOSE_AND_RESET(degree_list_buffer_);
+  CLOSE_AND_RESET(nbr_list_buffer_);
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
-  size_t vnum = adj_lists_.size();
+  if (!degree_list_buffer_) {
+    unsorted_since_ = ts;
+    return;
+  }
+  vid_t vnum = size();
   for (size_t i = 0; i != vnum; ++i) {
     std::sort(
-        adj_lists_[i], adj_lists_[i] + degree_list_[i],
+        adj_lists_ptr()[i], adj_lists_ptr()[i] + degree_list_ptr()[i],
         [](const nbr_t& lhs, const nbr_t& rhs) { return lhs.data < rhs.data; });
   }
   unsorted_since_ = ts;
@@ -202,37 +301,38 @@ void ImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
-  vid_t vnum = adj_lists_.size();
+  vid_t vnum = size();
   size_t removed = 0;
   for (vid_t i = 0; i < vnum; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg == 0) {
       continue;
     }
     if (src_set.find(i) != src_set.end()) {
       removed += deg;
-      degree_list_[i] = 0;
+      degree_list_ptr()[i] = 0;
     } else {
-      const nbr_t* old_ptr = adj_lists_[i];
+      const nbr_t* old_ptr = adj_lists_ptr()[i];
       const nbr_t* old_end = old_ptr + deg;
-      nbr_t* new_ptr = adj_lists_[i] - removed;
+      nbr_t* new_ptr = adj_lists_ptr()[i] - removed;
       while (old_ptr != old_end) {
         if (dst_set.find(old_ptr->neighbor) == dst_set.end()) {
           *new_ptr = *old_ptr;
           ++new_ptr;
         } else {
-          --degree_list_[i];
+          --degree_list_ptr()[i];
           ++removed;
         }
         ++old_ptr;
       }
     }
   }
-  nbr_list_.resize(nbr_list_.size() - removed);
-  nbr_t* ptr = nbr_list_.data();
+  nbr_list_buffer_->Resize(
+      (nbr_list_buffer_->GetDataSize() - removed * sizeof(nbr_t)));
+  nbr_t* ptr = nbr_list_ptr();
   for (vid_t i = 0; i < vnum; ++i) {
-    adj_lists_[i] = ptr;
-    ptr += degree_list_[i];
+    adj_lists_ptr()[i] = ptr;
+    ptr += degree_list_ptr()[i];
   }
 }
 
@@ -240,7 +340,7 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
   std::map<vid_t, std::set<vid_t>> src_dst_map;
-  vid_t vnum = adj_lists_.size();
+  vid_t vnum = size();
   for (size_t i = 0; i < src_list.size(); ++i) {
     if (src_list[i] >= vnum) {
       continue;
@@ -248,15 +348,15 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
     src_dst_map[src_list[i]].insert(dst_list[i]);
   }
   for (vid_t i = 0; i < vnum; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg == 0) {
       continue;
     }
     auto iter = src_dst_map.find(i);
     if (iter != src_dst_map.end()) {
       const std::set<vid_t>& dst_set = iter->second;
-      nbr_t* write_ptr = adj_lists_[i];
-      const nbr_t* read_end = write_ptr + degree_list_[i];
+      nbr_t* write_ptr = adj_lists_ptr()[i];
+      const nbr_t* read_end = write_ptr + degree_list_ptr()[i];
       while (write_ptr != read_end) {
         if (write_ptr->neighbor != std::numeric_limits<vid_t>::max() &&
             dst_set.find(write_ptr->neighbor) != dst_set.end()) {
@@ -272,21 +372,21 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
   std::map<vid_t, std::set<int32_t>> src_offset_map;
-  vid_t vnum = adj_lists_.size();
+  vid_t vnum = size();
   for (const auto& edge : edges) {
-    if (edge.first >= vnum || edge.second >= degree_list_[edge.first]) {
+    if (edge.first >= vnum || edge.second >= degree_list_ptr()[edge.first]) {
       continue;
     }
     src_offset_map[edge.first].insert(edge.second);
   }
   for (vid_t i = 0; i < vnum; ++i) {
-    int deg = degree_list_[i];
+    int deg = degree_list_ptr()[i];
     if (deg == 0) {
       continue;
     }
     auto iter = src_offset_map.find(i);
     if (iter != src_offset_map.end()) {
-      nbr_t* write_ptr = adj_lists_[i];
+      nbr_t* write_ptr = adj_lists_ptr()[i];
       for (const auto& offset : iter->second) {
         write_ptr[offset].neighbor = std::numeric_limits<vid_t>::max();
       }
@@ -297,11 +397,11 @@ void ImmutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                         timestamp_t ts) {
-  vid_t vnum = adj_lists_.size();
-  if (src >= vnum || offset >= degree_list_[src]) {
+  vid_t vnum = size();
+  if (src >= vnum || offset >= degree_list_ptr()[src]) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = adj_lists_[src];
+  nbr_t* nbrs = adj_lists_ptr()[src];
   if (nbrs[offset].neighbor == std::numeric_limits<vid_t>::max()) {
     LOG(ERROR) << "Fail to delete edge, already deleted.";
     return;
@@ -312,11 +412,11 @@ void ImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
                                                int32_t offset, timestamp_t ts) {
-  vid_t vnum = adj_lists_.size();
-  if (src >= vnum || offset >= degree_list_[src]) {
+  vid_t vnum = size();
+  if (src >= vnum || offset >= degree_list_ptr()[src]) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = adj_lists_[src];
+  nbr_t* nbrs = adj_lists_ptr()[src];
   if (nbrs[offset].neighbor != std::numeric_limits<vid_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
@@ -328,29 +428,29 @@ template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::batch_put_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list,
     const std::vector<EDATA_T>& data_list, timestamp_t ts) {
-  std::vector<int> old_degree_list(degree_list_.size());
-  memcpy(old_degree_list.data(), degree_list_.data(),
-         sizeof(int) * degree_list_.size());
+  auto old_edge_num = nbr_list_buffer_->GetDataSize() / sizeof(nbr_t);
+  auto v_cap = size();
+  std::vector<int> old_degree_list(v_cap);
+  memcpy(old_degree_list.data(), degree_list_buffer_->GetData(),
+         sizeof(int) * v_cap);
   for (size_t i = 0; i < src_list.size(); ++i) {
-    ++degree_list_[src_list[i]];
+    ++degree_list_ptr()[src_list[i]];
   }
-  size_t old_edge_num = nbr_list_.size();
   size_t new_edge_num = old_edge_num + src_list.size();
-  nbr_list_.resize(new_edge_num);
-  vid_t vnum = degree_list_.size();
+  nbr_list_buffer_->Resize(new_edge_num * sizeof(nbr_t));
+
   size_t new_edge_offset = new_edge_num;
   size_t old_edge_offset = old_edge_num;
-  for (int64_t i = vnum - 1; i >= 0; --i) {
-    new_edge_offset -= degree_list_[i];
+  for (int64_t i = v_cap - 1; i >= 0; --i) {
+    new_edge_offset -= degree_list_ptr()[i];
     old_edge_offset -= old_degree_list[i];
-    adj_lists_[i] = nbr_list_.data() + new_edge_offset;
-    memmove(nbr_list_.data() + new_edge_offset,
-            nbr_list_.data() + old_edge_offset,
+    adj_lists_ptr()[i] = nbr_list_ptr() + new_edge_offset;
+    memmove(nbr_list_ptr() + new_edge_offset, nbr_list_ptr() + old_edge_offset,
             sizeof(nbr_t) * old_degree_list[i]);
   }
   for (size_t i = 0; i < src_list.size(); ++i) {
     vid_t src = src_list[i];
-    auto& nbr = adj_lists_[src][old_degree_list[src]++];
+    auto& nbr = adj_lists_ptr()[src][old_degree_list[src]++];
     nbr.neighbor = dst_list[i];
     nbr.data = data_list[i];
   }
@@ -383,36 +483,41 @@ void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
                                        const std::string& work_dir) {
   auto tmp_file = tmp_dir(work_dir) + "/" + name + ".snbr";
   auto snapshot_file = snapshot_dir + "/" + name + ".snbr";
-  if (std::filesystem::exists(tmp_file)) {
-    std::filesystem::remove(tmp_file);
+  if (std::filesystem::exists(snapshot_file)) {
+    file_utils::copy_file(snapshot_file, tmp_file, true);
+  } else {
+    file_utils::create_file(tmp_file, sizeof(FileHeader));
   }
-  if (!std::filesystem::exists(tmp_file)) {
-    if (std::filesystem::exists(snapshot_file)) {
-      copy_file(snapshot_file, tmp_file);
-    }
-  }
-  nbr_list_.open(tmp_file, true);
+  nbr_list_buffer_ = std::make_unique<FileSharedMMap>();
+  nbr_list_buffer_->Open(tmp_file);
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  nbr_list_.open(prefix + ".snbr", false);
+  auto snapshot_file = prefix + ".snbr";
+  if (std::filesystem::exists(snapshot_file)) {
+    nbr_list_buffer_ = std::make_unique<FilePrivateMMap>();
+    nbr_list_buffer_->Open(snapshot_file);
+  } else {
+    nbr_list_buffer_ = std::make_unique<AnonMMap>();
+  }
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_with_hugepages(
     const std::string& prefix) {
-  nbr_list_.open_with_hugepages(prefix + ".snbr");
+  auto snapshot_file = prefix + ".snbr";
+  nbr_list_buffer_ = std::make_unique<AnonHugeMMap>();
+  if (std::filesystem::exists(snapshot_file)) {
+    nbr_list_buffer_->Open(snapshot_file);
+  }
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::dump(const std::string& name,
                                        const std::string& new_snapshot_dir) {
   // TODO: opt with mv
-  FILE* fp = fopen((new_snapshot_dir + "/" + name + ".snbr").c_str(), "wb");
-  fwrite(nbr_list_.data(), sizeof(nbr_t), nbr_list_.size(), fp);
-  fflush(fp);
-  fclose(fp);
+  nbr_list_buffer_->Dump(new_snapshot_dir + "/" + name + ".snbr");
 }
 
 template <typename EDATA_T>
@@ -423,25 +528,23 @@ void SingleImmutableCsr<EDATA_T>::compact() {}
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
-  if (vnum > nbr_list_.size()) {
-    size_t old_size = nbr_list_.size();
-    nbr_list_.resize(vnum);
+  auto old_size = size();
+  nbr_list_buffer_->Resize(vnum * sizeof(nbr_t));
+  if (vnum > old_size) {
     for (size_t k = old_size; k != vnum; ++k) {
-      nbr_list_[k].neighbor = std::numeric_limits<vid_t>::max();
+      nbr_list_ptr()[k].neighbor = std::numeric_limits<vid_t>::max();
     }
-  } else {
-    nbr_list_.resize(vnum);
   }
 }
 
 template <typename EDATA_T>
 size_t SingleImmutableCsr<EDATA_T>::capacity() const {
-  return nbr_list_.size();
+  return size();
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::close() {
-  nbr_list_.reset();
+  CLOSE_AND_RESET(nbr_list_buffer_);
 }
 
 template <typename EDATA_T>
@@ -450,18 +553,18 @@ void SingleImmutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {}
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   for (auto src : src_set) {
     if (src >= vnum) {
       continue;
     }
-    nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
+    nbr_list_ptr()[src].neighbor = std::numeric_limits<vid_t>::max();
   }
   for (vid_t i = 0; i < vnum; ++i) {
-    auto nbr = nbr_list_[i].neighbor;
+    auto nbr = nbr_list_ptr()[i].neighbor;
     if (nbr != std::numeric_limits<vid_t>::max() &&
         dst_set.find(nbr) != dst_set.end()) {
-      nbr_list_[i].neighbor = std::numeric_limits<vid_t>::max();
+      nbr_list_ptr()[i].neighbor = std::numeric_limits<vid_t>::max();
     }
   }
 }
@@ -469,15 +572,15 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_vertices(
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   for (size_t i = 0; i < src_list.size(); ++i) {
     vid_t src = src_list[i];
     if (src >= vnum) {
       continue;
     }
     vid_t dst = dst_list[i];
-    if (nbr_list_[src].neighbor == dst) {
-      nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
+    if (nbr_list_ptr()[src].neighbor == dst) {
+      nbr_list_ptr()[src].neighbor = std::numeric_limits<vid_t>::max();
     }
   }
 }
@@ -485,58 +588,58 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   for (const auto& edge : edges) {
     vid_t src = edge.first;
     if (src >= vnum) {
       continue;
     }
     assert(edge.second == 0);
-    nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
+    nbr_list_ptr()[src].neighbor = std::numeric_limits<vid_t>::max();
   }
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                               timestamp_t ts) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   if (src >= vnum || offset != 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
     return;
   }
-  if (nbr_list_[src].neighbor == std::numeric_limits<vid_t>::max()) {
+  if (nbr_list_ptr()[src].neighbor == std::numeric_limits<vid_t>::max()) {
     LOG(ERROR) << "Fail to delete edge, already deleted.";
     return;
   }
-  nbr_list_[src].neighbor = std::numeric_limits<vid_t>::max();
+  nbr_list_ptr()[src].neighbor = std::numeric_limits<vid_t>::max();
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
                                                      int32_t offset,
                                                      timestamp_t ts) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   if (src >= vnum || offset != 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  if (nbr_list_[src].neighbor != std::numeric_limits<vid_t>::max()) {
+  if (nbr_list_ptr()[src].neighbor != std::numeric_limits<vid_t>::max()) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
   }
-  nbr_list_[src].neighbor = nbr;
+  nbr_list_ptr()[src].neighbor = nbr;
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::batch_put_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list,
     const std::vector<EDATA_T>& data_list, timestamp_t) {
-  vid_t vnum = nbr_list_.size();
+  vid_t vnum = size();
   for (size_t i = 0; i < src_list.size(); ++i) {
     vid_t src = src_list[i];
     if (src >= vnum) {
       continue;
     }
-    auto& nbr = nbr_list_[src];
+    auto& nbr = nbr_list_ptr()[src];
     nbr.neighbor = dst_list[i];
     nbr.data = data_list[i];
   }

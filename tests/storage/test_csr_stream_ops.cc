@@ -17,8 +17,8 @@
 #include <thread>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
 using StreamCsrTypes = ::testing::Types<

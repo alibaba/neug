@@ -18,7 +18,6 @@
 #include <limits>
 
 #include "neug/utils/id_indexer.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -56,10 +55,9 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
   switch (type_id) {
-#define TYPE_DISPATCHER(enum_val, type) \
-  case DataTypeId::enum_val:            \
-    return std::make_shared<TypedColumn<type>>();
-    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+        enum_val, type) case DataTypeId::enum_val : return std::make_shared <
+        TypedColumn < type>>();
+        FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case DataTypeId::kVarchar: {
     uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
@@ -81,6 +79,44 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   }
 }
 
+void OpenContainerForColumn(IDataContainer& buffer, const std::string& name,
+                            const std::string& snapshot_dir,
+                            const std::string& work_dir) {
+  std::string basic_path = snapshot_dir + "/" + name;
+  if (std::filesystem::exists(basic_path)) {
+    auto tmp_path = work_dir + "/" + name;
+    file_utils::copy_file(basic_path, tmp_path, true);
+    buffer.Open(tmp_path);
+  } else {
+    if (work_dir == "") {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Column file " + basic_path +
+          " does not exist, and work_dir is not provided to create a new one");
+    } else {
+      auto file_path = work_dir + "/" + name;
+      if (!std::filesystem::exists(file_path)) {
+        file_utils::create_file(file_path, sizeof(FileHeader));
+      }
+      buffer.Open(file_path);
+    }
+  }
+}
+
+void OpenContainerForColumnInMemory(IDataContainer& buffer,
+                                    const std::string& name) {
+  if (!name.empty() && std::filesystem::exists(name)) {
+    buffer.Open(name);
+  }
+}
+
+void OpenContainerForColumnWithHugePages(IDataContainer& buffer,
+                                         const std::string& name,
+                                         MemoryLevel strategy) {
+  if (!name.empty() && std::filesystem::exists(name)) {
+    buffer.Open(name);
+  }
+}
+
 void TypedColumn<std::string_view>::set_value_safe(
     size_t idx, const std::string_view& value) {
   std::shared_lock<std::shared_mutex> lock(rw_mutex_);
@@ -90,18 +126,22 @@ void TypedColumn<std::string_view>::set_value_safe(
       v = truncate_utf8(v, width_);
     }
     size_t offset = pos_.fetch_add(v.size());
-    if (pos_.load() > buffer_.data_size()) {
+    if (pos_.load() > data_buffer_->GetDataSize()) {
       lock.unlock();
       std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (pos_.load() > buffer_.data_size()) {
+      if (pos_.load() > data_buffer_->GetDataSize()) {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
         size_t new_len = std::max(size_ * new_avg_width, pos_.load());
-        buffer_.resize(buffer_.size(), new_len);
+        data_buffer_->Resize(new_len);
       }
       w_lock.unlock();
       lock.lock();
     }
-    buffer_.set(idx, offset, v);
+    auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
+    auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
+    raw_items[idx] = {offset, static_cast<uint32_t>(v.size())};
+    assert(offset + v.size() <= data_buffer_->GetDataSize());
+    std::memcpy(raw_data + offset, v.data(), v.size());
   } else {
     THROW_INDEX_EXCEPTION(
         "Index out of range in set_value_safe: " + std::to_string(idx) +

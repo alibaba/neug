@@ -35,11 +35,11 @@
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
 #include "neug/server/neug_db_session.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/result.h"
@@ -217,10 +217,14 @@ void NeugDB::initAllocators() {
   std::filesystem::create_directories(allocator_dir(work_dir_));
   assert(config_.thread_num > 0);
   for (int i = 0; i < config_.thread_num; ++i) {
-    allocators_.emplace_back(std::make_shared<Allocator>(
-        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
-                                  ? ""
-                                  : wal_ingest_allocator_prefix(work_dir_, i)));
+    // safe to pass the same prefix for both anon-based and file-based
+    // strategies, as the allocator will ignore the prefix for anon-based
+    // strategy
+    auto allocator_file = config_.memory_level == MemoryLevel::kSyncToFile
+                              ? wal_ingest_allocator_prefix(work_dir_, i)
+                              : "";
+    allocators_.emplace_back(
+        std::make_shared<Allocator>(config_.memory_level, allocator_file));
   }
 }
 

@@ -28,11 +28,15 @@
 #include <string_view>
 #include <vector>
 
+#include "neug/config.h"
+#include "neug/storages/column/anon_mmap_container.h"
+#include "neug/storages/column/file_header.h"
+#include "neug/storages/column/file_mmap_container.h"
+#include "neug/storages/column/i_container.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -78,9 +82,18 @@ class ColumnBase {
   }
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
-
-  virtual void ensure_writable(const std::string& work_dir) = 0;
 };
+
+void OpenContainerForColumn(IDataContainer& container, const std::string& name,
+                            const std::string& snapshot_dir,
+                            const std::string& work_dir);
+
+void OpenContainerForColumnInMemory(IDataContainer& container,
+                                    const std::string& name);
+
+void OpenContainerForColumnWithHugePages(IDataContainer& container,
+                                         const std::string& name,
+                                         MemoryLevel strategy);
 
 template <typename T>
 class TypedColumn : public ColumnBase {
@@ -90,50 +103,32 @@ class TypedColumn : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    std::string basic_path = snapshot_dir + "/" + name;
-    if (std::filesystem::exists(basic_path)) {
-      buffer_.open(basic_path, false, false);
-      size_ = buffer_.size();
-    } else {
-      if (work_dir == "") {
-        size_ = 0;
-      } else {
-        buffer_.open(work_dir + "/" + name, true);
-        size_ = buffer_.size();
-      }
-    }
+    buffer_ = std::make_unique<FileSharedMMap>();
+    OpenContainerForColumn(*buffer_, name, snapshot_dir, work_dir);
+    size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_in_memory(const std::string& name) override {
-    if (!name.empty() && std::filesystem::exists(name)) {
-      buffer_.open(name, false);
-      size_ = buffer_.size();
-    } else {
-      buffer_.reset();
-      size_ = 0;
-    }
+    buffer_ = std::make_unique<FilePrivateMMap>();
+    OpenContainerForColumnInMemory(*buffer_, name);
+    size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_with_hugepages(const std::string& name) override {
-    if (!name.empty() && std::filesystem::exists(name)) {
-      buffer_.open_with_hugepages(name);
-      size_ = buffer_.size();
-    } else {
-      buffer_.reset();
-      buffer_.set_hugepage_prefered(true);
-      size_ = 0;
-    }
+    buffer_ = std::make_unique<AnonHugeMMap>();
+    OpenContainerForColumnWithHugePages(*buffer_, name, strategy_);
+    size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void close() override { buffer_.reset(); }
 
-  void dump(const std::string& filename) override { buffer_.dump(filename); }
+  void dump(const std::string& filename) override { buffer_->Dump(filename); }
 
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
     size_ = size;
-    buffer_.resize(size_);
+    buffer_->Resize(size_ * sizeof(T));
   }
 
   // Assume it is safe to insert the default value even if it is reserving,
@@ -144,7 +139,7 @@ class TypedColumn : public ColumnBase {
     }
     size_t old_size = size_;
     size_ = size;
-    buffer_.resize(size_);
+    buffer_->Resize(size_ * sizeof(T));
     auto default_typed_value = PropUtils<T>::to_typed(default_value);
     for (size_t i = old_size; i < size_; ++i) {
       set_value(i, default_typed_value);
@@ -155,7 +150,8 @@ class TypedColumn : public ColumnBase {
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
-      buffer_.set(index, val);
+      // buffer_.set(index, val);
+      data_ptr()[index] = val;
     } else {
       THROW_RUNTIME_ERROR("Index out of range");
     }
@@ -168,7 +164,7 @@ class TypedColumn : public ColumnBase {
 
   inline T get_view(size_t index) const {
     assert(index < size_);
-    return buffer_.get(index);
+    return data_ptr()[index];
   }
 
   Property get_prop(size_t index) const override {
@@ -185,15 +181,21 @@ class TypedColumn : public ColumnBase {
     set_value(index, val);
   }
 
-  const mmap_array<T>& buffer() const { return buffer_; }
+  const IDataContainer& buffer() const { return *buffer_; }
   size_t buffer_size() const { return size_; }
 
-  void ensure_writable(const std::string& work_dir) override {
-    buffer_.ensure_writable(work_dir);
+ private:
+  inline T* data_ptr() {
+    assert(buffer_);
+    return reinterpret_cast<T*>(buffer_->GetData());
   }
 
- private:
-  mmap_array<T> buffer_;
+  inline const T* data_ptr() const {
+    assert(buffer_);
+    return reinterpret_cast<const T*>(buffer_->GetData());
+  }
+
+  std::unique_ptr<IDataContainer> buffer_;
   size_t size_;
 };
 
@@ -240,8 +242,11 @@ class TypedColumn<EmptyType> : public ColumnBase {
   EmptyType get_view(size_t index) const { return EmptyType(); }
 
   void ingest(uint32_t index, OutArchive& arc) override {}
+};
 
-  void ensure_writable(const std::string& work_dir) override {}
+struct string_item {
+  uint64_t offset : 48;
+  uint32_t length : 16;
 };
 
 template <>
@@ -255,7 +260,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
         width_(STRING_DEFAULT_MAX_LENGTH),
         type_(DataTypeId::kVarchar) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
-    buffer_.swap(rhs.buffer_);
+    items_buffer_ = std::move(rhs.items_buffer_);
+    data_buffer_ = std::move(rhs.data_buffer_);
     size_ = rhs.size_;
     pos_ = rhs.pos_.load();
     width_ = rhs.width_;
@@ -266,57 +272,70 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    std::string basic_path = snapshot_dir + "/" + name;
-    if (std::filesystem::exists(basic_path + ".items")) {
-      buffer_.open(basic_path, false, false);
-      size_ = buffer_.size();
-      init_pos(basic_path + ".pos");
-    } else {
-      if (work_dir == "") {
-        size_ = 0;
-        pos_.store(0);
-      } else {
-        buffer_.open(work_dir + "/" + name, true);
-        size_ = buffer_.size();
-        init_pos(work_dir + "/" + name + ".pos");
-      }
-    }
+    items_buffer_ = std::make_unique<FileSharedMMap>();
+    data_buffer_ = std::make_unique<FileSharedMMap>();
+    OpenContainerForColumn(*items_buffer_, name + ".items", snapshot_dir,
+                           work_dir);
+    OpenContainerForColumn(*data_buffer_, name + ".data", snapshot_dir,
+                           work_dir);
+    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
+    init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
   void open_in_memory(const std::string& prefix) override {
-    buffer_.open(prefix, false);
-    size_ = buffer_.size();
+    items_buffer_ = std::make_unique<FilePrivateMMap>();
+    data_buffer_ = std::make_unique<FilePrivateMMap>();
+    OpenContainerForColumnInMemory(*items_buffer_, prefix + ".items");
+    OpenContainerForColumnInMemory(*data_buffer_, prefix + ".data");
+    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
 
   void open_with_hugepages(const std::string& prefix) override {
-    buffer_.open_with_hugepages(prefix);
-    size_ = buffer_.size();
+    items_buffer_ = std::make_unique<AnonHugeMMap>();
+    data_buffer_ = std::make_unique<AnonHugeMMap>();
+    OpenContainerForColumnWithHugePages(*items_buffer_, prefix + ".items",
+                                        strategy_);
+    OpenContainerForColumnWithHugePages(*data_buffer_, prefix + ".data",
+                                        strategy_);
+    size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
 
-  void close() override { buffer_.reset(); }
+  void close() override {
+    CLOSE_AND_RESET(items_buffer_);
+    CLOSE_AND_RESET(data_buffer_);
+  }
 
   void dump(const std::string& filename) override {
     size_t pos_val = pos_.load();
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
-    buffer_.dump(filename);
+    if (items_buffer_) {
+      items_buffer_->Dump(filename + ".items");
+    }
+    if (data_buffer_) {
+      data_buffer_->Dump(filename + ".data");
+    }
+    CLOSE_AND_RESET(items_buffer_);
+    CLOSE_AND_RESET(data_buffer_);
   }
 
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-    size_ = size;
-    if (buffer_.size() != 0) {
+    // size_ = size;
+    if (items_buffer_->GetDataSize() != 0) {
       size_t avg_width =
-          buffer_.avg_size();  // calculate average width of existing strings
-      buffer_.resize(
-          size_,
-          std::max(size_ * (avg_width > 0 ? avg_width : width_), pos_.load()));
+          avg_item_size();  // calculate average width of existing strings
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(
+          std::max(size * (avg_width > 0 ? avg_width : width_), pos_.load()));
     } else {
-      buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(std::max(size * width_, pos_.load()));
     }
+    size_ = size;
   }
 
   void resize(size_t size, const Property& default_value) override {
@@ -328,24 +347,27 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
     auto default_str = PropUtils<std::string_view>::to_typed(default_value);
     default_str = truncate_utf8(default_str, width_);
-    if (buffer_.size() != 0) {
+
+    if (items_buffer_->GetDataSize() != 0) {
       size_t avg_width =
-          buffer_.avg_size();  // calculate average width of existing strings
-      buffer_.resize(size_,
-                     std::max(size_ * (avg_width > 0 ? avg_width : width_),
-                              pos_.load() + width_));
+          avg_item_size();  // calculate average width of existing strings
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(
+          std::max(size * (avg_width > 0 ? avg_width : width_), pos_.load()));
     } else {
-      buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(std::max(size * width_, pos_.load()));
     }
+
     if (default_str.size() == 0) {
       return;
     }
 
     if (old_size < size_) {
       set_value(old_size, default_str);
-      auto string_item = buffer_.get_string_item(old_size);
+      const auto& string_item = get_string_item(old_size);
       for (size_t i = old_size + 1; i < size_; ++i) {
-        buffer_.set_string_item(i, string_item);
+        set_string_item(i, string_item);
       }
     }
   }
@@ -359,12 +381,16 @@ class TypedColumn<std::string_view> : public ColumnBase {
               << " exceeds the maximum length: " << width_ << ", cut off.";
       copied_val = truncate_utf8(copied_val, width_);
     }
-    if (idx < size_ && pos_.load() + copied_val.size() <= buffer_.data_size()) {
+    if (idx < size_ &&
+        pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
       // NOTE: Even if idx has been set before, we always append the new value
-      // to the end of buffer_. The previous value is not reclaimed, and should
-      // be handled by garbage collection or compaction.
+      // to the end of buffer_. The previous value is not reclaimed, and
+      // should be handled by garbage collection or compaction.
       size_t offset = pos_.fetch_add(copied_val.size());
-      buffer_.set(idx, offset, copied_val);
+      set_string_item(idx, {offset, static_cast<uint32_t>(copied_val.size())});
+      assert(offset + copied_val.size() <= data_buffer_->GetDataSize());
+      auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
+      memcpy(raw_data + offset, copied_val.data(), copied_val.size());
     } else {
       THROW_RUNTIME_ERROR("Index out of range or not enough space in buffer");
     }
@@ -381,7 +407,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void set_value_safe(size_t idx, const std::string_view& value);
 
   inline std::string_view get_view(size_t idx) const {
-    return buffer_.get(idx);
+    const auto& item = get_string_item(idx);
+    assert(item.offset + item.length <= data_buffer_->GetDataSize());
+    auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
+    return std::string_view(raw_data + item.offset, item.length);
   }
 
   Property get_prop(size_t index) const override {
@@ -398,14 +427,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     set_value(index, val);
   }
 
-  const mmap_array<std::string_view>& buffer() const { return buffer_; }
-
-  size_t buffer_size() const { return size_; }
-
-  void ensure_writable(const std::string& work_dir) override {
-    buffer_.ensure_writable(work_dir);
-  }
-
  private:
   inline void init_pos(const std::string& file_path) {
     if (std::filesystem::exists(file_path)) {
@@ -417,7 +438,40 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  mmap_array<std::string_view> buffer_;
+  size_t avg_item_size() const {
+    if (items_buffer_->GetDataSize() == 0) {
+      return 0;
+    }
+    size_t total_length = 0;
+    size_t non_zero_count = 0;
+    auto items_size = items_buffer_->GetDataSize() / sizeof(string_item);
+    for (size_t i = 0; i < items_size; ++i) {
+      const auto& item = get_string_item(i);
+      if (item.length > 0) {
+        ++non_zero_count;
+        total_length += item.length;
+      }
+    }
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
+  }
+
+  inline string_item get_string_item(size_t idx) const {
+    assert(idx < size_);
+    auto raw_items =
+        reinterpret_cast<const string_item*>(items_buffer_->GetData());
+    return raw_items[idx];
+  }
+
+  inline void set_string_item(size_t idx, const string_item& item) {
+    assert(idx < size_);
+    auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
+    raw_items[idx] = item;
+  }
+
+  std::unique_ptr<IDataContainer> items_buffer_;
+  std::unique_ptr<IDataContainer> data_buffer_;
   size_t size_;
   std::atomic<size_t> pos_;
   std::shared_mutex rw_mutex_;
@@ -442,19 +496,20 @@ class RefColumnBase {
   virtual ColType col_type() const = 0;
 };
 
-// Different from TypedColumn, RefColumn is a wrapper of mmap_array
+// Different from TypedColumn, RefColumn is a wrapper of TypedColumn
 template <typename T>
 class TypedRefColumn : public RefColumnBase {
  public:
   using value_type = T;
 
   explicit TypedRefColumn(const TypedColumn<T>& column)
-      : basic_buffer(column.buffer()), basic_size(column.buffer_size()) {}
+      : basic_buffer(reinterpret_cast<const T*>(column.buffer().GetData())),
+        basic_size(column.buffer_size()) {}
   ~TypedRefColumn() {}
 
   inline T get_view(size_t index) const {
     assert(index < basic_size);
-    return basic_buffer.get(index);
+    return basic_buffer[index];
   }
 
   Property get(size_t index) const override {
@@ -466,7 +521,36 @@ class TypedRefColumn : public RefColumnBase {
   ColType col_type() const override { return ColType::kInternal; }
 
  private:
-  const mmap_array<T>& basic_buffer;
+  const T* basic_buffer;
+  size_t basic_size;
+};
+
+template <>
+class TypedRefColumn<std::string_view> : public RefColumnBase {
+ public:
+  using value_type = std::string_view;
+
+  explicit TypedRefColumn(const TypedColumn<std::string_view>& column)
+      : column_(column), basic_size(column.size()) {}
+  ~TypedRefColumn() {}
+
+  inline std::string_view get_view(size_t index) const {
+    assert(index < basic_size);
+    return column_.get_view(index);
+  }
+
+  Property get(size_t index) const override {
+    return PropUtils<std::string_view>::to_prop(get_view(index));
+  }
+
+  DataTypeId type() const override {
+    return PropUtils<std::string_view>::prop_type();
+  }
+
+  ColType col_type() const override { return ColType::kInternal; }
+
+ private:
+  const TypedColumn<std::string_view>& column_;
   size_t basic_size;
 };
 

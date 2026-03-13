@@ -23,6 +23,8 @@
 #include <unistd.h>
 #include <filesystem>
 
+#include "neug/utils/exception/exception.h"
+
 #include "glog/logging.h"
 
 namespace neug {
@@ -75,77 +77,6 @@ namespace neug {
         └── ...
 */
 // clang-format on
-
-inline void copy_file(const std::string& src, const std::string& dst) {
-  if (!std::filesystem::exists(src)) {
-    LOG(ERROR) << "file not exists: " << src;
-    return;
-  }
-#if USE_COPY_FILE_RANGE
-  size_t len = std::filesystem::file_size(src);
-  int src_fd = open(src.c_str(), O_RDONLY, 0777);
-  bool creat = false;
-  if (!std::filesystem::exists(dst)) {
-    creat = true;
-  }
-  int dst_fd = open(dst.c_str(), O_WRONLY | O_CREAT, 0777);
-  if (creat) {
-    std::filesystem::perms readWritePermission =
-        std::filesystem::perms::owner_read |
-        std::filesystem::perms::owner_write;
-    std::error_code errorCode;
-    std::filesystem::permissions(dst, readWritePermission,
-                                 std::filesystem::perm_options::add, errorCode);
-    if (errorCode) {
-      LOG(ERROR) << "Failed to set read/write permission for file: " << dst
-                 << " " << errorCode.message() << std::endl;
-    }
-
-    // For a newly created file, you may need to close and then reopen it,
-    // otherwise you may encounter a copy_file_range "Invalid cross-device link"
-    // error, one possible cause of the error could be that the
-    // file's metadata has not yet been flushed to the file system.
-    close(dst_fd);
-    dst_fd = open(dst.c_str(), O_WRONLY, 0777);
-  }
-  ssize_t ret;
-  do {
-    ret = copy_file_range(src_fd, NULL, dst_fd, NULL, len, 0);
-    if (ret == -1) {
-      perror("copy_file_range");
-      return;
-    }
-    len -= ret;
-  } while (len > 0 && ret > 0);
-  close(src_fd);
-  close(dst_fd);
-#else
-  bool creat = false;
-  if (!std::filesystem::exists(dst)) {
-    creat = true;
-  }
-  std::error_code errorCode;
-  std::filesystem::copy_file(
-      src, dst, std::filesystem::copy_options::overwrite_existing, errorCode);
-  if (errorCode) {
-    LOG(ERROR) << "Failed to copy file from " << src << " to " << dst << " "
-               << errorCode.message() << std::endl;
-  }
-  if (creat) {
-    std::filesystem::perms readWritePermission =
-        std::filesystem::perms::owner_read |
-        std::filesystem::perms::owner_write;
-    std::error_code errorCode;
-    std::filesystem::permissions(dst, readWritePermission,
-                                 std::filesystem::perm_options::add, errorCode);
-    if (errorCode) {
-      LOG(INFO) << "Failed to set read/write permission for file: " << dst
-                << " " << errorCode.message() << std::endl;
-    }
-  }
-
-#endif
-}
 
 /**
  * Return the path of the serialized schema file.

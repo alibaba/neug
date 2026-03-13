@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"

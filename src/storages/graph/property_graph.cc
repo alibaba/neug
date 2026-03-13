@@ -218,7 +218,6 @@ Status PropertyGraph::CreateVertexType(
     default_property_values.erase(default_property_values.begin() +
                                   primary_key_inds[i]);
   }
-
   std::string description;
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
                          primary_keys, Schema::MAX_VNUM, description,
