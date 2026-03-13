@@ -35,7 +35,7 @@ namespace writer {
 
 #define TYPED_PRIMITIVE_ARRAY_TO_JSON_VALUE(CASE_ENUM, GETTER_METHOD, TYPE) \
   case neug::Array::TypedArrayCase::CASE_ENUM: {                            \
-    auto typed_array = arr.GETTER_METHOD();                                 \
+    auto& typed_array = arr.GETTER_METHOD();                                \
     if (!StringFormatBuffer::validateProtoValue(typed_array.validity(),     \
                                                 rowIdx)) {                  \
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +           \
@@ -48,25 +48,28 @@ namespace writer {
 static arrow::Result<rapidjson::Value> parseJsonStringToValue(
     const std::string& json_str, int rowIdx, rapidjson::Document& parse_doc,
     const char* type_name) {
-  auto& allocator = parse_doc.GetAllocator();
   if (json_str.empty()) {
     return arrow::Status::Invalid("Empty JSON string for " +
                                   std::string(type_name) + " at row " +
                                   std::to_string(rowIdx));
   }
-  parse_doc.Parse(json_str.data(), json_str.size());
-  if (parse_doc.HasParseError()) {
+  rapidjson::Document temp_doc(&parse_doc.GetAllocator());
+  temp_doc.Parse(json_str.data(), json_str.size());
+  if (temp_doc.HasParseError()) {
     return arrow::Status::Invalid(
         "Invalid JSON for " + std::string(type_name) + " at row " +
         std::to_string(rowIdx) + ": " +
-        rapidjson::GetParseError_En(parse_doc.GetParseError()) + " at offset " +
-        std::to_string(parse_doc.GetErrorOffset()));
+        rapidjson::GetParseError_En(temp_doc.GetParseError()) + " at offset " +
+        std::to_string(temp_doc.GetErrorOffset()));
   }
   rapidjson::Value v;
-  v.CopyFrom(parse_doc, allocator);
+  // use swap to avoid memory allocation
+  v.Swap(temp_doc);
   return v;
 }
 
+// return `rapidjson::Value` directly will not lead to any memory allocation,
+// it's a move operation
 static arrow::Result<rapidjson::Value> formatValueToJson(
     const neug::Array& arr, int rowIdx, rapidjson::Document& doc) {
   auto& allocator = doc.GetAllocator();
@@ -79,21 +82,20 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     TYPED_PRIMITIVE_ARRAY_TO_JSON_VALUE(kFloatArray, float_array, float)
     TYPED_PRIMITIVE_ARRAY_TO_JSON_VALUE(kDoubleArray, double_array, double)
   case neug::Array::TypedArrayCase::kStringArray: {
-    auto string_array = arr.string_array();
+    auto& string_array = arr.string_array();
     if (!StringFormatBuffer::validateProtoValue(string_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
+    const auto& str = string_array.values(rowIdx);
     rapidjson::Value v;
-    v.SetString(
-        string_array.values(rowIdx).c_str(),
-        static_cast<rapidjson::SizeType>(string_array.values(rowIdx).size()),
-        allocator);
+    v.SetString(str.c_str(), static_cast<rapidjson::SizeType>(str.size()),
+                allocator);
     return v;
   }
   case neug::Array::TypedArrayCase::kDateArray: {
-    auto date32_arr = arr.date_array();
+    auto& date32_arr = arr.date_array();
     if (!StringFormatBuffer::validateProtoValue(date32_arr.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -101,41 +103,41 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     }
     Date date_value;
     date_value.from_timestamp(date32_arr.values(rowIdx));
-    std::string s = date_value.to_string();
+    const auto& s = date_value.to_string();
     rapidjson::Value v;
     v.SetString(s.c_str(), static_cast<rapidjson::SizeType>(s.size()),
                 allocator);
     return v;
   }
   case neug::Array::TypedArrayCase::kTimestampArray: {
-    auto timestamp_array = arr.timestamp_array();
+    auto& timestamp_array = arr.timestamp_array();
     if (!StringFormatBuffer::validateProtoValue(timestamp_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
     DateTime dt_value(timestamp_array.values(rowIdx));
-    std::string s = dt_value.to_string();
+    const auto& s = dt_value.to_string();
     rapidjson::Value v;
     v.SetString(s.c_str(), static_cast<rapidjson::SizeType>(s.size()),
                 allocator);
     return v;
   }
   case neug::Array::TypedArrayCase::kIntervalArray: {
-    auto interval_array = arr.interval_array();
+    auto& interval_array = arr.interval_array();
     if (!StringFormatBuffer::validateProtoValue(interval_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    std::string s = interval_array.values(rowIdx);
+    const auto& s = interval_array.values(rowIdx);
     rapidjson::Value v;
     v.SetString(s.c_str(), static_cast<rapidjson::SizeType>(s.size()),
                 allocator);
     return v;
   }
   case neug::Array::TypedArrayCase::kListArray: {
-    auto list_array = arr.list_array();
+    auto& list_array = arr.list_array();
     if (!StringFormatBuffer::validateProtoValue(list_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -149,12 +151,12 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
       ARROW_ASSIGN_OR_RAISE(
           auto elem, formatValueToJson(list_array.elements(),
                                        static_cast<int>(offset + i), doc));
-      arr_val.PushBack(elem, allocator);
+      arr_val.PushBack(std::move(elem), allocator);
     }
     return arr_val;
   }
   case neug::Array::TypedArrayCase::kStructArray: {
-    auto struct_arr = arr.struct_array();
+    auto& struct_arr = arr.struct_array();
     if (!StringFormatBuffer::validateProtoValue(struct_arr.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -164,12 +166,12 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     for (int i = 0; i < struct_arr.fields_size(); ++i) {
       const auto& field = struct_arr.fields(i);
       ARROW_ASSIGN_OR_RAISE(auto elem, formatValueToJson(field, rowIdx, doc));
-      arr_val.PushBack(elem, allocator);
+      arr_val.PushBack(std::move(elem), allocator);
     }
     return arr_val;
   }
   case neug::Array::TypedArrayCase::kVertexArray: {
-    auto vertex_array = arr.vertex_array();
+    auto& vertex_array = arr.vertex_array();
     if (!StringFormatBuffer::validateProtoValue(vertex_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -179,7 +181,7 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
                                   "vertex");
   }
   case neug::Array::TypedArrayCase::kEdgeArray: {
-    auto edge_array = arr.edge_array();
+    auto& edge_array = arr.edge_array();
     if (!StringFormatBuffer::validateProtoValue(edge_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -189,7 +191,7 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
                                   "edge");
   }
   case neug::Array::TypedArrayCase::kPathArray: {
-    auto path_array = arr.path_array();
+    auto& path_array = arr.path_array();
     if (!StringFormatBuffer::validateProtoValue(path_array.validity(),
                                                 rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
@@ -239,18 +241,18 @@ void JsonArrayStringFormatBuffer::addValue(int rowIdx, int colIdx) {
         ", colIdx=" + std::to_string(colIdx) +
         ", error=" + jsonResult.status().ToString());
   }
-  auto columnName = getColumnName(entry_schema_, colIdx);
+  const auto& columnName = getColumnName(entry_schema_, colIdx);
   rapidjson::Value key(columnName.c_str(),
                        static_cast<rapidjson::SizeType>(columnName.size()),
                        allocator);
   if (jsonResult.ok()) {
-    current_line_.AddMember(key, *jsonResult, allocator);
+    current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
     // add null value to ignore errors
     current_line_.AddMember(key, DEFAULT_JSON_NULL_VAL, allocator);
   }
   if (colIdx == static_cast<int>(response_->arrays_size()) - 1) {
-    buffer_.PushBack(rapidjson::Value(current_line_, allocator), allocator);
+    buffer_.PushBack(std::move(current_line_), allocator);
     current_line_.SetObject();
   }
 }
@@ -260,7 +262,7 @@ arrow::Status JsonArrayStringFormatBuffer::flush(
   if (buffer_.IsArray() && buffer_.Empty()) {
     return arrow::Status::OK();
   }
-  auto jsonStr = rapidjson_stringify(buffer_);
+  const auto& jsonStr = rapidjson_stringify(buffer_);
   buffer_.Clear();
   return stream->Write(jsonStr.c_str(), jsonStr.size());
 }
@@ -299,12 +301,12 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
                        static_cast<rapidjson::SizeType>(columnName.size()),
                        allocator);
   if (jsonResult.ok()) {
-    current_line_.AddMember(key, *jsonResult, allocator);
+    current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
     current_line_.AddMember(key, DEFAULT_JSON_NULL_VAL, allocator);
   }
   if (colIdx == static_cast<int>(response_->arrays_size()) - 1) {
-    buffer_.push_back(rapidjson::Value(current_line_, allocator));
+    buffer_.push_back(std::move(current_line_));
     current_line_.SetObject();
   }
 }
@@ -312,7 +314,7 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
 arrow::Status JsonLStringFormatBuffer::flush(
     std::shared_ptr<arrow::io::OutputStream> stream) {
   for (const auto& val : buffer_) {
-    auto jsonStr = rapidjson_stringify(val);
+    const auto& jsonStr = rapidjson_stringify(val);
     ARROW_RETURN_NOT_OK(stream->Write(jsonStr.c_str(), jsonStr.size()));
     ARROW_RETURN_NOT_OK(stream->Write(DEFAULT_JSON_NEWLINE, sizeof(char)));
   }

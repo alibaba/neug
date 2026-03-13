@@ -600,3 +600,23 @@ class TestExport:
         ), f"Expected {expected} lines in JSONL, got {len(rows)}"
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
+
+    @json_test
+    def test_export_collect_names_jsonl(self):
+        """Export collect names to JSONL (one JSON object per line); verify row count."""
+        out_path = self.tmp_path / "collect_names.jsonl"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(
+            self.conn, "MATCH (v:person) RETURN v.ID, collect(v.fName)"
+        )
+        self.conn.execute("LOAD JSON")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        rows = _parse_jsonl(out_path)
+        assert (
+            len(rows) == expected
+        ), f"Expected {expected} lines in JSONL, got {len(rows)}"
+        if rows:
+            assert isinstance(rows[0], dict), "Each line should be a JSON object"
