@@ -735,16 +735,16 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
 
-  InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
-                            dst_label, GetVertexId(dst_label, dst_lid),
-                            edge_label, properties);
-  op_num_ += 1;
   auto status = graph_.EnsureCapacity(src_label, dst_label, edge_label);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to ensure space before insert edge: "
                << status.ToString();
     return false;
   }
+  InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
+                            dst_label, GetVertexId(dst_label, dst_lid),
+                            edge_label, properties);
+  op_num_ += 1;
   auto oe_offset =
       graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
                      properties, timestamp_, alloc_, true);
