@@ -18,6 +18,17 @@
 #include <memory>
 #include <string>
 
+#include "neug/utils/property/types.h"
+
+namespace neug {
+
+enum class ContainerType {
+  kAnonMMap = 0,
+  kAnonHugeMMap = 1,
+  kFilePrivateMMap = 2,
+  kFileSharedMMap = 3,
+};
+
 /**
  * @brief Interface for data containers with mmap-based storage.
  *
@@ -29,6 +40,8 @@ class IDataContainer {
  public:
   virtual ~IDataContainer() {}
 
+  virtual ContainerType GetContainerType() const = 0;
+
   /**
    * @brief Get pointer to the data region.
    */
@@ -38,6 +51,13 @@ class IDataContainer {
    * @brief Get the size of the data region.
    */
   virtual size_t GetDataSize() = 0;
+
+  /**
+   * @brief Resize the container to accommodate at least the specified number of
+   * elements.
+   * @param size The new size in bytes.
+   */
+  virtual void Resize(size_t size) = 0;
 
   /**
    * @brief Get the file path (empty for anonymous mappings).
@@ -74,10 +94,9 @@ class IDataContainer {
    * @brief Check if the data has been modified.
    */
   virtual bool IsDirty() = 0;
-
-  /**
-   * @brief Create a fork (copy) of this container.
-   */
-  virtual std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
-                                               StorageStrategy strategy) = 0;
 };
+
+std::unique_ptr<IDataContainer> CreateDataContainer(
+    StorageStrategy strategy, const std::string& file_name, size_t size = 0);
+
+}  // namespace neug

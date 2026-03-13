@@ -124,7 +124,7 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                       vid4097, 0)
           .ok());
 
-  Allocator allocator(MemoryStrategy::kMemoryOnly, "");
+  Allocator allocator(StorageStrategy::kAnon, "");
   for (vid_t i = 0; i < 4094; ++i) {
     graph_->AddEdge(person_label, i, person_label, i + 1, knows_label,
                     {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator);

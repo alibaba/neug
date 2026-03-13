@@ -199,7 +199,7 @@ Status PropertyGraph::CreateVertexType(
                                   primary_key_inds[i]);
   }
   std::vector<StorageStrategy> strategies(property_types.size(),
-                                          StorageStrategy::kMem);
+                                          StorageStrategy::kAnon);
   std::string description;
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
                          primary_keys, strategies, Schema::MAX_VNUM,
@@ -349,11 +349,12 @@ Status PropertyGraph::AddVertexProperties(
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
     if (memory_level_ == 0) {
-      add_property_storages.emplace_back(StorageStrategy::kDisk);
+      // TODO(zhanglei): Check here:
+      add_property_storages.emplace_back(StorageStrategy::kFileShared);
     } else if (memory_level_ >= 1) {
-      add_property_storages.emplace_back(StorageStrategy::kMem);
+      add_property_storages.emplace_back(StorageStrategy::kAnon);
     } else {
-      add_property_storages.emplace_back(StorageStrategy::kNone);
+      add_property_storages.emplace_back(StorageStrategy::kUnSet);
     }
     add_default_property_values.emplace_back(default_value);
   }

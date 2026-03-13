@@ -79,7 +79,8 @@ class MutableCsrTest : public ::testing::Test {
   static constexpr const char* TEST_DIR = "/tmp/mutable_csr_test";
 
   void SetUp() override {
-    allocators.resize(1, Allocator(neug::MemoryStrategy::kMemoryOnly, ""));
+    allocators.clear();
+    allocators.emplace_back(neug::StorageStrategy::kAnon, "");
   }
 
   size_t count_edge_num(MutableCsr<EDATA_T>& csr) {

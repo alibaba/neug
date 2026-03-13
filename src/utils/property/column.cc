@@ -86,7 +86,7 @@ class TypedEmptyColumn : public ColumnBase {
   }
 
   StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
+    return StorageStrategy::kUnSet;
   }
 
   void ensure_writable(const std::string& work_dir) override {}
@@ -126,7 +126,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   }
 
   StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
+    return StorageStrategy::kUnSet;
   }
 
   void ensure_writable(const std::string& work_dir) override {}
@@ -136,7 +136,7 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type, Property default_value,
                                          StorageStrategy strategy) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
-  if (strategy == StorageStrategy::kNone) {
+  if (strategy == StorageStrategy::kUnSet) {
     switch (type_id) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \

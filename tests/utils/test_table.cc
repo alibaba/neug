@@ -94,11 +94,11 @@ TEST(TableTest, TestTableBasic) {
       Property::from_string_view("")};
 
   std::vector<StorageStrategy> disk_strategies(col_name.size(),
-                                               StorageStrategy::kDisk);
+                                               StorageStrategy::kFileShared);
   std::vector<StorageStrategy> mem_strategies(col_name.size(),
-                                              StorageStrategy::kMem);
+                                              StorageStrategy::kAnon);
   std::vector<StorageStrategy> none_strategies(col_name.size(),
-                                               StorageStrategy::kNone);
+                                               StorageStrategy::kUnSet);
 
   disk_table.init("test_dist", TEST_DIR, col_name, property_types,
                   default_values, disk_strategies);

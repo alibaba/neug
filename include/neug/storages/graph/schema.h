@@ -115,7 +115,7 @@ struct VertexSchema {
         description(description_),
         max_num(max_num_) {
     vprop_soft_deleted.resize(property_names_.size(), false);
-    storage_strategies.resize(property_types_.size(), StorageStrategy::kMem);
+    storage_strategies.resize(property_types_.size(), StorageStrategy::kAnon);
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
         default_property_values.emplace_back(
@@ -269,7 +269,7 @@ struct EdgeSchema {
         strategies(strategies_),
         default_property_values(default_property_values_) {
     eprop_soft_deleted.resize(property_names_.size(), false);
-    strategies.resize(properties_.size(), StorageStrategy::kMem);
+    strategies.resize(properties_.size(), StorageStrategy::kAnon);
     assert(properties.size() == property_names.size());
     assert(properties.size() == strategies.size());
     if (default_property_values.empty()) {

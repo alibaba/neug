@@ -94,7 +94,7 @@ void VertexSchema::set_properties(
     const std::vector<Property>& default_values) {
   property_types = types;
   storage_strategies = strategies;
-  storage_strategies.resize(types.size(), StorageStrategy::kMem);
+  storage_strategies.resize(types.size(), StorageStrategy::kAnon);
   default_property_values = default_values;
   process_default_values(default_property_values, default_property_strings);
   vprop_soft_deleted.resize(property_types.size(), false);
@@ -278,7 +278,7 @@ void EdgeSchema::add_properties(
     property_names.emplace_back(names[i]);
     properties.emplace_back(types[i]);
     strategies.emplace_back(new_strategies.size() > i ? new_strategies[i]
-                                                      : StorageStrategy::kMem);
+                                                      : StorageStrategy::kAnon);
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
@@ -1045,13 +1045,17 @@ void RelationToEdgeStrategy(const std::string& rel_str,
 
 StorageStrategy StringToStorageStrategy(const std::string& str) {
   if (str == "None") {
-    return StorageStrategy::kNone;
-  } else if (str == "Mem") {
-    return StorageStrategy::kMem;
-  } else if (str == "Disk") {
-    return StorageStrategy::kDisk;
+    return StorageStrategy::kUnSet;
+  } else if (str == "Anon") {
+    return StorageStrategy::kAnon;
+  } else if (str == "AnonHuge") {
+    return StorageStrategy::kAnonHuge;
+  } else if (str == "FilePrivate") {
+    return StorageStrategy::kFilePrivate;
+  } else if (str == "FileShared") {
+    return StorageStrategy::kFileShared;
   } else {
-    return StorageStrategy::kMem;
+    return StorageStrategy::kAnon;
   }
 }
 

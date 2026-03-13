@@ -54,7 +54,7 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   auto v_types = VProps({DataType::VARCHAR});
   auto v_names = VNames({"name"});
   auto v_pk = VPk(DataType::INT64, "id", /*idx in props*/ 0);
-  auto v_strats = VStrats(v_types.size(), StorageStrategy::kMem);
+  auto v_strats = VStrats(v_types.size(), StorageStrategy::kAnon);
 
   schema.AddVertexLabel("Person", v_types,
                         /*property_names*/ {v_names.begin(), v_names.end()},
@@ -79,8 +79,8 @@ TEST(SchemaTest, AddVertexLabel_AddRenameDeleteVertexProperties_Physical) {
   // 2) Add vertex properties
   std::vector<std::string> add_names = {"age", "score"};
   std::vector<DataType> add_types = {DataTypeId::kInt32, DataTypeId::kDouble};
-  std::vector<StorageStrategy> add_strats = {StorageStrategy::kMem,
-                                             StorageStrategy::kMem};
+  std::vector<StorageStrategy> add_strats = {StorageStrategy::kAnon,
+                                             StorageStrategy::kAnon};
   std::vector<neug::Property> add_defaults;  // not used currently
   schema.AddVertexProperties("Person", add_names, add_types, add_strats,
                              add_defaults);
@@ -120,7 +120,7 @@ TEST(SchemaTest, AddEdgeLabel_AddRenameDeleteEdgeProperties_Physical) {
     auto t = VProps({DataTypeId::kVarchar});
     auto n = VNames({"name"});
     auto pk = VPk(DataTypeId::kInt64, "id", 0);
-    auto s = VStrats(t.size(), StorageStrategy::kMem);
+    auto s = VStrats(t.size(), StorageStrategy::kAnon);
     schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
                           {s.begin(), s.end()}, 1024, "");
     schema.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk,
@@ -203,7 +203,7 @@ TEST(SchemaTest, DeleteVertexLabel_LogicalThenReAddActsAsRevert) {
   auto t = VProps({DataTypeId::kVarchar});
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
@@ -223,7 +223,7 @@ TEST(SchemaTest, DeleteVertexLabel_PhysicalThenReAdd) {
   auto t = VProps({DataTypeId::kVarchar});
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("Project", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("Project"));
@@ -242,7 +242,7 @@ TEST(SchemaTest, DeleteEdgeLabel_LogicalAndPhysicalAndReAdd) {
     auto t = VProps({DataTypeId::kInt64, DataTypeId::kVarchar});
     auto n = VNames({"id", "name"});
     auto pk = VPk(DataTypeId::kInt64, "id", 0);
-    auto s = VStrats(t.size(), StorageStrategy::kMem);
+    auto s = VStrats(t.size(), StorageStrategy::kAnon);
     schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk,
                           {s.begin(), s.end()}, 100, "");
     schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk,
@@ -286,7 +286,7 @@ TEST(SchemaTest, LogicalDeleteVertexProperties_HidesProperty) {
   auto types = VProps({DataTypeId::kVarchar, DataTypeId::kInt32});
   auto names = VNames({"name", "age"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto strats = VStrats(types.size(), StorageStrategy::kMem);
+  auto strats = VStrats(types.size(), StorageStrategy::kAnon);
   // Only non-PK properties go into vproperties_/vprop_names_
   schema.AddVertexLabel("Person", types, {names.begin(), names.end()}, pk,
                         {strats.begin(), strats.end()}, 1024, "");
@@ -310,7 +310,7 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   auto vt = VProps({DataTypeId::kVarchar});
   auto vn = VNames({"name"});
   auto vpk = VPk(DataTypeId::kInt64, "id", 0);
-  auto vs = VStrats(vt.size(), StorageStrategy::kMem);
+  auto vs = VStrats(vt.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("A", vt, {vn.begin(), vn.end()}, vpk,
                         {vs.begin(), vs.end()}, 100, "");
   schema.AddVertexLabel("B", vt, {vn.begin(), vn.end()}, vpk,
@@ -339,7 +339,7 @@ TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
   auto t = VProps({DataTypeId::kVarchar});
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, 100, "");
   ASSERT_TRUE(schema.contains_vertex_label("City"));
@@ -357,7 +357,7 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
   auto t = VProps({DataTypeId::kVarchar});
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
@@ -381,7 +381,7 @@ TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
   auto t = VProps({DataTypeId::kVarchar});
   auto n = VNames({"name"});
   auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
                         100, "");
   schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, {s.begin(), s.end()},
@@ -411,7 +411,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
   auto person_property_names_ = VNames({"name", "age", "score"});
   auto person_pk_ = VPk(DataTypeId::kInt64, "id", 0);
   auto person_strategies_ =
-      VStrats(person_property_types_.size(), StorageStrategy::kMem);
+      VStrats(person_property_types_.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("person", person_property_types_,
                         person_property_names_, person_pk_, person_strategies_,
                         4096, "person vertex");
@@ -422,7 +422,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
   auto company_property_names_ = VNames({"company_name", "employee_count"});
   auto company_pk_ = VPk(DataTypeId::kInt64, "id", 0);
   auto company_strategies_ =
-      VStrats(company_property_types_.size(), StorageStrategy::kMem);
+      VStrats(company_property_types_.size(), StorageStrategy::kAnon);
 
   schema.AddVertexLabel("company", company_property_types_,
                         company_property_names_, company_pk_,
@@ -432,7 +432,7 @@ TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
   auto edge_property_types_ = VProps({DataTypeId::kInt64});
   auto edge_property_names_ = VNames({"since"});
   auto edge_strategies_ =
-      VStrats(edge_property_types_.size(), StorageStrategy::kMem);
+      VStrats(edge_property_types_.size(), StorageStrategy::kAnon);
 
   schema.AddEdgeLabel("person", "person", "knows", edge_property_types_,
                       edge_property_names_, edge_strategies_,
@@ -463,9 +463,9 @@ class SchemaDeleteTest : public ::testing::Test {
                               neug::DataTypeId::kDouble};
     person_property_names_ = {"name", "age", "score"};
     person_pk_ = {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)};
-    person_strategies_ = {neug::StorageStrategy::kMem,
-                          neug::StorageStrategy::kMem,
-                          neug::StorageStrategy::kMem};
+    person_strategies_ = {neug::StorageStrategy::kAnon,
+                          neug::StorageStrategy::kAnon,
+                          neug::StorageStrategy::kAnon};
 
     schema_->AddVertexLabel("person", person_property_types_,
                             person_property_names_, person_pk_,
@@ -476,8 +476,8 @@ class SchemaDeleteTest : public ::testing::Test {
                                neug::DataTypeId::kInt32};
     company_property_names_ = {"company_name", "employee_count"};
     company_pk_ = {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)};
-    company_strategies_ = {neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem};
+    company_strategies_ = {neug::StorageStrategy::kAnon,
+                           neug::StorageStrategy::kAnon};
 
     schema_->AddVertexLabel("company", company_property_types_,
                             company_property_names_, company_pk_,
@@ -486,7 +486,7 @@ class SchemaDeleteTest : public ::testing::Test {
     // Add edge label "knows"
     edge_property_types_ = {neug::DataTypeId::kInt64};
     edge_property_names_ = {"since"};
-    edge_strategies_ = {neug::StorageStrategy::kMem};
+    edge_strategies_ = {neug::StorageStrategy::kAnon};
 
     schema_->AddEdgeLabel(
         "person", "person", "knows", edge_property_types_, edge_property_names_,
@@ -867,8 +867,8 @@ TEST(VertexSchemaTest, TestVertexSchemaIndex) {
           neug::DataType::DOUBLE    // score
       },
       {"name", "score"}, VPk(neug::DataType::INT64, "id", 1),
-      {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem,
-       neug::StorageStrategy::kMem});
+      {neug::StorageStrategy::kAnon, neug::StorageStrategy::kAnon,
+       neug::StorageStrategy::kAnon});
   // id is at index 1
 
   EXPECT_THROW(schema.get_property_index("id"), neug::exception::Exception);
@@ -888,7 +888,7 @@ TEST(SchemaTest, TestSchemaEqual) {
   auto t = VProps({DataType::VARCHAR});
   auto n = VNames({"name"});
   auto pk = VPk(DataType::INT64, "id", 0);
-  auto s = VStrats(t.size(), StorageStrategy::kMem);
+  auto s = VStrats(t.size(), StorageStrategy::kAnon);
   schema.AddVertexLabel("Person", t, {n.begin(), n.end()}, pk,
                         {s.begin(), s.end()}, 1024, "");
   schema.AddVertexLabel("Company", t, {n.begin(), n.end()}, pk,

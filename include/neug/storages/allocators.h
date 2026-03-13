@@ -20,30 +20,36 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/column/mmap_container.h"
 #include "neug/utils/mmap_array.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
+
+enum class MemoryStrategy {
+  kSyncToFile,
+  kMemoryOnly,
+  kHugepagePrefered,
+};
 
 class ArenaAllocator {
   static constexpr size_t batch_size = 16 * 1024 * 1024;
 
  public:
-  ArenaAllocator(MemoryStrategy strategy, const std::string& prefix)
+  ArenaAllocator(StorageStrategy strategy, const std::string& prefix)
       : strategy_(strategy),
         prefix_(prefix),
+        cur_buffer_(nullptr),
         cur_loc_(0),
         cur_size_(0),
         allocated_memory_(0),
-        allocated_batches_(0) {
-    if (strategy_ != MemoryStrategy::kSyncToFile) {
-      prefix_.clear();
-    }
-  }
-  ~ArenaAllocator() {
-    for (auto ptr : mmap_buffers_) {
-      delete ptr;
-    }
-  }
+        allocated_batches_(0) {}
+  ~ArenaAllocator() {}
+
+  ArenaAllocator(const ArenaAllocator&) = delete;
+  ArenaAllocator& operator=(const ArenaAllocator&) = delete;
+  ArenaAllocator(ArenaAllocator&&) noexcept = default;
+  ArenaAllocator& operator=(ArenaAllocator&&) noexcept = default;
 
   void reserve(size_t cap) {
     if (cur_size_ - cur_loc_ >= cap) {
@@ -77,28 +83,15 @@ class ArenaAllocator {
  private:
   void* allocate_batch(size_t size) {
     allocated_batches_ += size;
-    if (prefix_.empty()) {
-      mmap_array<char>* buf = new mmap_array<char>();
-      if (strategy_ == MemoryStrategy::kHugepagePrefered) {
-        buf->open_with_hugepages("", size);
-      } else {
-        buf->open("", false);
-      }
-      buf->resize(size);
-      mmap_buffers_.push_back(buf);
-      return static_cast<void*>(buf->data());
-    } else {
-      mmap_array<char>* buf = new mmap_array<char>();
-      buf->open(prefix_ + std::to_string(mmap_buffers_.size()), true);
-      buf->resize(size);
-      mmap_buffers_.push_back(buf);
-      return static_cast<void*>(buf->data());
-    }
+    auto file_name = prefix_ + std::to_string(mmap_buffers_.size());
+    auto buf = CreateDataContainer(strategy_, file_name, size);
+    mmap_buffers_.push_back(std::move(buf));
+    return mmap_buffers_.back()->GetData();
   }
 
-  MemoryStrategy strategy_;
+  StorageStrategy strategy_;
   std::string prefix_;
-  std::vector<mmap_array<char>*> mmap_buffers_;
+  std::vector<std::unique_ptr<IDataContainer>> mmap_buffers_;
 
   void* cur_buffer_;
   size_t cur_loc_;

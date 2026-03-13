@@ -51,9 +51,9 @@ class VertexTableTest : public ::testing::Test {
     property_values_ = {neug::Property::from_string_view("Alice"),
                         neug::Property::from_int32(30),
                         neug::Property::from_double(88.5)};
-    storage_strategies_ = {neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem};
+    storage_strategies_ = {neug::StorageStrategy::kAnon,
+                           neug::StorageStrategy::kAnon,
+                           neug::StorageStrategy::kAnon};
     default_prop_values_ = {neug::Property::from_string_view(""),
                             neug::Property::from_int32(0),
                             neug::Property::from_double(0.0)};

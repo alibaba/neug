@@ -29,10 +29,10 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"

@@ -49,9 +49,9 @@ class VertexTableBenchmark : public ::testing::Test {
     property_values_ = {neug::Property::from_string_view("Alice"),
                         neug::Property::from_int32(30),
                         neug::Property::from_double(88.5)};
-    storage_strategies_ = {neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem};
+    storage_strategies_ = {neug::StorageStrategy::kAnon,
+                           neug::StorageStrategy::kAnon,
+                           neug::StorageStrategy::kAnon};
     pk_types_ = {{neug::DataTypeId::kVarchar, "name", 0}};
     description = "Person vertex label";
     v_schema_ = std::make_shared<neug::VertexSchema>(

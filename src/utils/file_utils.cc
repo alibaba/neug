@@ -17,14 +17,288 @@
 
 #include <glog/logging.h>
 
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <system_error>
+#ifdef __linux__
+#include <linux/fs.h>
+#endif
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include "neug/utils/file_utils.h"
+
+#include <cstring>
+
+#include <memory>
+#include <stdexcept>
+
+#ifdef __ia64__
+#define ADDR (void*) (0x8000000000000000UL)
+#ifdef MAP_HUGETLB
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED)
+#else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED)
+#endif
+#else
+#define ADDR (void*) (0x0UL)
+#ifdef MAP_HUGETLB
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
+#else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS)
+#endif
+#endif
+
+#define PROTECTION (PROT_READ | PROT_WRITE)
+
+#define HUGEPAGE_SIZE (2UL * 1024 * 1024)
+#define HUGEPAGE_MASK (2UL * 1024 * 1024 - 1UL)
+#define ROUND_UP(size) (((size) + HUGEPAGE_MASK) & (~HUGEPAGE_MASK))
 
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
+
+namespace file_utils {
+
+void* allocate_hugepages(size_t size) {
+  return mmap(ADDR, ROUND_UP(size), PROTECTION, FLAGS, -1, 0);
+}
+
+size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
+
+}  // namespace file_utils
+
+#undef ADDR
+#undef FLAGS
+#undef HUGEPAGE_SIZE
+#undef HUGEPAGE_MASK
+#undef ROUND_UP
+#undef PROTECTION
+
+namespace file_utils {
+
+/**
+ * @brief Copy file metadata (permissions, timestamps).
+ */
+static void copy_metadata(const struct stat& src_stat,
+                          const std::string& dst_path) {
+  // Copy permissions
+  ::chmod(dst_path.c_str(), src_stat.st_mode);
+
+  // Copy access and modification times
+  struct timespec times[2];
+#ifdef __linux__
+  times[0] = src_stat.st_atim;  // Access time
+  times[1] = src_stat.st_mtim;  // Modification time
+#else
+  times[0].tv_sec = src_stat.st_atime;
+  times[0].tv_nsec = 0;
+  times[1].tv_sec = src_stat.st_mtime;
+  times[1].tv_nsec = 0;
+#endif
+  ::utimensat(AT_FDCWD, dst_path.c_str(), times, 0);
+}
+
+/**
+ * @brief Try to use FICLONE ioctl for reflink copy.
+ *
+ * Supported filesystems: Btrfs, XFS (with reflink=1), OCFS2
+ * This is the most efficient method - creates instant COW clone.
+ */
+static bool try_reflink(const std::string& src_path,
+                        const std::string& dst_path,
+                        const struct stat& src_stat) {
+  int src_fd = ::open(src_path.c_str(), O_RDONLY);
+  if (src_fd < 0) {
+    return false;
+  }
+
+  int dst_fd =
+      ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
+  if (dst_fd < 0) {
+    ::close(src_fd);
+    return false;
+  }
+
+// FICLONE: Clone entire file using COW
+#ifdef FICLONE
+  int ret = ::ioctl(dst_fd, FICLONE, src_fd);
+#else
+  int ret = -1;  // FICLONE not supported
+#endif
+
+  ::close(src_fd);
+  ::close(dst_fd);
+
+  if (ret == 0) {
+    copy_metadata(src_stat, dst_path);
+    return true;
+  }
+
+  // Failed - remove partially created file
+  ::unlink(dst_path.c_str());
+  return false;
+}
+
+/**
+ * @brief Try to use copy_file_range() syscall.
+ *
+ * Available on Linux 4.5+. May utilize COW on supported filesystems.
+ * Performs server-side copy without data passing through userspace.
+ */
+static bool try_copy_file_range(const std::string& src_path,
+                                const std::string& dst_path,
+                                const struct stat& src_stat) {
+#ifdef __NR_copy_file_range
+  int src_fd = ::open(src_path.c_str(), O_RDONLY);
+  if (src_fd < 0) {
+    return false;
+  }
+
+  int dst_fd =
+      ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
+  if (dst_fd < 0) {
+    ::close(src_fd);
+    return false;
+  }
+
+  off_t offset = 0;
+  size_t remaining = src_stat.st_size;
+  bool success = true;
+
+  // copy_file_range may require multiple calls for large files
+  while (remaining > 0) {
+    ssize_t copied = syscall(__NR_copy_file_range, src_fd, &offset, dst_fd,
+                             nullptr, remaining, 0);
+
+    if (copied <= 0) {
+      success = false;
+      break;
+    }
+
+    remaining -= copied;
+  }
+
+  ::close(src_fd);
+  ::close(dst_fd);
+
+  if (success) {
+    copy_metadata(src_stat, dst_path);
+    return true;
+  }
+
+  // Failed - remove incomplete file
+  ::unlink(dst_path.c_str());
+  return false;
+#else
+  (void) src_path;
+  (void) dst_path;
+  (void) src_stat;
+  return false;
+#endif
+}
+
+/**
+ * @brief Traditional file copy using read/write with buffer.
+ *
+ * Fallback method that works on all filesystems.
+ * Uses 64KB buffer for reasonable performance.
+ */
+static void fallback_copy(const std::string& src_path,
+                          const std::string& dst_path,
+                          const struct stat& src_stat) {
+  int src_fd = ::open(src_path.c_str(), O_RDONLY);
+  if (src_fd < 0) {
+    throw std::runtime_error("Failed to open source file: " + src_path);
+  }
+
+  int dst_fd =
+      ::open(dst_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, src_stat.st_mode);
+  if (dst_fd < 0) {
+    ::close(src_fd);
+    throw std::runtime_error("Failed to create destination file: " + dst_path);
+  }
+
+  constexpr size_t BUFFER_SIZE = 64 * 1024;  // 64KB buffer
+  std::unique_ptr<char[]> buffer(new char[BUFFER_SIZE]);
+
+  ssize_t bytes_read;
+  while ((bytes_read = ::read(src_fd, buffer.get(), BUFFER_SIZE)) > 0) {
+    ssize_t bytes_written = 0;
+    while (bytes_written < bytes_read) {
+      ssize_t written = ::write(dst_fd, buffer.get() + bytes_written,
+                                bytes_read - bytes_written);
+      if (written < 0) {
+        ::close(src_fd);
+        ::close(dst_fd);
+        ::unlink(dst_path.c_str());
+        throw std::runtime_error("Failed to write to destination file: " +
+                                 dst_path);
+      }
+      bytes_written += written;
+    }
+  }
+
+  ::close(src_fd);
+  ::close(dst_fd);
+
+  if (bytes_read < 0) {
+    ::unlink(dst_path.c_str());
+    throw std::runtime_error("Failed to read from source file: " + src_path);
+  }
+
+  copy_metadata(src_stat, dst_path);
+}
+
+CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
+                     bool overwrite) {
+  // Verify source file exists
+  struct stat src_stat;
+  if (stat(src_path.c_str(), &src_stat) < 0) {
+    throw std::runtime_error("Source file does not exist: " + src_path);
+  }
+
+  // Check if destination exists
+  if (!overwrite) {
+    struct stat dst_stat;
+    if (stat(dst_path.c_str(), &dst_stat) == 0) {
+      throw std::runtime_error("Destination file already exists: " + dst_path);
+    }
+  }
+
+  // Try reflink (COW) first - fastest if supported
+  if (try_reflink(src_path, dst_path, src_stat)) {
+    return CopyResult::Reflink;
+  }
+
+  // Try copy_file_range - may use server-side COW
+  if (try_copy_file_range(src_path, dst_path, src_stat)) {
+    return CopyResult::CopyFileRange;
+  }
+
+  // Fallback to traditional copy
+  fallback_copy(src_path, dst_path, src_stat);
+  return CopyResult::FallbackCopy;
+}
+
+void create_file(const std::string& path, size_t size) {
+  int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd < 0) {
+    throw std::runtime_error("Failed to create file: " + path);
+  }
+  int ret = ftruncate(fd, size);
+  if (ret < 0) {
+    ::close(fd);
+    throw std::runtime_error("Failed to truncate file: " + path);
+  }
+  ::close(fd);
+}
+
+}  // namespace file_utils
 
 void ensure_directory_exists(const std::string& dir_path) {
   if (dir_path.empty()) {

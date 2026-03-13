@@ -23,6 +23,8 @@
 #include <unistd.h>
 #include <filesystem>
 
+#include "neug/utils/exception/exception.h"
+
 #include "glog/logging.h"
 
 namespace neug {
@@ -78,7 +80,7 @@ namespace neug {
 
 inline void copy_file(const std::string& src, const std::string& dst) {
   if (!std::filesystem::exists(src)) {
-    LOG(ERROR) << "file not exists: " << src;
+    THROW_IO_EXCEPTION("Source file does not exist: " + src);
     return;
   }
 #if USE_COPY_FILE_RANGE

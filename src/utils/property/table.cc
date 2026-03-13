@@ -42,7 +42,7 @@ void Table::initColumns(const std::vector<std::string>& col_name,
   col_id_map_.clear();
   columns_.resize(col_num, nullptr);
   auto strategies = strategies_;
-  strategies.resize(col_num, StorageStrategy::kMem);
+  strategies.resize(col_num, StorageStrategy::kAnon);
 
   for (size_t i = 0; i < col_num; ++i) {
     int col_id = col_names_.size();
@@ -178,7 +178,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     col_default_values_.emplace_back(default_property_values[i]);
     columns_[col_id] = CreateColumn(
         col_types[i], default_property_values[i],
-        i < strategies_.size() ? strategies_[i] : StorageStrategy::kMem);
+        i < strategies_.size() ? strategies_[i] : StorageStrategy::kAnon);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
     if (memory_level == 0) {

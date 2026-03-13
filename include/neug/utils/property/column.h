@@ -28,6 +28,7 @@
 #include <string_view>
 #include <vector>
 
+#include "neug/storages/column/i_container.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
@@ -101,6 +102,9 @@ class TypedColumn : public ColumnBase {
       if (work_dir == "") {
         size_ = 0;
       } else {
+        LOG(INFO) << "Column file " << basic_path
+                  << " does not exist, creating a new one in work dir "
+                  << work_dir + "/" + name;
         buffer_.open(work_dir + "/" + name, true);
         size_ = buffer_.size();
       }
@@ -118,17 +122,17 @@ class TypedColumn : public ColumnBase {
   }
 
   void open_with_hugepages(const std::string& name, bool force) override {
-    if (strategy_ == StorageStrategy::kMem || force) {
+    if (strategy_ == StorageStrategy::kAnonHuge || force) {
       if (!name.empty() && std::filesystem::exists(name)) {
-        buffer_.open_with_hugepages(name);
+        buffer_.open_with_hugepages(name, false);
         size_ = buffer_.size();
       } else {
         buffer_.reset();
         buffer_.set_hugepage_prefered(true);
         size_ = 0;
       }
-    } else if (strategy_ == StorageStrategy::kDisk) {
-      LOG(INFO) << "Open " << name << " with normal mmap pages";
+    } else {
+      LOG(INFO) << "Fall back to open " << name << " with normal mmap pages";
       open_in_memory(name);
     }
   }
@@ -207,6 +211,7 @@ class TypedColumn : public ColumnBase {
  private:
   T default_value_;
   mmap_array<T> buffer_;
+  // std::unique_ptr<IDataContainer> buffer_;
   size_t size_;
   StorageStrategy strategy_;
 };
@@ -321,13 +326,13 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void open_with_hugepages(const std::string& prefix, bool force) override {
-    if (strategy_ == StorageStrategy::kMem || force) {
+    if (strategy_ == StorageStrategy::kAnonHuge || force) {
       buffer_.open_with_hugepages(prefix);
       size_ = buffer_.size();
       pos_ = buffer_.data_size();
 
-    } else if (strategy_ == StorageStrategy::kDisk) {
-      LOG(INFO) << "Open " << prefix << " with normal mmap pages";
+    } else {
+      LOG(INFO) << "Fall back to open " << prefix << " with normal mmap pages";
       open_in_memory(prefix);
     }
   }
@@ -445,7 +450,7 @@ using StringColumn = TypedColumn<std::string_view>;
 
 std::shared_ptr<ColumnBase> CreateColumn(
     DataType type, Property default_value,
-    StorageStrategy strategy = StorageStrategy::kMem);
+    StorageStrategy strategy = StorageStrategy::kAnon);
 
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {

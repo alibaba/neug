@@ -65,12 +65,6 @@ inline size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
 
 namespace neug {
 
-enum class MemoryStrategy {
-  kSyncToFile,
-  kMemoryOnly,
-  kHugepagePrefered,
-};
-
 template <typename T>
 class mmap_array {
  public:
