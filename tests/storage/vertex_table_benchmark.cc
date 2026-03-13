@@ -74,7 +74,7 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
   void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
-    table.Reserve(count);
+    table.EnsureCapacity(count);
     std::uniform_int_distribution<int> age_dist(18, 80);
     std::uniform_real_distribution<double> score_dist(0.0, 100.0);
 
@@ -177,7 +177,7 @@ TEST_F(VertexTableBenchmark, AddVertexPerformance) {
 
   neug::VertexTable table(v_schema_);
   CreateAndOpenVertexTable(table);
-  table.Reserve(vertex_count);
+  table.EnsureCapacity(vertex_count);
 
   auto start = std::chrono::high_resolution_clock::now();
 

@@ -41,31 +41,7 @@ PropertyGraph::PropertyGraph()
       edge_label_total_count_(0),
       memory_level_(1) {}
 
-PropertyGraph::~PropertyGraph() {
-  std::vector<size_t> degree_list(vertex_label_total_count_, 0);
-  for (size_t i = 0; i < vertex_label_total_count_; ++i) {
-    if (!vertex_tables_[i].is_dropped()) {
-      degree_list[i] = vertex_tables_[i].LidNum();
-      vertex_tables_[i].Reserve(degree_list[i]);
-    }
-  }
-  for (size_t src_label = 0; src_label != vertex_label_total_count_;
-       ++src_label) {
-    for (size_t dst_label = 0; dst_label != vertex_label_total_count_;
-         ++dst_label) {
-      for (size_t e_label = 0; e_label != edge_label_total_count_; ++e_label) {
-        size_t index =
-            schema_.generate_edge_label(src_label, dst_label, e_label);
-        auto pair = edge_tables_.find(index);
-        if (pair != edge_tables_.end()) {
-          auto& edge_table = pair->second;
-          edge_table.Resize(degree_list[src_label], degree_list[dst_label]);
-          edge_tables_.erase(pair);
-        }
-      }
-    }
-  }
-}
+PropertyGraph::~PropertyGraph() { Clear(); }
 
 void PropertyGraph::loadSchema(const std::string& schema_path) {
   std::ifstream in(schema_path);
@@ -78,40 +54,6 @@ void PropertyGraph::Clear() {
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
-}
-
-Status PropertyGraph::Reserve(label_t v_label, vid_t vertex_reserve_size) {
-  if (schema_.vertex_label_valid(v_label)) {
-    assert(vertex_tables_.size() > v_label);
-    if (vertex_tables_[v_label].Capacity() >= vertex_reserve_size) {
-      return neug::Status::OK();
-    }
-    vertex_tables_[v_label].Reserve(vertex_reserve_size);
-    for (label_t dst_label = 0; dst_label < vertex_label_total_count_;
-         ++dst_label) {
-      if (!schema_.vertex_label_valid(dst_label)) {
-        continue;
-      }
-      for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
-        size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
-        if (edge_tables_.count(index) > 0) {
-          edge_tables_.at(index).Resize(vertex_tables_[v_label].Capacity(),
-                                        vertex_tables_[dst_label].Capacity());
-        }
-        if (v_label != dst_label) {
-          index = schema_.generate_edge_label(dst_label, v_label, e_label);
-          if (edge_tables_.count(index) > 0) {
-            edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
-                                          vertex_tables_[v_label].Capacity());
-          }
-        }
-      }
-    }
-    return neug::Status::OK();
-  } else {
-    return Status(StatusCode::ERR_INVALID_ARGUMENT,
-                  "Vertex label does not exist.");
-  }
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -280,7 +222,7 @@ Status PropertyGraph::CreateVertexType(
 
   auto& vtable = vertex_tables_.back();
   vtable.Open(work_dir_, memory_level_);
-  vtable.Reserve(4096);
+  vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
 

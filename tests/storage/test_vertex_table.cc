@@ -114,7 +114,7 @@ class VertexTableTest : public ::testing::Test {
 TEST_F(VertexTableTest, VertexTableBasicOps) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(vertex_count_);
+  table.EnsureCapacity(vertex_count_);
 
   neug::vid_t lid1, lid2, lid3;
   neug::Property oid1, oid2, oid3;
@@ -167,7 +167,7 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_);
-    table.Reserve(vertex_count_);
+    table.EnsureCapacity(vertex_count_);
 
     neug::vid_t lid1, lid2, lid3;
     neug::Property oid1, oid2, oid3;
@@ -210,7 +210,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_);
-    table.Reserve(vertex_count_);
+    table.EnsureCapacity(vertex_count_);
 
     oid1.set_int64(1);
     oid2.set_int64(2);
@@ -271,7 +271,7 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 TEST_F(VertexTableTest, AddVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
   oid1.set_int64(100);
@@ -316,7 +316,7 @@ TEST_F(VertexTableTest, AddVertex) {
 
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;
-  table.Reserve(100);
+  table.EnsureCapacity(100);
   lids.resize(100);
 
   for (int64_t i = 0; i < 100; ++i) {
@@ -341,7 +341,7 @@ TEST_F(VertexTableTest, AddVertex) {
 TEST_F(VertexTableTest, DeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
   oid1.set_int64(1);
@@ -374,7 +374,7 @@ TEST_F(VertexTableTest, DeleteVertexBasic) {
 TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid1;
   oid1.set_int64(1);
@@ -404,7 +404,7 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
 TEST_F(VertexTableTest, AddDeleteRevertCombination) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;
@@ -449,7 +449,7 @@ TEST_F(VertexTableTest, AddDeleteRevertCombination) {
 TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid;
   oid.set_int64(42);
@@ -484,7 +484,7 @@ TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
 TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(50);
+  table.EnsureCapacity(50);
 
   std::vector<neug::vid_t> lids;
   lids.resize(20);
@@ -508,7 +508,7 @@ TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
 TEST_F(VertexTableTest, TemporalVisibilityComplex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
   oid1.set_int64(1);
@@ -551,7 +551,7 @@ TEST_F(VertexTableTest, TemporalVisibilityComplex) {
 TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid;
   oid.set_int64(1);
@@ -574,7 +574,7 @@ TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
 TEST_F(VertexTableTest, RevertNonDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   neug::Property oid;
   oid.set_int64(1);
@@ -607,7 +607,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
     table.Open(dump_dir, memory_level_);
-    table.Reserve(100);
+    table.EnsureCapacity(100);
 
     for (int64_t i = 0; i < 20; ++i) {
       neug::Property oid;
@@ -668,7 +668,7 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 TEST_F(VertexTableTest, StressAddDeleteRevert) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(1000);
+  table.EnsureCapacity(1000);
 
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;
@@ -790,7 +790,7 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
   table.Open(dir_, memory_level_);
-  table.Reserve(100);
+  table.EnsureCapacity(100);
 
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;

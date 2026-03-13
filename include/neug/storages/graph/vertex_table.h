@@ -119,8 +119,6 @@ class VertexTable {
 
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
-  void Reserve(size_t cap);
-
   size_t EnsureCapacity(size_t capacity);
 
   bool is_dropped() const { return table_ == nullptr; }

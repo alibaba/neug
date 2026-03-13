@@ -1055,8 +1055,11 @@ void UpdateTransaction::IngestWal(PropertyGraph& graph,
       auto& v_table = graph.get_vertex_table(redo.label);
       if (!graph.get_lid(redo.label, redo.oid, vid, timestamp) ||
           !graph.IsValidLid(redo.label, vid, timestamp)) {
-        if (v_table.Capacity() < v_table.LidNum() + 1) {
-          graph.Reserve(redo.label, v_table.Capacity() * 2);
+        if (v_table.Size() >= v_table.Capacity()) {
+          auto new_capacity = v_table.Size() < 4096
+                                  ? 4096
+                                  : v_table.Size() + v_table.Size() / 4;
+          graph.EnsureCapacity(redo.label, new_capacity);
         }
         auto ret = graph.AddVertex(redo.label, redo.oid, redo.props, vid,
                                    timestamp, true);
