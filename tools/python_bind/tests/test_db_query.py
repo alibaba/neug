@@ -2577,6 +2577,8 @@ def test_insert_many_edges():
     assert records == [[4950]], f"Expected value [[4950]], got {records}"
     conn.close()
     db.close()
+
+
 def test_insert_string_column_exhaustion():
     logging.disable(logging.CRITICAL)
     try:
