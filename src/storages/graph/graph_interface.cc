@@ -35,14 +35,21 @@ void StorageAPUpdateInterface::UpdateEdgeProperty(
 bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
                                          const std::vector<Property>& props,
                                          vid_t& vid) {
-  auto status = graph_.EnsureCapacity(label);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to ensure space for vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
-               << status.ToString();
-    return false;
+  const auto& vertex_table = graph_.get_vertex_table(label);
+  if (vertex_table.Size() >= vertex_table.Capacity()) {
+    auto new_cap = vertex_table.Size() < 4096
+                       ? 4096
+                       : vertex_table.Size() + vertex_table.Size() / 4;
+    auto status = graph_.EnsureCapacity(label, new_cap);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to ensure space for vertex of label "
+                 << graph_.schema().get_vertex_label_name(label) << ": "
+                 << status.ToString();
+      return false;
+    }
   }
-  status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
+
+  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }
@@ -52,10 +59,19 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
 bool StorageAPUpdateInterface::AddEdge(
     label_t src_label, vid_t src, label_t dst_label, vid_t dst,
     label_t edge_label, const std::vector<Property>& properties) {
-  auto status = graph_.EnsureCapacity(src_label, dst_label, edge_label);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to ensure space for edge of: " << status.ToString();
-    return false;
+  const auto& edge_table =
+      graph_.get_edge_table(src_label, dst_label, edge_label);
+  if (edge_table.Size() >= edge_table.Capacity()) {
+    size_t cur_size = edge_table.Size();
+    auto new_cap = cur_size < 4096 ? 4096 : cur_size + cur_size / 4;
+    auto status =
+        graph_.EnsureCapacity(src_label, dst_label, edge_label, new_cap);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to ensure space for edge of label "
+                 << graph_.schema().get_edge_label_name(edge_label) << ": "
+                 << status.ToString();
+      return false;
+    }
   }
   graph_.AddEdge(src_label, src, dst_label, dst, edge_label, properties,
                  neug::timestamp_t(0), alloc_, true);

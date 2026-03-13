@@ -181,13 +181,9 @@ bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
 
 void VertexTable::Reserve(size_t cap) {
   if (cap > indexer_.capacity()) {
-    LOG(INFO) << "Reserving vertex table capacity from " << indexer_.capacity()
-              << " to " << cap;
     indexer_.reserve(cap);
   }
   if (table_ && table_->size() < cap) {
-    LOG(INFO) << "Resizing vertex table from size " << table_->size() << " to "
-              << cap;
     table_->resize(cap);
   }
   v_ts_.Reserve(cap);
@@ -197,6 +193,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
   if (capacity <= indexer_.capacity()) {
     return indexer_.capacity();
   }
+  capacity = std::max(capacity, 4096UL);
   Reserve(capacity);
   return indexer_.capacity();
 }

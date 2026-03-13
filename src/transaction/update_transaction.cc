@@ -680,16 +680,22 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
     }
   }
 
-  auto status = graph_.EnsureCapacity(label);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to ensure space for vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
-               << status.ToString();
-    return false;
+  const auto& v_table = graph_.get_vertex_table(label);
+  if (v_table.Size() >= v_table.Capacity()) {
+    size_t new_capacity =
+        v_table.Size() < 4096 ? 4096 : v_table.Size() + v_table.Size() / 4;
+    auto status = graph_.EnsureCapacity(label, new_capacity);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to ensure space for vertex of label "
+                 << graph_.schema().get_vertex_label_name(label) << ": "
+                 << status.ToString();
+      return false;
+    }
   }
+
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
-  status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
+  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add vertex of label "
                << graph_.schema().get_vertex_label_name(label) << ": "
@@ -735,11 +741,19 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
 
-  auto status = graph_.EnsureCapacity(src_label, dst_label, edge_label);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to ensure space before insert edge: "
-               << status.ToString();
-    return false;
+  const auto& edge_table =
+      graph_.get_edge_table(src_label, dst_label, edge_label);
+  if (edge_table.Size() >= edge_table.Capacity()) {
+    auto new_capacity = edge_table.Size() < 4096
+                            ? 4096
+                            : edge_table.Size() + edge_table.Size() / 4;
+    auto status =
+        graph_.EnsureCapacity(src_label, dst_label, edge_label, new_capacity);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to ensure space before insert edge: "
+                 << status.ToString();
+      return false;
+    }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),

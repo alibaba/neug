@@ -34,7 +34,6 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/file_utils.h"
-#include "neug/utils/growth.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -722,8 +721,7 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
     if (capacity <= capacity_.load()) {
       return;
     }
-    LOG(INFO) << "resize edge table from capacity " << capacity_.load()
-              << " to " << capacity;
+    capacity = std::max(capacity, 4096UL);
     table_->resize(capacity);
     capacity_.store(capacity);
   }
@@ -880,8 +878,12 @@ void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
   std::tie(src_lid, dst_lid, valid_flags) =
       filterInvalidEdges(src_lid, dst_lid);
   size_t new_size = table_idx_.load() + src_lid.size();
-  if (new_size >= capacity_.load()) {
-    EnsureCapacity(calculate_new_capacity(new_size, false));
+  if (new_size >= Capacity()) {
+    auto new_cap = new_size;
+    while (new_size >= new_cap) {
+      new_cap = new_cap < 4096 ? 4096 : new_cap + (new_cap + 4) / 5;
+    }
+    EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
     auto edges = extract_bundled_edge_data_from_batches(meta_, data_batches,
@@ -903,8 +905,12 @@ void EdgeTable::BatchAddEdges(
     const std::vector<vid_t>& dst_lid_list,
     const std::vector<std::vector<Property>>& edge_data_list) {
   size_t new_size = table_idx_.load() + src_lid_list.size();
-  if (new_size >= capacity_.load()) {
-    EnsureCapacity(calculate_new_capacity(new_size, false));
+  if (new_size >= Capacity()) {
+    auto new_cap = new_size;
+    while (new_size >= new_cap) {
+      new_cap = new_cap < 4096 ? 4096 : new_cap + (new_cap + 4) / 5;
+    }
+    EnsureCapacity(new_cap);
   }
   if (meta_->is_bundled()) {
     std::vector<Property> flat_edge_data;
@@ -1028,7 +1034,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   if (prev_data_col && prev_data_col->size() > 0) {
     table_->resize(prev_data_col->size());
     table_idx_.store(prev_data_col->size());
-    EnsureCapacity(calculate_new_capacity(prev_data_col->size(), false));
+    EnsureCapacity(prev_data_col->size());
   }
   // Set default value for other columns
   for (size_t col_id = 1; col_id < table_->col_num(); ++col_id) {

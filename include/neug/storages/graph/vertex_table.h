@@ -18,7 +18,6 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
-#include "neug/utils/growth.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
 
@@ -294,8 +293,12 @@ class VertexTable {
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
       size_t new_size = indexer_.size() + pk_array->length();
-      while (new_size >= Capacity()) {
-        EnsureCapacity(calculate_new_capacity(new_size, true));
+      if (new_size >= indexer_.capacity()) {
+        size_t new_cap = new_size;
+        while (new_size >= new_cap) {
+          new_cap = new_cap < 4096 ? 4096 : new_cap + new_cap / 4;
+        }
+        EnsureCapacity(new_size);
       }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
