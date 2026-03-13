@@ -50,7 +50,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for linux
         run: |
@@ -129,13 +129,13 @@ jobs:
           python-version: '3.14'
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for linux
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.8 on PRs
+      - name: Limit builds to CPython 3.14 on PRs
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp314-*" >> $GITHUB_ENV
 
@@ -230,7 +230,7 @@ jobs:
           bash scripts/install_deps.sh
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for macos
         run: |
@@ -239,7 +239,7 @@ jobs:
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.8 on PRs
+      - name: Limit builds to CPython 3.14 on PRs
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp314-*" >> $GITHUB_ENV
 
@@ -335,7 +335,7 @@ jobs:
           bash scripts/install_deps.sh
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for macos
         run: |
@@ -344,7 +344,7 @@ jobs:
           source ~/.neug_env
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.8 on PRs
+      - name: Limit builds to CPython 3.14 on PRs
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp314-*" >> $GITHUB_ENV
 
