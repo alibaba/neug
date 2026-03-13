@@ -569,7 +569,8 @@ class TestCopyToDocs:
         """export_data.md: HEADER=false (default)."""
         out_path = self.tmp_path / "person_no_header.csv"
         self.conn.execute(
-            f"COPY (MATCH (p:person) RETURN p.id, p.name) " f"TO '{out_path}';"
+            f"COPY (MATCH (p:person) RETURN p.id, p.name) "
+            f"TO '{out_path}' (HEADER = false);"
         )
         assert out_path.exists()
         content = out_path.read_text()

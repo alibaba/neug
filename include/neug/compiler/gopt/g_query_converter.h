@@ -193,7 +193,7 @@ class GQueryConvertor {
   std::unique_ptr<Options> convertDataSourceOptions(
       const common::FileScanInfo& fileInfo);
   std::unique_ptr<Options> convertExportOptions(
-      const planner::LogicalCopyTo& copyTo);
+      const function::ExportFuncBindData* bindData);
   std::unique_ptr<::physical::EdgeType> convertToEdgeType(
       const EdgeLabelId& label);
   std::shared_ptr<binder::Expression> bindPKExpr(common::table_id_t labelId);
@@ -215,10 +215,6 @@ class GQueryConvertor {
   std::string getExtensionName(const planner::LogicalCopyTo& copyTo);
   void convertDataExport(const planner::LogicalCopyTo& copyTo,
                          ::physical::PhysicalPlan* plan);
-  void convertProcedureCall(const planner::LogicalCopyTo& copyTo,
-                            ::physical::PhysicalPlan* plan);
-  std::unique_ptr<::common::Value> convertCopyToHeader(
-      const planner::LogicalCopyTo& copyTo);
   void convertExtraInfo(const planner::LogicalRecursiveExtend& extend,
                         ::physical::PathExpand* pathPB);
   void convertCheckpoint(const planner::LogicalTransaction& op,
@@ -229,8 +225,14 @@ class GQueryConvertor {
   std::unique_ptr<::physical::FileSchema> convertFileSchema(
       const function::ScanFileBindData* scanBindData);
 
+  std::unique_ptr<::physical::FileSchema> convertFileSchema(
+      const function::ExportFuncBindData* exportBindData);
+
   std::unique_ptr<::physical::EntrySchema> convertEntrySchema(
       const function::ScanFileBindData* scanBindData);
+
+  std::unique_ptr<::physical::EntrySchema> convertEntrySchema(
+      const function::ExportFuncBindData* exportBindData);
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;

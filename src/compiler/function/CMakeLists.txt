@@ -24,7 +24,7 @@ add_library(neug_function
         vector_cast_functions.cpp
         vector_date_functions.cpp
         vector_string_functions.cpp
-        export_csv_function.cpp)
+        csv_export_function.cpp)
 add_dependencies(neug_function neug_plan_proto)
 
 set(ALL_OBJECT_FILES

@@ -150,6 +150,7 @@ FunctionCollection* FunctionCollection::getFunctions() {
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
       TABLE_FUNCTION(CSVReadFunction),
+      EXPORT_FUNCTION(ExportCSVFunction),
 
       FINAL_FUNCTION};
 

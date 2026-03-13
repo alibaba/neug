@@ -30,11 +30,9 @@ class ReadStateBuilder {
  public:
   std::shared_ptr<ReadSharedState> build(
       const ::physical::DataSource& data_source);
-
- protected:
-  virtual std::shared_ptr<EntrySchema> buildEntrySchema(
+  static std::shared_ptr<EntrySchema> buildEntrySchema(
       const ::physical::EntrySchema& entry_schema);
-  virtual FileSchema buildFileSchema(const ::physical::FileSchema& file_schema);
+  static FileSchema buildFileSchema(const ::physical::FileSchema& file_schema);
 };
 
 class DataSourceOprBuilder : public IOperatorBuilder {
