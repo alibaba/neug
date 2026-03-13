@@ -368,9 +368,8 @@ Status PropertyGraph::CreateEdgeType(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).OpenInMemory(work_dir_, src_v_capacity,
-                                      dst_v_capacity);
-  edge_tables_.at(index).Resize(src_v_capacity, dst_v_capacity);
+  edge_tables_.at(index).OpenInMemory(work_dir_);
+  edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
 }
@@ -925,20 +924,14 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
         if (memory_level == 0) {
           edge_table.Open(work_dir_);
         } else if (memory_level >= 2) {
-          edge_table.OpenWithHugepages(work_dir_,
-                                       vertex_capacities[src_label_i],
-                                       vertex_capacities[dst_label_i]);
+          edge_table.OpenWithHugepages(work_dir_);
         } else {
-          edge_table.OpenInMemory(work_dir_, vertex_capacities[src_label_i],
-                                  vertex_capacities[dst_label_i]);
+          edge_table.OpenInMemory(work_dir_);
         }
         auto e_size = edge_table.Size();
-        edge_table.EnsureCapacity(e_size < 4096 ? 4096
-                                                : e_size + (e_size + 4) / 5);
-        if (memory_level_ == 0) {
-          edge_table.Resize(vertex_capacities[src_label_i],
-                            vertex_capacities[dst_label_i]);
-        }
+        size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+        edge_table.EnsureCapacity(vertex_capacities[src_label_i],
+                                  vertex_capacities[dst_label_i], e_capacity);
         edge_tables_.emplace(index, std::move(edge_table));
       }
     }

@@ -51,11 +51,9 @@ class EdgeTable {
 
   void Open(const std::string& work_dir);
 
-  void OpenInMemory(const std::string& work_dir, size_t src_v_cap,
-                    size_t dst_v_cap);
+  void OpenInMemory(const std::string& work_dir);
 
-  void OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
-                         size_t dst_v_cap);
+  void OpenWithHugepages(const std::string& work_dir);
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -73,6 +71,9 @@ class EdgeTable {
   void Resize(vid_t src_vertex_num, vid_t dst_vertex_num);
 
   void EnsureCapacity(size_t capacity);
+
+  void EnsureCapacity(vid_t src_vertex_num, vid_t dst_vertex_num,
+                      size_t capacity);
 
   size_t EdgeNum() const;
 

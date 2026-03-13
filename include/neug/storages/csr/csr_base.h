@@ -54,10 +54,9 @@ class CsrBase {
   virtual void open(const std::string& name, const std::string& snapshot_dir,
                     const std::string& work_dir) = 0;
 
-  virtual void open_in_memory(const std::string& prefix, size_t v_cap) = 0;
+  virtual void open_in_memory(const std::string& prefix) = 0;
 
-  virtual void open_with_hugepages(const std::string& prefix,
-                                   size_t v_cap = 0) = 0;
+  virtual void open_with_hugepages(const std::string& prefix) = 0;
 
   virtual void dump(const std::string& name,
                     const std::string& new_snapshot_dir) = 0;

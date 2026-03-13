@@ -117,8 +117,8 @@ class EdgeTableTest : public ::testing::Test {
   void OpenEdgeTable() { edge_table->Open(WorkDirectory().string()); }
 
   void OpenEdgeTableInMemory(size_t src_v_cap, size_t dst_v_cap) {
-    edge_table->OpenInMemory(SnapshotDirectory().string(), src_v_cap,
-                             dst_v_cap);
+    edge_table->OpenInMemory(SnapshotDirectory().string());
+    edge_table->Resize(src_v_cap, dst_v_cap);
   }
 
   void BatchInsert(std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches) {

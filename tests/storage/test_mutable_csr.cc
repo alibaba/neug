@@ -103,8 +103,9 @@ class MutableCsrTest : public ::testing::Test {
     if (memory_level == 0) {
       csr.open("csr_data", "", TEST_DIR);
     } else if (memory_level == 1) {
-      csr.open_in_memory("csr_data", src_v_num);
+      csr.open_in_memory("csr_data");
     }
+    csr.resize(src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
       csr.batch_put_edges(src_vid, dst_vid, int32_data);
     } else if constexpr (std::is_same_v<EDATA_T, int64_t>) {
@@ -139,8 +140,9 @@ class MutableCsrTest : public ::testing::Test {
     if (memory_level == 0) {
       csr.open("single_csr_data", "", TEST_DIR);
     } else if (memory_level == 1) {
-      csr.open_in_memory("single_csr_data", single_src_v_num);
+      csr.open_in_memory("single_csr_data");
     }
+    csr.resize(single_src_v_num);
     if constexpr (std::is_same_v<EDATA_T, int32_t>) {
       csr.batch_put_edges(single_src_vid, dst_vid, int32_data);
     } else if constexpr (std::is_same_v<EDATA_T, int64_t>) {
@@ -382,11 +384,11 @@ TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
       hugepage_mutable_csr;
   fmap_mutable_csr.open("dumped_csr_data", this->TEST_DIR, this->TEST_DIR);
   EXPECT_EQ(fmap_mutable_csr.edge_num(), edge_num);
-  memory_mutable_csr.open_in_memory(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", src_v_num);
+  memory_mutable_csr.open_in_memory(std::string(this->TEST_DIR) +
+                                    "/dumped_csr_data");
   EXPECT_EQ(memory_mutable_csr.edge_num(), edge_num);
-  hugepage_mutable_csr.open_with_hugepages(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", src_v_num);
+  hugepage_mutable_csr.open_with_hugepages(std::string(this->TEST_DIR) +
+                                           "/dumped_csr_data");
   EXPECT_EQ(hugepage_mutable_csr.edge_num(), edge_num);
 
   SingleMutableCsr<TypeParam> single_mutable_csr;
@@ -398,21 +400,21 @@ TYPED_TEST(MutableCsrTest, TestDumpAndOpen) {
   fmap_single_mutable_csr.open("dumped_csr_data", this->TEST_DIR,
                                this->TEST_DIR);
   EXPECT_EQ(fmap_single_mutable_csr.edge_num(), edge_num);
-  memory_single_mutable_csr.open_in_memory(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", single_src_v_num);
+  memory_single_mutable_csr.open_in_memory(std::string(this->TEST_DIR) +
+                                           "/dumped_csr_data");
   EXPECT_EQ(memory_single_mutable_csr.edge_num(), edge_num);
-  hugepage_single_mutable_csr.open_with_hugepages(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", src_v_num);
+  hugepage_single_mutable_csr.open_with_hugepages(std::string(this->TEST_DIR) +
+                                                  "/dumped_csr_data");
   EXPECT_EQ(hugepage_single_mutable_csr.edge_num(), edge_num);
 
   EmptyCsr<TypeParam> empty_csr;
   empty_csr.dump("dumped_csr_data", this->TEST_DIR);
   EmptyCsr<TypeParam> opened_empty_csr;
   opened_empty_csr.open("dumped_csr_data", this->TEST_DIR, this->TEST_DIR);
-  opened_empty_csr.open_in_memory(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", src_v_num);
-  opened_empty_csr.open_with_hugepages(
-      std::string(this->TEST_DIR) + "/dumped_csr_data", src_v_num);
+  opened_empty_csr.open_in_memory(std::string(this->TEST_DIR) +
+                                  "/dumped_csr_data");
+  opened_empty_csr.open_with_hugepages(std::string(this->TEST_DIR) +
+                                       "/dumped_csr_data");
 }
 
 TYPED_TEST(MutableCsrTest, TestResize) {

@@ -76,8 +76,7 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
-                                         size_t v_cap) {
+void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   mmap_array<int> degree_list;
   degree_list.open(prefix + ".deg", false);
   load_meta(prefix);
@@ -92,7 +91,7 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
   adj_list_buffer_.reset();
   adj_list_size_.reset();
   adj_list_capacity_.reset();
-  v_cap = std::max(v_cap, degree_list.size());
+  auto v_cap = degree_list.size();
   adj_list_buffer_.resize(v_cap);
   adj_list_size_.resize(v_cap);
   adj_list_capacity_.resize(v_cap);
@@ -107,11 +106,6 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
     adj_list_size_[i] = degree;
     ptr += cap;
   }
-  for (size_t i = degree_list.size(); i < v_cap; ++i) {
-    adj_list_buffer_[i] = ptr;
-    adj_list_capacity_[i] = 0;
-    adj_list_size_[i] = 0;
-  }
 
   if (cap_list != &degree_list) {
     delete cap_list;
@@ -119,8 +113,7 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
-                                              size_t v_cap) {
+void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   mmap_array<int> degree_list;
   degree_list.open(prefix + ".deg", false);
   load_meta(prefix);
@@ -135,7 +128,7 @@ void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
   adj_list_buffer_.reset();
   adj_list_size_.reset();
   adj_list_capacity_.reset();
-  v_cap = std::max(v_cap, degree_list.size());
+  auto v_cap = degree_list.size();
   adj_list_buffer_.open_with_hugepages("");
   adj_list_buffer_.resize(v_cap);
   adj_list_size_.open_with_hugepages("");
@@ -152,11 +145,6 @@ void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
     adj_list_capacity_[i] = cap;
     adj_list_size_[i] = degree;
     ptr += cap;
-  }
-  for (size_t i = degree_list.size(); i < v_cap; ++i) {
-    adj_list_buffer_[i] = ptr;
-    adj_list_capacity_[i] = 0;
-    adj_list_size_[i] = 0;
   }
 
   if (cap_list != &degree_list) {
@@ -536,33 +524,13 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
-                                               size_t v_cap) {
+void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   nbr_list_.open(prefix + ".snbr", false);
-  if (nbr_list_.size() < v_cap) {
-    size_t old_size = nbr_list_.size();
-    nbr_list_.reset();
-    nbr_list_.resize(v_cap);
-    if (old_size > 0) {
-      read_file(prefix + ".snbr", nbr_list_.data(), sizeof(nbr_t), old_size);
-    }
-    for (size_t k = old_size; k != v_cap; ++k) {
-      nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
-    }
-  }
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
-                                                    size_t v_cap) {
-  nbr_list_.open_with_hugepages(prefix + ".snbr", v_cap);
-  size_t old_size = nbr_list_.size();
-  if (old_size < v_cap) {
-    nbr_list_.resize(v_cap);
-    for (size_t k = old_size; k != v_cap; ++k) {
-      nbr_list_[k].timestamp.store(std::numeric_limits<timestamp_t>::max());
-    }
-  }
+void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
+  nbr_list_.open_with_hugepages(prefix + ".snbr");
 }
 
 template <typename EDATA_T>

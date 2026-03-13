@@ -527,21 +527,18 @@ void EdgeTable::Open(const std::string& work_dir) {
   }
 }
 
-void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
-                             size_t dst_v_cap) {
+void EdgeTable::OpenInMemory(const std::string& work_dir) {
   work_dir_ = work_dir;
   memory_level_ = 1;
   auto checkpoint_dir_path = checkpoint_dir(work_dir);
-  in_csr_->open_in_memory(
-      checkpoint_dir_path + "/" +
-          ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                    meta_->edge_label_name),
-      dst_v_cap);
-  out_csr_->open_in_memory(
-      checkpoint_dir_path + "/" +
-          oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                    meta_->edge_label_name),
-      src_v_cap);
+  in_csr_->open_in_memory(checkpoint_dir_path + "/" +
+                          ie_prefix(meta_->src_label_name,
+                                    meta_->dst_label_name,
+                                    meta_->edge_label_name));
+  out_csr_->open_in_memory(checkpoint_dir_path + "/" +
+                           oe_prefix(meta_->src_label_name,
+                                     meta_->dst_label_name,
+                                     meta_->edge_label_name));
   if (!meta_->is_bundled()) {
     table_->open_in_memory(
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -560,21 +557,18 @@ void EdgeTable::OpenInMemory(const std::string& work_dir, size_t src_v_cap,
   }
 }
 
-void EdgeTable::OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
-                                  size_t dst_v_cap) {
+void EdgeTable::OpenWithHugepages(const std::string& work_dir) {
   work_dir_ = work_dir;
   memory_level_ = 2;  // 2 or 3?
   auto checkpoint_dir_path = checkpoint_dir(work_dir);
-  in_csr_->open_with_hugepages(
-      checkpoint_dir_path + "/" +
-          ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                    meta_->edge_label_name),
-      dst_v_cap);
-  out_csr_->open_with_hugepages(
-      checkpoint_dir_path + "/" +
-          oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                    meta_->edge_label_name),
-      src_v_cap);
+  in_csr_->open_with_hugepages(checkpoint_dir_path + "/" +
+                               ie_prefix(meta_->src_label_name,
+                                         meta_->dst_label_name,
+                                         meta_->edge_label_name));
+  out_csr_->open_with_hugepages(checkpoint_dir_path + "/" +
+                                oe_prefix(meta_->src_label_name,
+                                          meta_->dst_label_name,
+                                          meta_->edge_label_name));
   if (!meta_->is_bundled()) {
     table_->open_with_hugepages(
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
@@ -725,6 +719,17 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
     table_->resize(capacity);
     capacity_.store(capacity);
   }
+}
+
+void EdgeTable::EnsureCapacity(vid_t src_v_cap, vid_t dst_v_cap,
+                               size_t capacity) {
+  if (src_v_cap > out_csr_->size()) {
+    out_csr_->resize(src_v_cap);
+  }
+  if (dst_v_cap > in_csr_->size()) {
+    in_csr_->resize(dst_v_cap);
+  }
+  EnsureCapacity(capacity);
 }
 
 size_t EdgeTable::EdgeNum() const {
@@ -974,8 +979,8 @@ void EdgeTable::dropAndCreateNewBundledCSR() {
   new_in_csr = create_csr(meta_->ie_mutable, meta_->ie_strategy,
                           meta_->properties[0].id());
 
-  new_out_csr->open_in_memory(next_oe_csr_path, out_csr_->size());
-  new_in_csr->open_in_memory(next_ie_csr_path, in_csr_->size());
+  new_out_csr->open_in_memory(next_oe_csr_path);
+  new_in_csr->open_in_memory(next_ie_csr_path);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
 
@@ -1070,8 +1075,8 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
         create_csr(meta_->ie_mutable, meta_->ie_strategy, DataTypeId::kUInt64);
   }
 
-  new_out_csr->open_in_memory(next_oe_csr_path, out_csr_->size());
-  new_in_csr->open_in_memory(next_ie_csr_path, in_csr_->size());
+  new_out_csr->open_in_memory(next_oe_csr_path);
+  new_in_csr->open_in_memory(next_ie_csr_path);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
   if (delete_property) {

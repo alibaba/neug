@@ -223,7 +223,7 @@ class mmap_array {
     }
   }
 
-  void open_with_hugepages(const std::string& filename, size_t capacity = 0) {
+  void open_with_hugepages(const std::string& filename) {
     reset();
     hugepage_prefered_ = true;
     is_writable_ = true;
@@ -231,8 +231,7 @@ class mmap_array {
       size_t file_size = std::filesystem::file_size(filename);
       size_ = file_size / sizeof(T);
       if (size_ != 0) {
-        capacity = std::max(capacity, size_);
-        mmap_size_ = hugepage_round_up(capacity * sizeof(T));
+        mmap_size_ = hugepage_round_up(size_ * sizeof(T));
         data_ = static_cast<T*>(allocate_hugepages(mmap_size_));
         if (data_ != MAP_FAILED) {
           FILE* fin = fopen(filename.c_str(), "rb");

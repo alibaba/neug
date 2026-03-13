@@ -80,7 +80,7 @@ class ArenaAllocator {
     if (prefix_.empty()) {
       mmap_array<char>* buf = new mmap_array<char>();
       if (strategy_ == MemoryStrategy::kHugepagePrefered) {
-        buf->open_with_hugepages("", size);
+        buf->open_with_hugepages("");
       } else {
         buf->open("", false);
       }
