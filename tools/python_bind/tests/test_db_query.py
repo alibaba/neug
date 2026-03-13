@@ -1706,8 +1706,8 @@ def test_starts_with():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name starts with 'mar' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
 
@@ -1718,8 +1718,8 @@ def test_ends_with():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name ends with 'rko' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
 
@@ -1730,10 +1730,60 @@ def test_contains():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name contains 'ark' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
+
+
+def test_ends_with_and_contains_with_slash_in_string(tmp_path):
+    """Test that ends with and contains work correctly with strings containing '/'."""
+    db_dir = str(tmp_path / "ends_with_contains_slash_db")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE path_node(path STRING, PRIMARY KEY(path));")
+    conn.execute("CREATE (n:path_node {path: 'path/to/file'});")
+    conn.execute("CREATE (n:path_node {path: 'a/b/c'});")
+    conn.execute("CREATE (n:path_node {path: 'no_slash_here'});")
+    conn.execute("CREATE (n:path_node {path: 'trailing/'});")
+
+    # Test ends with: should match only 'path/to/file'
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path ends with '/file' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1, f"Expected 1 row for ends with '/file', got {len(rows)}"
+    assert rows[0][0] == "path/to/file", f"Expected 'path/to/file', got {rows[0][0]}"
+
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path ends with '/' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1, f"Expected 1 row for ends with '/', got {len(rows)}"
+    assert rows[0][0] == "trailing/", f"Expected 'trailing/', got {rows[0][0]}"
+
+    # Test contains: should match all paths that have '/' in them
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path contains '/' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 3, f"Expected 3 rows for contains '/', got {len(rows)}: {rows}"
+    assert rows[0][0] == "a/b/c"
+    assert rows[1][0] == "path/to/file"
+    assert rows[2][0] == "trailing/"
+
+    # contains '/to/' should match only 'path/to/file'
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path contains '/to/' RETURN n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1 and rows[0][0] == "path/to/file"
+
+    conn.close()
+    db.close()
+    shutil.rmtree(db_dir, ignore_errors=True)
 
 
 def test_date_time_to_string():
@@ -2556,3 +2606,66 @@ def test_insert_many_vertices():
     assert records == [[10000]], f"Expected value [[10000]], got {records}"
     conn.close()
     db.close()
+
+
+def test_insert_string_column_exhaustion():
+    logging.disable(logging.CRITICAL)
+    try:
+        db_dir = "/tmp/test_insert_string_column_exhaustion"
+        shutil.rmtree(db_dir, ignore_errors=True)
+        db = Database(db_path=db_dir, mode="w")
+        conn = db.connect()
+        conn.execute(
+            "CREATE NODE TABLE Person(id INT64, name STRING, PRIMARY KEY(id));"
+        )
+        # by default the string column has maximum length 256
+        conn.execute("CREATE (p: Person {id: 1, name: 'a'});")
+        conn.execute("CREATE (p: Person {id: 2, name: 'b'});")
+        conn.execute("CHECKPOINT;")
+        conn.close()
+        db.close()
+
+        db2 = Database(db_path=db_dir, mode="w")
+        conn2 = db2.connect()
+        str_prop = "a" * 255
+        for i in range(10000):
+            conn2.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
+        res = conn2.execute("MATCH (p: Person) RETURN count(p);")
+        records = list(res)
+        assert records == [[10002]], f"Expected value [[10002]], got {records}"
+        conn2.close()
+        db2.close()
+
+        db3 = Database(db_path=db_dir, mode="w")
+        conn3 = db3.connect()
+        conn3.execute("CREATE REL TABLE Knows(FROM Person TO Person, note STRING);")
+        conn3.execute(
+            "MATCH (a: Person), (b: Person) WHERE a.id = 1 AND b.id = 2 CREATE (a)-[:Knows {note: '12'}]->(b);"
+        )
+        conn3.execute(
+            "MATCH (a: Person), (b: Person) WHERE a.id = 3 AND b.id = 4 CREATE (a)-[:Knows {note: '34'}]->(b);"
+        )
+        conn3.execute("CHECKPOINT;")
+        db3.close()
+
+        db4 = Database(db_path=db_dir, mode="w")
+        conn4 = db4.connect()
+        res4 = conn4.execute(
+            "MATCH (a: Person)-[k: Knows]->(b: Person) RETURN k.note ORDER BY k.note;"
+        )
+        records = list(res4)
+        assert records == [
+            ["12"],
+            ["34"],
+        ], f"Expected value [['12'], ['34']], got {records}"
+        str_prop = "a" * 255
+        for i in range(100):
+            conn4.execute(
+                f"MATCH (a: Person {{id: 1}}), (b: Person {{id: 2}}) CREATE (a)-[:Knows {{note: '{str_prop}'}}]->(b);"
+            )
+        conn4.close()
+        db4.close()
+    except Exception as e:
+        raise AssertionError(f"Test failed with exception: {e}")
+    finally:
+        logging.disable(logging.NOTSET)
