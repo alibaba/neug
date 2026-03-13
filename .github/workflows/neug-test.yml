@@ -416,4 +416,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info
+        files: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info
