@@ -31,6 +31,28 @@ function(build_brpc_as_third_party)
                 OUTPUT_VARIABLE output
                 ERROR_VARIABLE error_output)
 
+    # Guard brpc's unconditional `#define HAVE_DLADDR` in build_config.h.
+    # Python 3.14+ defines `#define HAVE_DLADDR 1` in pyconfig.h.  brpc's bare
+    # `#define HAVE_DLADDR` (no value) is a different replacement list, so the
+    # compiler emits a macro-redefinition warning that -Werror promotes to an error.
+    # We detect whether the system already provides dladdr(); if so, we wrap brpc's
+    # definition with an #ifndef guard so the two headers can coexist peacefully.
+    include(CheckSymbolExists)
+    check_symbol_exists(dladdr "dlfcn.h" _NEUG_SYSTEM_HAS_DLADDR)
+    if(_NEUG_SYSTEM_HAS_DLADDR)
+        set(_brpc_build_config "${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/src/butil/build_config.h")
+        file(READ "${_brpc_build_config}" _build_config_content)
+        string(FIND "${_build_config_content}" "#ifndef HAVE_DLADDR" _has_guard)
+        if(_has_guard EQUAL -1)
+            string(REPLACE
+                "#define HAVE_DLADDR"
+                "#ifndef HAVE_DLADDR\n#define HAVE_DLADDR\n#endif"
+                _build_config_content "${_build_config_content}")
+            file(WRITE "${_brpc_build_config}" "${_build_config_content}")
+            message(STATUS "Patched brpc build_config.h: added #ifndef guard for HAVE_DLADDR")
+        endif()
+    endif()
+
     add_subdirectory(third_party/brpc)
     
     # Apply warning suppression flags to brpc targets
