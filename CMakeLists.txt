@@ -874,6 +874,8 @@ if (ENABLE_GCOV)
             '/usr/lib/*'
             '*/compiler/*'
             --output-file coverage_filtered.info
+        COMMAND find . -name "*.gcno" -delete
+        COMMAND find . -name "*.gcda" -delete
     )
 endif()
 
