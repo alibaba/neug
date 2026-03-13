@@ -524,8 +524,6 @@ class mmap_array<std::string_view> {
   }
 
   void resize(size_t size, size_t data_size) {
-    LOG(INFO) << "Resizing mmap_array " << this << " to size: " << size
-              << ", data_size: " << data_size;
     items_.resize(size);
     data_.resize(data_size);
   }

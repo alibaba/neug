@@ -986,7 +986,6 @@ void EdgeTable::dropAndCreateNewBundledCSR() {
   in_csr_ = std::move(new_in_csr);
 }
 
-// TODO(zhanglei): Keep table_idx_ and capacity_ right.
 void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
   auto suffix = get_next_csr_path_suffix();
   std::string next_oe_csr_path =
