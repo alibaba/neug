@@ -353,7 +353,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void dump(const std::string& filename) override {
-    write_file(filename + ".pos", &pos_, sizeof(pos_), 1);
+    size_t pos_val = pos_.load();
+    write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
     buffer_.dump(filename);
   }
 
@@ -435,7 +436,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
  private:
   inline void init_pos(const std::string& file_path) {
     if (std::filesystem::exists(file_path)) {
-      read_file(file_path, &pos_, sizeof(pos_), 1);
+      size_t pos_val = 0;
+      read_file(file_path, &pos_val, sizeof(pos_val), 1);
+      pos_.store(pos_val);
     } else {
       pos_.store(0);
     }

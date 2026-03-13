@@ -298,7 +298,7 @@ class VertexTable {
         while (new_size >= new_cap) {
           new_cap = new_cap < 4096 ? 4096 : new_cap + new_cap / 4;
         }
-        EnsureCapacity(new_size);
+        EnsureCapacity(new_cap);
       }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
