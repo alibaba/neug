@@ -52,14 +52,16 @@ bool StringFormatBuffer::validateProtoValue(const std::string& validity,
              1;
 }
 
-#define TYPED_PRIMITIVE_ARRAY_TO_JSON(CASE_ENUM, GETTER_METHOD)   \
-  case neug::Array::TypedArrayCase::CASE_ENUM: {                  \
-    auto typed_array = arr.GETTER_METHOD();                       \
-    if (!validateProtoValue(typed_array.validity(), rowIdx)) {    \
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" + \
-                                    std::to_string(rowIdx));      \
-    }                                                             \
-    return std::to_string(typed_array.values(rowIdx));            \
+#define TYPED_PRIMITIVE_ARRAY_TO_JSON(CASE_ENUM, GETTER_METHOD)       \
+  case neug::Array::TypedArrayCase::CASE_ENUM: {                      \
+    auto& typed_array = arr.GETTER_METHOD();                          \
+    if (!validateProtoValue(typed_array.validity(), rowIdx)) {        \
+      return arrow::Status::Invalid("Value is invalid, rowIdx=" +     \
+                                    std::to_string(rowIdx));          \
+    }                                                                 \
+    const auto& str = std::to_string(typed_array.values(rowIdx));     \
+    write(reinterpret_cast<const uint8_t*>(str.c_str()), str.size()); \
+    return arrow::Status::OK();                                       \
   }
 
 CSVStringFormatBuffer::CSVStringFormatBuffer(
@@ -100,14 +102,14 @@ void CSVStringFormatBuffer::addHeader() {
         write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
       }
       const auto& name = entry_schema_.columnNames[col];
-      write(reinterpret_cast<const uint8_t*>(name.c_str()), name.length());
+      write(reinterpret_cast<const uint8_t*>(name.c_str()), name.size());
     }
     write(reinterpret_cast<const uint8_t*>(DEFAULT_CSV_NEWLINE), sizeof(char));
   }
 }
 
-arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
-    const neug::Array& arr, int rowIdx) {
+arrow::Status CSVStringFormatBuffer::formatValueToStr(const neug::Array& arr,
+                                                      int rowIdx) {
   switch (arr.typed_array_case()) {
     TYPED_PRIMITIVE_ARRAY_TO_JSON(kBoolArray, bool_array)
     TYPED_PRIMITIVE_ARRAY_TO_JSON(kInt32Array, int32_array)
@@ -117,80 +119,89 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
     TYPED_PRIMITIVE_ARRAY_TO_JSON(kFloatArray, float_array)
     TYPED_PRIMITIVE_ARRAY_TO_JSON(kDoubleArray, double_array)
   case neug::Array::TypedArrayCase::kStringArray: {
-    auto string_array = arr.string_array();
+    auto& string_array = arr.string_array();
     if (!validateProtoValue(string_array.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    return string_array.values(rowIdx);
+    const auto& str = string_array.values(rowIdx);
+    // add quotes for string type values
+    write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
+    // espace special characters
+    char escapeChars[] = {escape_char_, quote_char_};
+    writeWithEscapes(escapeChars, escape_char_, str);
+    write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kDateArray: {
-    auto date32_arr = arr.date_array();
+    auto& date32_arr = arr.date_array();
     if (!validateProtoValue(date32_arr.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
     Date date_value;
     date_value.from_timestamp(date32_arr.values(rowIdx));
-    return date_value.to_string();
+    const auto& date_str = date_value.to_string();
+    write(reinterpret_cast<const uint8_t*>(date_str.c_str()), date_str.size());
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kTimestampArray: {
-    auto timestamp_array = arr.timestamp_array();
+    auto& timestamp_array = arr.timestamp_array();
     if (!validateProtoValue(timestamp_array.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
     DateTime dt_value(timestamp_array.values(rowIdx));
-    return dt_value.to_string();
+    const auto& dt_str = dt_value.to_string();
+    write(reinterpret_cast<const uint8_t*>(dt_str.c_str()), dt_str.size());
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kIntervalArray: {
-    auto interval_array = arr.interval_array();
+    auto& interval_array = arr.interval_array();
     if (!validateProtoValue(interval_array.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    return interval_array.values(rowIdx);
+    const auto& interval_str = interval_array.values(rowIdx);
+    write(reinterpret_cast<const uint8_t*>(interval_str.c_str()),
+          interval_str.size());
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kListArray: {
-    auto list_array = arr.list_array();
+    auto& list_array = arr.list_array();
     if (!validateProtoValue(list_array.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    std::string list_val;
-    list_val.append("[");
+    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[0]), sizeof(char));
     uint32_t list_size =
         list_array.offsets(rowIdx + 1) - list_array.offsets(rowIdx);
     size_t offset = list_array.offsets(rowIdx);
     for (uint32_t i = 0; i < list_size; ++i) {
-      ARROW_ASSIGN_OR_RAISE(
-          auto elem, formatValueToStr(list_array.elements(), offset + i));
       if (i > 0) {
-        list_val.append(",");
+        write(reinterpret_cast<const uint8_t*>(COMMA_CHAR), sizeof(char));
       }
-      list_val.append(elem);
+      ARROW_RETURN_NOT_OK(formatValueToStr(list_array.elements(), offset + i));
     }
-    list_val.append("]");
-    return list_val;
+    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[1]), sizeof(char));
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kStructArray: {
-    auto struct_arr = arr.struct_array();
+    auto& struct_arr = arr.struct_array();
     if (!validateProtoValue(struct_arr.validity(), rowIdx)) {
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    std::string list_val;
-    list_val.append("[");
+    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[0]), sizeof(char));
     for (int i = 0; i < struct_arr.fields_size(); ++i) {
-      const auto& field = struct_arr.fields(i);
-      ARROW_ASSIGN_OR_RAISE(auto elem, formatValueToStr(field, rowIdx));
       if (i > 0) {
-        list_val.append(",");
+        write(reinterpret_cast<const uint8_t*>(COMMA_CHAR), sizeof(char));
       }
-      list_val.append(elem);
+      const auto& field = struct_arr.fields(i);
+      ARROW_RETURN_NOT_OK(formatValueToStr(field, rowIdx));
     }
-    list_val.append("]");
-    return list_val;
+    write(reinterpret_cast<const uint8_t*>(&LIST_ARRAY_CHAR[1]), sizeof(char));
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kVertexArray: {
     auto vertex_array = arr.vertex_array();
@@ -198,7 +209,10 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    return vertex_array.values(rowIdx);
+    const auto& vertex_str = vertex_array.values(rowIdx);
+    write(reinterpret_cast<const uint8_t*>(vertex_str.c_str()),
+          vertex_str.size());
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kEdgeArray: {
     auto edge_array = arr.edge_array();
@@ -206,7 +220,9 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    return edge_array.values(rowIdx);
+    const auto& edge_str = edge_array.values(rowIdx);
+    write(reinterpret_cast<const uint8_t*>(edge_str.c_str()), edge_str.size());
+    return arrow::Status::OK();
   }
   case neug::Array::TypedArrayCase::kPathArray: {
     auto path_array = arr.path_array();
@@ -214,7 +230,9 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
       return arrow::Status::Invalid("Value is invalid, rowIdx=" +
                                     std::to_string(rowIdx));
     }
-    return path_array.values(rowIdx);
+    const auto& path_str = path_array.values(rowIdx);
+    write(reinterpret_cast<const uint8_t*>(path_str.c_str()), path_str.size());
+    return arrow::Status::OK();
   }
   default: {
     return arrow::Status::Invalid("Unsupported type: " +
@@ -223,25 +241,24 @@ arrow::Result<std::string> CSVStringFormatBuffer::formatValueToStr(
   }
 }
 
-std::string CSVStringFormatBuffer::addEscapes(char toEscape, char escape,
-                                              const std::string& val) {
+void CSVStringFormatBuffer::writeWithEscapes(char* toEscape, char escape,
+                                             const std::string& val) {
   uint64_t i = 0;
   std::string escapedStr = "";
-  auto found = val.find(toEscape);
+  auto found = val.find_first_of(toEscape, 0, 2);
 
   while (found != std::string::npos) {
     while (i < found) {
-      escapedStr += val[i];
+      write(reinterpret_cast<const uint8_t*>(&val[i]), sizeof(char));
       i++;
     }
-    escapedStr += escape;
-    found = val.find(toEscape, found + sizeof(escape));
+    write(reinterpret_cast<const uint8_t*>(&escape), sizeof(char));
+    found = val.find_first_of(toEscape, found + sizeof(escape), 2);
   }
   while (i < val.length()) {
-    escapedStr += val[i];
+    write(reinterpret_cast<const uint8_t*>(&val[i]), sizeof(char));
     i++;
   }
-  return escapedStr;
 }
 
 void CSVStringFormatBuffer::write(const uint8_t* buffer, uint64_t len) {
@@ -283,36 +300,21 @@ void CSVStringFormatBuffer::addValue(int rowIdx, int colIdx) {
         "Value index out of range: rowIdx=" + std::to_string(rowIdx) +
         ", colIdx=" + std::to_string(colIdx));
   }
-  const neug::Array& column = response_->arrays(colIdx);
-  auto strResult = formatValueToStr(column, rowIdx);
-  if (!strResult.ok() && !ignore_errors_) {
-    THROW_IO_EXCEPTION(
-        "Format value to string failed, rowIdx=" + std::to_string(rowIdx) +
-        ", colIdx=" + std::to_string(colIdx) +
-        ", error=" + strResult.status().ToString());
-  }
   if (colIdx > 0) {
     write(reinterpret_cast<const uint8_t*>(&delimiter_), sizeof(char));
   }
-  if (strResult.ok()) {
-    auto str = strResult.ValueOrDie();
-    if (!str.empty()) {
-      // add quotes for string type values
-      if (column.has_string_array()) {
-        str = addEscapes(escape_char_, escape_char_, str);
-        if (escape_char_ != quote_char_) {
-          str = addEscapes(quote_char_, escape_char_, str);
-        }
-        write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
-        write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
-        write(reinterpret_cast<const uint8_t*>(&quote_char_), sizeof(char));
-      } else {
-        write(reinterpret_cast<const uint8_t*>(str.c_str()), str.length());
-      }
+  const neug::Array& column = response_->arrays(colIdx);
+  auto strResult = formatValueToStr(column, rowIdx);
+  if (!strResult.ok()) {
+    if (!ignore_errors_) {
+      THROW_IO_EXCEPTION(
+          "Format value to string failed, rowIdx=" + std::to_string(rowIdx) +
+          ", colIdx=" + std::to_string(colIdx) +
+          ", error=" + strResult.ToString());
+    } else {
+      write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
+            strlen(DEFAULT_NULL_STR));
     }
-  } else {
-    write(reinterpret_cast<const uint8_t*>(DEFAULT_NULL_STR),
-          strlen(DEFAULT_NULL_STR));
   }
   if (colIdx == response_->arrays_size() - 1) {
     // the last column, add newline

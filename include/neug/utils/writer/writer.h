@@ -115,16 +115,18 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   char quote_char_;
 
  private:
-  // Format each value to string, return string or error status.
-  arrow::Result<std::string> formatValueToStr(const neug::Array& arr,
-                                              int rowIdx);
-  std::string addEscapes(char toEscape, char escape, const std::string& val);
+  // write the current value to string buffer, return error status if value is
+  // invalid
+  arrow::Status formatValueToStr(const neug::Array& arr, int rowIdx);
+  void writeWithEscapes(char* toEscape, char escape, const std::string& str);
   void write(const uint8_t* buffer, uint64_t len);
 
  private:
   static constexpr const char* DEFAULT_CSV_NEWLINE = "\n";
   static constexpr const char* DEFAULT_NULL_STR = "";
   static constexpr size_t DEFAULT_CAPACITY = 64;
+  static constexpr const char* LIST_ARRAY_CHAR = "[]";
+  static constexpr const char* COMMA_CHAR = ",";
 };
 
 class ArrowExportWriter : public ExportWriter {
