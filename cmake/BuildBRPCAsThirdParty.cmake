@@ -35,10 +35,14 @@ function(build_brpc_as_third_party)
     # Python 3.14+ defines `#define HAVE_DLADDR 1` in pyconfig.h.  brpc's bare
     # `#define HAVE_DLADDR` (no value) is a different replacement list, so the
     # compiler emits a macro-redefinition warning that -Werror promotes to an error.
-    # We detect whether the system already provides dladdr(); if so, we wrap brpc's
-    # definition with an #ifndef guard so the two headers can coexist peacefully.
+    # We wrap brpc's definition with an #ifndef guard so the two headers can coexist peacefully.
+    # Note: On Linux, dladdr requires -ldl, so check_symbol_exists may fail without it.
+    # We use CMAKE_REQUIRED_LIBRARIES to ensure the check works on all platforms.
     include(CheckSymbolExists)
+    set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES "dl")
     check_symbol_exists(dladdr "dlfcn.h" _NEUG_SYSTEM_HAS_DLADDR)
+    set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
     if(_NEUG_SYSTEM_HAS_DLADDR)
         set(_brpc_build_config "${CMAKE_CURRENT_SOURCE_DIR}/third_party/brpc/src/butil/build_config.h")
         file(READ "${_brpc_build_config}" _build_config_content)
