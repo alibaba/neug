@@ -1,3 +1,16 @@
+diff --git a/src/butil/build_config.h b/src/butil/build_config.h
+index 1234567..abcdefg 100644
+--- a/src/butil/build_config.h
++++ b/src/butil/build_config.h
+@@ -178,6 +178,8 @@
+ #define nullptr NULL
+ #endif
+ 
++#ifndef HAVE_DLADDR
+ #define HAVE_DLADDR
++#endif
+ 
+ #endif  // BUTIL_BUILD_CONFIG_H_
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 30076bf2..f1da1f21 100644
 --- a/CMakeLists.txt
