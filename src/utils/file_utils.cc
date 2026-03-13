@@ -112,4 +112,72 @@ void remove_directory(const std::string& dir_path) {
   }
 }
 
+void read_file(const std::string& filename, void* buffer, size_t size,
+               size_t num) {
+  FILE* fin = fopen(filename.c_str(), "rb");
+  if (fin == nullptr) {
+    std::stringstream ss;
+    ss << "Failed to open file " << filename << ", " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  size_t ret_len = 0;
+  if ((ret_len = fread(buffer, size, num, fin)) != num) {
+    std::stringstream ss;
+    ss << "Failed to read file " << filename << ", expected " << num << ", got "
+       << ret_len << ", " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  int ret = 0;
+  if ((ret = fclose(fin)) != 0) {
+    std::stringstream ss;
+    ss << "Failed to close file " << filename << ", error code: " << ret << " "
+       << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+}
+
+void write_file(const std::string& filename, const void* buffer, size_t size,
+                size_t num) {
+  FILE* fout = fopen(filename.c_str(), "wb");
+  if (fout == nullptr) {
+    std::stringstream ss;
+    ss << "Failed to open file " << filename << ", " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  size_t ret_len = 0;
+  if ((ret_len = fwrite(buffer, size, num, fout)) != num) {
+    std::stringstream ss;
+    ss << "Failed to write file " << filename << ", expected " << num
+       << ", got " << ret_len << ", " << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+  int ret = 0;
+  if ((ret = fclose(fout)) != 0) {
+    std::stringstream ss;
+    ss << "Failed to close file " << filename << ", error code: " << ret << " "
+       << strerror(errno);
+    LOG(ERROR) << ss.str();
+    THROW_RUNTIME_ERROR(ss.str());
+  }
+}
+
+void write_statistic_file(const std::string& filename, size_t capacity,
+                          size_t size) {
+  size_t buffer[2] = {capacity, size};
+  write_file(filename, buffer, sizeof(size_t), 2);
+}
+
+void read_statistic_file(const std::string& filename, size_t& capacity,
+                         size_t& size) {
+  size_t buffer[2];
+  read_file(filename, buffer, sizeof(size_t), 2);
+  capacity = buffer[0];
+  size = buffer[1];
+}
+
 }  // namespace neug

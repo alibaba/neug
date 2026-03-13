@@ -289,6 +289,7 @@ void NeugDB::initPlannerAndQueryProcessor() {
   }
   planner_->update_meta(schema().to_yaml().value());
   planner_->update_statistics(graph().get_statistics_json());
+  LOG(INFO) << "Finish initializing planner with schema and statistics";
 
   global_query_cache_ = std::make_shared<execution::GlobalQueryCache>(planner_);
 

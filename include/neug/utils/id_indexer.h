@@ -443,7 +443,6 @@ class LFIndexer {
     keys_->open(name + ".keys", "", data_dir);
     indices_.open(data_dir + "/" + name + ".indices", false);
     size_t num_elements = num_elements_.load();
-    keys_->resize(num_elements + (num_elements >> 2));
 
     indices_size_ = indices_.size();
   }
@@ -462,9 +461,6 @@ class LFIndexer {
     LOG(INFO) << "Open indices file in "
               << tmp_dir(work_dir) + "/" + name + ".indices";
     indices_.open(tmp_dir(work_dir) + "/" + name + ".indices", true);
-    size_t num_elements = num_elements_.load();
-
-    keys_->resize(num_elements + (num_elements >> 2));
 
     indices_size_ = indices_.size();
   }
@@ -478,8 +474,6 @@ class LFIndexer {
     keys_->open_in_memory(name + ".keys");
     indices_.open(name + ".indices", false);
     indices_size_ = indices_.size();
-    size_t num_elements = num_elements_.load();
-    keys_->resize(num_elements + (num_elements >> 2));
   }
 
   void open_with_hugepages(const std::string& name, bool hugepage_table) {
@@ -495,12 +489,9 @@ class LFIndexer {
       indices_.open(name + ".indices", false);
     }
     indices_size_ = indices_.size();
-    size_t num_elements = num_elements_.load();
-    keys_->resize(num_elements + (num_elements >> 2));
   }
 
   void dump(const std::string& name, const std::string& snapshot_dir) {
-    keys_->resize(num_elements_.load());
     keys_->dump(snapshot_dir + "/" + name + ".keys");
     indices_.dump(snapshot_dir + "/" + name + ".indices");
     dump_meta(snapshot_dir + "/" + name + ".meta");

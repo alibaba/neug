@@ -117,8 +117,8 @@ class EdgeTableTest : public ::testing::Test {
   void OpenEdgeTable() { edge_table->Open(WorkDirectory().string()); }
 
   void OpenEdgeTableInMemory(size_t src_v_cap, size_t dst_v_cap) {
-    edge_table->OpenInMemory(SnapshotDirectory().string(), src_v_cap,
-                             dst_v_cap);
+    edge_table->OpenInMemory(SnapshotDirectory().string());
+    edge_table->EnsureCapacity(src_v_cap, dst_v_cap);
   }
 
   void BatchInsert(std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches) {
@@ -739,7 +739,8 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
         this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
-  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
   std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
@@ -885,7 +886,8 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
         this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
-  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
   std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
     edge_data.push_back({neug::Property::from_string_view("edge_data"),
@@ -895,6 +897,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
   neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
 
   size_t edge_count = 0;
+  this->edge_table->EnsureCapacity(edge_data.size());
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -966,7 +969,8 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
         this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
-  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
   std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
@@ -1036,13 +1040,15 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
         this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
     dst_lids.push_back(dst_lid);
   }
-  this->edge_table->Resize(this->src_indexer.size(), this->dst_indexer.size());
+  this->edge_table->EnsureCapacity(this->src_indexer.size(),
+                                   this->dst_indexer.size());
   std::vector<std::vector<neug::Property>> edge_data;
   for (size_t i = 0; i < src_lids.size(); ++i) {
     edge_data.push_back({neug::Property::from_string_view("old_data"),
                          neug::Property::from_int32(static_cast<int>(0))});
   }
 
+  this->edge_table->EnsureCapacity(edge_data.size());
   neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
