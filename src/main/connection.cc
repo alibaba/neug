@@ -44,7 +44,7 @@ void Connection::Close() {
 result<QueryResult> Connection::Query(const std::string& query_string,
                                       const std::string& access_mode,
                                       const execution::ParamsMap& parameters) {
-  LOG(INFO) << "Query: " << query_string;
+  VLOG(1) << "Query: " << query_string;
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     RETURN_ERROR(
@@ -56,7 +56,7 @@ result<QueryResult> Connection::Query(const std::string& query_string,
 result<QueryResult> Connection::Query(const std::string& query_string,
                                       const std::string& access_mode,
                                       const rapidjson::Value& parameters_json) {
-  LOG(INFO) << "Query: " << query_string;
+  VLOG(1) << "Query: " << query_string;
   if (IsClosed()) {
     LOG(ERROR) << "Connection is closed, cannot execute query.";
     RETURN_ERROR(
