@@ -705,11 +705,6 @@ void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
   }
 }
 
-void EdgeTable::Resize(vid_t src_vertex_num, vid_t dst_vertex_num) {
-  out_csr_->resize(src_vertex_num);
-  in_csr_->resize(dst_vertex_num);
-}
-
 void EdgeTable::EnsureCapacity(size_t capacity) {
   if (!meta_->is_bundled()) {
     if (capacity <= capacity_.load()) {
@@ -956,6 +951,34 @@ void EdgeTable::Compact(bool compact_csr, bool sort_on_compaction,
   }
   out_csr_->reset_timestamp();
   in_csr_->reset_timestamp();
+}
+
+size_t EdgeTable::Size() const {
+  if (meta_->is_bundled()) {
+    if (out_csr_) {
+      return out_csr_->edge_num();
+    } else if (in_csr_) {
+      return in_csr_->edge_num();
+    } else {
+      THROW_RUNTIME_ERROR("both csr are null");
+    }
+  }
+  // TODO(zhanglei): the size may be inaccurate if some edges are deleted but
+  // not compacted yet.
+  return table_idx_.load();
+}
+
+size_t EdgeTable::Capacity() const {
+  if (meta_->is_bundled()) {
+    if (out_csr_) {
+      return out_csr_->capacity();
+    } else if (in_csr_) {
+      return in_csr_->capacity();
+    } else {
+      THROW_RUNTIME_ERROR("both csr are null");
+    }
+  }
+  return capacity_.load();
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR() {

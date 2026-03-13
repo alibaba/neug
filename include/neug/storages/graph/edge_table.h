@@ -68,12 +68,10 @@ class EdgeTable {
   void BatchDeleteEdges(const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
                         const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
 
-  void Resize(vid_t src_vertex_num, vid_t dst_vertex_num);
-
   void EnsureCapacity(size_t capacity);
 
   void EnsureCapacity(vid_t src_vertex_num, vid_t dst_vertex_num,
-                      size_t capacity);
+                      size_t capacity = 0);
 
   size_t EdgeNum() const;
 
@@ -131,33 +129,9 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
-  inline size_t Size() const {
-    if (meta_->is_bundled()) {
-      if (out_csr_) {
-        return out_csr_->edge_num();
-      } else if (in_csr_) {
-        return in_csr_->edge_num();
-      } else {
-        THROW_RUNTIME_ERROR("both csr are null");
-      }
-    }
-    // TODO(zhanglei): the size may be inaccurate if some edges are deleted but
-    // not compacted yet.
-    return table_idx_.load();
-  }
+  size_t Size() const;
 
-  inline size_t Capacity() const {
-    if (meta_->is_bundled()) {
-      if (out_csr_) {
-        return out_csr_->capacity();
-      } else if (in_csr_) {
-        return in_csr_->capacity();
-      } else {
-        THROW_RUNTIME_ERROR("both csr are null");
-      }
-    }
-    return capacity_.load();
-  }
+  size_t Capacity() const;
 
  private:
   void dropAndCreateNewBundledCSR();

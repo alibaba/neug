@@ -71,14 +71,14 @@ Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
       for (label_t e_label = 0; e_label < edge_label_total_count_; ++e_label) {
         size_t index = schema_.generate_edge_label(v_label, dst_label, e_label);
         if (edge_tables_.count(index) > 0) {
-          edge_tables_.at(index).Resize(v_new_cap,
-                                        vertex_tables_[dst_label].Capacity());
+          edge_tables_.at(index).EnsureCapacity(
+              v_new_cap, vertex_tables_[dst_label].Capacity());
         }
         if (v_label != dst_label) {
           index = schema_.generate_edge_label(dst_label, v_label, e_label);
           if (edge_tables_.count(index) > 0) {
-            edge_tables_.at(index).Resize(vertex_tables_[dst_label].Capacity(),
-                                          v_new_cap);
+            edge_tables_.at(index).EnsureCapacity(
+                vertex_tables_[dst_label].Capacity(), v_new_cap);
           }
         }
       }
@@ -108,6 +108,28 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
     return neug::Status::OK();
   }
   edge_tables_.at(index).EnsureCapacity(capacity);
+  return neug::Status::OK();
+}
+
+Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
+                                     label_t edge_label, size_t src_v_cap,
+                                     size_t dst_v_cap, size_t capacity) {
+  if (!schema_.exist(src_label, dst_label, edge_label)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge label does not exist for the given source and "
+                  "destination vertex labels.");
+  }
+  size_t index = schema_.generate_edge_label(src_label, dst_label, edge_label);
+  if (edge_tables_.count(index) == 0) {
+    return Status(
+        StatusCode::ERR_INVALID_ARGUMENT,
+        "Edge table for the given edge label triplet does not exist.");
+  }
+  size_t old_cap = edge_tables_.at(index).Capacity();
+  if (capacity <= old_cap) {
+    return neug::Status::OK();
+  }
+  edge_tables_.at(index).EnsureCapacity(src_v_cap, dst_v_cap, capacity);
   return neug::Status::OK();
 }
 
@@ -1053,11 +1075,11 @@ void PropertyGraph::Dump(bool reopen) {
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (edge_tables_.count(index) > 0) {
           auto& edge_table = edge_tables_.at(index);
-          edge_table.Resize(vertex_capacity[src_label_i],
-                            vertex_capacity[dst_label_i]);
           auto e_size = edge_table.Size();
+          auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
-                         e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5);
+                         vertex_capacity[src_label_i],
+                         vertex_capacity[dst_label_i], new_cap);
           edge_table.Dump(target_dir);
         }
       }
