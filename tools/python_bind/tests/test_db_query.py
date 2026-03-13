@@ -1706,8 +1706,8 @@ def test_starts_with():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name starts with 'mar' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
 
@@ -1718,8 +1718,8 @@ def test_ends_with():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name ends with 'rko' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
 
@@ -1730,10 +1730,60 @@ def test_contains():
     conn = db.connect()
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
     result = conn.execute("Match (n) Where n.name contains 'ark' Return n.name")
-    for record in result:
-        assert record[0] == "marko", f"Expected value 'marko', got {record[0]}"
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    assert result[0][0] == "marko", f"Expected value 'marko', got {result[0][0]}"
     conn.close()
     db.close()
+
+
+def test_ends_with_and_contains_with_slash_in_string(tmp_path):
+    """Test that ends with and contains work correctly with strings containing '/'."""
+    db_dir = str(tmp_path / "ends_with_contains_slash_db")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE path_node(path STRING, PRIMARY KEY(path));")
+    conn.execute("CREATE (n:path_node {path: 'path/to/file'});")
+    conn.execute("CREATE (n:path_node {path: 'a/b/c'});")
+    conn.execute("CREATE (n:path_node {path: 'no_slash_here'});")
+    conn.execute("CREATE (n:path_node {path: 'trailing/'});")
+
+    # Test ends with: should match only 'path/to/file'
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path ends with '/file' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1, f"Expected 1 row for ends with '/file', got {len(rows)}"
+    assert rows[0][0] == "path/to/file", f"Expected 'path/to/file', got {rows[0][0]}"
+
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path ends with '/' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1, f"Expected 1 row for ends with '/', got {len(rows)}"
+    assert rows[0][0] == "trailing/", f"Expected 'trailing/', got {rows[0][0]}"
+
+    # Test contains: should match all paths that have '/' in them
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path contains '/' RETURN n.path ORDER BY n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 3, f"Expected 3 rows for contains '/', got {len(rows)}: {rows}"
+    assert rows[0][0] == "a/b/c"
+    assert rows[1][0] == "path/to/file"
+    assert rows[2][0] == "trailing/"
+
+    # contains '/to/' should match only 'path/to/file'
+    result = conn.execute(
+        "MATCH (n:path_node) WHERE n.path contains '/to/' RETURN n.path"
+    )
+    rows = list(result)
+    assert len(rows) == 1 and rows[0][0] == "path/to/file"
+
+    conn.close()
+    db.close()
+    shutil.rmtree(db_dir, ignore_errors=True)
 
 
 def test_date_time_to_string():
