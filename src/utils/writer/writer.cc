@@ -244,7 +244,6 @@ arrow::Status CSVStringFormatBuffer::formatValueToStr(const neug::Array& arr,
 void CSVStringFormatBuffer::writeWithEscapes(char* toEscape, char escape,
                                              const std::string& val) {
   uint64_t i = 0;
-  std::string escapedStr = "";
   auto found = val.find_first_of(toEscape, 0, 2);
 
   while (found != std::string::npos) {
