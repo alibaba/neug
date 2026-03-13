@@ -550,8 +550,9 @@ void load_statistic_file(const std::string& work_dir,
 
 void EdgeTable::Open(const std::string& work_dir) {
   work_dir_ = work_dir;
-  memory_level_ = 0;
+  memory_level_ = MemoryLevel::kSyncToFile;
   auto checkpoint_dir_path = checkpoint_dir(work_dir);
+  ensure_directory_exists(checkpoint_dir_path);
   in_csr_->open(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
                           meta_->edge_label_name),
                 checkpoint_dir_path, work_dir);
@@ -577,8 +578,9 @@ void EdgeTable::Open(const std::string& work_dir) {
 
 void EdgeTable::OpenInMemory(const std::string& work_dir) {
   work_dir_ = work_dir;
-  memory_level_ = 1;
+  memory_level_ = MemoryLevel::kInMemory;
   auto checkpoint_dir_path = checkpoint_dir(work_dir);
+  ensure_directory_exists(checkpoint_dir_path);
   in_csr_->open_in_memory(checkpoint_dir_path + "/" +
                           ie_prefix(meta_->src_label_name,
                                     meta_->dst_label_name,
@@ -606,7 +608,7 @@ void EdgeTable::OpenInMemory(const std::string& work_dir) {
 
 void EdgeTable::OpenWithHugepages(const std::string& work_dir) {
   work_dir_ = work_dir;
-  memory_level_ = 2;  // 2 or 3?
+  memory_level_ = MemoryLevel::kHugePagePrefered;
   auto checkpoint_dir_path = checkpoint_dir(work_dir);
   in_csr_->open_with_hugepages(checkpoint_dir_path + "/" +
                                ie_prefix(meta_->src_label_name,
@@ -621,7 +623,7 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir) {
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                      meta_->edge_label_name),
         checkpoint_dir_path, meta_->property_names, meta_->properties,
-        meta_->strategies, (memory_level_ > 2));
+        meta_->strategies);
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
     load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
@@ -820,7 +822,7 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
 void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
                               const std::vector<DataType>& prop_types,
                               const std::vector<Property>& default_values,
-                              const std::vector<StorageStrategy>& strategies) {
+                              const std::vector<MemoryLevel>& strategies) {
   if (prop_names.empty()) {
     return;
   }
@@ -1074,7 +1076,8 @@ void EdgeTable::dropAndCreateNewBundledCSR(
         std::get<1>(edges), std::get<0>(edges), property_type,
         meta_->default_property_values[0], new_in_csr.get());
   } else {
-    auto row_id_col = std::make_shared<ULongColumn>(StorageStrategy::kMem);
+    auto row_id_col = std::make_shared<ULongColumn>(MemoryLevel::kInMemory);
+    row_id_col->open_in_memory("");
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());

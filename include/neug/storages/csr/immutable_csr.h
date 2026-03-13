@@ -20,10 +20,10 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/column/i_container.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -45,19 +45,29 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
     return GenericView(
-        reinterpret_cast<const char*>(adj_lists_.data()), degree_list_.data(),
-        cfg, std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
+        reinterpret_cast<const char*>(adj_lists()), degree_list(), cfg,
+        std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
 
-  size_t size() const override { return degree_list_.size(); }
+  size_t size() const override {
+    return degree_list_buffer_
+               ? degree_list_buffer_->GetDataSize() / sizeof(int)
+               : 0;
+  }
 
   size_t edge_num() const override {
     size_t ret = 0;
-    for (size_t i = 0; i < adj_lists_.size(); ++i) {
-      auto deg = degree_list_[i];
-      auto begin = adj_lists_[i];
+    if (!degree_list_buffer_ || !adj_list_buffer_) {
+      return 0;
+    }
+    const nbr_t** adj_lists_ptr = this->adj_lists();
+    auto degree_list_ptr = this->degree_list();
+    auto v_cap = degree_list_buffer_->GetDataSize() / sizeof(int);
+    for (size_t i = 0; i < v_cap; ++i) {
+      auto deg = degree_list_ptr[i];
+      const nbr_t* begin = adj_lists_ptr[i];
       for (size_t j = 0; j < deg; ++j) {
         if (begin[j].neighbor != std::numeric_limits<vid_t>::max()) {
           ret++;
@@ -119,10 +129,37 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   void dump_meta(const std::string& prefix) const;
 
-  mmap_array<nbr_t*> adj_lists_;
-  mmap_array<int> degree_list_;
-  mmap_array<nbr_t> nbr_list_;
+  std::unique_ptr<IDataContainer> adj_list_buffer_;
+  std::unique_ptr<IDataContainer> degree_list_buffer_;
+  std::unique_ptr<IDataContainer> nbr_list_buffer_;
   timestamp_t unsorted_since_;
+
+  nbr_t** adj_lists() {
+    assert(adj_list_buffer_);
+    return reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  }
+
+  const nbr_t** adj_lists() const {
+    assert(adj_list_buffer_);
+    return reinterpret_cast<const nbr_t**>(adj_list_buffer_->GetData());
+  }
+
+  int* degree_list() {
+    assert(degree_list_buffer_);
+    return reinterpret_cast<int*>(degree_list_buffer_->GetData());
+  }
+  const int* degree_list() const {
+    assert(degree_list_buffer_);
+    return reinterpret_cast<const int*>(degree_list_buffer_->GetData());
+  }
+  nbr_t* nbr_list() {
+    assert(nbr_list_buffer_);
+    return reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
+  }
+  const nbr_t* nbr_list() const {
+    assert(nbr_list_buffer_);
+    return reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
+  }
 };
 
 template <typename EDATA_T>
@@ -141,7 +178,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_list_.data()), cfg,
+    return GenericView(reinterpret_cast<const char*>(nbr_list()), cfg,
                        std::numeric_limits<timestamp_t>::max() - 1,
                        std::numeric_limits<timestamp_t>::max());
   }
@@ -150,12 +187,20 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     return std::numeric_limits<timestamp_t>::max();
   }
 
-  size_t size() const override { return nbr_list_.size(); }
+  size_t size() const override {
+    return nbr_list_buffer_ ? nbr_list_buffer_->GetDataSize() / sizeof(nbr_t)
+                            : 0;
+  }
 
   size_t edge_num() const override {
     size_t ret = 0;
-    for (size_t i = 0; i < nbr_list_.size(); ++i) {
-      if (nbr_list_[i].neighbor != std::numeric_limits<vid_t>::max()) {
+    if (!nbr_list_buffer_) {
+      return 0;
+    }
+    auto nbr_list_ptr = nbr_list();
+    auto v_cap = nbr_list_buffer_->GetDataSize() / sizeof(nbr_t);
+    for (size_t i = 0; i < v_cap; ++i) {
+      if (nbr_list_ptr[i].neighbor != std::numeric_limits<vid_t>::max()) {
         ++ret;
       }
     }
@@ -210,7 +255,16 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  mmap_array<nbr_t> nbr_list_;
+  std::unique_ptr<IDataContainer> nbr_list_buffer_;
+
+  nbr_t* nbr_list() {
+    assert(nbr_list_buffer_);
+    return reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
+  }
+  const nbr_t* nbr_list() const {
+    assert(nbr_list_buffer_);
+    return reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
+  }
 };
 
 }  // namespace neug

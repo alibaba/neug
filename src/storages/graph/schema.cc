@@ -70,10 +70,10 @@ void VertexSchema::clear() {
   vprop_soft_deleted.clear();
 }
 
-void VertexSchema::add_properties(
-    const std::vector<std::string>& names, const std::vector<DataType>& types,
-    const std::vector<StorageStrategy>& strategies,
-    const std::vector<Property>& default_values) {
+void VertexSchema::add_properties(const std::vector<std::string>& names,
+                                  const std::vector<DataType>& types,
+                                  const std::vector<MemoryLevel>& strategies,
+                                  const std::vector<Property>& default_values) {
   for (size_t i = 0; i < names.size(); i++) {
     property_names.emplace_back(names[i]);
     property_types.emplace_back(types[i]);
@@ -88,13 +88,12 @@ void VertexSchema::add_properties(
   process_default_values(default_property_values, default_property_strings);
 }
 
-void VertexSchema::set_properties(
-    const std::vector<DataType>& types,
-    const std::vector<StorageStrategy>& strategies,
-    const std::vector<Property>& default_values) {
+void VertexSchema::set_properties(const std::vector<DataType>& types,
+                                  const std::vector<MemoryLevel>& strategies,
+                                  const std::vector<Property>& default_values) {
   property_types = types;
   storage_strategies = strategies;
-  storage_strategies.resize(types.size(), StorageStrategy::kMem);
+  storage_strategies.resize(types.size(), MemoryLevel::kInMemory);
   default_property_values = default_values;
   process_default_values(default_property_values, default_property_strings);
   vprop_soft_deleted.resize(property_types.size(), false);
@@ -264,10 +263,10 @@ bool EdgeSchema::has_property(const std::string& prop) const {
   return false;
 }
 
-void EdgeSchema::add_properties(
-    const std::vector<std::string>& names, const std::vector<DataType>& types,
-    const std::vector<StorageStrategy>& new_strategies,
-    const std::vector<Property>& default_values) {
+void EdgeSchema::add_properties(const std::vector<std::string>& names,
+                                const std::vector<DataType>& types,
+                                const std::vector<MemoryLevel>& new_strategies,
+                                const std::vector<Property>& default_values) {
   for (size_t i = 0; i < names.size(); i++) {
     if (std::find(property_names.begin(), property_names.end(), names[i]) !=
         property_names.end()) {
@@ -278,7 +277,7 @@ void EdgeSchema::add_properties(
     property_names.emplace_back(names[i]);
     properties.emplace_back(types[i]);
     strategies.emplace_back(new_strategies.size() > i ? new_strategies[i]
-                                                      : StorageStrategy::kMem);
+                                                      : MemoryLevel::kInMemory);
     if (default_values.size() > i)
       default_property_values.emplace_back(default_values[i]);
     else {
@@ -407,7 +406,7 @@ void Schema::AddVertexLabel(
     const std::string& label, const std::vector<DataType>& property_types,
     const std::vector<std::string>& property_names,
     const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
-    const std::vector<StorageStrategy>& strategies, size_t max_vnum,
+    const std::vector<MemoryLevel>& strategies, size_t max_vnum,
     const std::string& description,
     const std::vector<Property>& default_property_values) {
   label_t v_label_id = vertex_label_to_index(label);
@@ -426,7 +425,7 @@ void Schema::AddEdgeLabel(
     const std::string& src_label, const std::string& dst_label,
     const std::string& edge_label, const std::vector<DataType>& properties,
     const std::vector<std::string>& prop_names,
-    const std::vector<StorageStrategy>& strategies, EdgeStrategy oe,
+    const std::vector<MemoryLevel>& strategies, EdgeStrategy oe,
     EdgeStrategy ie, bool oe_mutable, bool ie_mutable, bool sort_on_compaction,
     const std::string& description,
     const std::vector<Property>& default_property_values) {
@@ -533,7 +532,7 @@ std::vector<label_t> Schema::get_edge_label_ids() const {
 
 void Schema::set_vertex_properties(
     label_t label_id, const std::vector<DataType>& types,
-    const std::vector<StorageStrategy>& strategies,
+    const std::vector<MemoryLevel>& strategies,
     const std::vector<Property>& default_property_values) {
   ensure_vertex_label_valid(label_id);
   v_schemas_[label_id]->set_properties(types, strategies,
@@ -598,7 +597,7 @@ const std::string& Schema::get_vertex_description(label_t label) const {
   return v_schemas_[label]->description;
 }
 
-std::vector<StorageStrategy> Schema::get_vertex_storage_strategies(
+std::vector<MemoryLevel> Schema::get_vertex_storage_strategies(
     const std::string& label) const {
   label_t index = get_vertex_label_id(label);
   ensure_vertex_label_valid(index);
@@ -1043,15 +1042,25 @@ void RelationToEdgeStrategy(const std::string& rel_str,
   }
 }
 
-StorageStrategy StringToStorageStrategy(const std::string& str) {
-  if (str == "None") {
-    return StorageStrategy::kNone;
-  } else if (str == "Mem") {
-    return StorageStrategy::kMem;
-  } else if (str == "Disk") {
-    return StorageStrategy::kDisk;
+MemoryLevel StringToMemoryLevel(const std::string& str) {
+  auto trimmed_str = str;
+  // to lower case
+  std::transform(trimmed_str.begin(), trimmed_str.end(), trimmed_str.begin(),
+                 ::tolower);
+  if (trimmed_str == "in_memory" || trimmed_str == "inmemory" ||
+      trimmed_str == "memory") {
+    return MemoryLevel::kInMemory;
+  } else if (trimmed_str == "sync_to_file" || trimmed_str == "synctofile" ||
+             trimmed_str == "file") {
+    return MemoryLevel::kSyncToFile;
+  } else if (trimmed_str == "huge_page" || trimmed_str == "hugepage" ||
+             trimmed_str == "huge_page_prefered" ||
+             trimmed_str == "hugepage_prefered") {
+    return MemoryLevel::kHugePagePrefered;
   } else {
-    return StorageStrategy::kMem;
+    LOG(WARNING) << "storage strategy " << str
+                 << " is not valid, using default value: kInMemory";
+    return MemoryLevel::kInMemory;
   }
 }
 
@@ -1065,10 +1074,11 @@ static bool parse_property_type(YAML::Node node, DataType& type) {
   }
 }
 
-static Status parse_vertex_properties(
-    YAML::Node node, const std::string& label_name,
-    std::vector<DataType>& types, std::vector<std::string>& names,
-    std::vector<StorageStrategy>& strategies) {
+static Status parse_vertex_properties(YAML::Node node,
+                                      const std::string& label_name,
+                                      std::vector<DataType>& types,
+                                      std::vector<std::string>& names,
+                                      std::vector<MemoryLevel>& strategies) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no vertex properties specified for vertex: "
              << label_name;
@@ -1118,7 +1128,7 @@ static Status parse_vertex_properties(
       }
     }
     types.push_back(prop_type);
-    strategies.push_back(StringToStorageStrategy(strategy_str));
+    strategies.push_back(StringToMemoryLevel(strategy_str));
     VLOG(10) << "prop-" << i - 1 << " name: " << prop_name_str
              << " type: " << prop_type.ToString()
              << " strategy: " << strategy_str;
@@ -1132,7 +1142,7 @@ static Status parse_edge_properties(YAML::Node node,
                                     const std::string& label_name,
                                     std::vector<DataType>& types,
                                     std::vector<std::string>& names,
-                                    std::vector<StorageStrategy>& strategies) {
+                                    std::vector<MemoryLevel>& strategies) {
   if (!node || node.IsNull()) {
     VLOG(10) << "Found no edge properties specified for edge: " << label_name;
     return Status::OK();
@@ -1181,7 +1191,7 @@ static Status parse_edge_properties(YAML::Node node,
 
     types.push_back(prop_type);
     names.push_back(prop_name_str);
-    strategies.push_back(StringToStorageStrategy(strategy_str));
+    strategies.push_back(StringToMemoryLevel(strategy_str));
   }
 
   return Status::OK();
@@ -1207,7 +1217,7 @@ static Status parse_vertex_schema(YAML::Node node, Schema& schema) {
   }
   std::vector<DataType> property_types;
   std::vector<std::string> property_names;
-  std::vector<StorageStrategy> strategies;
+  std::vector<MemoryLevel> strategies;
   std::string description;  // default is empty string
 
   if (node["description"]) {
@@ -1323,7 +1333,7 @@ static Status parse_edge_schema(YAML::Node node, Schema& schema) {
 
   std::vector<DataType> property_types;
   std::vector<std::string> prop_names;
-  std::vector<StorageStrategy> strategies;
+  std::vector<MemoryLevel> strategies;
   std::string description;  // default is empty string
   RETURN_IF_NOT_OK(parse_edge_properties(node["properties"], edge_label_name,
                                          property_types, prop_names,
@@ -1826,7 +1836,7 @@ neug::result<YAML::Node> Schema::DumpToYaml(const Schema& schema) {
 void Schema::AddVertexProperties(
     const std::string& label, const std::vector<std::string>& properties_names,
     const std::vector<DataType>& properties_types,
-    const std::vector<StorageStrategy>& storage_strategies,
+    const std::vector<MemoryLevel>& storage_strategies,
     const std::vector<Property>& properties_default_values) {
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());

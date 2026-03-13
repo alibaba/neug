@@ -150,17 +150,9 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  // check whether parallelism, build_csr_in_mem, use_mmap_vector are overridden
+  // check whether parallelism, are overridden
   if (vm.count("parallelism")) {
     loading_config_res.value().SetParallelism(vm["parallelism"].as<uint32_t>());
-  }
-  if (vm.count("build-csr-in-mem")) {
-    loading_config_res.value().SetBuildCsrInMem(
-        vm["build-csr-in-mem"].as<bool>());
-  }
-  if (vm.count("use-mmap-vector")) {
-    loading_config_res.value().SetUseMmapVector(
-        vm["use-mmap-vector"].as<bool>());
   }
 
   std::filesystem::path data_dir_path(data_path);

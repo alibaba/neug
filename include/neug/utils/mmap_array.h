@@ -70,15 +70,6 @@ inline size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
 namespace neug {
 
 template <typename T>
-class TypedColumn;
-
-enum class MemoryStrategy {
-  kSyncToFile,
-  kMemoryOnly,
-  kHugepagePrefered,
-};
-
-template <typename T>
 class mmap_array {
  public:
   mmap_array()
@@ -456,7 +447,7 @@ class mmap_array {
     }
     std::string filename = std::filesystem::path(filename_).filename().string();
     std::string target_path = tmp_dir(work_dir) + "/" + filename;
-    copy_file(filename_, target_path);
+    file_utils::copy_file(filename_, target_path, true);
     reset();
     open(target_path, true, true);
   }

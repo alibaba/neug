@@ -87,12 +87,6 @@ static constexpr const char* DT_TIMESTAMP =
     "DT_TIMESTAMP";  // millisecond timestamp
 static constexpr const uint16_t STRING_DEFAULT_MAX_LENGTH = 256;
 
-enum class StorageStrategy {
-  kNone,
-  kMem,
-  kDisk,
-};
-
 enum class EdgeStrategy {
   kNone,
   kSingle,
@@ -452,6 +446,7 @@ static const DateTime DEFAULT_DATE_TIME_VALUE = DateTime(0);
 namespace std {
 
 std::string to_string(neug::DataTypeId type);
+std::string to_string(neug::MemoryLevel level);
 
 inline ostream& operator<<(ostream& os, const neug::EdgeStrategy& strategy) {
   switch (strategy) {

@@ -17,9 +17,9 @@
 #include "neug/config.h"
 #include "neug/execution/execute/query_cache.h"
 #include "neug/server/neug_db_session.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/allocators.h"
 
 #include "bthread/bthread.h"
 

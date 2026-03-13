@@ -18,6 +18,7 @@ limitations under the License.
 #include <atomic>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -31,9 +32,13 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
+#include "neug/storages/column/anon_mmap_container.h"
+#include "neug/storages/column/file_header.h"
+#include "neug/storages/column/file_mmap_container.h"
+#include "neug/storages/column/i_container.h"
 #include "neug/utils/bitset.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
@@ -204,7 +209,8 @@ class LFIndexer {
 
  public:
   LFIndexer()
-      : indices_(),
+      : indices_(nullptr),
+        indices_ptr_(nullptr),
         indices_size_(0),
         num_elements_(0),
         num_slots_minus_one_(0),
@@ -212,6 +218,7 @@ class LFIndexer {
         hasher_() {}
   LFIndexer(LFIndexer&& rhs)
       : indices_(std::move(rhs.indices_)),
+        indices_ptr_(rhs.indices_ptr_),
         indices_size_(rhs.indices_size_),
         num_elements_(rhs.num_elements_.load()),
         num_slots_minus_one_(rhs.num_slots_minus_one_),
@@ -229,6 +236,7 @@ class LFIndexer {
 
   void swap(LFIndexer& other) {
     indices_.swap(other.indices_);
+    std::swap(indices_ptr_, other.indices_ptr_);
     std::swap(indices_size_, other.indices_size_);
     size_t temp_num = num_elements_.load();
     num_elements_.store(other.num_elements_.load());
@@ -243,10 +251,10 @@ class LFIndexer {
             std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
     switch (type) {
-#define TYPE_DISPATCHER(enum_val, T)                                 \
-  case DataTypeId::enum_val: {                                       \
-    keys_ = std::make_shared<TypedColumn<T>>(StorageStrategy::kMem); \
-    break;                                                           \
+#define TYPE_DISPATCHER(enum_val, T)                                  \
+  case DataTypeId::enum_val: {                                        \
+    keys_ = std::make_shared<TypedColumn<T>>(MemoryLevel::kInMemory); \
+    break;                                                            \
   }
       TYPE_DISPATCHER(kInt64, int64_t)
       TYPE_DISPATCHER(kInt32, int32_t)
@@ -262,7 +270,8 @@ class LFIndexer {
           max_length = str_type_info->max_length;
         }
       }
-      keys_ = std::make_shared<StringColumn>(StorageStrategy::kMem, max_length);
+      keys_ =
+          std::make_shared<StringColumn>(MemoryLevel::kInMemory, max_length);
       break;
     }
     default: {
@@ -278,18 +287,24 @@ class LFIndexer {
                              const std::string& snapshot_dir,
                              const std::string& work_dir) {
     keys_->open(filename + ".keys", "", work_dir);
-    indices_.open(work_dir + "/" + filename + ".indices", true);
+    auto tmp_indices = std::make_unique<FileSharedMMap>();
+    auto full_path = work_dir + "/" + filename + ".indices";
+    ensure_directory_exists(
+        std::filesystem::path(full_path).parent_path().string());
+    file_utils::create_file(full_path, sizeof(FileHeader));
+    tmp_indices->Open(full_path);
 
     num_elements_.store(0);
     indices_size_ = 0;
     dump_meta(work_dir + "/" + filename + ".meta");
-    indices_.reset();
+    tmp_indices->Close();
     keys_->close();
   }
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
 
   void rehash(size_t size) {
+    LOG(INFO) << "Rehashing LFIndexer to size " << size;
     size = std::max(size, 4ul);
     keys_->resize(size);
     size =
@@ -308,10 +323,12 @@ class LFIndexer {
     }
     auto new_prime_index = hash_policy_.next_size_over(size);
     hash_policy_.commit(new_prime_index);
-    indices_.resize(size);
-    indices_size_ = size;
-    for (size_t k = 0; k != size; ++k) {
-      indices_[k] = LFIndexer<INDEX_T>::sentinel;
+    indices_->Resize(size * sizeof(INDEX_T));
+    indices_ptr_ = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
+    CHECK(indices_size_ * sizeof(INDEX_T) == indices_->GetDataSize());
+    for (size_t k = 0; k != indices_size_; ++k) {
+      indices_ptr_[k] = LFIndexer<INDEX_T>::sentinel;
     }
     num_slots_minus_one_ = size - 1;
     for (INDEX_T idx = 0; idx < num_elements; ++idx) {
@@ -320,8 +337,8 @@ class LFIndexer {
         size_t index =
             hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
         while (true) {
-          if (indices_[index] == LFIndexer<INDEX_T>::sentinel) {
-            indices_[index] = idx;
+          if (indices_ptr_[index] == LFIndexer<INDEX_T>::sentinel) {
+            indices_ptr_[index] = idx;
             break;
           }
           index = (index + 1) % (num_slots_minus_one_ + 1);
@@ -356,7 +373,7 @@ class LFIndexer {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
-      if (__sync_bool_compare_and_swap(&indices_.data()[index],
+      if (__sync_bool_compare_and_swap(&indices_ptr_[index],
                                        LFIndexer<INDEX_T>::sentinel, ind)) {
         break;
       }
@@ -370,7 +387,7 @@ class LFIndexer {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
-      INDEX_T ind = indices_.get(index);
+      INDEX_T ind = indices_ptr_[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
         VLOG(10) << "cannot find " << oid.to_string() << " in lf_indexer";
         return ind;
@@ -383,7 +400,7 @@ class LFIndexer {
   }
 
   bool get_index(const Property& oid, INDEX_T& ret) const {
-    if (indices_.size() <= 0) {
+    if (indices_size_ <= 0) {
       return false;
     }
     if (oid.type() != get_type()) {
@@ -392,7 +409,7 @@ class LFIndexer {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
-      INDEX_T ind = indices_.get(index);
+      INDEX_T ind = indices_ptr_[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
         return false;
       } else if (keys_->get_prop(ind) == oid) {
@@ -410,7 +427,7 @@ class LFIndexer {
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
     while (true) {
-      INDEX_T ind = indices_.get(index);
+      INDEX_T ind = indices_ptr_[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
         return false;
       } else if (keys_->get_prop(ind) == oid) {
@@ -439,9 +456,20 @@ class LFIndexer {
 
     load_meta(data_dir + "/" + name + ".meta");
     keys_->open(name + ".keys", data_dir, "");
-    indices_.open(data_dir + "/" + name + ".indices", false);
-
-    indices_size_ = indices_.size();
+    auto indices_path = data_dir + "/" + name + ".indices";
+    auto tmp_indices_path = tmp_dir(data_dir) + "/" + name + ".indices";
+    if (std::filesystem::exists(tmp_indices_path)) {
+      std::filesystem::remove(tmp_indices_path);
+    }
+    std::filesystem::create_directories(tmp_dir(data_dir));
+    file_utils::copy_file(indices_path, tmp_indices_path, true);
+    indices_ = std::make_unique<FileSharedMMap>();
+    indices_->Open(tmp_indices_path);
+    indices_ptr_ = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
+    LOG(INFO) << "Open indices file in " << tmp_indices_path
+              << ", size: " << indices_size_
+              << ", num_elements: " << num_elements_.load();
   }
 
   void open(const std::string& name, const std::string& checkpoint_dir,
@@ -457,9 +485,16 @@ class LFIndexer {
     keys_->ensure_writable(work_dir);
     LOG(INFO) << "Open indices file in "
               << tmp_dir(work_dir) + "/" + name + ".indices";
-    indices_.open(tmp_dir(work_dir) + "/" + name + ".indices", true);
-
-    indices_size_ = indices_.size();
+    // indices_.open(tmp_dir(work_dir) + "/" + name + ".indices", true);
+    indices_ = std::make_unique<FileSharedMMap>();
+    auto indices_path = tmp_dir(work_dir) + "/" + name + ".indices";
+    indices_->Open(indices_path);
+    indices_ptr_ = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
+    LOG(INFO) << "Open indices file in "
+              << tmp_dir(work_dir) + "/" + name + ".indices"
+              << ", size: " << indices_size_
+              << ", num_elements: " << num_elements_.load();
   }
 
   void open_in_memory(const std::string& name) {
@@ -469,28 +504,48 @@ class LFIndexer {
       num_elements_.store(0);
     }
     keys_->open_in_memory(name + ".keys");
-    indices_.open(name + ".indices", false);
-    indices_size_ = indices_.size();
+    // indices_.open(name + ".indices", false);
+    indices_ = std::make_unique<FilePrivateMMap>();
+    auto file_name = name + ".indices";
+    if (!std::filesystem::exists(file_name)) {
+      file_utils::create_file(file_name, sizeof(FileHeader));
+    }
+    indices_->Open(file_name);
+    indices_ptr_ = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
+    LOG(INFO) << "Open indices file in " << name + ".indices"
+              << ", size: " << indices_size_
+              << ", num_elements: " << num_elements_.load();
   }
 
-  void open_with_hugepages(const std::string& name, bool hugepage_table) {
+  void open_with_hugepages(const std::string& name) {
     if (std::filesystem::exists(name + ".meta")) {
       load_meta(name + ".meta");
     } else {
       num_elements_.store(0);
     }
-    keys_->open_with_hugepages(name + ".keys", true);
-    if (hugepage_table) {
-      indices_.open_with_hugepages(name + ".indices");
-    } else {
-      indices_.open(name + ".indices", false);
+    keys_->open_with_hugepages(name + ".keys");
+    auto file_name = name + ".indices";
+    if (!std::filesystem::exists(file_name)) {
+      file_utils::create_file(file_name, sizeof(FileHeader));
     }
-    indices_size_ = indices_.size();
+    try {
+      indices_ = std::make_unique<AnonHugeMMap>();
+      indices_->Open(file_name);
+    } catch (const std::exception& e) {
+      LOG(WARNING)
+          << "Failed to open hugepage mapping for indices, fallback to "
+          << "regular file mapping. Error: " << e.what();
+      indices_ = std::make_unique<FilePrivateMMap>();
+      indices_->Open(file_name);
+    }
+    indices_ptr_ = reinterpret_cast<INDEX_T*>(indices_->GetData());
+    indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
   void dump(const std::string& name, const std::string& snapshot_dir) {
     keys_->dump(snapshot_dir + "/" + name + ".keys");
-    indices_.dump(snapshot_dir + "/" + name + ".indices");
+    indices_->Dump(snapshot_dir + "/" + name + ".indices");
     dump_meta(snapshot_dir + "/" + name + ".meta");
     close();
   }
@@ -498,6 +553,8 @@ class LFIndexer {
   void close() {
     keys_->close();
     indices_.reset();
+    indices_ptr_ = nullptr;
+    indices_size_ = 0;
   }
 
   void drop() {
@@ -540,14 +597,14 @@ class LFIndexer {
   const ColumnBase& get_keys() const { return *keys_; }
 
   void ensure_writable(const std::string& work_dir) {
-    indices_.ensure_writable(work_dir);
     keys_->ensure_writable(work_dir);
   }
 
  private:
-  mmap_array<INDEX_T>
-      indices_;  // size() == indices_size_ == num_slots_minus_one_ +
-                 // log(num_slots_minus_one_)
+  std::unique_ptr<IDataContainer> indices_;
+  // size() == indices_size_ == num_slots_minus_one_ +
+  // log(num_slots_minus_one_)
+  INDEX_T* indices_ptr_;
   size_t indices_size_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
@@ -1065,19 +1122,35 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
   _move_data<KEY_T, INDEX_T>()(input.keys_, *lf.keys_, size);
   lf.num_elements_.store(size);
 
-  lf.indices_.open(snapshot_dir + "/" + filename + ".indices", true);
-  lf.indices_.resize(input.num_slots_minus_one_ + 1);
+  // lf.indices_.open(snapshot_dir + "/" + filename + ".indices", true);
+  // lf.indices_.resize(input.num_slots_minus_one_ + 1);
+  lf.indices_ = std::make_unique<FileSharedMMap>();
+  auto indices_path = work_dir + "/" + filename + ".indices";
+  if (!std::filesystem::exists(indices_path)) {
+    file_utils::create_file(indices_path, sizeof(FileHeader));
+  }
+  lf.indices_->Open(work_dir + "/" + filename + ".indices");
+  lf.indices_->Resize((input.num_slots_minus_one_ + 1) * sizeof(INDEX_T));
+  lf.indices_ptr_ = reinterpret_cast<INDEX_T*>(lf.indices_->GetData());
+  lf.indices_size_ = lf.indices_->GetDataSize() / sizeof(INDEX_T);
 
-  lf.indices_size_ = input.indices_.size();
+  // lf.indices_size_ = input.indices_.size();
 
   lf.hash_policy_.set_mod_function_by_index(
       input.hash_policy_.get_mod_function_index());
   lf.num_slots_minus_one_ = input.num_slots_minus_one_;
-  memcpy(lf.indices_.data(), input.indices_.data(),
-         lf.indices_.size() * sizeof(INDEX_T));
+  // memcpy(lf.indices_.data(), input.indices_.data(),
+  //  lf.indices_.size() * sizeof(INDEX_T));
+  memcpy(lf.indices_ptr_, input.indices_.data(),
+         lf.indices_size_ * sizeof(INDEX_T));
 
   std::vector<INDEX_T> residuals;
-  for (size_t idx = lf.indices_.size(); idx < lf.indices_size_; ++idx) {
+  // for (size_t idx = lf.indices_.size(); idx < lf.indices_size_; ++idx) {
+  // if (input.indices_[idx] != LFIndexer<INDEX_T>::sentinel) {
+  // residuals.push_back(input.indices_[idx]);
+  // }
+  // }
+  for (INDEX_T idx = 0; idx < input.size(); ++idx) {
     if (input.indices_[idx] != LFIndexer<INDEX_T>::sentinel) {
       residuals.push_back(input.indices_[idx]);
     }
@@ -1087,10 +1160,16 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
     size_t index = input.hash_policy_.index_for_hash(
         input.hasher_(oid), input.num_slots_minus_one_);
     while (true) {
-      if (lf.indices_[index] == lid) {
+      // if (lf.indices_[index] == lid) {
+      //   break;
+      // } else if (lf.indices_[index] == LFIndexer<INDEX_T>::sentinel) {
+      //   lf.indices_[index] = lid;
+      //   break;
+      // }
+      if (lf.indices_ptr_[index] == lid) {
         break;
-      } else if (lf.indices_[index] == LFIndexer<INDEX_T>::sentinel) {
-        lf.indices_[index] = lid;
+      } else if (lf.indices_ptr_[index] == LFIndexer<INDEX_T>::sentinel) {
+        lf.indices_ptr_[index] = lid;
         break;
       }
       index = (index + 1) % (input.num_slots_minus_one_ + 1);

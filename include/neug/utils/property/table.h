@@ -35,23 +35,22 @@ class Table {
   void init(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataType>& types,
-            const std::vector<StorageStrategy>& strategies_);
+            const std::vector<MemoryLevel>& strategies_);
 
   void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types,
-            const std::vector<StorageStrategy>& strategies_);
+            const std::vector<MemoryLevel>& strategies_);
 
   void open_in_memory(const std::string& name, const std::string& work_dir,
                       const std::vector<std::string>& col_name,
                       const std::vector<DataType>& property_types,
-                      const std::vector<StorageStrategy>& strategies_);
+                      const std::vector<MemoryLevel>& strategies_);
 
   void open_with_hugepages(const std::string& name, const std::string& work_dir,
                            const std::vector<std::string>& col_name,
                            const std::vector<DataType>& property_types,
-                           const std::vector<StorageStrategy>& strategies_,
-                           bool force = false);
+                           const std::vector<MemoryLevel>& strategies_);
 
   void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
                    const std::string& work_dir);
@@ -64,8 +63,8 @@ class Table {
                    const std::vector<DataType>& col_types,
                    const std::vector<Property>& default_property_values,
                    size_t column_size,
-                   const std::vector<StorageStrategy>& strategies_ = {},
-                   int memory_level = 0);
+                   const std::vector<MemoryLevel>& strategies_ = {},
+                   MemoryLevel memory_level = MemoryLevel::kInMemory);
 
   const std::vector<std::string>& column_names() const;
 
@@ -132,7 +131,7 @@ class Table {
   void buildColumnPtrs();
   void initColumns(const std::vector<std::string>& col_name,
                    const std::vector<DataType>& types,
-                   const std::vector<StorageStrategy>& strategies_);
+                   const std::vector<MemoryLevel>& strategies_);
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;

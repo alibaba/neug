@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -105,7 +105,7 @@ class EdgeTable {
   void AddProperties(const std::vector<std::string>& names,
                      const std::vector<DataType>& types,
                      const std::vector<Property>& default_values = {},
-                     const std::vector<StorageStrategy>& strategies = {});
+                     const std::vector<MemoryLevel>& strategies = {});
 
   void DeleteProperties(const std::vector<std::string>& col_names);
 
@@ -140,7 +140,7 @@ class EdgeTable {
 
   std::shared_ptr<const EdgeSchema> meta_;
   std::string work_dir_;
-  int memory_level_{0};
+  MemoryLevel memory_level_;
   std::atomic<int32_t> csr_alter_version_{0};
   std::unique_ptr<CsrBase> out_csr_;
   std::unique_ptr<CsrBase> in_csr_;

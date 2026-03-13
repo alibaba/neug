@@ -102,7 +102,7 @@ struct VertexSchema {
                const std::vector<std::string>& property_names_,
                const std::vector<std::tuple<DataType, std::string, size_t>>&
                    primary_keys_,
-               const std::vector<StorageStrategy>& storage_strategies_,
+               const std::vector<MemoryLevel>& storage_strategies_,
                const std::vector<Property>& default_property_values_ = {},
                const std::string& description_ = "",
                size_t max_num_ = static_cast<size_t>(1) << 32)
@@ -115,7 +115,7 @@ struct VertexSchema {
         description(description_),
         max_num(max_num_) {
     vprop_soft_deleted.resize(property_names_.size(), false);
-    storage_strategies.resize(property_types_.size(), StorageStrategy::kMem);
+    storage_strategies.resize(property_types_.size(), MemoryLevel::kInMemory);
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
         default_property_values.emplace_back(
@@ -133,11 +133,11 @@ struct VertexSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& strategies,
+                      const std::vector<MemoryLevel>& strategies,
                       const std::vector<Property>& default_values = {});
 
   void set_properties(const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& strategies,
+                      const std::vector<MemoryLevel>& strategies,
                       const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
@@ -175,7 +175,7 @@ struct VertexSchema {
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
-  std::vector<StorageStrategy> storage_strategies;
+  std::vector<MemoryLevel> storage_strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
   std::string description;
@@ -253,7 +253,7 @@ struct EdgeSchema {
              EdgeStrategy ie_strategy_,
              const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
-             const std::vector<StorageStrategy>& strategies_,
+             const std::vector<MemoryLevel>& strategies_,
              const std::vector<Property>& default_property_values_ = {})
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
@@ -269,7 +269,7 @@ struct EdgeSchema {
         strategies(strategies_),
         default_property_values(default_property_values_) {
     eprop_soft_deleted.resize(property_names_.size(), false);
-    strategies.resize(properties_.size(), StorageStrategy::kMem);
+    strategies.resize(properties_.size(), MemoryLevel::kInMemory);
     assert(properties.size() == property_names.size());
     assert(properties.size() == strategies.size());
     if (default_property_values.empty()) {
@@ -292,7 +292,7 @@ struct EdgeSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& new_strategies = {},
+                      const std::vector<MemoryLevel>& new_strategies = {},
                       const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
@@ -322,7 +322,7 @@ struct EdgeSchema {
   EdgeStrategy ie_strategy;
   std::vector<DataType> properties;
   std::vector<std::string> property_names;
-  std::vector<StorageStrategy> strategies;
+  std::vector<MemoryLevel> strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
 
@@ -467,7 +467,7 @@ class Schema {
       const std::string& label, const std::vector<DataType>& property_types,
       const std::vector<std::string>& property_names,
       const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
-      const std::vector<StorageStrategy>& strategies = {},
+      const std::vector<MemoryLevel>& strategies = {},
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
       const std::vector<Property>& default_property_values = {});
@@ -476,7 +476,7 @@ class Schema {
                     const std::string& edge_label,
                     const std::vector<DataType>& properties,
                     const std::vector<std::string>& prop_names,
-                    const std::vector<StorageStrategy>& strategies = {},
+                    const std::vector<MemoryLevel>& strategies = {},
                     EdgeStrategy oe = EdgeStrategy::kMultiple,
                     EdgeStrategy ie = EdgeStrategy::kMultiple,
                     bool oe_mutable = true, bool ie_mutable = true,
@@ -507,7 +507,7 @@ class Schema {
       const std::string& label,
       const std::vector<std::string>& properties_names,
       const std::vector<DataType>& properties_types,
-      const std::vector<StorageStrategy>& storage_strategies,
+      const std::vector<MemoryLevel>& storage_strategies,
       const std::vector<Property>& properties_default_values);
 
   void AddEdgeProperties(
@@ -611,7 +611,7 @@ class Schema {
 
   void set_vertex_properties(
       label_t label_id, const std::vector<DataType>& types,
-      const std::vector<StorageStrategy>& strategies = {},
+      const std::vector<MemoryLevel>& strategies = {},
       const std::vector<Property>& default_property_values = {});
 
   std::vector<DataType> get_vertex_properties(const std::string& label) const;
@@ -633,7 +633,7 @@ class Schema {
 
   const std::string& get_vertex_description(label_t label) const;
 
-  std::vector<StorageStrategy> get_vertex_storage_strategies(
+  std::vector<MemoryLevel> get_vertex_storage_strategies(
       const std::string& label) const;
 
   size_t get_max_vnum(const std::string& label) const;

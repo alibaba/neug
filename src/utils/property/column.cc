@@ -61,7 +61,7 @@ class TypedEmptyColumn : public ColumnBase {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
   void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name, bool force) override {}
+  void open_with_hugepages(const std::string& name) override {}
   void dump(const std::string& filename) override {}
   void copy_to_tmp(const std::string& cur_path,
                    const std::string& tmp_path) override {}
@@ -86,9 +86,7 @@ class TypedEmptyColumn : public ColumnBase {
     arc >> val;
   }
 
-  StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
-  }
+  MemoryLevel storage_strategy() const override { return MemoryLevel::kUnSet; }
 
   void ensure_writable(const std::string& work_dir) override {}
 };
@@ -102,7 +100,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
   void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name, bool force) override {}
+  void open_with_hugepages(const std::string& name) override {}
   void dump(const std::string& filename) override {}
   void copy_to_tmp(const std::string& cur_path,
                    const std::string& tmp_path) override {}
@@ -127,18 +125,15 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
     arc >> val;
   }
 
-  StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
-  }
+  MemoryLevel storage_strategy() const override { return MemoryLevel::kUnSet; }
 
   void ensure_writable(const std::string& work_dir) override {}
 };
 
-std::shared_ptr<ColumnBase> CreateColumn(DataType type,
-                                         StorageStrategy strategy) {
+std::shared_ptr<ColumnBase> CreateColumn(DataType type, MemoryLevel strategy) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
-  if (strategy == StorageStrategy::kNone) {
+  if (strategy == MemoryLevel::kUnSet) {
     switch (type_id) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
@@ -188,18 +183,18 @@ void TypedColumn<std::string_view>::set_value_safe(
       v = truncate_utf8(v, width_);
     }
     size_t offset = pos_.fetch_add(v.size());
-    if (pos_.load() > buffer_.data_size()) {
+    if (pos_.load() > container_.data_size()) {
       lock.unlock();
       std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (pos_.load() > buffer_.data_size()) {
+      if (pos_.load() > container_.data_size()) {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
         size_t new_len = std::max(size_ * new_avg_width, pos_.load());
-        buffer_.resize(buffer_.size(), new_len);
+        container_.resize(container_.size(), new_len);
       }
       w_lock.unlock();
       lock.lock();
     }
-    buffer_.set(idx, offset, v);
+    container_.set(idx, offset, v);
   } else {
     THROW_INDEX_EXCEPTION(
         "Index out of range in set_value_safe: " + std::to_string(idx) +
@@ -224,6 +219,118 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +
                                   std::to_string(type));
   }
+  }
+}
+
+void StringContainer::open(const std::string& name,
+                           const std::string& snapshot_dir,
+                           const std::string& work_dir) {
+  LOG(INFO) << "open string container " << name << " from snapshot dir "
+            << snapshot_dir << " and work dir " << work_dir;
+  items = std::make_unique<FileSharedMMap>();
+  data = std::make_unique<FileSharedMMap>();
+  auto items_path = snapshot_dir + "/" + name + ".items";
+  auto data_path = snapshot_dir + "/" + name + ".data";
+  auto tmp_items_path = work_dir + "/" + name + ".items";
+  auto tmp_data_path = work_dir + "/" + name + ".data";
+  if (std::filesystem::exists(tmp_items_path)) {
+    std::filesystem::remove(tmp_items_path);
+  }
+  if (std::filesystem::exists(tmp_data_path)) {
+    std::filesystem::remove(tmp_data_path);
+  }
+  if (std::filesystem::exists(items_path)) {
+    file_utils::copy_file(items_path, tmp_items_path, true);
+  } else {
+    file_utils::create_file(tmp_items_path, sizeof(FileHeader));
+  }
+  if (std::filesystem::exists(data_path)) {
+    file_utils::copy_file(data_path, tmp_data_path, true);
+  } else {
+    file_utils::create_file(tmp_data_path, sizeof(FileHeader));
+  }
+  LOG(INFO) << "open string container with items file " << items_path
+            << " and data file " << data_path;
+  items->Open(tmp_items_path);
+  LOG(INFO) << "items file opened, size: " << items->GetDataSize();
+  data->Open(tmp_data_path);
+}
+
+void StringContainer::open(const std::string& prefix) {
+  items = std::make_unique<FilePrivateMMap>();
+  data = std::make_unique<FilePrivateMMap>();
+  items->Open(prefix + ".items");
+  data->Open(prefix + ".data");
+}
+
+void StringContainer::open_with_hugepages(const std::string& prefix) {
+  items = std::make_unique<AnonHugeMMap>();
+  data = std::make_unique<AnonHugeMMap>();
+  items->Open(prefix + ".items");
+  data->Open(prefix + ".data");
+}
+
+size_t StringContainer::size() const {
+  LOG(INFO) << "StringContainer::size() called, items size: "
+            << (items ? items->GetDataSize() : 0)
+            << ", data size: " << (data ? data->GetDataSize() : 0);
+  if (items) {
+    return items->GetDataSize() / sizeof(string_item);
+  }
+  return 0;
+}
+
+size_t StringContainer::data_size() const {
+  return data ? data->GetDataSize() : 0;
+}
+
+size_t StringContainer::avg_size() const {
+  if (items->GetDataSize() == 0) {
+    return 0;
+  }
+  size_t total_length = 0;
+  size_t non_zero_count = 0;
+  auto items_size = items->GetDataSize() / sizeof(string_item);
+  auto items_data = reinterpret_cast<string_item*>(items->GetData());
+  for (size_t i = 0; i < items_size; ++i) {
+    if (items_data[i].length > 0) {
+      ++non_zero_count;
+      total_length += items_data[i].length;
+    }
+  }
+  return non_zero_count > 0
+             ? (total_length + non_zero_count - 1) / non_zero_count
+             : 0;
+}
+
+void StringContainer::resize(size_t size, size_t data_size) {
+  items->Resize(size * sizeof(string_item));
+  data->Resize(data_size);
+}
+
+void StringContainer::close() {
+  if (items) {
+    items->Close();
+    items.reset();
+  }
+  if (data) {
+    data->Close();
+    data.reset();
+  }
+}
+
+void StringContainer::swap(StringContainer& rhs) {
+  items.swap(rhs.items);
+  data.swap(rhs.data);
+}
+
+void StringContainer::dump(const std::string& filename) {
+  // TODO(zhanglei): Support compact and dump;
+  if (items) {
+    items->Dump(filename + ".items");
+  }
+  if (data) {
+    data->Dump(filename + ".data");
   }
 }
 

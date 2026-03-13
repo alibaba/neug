@@ -17,10 +17,10 @@
 #include <string_view>
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
-#include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -65,11 +65,11 @@ class EdgeTableTest : public ::testing::Test {
 
     schema_.AddVertexLabel("person", {}, {},
                            {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-                           {neug::StorageStrategy::kMem},
+                           {neug::MemoryLevel::kInMemory},
                            static_cast<size_t>(1) << 32, "person vertex label");
     schema_.AddVertexLabel(
         "comment", {}, {}, {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-        {neug::StorageStrategy::kMem}, static_cast<size_t>(1) << 32,
+        {neug::MemoryLevel::kInMemory}, static_cast<size_t>(1) << 32,
         "comment vertex label");
     schema_.AddEdgeLabel("person", "comment", "create0", {}, {}, {},
                          neug::EdgeStrategy::kMultiple,
@@ -77,19 +77,19 @@ class EdgeTableTest : public ::testing::Test {
                          "person creates comment edge without properties");
     schema_.AddEdgeLabel(
         "person", "comment", "create1", {neug::DataTypeId::kInt32}, {"data"},
-        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
+        {neug::MemoryLevel::kInMemory}, neug::EdgeStrategy::kMultiple,
         neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create2", {neug::DataTypeId::kVarchar}, {"data"},
-        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
+        {neug::MemoryLevel::kInMemory}, neug::EdgeStrategy::kMultiple,
         neug::EdgeStrategy::kMultiple, true, true, false,
         "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create3",
         {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
         {"data0", "data1"},
-        {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem},
+        {neug::MemoryLevel::kInMemory, neug::MemoryLevel::kInMemory},
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
         true, false, "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
@@ -816,7 +816,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
 
   size_t edge_count = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -971,7 +971,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
                          neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
 
   size_t edge_count = 0;
   this->edge_table->EnsureCapacity(edge_data.size());
@@ -1057,7 +1057,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -1135,7 +1135,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
 
   this->edge_table->EnsureCapacity(edge_data.size());
   this->ExpectUnbundledStats(0, 4096);
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -1289,7 +1289,7 @@ TEST_F(EdgeTableTest,
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1358,7 +1358,7 @@ TEST_F(EdgeTableTest, TestDeletePropertiesTransitionFromUnbundledToBundled) {
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1415,7 +1415,7 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1500,7 +1500,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   edge_schema->ie_strategy = EdgeStrategy::kMultiple;
   edge_schema->oe_strategy = EdgeStrategy::kMultiple;
   std::vector<std::string> property_name = {"test_property"};
-  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
+  std::vector<MemoryLevel> storage_strategy = {MemoryLevel::kInMemory};
 
   std::string file_path;
   std::vector<DataType> column_types = {DataTypeId::kUInt32,
@@ -1578,6 +1578,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1586,6 +1587,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   }
 
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.OpenInMemory("/tmp/");
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);
@@ -1609,7 +1611,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   edge_schema->oe_mutable = true;
   edge_schema->ie_strategy = EdgeStrategy::kMultiple;
   edge_schema->oe_strategy = EdgeStrategy::kMultiple;
-  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
+  std::vector<MemoryLevel> storage_strategy = {MemoryLevel::kInMemory};
 
   std::string file_path = resource_path + "/edges_empty.csv";
   std::vector<DataType> column_types = {DataTypeId::kUInt32,
@@ -1623,6 +1625,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1633,6 +1636,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<std::string> new_property_name = {"new_property"};
   std::vector<DataType> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.OpenInMemory("/tmp/");
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);
