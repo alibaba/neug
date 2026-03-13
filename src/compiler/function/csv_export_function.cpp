@@ -60,7 +60,7 @@ execution::Context writeExecFunc(
   convertFileSchemaOptions(schema);
   LocalFileSystemProvider fsProvider;
   auto fileInfo = fsProvider.provide(schema, false);
-  auto writer = std::make_shared<neug::writer::ArrowCsvExportWriter>(
+  auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, fileInfo.fileSystem, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
