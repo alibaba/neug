@@ -319,14 +319,16 @@ install_openssl() {
   export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-INTERACTIVE_MACOS=("xsimd" "cmake")
+INTERACTIVE_MACOS=("xsimd" "cmake" "openssl@3")
 INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
 
 install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
-    install_openssl
+    # Use Homebrew's OpenSSL 3.x instead of compiling OpenSSL 1.1.1k
+    # brpc requires OpenSSL 3.0+ for SSL_get1_peer_certificate, EVP_PKEY_get_base_id, etc.
+    export OPENSSL_ROOT_DIR="${HOMEBREW_PREFIX}/opt/openssl@3"
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
@@ -356,7 +358,9 @@ write_env_config() {
     echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
   } >> "${OUTPUT_ENV_FILE}"
   {
-    if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
+    if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+      echo "export OPENSSL_ROOT_DIR=${HOMEBREW_PREFIX}/opt/openssl@3"
+    elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
         echo "source /opt/rh/devtoolset-10/enable"
         echo "source /opt/rh/rh-python38/enable"
