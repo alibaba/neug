@@ -13,6 +13,8 @@
  */
 package com.alibaba.neug.driver;
 
+import com.alibaba.neug.driver.utils.Types;
+
 /**
  * Provides information about the types and properties of the columns in a {@link ResultSet}.
  *
@@ -46,13 +48,13 @@ public interface ResultSetMetaData {
     String getColumnName(int column);
 
     /**
-     * Retrieves the designated column's SQL type code.
+     * Retrieves the designated column's native NeuG type.
      *
      * @param column the column index (0-based)
-     * @return the SQL type code as defined in {@link java.sql.Types}
+     * @return the native NeuG type enum
      * @throws IndexOutOfBoundsException if the column index is out of bounds
      */
-    int getColumnType(int column);
+    Types getColumnType(int column);
 
     /**
      * Retrieves the designated column's database-specific type name.

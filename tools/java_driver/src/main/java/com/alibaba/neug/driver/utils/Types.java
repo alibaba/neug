@@ -16,95 +16,90 @@ package com.alibaba.neug.driver.utils;
 /**
  * Enumeration of data types supported by NeuG database.
  *
- * <p>This enum maps to the primitive types defined in the Protocol Buffer schema and provides
- * corresponding JDBC SQL type codes for compatibility with standard database interfaces.
+ * <p>This enum represents the native value types exposed by the NeuG Java driver.
  *
  * <p>Example usage:
  *
  * <pre>{@code
  * Types type = Types.STRING;
- * int jdbcType = type.getJdbcType(); // Returns java.sql.Types.VARCHAR
  * String typeName = type.getTypeName(); // Returns "STRING"
  * }</pre>
  */
 public enum Types {
     /** Any type - represents a value of unknown or dynamic type. */
-    ANY("ANY", java.sql.Types.OTHER),
+    ANY("ANY"),
 
     /** 32-bit signed integer. */
-    INT32("INT32", java.sql.Types.INTEGER),
+    INT32("INT32"),
 
     /** 32-bit unsigned integer. */
-    UINT32("UINT32", java.sql.Types.INTEGER),
+    UINT32("UINT32"),
 
     /** 64-bit signed integer (long). */
-    INT64("INT64", java.sql.Types.BIGINT),
+    INT64("INT64"),
 
     /** 64-bit unsigned integer (unsigned long). */
-    UINT64("UINT64", java.sql.Types.BIGINT),
+    UINT64("UINT64"),
     /** Boolean value (true/false). */
-    BOOLEAN("BOOLEAN", java.sql.Types.BOOLEAN),
+    BOOLEAN("BOOLEAN"),
 
     /** 32-bit floating point number. */
-    FLOAT("FLOAT", java.sql.Types.FLOAT),
+    FLOAT("FLOAT"),
 
     /** 64-bit floating point number (double precision). */
-    DOUBLE("DOUBLE", java.sql.Types.DOUBLE),
+    DOUBLE("DOUBLE"),
 
     /** Variable-length character string. */
-    STRING("STRING", java.sql.Types.VARCHAR),
+    STRING("STRING"),
     /** Fixed-precision decimal number. */
-    DECIMAL("DECIMAL", java.sql.Types.DECIMAL),
+    DECIMAL("DECIMAL"),
 
     /** Date value (year, month, day). */
-    DATE("DATE", java.sql.Types.DATE),
+    DATE("DATE"),
 
     /** Time value (hour, minute, second). */
-    TIME("TIME", java.sql.Types.TIME),
+    TIME("TIME"),
 
     /** Timestamp value (date and time). */
-    TIMESTAMP("TIMESTAMP", java.sql.Types.TIMESTAMP),
+    TIMESTAMP("TIMESTAMP"),
     /** Binary data (byte array). */
-    BYTES("BYTES", java.sql.Types.VARBINARY),
+    BYTES("BYTES"),
 
     /** Null value - represents the absence of a value. */
-    NULL("NULL", java.sql.Types.NULL),
+    NULL("NULL"),
 
     /** List/array of values. */
-    LIST("LIST", java.sql.Types.ARRAY),
+    LIST("LIST"),
 
     /** Map/dictionary of key-value pairs. */
-    MAP("MAP", java.sql.Types.JAVA_OBJECT),
+    MAP("MAP"),
     /** Graph node/vertex. */
-    NODE("NODE", java.sql.Types.JAVA_OBJECT),
+    NODE("NODE"),
 
     /** Graph edge/relationship. */
-    EDGE("EDGE", java.sql.Types.JAVA_OBJECT),
+    EDGE("EDGE"),
 
     /** Graph path. */
-    PATH("PATH", java.sql.Types.JAVA_OBJECT),
+    PATH("PATH"),
 
     /** Struct/record type. */
-    STRUCT("STRUCT", java.sql.Types.STRUCT),
+    STRUCT("STRUCT"),
 
     /** Interval type - represents a time interval. */
-    INTERVAL("INTERVAL", java.sql.Types.VARCHAR),
+    INTERVAL("INTERVAL"),
 
     /** Other/unknown type. */
-    OTHER("OTHER", java.sql.Types.OTHER);
+    OTHER("OTHER");
 
     private final String typeName;
-    private final int jdbcType;
 
     /**
      * Constructs a Types enum value.
      *
      * @param typeName the human-readable name of the type
-     * @param jdbcType the corresponding JDBC SQL type code from {@link java.sql.Types}
      */
-    Types(String typeName, int jdbcType) {
+    Types(String typeName) {
         this.typeName = typeName;
-        this.jdbcType = jdbcType;
     }
 
     /**
@@ -114,17 +109,6 @@ public enum Types {
      */
     public String getTypeName() {
         return typeName;
-    }
-
-    /**
-     * Returns the JDBC SQL type code for this type.
-     *
-     * <p>The returned value corresponds to constants defined in {@link java.sql.Types}.
-     *
-     * @return the JDBC type code
-     */
-    public int getJdbcType() {
-        return jdbcType;
     }
 
     /**

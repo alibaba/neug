@@ -98,6 +98,14 @@ public class Client {
     public void close() {
         if (!closed) {
             httpClient.connectionPool().evictAll();
+            httpClient.dispatcher().executorService().shutdown();
+            if (httpClient.cache() != null) {
+                try {
+                    httpClient.cache().close();
+                } catch (IOException ignored) {
+                    // Ignored: best-effort cache close.
+                }
+            }
             closed = true;
         }
     }

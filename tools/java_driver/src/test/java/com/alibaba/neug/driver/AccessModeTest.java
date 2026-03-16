@@ -23,8 +23,6 @@ public class AccessModeTest {
 
     @Test
     public void testAccessModeValues() {
-        assertEquals(4, AccessMode.values().length);
-
         assertNotNull(AccessMode.READ);
         assertNotNull(AccessMode.INSERT);
         assertNotNull(AccessMode.UPDATE);

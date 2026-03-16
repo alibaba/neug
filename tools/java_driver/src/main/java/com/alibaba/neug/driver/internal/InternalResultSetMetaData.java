@@ -86,9 +86,9 @@ public class InternalResultSetMetaData implements ResultSetMetaData {
     }
 
     @Override
-    public int getColumnType(int column) {
+    public Types getColumnType(int column) {
         validateColumnIndex(column);
-        return columnTypes.get(column).getJdbcType();
+        return columnTypes.get(column);
     }
 
     @Override
