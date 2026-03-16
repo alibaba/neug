@@ -1,16 +1,14 @@
 name: NeuG Extension Test
 
 on:
-  workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
-    inputs:
-      branch:
-        description: 'Branch to run the workflow on'
-        required: true
-        default: 'main'
-        type: string
+  workflow_run:
+    workflows:
+      - Format Check
+    types:
+      - completed
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  group: ${{ github.repository }}-${{ github.event.workflow_run.id }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
@@ -18,6 +16,7 @@ jobs:
   # Job 1: Build NeuG with extensions
   # ============================================================
   build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' }}
     runs-on: [self-hosted]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
@@ -25,6 +24,8 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
       with:
+        repository: ${{ github.event.workflow_run.head_repository.full_name }}
+        ref: ${{ github.event.workflow_run.head_sha }}
         submodules: true
 
     - name: Mark directory safe

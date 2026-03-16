@@ -1,40 +1,27 @@
 name: Build Wheels
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths: &wheel_paths
-      - 'cmake/**'
-      - 'src/**'
-      - 'include/**'
-      - 'proto/**'
-      - 'third_party/**'
-      - 'tools/python_bind/**'
-      - 'tools/shell/**'
-      - '.github/workflows/build-wheel.yml'
-      - 'scripts/install_deps.sh'
-      - 'CMakeLists.txt'
-  pull_request:
-    branches:
-      - main
-    paths: *wheel_paths
+  workflow_run:
+    workflows:
+      - Format Check
+    types:
+      - completed
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  group: ${{ github.repository }}-${{ github.event.workflow_run.id }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
   build_wheels_linux_x86_64:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')) }}
     runs-on: [self-hosted, linux, x64]
     steps:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: recursive
 
       - name: Setup Python 3.13
@@ -50,7 +37,7 @@ jobs:
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
       - name: Limit builds to CPython 3.13 on PRs
-        if: github.event_name == 'pull_request'
+        if: github.event.workflow_run.event == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
@@ -69,7 +56,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+        if: github.repository == 'alibaba/neug' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v'))
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -102,12 +89,14 @@ jobs:
 
   build_wheels_linux_arm64:
     runs-on: [self-hosted, linux, arm64]
-    if: true
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')) }}
     steps:
       - name: checkout
         id: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: recursive
 
       - name: Setup Python 3.13
@@ -124,7 +113,7 @@ jobs:
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
       - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
+        if: github.event.workflow_run.event == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
@@ -143,7 +132,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+        if: github.repository == 'alibaba/neug' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v'))
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -182,6 +171,8 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: recursive
 
       - name: Setup Python 3.13
@@ -205,7 +196,7 @@ jobs:
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
       - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
+        if: github.event.workflow_run.event == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
@@ -225,7 +216,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+        if: github.repository == 'alibaba/neug' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v'))
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -263,6 +254,8 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: recursive
 
       - name: Setup Python 3.13
@@ -286,7 +279,7 @@ jobs:
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
 
       - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
+        if: github.event.workflow_run.event == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
       - name: Build wheels
@@ -306,7 +299,7 @@ jobs:
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+        if: github.repository == 'alibaba/neug' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v'))
         with:
           user: __token__
           password: ${{ secrets.PYPI_PASSWORD }}
@@ -338,7 +331,7 @@ jobs:
 
   test_wheels_macos_x86_64:
     needs: build_wheels_macos_x86_64
-    if: needs.build_wheels_macos_x86_64.result == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && needs.build_wheels_macos_x86_64.result == 'success'
     runs-on: macos-13
     strategy:
       fail-fast: false
@@ -347,6 +340,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -378,7 +374,7 @@ jobs:
 
   test_wheels_macos_aarch64:
     needs: build_wheels_macos_aarch64
-    if: needs.build_wheels_macos_aarch64.result == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && needs.build_wheels_macos_aarch64.result == 'success'
     runs-on: macos-14
     strategy:
       fail-fast: false
@@ -387,6 +383,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5

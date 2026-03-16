@@ -1,45 +1,20 @@
 name: Build Extensions
 
 on:
-  workflow_dispatch:
-    inputs:
-      extensions:
-        description: 'Semicolon-separated list of extensions to build (e.g., json)'
-        required: false
-        default: 'json'
-      version:
-        description: 'Version tag for the extensions (e.g., 0.1.0)'
-        required: false
-        default: '0.1.0'
-  push:
-    branches:
-      - main
-    paths:
-      - 'extension/**'
-      - 'cmake/**'
-      - 'src/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - '.github/workflows/build-extensions.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'extension/**'
-      - 'cmake/**'
-      - 'src/**'
-      - 'include/**'
-      - 'CMakeLists.txt'
-      - '.github/workflows/build-extensions.yml'
+  workflow_run:
+    workflows:
+      - Format Check
+    types:
+      - completed
 
 concurrency:
-  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  group: ${{ github.repository }}-${{ github.event.workflow_run.id }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
   # Shared step to determine extensions and version
   prepare:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && startsWith(github.event.workflow_run.head_branch, 'v'))) }}
     runs-on: ubuntu-latest
     outputs:
       extensions: ${{ steps.extensions.outputs.extensions }}
@@ -48,23 +23,16 @@ jobs:
       - name: Determine extensions to build
         id: extensions
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            EXTENSIONS="${{ github.event.inputs.extensions }}"
-          else
-            EXTENSIONS="json"
-          fi
+          EXTENSIONS="json"
           echo "extensions=$EXTENSIONS" >> $GITHUB_OUTPUT
           echo "Building extensions: $EXTENSIONS"
 
       - name: Determine version
         id: version
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          elif [ -n "${{ github.ref }}" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
+          if [ "${{ github.event.workflow_run.event }}" == "push" ] && [ -n "${{ github.event.workflow_run.head_branch }}" ]; then
+            VERSION="${{ github.event.workflow_run.head_branch }}"
           else
-            # Default to 0.1.0 if no version is specified
             VERSION="0.1.0"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -73,7 +41,7 @@ jobs:
   # Linux x86_64
   build_linux_x86_64:
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && startsWith(github.event.workflow_run.head_branch, 'v'))) }}
     runs-on: [self-hosted, X64]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-x86_64
@@ -81,6 +49,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: true
 
       - name: Mark directory safe
@@ -152,7 +122,7 @@ jobs:
   # Linux arm64
   build_linux_arm64:
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && startsWith(github.event.workflow_run.head_branch, 'v'))) }}
     runs-on: [self-hosted, ARM64]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-arm64
@@ -160,6 +130,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: true
 
       - name: Mark directory safe
@@ -232,12 +204,14 @@ jobs:
   # macOS x86_64
   build_macos_x86_64:
     needs: prepare
-    if: startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && startsWith(github.event.workflow_run.head_branch, 'v') }}
     runs-on: macos-13
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: true
 
       - name: Clean the tool directory for self-hosted runner
@@ -281,12 +255,14 @@ jobs:
   # macOS ARM64
   build_macos_arm64:
     needs: prepare
-    if: startsWith(github.ref, 'refs/tags/')
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && startsWith(github.event.workflow_run.head_branch, 'v') }}
     runs-on: macos-14
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           submodules: true
 
       - name: Clean the tool directory for self-hosted runner
