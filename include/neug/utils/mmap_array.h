@@ -780,16 +780,21 @@ class mmap_array<std::string_view> {
     validate_materialized_map_size(materialized_file);
   }
 
-  void validate_materialized_map_size(
-      const std::string& materialized_file) const {
+  void validate_materialized_map_size(const std::string& materialized_file) {
     const auto expected_size = materialized_word_num(items_.size());
+    // Is this backward compatibility logic necessary?
     if (materialized_map_.size() != expected_size) {
-      std::stringstream ss;
-      ss << "Invalid string materialized map file [ " << materialized_file
-         << " ], expected " << expected_size << " words, got "
-         << materialized_map_.size();
-      LOG(ERROR) << ss.str();
-      THROW_RUNTIME_ERROR(ss.str());
+      LOG(WARNING) << "Invalid string materialized map file [ "
+                   << materialized_file << " ], expected " << expected_size
+                   << " words, got " << materialized_map_.size()
+                   << ", try to adapt it";
+      materialized_map_.resize(expected_size);
+      for (size_t i = 0; i < materialized_map_.size(); ++i) {
+        if (items_.get(i).length > 0) {
+          set_materialized(i, true);
+        }
+      }
+      return;
     }
   }
 
