@@ -472,9 +472,6 @@ struct string_item {
   uint64_t offset : 47;
   uint64_t length : 16;
   uint64_t inserted : 1;  // indicates whether the item is inserted or empty
-  string_item() : offset(0), length(0), inserted(0) {}
-  string_item(uint64_t offset, uint64_t length, uint64_t inserted)
-      : offset(offset), length(length), inserted(inserted) {}
 };
 
 static_assert(sizeof(string_item) == sizeof(uint64_t),
@@ -541,10 +538,9 @@ class mmap_array<std::string_view> {
     size_t total_length = 0;
     size_t non_zero_count = 0;
     for (size_t i = 0; i < items_.size(); ++i) {
-      const auto item = items_.get(i);
-      if (item.inserted && item.length > 0) {
+      if (items_.get(i).length > 0) {
         ++non_zero_count;
-        total_length += item.length;
+        total_length += items_.get(i).length;
       }
     }
     return non_zero_count > 0
