@@ -281,11 +281,12 @@ TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   fmap_immutable_csr.open("dumped_csr_data", this->WorkDirectory(),
                           this->WorkDirectory());
   EXPECT_EQ(fmap_immutable_csr.edge_num(), 10000);
-  memory_immutable_csr.open_in_memory(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data", 600);
+  memory_immutable_csr.open_in_memory(std::string(this->WorkDirectory()) +
+                                      "/dumped_csr_data");
+
   EXPECT_EQ(memory_immutable_csr.edge_num(), 10000);
   hugepage_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data", 600);
+      std::string(this->WorkDirectory()) + "/dumped_csr_data");
   EXPECT_EQ(hugepage_immutable_csr.edge_num(), 10000);
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
@@ -298,10 +299,10 @@ TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
                                  this->WorkDirectory());
   EXPECT_EQ(fmap_single_immutable_csr.edge_num(), 500);
   memory_single_immutable_csr.open_in_memory(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data", 600);
+      std::string(this->WorkDirectory()) + "/dumped_csr_data");
   EXPECT_EQ(memory_single_immutable_csr.edge_num(), 500);
   hugepage_single_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data", 600);
+      std::string(this->WorkDirectory()) + "/dumped_csr_data");
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
 }
 

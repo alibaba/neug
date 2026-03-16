@@ -182,7 +182,7 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemoryEmpty) {
       1000, 1000, 20000,
       this->csr->csr_type() == neug::CsrType::kSingleMutable);
 
-  this->csr->open_in_memory(snapshot_dir.string() + "/csr", 1000);
+  this->csr->open_in_memory(snapshot_dir.string() + "/csr");
   this->csr->resize(1000);
 
   auto ts = this->ParallelInsert(edges, 16, 1);
@@ -226,7 +226,7 @@ TYPED_TEST(CsrStreamTest, ParallelInsertMemory) {
     data_list.push_back(std::get<2>(e));
   }
 
-  this->csr->open_in_memory(snapshot_dir.string() + "/csr", 1000);
+  this->csr->open_in_memory(snapshot_dir.string() + "/csr");
   this->csr->resize(1000);
   this->csr->batch_put_edges(src_list, dst_list, data_list, 0);
   std::sort(init_edges.begin(), init_edges.end());

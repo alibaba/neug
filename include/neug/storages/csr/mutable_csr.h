@@ -91,9 +91,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
 
-  void open_in_memory(const std::string& prefix, size_t v_cap) override;
+  void open_in_memory(const std::string& prefix) override;
 
-  void open_with_hugepages(const std::string& prefix, size_t v_cap) override;
+  void open_with_hugepages(const std::string& prefix) override;
 
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
@@ -103,6 +103,8 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void compact() override;
 
   void resize(vid_t vnum) override;
+
+  size_t capacity() const override;
 
   void close() override;
 
@@ -239,9 +241,9 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
 
-  void open_in_memory(const std::string& prefix, size_t v_cap) override;
+  void open_in_memory(const std::string& prefix) override;
 
-  void open_with_hugepages(const std::string& prefix, size_t v_cap) override;
+  void open_with_hugepages(const std::string& prefix) override;
 
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override;
@@ -251,6 +253,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   void compact() override;
 
   void resize(vid_t vnum) override;
+
+  size_t capacity() const override;
 
   void close() override;
 
@@ -323,9 +327,9 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
 
-  void open_in_memory(const std::string& prefix, size_t v_cap) override {}
+  void open_in_memory(const std::string& prefix) override {}
 
-  void open_with_hugepages(const std::string& prefix, size_t v_cap) override {}
+  void open_with_hugepages(const std::string& prefix) override {}
 
   void dump(const std::string& name,
             const std::string& new_snapshot_dir) override {}
@@ -335,6 +339,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   void compact() override {}
 
   void resize(vid_t vnum) override {}
+
+  size_t capacity() const override { return 0; }
 
   void close() override {}
 

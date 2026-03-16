@@ -178,8 +178,8 @@ void AbstractPropertyGraphLoader::loadEdges() {
     for (auto& thread : threads) {
       thread.join();
     }
-    LOG(INFO) << "Finished loading edges";
   }
+  LOG(INFO) << "Finished loading edges";
 }
 
 result<bool> AbstractPropertyGraphLoader::LoadFragment() {

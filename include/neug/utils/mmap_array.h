@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
@@ -222,7 +223,7 @@ class mmap_array {
     }
   }
 
-  void open_with_hugepages(const std::string& filename, size_t capacity = 0) {
+  void open_with_hugepages(const std::string& filename) {
     reset();
     hugepage_prefered_ = true;
     is_writable_ = true;
@@ -230,8 +231,7 @@ class mmap_array {
       size_t file_size = std::filesystem::file_size(filename);
       size_ = file_size / sizeof(T);
       if (size_ != 0) {
-        capacity = std::max(capacity, size_);
-        mmap_size_ = hugepage_round_up(capacity * sizeof(T));
+        mmap_size_ = hugepage_round_up(size_ * sizeof(T));
         data_ = static_cast<T*>(allocate_hugepages(mmap_size_));
         if (data_ != MAP_FAILED) {
           FILE* fin = fopen(filename.c_str(), "rb");
@@ -527,6 +527,23 @@ class mmap_array<std::string_view> {
     data_.resize(data_size);
   }
 
+  size_t avg_size() const {
+    if (items_.size() == 0) {
+      return 0;
+    }
+    size_t total_length = 0;
+    size_t non_zero_count = 0;
+    for (size_t i = 0; i < items_.size(); ++i) {
+      if (items_.get(i).length > 0) {
+        ++non_zero_count;
+        total_length += items_.get(i).length;
+      }
+    }
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
+  }
+
   void set(size_t idx, size_t offset, const std::string_view& val) {
     items_.set(idx, {offset, static_cast<uint32_t>(val.size())});
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());
@@ -564,7 +581,9 @@ class mmap_array<std::string_view> {
 
   // Compact the data buffer by removing unused space and updating offsets
   // This is an in-place operation that shifts valid string data forward
-  // Returns the compacted data size
+  // Returns the compacted data size. Note that the reserved size of data buffer
+  // is not changed, and new strings can still be appended after the compacted
+  // data.
   size_t compact() {
     auto plan = prepare_compaction_plan();
     if (items_.size() == 0) {
@@ -577,9 +596,11 @@ class mmap_array<std::string_view> {
 
     std::vector<char> temp_buf(plan.total_size);
     size_t write_offset = 0;
+    size_t limit_offset = 0;
     for (const auto& entry : plan.entries) {
       const char* src = data_.data() + entry.offset;
       char* dst = temp_buf.data() + write_offset;
+      limit_offset = std::max(limit_offset, entry.offset + entry.length);
       memcpy(dst, src, entry.length);
       items_.set(entry.index,
                  {static_cast<uint64_t>(write_offset), entry.length});
@@ -588,9 +609,8 @@ class mmap_array<std::string_view> {
     assert(write_offset == plan.total_size);
     memcpy(data_.data(), temp_buf.data(), plan.total_size);
 
-    data_.resize(plan.total_size);
     VLOG(1) << "Compaction completed. New data size: " << plan.total_size
-            << ", old data size: " << size_before_compact;
+            << ", old data size: " << limit_offset;
     return plan.total_size;
   }
 
@@ -650,6 +670,21 @@ class mmap_array<std::string_view> {
     if (fflush(fout) != 0) {
       std::stringstream ss;
       ss << "Failed to fflush file [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+    int fd = fileno(fout);
+    if (fd == -1) {
+      std::stringstream ss;
+      ss << "Failed to get file descriptor for [ " << data_filename << " ], "
+         << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+    if (ftruncate(fd, size_before_compact) != 0) {
+      std::stringstream ss;
+      ss << "Failed to ftruncate file [ " << data_filename << " ], "
          << strerror(errno);
       LOG(ERROR) << ss.str();
       THROW_RUNTIME_ERROR(ss.str());

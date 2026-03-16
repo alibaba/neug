@@ -51,11 +51,9 @@ class EdgeTable {
 
   void Open(const std::string& work_dir);
 
-  void OpenInMemory(const std::string& work_dir, size_t src_v_cap,
-                    size_t dst_v_cap);
+  void OpenInMemory(const std::string& work_dir);
 
-  void OpenWithHugepages(const std::string& work_dir, size_t src_v_cap,
-                         size_t dst_v_cap);
+  void OpenWithHugepages(const std::string& work_dir);
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -70,7 +68,10 @@ class EdgeTable {
   void BatchDeleteEdges(const std::vector<std::pair<vid_t, int32_t>>& oe_edges,
                         const std::vector<std::pair<vid_t, int32_t>>& ie_edges);
 
-  void Resize(vid_t src_vertex_num, vid_t dst_vertex_num);
+  void EnsureCapacity(size_t capacity);
+
+  void EnsureCapacity(vid_t src_vertex_num, vid_t dst_vertex_num,
+                      size_t capacity = 0);
 
   size_t EdgeNum() const;
 
@@ -128,6 +129,10 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
+  size_t Size() const;
+
+  size_t Capacity() const;
+
  private:
   void dropAndCreateNewBundledCSR();
   void dropAndCreateNewUnbundledCSR(bool delete_property);
@@ -141,6 +146,7 @@ class EdgeTable {
   std::unique_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
+  std::atomic<uint64_t> capacity_{0};
 
   friend class PropertyGraph;
 };
