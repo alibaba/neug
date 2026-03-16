@@ -556,7 +556,7 @@ class mmap_array<std::string_view> {
 
   void set(size_t idx, size_t offset, const std::string_view& val) {
     items_.set(idx, {static_cast<uint64_t>(offset),
-                     static_cast<uint64_t>(val.size())});
+                     static_cast<uint32_t>(val.size())});
     set_materialized(idx, true);
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());
     memcpy(data_.data() + offset, val.data(), val.size());
@@ -629,8 +629,8 @@ class mmap_array<std::string_view> {
       char* dst = temp_buf.data() + write_offset;
       limit_offset = std::max(limit_offset, entry.offset + entry.length);
       memcpy(dst, src, entry.length);
-      items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length});
+      items_.set(entry.index, {static_cast<uint64_t>(write_offset),
+                               static_cast<uint32_t>(entry.length)});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);
@@ -692,8 +692,8 @@ class mmap_array<std::string_view> {
           THROW_RUNTIME_ERROR(ss.str());
         }
       }
-      items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length});
+      items_.set(entry.index, {static_cast<uint64_t>(write_offset),
+                               static_cast<uint32_t>(entry.length)});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);
@@ -750,6 +750,10 @@ class mmap_array<std::string_view> {
   void set_materialized(size_t idx, bool materialized) {
     size_t word_idx = idx / kMaterializedBitsPerWord;
     size_t bit_idx = idx % kMaterializedBitsPerWord;
+    if (word_idx >= materialized_map_.size()) {
+      THROW_RUNTIME_ERROR("Materialized map index out of range");
+      return;
+    }
     uint64_t word = materialized_map_.get(word_idx);
     if (materialized) {
       word |= (1ULL << bit_idx);
