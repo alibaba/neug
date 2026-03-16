@@ -343,6 +343,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     copy_file(cur_path + ".data", tmp_path + ".data");
     copy_file(cur_path + ".items", tmp_path + ".items");
+    copy_file(cur_path + ".materialized", tmp_path + ".materialized");
     copy_file(cur_path + ".pos", tmp_path + ".pos");
 
     buffer_.reset();
@@ -406,7 +407,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void set_value_safe(size_t idx, const std::string_view& value);
 
   inline std::string_view get_view(size_t idx) const {
-    if (!buffer_.inserted(idx)) {
+    if (!buffer_.is_materialized(idx)) {
       return default_value_;
     }
     return buffer_.get(idx);
@@ -518,7 +519,7 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
 
   inline std::string_view get_view(size_t index) const {
     assert(index < basic_size);
-    if (!basic_buffer.inserted(index)) {
+    if (!basic_buffer.is_materialized(index)) {
       return default_value_;
     }
     return basic_buffer.get(index);
@@ -535,6 +536,9 @@ class TypedRefColumn<std::string_view> : public RefColumnBase {
  private:
   const mmap_array<std::string_view>& basic_buffer;
   size_t basic_size;
+  // NOTE: default_value_ is a non-owning view. The pointed-to string data is
+  // owned by the schema's default_property_strings and must outlive this
+  // object.
   std::string_view default_value_;
 };
 

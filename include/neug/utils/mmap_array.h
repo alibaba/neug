@@ -469,27 +469,27 @@ class mmap_array {
 };
 
 struct string_item {
-  uint64_t offset : 47;
+  uint64_t offset : 48;
   uint64_t length : 16;
-  uint64_t inserted : 1;  // indicates whether the item is inserted or empty
 };
-
-static_assert(sizeof(string_item) == sizeof(uint64_t),
-              "string_item must stay 64-bit wide");
 
 template <>
 class mmap_array<std::string_view> {
  public:
+  static constexpr size_t kMaterializedBitsPerWord = sizeof(uint64_t) * 8;
+
   mmap_array() {}
   mmap_array(mmap_array&& rhs) : mmap_array() { swap(rhs); }
   ~mmap_array() {}
 
   void reset() {
+    materialized_map_.reset();
     items_.reset();
     data_.reset();
   }
 
   void set_hugepage_prefered(bool val) {
+    materialized_map_.set_hugepage_prefered(val);
     items_.set_hugepage_prefered(val);
     data_.set_hugepage_prefered(val);
   }
@@ -499,14 +499,17 @@ class mmap_array<std::string_view> {
     is_writable_ = is_writable;
     items_.open(filename + ".items", sync_to_file, is_writable);
     data_.open(filename + ".data", sync_to_file, is_writable);
+    open_materialized_map(filename, sync_to_file, is_writable);
   }
 
   void open_with_hugepages(const std::string& filename) {
     items_.open_with_hugepages(filename + ".items");
     data_.open_with_hugepages(filename + ".data");
+    open_materialized_map_with_hugepages(filename);
   }
 
   void touch(const std::string& filename) {
+    materialized_map_.touch(filename + ".materialized");
     items_.touch(filename + ".items");
     data_.touch(filename + ".data");
   }
@@ -517,16 +520,19 @@ class mmap_array<std::string_view> {
     bool should_stream =
         !data_.is_sync_to_file() && plan.total_size < data_.size();
     if (should_stream) {
-      stream_compact_and_dump(plan, filename + ".data", filename + ".items");
+      stream_compact_and_dump(plan, filename + ".data", filename + ".items",
+                              filename + ".materialized");
       return;
     }
 
     compact();
+    materialized_map_.dump(filename + ".materialized");
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
   }
 
   void resize(size_t size, size_t data_size) {
+    materialized_map_.resize(materialized_word_num(size));
     items_.resize(size);
     data_.resize(data_size);
   }
@@ -538,7 +544,7 @@ class mmap_array<std::string_view> {
     size_t total_length = 0;
     size_t non_zero_count = 0;
     for (size_t i = 0; i < items_.size(); ++i) {
-      if (items_.get(i).length > 0) {
+      if (is_materialized(i) && items_.get(i).length > 0) {
         ++non_zero_count;
         total_length += items_.get(i).length;
       }
@@ -550,18 +556,26 @@ class mmap_array<std::string_view> {
 
   void set(size_t idx, size_t offset, const std::string_view& val) {
     items_.set(idx, {static_cast<uint64_t>(offset),
-                     static_cast<uint64_t>(val.size()), 1});
+                     static_cast<uint64_t>(val.size())});
+    set_materialized(idx, true);
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());
     memcpy(data_.data() + offset, val.data(), val.size());
   }
 
-  bool inserted(size_t idx) const { return items_.get(idx).inserted == 1; }
+  bool is_materialized(size_t idx) const {
+    size_t word_idx = idx / kMaterializedBitsPerWord;
+    size_t bit_idx = idx % kMaterializedBitsPerWord;
+    if (word_idx >= materialized_map_.size()) {
+      return false;
+    }
+    return (materialized_map_.get(word_idx) >> bit_idx) & 1ULL;
+  }
 
   std::string_view get(size_t idx) const {
-    const string_item& item = items_.get(idx);
-    if (!item.inserted) {
+    if (!is_materialized(idx)) {
       return std::string_view{"", 0};
     }
+    const string_item& item = items_.get(idx);
     return std::string_view(data_.data() + item.offset, item.length);
   }
 
@@ -570,11 +584,13 @@ class mmap_array<std::string_view> {
   size_t data_size() const { return data_.size(); }
 
   void swap(mmap_array& rhs) {
+    materialized_map_.swap(rhs.materialized_map_);
     items_.swap(rhs.items_);
     data_.swap(rhs.data_);
   }
 
   void set_writable(bool is_writable) {
+    materialized_map_.set_writable(is_writable);
     items_.set_writable(is_writable);
     data_.set_writable(is_writable);
     is_writable_ = is_writable;
@@ -584,6 +600,7 @@ class mmap_array<std::string_view> {
     if (is_writable_) {
       return;
     }
+    materialized_map_.ensure_writable(work_dir);
     items_.ensure_writable(work_dir);
     data_.ensure_writable(work_dir);
     is_writable_ = true;
@@ -613,7 +630,7 @@ class mmap_array<std::string_view> {
       limit_offset = std::max(limit_offset, entry.offset + entry.length);
       memcpy(dst, src, entry.length);
       items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length, 1});
+                 {static_cast<uint64_t>(write_offset), entry.length});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);
@@ -640,7 +657,7 @@ class mmap_array<std::string_view> {
     plan.entries.reserve(items_.size());
     for (size_t i = 0; i < items_.size(); ++i) {
       const string_item& item = items_.get(i);
-      if (item.inserted) {
+      if (is_materialized(i)) {
         plan.total_size += item.length;
         plan.entries.push_back(
             {i, item.offset, static_cast<uint32_t>(item.length)});
@@ -651,7 +668,8 @@ class mmap_array<std::string_view> {
 
   void stream_compact_and_dump(const CompactionPlan& plan,
                                const std::string& data_filename,
-                               const std::string& items_filename) {
+                               const std::string& items_filename,
+                               const std::string& materialized_filename) {
     size_t size_before_compact = data_.size();
     FILE* fout = fopen(data_filename.c_str(), "wb");
     if (fout == NULL) {
@@ -675,7 +693,7 @@ class mmap_array<std::string_view> {
         }
       }
       items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length, 1});
+                 {static_cast<uint64_t>(write_offset), entry.length});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);
@@ -725,9 +743,53 @@ class mmap_array<std::string_view> {
 
     VLOG(1) << "Compaction completed. New data size: " << plan.total_size
             << ", old data size: " << size_before_compact;
+    materialized_map_.dump(materialized_filename);
     items_.dump(items_filename);
   }
 
+  void set_materialized(size_t idx, bool materialized) {
+    size_t word_idx = idx / kMaterializedBitsPerWord;
+    size_t bit_idx = idx % kMaterializedBitsPerWord;
+    uint64_t word = materialized_map_.get(word_idx);
+    if (materialized) {
+      word |= (1ULL << bit_idx);
+    } else {
+      word &= ~(1ULL << bit_idx);
+    }
+    materialized_map_.set(word_idx, word);
+  }
+
+  static size_t materialized_word_num(size_t size) {
+    return (size + kMaterializedBitsPerWord - 1) / kMaterializedBitsPerWord;
+  }
+
+  void open_materialized_map(const std::string& filename, bool sync_to_file,
+                             bool is_writable) {
+    const auto materialized_file = filename + ".materialized";
+    materialized_map_.open(materialized_file, sync_to_file, is_writable);
+    validate_materialized_map_size(materialized_file);
+  }
+
+  void open_materialized_map_with_hugepages(const std::string& filename) {
+    const auto materialized_file = filename + ".materialized";
+    materialized_map_.open_with_hugepages(materialized_file);
+    validate_materialized_map_size(materialized_file);
+  }
+
+  void validate_materialized_map_size(
+      const std::string& materialized_file) const {
+    const auto expected_size = materialized_word_num(items_.size());
+    if (materialized_map_.size() != expected_size) {
+      std::stringstream ss;
+      ss << "Invalid string materialized map file [ " << materialized_file
+         << " ], expected " << expected_size << " words, got "
+         << materialized_map_.size();
+      LOG(ERROR) << ss.str();
+      THROW_RUNTIME_ERROR(ss.str());
+    }
+  }
+
+  mmap_array<uint64_t> materialized_map_;
   mmap_array<string_item> items_;
   mmap_array<char> data_;
   bool is_writable_ = true;
