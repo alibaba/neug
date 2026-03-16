@@ -212,6 +212,7 @@ jobs:
         ctest -R test_connection -V
         ctest -R test_request -V
         ctest -R sink_test -V
+        ctest -R test_indexer -V
 
     # ========================================
     # Phase 2: Bulk load test data
