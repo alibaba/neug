@@ -70,7 +70,8 @@ public class JavaDriverE2ETest {
                 ResultSet resultSet =
                         session.run(
                                 "MATCH (n) WHERE n.name = $name RETURN n.age",
-                                Map.of("name", "marko"), AccessMode.READ)) {
+                                Map.of("name", "marko"),
+                                AccessMode.READ)) {
             assertTrue(resultSet.next());
             assertEquals(29, resultSet.getInt(0));
             assertEquals(29, resultSet.getObject(0));
@@ -80,6 +81,4 @@ public class JavaDriverE2ETest {
             assertFalse(resultSet.next());
         }
     }
-
-    
 }
