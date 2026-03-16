@@ -326,9 +326,7 @@ install_neug_dependencies() {
   # dependencies package
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
     brew install ${INTERACTIVE_MACOS[*]}
-    # Use Homebrew's OpenSSL 3.x instead of compiling OpenSSL 1.1.1k
-    # brpc requires OpenSSL 3.0+ for SSL_get1_peer_certificate, EVP_PKEY_get_base_id, etc.
-    export OPENSSL_ROOT_DIR="${HOMEBREW_PREFIX}/opt/openssl@3"
+    install_openssl
   elif [[ "${OS_PLATFORM}" == *"Ubuntu"* ]]; then
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC ${SUDO} apt-get install -y ${INTERACTIVE_UBUNTU[*]}
     ${SUDO} sh -c 'echo "fs.aio-max-nr = 1048576" >> /etc/sysctl.conf'
