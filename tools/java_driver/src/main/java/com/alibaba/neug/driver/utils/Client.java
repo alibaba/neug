@@ -66,6 +66,9 @@ public class Client {
      * @throws IOException if an I/O error occurs during the request
      */
     public byte[] syncPost(byte[] request) throws IOException {
+        if (closed) {
+            throw new IllegalStateException("Client is already closed");
+        }
         RequestBody body = RequestBody.create(request);
         Request httpRequest = new Request.Builder().url(uri).post(body).build();
         try (Response response = httpClient.newCall(httpRequest).execute()) {
