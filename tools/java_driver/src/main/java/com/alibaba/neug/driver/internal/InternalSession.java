@@ -59,10 +59,15 @@ public class InternalSession implements Session {
 
     @Override
     public ResultSet run(String query, Map<String, Object> parameters, AccessMode mode) {
+        if (closed) {
+            throw new IllegalStateException("Session is already closed");
+        }
         try {
             byte[] request = QuerySerializer.serialize(query, parameters, mode);
             byte[] response = client.syncPost(request);
             return ResponseParser.parse(response);
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to execute query", e);
         }
