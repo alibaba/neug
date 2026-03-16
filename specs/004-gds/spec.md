@@ -1,4 +1,4 @@
-**Version**: 2.0  
+**Version**: 0.2.0  
 **Created**: 2026-01-23  
 **Status**: Draft
 
@@ -394,12 +394,12 @@ ORDER BY community_size DESC
 **语法**：
 
 ```cypher
-INSTALL EXTENSION 'extension_name';
+INSTALL extension_name;
 ```
 
 **说明**：
 
-+ 从 NeuG 官方仓库下载当前平台对应的 **.so** 包并安装扩展
++ 从 NeuG 官方仓库下载当前平台对应的 **.so** or **.dylib** 包并安装扩展
 + 扩展会被安装到 `$NEUG_HOME/extensions/` 目录
 + 安装后需要 `LOAD` 才能使用
 
@@ -407,56 +407,43 @@ INSTALL EXTENSION 'extension_name';
 
 ```cypher
 -- 安装图算法扩展
-INSTALL EXTENSION 'gds';
+INSTALL gds;
 ```
 
 #### 2.4.2 LOAD EXTENSION
 **语法**：
 
 ```cypher
-LOAD EXTENSION 'extension_name';
+LOAD extension_name;
 ```
 
 **说明**：
 
 + 加载已安装的扩展到当前会话
 + 加载后扩展中的函数可用
-+ 可以在配置文件中设置自动加载
 
 **示例**：
 
 ```cypher
 -- 加载图算法扩展
-LOAD EXTENSION 'gds';
+LOAD gds;
 ```
 
-#### 2.4.3 UNLOAD EXTENSION
+#### 2.4.3 SHOW EXTENSIONS
 **语法**：
 
 ```cypher
-UNLOAD EXTENSION 'extension_name';
-```
-
-**说明**：
-
-+ 从当前会话卸载扩展
-+ 扩展中的函数不再可用
-
-#### 2.4.4 SHOW EXTENSIONS
-**语法**：
-
-```cypher
-SHOW EXTENSIONS;
+CALL SHOW_LOADED_EXTENSIONS() Return *;
 ```
 
 **输出**：
 
 | name | version | loaded | description |
 | --- | --- | --- | --- |
-| gds | 1.0.0 | true | Graph Data Science algorithms |
+| gds | 0.2.0 | true | Graph Data Science algorithms |
 
 
-#### 2.4.5 project_graph（投影子图）
+#### 2.4.4 project_graph（投影子图）
 **语法**：
 
 ```cypher
@@ -467,9 +454,9 @@ CALL project_graph(
 );
 ```
 
-**说明**：在扩展加载后，通过 project_graph 定义命名子图（仅维护元信息，不拷贝数据）。子图名供后续算法调用使用。
+**说明**：通过 project_graph 定义命名子图（仅维护元信息，不拷贝数据）。子图名供后续算法调用使用。
 
-#### 2.4.6 调用算法函数
+#### 2.4.5 调用算法函数
 **语法**：
 
 ```cypher
@@ -512,44 +499,33 @@ YIELD node, community_id;
 + `1`: 单线程执行（用于调试或小图以及默认配置）
 + `N`: 使用 N 个线程
 
-#### 2.5.2 实现评估
-**P0 (第一版实现)**：
-
-+ 单线程串行执行
-+ `concurrency` 参数接受但忽略（打印 warning）
-
-**P1 (第二版实现)**：
-
-+ 基于 Morsel-Driven 的并行执行
-+ 支持 `concurrency` 参数
-
-**评估依据**：
-
-+ 第一版优先保证功能正确性和 API 稳定性
-+ 并行化需要额外的测试和验证
-+ 大规模图测试需要时间
-
 ---
 
 ## 3. 技术实现
-本节约定子图元信息结构、GDS 访图接口、以及 CALL 的物理计划与执行接口，便于实现时对齐。
+本节约定子图元信息结构、子图算法的物理计划与执行接口，便于实现时对齐。
 
 **接口一览**：
 
 | 层次 | 接口/结构 | 作用 |
 | --- | --- | --- |
-| 子图元信息 | `VertexEntry` / `EdgeEntry` / `ProjectedSubgraph` | 描述 project_graph 定义的子图（点/边 label + predicate），不存数据 |
-| 访图抽象 | `GDSGraph`（含 `EdgeTriplet`、顶点/边迭代器） | 算法只依赖此接口从全图逻辑投影子图，与存储解耦 |
-| 物理计划 | `procedure_call.query`（Query + Argument） | 表示 CALL 的算法名与参数列表（含 graph_name） |
-| 执行扩展 | `CallFuncInputBase` / `NeugCallFunction` / `ProcedureCallOpr` | bind 解析参数 → exec 取 GDSGraph 并跑算法，结果写 Context |
+| 子图元信息 (§3.1) | `VertexEntry` / `EdgeEntry` / `ProjectedSubgraph` | 描述 project_graph 定义的子图（点/边 label + predicate），不存数据；与 connection/session 绑定，仅 Compiler 使用 |
+| 物理计划 (§3.2.1) | `GDSAlgo`（含 proto `Subgraph`：vertex_entries / edge_entries）、options | 表示 CALL 的算法名、子图（Schema 绑定后的 label id + Expression）与配置参数 |
+| 执行接口 (§3.2.2) | `Subgraph`（C++）/ `GDSAlgoFunction` / `GDSAlgoOpr` / `algo_exec_func_t` | 运行时：GDSAlgoOpr 持 Subgraph + options + algoFunc，Eval 取图并调用算法；算法通过 algo_exec_func_t 接收 Context、Subgraph、options、StorageReadInterface |
+| 访图抽象 (§3.2.3) | `GDSGraph`（含 `EdgeTriplet`、顶点/边迭代器） | 基于 StorageReadInterface + Subgraph 提供子图逻辑视图（按 predicate 过滤，不物化）；算法只依赖此接口，与存储、与具体子图定义解耦 |
 
 
 ### 3.1 Project SubGraph 方案
+这章节讨论如何保存子图？
 
-技术实现上需重点解决 **project subgraph** 的表示与访问方式。若将子图数据拷贝一份单独存储，会带来数据冗余与一致性问题，因此采用与 KUZU 类似的思路：**仅维护子图元信息**（点/边 label + predicate），运行时从全图按需扫描并应用过滤，不物化子图数据。
+技术实现上需重点解决 **project subgraph** 的表示与访问方式。若将子图数据拷贝一份单独存储，会带来数据冗余与一致性问题，因此采用与 KUZU 类似的思路：**仅维护子图元信息**（点/边 label + predicate），运行时 Compiler 将这些元信息与当前 Schema 绑定，转换为全图访问接口中的 label/predicate 过滤条件，不物化子图数据。
 
+元信息保存在 connection/session 对象中（保证一致的生命周期），并仅被 Compiler 使用，Engine 完全不感知。在真正执行图算法时，Engine 通过当前查询最新可读 Transaction 来访问子图，不接受指定版本的子图。
+
+元信息包括：
 **点元信息**：描述子图中「一类点」，即 label + 过滤条件（如 `age > 20`）。  
-**边元信息**：描述子图中「一类边」，即三元组 `(src_label, edge_label, dst_label)` + 边上的过滤条件（如 `weight > 1.0`）；边的端点需落在子图点集合内（由点 predicate 隐式约束）。
+**边元信息**：描述子图中「一类边」，即三元组 `(src_label, edge_label, dst_label)` + 边上的过滤条件（如 `weight > 1.0`）；边的端点需落在子图点集合内（由点 label+predicate 隐式约束）。
+
+我们目前支持的 predicate 范围是基于存储原始属性的过滤，不支持基于计算过程中某个中间值的过滤，并可以支持多个属性过滤的组合条件。
 
 ```cpp
 // 子图中「一类点」的元信息：仅记录 label 与过滤表达式，不拷贝数据
@@ -590,16 +566,16 @@ CALL k_core('my_graph', {min_k: 3, concurrency: 4})
 YIELD node, core_number;
 ```
 
-下面从 **Physical Plan 表示**（§3.2.1）展开。
+下面从 **Physical Plan 表示**（§3.2.1），**Engine 执行接口**（§3.2.2）和 **统一访图接口 GDSGraph** (§3.2.3) 展开。
 
 #### 3.2.1 Physical Plan
-我们将 `CALL procedure_name(args) YIELD ...` 统一翻译为 **GDSAlgo** 算子，对应 proto 定义如下：
+我们将 `CALL procedure_name(args) YIELD ...` 统一翻译为 **GDSAlgo** 算子结构，对应 proto 定义如下：
 
 ```protobuf
-message SubGraph {
+message Subgraph {
   message VertexEntry {
-    int32 label_id = 1;
-    common::Expression predicate = 2;
+    int32 label_id = 1; // 经过 Schema 绑定后的 label id
+    common::Expression predicate = 2; // 经过Schema绑定后的Expression结构，确保子图中的属性在当前版本的schema中存在
   }
 
   message EdgeEntry {
@@ -614,8 +590,11 @@ message SubGraph {
 }
 
 message GDSAlgo {
+    // 算法名称
     string algo_name = 1;
-    SubGraph sub_graph = 2;
+    // 子图信息
+    Subgraph sub_graph = 2;
+    // 其他配置参数：concurrency, min_k ...
     map<string, string> options = 3;
 }
 ```
@@ -677,7 +656,6 @@ message GDSAlgo {
        ]
       },
       "options": {
-       "graph_name": "my_graph",
        "min_k": "3",
        "concurrency": "4"
       }
@@ -723,204 +701,132 @@ message GDSAlgo {
 }
 ```
 
+#### 3.2.2 Engine 执行接口
+
+```c++
+// 将 protobuf Subgraph（§3.2.1）转为 C++ 运行时结构，与 proto 一一对应
+class Subgraph {
+ public:
+  struct VertexEntry {
+    int32_t label_id;               // Schema 绑定后的点 label id
+    common::Expression predicate;    // Schema 绑定后的过滤表达式
+  };
+
+  struct EdgeEntry {
+    int32_t src_label_id;
+    int32_t edge_label_id;
+    int32_t dst_label_id;
+    common::Expression predicate;
+  };
+
+  std::vector<VertexEntry> vertex_entries;
+  std::vector<EdgeEntry> edge_entries;
+
+  Subgraph() = default;
+  // 从 physical plan 的 proto physical::Subgraph 反序列化得到
+  explicit Subgraph(const ::physical::Subgraph& proto);
+};
+
+using options_t = std::unordered_map<std::string, std::string>;
+
+using algo_exec_func_t = std::function<execution::Context(
+    execution::Context& ctx, const Subgraph &subgraph,
+    const options_t &options,
+    const StorageReadInterface& graph)>;
+
+struct NEUG_API GDSAlgoFunction : public Function {
+  explicit GDSAlgoFunction(std::string name) : Function{std::move(name), {}} {}
+  // 每个算子需要实现自己的 execFunc 函数
+  algo_exec_func_t execFunc;
+};
+
+class GDSAlgoOpr : public IOperator {
+ public:
+  GDSAlgoOpr(const Subgraph &subgraph,
+             const options_t &options,
+             function::GDSAlgoFunction* algoFunc)
+      : subgraph_(subgraph),
+        options_(options),
+        algoFunc_(algoFunc) {}
+
+  std::string get_operator_name() const override { return "GDSAlgoOpr"; }
+
+  neug::result<neug::execution::Context> Eval(
+      IStorageInterface& graph, const ParamsMap& params,
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override;
+
+ private:
+  const Subgraph &subgraph_;
+  const options_t &options_;
+  function::GDSAlgoFunction* algoFunc_;
+};
+```
+
+#### 3.2.3 统一访图接口 GDSGraph
+
+我们可以进一步优化 `algo_exec_func_t` 接口：
+
+优化后定义为：
+
+```c++
+using algo_exec_func_t = std::function<execution::Context(
+    execution::Context& ctx,
+    const options_t &options,
+    const GDSGraph& graph)>;
+```
+
+优化前定义为：
+
+```c++
+using algo_exec_func_t = std::function<execution::Context(
+    execution::Context& ctx, const Subgraph &subgraph,
+    const options_t &options,
+    const StorageReadInterface& graph)>;
+```
+
+我们基于 `StorageReadInterface graph` 和 `Subgraph subgraph` 提供当前 Transaction 的子图视图 `GDSGraph`。算法层不直接访问存储，而是通过 GDSGraph 从全图中按子图元信息「投影」出逻辑视图（按 predicate 过滤，不物化），使得算法与存储、与具体子图定义解耦。
+
+```c++
+class GDSGraph {
+public:
+    virtual ~GDSGraph() = default;
+
+    /// 子图中包含的所有点 label（用于算法遍历所有点集）
+    virtual std::vector<label_t> getVertexLabels() const = 0;
+
+    /// 子图中包含的所有边类型（三元组列表），用于区分有向/多边类型
+    virtual std::vector<EdgeTriplet> getEdgeTriplets() const = 0;
+
+    /// 获取指定 label 下的顶点迭代器，仅包含满足该 VertexEntry.predicate 的顶点
+    virtual VertexIterator getVertices(label_t vertexLabel) const = 0;
+
+    /// 从 startVertex 出发、边类型为 edgeLabel 的所有出边；边与邻接点均需满足子图 predicate
+    virtual EdgeIterator getOutgoingEdges(vid_t startVertex, label_t edgeLabel) const = 0;
+
+    /// 以 startVertex 为终点、边类型为 edgeLabel 的所有入边；边与邻接点均需满足子图 predicate
+    virtual EdgeIterator getIncomingEdges(vid_t startVertex, label_t edgeLabel) const = 0;
+
+protected:
+    const Subgraph &subgraph_;  // 子图元信息，由 project_graph 填充
+    const StorageReadInterface& read_graph_; // 基于当前 Transaction 访问全图接口
+};
+```
+
+**实现说明**：
+
++ GDSGraph 可在引擎层基于现有 `StorageReadInterface` 实现：用 `GetVertexSet(label)`、`GetGenericOutgoingGraphView` / `GetGenericIncomingGraphView` 获取全图数据，再按 `ProjectedSubgraph` 中的 `VertexEntry.predicate` 与 `EdgeEntry.predicate` 做过滤，不物化子图。
++ 若子图中同一边 label 对应多种 (src, edge, dst) 组合，可在 `getEdgeTriplets()` 中返回多个 `EdgeTriplet`；算法按需对每种 triplet 调用 `getOutgoingEdges` / `getIncomingEdges`（传入对应 edgeLabel 或扩展接口传 triplet）。
+
 ---
 
 ## 4. 开发者接口（编译扩展）
-### 4.1 扩展项目结构
-推荐按以下方式组织单个 extension：
 
-```plain
-extension/
-├── CMakeLists.txt                    # 扩展总入口，通过 add_extension_if_enabled 按需加入子目录
-└── <extension_name>/                 # 例如 json
-    ├── CMakeLists.txt                # 收集源文件、调用 build_extension_lib、设置 include/link
-    ├── include/                      # 头文件（可选，按需）
-    │   ├── xxx.h
-    │   └── ...
-    └── src/                          # 实现与入口
-        ├── <extension_name>_extension.cpp   # 必须：实现 Init / Name 等 C 接口
-        └── ...
-```
-
-**json extension 示例：**
-
-```plain
-extension/json/
-├── CMakeLists.txt
-├── include/
-│   ├── json_dataset_builder.h
-│   ├── json_options.h
-│   └── json_read_function.h
-└── src/
-    ├── json_extension.cpp      # 入口：Init()、Name()、注册函数与 ExtensionInfo
-    ├── json_dataset_builder.cc
-    └── json_options.cc
-```
-
-### 4.2 添加 CMake 配置
-#### extension/CMakeLists.txt（根）
-+ `add_extension_if_enabled(extension)`  
-当 `extension` 在 `BUILD_EXTENSIONS` 列表中时，才 `add_subdirectory(extension)`，避免未选中的扩展参与构建。  
-例如：`add_extension_if_enabled("json")`。
-+ `build_extension_lib(ext_name)`  
-在子目录 `extension/<ext_name>/CMakeLists.txt` 中调用。要求该子目录已把要编译的源文件列表写入变量 `<EXT_NAME>_EXTENSION_OBJECT_FILES`（`<EXT_NAME>` 为 `ext_name` 的大写，如 `json` → `JSON_EXTENSION_OBJECT_FILES`）。  
-该函数会：  
-    - 用这些源文件创建 SHARED 库 `neug_<ext_name>_extension`  
-    - 通过 `set_extension_properties` 设置输出名为 `lib<ext_name>.neug_extension`、输出目录等
-+ **输出目录规则（set_extension_properties）**  
-    - 若已设置 `CMAKE_LIBRARY_OUTPUT_DIRECTORY`（如 Python 构建）：扩展库输出到该目录下的 `extension/<ext_name>/`。  
-    - 否则（独立 CMake 构建）：输出到 `CMAKE_BINARY_DIR` 下对应位置。  
-最终产物：`lib<ext_name>.neug_extension`。
-
-#### extension/<extension_name>/CMakeLists.txt
-1. **收集源文件**  
-将本扩展需要参与编译的源文件放入变量 `<EXTENSION_NAME>_EXTENSION_OBJECT_FILES`（`<EXTENSION_NAME>` 为扩展名大写，如 `JSON_EXTENSION_OBJECT_FILES`）。
-2. **调用 **`build_extension_lib(<extension_name>)`  
-必须在此子目录中调用，且应在设置好源文件变量之后、`add_subdirectory(test)` 之前。
-3. **配置 include 与 link**  
-对 target `neug_<extension_name>_extension` 使用 `target_include_directories`、`target_link_libraries` 等，引入头文件路径和依赖（如 `neug_libraries`、Arrow 相关 target 等）。
-
-**json 示例（extension/json/CMakeLists.txt）：**
-
-```cmake
-# 1. 收集源文件
-file(GLOB JSON_EXTENSION_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-set(JSON_EXTENSION_OBJECT_FILES ${JSON_EXTENSION_SOURCES})
-
-# 2. 构建扩展动态库（生成 libjson.neug_extension）
-build_extension_lib("json")
-
-# 3. 头文件与依赖
-target_include_directories(neug_json_extension PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR})
-if(ARROW_INCLUDE_DIRS)
-    target_include_directories(neug_json_extension PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
-endif()
-target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
-
-target_link_libraries(neug_json_extension PRIVATE
-    arrow_json
-    arrow_dataset_objlib
-    neug_libraries
-)
-```
-
-### 4.3 算法注册
-动态库被加载时，会通过 `dlopen` 查找并调用以下 **C 链接、extern "C"** 的符号（具体名称以 `include/neug/compiler/extension/extension.h` 中 `ExtensionLibLoader` 常量为准，一般为小写 `init` / `name`；部分加载路径可能使用 `Init` / `Name`，实现时需与当前加载方式一致）：
-
-+ `void init(main::ClientContext* context)`（或兼容的 `Init()`）  
-扩展初始化入口。在实现中通常：
-    - 使用 `neug::extension::ExtensionAPI::registerFunction<T>()` 注册表函数（如 `JSON_SCAN`）。
-    - 使用 `ExtensionAPI::registerFunctionAlias<T>()` 注册别名（如 `JSONL_SCAN`）。
-    - 调用 `ExtensionAPI::registerExtension(ExtensionInfo{...})` 注册扩展元信息（名称与描述）。
-+ `const char* name()`（或兼容的 `Name()`）  
-返回扩展的显示名称，用于展示在“已加载扩展”等列表中。
-
-头文件与 API 定义：
-
-+ `neug/compiler/extension/extension_api.h`：`ExtensionAPI::registerFunction`、`registerFunctionAlias`、`registerExtension`、`ExtensionInfo`。
-+ `neug/compiler/extension/extension.h`：`ExtensionLibLoader` 所需符号名、`ext_init_func_t` / `ext_name_func_t` 等。
-
-**json 入口示例（json_extension.cpp 节选）：**
-
-```cpp
-#include "neug/compiler/extension/extension_api.h"
-#include "json_read_function.h"
-
-extern "C" {
-
-void Init() {
-    neug::extension::ExtensionAPI::registerFunction<
-        neug::function::JsonReadFunction>(
-        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-    neug::extension::ExtensionAPI::registerFunctionAlias<
-        neug::function::JsonLReadFunction>(
-        neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
-    neug::extension::ExtensionAPI::registerExtension(
-        neug::extension::ExtensionInfo{
-            "json", "Provides functions to read and write JSON files."});
-}
-
-const char* Name() { return "JSON"; }
-
-}
-```
-
-### 4.4 编译与本地测试
-#### 使用脚本一键构建与上传
-使用 `scripts/build_and_upload_extensions.sh` 可完成：构建指定扩展 → 打包 → 计算校验和 → 可选上传 OSS。
-
-| 选项 | 说明 | 默认值 | 示例 |
-| --- | --- | --- | --- |
-| `--extensions` | 要构建的扩展列表，分号分隔 | `json` | `--extensions "json"` 或 `--extensions "json;parquet"` |
-| `--version` | 版本标签，用于 OSS 路径等 | `0.1.0` | `--version "0.1.0"` |
-| `--platform` | 平台标识 | `linux_x86_64` | 可选：`linux_arm64`, `osx_x86_64`, `osx_arm64` 等 |
-| `--workspace` | 仓库根目录 | 当前目录 | `--workspace /path/to/neug` |
-| `--skip-build` | 跳过构建，仅打包/上传 | false | `--skip-build` |
-| `--skip-upload` | 跳过 OSS 上传 | false | `--skip-upload` |
-| `--help` | 打印用法 | — | `--help` |
-
-
-#### 上传 OSS 所需环境变量
-上传到 OSS 前需配置：
-
-```bash
-export OSS_ACCESS_KEY_ID=<access_id>
-export OSS_ACCESS_KEY_SECRET=<access_key>
-export OSS_ENDPOINT=<endpoint>
-export OSS_BUCKET_NAME=<bucket_name>
-```
-
-未配置时脚本会跳过上传并提示。
-
-#### 本地仅构建（不打包上传）
-在仓库根目录：
-
-```bash
-export BUILD_EXTENSIONS=json
-cd tools/python_bind
-make build
-```
-
-或使用 CMake 直接配置：
-
-```bash
-mkdir -p build && cd build
-cmake .. -DBUILD_EXTENSIONS=json
-make -j
-```
-
-扩展库输出路径由 `set_extension_properties` 决定（见上文），一般为 `build/extension/json/libjson.neug_extension` 或 Python 构建目录下对应位置。
+开发者应该参考 Extension 开发指南开发相应的图算法，具体可参见语雀文档：https://aliyuque.antfin.com/7br/acpom7/vaelciw1gexlsktq
 
 ---
 
-## 5. 内置 GDS 扩展
-### 5.1 使用流程
-```cypher
--- Step 1: 安装（首次）
-INSTALL EXTENSION 'gds';
-
--- Step 2: 加载（每次启动或需要时）
-LOAD EXTENSION 'gds';
-
--- Step 3: 投影子图（按需）
-CALL project_graph('my_graph', {'Person': 'true'}, {'KNOWS': 'true'});
-
--- Step 4: 调用算法
-CALL k_core('my_graph', {min_k: 3})
-YIELD node, core_number;
-
-CALL leiden('entity_graph', {})
-YIELD node, community_id;
-```
-
----
-
-## 6. 实现优先级
+## 5. 实现优先级
 ### P0 - 第一版 (MVP)
 | 功能 | 描述 |
 | --- | --- |
@@ -951,6 +857,5 @@ YIELD node, community_id;
 | --- | --- |
 | 更多算法 | Betweenness Centrality, Triangle Count 等 |
 | 性能优化 | 算法级别优化 |
-
 
 ---
