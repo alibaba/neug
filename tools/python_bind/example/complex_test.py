@@ -25,6 +25,7 @@ Tests based on official documentation:
   - tutorials      : tinysnb builtin dataset exploration
 """
 
+import json
 import os
 import shutil
 import sys
@@ -110,7 +111,7 @@ def verify_json_extension_loaded(conn_json):
         fail("SHOW_LOADED_EXTENSIONS", e)
 
 
-def run_json_array_tests(conn_json):
+def run_json_array_tests(conn_json, export_dir=None):
     if not os.path.isfile(JSON_ARRAY_FILE):
         fail(f"JSON Array file not found: {JSON_ARRAY_FILE}")
         return
@@ -155,8 +156,27 @@ def run_json_array_tests(conn_json):
         _alias,
     )
 
+    # Export test: COPY LOAD result to JSON array file and verify
+    if export_dir:
+        export_path = os.path.join(export_dir, "export_array.json")
+        try:
+            conn_json.execute(
+                f'COPY (LOAD FROM "{JSON_ARRAY_FILE}" RETURN fName, age) TO '
+                f"'{export_path}';"
+            )
+            with open(export_path, encoding="utf-8") as f:
+                data = json.load(f)
+            assert isinstance(data, list), "Expected JSON array"
+            assert len(data) > 0, "Expected at least one exported row"
+            if data:
+                first = data[0]
+                assert isinstance(first, dict), "Each row should be a JSON object"
+            ok(f"Export to JSON array: {len(data)} rows written to {export_path}")
+        except Exception as e:
+            fail("Export LOAD result to JSON array", e)
 
-def run_jsonl_tests(conn_json):
+
+def run_jsonl_tests(conn_json, export_dir=None):
     if not os.path.isfile(JSONL_FILE):
         fail(f"JSONL file not found: {JSONL_FILE}")
         return
@@ -187,6 +207,25 @@ def run_jsonl_tests(conn_json):
         _projection,
     )
 
+    # Export test: COPY LOAD result to JSONL file and verify
+    if export_dir:
+        export_path = os.path.join(export_dir, "export_lines.jsonl")
+        try:
+            conn_json.execute(
+                f'COPY (LOAD FROM "{JSONL_FILE}" RETURN fName, age) TO '
+                f"'{export_path}';"
+            )
+            with open(export_path, encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip()]
+            data = [json.loads(line) for line in lines]
+            assert len(data) > 0, "Expected at least one exported line"
+            if data:
+                first = data[0]
+                assert isinstance(first, dict), "Each line should be a JSON object"
+            ok(f"Export to JSONL: {len(data)} lines written to {export_path}")
+        except Exception as e:
+            fail("Export LOAD result to JSONL", e)
+
 
 def run_json_extension_suite(db_json, conn_json, db_path_json):
     statements = [
@@ -197,8 +236,8 @@ def run_json_extension_suite(db_json, conn_json, db_path_json):
         run_statement(conn_json, desc, stmt)
 
     verify_json_extension_loaded(conn_json)
-    run_json_array_tests(conn_json)
-    run_jsonl_tests(conn_json)
+    run_json_array_tests(conn_json, export_dir=db_path_json)
+    run_jsonl_tests(conn_json, export_dir=db_path_json)
 
     conn_json.close()
     db_json.close()

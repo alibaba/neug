@@ -109,10 +109,11 @@ jobs:
         pip3 install -r requirements.txt
         pip3 install -r requirements_dev.txt
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        export NEUG_RUN_JSON_TESTS=true
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-        python3 -m pytest -sv tests/test_load.py -k "json"
-        python3 -m pytest -sv tests/test_export.py -k "json"
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        NEUG_RUN_JSON_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
+        NEUG_RUN_JSON_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, linux, x64]
