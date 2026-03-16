@@ -32,6 +32,8 @@ while getopts ":d:r:h" opt; do
       ;;
     h)
       usage
+      exit 0
+      ;;
       ;;
     *)
       usage
