@@ -56,4 +56,4 @@ try (Driver driver = GraphDatabase.driver("http://localhost:10000")) {
 - Close the driver when the application shuts down
 - `isClosed()` can be used to inspect driver state
 
-See also: [Session](session), [Generated Javadoc](apidocs/index.html)
+See also: [Session](session)
