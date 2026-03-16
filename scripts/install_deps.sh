@@ -155,7 +155,7 @@ init_workspace_and_env() {
   fi
   #if macos
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-    export MACOSX_DEPLOYMENT_TARGET=10.15
+    export MACOSX_DEPLOYMENT_TARGET=15.0
   fi
 }
 
@@ -319,7 +319,7 @@ install_openssl() {
   export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-INTERACTIVE_MACOS=("xsimd" "cmake" "openssl@3")
+INTERACTIVE_MACOS=("xsimd" "cmake")
 INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
 
 install_neug_dependencies() {
