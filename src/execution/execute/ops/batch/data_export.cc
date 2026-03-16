@@ -14,7 +14,12 @@
  */
 
 #include "neug/execution/execute/ops/batch/data_export.h"
-#include "neug/execution/execute/ops/batch/writer/export_writer_factory.h"
+#include "neug/compiler/function/export/export_function.h"
+#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/execution/execute/ops/batch/data_source.h"
+#include "neug/utils/exception/exception.h"
+#include "neug/utils/reader/reader.h"
+#include "neug/utils/reader/schema.h"
 
 namespace neug {
 namespace execution {
@@ -22,13 +27,12 @@ namespace ops {
 
 class DataExportOpr : public IOperator {
  public:
-  DataExportOpr(const std::string& extension_name, const std::string& file_path,
-                const std::unordered_map<std::string, std::string>& options,
-                const std::vector<std::pair<int, std::string>>& headers)
-      : extension_name_(extension_name),
-        file_path_(file_path),
-        options_(options),
-        headers_(headers) {}
+  DataExportOpr(const reader::FileSchema& schema,
+                std::shared_ptr<reader::EntrySchema> entry_schema,
+                function::ExportFunction* exportFunction)
+      : schema_(schema),
+        entry_schema_(std::move(entry_schema)),
+        exportFunction_(exportFunction) {}
 
   std::string get_operator_name() const override { return "DataExportOpr"; }
 
@@ -37,11 +41,10 @@ class DataExportOpr : public IOperator {
       neug::execution::Context&& ctx,
       neug::execution::OprTimer* timer) override;
 
-  std::shared_ptr<IExportWriter> writer_;
-  std::string extension_name_;
-  std::string file_path_;
-  std::unordered_map<std::string, std::string> options_;
-  std::vector<std::pair<int, std::string>> headers_;
+ private:
+  reader::FileSchema schema_;
+  std::shared_ptr<reader::EntrySchema> entry_schema_;
+  function::ExportFunction* exportFunction_;
 };
 
 neug::result<neug::execution::Context> DataExportOpr::Eval(
@@ -49,45 +52,32 @@ neug::result<neug::execution::Context> DataExportOpr::Eval(
     neug::execution::Context&& ctx, neug::execution::OprTimer* timer) {
   const auto& graph =
       dynamic_cast<const StorageReadInterface&>(graph_interface);
-  writer_ = neug::execution::ExportWriterFactory::CreateExportWriter(
-      extension_name_, file_path_, headers_, options_);
-  std::vector<std::shared_ptr<IContextColumn>> columns;
-  for (size_t i = 0; i < headers_.size(); i++) {
-    columns.emplace_back(ctx.get(headers_[i].first));
+  if (!exportFunction_) {
+    THROW_IO_EXCEPTION("DataExportOpr: export function is nullptr");
   }
-  Status status = writer_->Write(columns, graph);
-  if (!status.ok()) {
-    RETURN_ERROR(status);
+  if (!exportFunction_->execFunc) {
+    THROW_IO_EXCEPTION(
+        "DataExportOpr: write function in export function is nullptr");
   }
-  for (size_t i = 0; i < headers_.size(); i++) {
-    ctx.remove(headers_[i].first);
-  }
-  return neug::result<Context>(std::move(ctx));
+  return exportFunction_->execFunc(ctx, schema_, entry_schema_, graph);
 }
 
 neug::result<OpBuildResultT> DataExportOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
-  ContextMeta ret_meta = ctx_meta;
   const auto& data_export_opr = plan.plan(op_idx).opr().data_export();
   std::string extension_name = data_export_opr.extension_name();
-  std::string file_path = data_export_opr.file_path();
-  std::unordered_map<std::string, std::string> options;
-  for (const auto& entry : data_export_opr.options()) {
-    std::string upper_str;
-    std::transform(entry.first.begin(), entry.first.end(),
-                   std::back_inserter(upper_str), ::toupper);
-    options.insert({upper_str, entry.second});
-  }
-  std::vector<std::pair<int, std::string>> headers;
-  for (const auto& property_mapping : data_export_opr.property_mappings()) {
-    std::string column_name = property_mapping.property().key().name();
-    int alias = property_mapping.data().operators(0).var().tag().id();
-    headers.emplace_back(std::make_pair(alias, column_name));
-  }
+  auto signatureName = data_export_opr.extension_name();
+  auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+  auto func = gCatalog->getFunctionWithSignature(signatureName);
+  auto writeFunc = func->ptrCast<function::ExportFunction>();
+  auto fileSchema =
+      ops::ReadStateBuilder::buildFileSchema(data_export_opr.file_schema());
+  auto entrySchema =
+      ops::ReadStateBuilder::buildEntrySchema(data_export_opr.entry_schema());
   return std::make_pair(std::make_unique<DataExportOpr>(
-                            extension_name, file_path, options, headers),
-                        ret_meta);
+                            fileSchema, std::move(entrySchema), writeFunc),
+                        ctx_meta);
 }
 
 }  // namespace ops

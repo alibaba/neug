@@ -254,6 +254,7 @@ jobs:
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_query.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_tp_service.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_load.py
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_export.py
 
     - name: Run lsqb test
       if: steps.scope.outputs.extension_only != 'true'
@@ -416,4 +417,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info
+        files: ${{ github.workspace }}/tools/python_bind/build/neug_py_bind/coverage_filtered.info

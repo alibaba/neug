@@ -30,8 +30,7 @@ add_library(neug_planner_plan_operator
         plan_read.cpp
         plan_single_query.cpp
         plan_subquery.cpp
-        plan_update.cpp
-        plan_port_db.cpp)
+        plan_update.cpp)
 add_dependencies(neug_planner_plan_operator neug_plan_proto)
 
 set(ALL_OBJECT_FILES

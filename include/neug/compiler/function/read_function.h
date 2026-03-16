@@ -45,7 +45,8 @@ class FileSystemProvider {
   // Return file info according to the protocol and paths specified in
   // file_schema
   // TODO: support different file systems by VFS manager in the future.
-  virtual FileInfo<FileSystem> provide(const reader::FileSchema& schema) = 0;
+  virtual FileInfo<FileSystem> provide(const reader::FileSchema& schema,
+                                       bool resolvePaths = true) = 0;
 };
 
 class LocalFileSystemProvider
@@ -53,14 +54,18 @@ class LocalFileSystemProvider
  public:
   // Simple implementation of a local file provider;
   // TODO: should be replaced with a VFS manager in the future.
-  FileInfo<arrow::fs::FileSystem> provide(
-      const reader::FileSchema& schema) override {
+  FileInfo<arrow::fs::FileSystem> provide(const reader::FileSchema& schema,
+                                          bool resolvePaths = true) override {
     auto fs = std::make_shared<arrow::fs::LocalFileSystem>();
     auto& paths = schema.paths;
     std::vector<std::string> resolvedPaths;
-    for (auto& path : paths) {
-      auto files = neug::execution::ops::match_files_with_pattern(path);
-      resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
+    if (resolvePaths) {
+      for (auto& path : paths) {
+        auto files = neug::execution::ops::match_files_with_pattern(path);
+        resolvedPaths.insert(resolvedPaths.end(), files.begin(), files.end());
+      }
+    } else {
+      resolvedPaths = paths;
     }
     return FileInfo<arrow::fs::FileSystem>{resolvedPaths, fs};
   }

@@ -22,8 +22,9 @@ Complex types, such as vertices and edges, will be output in their JSON-formatte
 Available parameters are:
 |Parameter|Description|Default|
 |---|---|---|
-|`HEADER`|Whether to output a header row.|`false`|
+|`HEADER`|Whether to output a header row.|`true`|
 |`DELIM` or `DELIMITER`|Character that separates fields in the CSV.|`\|`|
+|`BATCH_SIZE`|Maximum number of rows to write in a single batch.|`1024`|
 
 Another example is shown below.
 ```cypher
@@ -32,8 +33,8 @@ COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) TO 'person_knows_person.csv
 This outputs the following results to `person_knows_person.csv`:
 ```csv
 e
-{'_SRC': '0:0', '_DST': '0:1', '_LABEL': 'knows', 'weight': 0.500000}
-{'_SRC': '0:0', '_DST': '0:2', '_LABEL': 'knows', 'weight': 1.000000}
+{"_SRC":"0:0","_DST":"0:1","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":0.5}
+{"_SRC":"0:0","_DST":"0:2","_SRC_LABEL":"person","_DST_LABEL":"person","_LABEL":"knows","weight":1.0}
 ```
 
 ## Additional Export Formats
