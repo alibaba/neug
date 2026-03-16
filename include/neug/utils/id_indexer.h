@@ -440,9 +440,8 @@ class LFIndexer {
     }
 
     load_meta(data_dir + "/" + name + ".meta");
-    keys_->open(name + ".keys", "", data_dir);
+    keys_->open(name + ".keys", data_dir, "");
     indices_.open(data_dir + "/" + name + ".indices", false);
-    size_t num_elements = num_elements_.load();
 
     indices_size_ = indices_.size();
   }
