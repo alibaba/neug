@@ -14,12 +14,6 @@
  */
 #pragma once
 
-#include <arrow/chunked_array.h>
-#include <arrow/filesystem/filesystem.h>
-#include <arrow/result.h>
-#include <arrow/scalar.h>
-#include <arrow/table.h>
-#include <rapidjson/document.h>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,7 +23,6 @@
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/schema.h"
-#include "neug/utils/result.h"
 
 namespace neug {
 
@@ -59,8 +52,8 @@ class ExportWriter {
 
   virtual ~ExportWriter() = default;
 
-  virtual Status write(const execution::Context& context,
-                       const StorageReadInterface& graph) = 0;
+  virtual neug::Status write(const execution::Context& context,
+                             const StorageReadInterface& graph) = 0;
 
  protected:
   const reader::FileSchema& schema_;
@@ -74,7 +67,7 @@ class StringFormatBuffer {
       : response_(response), schema_(schema) {}
   ~StringFormatBuffer() {}
   virtual void addValue(int rowIdx, int colIdx) = 0;
-  virtual arrow::Status flush(
+  virtual neug::Status flush(
       std::shared_ptr<arrow::io::OutputStream> stream) = 0;
   static bool validateIndex(const neug::QueryResponse* response, int rowIdx,
                             int colIdx);
@@ -98,7 +91,7 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   ~CSVStringFormatBuffer() {}
   void addValue(int rowIdx, int colIdx) override;
   void addHeader();
-  arrow::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
 
  private:
   BinaryData blob_;
@@ -113,46 +106,50 @@ class CSVStringFormatBuffer : public StringFormatBuffer {
   char quote_char_;
 
  private:
-  // Format each value to string, return string or error status.
-  arrow::Result<std::string> formatValueToStr(const neug::Array& arr,
-                                              int rowIdx);
-  std::string addEscapes(char toEscape, char escape, const std::string& val);
+  // write the current value to string buffer, return error status if value is
+  // invalid
+  neug::Status formatValueToStr(const neug::Array& arr, int rowIdx);
+  void writeWithEscapes(char* toEscape, char escape, const std::string& str);
   void write(const uint8_t* buffer, uint64_t len);
 
  private:
   static constexpr const char* DEFAULT_CSV_NEWLINE = "\n";
   static constexpr const char* DEFAULT_NULL_STR = "";
   static constexpr size_t DEFAULT_CAPACITY = 64;
+  static constexpr const char* LIST_ARRAY_CHAR = "[]";
+  static constexpr const char* COMMA_CHAR = ",";
 };
 
-class ArrowExportWriter : public ExportWriter {
+class QueryExportWriter : public ExportWriter {
  public:
-  ArrowExportWriter(const reader::FileSchema& schema,
-                    std::shared_ptr<arrow::fs::FileSystem> fileSystem,
-                    std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
+  QueryExportWriter(
+      const reader::FileSchema& schema,
+      std::shared_ptr<arrow::fs::FileSystem>
+          fileSystem,  // use arrow file system to open output stream
+      std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
       : ExportWriter(schema, std::move(entry_schema)),
         fileSystem_(fileSystem) {}
-  ~ArrowExportWriter() {}
+  ~QueryExportWriter() {}
 
-  virtual Status write(const execution::Context& context,
-                       const StorageReadInterface& graph) override;
+  virtual neug::Status write(const execution::Context& context,
+                             const StorageReadInterface& graph) override;
 
-  virtual Status writeTable(const QueryResponse* table) = 0;
+  virtual neug::Status writeTable(const QueryResponse* table) = 0;
 
  protected:
   std::shared_ptr<arrow::fs::FileSystem> fileSystem_;
 };
 
-class ArrowCsvExportWriter : public ArrowExportWriter {
+class CsvQueryExportWriter : public QueryExportWriter {
  public:
-  ArrowCsvExportWriter(
+  CsvQueryExportWriter(
       const reader::FileSchema& schema,
       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : ArrowExportWriter(schema, fileSystem, std::move(entry_schema)) {}
-  ~ArrowCsvExportWriter() {}
+      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
+  ~CsvQueryExportWriter() {}
 
-  virtual Status writeTable(const QueryResponse* table) override;
+  virtual neug::Status writeTable(const QueryResponse* table) override;
 };
 
 }  // namespace writer

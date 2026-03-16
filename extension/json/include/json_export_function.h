@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "neug/compiler/function/export/export_function.h"
+#include "neug/utils/result.h"
 #include "neug/utils/writer/writer.h"
 #include "rapidjson/document.h"
 
@@ -19,7 +20,7 @@ class JsonArrayStringFormatBuffer : public StringFormatBuffer {
                               const reader::EntrySchema& entry_schema);
   ~JsonArrayStringFormatBuffer() = default;
   void addValue(int rowIdx, int colIdx) override;
-  arrow::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
 
  private:
   const reader::EntrySchema& entry_schema_;
@@ -36,7 +37,7 @@ class JsonLStringFormatBuffer : public StringFormatBuffer {
                           const reader::EntrySchema& entry_schema);
   ~JsonLStringFormatBuffer() = default;
   void addValue(int rowIdx, int colIdx) override;
-  arrow::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
+  neug::Status flush(std::shared_ptr<arrow::io::OutputStream> stream) override;
 
  private:
   const reader::EntrySchema& entry_schema_;
@@ -46,28 +47,28 @@ class JsonLStringFormatBuffer : public StringFormatBuffer {
   rapidjson::Document document_;
 };
 
-class ArrowJsonArrayExportWriter : public ArrowExportWriter {
+class ArrowJsonArrayExportWriter : public QueryExportWriter {
  public:
   ArrowJsonArrayExportWriter(
       const reader::FileSchema& schema,
       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : ArrowExportWriter(schema, fileSystem, std::move(entry_schema)) {}
+      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
   ~ArrowJsonArrayExportWriter() override = default;
 
-  Status writeTable(const QueryResponse* table) override;
+  neug::Status writeTable(const QueryResponse* table) override;
 };
 
-class ArrowJsonLExportWriter : public ArrowExportWriter {
+class ArrowJsonLExportWriter : public QueryExportWriter {
  public:
   ArrowJsonLExportWriter(
       const reader::FileSchema& schema,
       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
-      : ArrowExportWriter(schema, fileSystem, std::move(entry_schema)) {}
+      : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
   ~ArrowJsonLExportWriter() override = default;
 
-  Status writeTable(const QueryResponse* table) override;
+  neug::Status writeTable(const QueryResponse* table) override;
 };
 }  // namespace writer
 

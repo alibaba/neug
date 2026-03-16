@@ -28,6 +28,7 @@
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/result.h"
 #include "neug/utils/writer/writer.h"
 
 namespace neug {
@@ -38,29 +39,32 @@ namespace writer {
     auto& typed_array = arr.GETTER_METHOD();                                \
     if (!StringFormatBuffer::validateProtoValue(typed_array.validity(),     \
                                                 rowIdx)) {                  \
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +           \
-                                    std::to_string(rowIdx));                \
+      RETURN_STATUS_ERROR(                                                  \
+          neug::StatusCode::ERR_INVALID_ARGUMENT,                           \
+          "Value is invalid, rowIdx=" + std::to_string(rowIdx));            \
     }                                                                       \
     rapidjson::Value v(static_cast<TYPE>(typed_array.values(rowIdx)));      \
     return v;                                                               \
   }
 
-static arrow::Result<rapidjson::Value> parseJsonStringToValue(
+static neug::result<rapidjson::Value> parseJsonStringToValue(
     const std::string& json_str, int rowIdx, rapidjson::Document& parse_doc,
     const char* type_name) {
   if (json_str.empty()) {
-    return arrow::Status::Invalid("Empty JSON string for " +
-                                  std::string(type_name) + " at row " +
-                                  std::to_string(rowIdx));
+    RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                        "Empty JSON string for " + std::string(type_name) +
+                            " at row " + std::to_string(rowIdx));
   }
   rapidjson::Document temp_doc(&parse_doc.GetAllocator());
   temp_doc.Parse(json_str.data(), json_str.size());
   if (temp_doc.HasParseError()) {
-    return arrow::Status::Invalid(
+    RETURN_STATUS_ERROR(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
         "Invalid JSON for " + std::string(type_name) + " at row " +
-        std::to_string(rowIdx) + ": " +
-        rapidjson::GetParseError_En(temp_doc.GetParseError()) + " at offset " +
-        std::to_string(temp_doc.GetErrorOffset()));
+            "Invalid JSON for " + std::string(type_name) + " at row " +
+            std::to_string(rowIdx) + ": " +
+            rapidjson::GetParseError_En(temp_doc.GetParseError()) +
+            " at offset " + std::to_string(temp_doc.GetErrorOffset()));
   }
   rapidjson::Value v;
   // use swap to avoid memory allocation
@@ -70,7 +74,7 @@ static arrow::Result<rapidjson::Value> parseJsonStringToValue(
 
 // return `rapidjson::Value` directly will not lead to any memory allocation,
 // it's a move operation
-static arrow::Result<rapidjson::Value> formatValueToJson(
+static neug::result<rapidjson::Value> formatValueToJson(
     const neug::Array& arr, int rowIdx, rapidjson::Document& doc) {
   auto& allocator = doc.GetAllocator();
   switch (arr.typed_array_case()) {
@@ -85,8 +89,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& string_array = arr.string_array();
     if (!StringFormatBuffer::validateProtoValue(string_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     const auto& str = string_array.values(rowIdx);
     rapidjson::Value v;
@@ -98,8 +102,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& date32_arr = arr.date_array();
     if (!StringFormatBuffer::validateProtoValue(date32_arr.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     Date date_value;
     date_value.from_timestamp(date32_arr.values(rowIdx));
@@ -113,8 +117,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& timestamp_array = arr.timestamp_array();
     if (!StringFormatBuffer::validateProtoValue(timestamp_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     DateTime dt_value(timestamp_array.values(rowIdx));
     const auto& s = dt_value.to_string();
@@ -127,8 +131,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& interval_array = arr.interval_array();
     if (!StringFormatBuffer::validateProtoValue(interval_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     const auto& s = interval_array.values(rowIdx);
     rapidjson::Value v;
@@ -140,17 +144,17 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& list_array = arr.list_array();
     if (!StringFormatBuffer::validateProtoValue(list_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     rapidjson::Value arr_val(rapidjson::kArrayType);
     uint32_t list_size =
         list_array.offsets(rowIdx + 1) - list_array.offsets(rowIdx);
     size_t offset = list_array.offsets(rowIdx);
     for (uint32_t i = 0; i < list_size; ++i) {
-      ARROW_ASSIGN_OR_RAISE(
-          auto elem, formatValueToJson(list_array.elements(),
-                                       static_cast<int>(offset + i), doc));
+      rapidjson::Value elem;
+      GS_ASSIGN(elem, formatValueToJson(list_array.elements(),
+                                        static_cast<int>(offset + i), doc));
       arr_val.PushBack(std::move(elem), allocator);
     }
     return arr_val;
@@ -159,13 +163,14 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& struct_arr = arr.struct_array();
     if (!StringFormatBuffer::validateProtoValue(struct_arr.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     rapidjson::Value arr_val(rapidjson::kArrayType);
     for (int i = 0; i < struct_arr.fields_size(); ++i) {
       const auto& field = struct_arr.fields(i);
-      ARROW_ASSIGN_OR_RAISE(auto elem, formatValueToJson(field, rowIdx, doc));
+      rapidjson::Value elem;
+      GS_ASSIGN(elem, formatValueToJson(field, rowIdx, doc));
       arr_val.PushBack(std::move(elem), allocator);
     }
     return arr_val;
@@ -174,8 +179,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& vertex_array = arr.vertex_array();
     if (!StringFormatBuffer::validateProtoValue(vertex_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     return parseJsonStringToValue(vertex_array.values(rowIdx), rowIdx, doc,
                                   "vertex");
@@ -184,8 +189,8 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& edge_array = arr.edge_array();
     if (!StringFormatBuffer::validateProtoValue(edge_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     return parseJsonStringToValue(edge_array.values(rowIdx), rowIdx, doc,
                                   "edge");
@@ -194,15 +199,16 @@ static arrow::Result<rapidjson::Value> formatValueToJson(
     auto& path_array = arr.path_array();
     if (!StringFormatBuffer::validateProtoValue(path_array.validity(),
                                                 rowIdx)) {
-      return arrow::Status::Invalid("Value is invalid, rowIdx=" +
-                                    std::to_string(rowIdx));
+      RETURN_STATUS_ERROR(neug::StatusCode::ERR_INVALID_ARGUMENT,
+                          "Value is invalid, rowIdx=" + std::to_string(rowIdx));
     }
     return parseJsonStringToValue(path_array.values(rowIdx), rowIdx, doc,
                                   "path");
   }
   default:
-    return arrow::Status::Invalid("Unsupported type: " +
-                                  std::to_string(arr.typed_array_case()));
+    RETURN_STATUS_ERROR(
+        neug::StatusCode::ERR_INVALID_ARGUMENT,
+        "Unsupported type: " + std::to_string(arr.typed_array_case()));
   }
 }
 
@@ -235,17 +241,17 @@ void JsonArrayStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   auto& allocator = document_.GetAllocator();
   WriteOptions writeOpts;
   bool ignoreErrors = writeOpts.ignore_errors.get(schema_.options);
-  if (!jsonResult.ok() && !ignoreErrors) {
+  if (!jsonResult && !ignoreErrors) {
     THROW_IO_EXCEPTION(
         "Format value to JSON failed, rowIdx=" + std::to_string(rowIdx) +
         ", colIdx=" + std::to_string(colIdx) +
-        ", error=" + jsonResult.status().ToString());
+        ", error=" + jsonResult.error().ToString());
   }
   const auto& columnName = getColumnName(entry_schema_, colIdx);
   rapidjson::Value key(columnName.c_str(),
                        static_cast<rapidjson::SizeType>(columnName.size()),
                        allocator);
-  if (jsonResult.ok()) {
+  if (jsonResult) {
     current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
     // add null value to ignore errors
@@ -257,14 +263,20 @@ void JsonArrayStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   }
 }
 
-arrow::Status JsonArrayStringFormatBuffer::flush(
+neug::Status JsonArrayStringFormatBuffer::flush(
     std::shared_ptr<arrow::io::OutputStream> stream) {
   if (buffer_.IsArray() && buffer_.Empty()) {
-    return arrow::Status::OK();
+    return neug::Status::OK();
   }
   const auto& jsonStr = rapidjson_stringify(buffer_);
   buffer_.Clear();
-  return stream->Write(jsonStr.c_str(), jsonStr.size());
+  auto writer_res = stream->Write(jsonStr.c_str(), jsonStr.size());
+  if (writer_res.ok()) {
+    return neug::Status::OK();
+  }
+  return neug::Status(
+      neug::StatusCode::ERR_IO_ERROR,
+      "Failed to write JSON to stream: " + writer_res.ToString());
 }
 
 JsonLStringFormatBuffer::JsonLStringFormatBuffer(
@@ -290,17 +302,17 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   auto& allocator = document_.GetAllocator();
   WriteOptions writeOpts;
   bool ignoreErrors = writeOpts.ignore_errors.get(schema_.options);
-  if (!jsonResult.ok() && !ignoreErrors) {
+  if (!jsonResult && !ignoreErrors) {
     THROW_IO_EXCEPTION(
         "Format value to JSON failed, rowIdx=" + std::to_string(rowIdx) +
         ", colIdx=" + std::to_string(colIdx) +
-        ", error=" + jsonResult.status().ToString());
+        ", error=" + jsonResult.error().ToString());
   }
   const auto& columnName = getColumnName(entry_schema_, colIdx);
   rapidjson::Value key(columnName.c_str(),
                        static_cast<rapidjson::SizeType>(columnName.size()),
                        allocator);
-  if (jsonResult.ok()) {
+  if (jsonResult) {
     current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
     current_line_.AddMember(key, DEFAULT_JSON_NULL_VAL, allocator);
@@ -311,15 +323,23 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   }
 }
 
-arrow::Status JsonLStringFormatBuffer::flush(
+neug::Status JsonLStringFormatBuffer::flush(
     std::shared_ptr<arrow::io::OutputStream> stream) {
   for (const auto& val : buffer_) {
     const auto& jsonStr = rapidjson_stringify(val);
-    ARROW_RETURN_NOT_OK(stream->Write(jsonStr.c_str(), jsonStr.size()));
-    ARROW_RETURN_NOT_OK(stream->Write(DEFAULT_JSON_NEWLINE, sizeof(char)));
+    auto ar_status = stream->Write(jsonStr.c_str(), jsonStr.size());
+    if (!ar_status.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to write JSON line: " + ar_status.ToString());
+    }
+    ar_status = stream->Write(DEFAULT_JSON_NEWLINE, sizeof(char));
+    if (!ar_status.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to write newline: " + ar_status.ToString());
+    }
   }
   buffer_.clear();
-  return arrow::Status::OK();
+  return neug::Status::OK();
 }
 
 static Status writeTableWithBuffer(

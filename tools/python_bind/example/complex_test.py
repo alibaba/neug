@@ -190,7 +190,6 @@ def run_jsonl_tests(conn_json):
 
 def run_json_extension_suite(db_json, conn_json, db_path_json):
     statements = [
-        ("INSTALL JSON succeeded", "INSTALL JSON;"),
         ("LOAD JSON succeeded", "LOAD JSON;"),
     ]
 
@@ -532,18 +531,24 @@ if db_snb is not None:
 # ================================================================
 section("5. Extensions — JSON Extension (Install / Load / Query)")
 
-conn_json = None
-db_path_json = tempfile.mkdtemp(prefix="neug_json_ext_")
-try:
-    db_json = neug.Database(db_path_json)
-    conn_json = db_json.connect()
-    ok(f"Created persistent database for JSON extension test at {db_path_json}")
-except Exception as e:
-    fail("Create database for JSON extension", e)
-    db_json = None
+_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
+_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
 
-if db_json is not None and conn_json is not None:
-    run_json_extension_suite(db_json, conn_json, db_path_json)
+if not _run_ext_tests:
+    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
+else:
+    conn_json = None
+    db_path_json = tempfile.mkdtemp(prefix="neug_json_ext_")
+    try:
+        db_json = neug.Database(db_path_json)
+        conn_json = db_json.connect()
+        ok(f"Created persistent database for JSON extension test at {db_path_json}")
+    except Exception as e:
+        fail("Create database for JSON extension", e)
+        db_json = None
+
+    if db_json is not None and conn_json is not None:
+        run_json_extension_suite(db_json, conn_json, db_path_json)
 
 # ================================================================
 #  Summary

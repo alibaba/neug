@@ -50,7 +50,7 @@ static void convertFileSchemaOptions(reader::FileSchema& schema) {
   }
 }
 
-execution::Context jsonExecFunc(
+execution::Context writeExecFunc(
     neug::execution::Context& ctx, reader::FileSchema& schema,
     const std::shared_ptr<reader::EntrySchema>& entry_schema,
     const neug::StorageReadInterface& graph) {
@@ -60,7 +60,7 @@ execution::Context jsonExecFunc(
   convertFileSchemaOptions(schema);
   LocalFileSystemProvider fsProvider;
   auto fileInfo = fsProvider.provide(schema, false);
-  auto writer = std::make_shared<neug::writer::ArrowCsvExportWriter>(
+  auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
       schema, fileInfo.fileSystem, entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
@@ -80,7 +80,7 @@ function_set ExportCSVFunction::getFunctionSet() {
   function_set functionSet;
   auto exportFunc = std::make_unique<ExportFunction>(name);
   exportFunc->bind = bindFunc;
-  exportFunc->execFunc = jsonExecFunc;
+  exportFunc->execFunc = writeExecFunc;
   functionSet.push_back(std::move(exportFunc));
   return functionSet;
 }

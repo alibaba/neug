@@ -17,7 +17,7 @@ jobs:
   # ============================================================
   # Job 1: Build NeuG with extensions
   # ============================================================
-  build:
+  extension_tests_default:
     runs-on: [self-hosted]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
@@ -113,3 +113,103 @@ jobs:
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
         python3 -m pytest -sv tests/test_load.py -k "json"
         python3 -m pytest -sv tests/test_export.py -k "json"
+
+  extension_tests_wheel_linux_x86_64:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.13 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          BUILD_EXTENSIONS="json" INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple and complex tests
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
+
+  extension_tests_wheel_linux_arm64:
+    runs-on: [self-hosted, linux, arm64]
+    if: true
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        if: runner.name != 'arm64-1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.8 on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          BUILD_EXTENSIONS="json" INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple and complex tests
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install $i || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
