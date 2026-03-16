@@ -27,7 +27,7 @@
 | **Local Clustering Coefficient (LCC)** | 无向 | 顶点局部聚类系数 | `(node, coefficient)` | 支持 |
 
 
-#### AI/GraphRAG 刚需算法（3 个）
+#### AI/GraphRAG 刚需算法（2 个）
 | 算法 | 图语义 | 描述 | 输出 | 并行化 |
 | --- | --- | --- | --- | --- |
 | **Leiden** | 无向 | 高质量社区发现（优于 Louvain） | `(node, community_id)` | 支持 |
