@@ -2,6 +2,17 @@
 
 The NeuG Java API provides a Java-native driver for connecting to NeuG servers, executing Cypher queries, and consuming typed query results.
 
+```{toctree}
+:maxdepth: 1
+:hidden:
+
+driver
+config
+session
+result_set
+result_set_metadata
+```
+
 ## Overview
 
 The Java driver is designed for application integration and service-side usage:
@@ -32,10 +43,11 @@ mvn clean install -DskipTests
 
 ## Core Interfaces
 
-- **Driver** - manages connectivity and creates sessions
-- **Session** - executes statements against a NeuG server
-- **ResultSet** - reads rows and typed values from query results
-- **ResultSetMetaData** - inspects result column names, nullability, and native NeuG types
+- **[Driver](driver)** - manages connectivity and creates sessions
+- **[Config](config)** - customizes connection and timeout behavior
+- **[Session](session)** - executes statements against a NeuG server
+- **[ResultSet](result_set)** - reads rows and typed values from query results
+- **[ResultSetMetaData](result_set_metadata)** - inspects result column names, nullability, and native NeuG types
 
 ## Quick Start
 
@@ -61,22 +73,6 @@ public class Example {
 }
 ```
 
-## Configuration
-
-You can create a driver with custom connection settings through `Config`:
-
-```java
-import com.alibaba.neug.driver.Driver;
-import com.alibaba.neug.driver.GraphDatabase;
-import com.alibaba.neug.driver.utils.Config;
-
-Config config = Config.builder()
-		.withConnectionTimeoutMillis(3000)
-		.build();
-
-Driver driver = GraphDatabase.driver("http://localhost:10000", config);
-```
-
 ## Parameterized Queries
 
 ```java
@@ -97,43 +93,13 @@ try (Session session = driver.session()) {
 }
 ```
 
-## Reading Results
+## Reference Pages
 
-The Java driver exposes typed accessors for common value types:
-
-- `getString(...)`
-- `getInt(...)`
-- `getLong(...)`
-- `getBoolean(...)`
-- `getDate(...)`
-- `getTimestamp(...)`
-- `getObject(...)`
-
-Example:
-
-```java
-try (Session session = driver.session();
-		ResultSet rs = session.run("MATCH (n:Person) RETURN n.name AS name, n.age AS age")) {
-	while (rs.next()) {
-		String name = rs.getString("name");
-		int age = rs.getInt("age");
-		System.out.println(name + ", " + age);
-	}
-}
-```
-
-## Result Metadata
-
-`ResultSetMetaData` returns native NeuG types instead of JDBC SQL type codes.
-
-```java
-ResultSetMetaData metaData = rs.getMetaData();
-String columnName = metaData.getColumnName(0);
-Types columnType = metaData.getColumnType(0);
-String typeName = metaData.getColumnTypeName(0);
-```
-
-This is useful when building higher-level abstractions on top of the driver or when dispatching logic based on result types.
+- [Driver](driver)
+- [Config](config)
+- [Session](session)
+- [ResultSet](result_set)
+- [ResultSetMetaData](result_set_metadata)
 
 ## Dependencies
 
@@ -148,7 +114,7 @@ These dependencies are managed automatically by Maven.
 
 ## API Documentation
 
-- [Generated Javadoc](./apidocs/index.html)
+- <a href="apidocs/index.html">Generated Javadoc</a>
 
 ## Build Javadoc Locally
 

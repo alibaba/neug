@@ -56,4 +56,3 @@ jobs:
         make html
         mkdir -p ${GITHUB_WORKSPACE}/doc/build/html/reference/java_api
         cp -r ${GITHUB_WORKSPACE}/tools/java_driver/target/site/apidocs ${GITHUB_WORKSPACE}/doc/build/html/reference/java_api/
-
