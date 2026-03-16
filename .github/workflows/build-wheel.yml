@@ -28,7 +28,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format_check:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/format-check.yml
+
   build_wheels_linux_x86_64:
+    needs: format_check
+    if: ${{ (github.event_name != 'pull_request') || (needs.format_check.result == 'success') }}
     runs-on: [self-hosted, linux, x64]
     steps:
       - name: checkout
@@ -101,8 +107,9 @@ jobs:
           neug-cli --version
 
   build_wheels_linux_arm64:
+    needs: format_check
+    if: ${{ (github.event_name != 'pull_request') || (needs.format_check.result == 'success') }}
     runs-on: [self-hosted, linux, arm64]
-    if: true
     steps:
       - name: checkout
         id: checkout
@@ -175,8 +182,10 @@ jobs:
           neug-cli --version
 
   build_wheels_macos_x86_64:
-    runs-on: macos-13
+    needs: format_check
     if: false
+    # if: ${{ github.event_name != 'pull_request' || needs.format_check.result == 'success' }}
+    runs-on: macos-13
     steps:
       - name: checkout
         id: checkout
@@ -256,8 +265,10 @@ jobs:
           neug-cli --version
 
   build_wheels_macos_aarch64:
+    needs: format_check
     runs-on: macos-14
     if: false
+    # if: ${{ github.event_name != 'pull_request' || needs.format_check.result == 'success' }}
     steps:
       - name: checkout
         id: checkout
