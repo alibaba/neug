@@ -360,3 +360,36 @@ def test_alter_varchar_type():
     assert list(res) == [[1, "Alice"]]
     conn.close()
     db.close()
+
+
+def test_get_varchar_default_value_1():
+    db_dir = "/tmp/test_get_varchar_default_value"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY, name VARCHAR(20) DEFAULT 'default_name');"
+    )
+    conn.execute("CREATE (:TestNode {id: 1});")
+    conn.execute("CREATE (:TestNode {id: 2});")
+    conn.execute("CREATE (:TestNode {id: 3});")
+    res = conn.execute("Match (n:TestNode) Return n.name;")
+    assert list(res) == [["default_name"], ["default_name"], ["default_name"]]
+    conn.close()
+    db.close()
+
+
+def test_get_varchar_default_value_2():
+    db_dir = "/tmp/test_get_varchar_default_value"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE (:TestNode {id: 1});")
+    conn.execute("CREATE (:TestNode {id: 2});")
+    conn.execute("ALTER TABLE TestNode ADD name VARCHAR(20) DEFAULT 'default_name';")
+    conn.execute("CREATE (:TestNode {id: 3});")
+    res = conn.execute("Match (n:TestNode) Return n.name;")
+    assert list(res) == [["default_name"], ["default_name"], ["default_name"]]
+    conn.close()
+    db.close()

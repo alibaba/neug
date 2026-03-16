@@ -469,9 +469,16 @@ class mmap_array {
 };
 
 struct string_item {
-  uint64_t offset : 48;
-  uint32_t length : 16;
+  uint64_t offset : 47;
+  uint64_t length : 16;
+  uint64_t inserted : 1;  // indicates whether the item is inserted or empty
+  string_item() : offset(0), length(0), inserted(0) {}
+  string_item(uint64_t offset, uint64_t length, uint64_t inserted)
+      : offset(offset), length(length), inserted(inserted) {}
 };
+
+static_assert(sizeof(string_item) == sizeof(uint64_t),
+              "string_item must stay 64-bit wide");
 
 template <>
 class mmap_array<std::string_view> {
@@ -534,9 +541,10 @@ class mmap_array<std::string_view> {
     size_t total_length = 0;
     size_t non_zero_count = 0;
     for (size_t i = 0; i < items_.size(); ++i) {
-      if (items_.get(i).length > 0) {
+      const auto item = items_.get(i);
+      if (item.inserted && item.length > 0) {
         ++non_zero_count;
-        total_length += items_.get(i).length;
+        total_length += item.length;
       }
     }
     return non_zero_count > 0
@@ -545,13 +553,19 @@ class mmap_array<std::string_view> {
   }
 
   void set(size_t idx, size_t offset, const std::string_view& val) {
-    items_.set(idx, {offset, static_cast<uint32_t>(val.size())});
+    items_.set(idx, {static_cast<uint64_t>(offset),
+                     static_cast<uint64_t>(val.size()), 1});
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());
     memcpy(data_.data() + offset, val.data(), val.size());
   }
 
+  bool inserted(size_t idx) const { return items_.get(idx).inserted == 1; }
+
   std::string_view get(size_t idx) const {
     const string_item& item = items_.get(idx);
+    if (!item.inserted) {
+      return std::string_view{"", 0};
+    }
     return std::string_view(data_.data() + item.offset, item.length);
   }
 
@@ -603,7 +617,7 @@ class mmap_array<std::string_view> {
       limit_offset = std::max(limit_offset, entry.offset + entry.length);
       memcpy(dst, src, entry.length);
       items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length});
+                 {static_cast<uint64_t>(write_offset), entry.length, 1});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);
@@ -630,8 +644,11 @@ class mmap_array<std::string_view> {
     plan.entries.reserve(items_.size());
     for (size_t i = 0; i < items_.size(); ++i) {
       const string_item& item = items_.get(i);
-      plan.total_size += item.length;
-      plan.entries.push_back({i, item.offset, item.length});
+      if (item.inserted) {
+        plan.total_size += item.length;
+        plan.entries.push_back(
+            {i, item.offset, static_cast<uint32_t>(item.length)});
+      }
     }
     return plan;
   }
@@ -662,7 +679,7 @@ class mmap_array<std::string_view> {
         }
       }
       items_.set(entry.index,
-                 {static_cast<uint64_t>(write_offset), entry.length});
+                 {static_cast<uint64_t>(write_offset), entry.length, 1});
       write_offset += entry.length;
     }
     assert(write_offset == plan.total_size);

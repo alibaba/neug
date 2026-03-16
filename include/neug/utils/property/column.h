@@ -406,6 +406,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void set_value_safe(size_t idx, const std::string_view& value);
 
   inline std::string_view get_view(size_t idx) const {
+    if (!buffer_.inserted(idx)) {
+      return default_value_;
+    }
     return buffer_.get(idx);
   }
 
@@ -432,6 +435,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void ensure_writable(const std::string& work_dir) override {
     buffer_.ensure_writable(work_dir);
   }
+
+  std::string_view default_value() const { return default_value_; }
 
  private:
   inline void init_pos(const std::string& file_path) {
@@ -498,6 +503,39 @@ class TypedRefColumn : public RefColumnBase {
  private:
   const mmap_array<T>& basic_buffer;
   size_t basic_size;
+};
+
+template <>
+class TypedRefColumn<std::string_view> : public RefColumnBase {
+ public:
+  using value_type = std::string_view;
+
+  explicit TypedRefColumn(const StringColumn& column)
+      : basic_buffer(column.buffer()),
+        basic_size(column.buffer_size()),
+        default_value_(column.default_value()) {}
+  ~TypedRefColumn() {}
+
+  inline std::string_view get_view(size_t index) const {
+    assert(index < basic_size);
+    if (!basic_buffer.inserted(index)) {
+      return default_value_;
+    }
+    return basic_buffer.get(index);
+  }
+
+  Property get(size_t index) const override {
+    return PropUtils<std::string_view>::to_prop(get_view(index));
+  }
+
+  DataTypeId type() const override { return DataTypeId::kVarchar; }
+
+  ColType col_type() const override { return ColType::kInternal; }
+
+ private:
+  const mmap_array<std::string_view>& basic_buffer;
+  size_t basic_size;
+  std::string_view default_value_;
 };
 
 // Create a reference column from a ColumnBase that contains a const reference

@@ -339,5 +339,36 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::kBoolean);
 }
 
+TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
+  if (std::filesystem::exists(TEST_DIR)) {
+    std::filesystem::remove_all(TEST_DIR);
+  }
+  std::filesystem::create_directories(TEST_DIR);
+  std::filesystem::create_directories(std::string(TEST_DIR) + "/checkpoint");
+  std::filesystem::create_directories(std::string(TEST_DIR) + "/runtime/tmp");
+
+  Table table;
+  std::vector<std::string> col_name = {"string_column"};
+  std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
+  std::vector<Property> default_values = {
+      Property::from_string_view("default_value")};
+  std::vector<StorageStrategy> mem_strategies(col_name.size(),
+                                              StorageStrategy::kMem);
+
+  table.init("test_string_validity", TEST_DIR, col_name, property_types,
+             default_values, mem_strategies);
+  table.resize(2);
+
+  auto string_column = std::dynamic_pointer_cast<StringColumn>(
+      table.get_column("string_column"));
+  ASSERT_NE(string_column, nullptr);
+
+  EXPECT_EQ(string_column->get_prop(0).as_string_view(), "default_value");
+
+  string_column->set_prop(1, Property::from_string_view(""));
+  EXPECT_TRUE(string_column->get_prop(1).as_string_view().empty());
+  EXPECT_EQ(string_column->get_prop(1).type(), DataTypeId::kVarchar);
+}
+
 }  // namespace test
 }  // namespace neug
