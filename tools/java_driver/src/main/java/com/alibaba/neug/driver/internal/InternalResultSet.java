@@ -655,8 +655,11 @@ public class InternalResultSet implements ResultSet {
 
     @Override
     public boolean first() {
+        if (response.getRowCount() == 0) {
+            return false;
+        }
         currentIndex = 0;
-        return currentIndex < response.getRowCount();
+        return true;
     }
 
     @Override
