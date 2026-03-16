@@ -128,6 +128,12 @@ function(build_arrow_as_third_party)
 		cmake_policy(SET CMP0135 NEW)
 	endif()
 
+    # CMake 3.30+ introduced CMP0169 which deprecates FetchContent_Populate() with declared details.
+    # CMake 4.x made it an error by default. Set to OLD to preserve the existing pattern.
+    if(POLICY CMP0169)
+        cmake_policy(SET CMP0169 OLD)
+    endif()
+
     message(STATUS "Fetching Arrow ${ARROW_VERSION} from ${ARROW_SOURCE_URL}")
 
     fetchcontent_declare(Arrow
@@ -139,6 +145,24 @@ function(build_arrow_as_third_party)
     FetchContent_GetProperties(Arrow)
     if(NOT arrow_POPULATED)
         FetchContent_Populate(Arrow)
+        # CMake 4.x removed support for cmake_minimum_required < 3.5.
+        # Arrow's bundled ExternalProjects (e.g. snappy) use EP_COMMON_CMAKE_ARGS
+        # which is built inside Arrow's ThirdpartyToolchain.cmake. We patch that
+        # file after fetch to append -DCMAKE_POLICY_VERSION_MINIMUM=3.5 so every
+        # ExternalProject sub-build can configure under CMake 4.x.
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+            set(_toolchain "${arrow_SOURCE_DIR}/cpp/cmake_modules/ThirdpartyToolchain.cmake")
+            file(READ "${_toolchain}" _toolchain_content)
+            string(FIND "${_toolchain_content}" "CMAKE_POLICY_VERSION_MINIMUM" _already_patched)
+            if(_already_patched EQUAL -1)
+                string(REPLACE
+                    "# if building with a toolchain file, pass that through"
+                    "# CMake 4.x: inject CMAKE_POLICY_VERSION_MINIMUM into all ExternalProject builds\nlist(APPEND EP_COMMON_CMAKE_ARGS \"-DCMAKE_POLICY_VERSION_MINIMUM=3.5\")\n\n# if building with a toolchain file, pass that through"
+                    _toolchain_content "${_toolchain_content}")
+                file(WRITE "${_toolchain}" "${_toolchain_content}")
+                message(STATUS "Patched Arrow ThirdpartyToolchain.cmake for CMake 4.x compatibility")
+            endif()
+        endif()
         add_subdirectory(${arrow_SOURCE_DIR}/cpp ${arrow_BINARY_DIR} EXCLUDE_FROM_ALL)
     endif()
 
