@@ -155,7 +155,7 @@ init_workspace_and_env() {
   fi
   #if macos
   if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
-    export MACOSX_DEPLOYMENT_TARGET=15.0
+    export MACOSX_DEPLOYMENT_TARGET=10.15
   fi
 }
 
