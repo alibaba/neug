@@ -137,6 +137,11 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Setup Python Env
+        run: |
+          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
+          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
+
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==2.23.3
 
@@ -145,8 +150,9 @@ jobs:
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
       - name: Limit builds to CPython 3.13 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+        run: |
+          echo "CIBW_SKIP=cp39-* cp38-* cp311-* cp312-* cp310-*" >> $GITHUB_ENV
+          echo "CIBW_BUILD=cp313-manylinux_x86_64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
         if: inputs.rebuild_neug == true
@@ -182,10 +188,9 @@ jobs:
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages/neug) and install extension there
-          NEUG_INSTALL_DIR=$(python3 -c "import neug, os; print(os.path.dirname(neug.__file__))")
-          rm -rf $NEUG_INSTALL_DIR/../extension
-          cp -r extension_packages/extension "$NEUG_INSTALL_DIR/.."
+          # get neug install directory (site-packages) and install extension there
+          rm -rf $USER_SITE/extension
+          cp -r extension_packages/extension $USER_SITE
 
       - name: Run simple and complex tests
         env:
@@ -197,7 +202,6 @@ jobs:
 
   extension_tests_wheel_linux_arm64:
     runs-on: [self-hosted, linux, arm64]
-    if: true
     steps:
       - name: checkout
         id: checkout
@@ -210,6 +214,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+  
+      - name: Setup Python Env
+        run: |
+          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
+          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
+          echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
 
       - name: Install cibuildwheel
         run: python3 -m pip install cibuildwheel==2.23.3
@@ -218,9 +228,10 @@ jobs:
         run: |
           echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
 
-      - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
+      - name: Limit builds to CPython 3.13 on PRs
+        run: |
+          echo "CIBW_SKIP=cp39-* cp38-* cp311-* cp312-* cp310-*" >> $GITHUB_ENV
+          echo "CIBW_BUILD=cp313-manylinux_aarch64" >> $GITHUB_ENV
 
       - name: Build NeuG wheel
         if: inputs.rebuild_neug == true
@@ -256,10 +267,9 @@ jobs:
           # install Extension Package (extract first .whl when multiple exist)
           EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
           python3 -m zipfile -e "$EXT_WHL" extension_packages
-          # get neug install directory (site-packages/neug) and install extension there
-          NEUG_INSTALL_DIR=$(python3 -c "import neug, os; print(os.path.dirname(neug.__file__))")
-          rm -rf $NEUG_INSTALL_DIR/../extension
-          cp -r extension_packages/extension "$NEUG_INSTALL_DIR/.."
+          # get neug install directory (site-packages) and install extension there
+          rm -rf $USER_SITE/extension
+          cp -r extension_packages/extension $USER_SITE
 
       - name: Run simple and complex tests
         env:
