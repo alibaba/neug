@@ -357,7 +357,7 @@ static Status writeTableWithBuffer(
   }
   auto stream = stream_result.ValueOrDie();
 
-  if (batchSize <= 0) {
+  if (batchSize == 0) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT,
                   "Batch size should be positive");
   }
