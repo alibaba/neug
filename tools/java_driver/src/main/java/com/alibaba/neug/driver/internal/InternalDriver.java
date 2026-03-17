@@ -42,6 +42,9 @@ public class InternalDriver implements Driver {
 
     @Override
     public Session session() {
+        if (client.isClosed()) {
+            throw new IllegalStateException("Driver is already closed");
+        }
         return new InternalSession(client);
     }
 
