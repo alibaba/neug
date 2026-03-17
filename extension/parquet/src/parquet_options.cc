@@ -101,8 +101,12 @@ ArrowParquetOptionsBuilder::buildFragmentOptions() const {
   // Configure pre-buffering for high-latency filesystems
   arrow_reader_properties->set_pre_buffer(parquetOpts.pre_buffer.get(options));
   
-  // Configure caching of decompressed data
-  if (parquetOpts.cache_decompressed.get(options)) {
+  // Configure caching via Arrow I/O coalescing (hole-filling cache).
+  // When enable_io_coalescing=true (default), use lazy coalescing which only
+  // loads explicitly-requested byte ranges (CacheOptions::LazyDefaults).
+  // When false, use eager coalescing which pre-fetches data more aggressively
+  // (CacheOptions::Defaults).
+  if (parquetOpts.enable_io_coalescing.get(options)) {
     arrow_reader_properties->set_cache_options(
         arrow::io::CacheOptions::LazyDefaults());
   } else {

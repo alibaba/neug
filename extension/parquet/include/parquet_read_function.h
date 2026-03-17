@@ -60,7 +60,10 @@ struct ParquetReadFunction {
     auto reader = std::make_unique<reader::ArrowReader>(
         state, std::move(optionsBuilder), fileInfo.fileSystem);
     
-    // Execute read operation
+    // Execute read operation.
+    // ArrowReader::read() throws exceptions (via THROW_IO_EXCEPTION /
+    // THROW_INVALID_ARGUMENT_EXCEPTION) on all Arrow error paths, so
+    // errors are propagated to the caller rather than silently swallowed.
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);

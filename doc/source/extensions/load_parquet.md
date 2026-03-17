@@ -22,13 +22,12 @@ LOAD PARQUET;
 
 The following options control how Parquet files are read:
 
-| Option                 | Type  | Default | Description                                                                                          |
-| ---------------------- | ----- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `use_embedded_schema`  | bool  | `true`  | Use the schema embedded in the Parquet file metadata. Set to `false` to infer schema independently.  |
-| `buffered_stream`      | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance.                                  |
-| `pre_buffer`           | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.         |
-| `cache_decompressed`   | bool  | `true`  | Cache decompressed column chunks to accelerate repeated reads of the same data.                      |
-| `parquet_batch_rows`   | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.     |
+| Option                   | Type  | Default | Description                                                                                                                                 |
+| ------------------------ | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buffered_stream`        | bool  | `true`  | Enable buffered I/O stream for improved sequential read performance.                                                                         |
+| `pre_buffer`             | bool  | `false` | Pre-buffer column data before decoding. Recommended for high-latency filesystems such as S3.                                                |
+| `enable_io_coalescing`   | bool  | `true`  | Enable Arrow I/O read coalescing (hole-filling cache) to reduce I/O overhead when reading non-contiguous byte ranges. When `true`, uses lazy coalescing; when `false`, uses eager coalescing. |
+| `parquet_batch_rows`     | int64 | `65536` | Number of rows per Arrow record batch when converting Parquet row groups into in-memory batches.                                            |
 
 ### Query Examples
 
@@ -50,12 +49,12 @@ LOAD FROM "person.parquet" (parquet_batch_rows=8192)
 RETURN *;
 ```
 
-#### Disabling Embedded Schema
+#### Enabling I/O Coalescing
 
-Force schema inference instead of using the schema stored in Parquet metadata:
+Enable eager I/O coalescing for workloads that benefit from pre-fetching contiguous data:
 
 ```cypher
-LOAD FROM "person.parquet" (use_embedded_schema=false)
+LOAD FROM "person.parquet" (enable_io_coalescing=false)
 RETURN *;
 ```
 

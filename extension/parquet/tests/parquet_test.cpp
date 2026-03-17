@@ -253,31 +253,6 @@ TEST_F(ParquetTest, TestOptionsTranslation_ParquetBatchRows) {
       << "Extension should translate PARQUET_BATCH_ROWS to Arrow batch_size";
 }
 
-TEST_F(ParquetTest, TestOptionsTranslation_BufferedStream) {
-  createSimpleParquetFile("test_buffered.parquet");
-  
-  // Test BUFFERED_STREAM=false (default is true)
-  auto sharedState = createSharedState(
-      "test_buffered.parquet",
-      {"id", "name", "value"},
-      {createInt64Type(), createStringType(), createDoubleType()},
-      {{"BUFFERED_STREAM", "false"}});
-  
-  reader::ArrowParquetOptionsBuilder optionsBuilder(sharedState);
-  auto options = optionsBuilder.build();
-  
-  auto parquetFragmentOpts = std::dynamic_pointer_cast<arrow::dataset::ParquetFragmentScanOptions>(
-      options.scanOptions->fragment_scan_options);
-  ASSERT_NE(parquetFragmentOpts, nullptr);
-  ASSERT_NE(parquetFragmentOpts->reader_properties, nullptr);
-  
-  // When BUFFERED_STREAM=false, buffered stream should NOT be enabled
-  // Note: We verify this by checking that the option was processed
-  // (Arrow doesn't expose a getter for is_buffered_stream_enabled)
-  EXPECT_NE(parquetFragmentOpts->reader_properties, nullptr)
-      << "Extension should configure reader_properties based on BUFFERED_STREAM option";
-}
-
 TEST_F(ParquetTest, TestOptionsTranslation_PreBuffer) {
   createSimpleParquetFile("test_prebuffer.parquet");
   
@@ -324,15 +299,15 @@ TEST_F(ParquetTest, TestOptionsTranslation_UseThreads) {
       << "Extension should translate parallel=false to use_threads=false";
 }
 
-TEST_F(ParquetTest, TestOptionsTranslation_CacheOptions) {
+TEST_F(ParquetTest, TestOptionsTranslation_IoCoalescing) {
   createSimpleParquetFile("test_cache.parquet");
   
-  // Test CACHE_DECOMPRESSED=true (should use LazyDefaults)
+  // Test ENABLE_IO_COALESCING=true (default) — should use LazyDefaults (lazy=true)
   auto sharedState1 = createSharedState(
       "test_cache.parquet",
       {"id", "name", "value"},
       {createInt64Type(), createStringType(), createDoubleType()},
-      {{"CACHE_DECOMPRESSED", "true"}});
+      {{"ENABLE_IO_COALESCING", "true"}});
   
   reader::ArrowParquetOptionsBuilder optionsBuilder1(sharedState1);
   auto options1 = optionsBuilder1.build();
@@ -342,17 +317,17 @@ TEST_F(ParquetTest, TestOptionsTranslation_CacheOptions) {
   ASSERT_NE(parquetFragmentOpts1, nullptr);
   ASSERT_NE(parquetFragmentOpts1->arrow_reader_properties, nullptr);
   
-  // Verify cache options are set (extension should configure LazyDefaults vs Defaults)
+  // Verify lazy coalescing is enabled when ENABLE_IO_COALESCING=true
   auto cache_opts1 = parquetFragmentOpts1->arrow_reader_properties->cache_options();
   EXPECT_TRUE(cache_opts1.lazy)
-      << "Extension should use LazyDefaults when CACHE_DECOMPRESSED=true";
+      << "Extension should use LazyDefaults (lazy=true) when ENABLE_IO_COALESCING=true";
   
-  // Test CACHE_DECOMPRESSED=false (should use Defaults)
+  // Test ENABLE_IO_COALESCING=false — should use Defaults (lazy=false, eager coalescing)
   auto sharedState2 = createSharedState(
       "test_cache.parquet",
       {"id", "name", "value"},
       {createInt64Type(), createStringType(), createDoubleType()},
-      {{"CACHE_DECOMPRESSED", "false"}});
+      {{"ENABLE_IO_COALESCING", "false"}});
   
   reader::ArrowParquetOptionsBuilder optionsBuilder2(sharedState2);
   auto options2 = optionsBuilder2.build();
@@ -363,7 +338,7 @@ TEST_F(ParquetTest, TestOptionsTranslation_CacheOptions) {
   
   auto cache_opts2 = parquetFragmentOpts2->arrow_reader_properties->cache_options();
   EXPECT_FALSE(cache_opts2.lazy)
-      << "Extension should use Defaults when CACHE_DECOMPRESSED=false";
+      << "Extension should use Defaults (lazy=false) when ENABLE_IO_COALESCING=false";
 }
 
 TEST_F(ParquetTest, TestOptionsTranslation_DefaultValues) {

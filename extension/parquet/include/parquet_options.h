@@ -30,22 +30,22 @@ namespace reader {
  * @brief Parquet-specific parse options
  *
  * These options control Parquet file reading behavior:
- * - use_embedded_schema: Use schema from Parquet metadata (default: true)
  * - buffered_stream: Enable buffered I/O stream for better performance (default: true)
  * - pre_buffer: Pre-buffer data for high-latency filesystems like S3 (default: false)
- * - cache_decompressed: Cache decompressed data for repeated reads (default: true)
+ * - enable_io_coalescing: Enable Arrow I/O read coalescing (hole-filling cache) for
+ *   improved performance when reading non-contiguous ranges (default: true).
+ *   When true, uses lazy coalescing (CacheOptions::LazyDefaults); when false, uses
+ *   eager coalescing (CacheOptions::Defaults).
  * - row_batch_size: Number of rows per Arrow batch when converting from Parquet (default: 65536)
  *
  */
 struct ParquetParseOptions {
-  Option<bool> use_embedded_schema =
-      Option<bool>::BoolOption("USE_EMBEDDED_SCHEMA", true);
   Option<bool> buffered_stream =
       Option<bool>::BoolOption("BUFFERED_STREAM", true);
   Option<bool> pre_buffer =
       Option<bool>::BoolOption("PRE_BUFFER", false);
-  Option<bool> cache_decompressed =
-      Option<bool>::BoolOption("CACHE_DECOMPRESSED", true);
+  Option<bool> enable_io_coalescing =
+      Option<bool>::BoolOption("ENABLE_IO_COALESCING", true);
   Option<int64_t> row_batch_size =
       Option<int64_t>::Int64Option("PARQUET_BATCH_ROWS", 65536);
 };
