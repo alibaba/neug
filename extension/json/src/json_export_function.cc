@@ -214,7 +214,7 @@ static neug::result<rapidjson::Value> formatValueToJson(
 
 static std::string getColumnName(const reader::EntrySchema& entry_schema,
                                  size_t colIdx) {
-  if (colIdx >= 0 && colIdx < entry_schema.columnNames.size()) {
+  if (colIdx < entry_schema.columnNames.size()) {
     return entry_schema.columnNames[colIdx];
   }
   LOG(WARNING) << "Column index out of range: colIdx=" << colIdx
