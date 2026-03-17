@@ -157,7 +157,7 @@ EXT_FILES=""
 for ext in $(echo ${EXTENSIONS} | tr ';' ' '); do
     EXT_PATH="${EXT_DIR}"
     if [ -d "${EXT_PATH}" ]; then
-        EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
+        EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" | head -1)
         if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
             EXT_FILES="${EXT_FILES} ${EXT_FILE}"
             echo "Found extension file: ${EXT_FILE}"
