@@ -40,10 +40,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format_check:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/format-check.yml
+    with :
+      is_pull_request: true
+
   # ============================================================
   # Unified Job: Build NeuG + run C++, Python, and E2E tests
   # ============================================================
   build_and_test:
+    needs: format_check
+    if: ${{ needs.format_check.result == 'success' || needs.format_check.result == 'skipped' }}
     runs-on: [self-hosted]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
