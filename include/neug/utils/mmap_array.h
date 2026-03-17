@@ -480,7 +480,9 @@ class mmap_array<std::string_view> {
  public:
   mmap_array() : mmap_array("") {}
   explicit mmap_array(const std::string_view& default_value)
-      : default_value_(default_value), default_item_{0, 0} {}
+      : default_value_(default_value),
+        default_item_{0, 0},
+        has_default_item_(false) {}
   mmap_array(mmap_array&& rhs) : mmap_array() { swap(rhs); }
   ~mmap_array() {}
 
@@ -490,13 +492,12 @@ class mmap_array<std::string_view> {
     items_.reset();
     data_.reset();
     is_writable_ = true;
+    has_default_item_ = false;
   }
 
   std::string_view default_value() const { return default_value_; }
 
-  // The behavior of having no default value is same with having an empty string
-  // as default value.
-  bool has_default_item() const { return default_item_.length != 0; }
+  bool has_default_item() const { return has_default_item_; }
 
   size_t ensure_default_item(size_t offset) {
     if (has_default_item()) {
@@ -511,10 +512,12 @@ class mmap_array<std::string_view> {
     }
     default_item_ = {static_cast<uint64_t>(offset),
                      static_cast<uint32_t>(default_value_.size())};
+    has_default_item_ = true;
     return offset + default_value_.size();
   }
 
   void fill_default_items(size_t begin, size_t end) {
+    assert(has_default_item_);
     begin = std::min(begin, items_.size());
     end = std::min(end, items_.size());
     for (size_t i = begin; i < end; ++i) {
@@ -557,6 +560,7 @@ class mmap_array<std::string_view> {
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
     dump_meta(filename + ".meta");
+    reset();
   }
 
   void resize(size_t size, size_t data_size) {
@@ -605,6 +609,7 @@ class mmap_array<std::string_view> {
     items_.swap(rhs.items_);
     data_.swap(rhs.data_);
     std::swap(is_writable_, rhs.is_writable_);
+    std::swap(has_default_item_, rhs.has_default_item_);
   }
 
   void set_writable(bool is_writable) {
@@ -841,9 +846,10 @@ class mmap_array<std::string_view> {
     }
     write_file(meta_filename, meta_buf.data(), meta_buf.size(), 1);
 
-    std::filesystem::perms readPermission = std::filesystem::perms::owner_read;
+    std::filesystem::perms rwPermissions = std::filesystem::perms::owner_read |
+                                           std::filesystem::perms::owner_write;
     std::error_code errorCode;
-    std::filesystem::permissions(meta_filename, readPermission,
+    std::filesystem::permissions(meta_filename, rwPermissions,
                                  std::filesystem::perm_options::add, errorCode);
     if (errorCode) {
       std::stringstream ss;
@@ -905,6 +911,7 @@ class mmap_array<std::string_view> {
       THROW_RUNTIME_ERROR(ss.str());
     }
     default_item_ = {header.default_offset, header.default_length};
+    has_default_item_ = true;
   }
 
   struct StringMetaHeader {
@@ -918,6 +925,7 @@ class mmap_array<std::string_view> {
   string_item default_item_;
   mmap_array<char> data_;
   bool is_writable_ = true;
+  bool has_default_item_ = false;
 };
 
 }  // namespace neug
