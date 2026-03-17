@@ -25,19 +25,16 @@
 #include "neug/compiler/binder/bound_scan_source.h"
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
-#include "neug/compiler/common/file_system/local_file_system.h"
-#include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/string_format.h"
 #include "neug/compiler/common/string_utils.h"
-#include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/function/read_function.h"
 #include "neug/compiler/function/table/bind_input.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/exception/message.h"
-#include "neug/utils/reader/reader.h"
 #include "neug/utils/reader/schema.h"
 
 using namespace neug::parser;
@@ -49,10 +46,22 @@ using namespace neug::catalog;
 namespace neug {
 namespace binder {
 
+bool isCompressedFile(const std::filesystem::path& path) {
+  return StringUtils::getLower(path.extension().string()) == ".gz";
+}
+
+std::string getFileExtension(const std::filesystem::path& path) {
+  auto extension = path.extension();
+  if (isCompressedFile(path)) {
+    extension = path.stem().extension();
+  }
+  return extension.string();
+}
+
 FileTypeInfo bindSingleFileType(const main::ClientContext* context,
                                 const std::string& filePath) {
   std::filesystem::path fileName(filePath);
-  auto extension = context->getVFSUnsafe()->getFileExtension(fileName);
+  auto extension = getFileExtension(fileName);
   return FileTypeInfo{
       FileTypeUtils::getFileTypeFromExtension(extension),
       extension.substr(std::min<uint64_t>(1, extension.length()))};

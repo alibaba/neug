@@ -187,11 +187,6 @@ class Binder {
   std::unique_ptr<BoundStatement> bindCopyToClause(
       const parser::Statement& statement);
 
-  std::unique_ptr<BoundStatement> bindExportDatabaseClause(
-      const parser::Statement& statement);
-  std::unique_ptr<BoundStatement> bindImportDatabaseClause(
-      const parser::Statement& statement);
-
   static std::unique_ptr<BoundStatement> bindAttachDatabase(
       const parser::Statement& statement);
   static std::unique_ptr<BoundStatement> bindDetachDatabase(

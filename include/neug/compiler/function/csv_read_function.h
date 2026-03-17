@@ -21,6 +21,7 @@
 #include <memory>
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/read_function.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/options.h"
@@ -59,11 +60,13 @@ struct CSVReadFunction {
     auto& options = state->schema.file.options;
     // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
     // options are case insensitive
-    if (options.contains("DELIMITER")) {
-      options.insert({"DELIM", options.at("DELIMITER")});
+    auto it = options.find("DELIMITER");
+    if (it != options.end()) {
+      options["DELIM"] = it->second;
     }
-    if (options.contains("DELIM")) {
-      auto value = options.at("DELIM");
+    it = options.find("DELIM");
+    if (it != options.end()) {
+      auto value = it->second;
       if (value.size() != 1) {
         THROW_INVALID_ARGUMENT_EXCEPTION(
             "Delimiter should be a single character: " + value);
@@ -85,11 +88,13 @@ struct CSVReadFunction {
     auto& options = schema.options;
     // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
     // options are case insensitive
-    if (options.contains("DELIMITER")) {
-      options.insert({"DELIM", options.at("DELIMITER")});
+    auto it = options.find("DELIMITER");
+    if (it != options.end()) {
+      options["DELIM"] = it->second;
     }
-    if (options.contains("DELIM")) {
-      auto value = options.at("DELIM");
+    it = options.find("DELIM");
+    if (it != options.end()) {
+      auto value = it->second;
       if (value.size() != 1) {
         THROW_INVALID_ARGUMENT_EXCEPTION(
             "Delimiter should be a single character: " + value);
@@ -111,14 +116,19 @@ struct CSVReadFunction {
   static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
     validateAndConvertExecOptions(state);
-    // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
     auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem);
+        state, std::move(optionsBuilder), fs->toArrowFileSystem());
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -134,14 +144,19 @@ struct CSVReadFunction {
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     validateAndConvertSniffOptions(externalSchema.file);
-    // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowCsvOptionsBuilder>(state);
     auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem);
+        state, std::move(optionsBuilder), fs->toArrowFileSystem());
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (sniffResult) {

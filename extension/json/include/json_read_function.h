@@ -23,6 +23,7 @@
 #include "json_options.h"
 #include "neug/compiler/function/function.h"
 #include "neug/compiler/function/read_function.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/utils/reader/options.h"
 #include "neug/utils/reader/reader.h"
@@ -49,14 +50,19 @@ struct JsonReadFunction {
 
   static execution::Context execFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
-    // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
     auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem,
+        state, std::move(optionsBuilder), fs->toArrowFileSystem(),
         std::make_shared<reader::JsonDatasetBuilder>());
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
@@ -72,14 +78,19 @@ struct JsonReadFunction {
     // to be inferred.
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
-    // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
     auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem,
+        state, std::move(optionsBuilder), fs->toArrowFileSystem(),
         std::make_shared<reader::JsonDatasetBuilder>());
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
     auto sniffResult = sniffer->sniff();

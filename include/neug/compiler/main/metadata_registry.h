@@ -16,21 +16,27 @@
 #pragma once
 
 #include "neug/compiler/gopt/g_catalog.h"
-#include "neug/utils/exception/exception.h"
+#include "neug/compiler/main/metadata_manager.h"
 
 namespace neug {
-namespace catalog {
+namespace main {
 
-class GCatalogHolder {
+class MetadataRegistry {
  private:
-  static GCatalog* gCatalog;
+  // MetadataManger is a single instance, there will be only one instance of
+  // MetadataManager in the lifetime of the database.
+  static MetadataManager* metadataManager;
 
  public:
-  GCatalogHolder() = delete;
+  MetadataRegistry() = delete;
 
-  static void setGCatalog(GCatalog* catalog);
+  static void registerMetadata(main::MetadataManager* metadataManager);
 
-  static GCatalog* getGCatalog();
+  static MetadataManager* getMetadata();
+
+  static catalog::GCatalog* getCatalog();
+
+  static neug::fsys::FileSystemRegistry* getVFS();
 };
-}  // namespace catalog
+}  // namespace main
 }  // namespace neug

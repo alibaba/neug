@@ -42,12 +42,12 @@
 #include "neug/compiler/gopt/g_result_schema.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/optimizer/expand_getv_fusion.h"
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
 #include "neug/compiler/planner/gopt_planner.h"
 #include "neug/compiler/planner/operator/logical_plan_util.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
-#include "neug/compiler/storage/wal/wal.h"
 #include "neug/compiler/transaction/transaction.h"
 #include "neug/utils/service_utils.h"
 
@@ -185,6 +185,7 @@ class GOptTest : public ::testing::Test {
   void SetUp() override {
     database = std::make_unique<main::MetadataManager>();
     ctx = std::make_unique<main::ClientContext>(database.get());
+    main::MetadataRegistry::registerMetadata(database.get());
   }
 
   void TearDown() override {

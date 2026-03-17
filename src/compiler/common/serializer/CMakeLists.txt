@@ -2,7 +2,6 @@ add_library(neug_common_serializer
         OBJECT
         serializer.cpp
         deserializer.cpp
-        buffered_file.cpp
         buffered_serializer.cpp)
 
 set(ALL_OBJECT_FILES

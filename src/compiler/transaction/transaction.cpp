@@ -4,7 +4,6 @@
 #include "neug/compiler/catalog/catalog_entry/rel_group_catalog_entry.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/option_config.h"
-#include "neug/compiler/storage/wal/wal.h"
 #include "neug/utils/exception/exception.h"
 
 using namespace neug::catalog;
