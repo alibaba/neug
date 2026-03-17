@@ -68,7 +68,10 @@ class NeugShell(cmd.Cmd):
         if readline:
             try:
                 readline.read_history_file(self._histfile)
-            except FileNotFoundError:
+            except (FileNotFoundError, OSError):
+                # OSError (errno 22) can occur when libedit (macOS) tries to read
+                # a history file written by GNU readline, or when the file is
+                # otherwise incompatible. Safe to ignore.
                 pass
             atexit.register(self._save_history, self._histfile)
         else:
