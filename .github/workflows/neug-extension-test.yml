@@ -145,7 +145,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          BUILD_EXTENSIONS="json" INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Clean all installed python packages
         run: |
@@ -196,7 +196,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          BUILD_EXTENSIONS="json" INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
 
       - name: Clean all installed python packages
         run: |

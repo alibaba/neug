@@ -157,6 +157,9 @@ class CMakeBuild(build_ext):
         ]
         if build_extensions:
             cmake_args.append(f"-DBUILD_EXTENSIONS={build_extensions}")
+        install_extensions = os.environ.get("CI_INSTALL_EXTENSIONS", "")
+        if install_extensions:
+            cmake_args.append(f"-DBUILD_EXTENSIONS={install_extensions}")
         if cmake_install_prefix:
             cmake_args += [
                 f"-DCMAKE_INSTALL_PREFIX={cmake_install_prefix}",
@@ -331,14 +334,14 @@ class InstallLib(_install_lib):
     """Ensure extension/* (e.g. extension/json/libjson.neug_extension) is copied.
 
     CMake writes native extensions to build_lib/extension/<name>/.
-    Only runs when INSTALL_EXTENSIONS is set (semicolon-separated, e.g. json;parquet).
+    Only runs when CI_INSTALL_EXTENSIONS is set (semicolon-separated, e.g. json;parquet).
     Copies only the listed extensions so the wheel gets site-packages/extension/...
     """
 
     def run(self):
         super().run()
         # Only copy extensions when INSTALL_EXTENSIONS is set (e.g. json;parquet)
-        install_extensions = os.environ.get("INSTALL_EXTENSIONS", "").strip()
+        install_extensions = os.environ.get("CI_INSTALL_EXTENSIONS", "").strip()
         print(
             f"[InstallLib] INSTALL_EXTENSIONS={repr(install_extensions)} "
             f"build_dir={self.build_dir!r} install_dir={self.install_dir!r}"
