@@ -18,6 +18,7 @@
 
 import atexit
 import cmd
+import errno
 import logging
 import os
 import re
@@ -68,11 +69,15 @@ class NeugShell(cmd.Cmd):
         if readline:
             try:
                 readline.read_history_file(self._histfile)
-            except (FileNotFoundError, OSError):
-                # OSError (errno 22) can occur when libedit (macOS) tries to read
-                # a history file written by GNU readline, or when the file is
-                # otherwise incompatible. Safe to ignore.
+            except FileNotFoundError:
                 pass
+            except OSError as e:
+                # OSError (errno 22/EINVAL): libedit (macOS) cannot parse a
+                # GNU readline history file. Safe to ignore.
+                # Re-raise for any other OS error (e.g. EPERM) so unexpected
+                # problems still surface to the user.
+                if e.errno != errno.EINVAL:
+                    raise
             atexit.register(self._save_history, self._histfile)
         else:
             logger.info("Command history disabled; readline support not detected.")
