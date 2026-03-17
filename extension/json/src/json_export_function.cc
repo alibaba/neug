@@ -255,7 +255,8 @@ void JsonArrayStringFormatBuffer::addValue(int rowIdx, int colIdx) {
     current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
     // add null value to ignore errors
-    current_line_.AddMember(key, DEFAULT_JSON_NULL_VAL, allocator);
+    current_line_.AddMember(key, rapidjson::Value(rapidjson::kNullType),
+                            allocator);
   }
   if (colIdx == static_cast<int>(response_->arrays_size()) - 1) {
     buffer_.PushBack(std::move(current_line_), allocator);
@@ -315,7 +316,8 @@ void JsonLStringFormatBuffer::addValue(int rowIdx, int colIdx) {
   if (jsonResult) {
     current_line_.AddMember(key, std::move(*jsonResult), allocator);
   } else {
-    current_line_.AddMember(key, DEFAULT_JSON_NULL_VAL, allocator);
+    current_line_.AddMember(key, rapidjson::Value(rapidjson::kNullType),
+                            allocator);
   }
   if (colIdx == static_cast<int>(response_->arrays_size()) - 1) {
     buffer_.push_back(std::move(current_line_));

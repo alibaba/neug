@@ -11,8 +11,6 @@ namespace neug {
 namespace writer {
 
 static constexpr const char* DEFAULT_JSON_NEWLINE = "\n";
-static rapidjson::Value DEFAULT_JSON_NULL_VAL =
-    rapidjson::Value(rapidjson::kNullType);
 class JsonArrayStringFormatBuffer : public StringFormatBuffer {
  public:
   JsonArrayStringFormatBuffer(const neug::QueryResponse* response,
