@@ -476,8 +476,6 @@ struct string_item {
 template <>
 class mmap_array<std::string_view> {
  public:
-  static constexpr size_t kMaterializedBitsPerWord = sizeof(uint64_t) * 8;
-
   mmap_array() {}
   mmap_array(mmap_array&& rhs) : mmap_array() { swap(rhs); }
   ~mmap_array() {}
@@ -503,6 +501,7 @@ class mmap_array<std::string_view> {
   }
 
   void open_with_hugepages(const std::string& filename) {
+    is_writable_ = true;
     items_.open_with_hugepages(filename + ".items");
     data_.open_with_hugepages(filename + ".data");
     open_materialized_map_with_hugepages(filename);
@@ -532,7 +531,7 @@ class mmap_array<std::string_view> {
   }
 
   void resize(size_t size, size_t data_size) {
-    materialized_map_.resize(materialized_word_num(size));
+    materialized_map_.resize(size);
     items_.resize(size);
     data_.resize(data_size);
   }
@@ -557,18 +556,16 @@ class mmap_array<std::string_view> {
   void set(size_t idx, size_t offset, const std::string_view& val) {
     items_.set(idx, {static_cast<uint64_t>(offset),
                      static_cast<uint32_t>(val.size())});
-    set_materialized(idx, true);
     assert(data_.data() + offset + val.size() <= data_.data() + data_.size());
     memcpy(data_.data() + offset, val.data(), val.size());
+    materialized_map_.set(idx, 1);
   }
 
   bool is_materialized(size_t idx) const {
-    size_t word_idx = idx / kMaterializedBitsPerWord;
-    size_t bit_idx = idx % kMaterializedBitsPerWord;
-    if (word_idx >= materialized_map_.size()) {
+    if (idx >= materialized_map_.size()) {
       return false;
     }
-    return (materialized_map_.get(word_idx) >> bit_idx) & 1ULL;
+    return materialized_map_.get(idx) != 0;
   }
 
   std::string_view get(size_t idx) const {
@@ -747,26 +744,6 @@ class mmap_array<std::string_view> {
     items_.dump(items_filename);
   }
 
-  void set_materialized(size_t idx, bool materialized) {
-    size_t word_idx = idx / kMaterializedBitsPerWord;
-    size_t bit_idx = idx % kMaterializedBitsPerWord;
-    if (word_idx >= materialized_map_.size()) {
-      THROW_RUNTIME_ERROR("Materialized map index out of range");
-      return;
-    }
-    uint64_t word = materialized_map_.get(word_idx);
-    if (materialized) {
-      word |= (1ULL << bit_idx);
-    } else {
-      word &= ~(1ULL << bit_idx);
-    }
-    materialized_map_.set(word_idx, word);
-  }
-
-  static size_t materialized_word_num(size_t size) {
-    return (size + kMaterializedBitsPerWord - 1) / kMaterializedBitsPerWord;
-  }
-
   void open_materialized_map(const std::string& filename, bool sync_to_file,
                              bool is_writable) {
     const auto materialized_file = filename + ".materialized";
@@ -781,29 +758,16 @@ class mmap_array<std::string_view> {
   }
 
   void validate_materialized_map_size(const std::string& materialized_file) {
-    const auto expected_size = materialized_word_num(items_.size());
+    const auto expected_size = items_.size();
     // Is this backward compatibility logic necessary?
     if (materialized_map_.size() != expected_size) {
-      if (!is_writable_) {
-        LOG(WARNING) << "Materialized map size mismatch in read-only mode; "
-                        "default values will be used for all unset entries.";
-        return;
-      }
-      LOG(WARNING) << "Invalid string materialized map file [ "
-                   << materialized_file << " ], expected " << expected_size
-                   << " words, got " << materialized_map_.size()
-                   << ", try to adapt it";
-      materialized_map_.resize(expected_size);
-      for (size_t i = 0; i < items_.size(); ++i) {
-        if (items_.get(i).length > 0) {
-          set_materialized(i, true);
-        }
-      }
-      return;
+      THROW_RUNTIME_ERROR(
+          "Materialized map size does not match items size for file: " +
+          materialized_file + ", try reloading the graph");
     }
   }
 
-  mmap_array<uint64_t> materialized_map_;
+  mmap_array<uint8_t> materialized_map_;
   mmap_array<string_item> items_;
   mmap_array<char> data_;
   bool is_writable_ = true;

@@ -363,7 +363,7 @@ def test_alter_varchar_type():
 
 
 def test_get_varchar_default_value_1():
-    db_dir = "/tmp/test_get_varchar_default_value"
+    db_dir = "/tmp/test_get_varchar_default_value_1"
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_dir, "w")
     conn = db.connect()
@@ -380,7 +380,7 @@ def test_get_varchar_default_value_1():
 
 
 def test_get_varchar_default_value_2():
-    db_dir = "/tmp/test_get_varchar_default_value"
+    db_dir = "/tmp/test_get_varchar_default_value_2"
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_dir, "w")
     conn = db.connect()
