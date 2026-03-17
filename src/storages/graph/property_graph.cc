@@ -374,24 +374,12 @@ Status PropertyGraph::AddVertexProperties(
     }
     add_default_property_values.emplace_back(default_value);
   }
-  label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  size_t old_prop_num =
-      schema_.get_vertex_schema(v_label)->property_names.size();
   schema_.AddVertexProperties(vertex_type_name, add_property_names,
                               add_property_types, add_property_storages,
                               add_default_property_values);
-
-  // Use the default property values in schema for the new properties if not
-  // provided in the function arguments, to ensure the default values are
-  // consistent with the vertex schema.
-  std::vector<Property> schema_new_default_values;
-  const auto& v_prop_default_values =
-      schema_.get_vertex_schema(v_label)->default_property_values;
-  for (size_t i = old_prop_num; i < v_prop_default_values.size(); i++) {
-    schema_new_default_values.emplace_back(v_prop_default_values[i]);
-  }
+  label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
-                                        schema_new_default_values);
+                                        add_default_property_values);
   return neug::Status::OK();
 }
 
@@ -431,8 +419,6 @@ Status PropertyGraph::AddEdgeProperties(
   label_t src_label = schema_.get_vertex_label_id(src_type_name);
   label_t dst_label = schema_.get_vertex_label_id(dst_type_name);
   label_t e_label = schema_.get_edge_label_id(edge_type_name);
-  size_t old_prop_num = schema_.get_edge_schema(src_label, dst_label, e_label)
-                            ->property_names.size();
 
   schema_.AddEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                             add_property_names, add_property_types,
@@ -448,16 +434,9 @@ Status PropertyGraph::AddEdgeProperties(
                       "] does not exist, cannot add properties.");
   }
 
-  std::vector<Property> schema_new_default_values;
-  const auto& e_prop_default_values =
-      schema_.get_edge_schema(src_label, dst_label, e_label)
-          ->default_property_values;
-  for (size_t i = old_prop_num; i < e_prop_default_values.size(); i++) {
-    schema_new_default_values.emplace_back(e_prop_default_values[i]);
-  }
   auto& edge_table = edge_tables_.at(index);
   edge_table.AddProperties(add_property_names, add_property_types,
-                           schema_new_default_values);
+                           add_default_property_values);
 
   return neug::Status::OK();
 }
