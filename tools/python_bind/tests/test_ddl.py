@@ -385,11 +385,37 @@ def test_get_varchar_default_value_2():
     db = Database(db_dir, "w")
     conn = db.connect()
     conn.execute("CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE TestEdge(FROM TestNode TO TestNode);")
     conn.execute("CREATE (:TestNode {id: 1});")
     conn.execute("CREATE (:TestNode {id: 2});")
-    conn.execute("ALTER TABLE TestNode ADD name VARCHAR(20) DEFAULT 'default_name';")
     conn.execute("CREATE (:TestNode {id: 3});")
+    conn.execute(
+        "MATCH (a:TestNode {id: 1}), (b:TestNode {id: 2}) CREATE (a)-[:TestEdge]->(b);"
+    )
+    conn.execute(
+        "MATCH (a:TestNode {id: 2}), (b:TestNode {id: 3}) CREATE (a)-[:TestEdge]->(b);"
+    )
+    conn.execute("ALTER TABLE TestNode ADD name VARCHAR(20) DEFAULT 'default_name';")
+    conn.execute("CREATE (:TestNode {id: 4});")
+    conn.execute("CREATE (:TestNode {id: 5, name: 'custom_name'});")
     res = conn.execute("Match (n:TestNode) Return n.name;")
-    assert list(res) == [["default_name"], ["default_name"], ["default_name"]]
+    assert list(res) == [
+        ["default_name"],
+        ["default_name"],
+        ["default_name"],
+        ["default_name"],
+        ["custom_name"],
+    ]
+    conn.execute("ALTER TABLE TestEdge ADD date INT64;")
+    conn.execute(
+        "MATCH (a:TestNode {id: 1})-[e:TestEdge]->(b:TestNode {id: 2}) SET e.date = 1234567890;"
+    )
+    conn.execute(
+        "MATCH (a:TestNode {id: 1}), (b:TestNode { id: 3 }) CREATE (a)-[:TestEdge {date: 9876543210}]->(b);"
+    )
+    res = conn.execute(
+        "MATCH (a:TestNode {id: 1})-[e:TestEdge]->(b:TestNode) RETURN e.date;"
+    )
+    assert list(res) == [[1234567890], [9876543210]]
     conn.close()
     db.close()

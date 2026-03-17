@@ -513,33 +513,6 @@ class TypedRefColumn : public RefColumnBase {
   size_t basic_size;
 };
 
-template <>
-class TypedRefColumn<std::string_view> : public RefColumnBase {
- public:
-  using value_type = std::string_view;
-
-  explicit TypedRefColumn(const StringColumn& column)
-      : basic_buffer(column.buffer()), basic_size(column.buffer_size()) {}
-  ~TypedRefColumn() {}
-
-  inline std::string_view get_view(size_t index) const {
-    assert(index < basic_size);
-    return basic_buffer.get(index);
-  }
-
-  Property get(size_t index) const override {
-    return PropUtils<std::string_view>::to_prop(get_view(index));
-  }
-
-  DataTypeId type() const override { return DataTypeId::kVarchar; }
-
-  ColType col_type() const override { return ColType::kInternal; }
-
- private:
-  const mmap_array<std::string_view>& basic_buffer;
-  size_t basic_size;
-};
-
 // Create a reference column from a ColumnBase that contains a const reference
 // to the actual column storage, offering a column-based store interface for
 // vertex properties.

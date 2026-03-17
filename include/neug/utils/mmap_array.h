@@ -477,17 +477,6 @@ struct string_item {
 
 template <>
 class mmap_array<std::string_view> {
- private:
-  struct CompactionPlan {
-    struct Entry {
-      size_t index;
-      uint64_t offset;
-      uint32_t length;
-    };
-    std::vector<Entry> entries;
-    size_t total_size = 0;
-  };
-
  public:
   mmap_array() : mmap_array("") {}
   explicit mmap_array(const std::string_view& default_value)
@@ -505,10 +494,9 @@ class mmap_array<std::string_view> {
 
   std::string_view default_value() const { return default_value_; }
 
-  bool has_default_item() const {
-    return default_item_.offset != 0 || default_item_.length != 0 ||
-           default_value_.empty();
-  }
+  // The behavior of having no default value is same with having an empty string
+  // as default value.
+  bool has_default_item() const { return default_item_.length != 0; }
 
   size_t ensure_default_item(size_t offset) {
     if (has_default_item()) {
@@ -527,6 +515,8 @@ class mmap_array<std::string_view> {
   }
 
   void fill_default_items(size_t begin, size_t end) {
+    begin = std::min(begin, items_.size());
+    end = std::min(end, items_.size());
     for (size_t i = begin; i < end; ++i) {
       items_.set(i, default_item_);
     }
@@ -563,7 +553,7 @@ class mmap_array<std::string_view> {
       return;
     }
 
-    compact(plan);
+    compact();
     items_.dump(filename + ".items");
     data_.dump(filename + ".data");
     dump_meta(filename + ".meta");
@@ -579,15 +569,17 @@ class mmap_array<std::string_view> {
       return 0;
     }
     size_t total_length = 0;
-    size_t non_zero_count = 0;
+    size_t non_default_count = 0;
     for (size_t i = 0; i < items_.size(); ++i) {
-      if (items_.get(i).length > 0) {
-        ++non_zero_count;
-        total_length += items_.get(i).length;
+      const auto& item = items_.get(i);
+      if (item.length > 0 && !(item.offset == default_item_.offset &&
+                               item.length == default_item_.length)) {
+        ++non_default_count;
+        total_length += item.length;
       }
     }
-    return non_zero_count > 0
-               ? (total_length + non_zero_count - 1) / non_zero_count
+    return non_default_count > 0
+               ? (total_length + non_default_count - 1) / non_default_count
                : 0;
   }
 
@@ -635,7 +627,8 @@ class mmap_array<std::string_view> {
   // Returns the compacted data size. Note that the reserved size of data buffer
   // is not changed, and new strings can still be appended after the compacted
   // data.
-  size_t compact(const CompactionPlan& plan) {
+  size_t compact() {
+    auto plan = prepare_compaction_plan();
     if (items_.size() == 0) {
       return 0;
     }
@@ -687,6 +680,16 @@ class mmap_array<std::string_view> {
   }
 
  private:
+  struct CompactionPlan {
+    struct Entry {
+      size_t index;
+      uint64_t offset;
+      uint32_t length;
+    };
+    std::vector<Entry> entries;
+    size_t total_size = 0;
+  };
+
   CompactionPlan prepare_compaction_plan() const {
     CompactionPlan plan;
     plan.entries.reserve(items_.size());
@@ -697,6 +700,11 @@ class mmap_array<std::string_view> {
     }
     for (size_t i = 0; i < items_.size(); ++i) {
       const string_item& item = items_.get(i);
+      // Items pointing to old_default_item are default-initialized entries that
+      // share a single storage slot. They are safe to identify by {offset,
+      // length} because ensure_default_item() always writes the default at
+      // offset 0 before any explicit string is appended (pos_ >=
+      // default_value_.size() at all times after resize()).
       if (has_stored_default && item.offset == old_default_item.offset &&
           item.length == old_default_item.length) {
         continue;
@@ -732,6 +740,7 @@ class mmap_array<std::string_view> {
         const char* default_src = data_.data() + old_default_item.offset;
         if (fwrite(default_src, 1, old_default_item.length, fout) !=
             old_default_item.length) {
+          fclose(fout);
           std::stringstream ss;
           ss << "Failed to fwrite file [ " << data_filename << " ], "
              << strerror(errno);
@@ -745,6 +754,7 @@ class mmap_array<std::string_view> {
       if (entry.length > 0) {
         const char* src = data_.data() + entry.offset;
         if (fwrite(src, 1, entry.length, fout) != entry.length) {
+          fclose(fout);
           std::stringstream ss;
           ss << "Failed to fwrite file [ " << data_filename << " ], "
              << strerror(errno);
@@ -768,6 +778,7 @@ class mmap_array<std::string_view> {
     assert(write_offset == plan.total_size);
 
     if (fflush(fout) != 0) {
+      fclose(fout);
       std::stringstream ss;
       ss << "Failed to fflush file [ " << data_filename << " ], "
          << strerror(errno);
@@ -776,6 +787,7 @@ class mmap_array<std::string_view> {
     }
     int fd = fileno(fout);
     if (fd == -1) {
+      fclose(fout);
       std::stringstream ss;
       ss << "Failed to get file descriptor for [ " << data_filename << " ], "
          << strerror(errno);
@@ -783,6 +795,7 @@ class mmap_array<std::string_view> {
       THROW_RUNTIME_ERROR(ss.str());
     }
     if (ftruncate(fd, static_cast<off_t>(size_before_compact)) != 0) {
+      fclose(fout);
       std::stringstream ss;
       ss << "Failed to ftruncate file [ " << data_filename << " ], "
          << strerror(errno);
@@ -845,8 +858,6 @@ class mmap_array<std::string_view> {
     if (!std::filesystem::exists(meta_filename)) {
       return;
     }
-    default_value_.clear();
-    default_item_ = {0, 0};
     const size_t meta_size = std::filesystem::file_size(meta_filename);
     if (meta_size < sizeof(StringMetaHeader)) {
       std::stringstream ss;
@@ -871,10 +882,22 @@ class mmap_array<std::string_view> {
       LOG(ERROR) << ss.str();
       THROW_RUNTIME_ERROR(ss.str());
     }
-    default_value_.resize(header.default_value_size);
     if (header.default_value_size > 0) {
-      memcpy(default_value_.data(), meta_buf.data() + sizeof(StringMetaHeader),
-             header.default_value_size);
+      if (default_value_.size() > 0) {
+        if (header.default_value_size != default_value_.size() ||
+            memcmp(default_value_.data(),
+                   meta_buf.data() + sizeof(StringMetaHeader),
+                   header.default_value_size) != 0) {
+          std::stringstream ss;
+          ss << "Default value in meta file [ " << meta_filename
+             << " ] does not match the one in memory";
+          LOG(ERROR) << ss.str();
+          THROW_RUNTIME_ERROR(ss.str());
+        }
+      } else {
+        default_value_.assign(meta_buf.data() + sizeof(StringMetaHeader),
+                              header.default_value_size);
+      }
     }
   }
 
