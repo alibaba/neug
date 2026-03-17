@@ -51,7 +51,7 @@ public class JavaDriverE2ETest {
             try (Session session = driver.session();
                     ResultSet resultSet = session.run("RETURN 1 AS value")) {
                 assertTrue(resultSet.next());
-                assertEquals(1L, resultSet.getLong("value"));
+                assertEquals(1, resultSet.getInt("value"));
                 assertEquals(1L, resultSet.getObject(0));
                 assertFalse(resultSet.wasNull());
                 assertEquals(Types.INT64, resultSet.getMetaData().getColumnType(0));

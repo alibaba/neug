@@ -22,6 +22,15 @@ The Java driver is designed for application integration and service-side usage:
 - **Read results** through a typed `ResultSet` API
 - **Inspect metadata** using native NeuG `Types`
 
+## Deployment Model
+
+The current Java SDK supports **remote access over HTTP only**.
+
+- **Supported**: connect to a running NeuG server with `GraphDatabase.driver("http://host:port")`
+- **Not supported**: embedded/in-process database access from Java
+
+If you need embedded access, use the C++ or Python APIs. The Java SDK should be treated as a client for an already running NeuG service.
+
 ## Installation
 
 ### Use from this repository
@@ -71,6 +80,75 @@ public class Example {
 		}
 	}
 }
+```
+
+## Start a NeuG Server
+
+Before using the Java SDK, start a NeuG HTTP server that exposes the query endpoint.
+You can use either the C++ binary or the Python API to start the server.
+
+### Option A: Start with the C++ binary
+
+#### 1. Build the server binary
+
+From the repository root:
+
+```bash
+cmake -S . -B build
+cmake --build build --target rt_server -j
+```
+
+#### 2. Start the server
+
+```bash
+./build/bin/rt_server --data-path /path/to/graph --http-port 10000 --host 0.0.0.0 --shard-num 16
+```
+
+Common options:
+
+- `--data-path`: path to the NeuG data directory
+- `--http-port`: HTTP port for Java clients, default is `10000`
+- `--host`: bind address, default is `127.0.0.1`
+- `--shard-num`: shard number of actor system, default is `9`
+
+### Option B: Start with Python
+
+If you have the `neug` Python package installed, you can start the server directly from Python:
+
+```python
+from neug import Database
+
+db = Database("/path/to/graph", mode="rw")
+# Blocks until the process is killed (Ctrl+C or SIGTERM)
+db.serve(port=10000, host="0.0.0.0", blocking=True)
+```
+
+To run non-blocking (e.g. inside a larger script):
+
+```python
+import time
+from neug import Database
+
+db = Database("/path/to/graph", mode="rw")
+uri = db.serve(port=10000, host="0.0.0.0", blocking=False)
+print("Server started at:", uri)
+
+try:
+    while True:
+        time.sleep(60)
+except KeyboardInterrupt:
+    db.stop_serving()
+```
+
+> **Note:** Make sure all local connections are closed before calling `db.serve()`.
+> Once the server is running, no new local connections are allowed until `db.stop_serving()` is called.
+
+### Connect from Java
+
+After the server is started via either option:
+
+```java
+Driver driver = GraphDatabase.driver("http://localhost:10000");
 ```
 
 ## Parameterized Queries
