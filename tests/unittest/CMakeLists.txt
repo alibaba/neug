@@ -16,6 +16,8 @@ add_neug_test(schema_test schema_test.cc)
 # Logical delete tests
 add_neug_test(logical_delete_test logical_delete_test.cc)
 
+add_neug_test(test_indexer test_indexer.cc)
+
 add_neug_test(test_connection test_connection.cc)
 
 if (BUILD_HTTP_SERVER)

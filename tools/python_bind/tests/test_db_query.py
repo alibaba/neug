@@ -2608,6 +2608,27 @@ def test_insert_many_vertices():
     db.close()
 
 
+def test_insert_many_edges():
+    db_dir = "/tmp/test_insert_many_edges"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE Knows(FROM Person TO Person);")
+    for i in range(100):
+        conn.execute(f"CREATE (p: Person {{id: {i}}});")
+    for i in range(100):
+        for j in range(i + 1, 100):
+            conn.execute(
+                f"MATCH (p1: Person {{id: {i}}}), (p2: Person {{id: {j}}}) CREATE (p1)-[:Knows]->(p2);"
+            )
+    res = conn.execute("MATCH ()-[e: Knows]->() RETURN count(e);")
+    records = list(res)
+    assert records == [[4950]], f"Expected value [[4950]], got {records}"
+    conn.close()
+    db.close()
+
+
 def test_insert_string_column_exhaustion():
     logging.disable(logging.CRITICAL)
     try:

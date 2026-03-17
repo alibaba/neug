@@ -343,6 +343,10 @@ std::shared_ptr<neug::NeugDBService> G0Init(NeugDB& db,
   auto person_label_id = schema.get_vertex_label_id("PERSON");
   auto knows_label_id = schema.get_edge_label_id("KNOWS");
 
+  db.graph().EnsureCapacity(person_label_id, 1000);
+  db.graph().EnsureCapacity(person_label_id, person_label_id, knows_label_id,
+                            1000);
+
   auto sess = svc->AcquireSession();
   auto txn = sess->GetInsertTransaction();
   StorageTPInsertInterface gii(txn);

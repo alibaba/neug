@@ -110,10 +110,7 @@ class PropertyGraph {
 
   /**
    * @brief Destructor that reserves space and cleans up resources.
-   *
-   * Implementation: Calculates degree lists for vertices, reserves space in
-   * vertex and edge tables to optimize memory layout before destruction.
-   *
+   * Implementation: Calls Clear() to release resources and reset state.
    * @since v0.1.0
    */
   ~PropertyGraph();
@@ -137,6 +134,10 @@ class PropertyGraph {
 
   void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
+  /**
+   * @brief Dump the current graph state to persistent storage.
+   * @param reopen If true, reopens the graph after dumping (default: true)
+   */
   void Dump(bool reopen = true);
 
   /**
@@ -296,7 +297,14 @@ class PropertyGraph {
                               const std::vector<std::string>& delete_properties,
                               bool error_on_conflict = true);
 
-  Status Reserve(label_t v_label, vid_t vertex_reserve_size);
+  Status EnsureCapacity(label_t v_label, size_t capacity);
+
+  Status EnsureCapacity(label_t src_label, label_t dst_label,
+                        label_t edge_label, size_t capacity);
+
+  Status EnsureCapacity(label_t src_label, label_t dst_label,
+                        label_t edge_label, size_t src_v_cap, size_t dst_v_cap,
+                        size_t capacity);
 
   Status BatchAddVertices(label_t v_label_id,
                           std::shared_ptr<IRecordBatchSupplier> supplier);

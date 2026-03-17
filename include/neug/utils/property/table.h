@@ -94,6 +94,13 @@ class Table {
   void delete_column(const std::string& col_name);
 
   size_t col_num() const;
+  inline size_t size() const {
+    if (columns_.empty()) {
+      return 0;
+    } else {
+      return columns_[0]->size();
+    }
+  }
   std::vector<std::shared_ptr<ColumnBase>>& columns();
   std::vector<ColumnBase*>& column_ptrs();
 

@@ -44,20 +44,17 @@ namespace binder {
  * @param typeInfo
  * @return function::TableFunction
  */
-function::TableFunction Binder::getExportFunction(
+function::ExportFunction Binder::getExportFunction(
     const common::FileTypeInfo& typeInfo) {
   auto fileTypeStr = typeInfo.fileTypeStr;
   std::transform(fileTypeStr.begin(), fileTypeStr.end(), fileTypeStr.begin(),
                  [](unsigned char c) { return std::toupper(c); });
   auto name = stringFormat("COPY_{}", fileTypeStr);
-  if (typeInfo.fileType == FileType::CSV) {
-    return function::TableFunction(name, {});
-  }
   auto entry = clientContext->getCatalog()->getFunctionEntry(
       clientContext->getTransaction(), name);
   return *function::BuiltInFunctionsUtils::matchFunction(
               name, entry->ptrCast<catalog::FunctionCatalogEntry>())
-              ->constPtrCast<function::NeugCallFunction>();
+              ->constPtrCast<function::ExportFunction>();
 }
 
 /**
@@ -72,13 +69,8 @@ function::TableFunction Binder::getExportFunction(
 std::unique_ptr<function::ExportFuncBindData> Binder::getExportFuncBindData(
     const common::FileTypeInfo& typeInfo,
     const function::ExportFuncBindInput& bindInput) {
-  if (typeInfo.fileType == FileType::CSV) {
-    return std::make_unique<function::ExportCSVBindData>(
-        bindInput.columnNames, bindInput.filePath,
-        CSVReaderConfig::construct(bindInput.parsingOptions).option.copy());
-  }
-  return std::make_unique<function::ExportFuncBindData>(bindInput.columnNames,
-                                                        bindInput.filePath);
+  return std::make_unique<function::ExportFuncBindData>(
+      bindInput.columnNames, bindInput.filePath, bindInput.parsingOptions);
 }
 
 std::unique_ptr<BoundStatement> Binder::bindCopyToClause(

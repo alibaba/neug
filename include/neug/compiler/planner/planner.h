@@ -125,12 +125,6 @@ class NEUG_API Planner {
       const binder::BoundCopyFromInfo* info,
       binder::expression_vector outExprs);
 
-  // Plan export/import database
-  std::unique_ptr<LogicalPlan> planExportDatabase(
-      const binder::BoundStatement& statement);
-  std::unique_ptr<LogicalPlan> planImportDatabase(
-      const binder::BoundStatement& statement);
-
   // Plan query.
   std::vector<std::unique_ptr<LogicalPlan>> planQuery(
       const binder::BoundStatement& boundStatement);

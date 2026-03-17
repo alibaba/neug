@@ -246,4 +246,14 @@ inline std::string wal_ingest_allocator_prefix(const std::string& work_dir,
          std::to_string(thread_id) + "_";
 }
 
+inline std::string statistics_file_prefix(const std::string& v_label) {
+  return "statistics_" + v_label;
+}
+
+inline std::string statistics_file_prefix(const std::string& src_label,
+                                          const std::string& dst_label,
+                                          const std::string& edge_label) {
+  return "statistics_" + src_label + "_" + edge_label + "_" + dst_label;
+}
+
 }  // namespace neug

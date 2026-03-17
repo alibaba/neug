@@ -76,7 +76,7 @@ class TypedEmptyColumn : public ColumnBase {
   void set_any(size_t index, const Property& value, bool insert_safe) override {
   }
 
-  T get_view(size_t index) const { T{}; }
+  T get_view(size_t index) const { return T{}; }
 
   Property get_prop(size_t index) const override { return Property(); }
 

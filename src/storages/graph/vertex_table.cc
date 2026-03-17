@@ -14,12 +14,12 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, int memory_level,
-                       bool build_empty_graph) {
+void VertexTable::Open(const std::string& work_dir, int memory_level) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -84,13 +84,8 @@ void VertexTable::Dump(const std::string& target_dir) {
   const auto& label_name = vertex_schema_->label_name;
   indexer_.dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
                 target_dir);
-  table_->resize(indexer_.size());
   table_->dump(vertex_table_prefix(label_name), target_dir);
-  // Shrink v_ts_ to fit the indexer size
-  v_ts_.Reserve(indexer_.size());
   v_ts_.Dump(target_dir + "/" + vertex_tracker_file(label_name));
-  VLOG(1) << "Dump vertex table " << label_name << " done, size "
-          << indexer_.size();
 }
 
 void VertexTable::Close() {
@@ -184,14 +179,19 @@ bool VertexTable::IsValidLid(vid_t lid, timestamp_t ts) const {
   return lid < indexer_.size() && v_ts_.IsVertexValid(lid, ts);
 }
 
-void VertexTable::Reserve(size_t cap) {
-  if (cap > indexer_.capacity()) {
-    indexer_.reserve(cap);
+size_t VertexTable::EnsureCapacity(size_t capacity) {
+  if (capacity <= indexer_.capacity()) {
+    return indexer_.capacity();
   }
-  if (table_) {
-    table_->resize(cap);
-    v_ts_.Reserve(cap);
+  capacity = std::max(capacity, 4096UL);
+  if (capacity > indexer_.capacity()) {
+    indexer_.reserve(capacity);
   }
+  if (table_ && table_->size() < capacity) {
+    table_->resize(capacity);
+  }
+  v_ts_.Reserve(capacity);
+  return indexer_.capacity();
 }
 
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
