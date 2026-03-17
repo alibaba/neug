@@ -10,29 +10,35 @@
 
 ## 1. 产品需求：MVP 算法与语法
 ### 1.1 选择原则
-+ **最常用经典算法**：图数据库的基础能力，覆盖大部分业务场景
-+ **AI 时代刚需**：主要是 GraphRAG 场景的社区发现算法
+
+- **对齐 LDBC Graphalytics 基准**：覆盖其标准算法与数据集，便于与 Kuzu、Neo4j 等图系统做可复现的性能对比。
+- **补充社区与图结构能力**：在基准六算法外，增加社区发现（如 Leiden）与稠密子图（如 K-Core），支撑 GraphRAG、知识图谱等场景。
 
 ### 1.2 V1 算法列表
-第一版支持 **8 个核心算法**，分为两类（BFS、LCC 等别名在详细说明中列出）：
+第一版支持 **8 个核心算法**，分为下面两类。
 
-#### 经典图算法（6 个）
+#### LDBC Graphalytics Benchmark （6个）
+
+第一类为 [LDBC Graphalytics](https://ldbcouncil.org/benchmarks/graphalytics/algorithms/) 官方的6个算法。我们希望可以在这个标准测试集上，和 Kuzu, LadybugDB, Neo4j 等数据库进行性能对比。具体的算法描述，数据集，性能指标请见 [Bench](#5-benchmark) 章节。 
+
+| 算法 | 图语义 | 描述 | 输出 | 并行化 |
+| **Breadth-First Search (BFS)** | 有向/无向 | 从源点出发的广度优先遍历，按层扩展 | `(node, distance)` | 支持 |
+| **PageRank** | 有向/无向 | 计算节点的重要性分数 | `(node, rank)` | 支持 |
+| **Weakly Connected Components (WCC)** | 无向 | 弱连通分量检测 | `(node, component_id)` | 支持 |
+| **Label Propagation** | 有向/无向 | 基于标签传播的快速社区发现 | `(node, label)` | 支持 |
+| **Local Clustering Coefficient (LCC)** | 有向/无向 | 顶点局部聚类系数 | `(node, coefficient)` | 支持 |
+| **Single-source shortest paths (SSSP)** | 有向/无向 | 单源最短路径 | `(node, distance, path)` | 支持 |
+
+#### 社区发现与图结构算法（2 个）
+
+在 Graphalytics 六算法之外，V1 增加 K-Core 与 Leiden：Leiden 为高质量社区发现，常用于 GraphRAG 等场景的分层摘要；K-Core 用于稠密子图与核心节点分析。
+
 | 算法 | 图语义 | 描述 | 输出 | 并行化 |
 | --- | --- | --- | --- | --- |
 | **K-Core** | 无向 | 找出所有核心数 ≥ k 的子图 | `(node, core_number)` | 支持 |
-| **PageRank** | 有向 | 计算节点的重要性分数 | `(node, rank)` | 支持 |
-| **Shortest Path (Dijkstra)** | 有向 | 单源最短路径 | `(node, distance, path)` | 不支持 |
-| **Connected Components** | 无向 | 弱连通分量检测（别名 WCC） | `(node, component_id)` | 支持 |
-| **Breadth-First Search (BFS)** | 有向 | 从源点出发的广度优先遍历，按层扩展 | `(node, distance)` | 不支持 |
-| **Local Clustering Coefficient (LCC)** | 无向 | 顶点局部聚类系数 | `(node, coefficient)` | 支持 |
-
-
-#### AI/GraphRAG 刚需算法（2 个）
-| 算法 | 图语义 | 描述 | 输出 | 并行化 |
-| --- | --- | --- | --- | --- |
 | **Leiden** | 无向 | 高质量社区发现（优于 Louvain） | `(node, community_id)` | 支持 |
-| **Label Propagation** | 无向 | 基于标签传播的快速社区发现 | `(node, label)` | 支持 |
 
+**注意**：所有算法暂时都支持并行化，后续可以结合 benchmark 需求（采用算法，数据规模）决定是否需要支持并行。
 
 ### 1.3 图语义说明
 NeuG 底层存储为**有向图**（CSR for outgoing, CSC for incoming）。算法层根据算法需求封装不同的语义：
@@ -826,7 +832,147 @@ protected:
 
 ---
 
-## 5. 实现优先级
+## 5. Benchmark
+
+### 算法描述
+
+以下描述与 Graphalytics 等基准规范对齐，用于 Benchmark 的可复现与对比。
+
+#### 5.1 广度优先搜索 (BFS)
+
+广度优先搜索是一种遍历算法，为图中每个顶点标注从给定源点（根）到该顶点的最短路径长度（或称深度）。根的深度为 0，其出边邻居深度为 1，再下一层邻居深度为 2，以此类推。不可达顶点应赋值为无穷大（表示为 9223372036854775807）。
+
+#### 5.2 PageRank (PR)
+
+PageRank 是一种迭代算法，为每个顶点赋予一个排序值（重要性分数），最初由 Google 搜索用于网页排序。记 PR_i(v) 为第 i 轮迭代后顶点 v 的 PageRank 值。初始时，每个顶点 v 被赋予相同的值，且所有顶点值之和为 1：
+
+```
+PR_0(v) = 1 / |V|
+```
+
+每轮迭代中，各顶点沿出边将自己的 PageRank 传递给邻居。顶点 v 的 PageRank 按以下规则更新：
+
+```
+PR_i(v) = (1-d)/|V| + d · ( Σ_{u∈N_in(v)} PR_{i-1}(u)/|N_out(u)| + (1/|V|) Σ_{w∈D} PR_{i-1}(w) )
+```
+
+其中 D = { w ∈ V | N_out(w) = ∅ } 为 **sink 顶点**集合（无出边的顶点）。前一项为来自入边邻居的贡献；后一项为 sink 顶点上一轮 PageRank 之和均匀分配给所有顶点（teleport from sinks）。计算前一项时，对 sink 顶点 u 将 PR_{i-1}(u)/|N_out(u)| 视为 0。
+
+**Notation (English):** d ∈ [0,1] is the damping factor; D is the set of sink vertices. The term (1/|V|) Σ_{w∈D} PR_{i-1}(w) is the total PageRank of sinks redistributed uniformly to every vertex.
+
+算法按固定迭代轮数执行。浮点数须按 64 位双精度 IEEE 754 处理。
+
+#### 5.3 弱连通分量 (WCC)
+
+本算法求解图的弱连通分量，并为每个顶点分配一个唯一标签，表示其所属分量。若两顶点在沿图边可互相到达，则属于同一分量并具有相同标签。对有向图允许沿边的反方向行走，即按无向图理解。
+
+#### 5.4 基于标签传播的社区发现 (CDLP)
+
+该社区发现算法采用标签传播 (CDLP)，基于 Raghavan 等人提出的方法。算法为每个顶点分配一个表示社区的标签，并迭代更新：每个顶点根据其邻居标签的出现频率选择新标签。本规范采用确定性、可并行的变体。
+
+记 L_i(v) 为第 i 轮迭代后顶点 v 的标签。初始时每个顶点 v 的标签等于其标识：L_0(v) = v。
+
+在第 i 轮中，顶点 v 统计其入边与出边邻居的标签频率，选择出现次数最多的标签。若有向图中某邻居既通过入边又通过出边可达，其标签计两次。若存在多个标签同为最大频率，则选择其中最小的标签。若顶点无邻居，则保留当前标签。
+
+**说明：** 与原始算法相比，Graphalytics 中的 CDLP 有两点主要区别：(1) 确定性——当多个标签频率同为最大时，选择最小标签；(2) 同步更新——每轮迭代基于上一轮的标签结果计算，在二分或近二分子图中可能导致标签振荡。
+
+#### 5.5 局部聚类系数 (LCC)
+
+局部聚类系数算法为每个顶点计算其局部聚类系数，即该顶点邻居之间实际存在的边数与其可能存在的最大边数之比。若顶点邻居数少于 2，则定义其系数为 0：
+
+- 当 |N(v)| ≤ 1 时：LCC(v) = 0。
+- 否则：LCC(v) = |{(u,w) | u,w ∈ N(v) ∧ (u,w) ∈ E}| / |{(u,w) | u,w ∈ N(v)}|。
+
+对有向图，邻居集合 N(v) 不考虑边的方向（每个邻居只计一次），但在统计邻居之间的边时需考虑方向（例如使用 N_out(u)）。
+
+#### 5.6 单源最短路径 (SSSP)
+
+单源最短路径算法为每个顶点标注从给定根顶点到该顶点的最短路径长度。路径长度为路径上各边权之和。边权为浮点数，须按 64 位双精度 IEEE 754 处理；边权非负、非无穷、非 NaN，但可为 0。不可达顶点应赋值为无穷大。
+
+---
+
+### 数据集合
+
+Graphalytics 同时使用真实场景图与由数据生成器产生的合成图，覆盖多种规模与密度。数据集存放于 [SURF/CWI 数据仓库](https://repository.surfsara.nl/datasets/cwi/graphalytics) 。
+
+#### 真实世界数据集
+
+来自不同领域（知识图谱、游戏、社交网络等）的真实图。下表为 Graphalytics 基准使用的真实世界数据集。
+
+| ID | Name | n | m | Scale | Domain |
+| --- | --- | --- | --- | --- | --- |
+| R1 (2XS) | wiki-talk | 2.39M | 5.02M | 6.9 | Knowledge |
+| R2 (XS) | kgs | 0.83M | 17.9M | 7.3 | Gaming |
+| R3 (XS) | cit-patents | 3.77M | 16.5M | 7.3 | Knowledge |
+| R4 (S) | dota-league | 0.06M | 50.9M | 7.7 | Gaming |
+| R5 (XL) | com-friendster | 65.6M | 1.81B | 9.3 | Social |
+| R6 (XL) | twitter_mpi | 52.6M | 1.97B | 9.3 | Social |
+
+
+#### 合成数据集（Graph500）
+
+除真实数据集外，Graphalytics 采用 Graph500 生成器生成幂律图。下表为 Graphalytics 使用的 Graph500 合成数据集。
+
+| ID | Name | n | m | Scale |
+| --- | --- | --- | --- | --- |
+| G22 (S) | Graph500-22 | 2.4M | 64.2M | 7.8 |
+| G23 (M) | Graph500-23 | 4.6M | 129.3M | 8.1 |
+| G24 (M) | Graph500-24 | 8.9M | 260.4M | 8.4 |
+| G25 (L) | Graph500-25 | 17.0M | 523.6M | 8.7 |
+| G26 (XL) | Graph500-26 | 32.8M | 1.1B | 9.0 |
+| G27 (XL) | Graph500-27 | 65.6M | 2.1B | 9.3 |
+| G28 (2XL) | Graph500-28 | 121M | 4.2B | 9.6 |
+| G29 (2XL) | Graph500-29 | 233M | 8.5B | 9.9 |
+| G30 (3XL) | Graph500-30 | 448M | 17.0B | 10.2 |
+
+
+#### 合成数据集（LDBC Datagen）
+
+Graphalytics 采用 LDBC Datagen 生成社交网络类图。下表为 Graphalytics 使用的 Datagen 合成数据集。
+
+| ID | Name | n | m | Scale |
+| --- | --- | --- | --- | --- |
+| D7.5 (S) | Datagen-7.5-fb | 0.6M | 34.2M | 7.5 |
+| D7.6 (S) | Datagen-7.6-fb | 0.8M | 42.2M | 7.6 |
+| D7.7 (S) | Datagen-7.7-zf | 13.2M | 32.8M | 7.6 |
+| D7.8 (S) | Datagen-7.8-zf | 16.5M | 41.0M | 7.7 |
+| D7.9 (S) | Datagen-7.9-fb | 1.4M | 85.7M | 7.9 |
+| D8.0 (M) | Datagen-8.0-fb | 1.7M | 107.5M | 8.0 |
+| D8.1 (M) | Datagen-8.1-fb | 2.1M | 134.3M | 8.1 |
+| D8.2 (M) | Datagen-8.2-zf | 43.7M | 106.4M | 8.1 |
+| D8.3 (M) | Datagen-8.3-zf | 53.5M | 130.6M | 8.2 |
+| D8.4 (M) | Datagen-8.4-fb | 3.8M | 269.5M | 8.4 |
+| D8.5 (L) | Datagen-8.5-fb | 4.6M | 332.0M | 8.5 |
+| D8.6 (L) | Datagen-8.6-fb | 5.7M | 422.0M | 8.6 |
+| D8.7 (L) | Datagen-8.7-zf | 145.1M | 340.2M | 8.6 |
+| D8.8 (L) | Datagen-8.8-zf | 168.3M | 413.4M | 8.7 |
+| D8.9 (L) | Datagen-8.9-fb | 10.6M | 848.7M | 8.9 |
+| D9.0 (XL) | Datagen-9.0-fb | 12.9M | 1.0B | 9.0 |
+| D9.1 (XL) | Datagen-9.1-fb | 16.1M | 1.3B | 9.1 |
+| D9.2 (XL) | Datagen-9.2-zf | 434.9M | 1.0B | 9.1 |
+| D9.3 (XL) | Datagen-9.3-zf | 555.3M | 13.1B | 9.2 |
+| D9.4 (XL) | Datagen-9.4-fb | 29.3M | 2.6B | 9.4 |
+| D-3k (XL) | Datagen-sf3k-fb | 33.5M | 2.9B | 9.4 |
+| D-10k (2XL) | Datagen-sf10k-fb | 100.2M | 9.4B | 9.9 |
+
+
+每个 Graphalytics 工作负载由「在单个数据集上执行单个算法」组成。算法实现无强制约束，只要其正确性可通过与参考输出对比进行验证即可。
+
+### 性能指标
+
+本节描述 Graphalytics 使用的度量指标。基准通过多种指标量化被测系统的性能及其他特性，其中性能主要由基准执行过程中各阶段所耗时间衡量。Graphalytics 报告性能指标、吞吐指标、成本指标与比率指标等，此处重点说明**性能指标**。
+
+性能指标用于报告各平台操作的执行时间：
+
+- **加载时间 (T_L)**，单位秒：将指定图加载到被测系统所花费的时间，包括将输入图转换为系统内部格式所需的预处理。该阶段在每个图上的所有算法执行前执行一次。
+
+- **完成时间 / Makespan (T_M)**，单位秒：从 Graphalytics 驱动发出「在已加载的图上执行某算法」的命令，到算法输出可供驱动使用之间的时间。Makespan 可进一步拆分为处理时间与平台开销。该指标对应**冷启动**场景：系统启动后，对单数据集执行单算法，然后关闭。
+
+- **处理时间 (T_D)**，单位秒：实际执行算法所需的时间，不包含平台相关开销（如资源分配、从文件系统加载图、图划分等）。该指标对应**已就绪、生产态**图处理系统：从文件系统加载图与图划分通常只做一次且与算法无关，故不计入处理时间。
+
+执行时间以各基准配置的超时时长为上限。一旦达到超时，图处理任务将被终止，并上报该超时时长作为对应性能指标。
+
+## 6. 实现优先级
 ### P0 - 第一版 (MVP)
 | 功能 | 描述 |
 | --- | --- |
