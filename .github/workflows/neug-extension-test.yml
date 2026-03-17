@@ -1,6 +1,9 @@
 name: NeuG Extension Test
 
 on:
+  schedule:
+    # Run at 08:00 UTC every Saturday
+    - cron: '0 8 * * 6'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:
@@ -8,6 +11,11 @@ on:
         required: true
         default: 'main'
         type: string
+      rebuild_neug:
+        description: 'Rebuild NeuG wheel package before testing extension'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -140,26 +148,49 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
-      - name: Build wheels
+      - name: Build NeuG wheel
+        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Build Extension Package
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-    
+
+      - name: Install Wheel and extension
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          # install NeuG wheel
+          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+            for i in wheelhouse/*.whl; do
+              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+            done
+          else
+            python3 -m pip install neug
+          fi
+          # install Extension Package (extract first .whl when multiple exist)
+          EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
+          python3 -m zipfile -e "$EXT_WHL" extension_packages
+          # get neug install directory (site-packages/neug) and install extension there
+          NEUG_INSTALL_DIR=$(python3 -c "import neug, os; print(os.path.dirname(neug.__file__))")
+          rm -rf $NEUG_INSTALL_DIR/../extension
+          cp -r extension_packages/extension "$NEUG_INSTALL_DIR/.."
+
       - name: Run simple and complex tests
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
@@ -191,26 +222,49 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
 
-      - name: Build wheels
+      - name: Build NeuG wheel
+        if: inputs.rebuild_neug == true
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+      
+      - name: Build Extension Package
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
           python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-    
+
+      - name: Install Wheel and extension
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          # install NeuG wheel
+          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+            for i in wheelhouse/*.whl; do
+              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+            done
+          else
+            python3 -m pip install neug
+          fi
+          # install Extension Package (extract first .whl when multiple exist)
+          EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
+          python3 -m zipfile -e "$EXT_WHL" extension_packages
+          # get neug install directory (site-packages/neug) and install extension there
+          NEUG_INSTALL_DIR=$(python3 -c "import neug, os; print(os.path.dirname(neug.__file__))")
+          rm -rf $NEUG_INSTALL_DIR/../extension
+          cp -r extension_packages/extension "$NEUG_INSTALL_DIR/.."
+
       - name: Run simple and complex tests
         env:
           TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
           NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
