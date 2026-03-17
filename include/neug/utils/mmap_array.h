@@ -794,7 +794,7 @@ class mmap_array<std::string_view> {
                    << " words, got " << materialized_map_.size()
                    << ", try to adapt it";
       materialized_map_.resize(expected_size);
-      for (size_t i = 0; i < materialized_map_.size(); ++i) {
+      for (size_t i = 0; i < items_.size(); ++i) {
         if (items_.get(i).length > 0) {
           set_materialized(i, true);
         }
