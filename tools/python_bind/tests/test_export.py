@@ -28,15 +28,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from neug.database import Database
 
-JSON_TESTS_ENABLED = os.environ.get("NEUG_RUN_JSON_TESTS", "").lower() in (
+EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
     "1",
     "true",
     "yes",
     "on",
 )
-json_test = pytest.mark.skipif(
-    not JSON_TESTS_ENABLED,
-    reason="JSON tests disabled by default; set NEUG_RUN_JSON_TESTS=1 to enable.",
+extension_test = pytest.mark.skipif(
+    not EXTENSION_TESTS_ENABLED,
+    reason="Extension tests disabled by default; set NEUG_RUN_EXTENSION_TESTS=1 to enable.",
 )
 
 
@@ -518,7 +518,7 @@ class TestExport:
         finally:
             self.conn.execute("MATCH (v:person {ID: 1006}) DELETE v")
 
-    @json_test
+    @extension_test
     def test_export_person_json_array(self):
         """Export scalar columns to a single JSON array; verify row count and keys."""
         out_path = self.tmp_path / "person.json"
@@ -543,7 +543,7 @@ class TestExport:
                 "age" in first or "v.age" in first
             ), "First row should have age (or v.age) key"
 
-    @json_test
+    @extension_test
     def test_export_person_node_json_array(self):
         """Export full node to a single JSON array; verify row count and structure."""
         out_path = self.tmp_path / "person_node.json"
@@ -560,7 +560,7 @@ class TestExport:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
 
-    @json_test
+    @extension_test
     def test_export_person_jsonl(self):
         """Export scalar columns to JSONL (one JSON object per line); verify count and keys."""
         out_path = self.tmp_path / "person.jsonl"
@@ -585,7 +585,7 @@ class TestExport:
                 "age" in first or "v.age" in first
             ), "First row should have age (or v.age) key"
 
-    @json_test
+    @extension_test
     def test_export_person_node_jsonl(self):
         """Export full node to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "person_node.jsonl"
@@ -601,7 +601,7 @@ class TestExport:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
-    @json_test
+    @extension_test
     def test_export_collect_names_jsonl(self):
         """Export collect names to JSONL (one JSON object per line); verify row count."""
         out_path = self.tmp_path / "collect_names.jsonl"
@@ -651,7 +651,7 @@ class TestExportComprehensiveGraph:
         assert header is not None and len(header) == 11
         assert len(rows) == expected
 
-    @json_test
+    @extension_test
     def test_export_comprehensive_graph_node_to_json_array(self):
         """Export node_a vertices from comprehensive_graph to JSON array; verify row count and structure."""
         out_path = self.tmp_path / "node_a.json"
@@ -668,7 +668,7 @@ class TestExportComprehensiveGraph:
             first = data[0]
             assert isinstance(first, dict), "Each row should be a JSON object"
 
-    @json_test
+    @extension_test
     def test_export_comprehensive_graph_node_to_jsonl(self):
         """Export node_a vertices from comprehensive_graph to JSONL; verify row count and structure."""
         out_path = self.tmp_path / "node_a.jsonl"
