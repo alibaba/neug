@@ -912,6 +912,9 @@ class mmap_array<std::string_view> {
     uint32_t default_length;
     uint32_t default_value_size;
   };
+  static_assert(sizeof(StringMetaHeader) == 16,
+                "StringMetaHeader layout has unexpected padding; on-disk "
+                "format would be broken.");
 
   std::string default_value_;
   mmap_array<string_item> items_;
