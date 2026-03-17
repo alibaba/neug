@@ -33,18 +33,16 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Set up Java
-      uses: actions/setup-java@v4
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1
       with:
-        distribution: 'temurin'
         java-version: '17'
-        cache: 'maven'
-
+        maven-version: '3.9.6'
 
     - name: Build Documentation
       run: |
         sudo apt update
-        sudo apt install -y doxygen graphviz maven
+        sudo apt install -y doxygen graphviz
         cd ${GITHUB_WORKSPACE}/tools/java_driver
         mvn -DskipTests javadoc:javadoc
         cd ${GITHUB_WORKSPACE}/tools/python_bind

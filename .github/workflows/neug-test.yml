@@ -135,17 +135,11 @@ jobs:
       with:
         python-version: '3.13'
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1
       with:
-        distribution: 'temurin'
         java-version: '17'
-        cache: 'maven'
-
-    - name: Install Maven
-      run: |
-        sudo apt update
-        sudo apt install -y maven
+        maven-version: '3.9.6'
 
     - name: Set ENABLE_GCOV for main branch
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')

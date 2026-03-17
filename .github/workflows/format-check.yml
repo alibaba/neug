@@ -84,17 +84,11 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Set up Java
-      uses: actions/setup-java@v4
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1
       with:
-        distribution: 'temurin'
         java-version: '17'
-        cache: 'maven'
-
-    - name: Install Maven
-      run: |
-        sudo apt update
-        sudo apt install -y maven
+        maven-version: '3.9.6'
 
     - name: Get PR Changes
       uses: dorny/paths-filter@v3
