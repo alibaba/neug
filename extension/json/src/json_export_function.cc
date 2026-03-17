@@ -59,12 +59,12 @@ static neug::result<rapidjson::Value> parseJsonStringToValue(
   temp_doc.Parse(json_str.data(), json_str.size());
   if (temp_doc.HasParseError()) {
     RETURN_STATUS_ERROR(
-        neug::StatusCode::ERR_INVALID_ARGUMENT,
-        "Invalid JSON for " + std::string(type_name) + " at row " +
-            "Invalid JSON for " + std::string(type_name) + " at row " +
-            std::to_string(rowIdx) + ": " +
-            rapidjson::GetParseError_En(temp_doc.GetParseError()) +
-            " at offset " + std::to_string(temp_doc.GetErrorOffset()));
+  RETURN_STATUS_ERROR(
+      neug::StatusCode::ERR_INVALID_ARGUMENT,
+      "Invalid JSON for " + std::string(type_name) + " at row " +
+          std::to_string(rowIdx) + ": " +
+          rapidjson::GetParseError_En(temp_doc.GetParseError()) +
+          " at offset " + std::to_string(temp_doc.GetErrorOffset()));
   }
   rapidjson::Value v;
   // use swap to avoid memory allocation
