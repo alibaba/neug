@@ -1,6 +1,6 @@
 # JSON Extension
 
-JSON (JavaScript Object Notation) is a widely used data format for web APIs and data exchange. NeuG supports JSON file import functionality through the Extension framework. After loading the JSON Extension, users can directly load external JSON files using the `LOAD FROM` syntax.
+JSON (JavaScript Object Notation) is a widely used data format for web APIs and data exchange. NeuG supports JSON file import functionality through the Extension framework. After loading the JSON Extension, users can directly load external JSON files using the `LOAD FROM` syntax, or export query results to JSON files using the `COPY TO` syntax.
 
 ## Install Extension
 
@@ -16,17 +16,14 @@ LOAD JSON;
 
 ## Using JSON Extension
 
-`LOAD FROM` supports two JSON formats: **JSON Array** and **JSONL** (JSON Lines).
-
-### JSON Format Options
-
-The following options control how JSON files are parsed:
-
-| Option              | Type | Default | Description                                                                                  |
-| ------------------- | ---- | ------- | -------------------------------------------------------------------------------------------- |
-| `newline_delimited` | bool | `false` | If `true`, treats the file as JSONL format (one JSON object per line). If `false`, treats the file as a JSON array. |
-
 ### Supported Formats
+
+Both import (`LOAD FROM`) and export (`COPY TO`) support two JSON formats: **JSON Array** and **JSONL** (JSON Lines). The format is inferred automatically from the file extension, so no explicit configuration is required.
+
+| Extension | Format | Description |
+| --------- | ------ | ----------- |
+| `.json`   | JSON array | One JSON array containing all result rows as objects. |
+| `.jsonl`  | JSON Lines | One JSON object per line (same as the JSONL import format). |
 
 #### JSON Array Format
 
@@ -39,7 +36,7 @@ A JSON array contains multiple objects in a single array structure:
 ]
 ```
 
-When `newline_delimited` is `false` (default), the system parses the entire file as a single JSON array.
+For paths with a `.json` extension (e.g. `person.json`), NeuG automatically treats the file as a JSON array for both import and export.
 
 #### JSONL Format (JSON Lines)
 
@@ -50,9 +47,9 @@ JSONL format contains one JSON object per line:
 {"id": 2, "name": "Bob", "age": 25}
 ```
 
-When `newline_delimited` is `true`, the system parses each line as a separate JSON object. This format is particularly efficient for large datasets as it enables streaming processing.
+For paths with a `.jsonl` extension (e.g. `person.jsonl`), NeuG automatically treats the file as JSONL (one JSON object per line) for both import and export.
 
-### Query Examples
+### Load from JSON
 
 #### Basic JSON Array Loading
 
@@ -65,10 +62,10 @@ RETURN *;
 
 #### JSONL Format Loading
 
-Load data from a JSONL file by specifying `newline_delimited=true`:
+Load data from a JSONL file. When the path has a `.jsonl` extension, the format is auto-detected;
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN *;
 ```
 
@@ -77,7 +74,7 @@ RETURN *;
 Return only specific columns from JSON data:
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN fName, age;
 ```
 
@@ -86,8 +83,49 @@ RETURN fName, age;
 Use `AS` to assign aliases to columns:
 
 ```cypher
-LOAD FROM "person.jsonl" (newline_delimited=true)
+LOAD FROM "person.jsonl"
 RETURN fName AS name, age AS years;
 ```
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with JSON files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
+
+### Export to JSON
+
+With the JSON extension loaded, you can export query results to JSON or JSONL using the `COPY TO` syntax.
+
+#### Export as JSON Array
+
+Export the result of a query to a single JSON array file:
+
+```cypher
+COPY (MATCH (p:person) RETURN p.*) TO 'person.json';
+```
+
+This produces a file such as:
+
+```json
+[{"id": 1, "name": "marko", "age": 29},{"id": 2, "name": "vadas", "age": 27}]
+```
+
+#### Export as JSONL
+
+Export to JSONL (one object per line) by using a `.jsonl` path:
+
+```cypher
+COPY (MATCH (p:person) RETURN p.*) TO 'person.jsonl';
+```
+
+Example output:
+
+```jsonl
+{"id": 1, "name": "marko", "age": 29}
+{"id": 2, "name": "vadas", "age": 27}
+```
+
+JSONL is well-suited for large result sets and streaming. You can control how many rows are written per batch with the `BATCH_SIZE` parameter:
+
+| Parameter   | Description                                              | Default |
+| ----------- | --------------------------------------------------------- | ------- |
+| `BATCH_SIZE` | Maximum number of rows to write in a single batch.        | `1024`  |
+
+For more on export options and best practices, see [Export Data](../data_io/export_data).
