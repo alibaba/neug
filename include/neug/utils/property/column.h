@@ -348,9 +348,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     copy_file(cur_path + ".data", tmp_path + ".data");
     copy_file(cur_path + ".items", tmp_path + ".items");
-    if (std::filesystem::exists(cur_path + ".meta")) {
-      copy_file(cur_path + ".meta", tmp_path + ".meta");
-    }
     copy_file(cur_path + ".pos", tmp_path + ".pos");
 
     buffer_.reset();
