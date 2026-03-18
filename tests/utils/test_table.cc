@@ -353,6 +353,21 @@ TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   string_column->set_prop(1, Property::from_string_view(""));
   EXPECT_TRUE(string_column->get_prop(1).as_string_view().empty());
   EXPECT_EQ(string_column->get_prop(1).type(), DataTypeId::kVarchar);
+  string_column->set_prop(
+      1, Property::from_string_view("new value new value new value"));
+  EXPECT_EQ(string_column->get_prop(1).as_string_view(),
+            "new value new value new value");
+  std::string path = std::string(TEST_DIR) + "/checkpoint/string_column.data";
+  if (std::filesystem::exists(path)) {
+    std::filesystem::remove(path);
+  }
+  string_column->dump(path);
+
+  StringColumn new_string_column(StorageStrategy::kMem);
+  new_string_column.open_in_memory(path);
+  EXPECT_EQ(new_string_column.get_prop(0).as_string_view(), "default_value");
+  EXPECT_EQ(new_string_column.get_prop(1).as_string_view(),
+            "new value new value new value");
 }
 
 }  // namespace test

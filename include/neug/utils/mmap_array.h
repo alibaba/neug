@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -602,14 +603,14 @@ class mmap_array<std::string_view> {
     }
     // First round to check whether we need compact.
     size_t reused_space = 0;
-    std::unordered_map<uint64_t, size_t> seen_offsets;
+    std::unordered_set<uint64_t> seen_offsets;
     for (const auto& entry : plan.entries) {
       if (entry.length > 0) {
         if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
           reused_space += entry.length;
           continue;
         }
-        seen_offsets.insert({entry.offset, entry.length});
+        seen_offsets.insert(entry.offset);
       }
     }
     if (plan.total_size == reused_space + size_before_compact) {
@@ -619,13 +620,15 @@ class mmap_array<std::string_view> {
     std::vector<char> temp_buf(plan.total_size);
     size_t write_offset = 0;
     size_t limit_offset = 0;
-    seen_offsets.clear();
+    std::unordered_map<uint64_t, uint64_t> old_offset_to_new;
     for (const auto& entry : plan.entries) {
       if (entry.length > 0) {
-        if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
+        auto it = old_offset_to_new.find(entry.offset);
+        if (it != old_offset_to_new.end()) {
+          items_.set(entry.index, {it->second, entry.length});
           continue;
         }
-        seen_offsets.insert({entry.offset, entry.length});
+        old_offset_to_new.insert({entry.offset, write_offset});
         const char* src = data_.data() + entry.offset;
         char* dst = temp_buf.data() + write_offset;
         limit_offset = std::max(
@@ -636,7 +639,7 @@ class mmap_array<std::string_view> {
                                static_cast<uint32_t>(entry.length)});
       write_offset += entry.length;
     }
-    assert(write_offset == plan.total_size);
+    assert(write_offset + reused_space == plan.total_size);
     memcpy(data_.data(), temp_buf.data(), plan.total_size);
 
     VLOG(1) << "Compaction completed. New data size: " << plan.total_size
@@ -680,15 +683,17 @@ class mmap_array<std::string_view> {
     }
 
     size_t write_offset = 0;
-    std::unordered_map<uint64_t, size_t> seen_offsets;
+    std::unordered_map<uint64_t, uint64_t> old_offset_to_new;
     size_t reused_space = 0;
     for (const auto& entry : plan.entries) {
       if (entry.length > 0) {
-        if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
+        auto it = old_offset_to_new.find(entry.offset);
+        if (it != old_offset_to_new.end()) {
+          items_.set(entry.index, {it->second, entry.length});
           reused_space += entry.length;
           continue;
         }
-        seen_offsets.insert({entry.offset, entry.length});
+        old_offset_to_new.insert({entry.offset, write_offset});
         const char* src = data_.data() + entry.offset;
         if (fwrite(src, 1, entry.length, fout) != entry.length) {
           fclose(fout);
