@@ -69,15 +69,13 @@ class StringFormatBuffer {
   virtual void addValue(int rowIdx, int colIdx) = 0;
   virtual neug::Status flush(
       std::shared_ptr<arrow::io::OutputStream> stream) = 0;
+  static bool validateIndex(const neug::QueryResponse* response, int rowIdx,
+                            int colIdx);
+  static bool validateProtoValue(const std::string& validity, int rowIdx);
 
  protected:
   const neug::QueryResponse* response_;
   const reader::FileSchema& schema_;
-
- protected:
-  bool validateIndex(const neug::QueryResponse* response, int rowIdx,
-                     int colIdx);
-  bool validateProtoValue(const std::string& validity, int rowIdx);
 };
 
 struct BinaryData {

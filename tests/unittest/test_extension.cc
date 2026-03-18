@@ -124,7 +124,7 @@ TEST_F(TestJsonExtension, VPersonJsonl) {
       << "LOAD json failed: " << load_res.error().ToString();
 
   std::string import_query = "COPY person FROM (LOAD FROM \"" + vperson_jsonl +
-                             "\" (newline_delimited=true) RETURN ID, fName, "
+                             "\" RETURN ID, fName, "
                              "gender, age, eyesight, height);";
   auto import_res = conn->Query(import_query);
   ASSERT_TRUE(import_res.has_value())

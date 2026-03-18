@@ -33,6 +33,7 @@ from setuptools import find_packages  # noqa: H301
 from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
+from setuptools.command.install_lib import install_lib as _install_lib
 
 if sys.version_info >= (3, 12):
     from setuptools import Command  # noqa: F811
@@ -152,11 +153,13 @@ class CMakeBuild(build_ext):
             f"-DBUILD_HTTP_SERVER={build_http_server}",
             f"-DWITH_MIMALLOC={with_mimalloc}",
             f"-DENABLE_GCOV={enable_gcov}",
-            f"-DBUILD_EXTENSIONS={build_extensions}",
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
         if build_extensions:
             cmake_args.append(f"-DBUILD_EXTENSIONS={build_extensions}")
+        install_extensions = os.environ.get("CI_INSTALL_EXTENSIONS", "")
+        if install_extensions:
+            cmake_args.append(f"-DBUILD_EXTENSIONS={install_extensions}")
         if cmake_install_prefix:
             cmake_args += [
                 f"-DCMAKE_INSTALL_PREFIX={cmake_install_prefix}",
@@ -327,6 +330,57 @@ class BuildExtFirst(_build_py):
         return super().run()
 
 
+class InstallLib(_install_lib):
+    """Ensure extension/* (e.g. extension/json/libjson.neug_extension) is copied.
+
+    CMake writes native extensions to build_lib/extension/<name>/.
+    Only runs when CI_INSTALL_EXTENSIONS is set (semicolon-separated, e.g. json;parquet).
+    Copies only the listed extensions so the wheel gets site-packages/extension/...
+    """
+
+    def run(self):
+        super().run()
+        # Only copy extensions when INSTALL_EXTENSIONS is set (e.g. json;parquet)
+        install_extensions = os.environ.get("CI_INSTALL_EXTENSIONS", "").strip()
+        print(
+            f"[InstallLib] INSTALL_EXTENSIONS={repr(install_extensions)} "
+            f"build_dir={self.build_dir!r} install_dir={self.install_dir!r}"
+        )
+        sys.stdout.flush()
+        if not install_extensions:
+            print("[InstallLib] Skip extension copy (INSTALL_EXTENSIONS empty)")
+            sys.stdout.flush()
+            return
+        names = [n.strip() for n in install_extensions.split(";") if n.strip()]
+        if not names:
+            print("[InstallLib] Skip extension copy (no names after split)")
+            sys.stdout.flush()
+            return
+        ext_src_base = os.path.join(self.build_dir, "extension")
+        ext_dst_base = os.path.join(self.install_dir, "extension")
+        print(
+            f"[InstallLib] ext_src_base={ext_src_base!r} exists={os.path.isdir(ext_src_base)}"
+        )
+        sys.stdout.flush()
+        if not os.path.isdir(ext_src_base):
+            print("[InstallLib] Skip (extension source dir missing)")
+            sys.stdout.flush()
+            return
+        for name in names:
+            src = os.path.join(ext_src_base, name)
+            if not os.path.isdir(src):
+                continue
+            dst = os.path.join(ext_dst_base, name)
+            os.makedirs(dst, exist_ok=True)
+            for f in os.listdir(src):
+                s = os.path.join(src, f)
+                d = os.path.join(dst, f)
+                if os.path.isfile(s):
+                    shutil.copy2(s, d)
+            print(f"[InstallLib] Copied extension: {name} -> {dst}")
+            sys.stdout.flush()
+
+
 setup(
     name="neug",
     version=version,
@@ -338,7 +392,7 @@ setup(
     long_description=open(os.path.join(base_dir, "README.md"), "r").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"neug": ["resources/*", "extension/*/*.neug_extension"]},
+    package_data={"neug": ["resources/*"]},
     zip_safe=False,
     include_package_data=True,
     entry_points={
@@ -361,5 +415,6 @@ setup(
         "build_py": BuildExtFirst,
         "build_ext": CMakeBuild,
         "build_proto": BuildProto,
+        "install_lib": InstallLib,
     },
 )
