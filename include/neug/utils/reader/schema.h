@@ -39,6 +39,7 @@ struct EntrySchema {
   virtual ~EntrySchema() = default;
   virtual EntrySchemaType type() const = 0;
   std::vector<std::string> columnNames;
+  // todo: support vertex, edge and path types
   std::vector<std::shared_ptr<::common::DataType>> columnTypes;
 
   template <class TARGET>

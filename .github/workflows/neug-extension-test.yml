@@ -1,6 +1,9 @@
 name: NeuG Extension Test
 
 on:
+  schedule:
+    # Run at 08:00 UTC every Saturday
+    - cron: '0 8 * * 6'
   workflow_dispatch:  # Manual trigger (must exist on default branch to see "Run workflow")
     inputs:
       branch:
@@ -8,6 +11,11 @@ on:
         required: true
         default: 'main'
         type: string
+      rebuild_neug:
+        description: 'Rebuild NeuG wheel package before testing extension'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
@@ -17,7 +25,7 @@ jobs:
   # ============================================================
   # Job 1: Build NeuG with extensions
   # ============================================================
-  build:
+  extension_tests_default:
     runs-on: [self-hosted]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
@@ -109,6 +117,164 @@ jobs:
         pip3 install -r requirements.txt
         pip3 install -r requirements_dev.txt
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
-        export NEUG_RUN_JSON_TESTS=true
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/tinysnb/graph.yaml -l ../../example_dataset/tinysnb/import.yaml -d /tmp/tinysnb
-        python3 -m pytest -sv tests/test_load.py -k "json"
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/comprehensive_graph
+        GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
+
+  extension_tests_wheel_linux_x86_64:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Setup Python Env
+        run: |
+          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
+          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.13 on PRs
+        run: |
+          echo "CIBW_SKIP=cp39-* cp38-* cp311-* cp312-* cp310-*" >> $GITHUB_ENV
+          echo "CIBW_BUILD=cp313-manylinux_x86_64" >> $GITHUB_ENV
+
+      - name: Build NeuG wheel
+        if: inputs.rebuild_neug == true
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Build Extension Package
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+
+      - name: Install Wheel and extension
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          # install NeuG wheel
+          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+            for i in wheelhouse/*.whl; do
+              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+            done
+          else
+            python3 -m pip install neug
+          fi
+          # install Extension Package (extract first .whl when multiple exist)
+          EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
+          python3 -m zipfile -e "$EXT_WHL" extension_packages
+          # get neug install directory (site-packages) and install extension there
+          rm -rf $USER_SITE/extension
+          cp -r extension_packages/extension $USER_SITE
+
+      - name: Run simple and complex tests
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py
+
+  extension_tests_wheel_linux_arm64:
+    runs-on: [self-hosted, linux, arm64]
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python 3.13
+        if: runner.name != 'arm64-1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+  
+      - name: Setup Python Env
+        run: |
+          USER_SITE=$(python3 -c "import site; print(site.getusersitepackages())")
+          echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
+          echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==2.23.3
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Limit builds to CPython 3.13 on PRs
+        run: |
+          echo "CIBW_SKIP=cp39-* cp38-* cp311-* cp312-* cp310-*" >> $GITHUB_ENV
+          echo "CIBW_BUILD=cp313-manylinux_aarch64" >> $GITHUB_ENV
+
+      - name: Build NeuG wheel
+        if: inputs.rebuild_neug == true
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+      
+      - name: Build Extension Package
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          export PYBIND11_FINDPYTHON=OFF
+          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+
+      - name: Install Wheel and extension
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          # install NeuG wheel
+          if [ "${{ inputs.rebuild_neug }}" = "true" ]; then
+            for i in wheelhouse/*.whl; do
+              [ -f "$i" ] && python3 -m pip install "$i" || echo "Failed to install $i"
+            done
+          else
+            python3 -m pip install neug
+          fi
+          # install Extension Package (extract first .whl when multiple exist)
+          EXT_WHL=$(echo extension_packages/*.whl | awk '{print $1}')
+          python3 -m zipfile -e "$EXT_WHL" extension_packages
+          # get neug install directory (site-packages) and install extension there
+          rm -rf $USER_SITE/extension
+          cp -r extension_packages/extension $USER_SITE
+
+      - name: Run simple and complex tests
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          NEUG_RUN_EXTENSION_TESTS=1 python3 tools/python_bind/example/complex_test.py

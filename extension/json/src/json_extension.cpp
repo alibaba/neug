@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "json_export_function.h"
 #include "neug/compiler/extension/extension_api.h"
 #include "neug/utils/exception/exception.h"
 
@@ -27,9 +28,17 @@ void Init() {
         neug::function::JsonReadFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
-    neug::extension::ExtensionAPI::registerFunctionAlias<
+    neug::extension::ExtensionAPI::registerFunction<
         neug::function::JsonLReadFunction>(
         neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
+    // Register JSON export functions
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::ExportJsonFunction>(
+        neug::catalog::CatalogEntryType::COPY_FUNCTION_ENTRY);
+    neug::extension::ExtensionAPI::registerFunction<
+        neug::function::ExportJsonLFunction>(
+        neug::catalog::CatalogEntryType::COPY_FUNCTION_ENTRY);
 
     neug::extension::ExtensionAPI::registerExtension(
         neug::extension::ExtensionInfo{
