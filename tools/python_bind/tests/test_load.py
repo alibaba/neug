@@ -37,6 +37,7 @@ extension_test = pytest.mark.skipif(
     reason="Extension tests disabled by default; set NEUG_RUN_EXTENSION_TESTS=1 to enable.",
 )
 
+
 def get_tinysnb_dataset_path():
     """Get the path to tinysnb dataset CSV files."""
     # Try to get from environment variable first
