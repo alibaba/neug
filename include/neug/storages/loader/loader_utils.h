@@ -181,10 +181,10 @@ class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
   int64_t row_num() const override {
-    size_t total_rows = 0;
-    for (const auto& array : arrays_) {
-      if (!array.empty()) {
-        total_rows += array[0]->length();
+    int64_t total_rows = 0;
+    if (!arrays_.empty()) {
+      for (const auto& batch : arrays_[0]) {
+        total_rows += batch->length();
       }
     }
     return total_rows;

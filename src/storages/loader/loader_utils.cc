@@ -242,8 +242,10 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
     : file_path_(file_path) {
   auto read_result = arrow::io::ReadableFile::Open(file_path);
   if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << file_path
+    LOG(ERROR) << "Failed to open file: " << file_path
                << " error: " << read_result.status().message();
+    THROW_IO_EXCEPTION("Failed to open file: " + file_path +
+                       " error: " + read_result.status().message());
   }
   auto file = read_result.ValueOrDie();
   auto count_file_result = arrow::io::ReadableFile::Open(file_path);
@@ -260,12 +262,15 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
       VLOG(10) << "Calculated row count for " << file_path << ": " << row_num_;
     } else {
       LOG(WARNING) << "Failed to count rows for " << file_path << ": "
-                   << count_result.status().message()
-                   << ". Proceeding with row_num_=0 or fallback logic.";
+                   << count_result.status().message();
+      THROW_IO_EXCEPTION("Failed to count rows for " + file_path + ": " +
+                         count_result.status().message());
     }
   } else {
     LOG(WARNING) << "Failed to reopen file for counting: "
                  << count_file_result.status().message();
+    THROW_IO_EXCEPTION("Failed to reopen file for counting: " +
+                       count_file_result.status().message());
   }
   auto res = arrow::csv::StreamingReader::Make(arrow::io::default_io_context(),
                                                file, read_options,
