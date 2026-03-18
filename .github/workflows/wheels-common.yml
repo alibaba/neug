@@ -110,7 +110,8 @@ jobs:
             (
               startsWith(github.ref, 'refs/tags/v') ||
               inputs.caller_event_name == 'workflow_dispatch' ||
-              inputs.caller_event_name == 'pull_request'
+              inputs.caller_event_name == 'pull_request' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
             )
           ) ||
           (
@@ -246,7 +247,8 @@ jobs:
             inputs.mode == 'release' &&
             (
               startsWith(github.ref, 'refs/tags/v') ||
-              inputs.caller_event_name == 'workflow_dispatch'
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
             )
           ) ||
           (
@@ -495,7 +497,8 @@ jobs:
             (
               startsWith(github.ref, 'refs/tags/v') ||
               inputs.caller_event_name == 'workflow_dispatch' ||
-              inputs.caller_event_name == 'pull_request'
+              inputs.caller_event_name == 'pull_request' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
             )
           ) ||
           (
@@ -503,8 +506,7 @@ jobs:
             (
               inputs.caller_event_name == 'schedule' ||
               inputs.caller_event_name == 'workflow_dispatch' ||
-              (inputs.caller_event_name == 'pull_request' && github.repository == 'alibaba/neug') ||
-              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
+              (inputs.caller_event_name == 'pull_request' && github.repository == 'alibaba/neug')
             )
           )
         }}
