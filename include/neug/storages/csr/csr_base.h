@@ -34,6 +34,8 @@ enum class CsrType {
 
 class CsrBase {
  public:
+  static constexpr size_t INFINITE_CAPACITY =
+      std::numeric_limits<size_t>::max();
   CsrBase() = default;
   virtual ~CsrBase() = default;
 
@@ -52,10 +54,9 @@ class CsrBase {
   virtual void open(const std::string& name, const std::string& snapshot_dir,
                     const std::string& work_dir) = 0;
 
-  virtual void open_in_memory(const std::string& prefix, size_t v_cap) = 0;
+  virtual void open_in_memory(const std::string& prefix) = 0;
 
-  virtual void open_with_hugepages(const std::string& prefix,
-                                   size_t v_cap = 0) = 0;
+  virtual void open_with_hugepages(const std::string& prefix) = 0;
 
   virtual void dump(const std::string& name,
                     const std::string& new_snapshot_dir) = 0;
@@ -65,6 +66,8 @@ class CsrBase {
   virtual void compact() = 0;
 
   virtual void resize(vid_t vnum) = 0;
+
+  virtual size_t capacity() const = 0;
 
   virtual void close() = 0;
 

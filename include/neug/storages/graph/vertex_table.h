@@ -111,8 +111,7 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
-  void Open(const std::string& work_dir, int memory_level,
-            bool build_empty_graph = false);
+  void Open(const std::string& work_dir, int memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -120,7 +119,7 @@ class VertexTable {
 
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
 
-  void Reserve(size_t cap);
+  size_t EnsureCapacity(size_t capacity);
 
   bool is_dropped() const { return table_ == nullptr; }
 
@@ -143,6 +142,8 @@ class VertexTable {
 
   // Capacity of the vertex table
   inline size_t Capacity() const { return indexer_.capacity(); }
+
+  inline size_t Size() const { return indexer_.size(); }
 
   bool IsValidLid(vid_t lid, timestamp_t ts = MAX_TIMESTAMP) const;
 
@@ -289,11 +290,14 @@ class VertexTable {
       auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
-      auto cur_size = indexer_.capacity();
-      while (cur_size < indexer_.size() + pk_array->length()) {
-        cur_size = std::max(16, 2 * static_cast<int>(cur_size));
+      size_t new_size = indexer_.size() + pk_array->length();
+      if (new_size >= indexer_.capacity()) {
+        size_t new_cap = new_size;
+        while (new_size >= new_cap) {
+          new_cap = new_cap < 4096 ? 4096 : new_cap + new_cap / 4;
+        }
+        EnsureCapacity(new_cap);
       }
-      Reserve(cur_size);
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
 

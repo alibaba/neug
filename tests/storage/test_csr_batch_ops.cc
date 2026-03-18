@@ -216,7 +216,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open
   {
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr1", 1000);
+    this->csr->open_in_memory(snapshot_dir.string() + "/csr1");
+    this->csr->resize(1000);
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -253,7 +254,7 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
   // open_in_memory -> dump -> open_in_memory
   {
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr2", 1000);
+    this->csr->open_in_memory(snapshot_dir.string() + "/csr2");
     auto edges = generate_random_edges<typename TypeParam::data_t>(
         1000, 1000, 20000,
         this->csr->csr_type() == neug::CsrType::kSingleImmutable ||
@@ -278,7 +279,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr2", 1000);
+    this->csr->open_in_memory(snapshot_dir.string() + "/csr2");
+    this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 
@@ -315,7 +317,8 @@ TYPED_TEST(CsrBatchTest, OpenDumpOpenScan) {
 
     this->csr.reset();
     this->csr = std::make_unique<TypeParam>();
-    this->csr->open_in_memory(snapshot_dir.string() + "/csr3", 1000);
+    this->csr->open_in_memory(snapshot_dir.string() + "/csr3");
+    this->csr->resize(1000);
     std::sort(edges_part0.begin(), edges_part0.end());
     this->CheckEqual(edges_part0);
 

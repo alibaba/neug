@@ -55,19 +55,16 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
-                                           size_t v_cap) {
+void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   degree_list_.open(prefix + ".deg", false);
   load_meta(prefix);
   nbr_list_.open(prefix + ".nbr", false);
   adj_lists_.reset();
-  v_cap = std::max(v_cap, degree_list_.size());
+  auto v_cap = degree_list_.size();
   adj_lists_.resize(v_cap);
-  size_t old_degree_size = degree_list_.size();
-  degree_list_.resize(v_cap);
 
   nbr_t* ptr = nbr_list_.data();
-  for (size_t i = 0; i < old_degree_size; ++i) {
+  for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_list_[i];
     if (deg != 0) {
       adj_lists_[i] = ptr;
@@ -75,27 +72,20 @@ void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
       adj_lists_[i] = NULL;
     }
     ptr += deg;
-  }
-  for (size_t i = old_degree_size; i < degree_list_.size(); ++i) {
-    degree_list_[i] = 0;
-    adj_lists_[i] = NULL;
   }
 }
 
 template <typename EDATA_T>
-void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
-                                                size_t v_cap) {
-  degree_list_.open_with_hugepages(prefix + ".deg", v_cap);
+void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
+  degree_list_.open_with_hugepages(prefix + ".deg");
   load_meta(prefix);
   nbr_list_.open_with_hugepages(prefix + ".nbr");
   adj_lists_.reset();
-  v_cap = std::max(v_cap, degree_list_.size());
+  auto v_cap = degree_list_.size();
   adj_lists_.resize(v_cap);
-  size_t old_degree_size = degree_list_.size();
-  degree_list_.resize(v_cap);
 
   nbr_t* ptr = nbr_list_.data();
-  for (size_t i = 0; i < old_degree_size; ++i) {
+  for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_list_[i];
     if (deg != 0) {
       adj_lists_[i] = ptr;
@@ -103,10 +93,6 @@ void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
       adj_lists_[i] = NULL;
     }
     ptr += deg;
-  }
-  for (size_t i = old_degree_size; i < degree_list_.size(); ++i) {
-    degree_list_[i] = 0;
-    adj_lists_[i] = NULL;
   }
 }
 
@@ -187,6 +173,12 @@ void ImmutableCsr<EDATA_T>::resize(vid_t vnum) {
     adj_lists_.resize(vnum);
     degree_list_.resize(vnum);
   }
+}
+
+template <typename EDATA_T>
+size_t ImmutableCsr<EDATA_T>::capacity() const {
+  // We assume the capacity of each csr is INFINITE.
+  return CsrBase::INFINITE_CAPACITY;
 }
 
 template <typename EDATA_T>
@@ -403,35 +395,14 @@ void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
 }
 
 template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix,
-                                                 size_t v_cap) {
+void SingleImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   nbr_list_.open(prefix + ".snbr", false);
-  if (nbr_list_.size() < v_cap) {
-    size_t old_size = nbr_list_.size();
-    nbr_list_.reset();
-    nbr_list_.resize(v_cap);
-    if (old_size > 0) {
-      FILE* fin = fopen((prefix + ".snbr").c_str(), "r");
-      CHECK_EQ(fread(nbr_list_.data(), sizeof(nbr_t), old_size, fin), old_size);
-      fclose(fin);
-    }
-    for (size_t k = old_size; k != v_cap; ++k) {
-      nbr_list_[k].neighbor = std::numeric_limits<vid_t>::max();
-    }
-  }
 }
 
 template <typename EDATA_T>
-void SingleImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix,
-                                                      size_t v_cap) {
-  nbr_list_.open_with_hugepages(prefix + ".snbr", v_cap);
-  size_t old_size = nbr_list_.size();
-  if (old_size < v_cap) {
-    nbr_list_.resize(v_cap);
-    for (size_t k = old_size; k != v_cap; ++k) {
-      nbr_list_[k].neighbor = std::numeric_limits<vid_t>::max();
-    }
-  }
+void SingleImmutableCsr<EDATA_T>::open_with_hugepages(
+    const std::string& prefix) {
+  nbr_list_.open_with_hugepages(prefix + ".snbr");
 }
 
 template <typename EDATA_T>
@@ -461,6 +432,11 @@ void SingleImmutableCsr<EDATA_T>::resize(vid_t vnum) {
   } else {
     nbr_list_.resize(vnum);
   }
+}
+
+template <typename EDATA_T>
+size_t SingleImmutableCsr<EDATA_T>::capacity() const {
+  return nbr_list_.size();
 }
 
 template <typename EDATA_T>

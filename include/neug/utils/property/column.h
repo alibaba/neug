@@ -30,6 +30,7 @@
 
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/mmap_array.h"
 #include "neug/utils/property/property.h"
@@ -301,7 +302,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (std::filesystem::exists(basic_path + ".items")) {
       buffer_.open(basic_path, false, false);
       size_ = buffer_.size();
-      pos_ = buffer_.data_size();
+      init_pos(basic_path + ".pos");
     } else {
       if (work_dir == "") {
         size_ = 0;
@@ -309,7 +310,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       } else {
         buffer_.open(work_dir + "/" + name, true);
         size_ = buffer_.size();
-        pos_ = buffer_.data_size();
+        init_pos(work_dir + "/" + name + ".pos");
       }
     }
   }
@@ -317,14 +318,14 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_in_memory(const std::string& prefix) override {
     buffer_.open(prefix, false);
     size_ = buffer_.size();
-    pos_ = buffer_.data_size();
+    init_pos(prefix + ".pos");
   }
 
   void open_with_hugepages(const std::string& prefix, bool force) override {
     if (strategy_ == StorageStrategy::kMem || force) {
       buffer_.open_with_hugepages(prefix);
       size_ = buffer_.size();
-      pos_ = buffer_.data_size();
+      init_pos(prefix + ".pos");
 
     } else if (strategy_ == StorageStrategy::kDisk) {
       LOG(INFO) << "Open " << prefix << " with normal mmap pages";
@@ -342,16 +343,18 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     copy_file(cur_path + ".data", tmp_path + ".data");
     copy_file(cur_path + ".items", tmp_path + ".items");
+    copy_file(cur_path + ".pos", tmp_path + ".pos");
 
     buffer_.reset();
     tmp.open(tmp_path, true);
     buffer_.swap(tmp);
     tmp.reset();
-    pos_.store(buffer_.data_size());
+    init_pos(tmp_path + ".pos");
   }
 
   void dump(const std::string& filename) override {
-    buffer_.resize(size_, pos_.load());
+    size_t pos_val = pos_.load();
+    write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
     buffer_.dump(filename);
   }
 
@@ -362,7 +365,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_ = size;
     if (buffer_.size() != 0) {
       size_t avg_width =
-          (buffer_.data_size() + buffer_.size() - 1) / buffer_.size();
+          buffer_.avg_size();  // calculate average width of existing strings
       buffer_.resize(
           size_, std::max(size_ * (avg_width > 0 ? avg_width
                                                  : STRING_DEFAULT_MAX_LENGTH),
@@ -431,6 +434,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
  private:
+  inline void init_pos(const std::string& file_path) {
+    if (std::filesystem::exists(file_path)) {
+      size_t pos_val = 0;
+      read_file(file_path, &pos_val, sizeof(pos_val), 1);
+      pos_.store(pos_val);
+    } else {
+      pos_.store(0);
+    }
+  }
   mmap_array<std::string_view> buffer_;
   size_t size_;
   std::atomic<size_t> pos_;

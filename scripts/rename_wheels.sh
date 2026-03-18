@@ -13,9 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Specify the directory containing the wheel packages
-DIR="../wheelhouse"
-REVERSION="3"
+# Default inputs; can be overridden via CLI flags
+DIR=""
+REVERSION=""
+
+usage() {
+  echo "Usage: $0 [-d wheel_dir] [-r reversion]"
+  exit 1
+}
+
+while getopts ":d:r:h" opt; do
+  case "$opt" in
+    d)
+      DIR="$OPTARG"
+      ;;
+    r)
+      REVERSION="$OPTARG"
+      ;;
+    h)
+      usage
+      exit 0
+      ;;
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+if [ -z "$DIR" ] || [ -z "$REVERSION" ]; then
+  usage
+fi
+
+shift $((OPTIND - 1))
 
 # Navigate to the specified directory
 cd "$DIR" || exit
