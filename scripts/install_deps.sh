@@ -319,7 +319,7 @@ install_openssl() {
   export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-INTERACTIVE_MACOS=("xsimd", "cmake")
+INTERACTIVE_MACOS=("xsimd" "cmake")
 INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
 
 install_neug_dependencies() {
