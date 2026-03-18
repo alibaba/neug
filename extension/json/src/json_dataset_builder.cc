@@ -37,38 +37,6 @@
 namespace neug {
 namespace reader {
 
-std::shared_ptr<arrow::dataset::DatasetFactory> DatasetBuilder::buildFactory(
-    std::shared_ptr<ReadSharedState> sharedState,
-    std::shared_ptr<arrow::fs::FileSystem> fs,
-    std::shared_ptr<arrow::dataset::FileFormat> fileFormat) {
-  if (!sharedState) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  if (!fs) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("FileSystem is null");
-  }
-  if (!fileFormat) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("File format is null");
-  }
-
-  const auto& fileSchema = sharedState->schema.file;
-  const std::vector<std::string>& file_paths = fileSchema.paths;
-
-  if (file_paths.empty()) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
-  }
-
-  arrow::dataset::FileSystemFactoryOptions factory_options;
-  factory_options.exclude_invalid_files = false;
-  auto factory_result = arrow::dataset::FileSystemDatasetFactory::Make(
-      fs, file_paths, fileFormat, factory_options);
-  if (!factory_result.ok()) {
-    THROW_IO_EXCEPTION("Failed to create FileSystemDatasetFactory: " +
-                       factory_result.status().message());
-  }
-  return factory_result.ValueOrDie();
-}
-
 /**
  * @brief DatasetFactory for JSON file format
  *
@@ -274,12 +242,6 @@ JsonDatasetBuilder::buildFactory(
     std::shared_ptr<arrow::dataset::FileFormat> fileFormat) {
   if (!sharedState) {
     THROW_INVALID_ARGUMENT_EXCEPTION("SharedState is null");
-  }
-  auto& file = sharedState->schema.file;
-  JsonParseOptions jsonOpts;
-  // if json format is newline_delimited, use the default buildFactory
-  if (jsonOpts.newline_delimited.get(file.options)) {
-    return DatasetBuilder::buildFactory(sharedState, fs, fileFormat);
   }
   // For JSON_ARRAY format, use custom JsonDatasetFactory
   return std::make_shared<JsonDatasetFactory>(sharedState, fs, fileFormat);

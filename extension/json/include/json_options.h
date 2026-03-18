@@ -28,8 +28,6 @@ namespace neug {
 namespace reader {
 
 struct JsonParseOptions {
-  Option<bool> newline_delimited =
-      Option<bool>::BoolOption("newline_delimited", false);
   Option<bool> newlines_in_values =
       Option<bool>::BoolOption("newlines_in_values", false);
 };
