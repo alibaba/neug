@@ -670,7 +670,9 @@ else:
     try:
         db_parquet = neug.Database(db_path_parquet)
         conn_parquet = db_parquet.connect()
-        ok(f"Created persistent database for Parquet extension test at {db_path_parquet}")
+        ok(
+            f"Created persistent database for Parquet extension test at {db_path_parquet}"
+        )
     except Exception as e:
         fail("Create database for Parquet extension", e)
         db_parquet = None
