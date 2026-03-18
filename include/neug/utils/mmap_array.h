@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -584,6 +585,7 @@ class mmap_array<std::string_view> {
     is_writable_ = true;
   }
 
+ private:
   // Compact the data buffer by removing unused space and updating offsets
   // This is an in-place operation that shifts valid string data forward
   // Returns the compacted data size. Note that the reserved size of data buffer
@@ -598,16 +600,38 @@ class mmap_array<std::string_view> {
     if (plan.total_size == size_before_compact) {
       return size_before_compact;
     }
+    // First round to check whether we need compact.
+    size_t reused_space = 0;
+    std::unordered_map<uint64_t, size_t> seen_offsets;
+    for (const auto& entry : plan.entries) {
+      if (entry.length > 0) {
+        if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
+          reused_space += entry.length;
+          continue;
+        }
+        seen_offsets.insert({entry.offset, entry.length});
+      }
+    }
+    if (plan.total_size == reused_space + size_before_compact) {
+      return size_before_compact;
+    }
 
     std::vector<char> temp_buf(plan.total_size);
     size_t write_offset = 0;
     size_t limit_offset = 0;
+    seen_offsets.clear();
     for (const auto& entry : plan.entries) {
-      const char* src = data_.data() + entry.offset;
-      char* dst = temp_buf.data() + write_offset;
-      limit_offset = std::max(limit_offset,
-                              static_cast<size_t>(entry.offset + entry.length));
-      memcpy(dst, src, entry.length);
+      if (entry.length > 0) {
+        if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
+          continue;
+        }
+        seen_offsets.insert({entry.offset, entry.length});
+        const char* src = data_.data() + entry.offset;
+        char* dst = temp_buf.data() + write_offset;
+        limit_offset = std::max(
+            limit_offset, static_cast<size_t>(entry.offset + entry.length));
+        memcpy(dst, src, entry.length);
+      }
       items_.set(entry.index, {static_cast<uint64_t>(write_offset),
                                static_cast<uint32_t>(entry.length)});
       write_offset += entry.length;
@@ -620,7 +644,6 @@ class mmap_array<std::string_view> {
     return plan.total_size;
   }
 
- private:
   struct CompactionPlan {
     struct Entry {
       size_t index;
@@ -657,8 +680,15 @@ class mmap_array<std::string_view> {
     }
 
     size_t write_offset = 0;
+    std::unordered_map<uint64_t, size_t> seen_offsets;
+    size_t reused_space = 0;
     for (const auto& entry : plan.entries) {
       if (entry.length > 0) {
+        if (seen_offsets.find(entry.offset) != seen_offsets.end()) {
+          reused_space += entry.length;
+          continue;
+        }
+        seen_offsets.insert({entry.offset, entry.length});
         const char* src = data_.data() + entry.offset;
         if (fwrite(src, 1, entry.length, fout) != entry.length) {
           fclose(fout);
@@ -673,7 +703,7 @@ class mmap_array<std::string_view> {
                                static_cast<uint32_t>(entry.length)});
       write_offset += entry.length;
     }
-    assert(write_offset == plan.total_size);
+    assert(write_offset + reused_space == plan.total_size);
 
     if (fflush(fout) != 0) {
       fclose(fout);
