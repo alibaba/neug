@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <string_view>

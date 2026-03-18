@@ -389,19 +389,19 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_t old_size = size_;
     size_ = size;
     auto default_str = PropUtils<std::string_view>::to_typed(default_value);
+    default_str = truncate_utf8(default_str, width_);
     if (buffer_.size() != 0) {
       size_t avg_width =
           buffer_.avg_size();  // calculate average width of existing strings
-      buffer_.resize(
-          size_,
-          std::max(size_ * (avg_width > 0 ? avg_width : width_), pos_.load()));
+      buffer_.resize(size_,
+                     std::max(size_ * (avg_width > 0 ? avg_width : width_),
+                              pos_.load() + width_));
     } else {
       buffer_.resize(size_, std::max(size_ * width_, pos_.load()));
     }
     if (default_str.size() == 0) {
       return;
     }
-    default_str = truncate_utf8(default_str, width_);
 
     if (old_size < size_) {
       set_value(old_size, default_str);
