@@ -98,8 +98,8 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offset) const override;
 
-  __attribute__((always_inline)) VertexRecord
-  get_vertex(size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord get_vertex(
+      size_t idx) const override {
     return {label_, vertices_[idx]};
   }
 
@@ -183,8 +183,8 @@ class MSVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord
-  get_vertex(size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord get_vertex(
+      size_t idx) const override {
     for (auto& pair : vertices_) {
       if (idx < pair.second.size()) {
         return {pair.first, pair.second[idx]};
@@ -328,8 +328,8 @@ class MLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> optional_shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  __attribute__((always_inline)) VertexRecord
-  get_vertex(size_t idx) const override {
+  __attribute__((always_inline)) VertexRecord get_vertex(
+      size_t idx) const override {
     return vertices_[idx];
   }
 
