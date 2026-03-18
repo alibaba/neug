@@ -276,6 +276,15 @@ class VertexTable {
 
   template <typename PK_T>
   void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier) {
+    auto row_nums = supplier->row_num();
+    size_t new_size = indexer_.size() + row_nums;
+    if (new_size >= indexer_.capacity()) {
+      size_t cap = indexer_.capacity();
+      while (new_size >= cap) {
+        cap = cap < 4096 ? 4096 : cap + cap / 4;
+      }
+      EnsureCapacity(cap);
+    }
     while (true) {
       auto batch = supplier->GetNextBatch();
       if (batch == nullptr) {
@@ -290,14 +299,6 @@ class VertexTable {
       auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
-      size_t new_size = indexer_.size() + pk_array->length();
-      if (new_size >= indexer_.capacity()) {
-        size_t new_cap = new_size;
-        while (new_size >= new_cap) {
-          new_cap = new_cap < 4096 ? 4096 : new_cap + new_cap / 4;
-        }
-        EnsureCapacity(new_cap);
-      }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
 

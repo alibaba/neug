@@ -246,6 +246,27 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
                << " error: " << read_result.status().message();
   }
   auto file = read_result.ValueOrDie();
+  auto count_file_result = arrow::io::ReadableFile::Open(file_path);
+  if (count_file_result.ok()) {
+    auto count_file = count_file_result.ValueOrDie();
+
+    auto future =
+        arrow::csv::CountRowsAsync(arrow::io::default_io_context(), count_file,
+                                   nullptr, read_options, parse_options);
+
+    auto count_result = future.result();
+    if (count_result.ok()) {
+      row_num_ = count_result.ValueUnsafe();
+      VLOG(10) << "Calculated row count for " << file_path << ": " << row_num_;
+    } else {
+      LOG(WARNING) << "Failed to count rows for " << file_path << ": "
+                   << count_result.status().message()
+                   << ". Proceeding with row_num_=0 or fallback logic.";
+    }
+  } else {
+    LOG(WARNING) << "Failed to reopen file for counting: "
+                 << count_file_result.status().message();
+  }
   auto res = arrow::csv::StreamingReader::Make(arrow::io::default_io_context(),
                                                file, read_options,
                                                parse_options, convert_options);

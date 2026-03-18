@@ -78,6 +78,7 @@ class IRecordBatchSupplier {
  public:
   virtual ~IRecordBatchSupplier() = default;
   virtual std::shared_ptr<arrow::RecordBatch> GetNextBatch() = 0;
+  virtual int64_t row_num() const = 0;
 };
 
 class SupplierWrapperWithFirstBatch : public IRecordBatchSupplier {
@@ -111,6 +112,14 @@ class SupplierWrapperWithFirstBatch : public IRecordBatchSupplier {
     return batch;  // Return the batch from the current supplier
   }
 
+  int64_t row_num() const override {
+    int64_t total_rows = 0;
+    for (const auto& supplier : suppliers_) {
+      total_rows += supplier->row_num();
+    }
+    return total_rows;
+  }
+
  private:
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;
   std::shared_ptr<arrow::RecordBatch> first_batch_;
@@ -127,7 +136,10 @@ class CSVStreamRecordBatchSupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
+  int64_t row_num() const override { return row_num_; }
+
  private:
+  int64_t row_num_;
   std::string file_path_;
   std::shared_ptr<arrow::csv::StreamingReader> reader_;
 };
@@ -140,6 +152,8 @@ class CSVTableRecordBatchSupplier : public IRecordBatchSupplier {
                               arrow::csv::ParseOptions parse_options);
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
+
+  int64_t row_num() const override { return table_->num_rows(); }
 
  private:
   std::string file_path_;
@@ -166,6 +180,16 @@ class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
+  int64_t row_num() const override {
+    size_t total_rows = 0;
+    for (const auto& array : arrays_) {
+      if (!array.empty()) {
+        total_rows += array[0]->length();
+      }
+    }
+    return total_rows;
+  }
+
  private:
   // NUM_COLUMNS * NUM_BATCHES
   std::vector<std::vector<std::shared_ptr<arrow::Array>>> arrays_;
@@ -182,12 +206,15 @@ class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
 class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
  public:
   ArrowRecordBatchStreamSupplier(
-      const std::shared_ptr<arrow::RecordBatchReader>& reader)
-      : reader_(reader) {}
+      const std::shared_ptr<arrow::RecordBatchReader>& reader, int64_t row_num)
+      : row_num_(row_num), reader_(reader) {}
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
+  int64_t row_num() const override { return row_num_; }
+
  private:
+  int64_t row_num_;
   std::shared_ptr<arrow::RecordBatchReader> reader_;
 };
 
