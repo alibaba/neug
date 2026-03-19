@@ -356,7 +356,9 @@ write_env_config() {
     echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
   } >> "${OUTPUT_ENV_FILE}"
   {
-    if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
+    if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+      echo "export OPENSSL_ROOT_DIR=${HOMEBREW_PREFIX}/opt/openssl@3"
+    elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
         echo "source /opt/rh/devtoolset-10/enable"
         echo "source /opt/rh/rh-python38/enable"

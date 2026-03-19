@@ -143,7 +143,7 @@ jobs:
           echo "USER_SITE=$USER_SITE" >> $GITHUB_ENV
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for linux
         run: |
@@ -222,7 +222,7 @@ jobs:
           echo "PYTHONPATH=$USER_SITE${PYTHONPATH:+:$PYTHONPATH}" >> $GITHUB_ENV
 
       - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
+        run: python3 -m pip install cibuildwheel==3.4.0
 
       - name: Prepare for linux
         run: |
