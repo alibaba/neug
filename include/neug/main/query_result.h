@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,12 +34,64 @@ namespace neug {
  * - obtaining row count (`length()`),
  * - accessing response schema (`result_schema()`),
  * - serializing/deserializing (`Serialize()` / `From()`),
- * - debugging output (`ToString()`).
+ * - debugging output (`ToString()`),
+ * - read-only row traversal via C++ range-for (`begin()/end()`).
  *
- * It does not provide row-iterator semantics such as `hasNext()/next()`.
+ * Note: traversal currently provides row index + column access to raw protobuf
+ * arrays through `RowView`, rather than materialized typed cell values.
  */
+
+class RowView {
+ public:
+  RowView(const neug::QueryResponse* response, size_t row_index)
+      : response_(response), row_index_(row_index) {}
+
+  std::string ToString() const;
+
+ private:
+  const neug::QueryResponse* response_ = nullptr;
+  size_t row_index_ = 0;
+};
 class QueryResult {
  public:
+  class const_iterator {
+   public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = RowView;
+    using difference_type = std::ptrdiff_t;
+    using pointer = void;
+    using reference = RowView;
+
+    const_iterator() = default;
+    const_iterator(const neug::QueryResponse* response, size_t row_index)
+        : response_(response), row_index_(row_index) {}
+
+    value_type operator*() const { return RowView(response_, row_index_); }
+
+    const_iterator& operator++() {
+      ++row_index_;
+      return *this;
+    }
+
+    const_iterator operator++(int) {
+      const_iterator tmp(*this);
+      ++(*this);
+      return tmp;
+    }
+
+    bool operator==(const const_iterator& other) const {
+      return response_ == other.response_ && row_index_ == other.row_index_;
+    }
+
+    bool operator!=(const const_iterator& other) const {
+      return !(*this == other);
+    }
+
+   private:
+    const neug::QueryResponse* response_ = nullptr;
+    size_t row_index_ = 0;
+  };
+
   static QueryResult From(std::string&& serialized_table);
   static QueryResult From(const std::string& serialized_table);
 
@@ -83,6 +136,22 @@ class QueryResult {
    * @brief Serialize entire result set to string.
    */
   std::string Serialize() const;
+
+  /**
+   * @brief Begin iterator for range-for traversal by row index.
+   */
+  const_iterator begin() const { return const_iterator(&response_, 0); }
+
+  /**
+   * @brief End iterator for range-for traversal by row index.
+   */
+  const_iterator end() const {
+    return const_iterator(&response_,
+                          static_cast<size_t>(response_.row_count()));
+  }
+
+  const_iterator cbegin() const { return begin(); }
+  const_iterator cend() const { return end(); }
 
  private:
   neug::QueryResponse response_;
