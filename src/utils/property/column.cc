@@ -68,6 +68,7 @@ class TypedEmptyColumn : public ColumnBase {
   void close() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
+  void resize(size_t size, const Property& default_value) override {}
 
   DataTypeId type() const override { return PropUtils<T>::prop_type(); }
 
@@ -108,6 +109,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   void close() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
+  void resize(size_t size, const Property& default_value) override {}
 
   DataTypeId type() const override { return DataTypeId::kVarchar; }
 
@@ -132,7 +134,7 @@ class TypedEmptyColumn<std::string_view> : public ColumnBase {
   void ensure_writable(const std::string& work_dir) override {}
 };
 
-std::shared_ptr<ColumnBase> CreateColumn(DataType type, Property default_value,
+std::shared_ptr<ColumnBase> CreateColumn(DataType type,
                                          StorageStrategy strategy) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
@@ -151,10 +153,9 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type, Property default_value,
     }
   } else {
     switch (type_id) {
-#define TYPE_DISPATCHER(enum_val, type)         \
-  case DataTypeId::enum_val:                    \
-    return std::make_shared<TypedColumn<type>>( \
-        PropUtils<type>::to_typed(default_value), strategy);
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return std::make_shared<TypedColumn<type>>(strategy);
       FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
     case DataTypeId::kVarchar: {
@@ -165,8 +166,7 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type, Property default_value,
           max_length = str_info->max_length;
         }
       }
-      return std::make_shared<StringColumn>(strategy, max_length,
-                                            default_value.as_string_view());
+      return std::make_shared<StringColumn>(strategy, max_length);
     }
     case DataTypeId::kEmpty: {
       return std::make_shared<TypedColumn<EmptyType>>(strategy);
