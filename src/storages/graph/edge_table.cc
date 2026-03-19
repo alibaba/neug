@@ -514,7 +514,7 @@ void EdgeTable::Open(const std::string& work_dir) {
     table_->open(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                               meta_->edge_label_name),
                  work_dir, meta_->property_names, meta_->properties,
-                 meta_->default_property_values, meta_->strategies);
+                 meta_->strategies);
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
     load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
@@ -543,8 +543,7 @@ void EdgeTable::OpenInMemory(const std::string& work_dir) {
     table_->open_in_memory(
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                      meta_->edge_label_name),
-        work_dir_, meta_->property_names, meta_->properties,
-        meta_->default_property_values, meta_->strategies);
+        work_dir_, meta_->property_names, meta_->properties, meta_->strategies);
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
     load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
@@ -574,7 +573,7 @@ void EdgeTable::OpenWithHugepages(const std::string& work_dir) {
         edata_prefix(meta_->src_label_name, meta_->dst_label_name,
                      meta_->edge_label_name),
         checkpoint_dir_path, meta_->property_names, meta_->properties,
-        meta_->default_property_values, meta_->strategies, (memory_level_ > 2));
+        meta_->strategies, (memory_level_ > 2));
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
     load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
@@ -711,7 +710,7 @@ void EdgeTable::EnsureCapacity(size_t capacity) {
       return;
     }
     capacity = std::max(capacity, 4096UL);
-    table_->resize(capacity);
+    table_->resize(capacity, meta_->default_property_values);
     capacity_.store(capacity);
   }
 }
@@ -1041,8 +1040,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     LOG(INFO) << "rebuild unbundled edge csr with edge properties: "
               << meta_->property_names.size();
     table_->open_in_memory(next_table_prefix, work_dir_, meta_->property_names,
-                           meta_->properties, meta_->default_property_values,
-                           meta_->strategies);
+                           meta_->properties, meta_->strategies);
   }
 
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;
@@ -1060,25 +1058,9 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
 
   auto edges = out_csr_->batch_export(prev_data_col);
   if (prev_data_col && prev_data_col->size() > 0) {
-    table_->resize(prev_data_col->size());
+    table_->resize(prev_data_col->size(), meta_->default_property_values);
     table_idx_.store(prev_data_col->size());
     EnsureCapacity(prev_data_col->size());
-  }
-  // Set default value for other columns
-  for (size_t col_id = 1; col_id < table_->col_num(); ++col_id) {
-    auto col = table_->get_column_by_id(col_id);
-    if (col->type() == DataTypeId::kVarchar) {
-      VLOG(10) << "Skip set default value for column " << col_id
-               << " of type StringView";
-      continue;
-    }
-    auto default_value = meta_->default_property_values[col_id];
-    VLOG(10) << "Set default value for column " << col_id << ": "
-             << default_value.to_string()
-             << ", type: " << std::to_string(default_value.type());
-    for (size_t row = 0; row < col->size(); ++row) {
-      col->set_any(row, default_value);
-    }
   }
   std::vector<uint64_t> row_ids;
   for (size_t i = 0; i < std::get<0>(edges).size(); ++i) {
