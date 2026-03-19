@@ -65,25 +65,28 @@ CALL project_graph(
         ...
     },
     {
-        <REL_TABLE_0> :  <REL_PREDICATE_0>,
-        <REL_TABLE_1> :  <REL_PREDICATE_1>,
+        <[SRC_NODE_TABLE, REL_TABLE, DST_NODE_TABLE]_0> :  <REL_PREDICATE_0>,
+        <[SRC_NODE_TABLE, REL_TABLE, DST_NODE_TABLE]_1> :  <REL_PREDICATE_1>,
         ...
     }
 );
 ```
+
+边表采用三元组格式 `[SRC_NODE_TABLE, REL_TABLE, DST_NODE_TABLE]`，避免多重边导致定义不明确问题。
+
 **示例**：
 
 ```cypher
 CALL project_graph(
     'filtered_graph',
     {'Person': 'n.name <> "Ira"'},
-    {'KNOWS': 'r.id < 3'}
+    {'[Person, KNOWS, Person]': 'r.id < 3'}
 );
 ```
 
 >上述例子表示：
 >从全图中筛选出Label为'person'点，且需满足 'n.name <> "Ira"'  
->从全图中筛选出Label为'KNOWS'边，端点 (src和dst) 需满足 `'Person': 'n.name <> "Ira"'` 限制，且边上的属性需满足 `'r.id < 3'`
+>从全图中筛选出三元组 `[Person, KNOWS, Person]` 的边，端点 (src和dst) 需满足 `'Person': 'n.name <> "Ira"'` 限制，且边上的属性需满足 `'r.id < 3'`
 
 基于子图别名进一步执行图算法，而不是将Label信息作为参数传递给算法，这样可以将子图信息和图算法本身解藕，通过两种组合支持更多功能。
 ```cypher
@@ -182,7 +185,7 @@ LIMIT 10
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'KNOWS': 'r.id < 3'});
+CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'[Person, KNOWS, Person]': 'r.id < 3'});
 
 CALL k_core('my_graph', {min_k: 3, concurrency: 4})
 YIELD node, core_number
@@ -216,7 +219,7 @@ ORDER BY core_number DESC
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('page_graph', {'Page': 'true'}, {'LINKS_TO': 'true'});
+CALL project_graph('page_graph', {'Page': 'true'}, {'[Page, LINKS_TO, Page]': 'true'});
 
 CALL pagerank('page_graph', {damping: 0.85, max_iterations: 30, concurrency: 8})
 YIELD node, rank
@@ -251,7 +254,7 @@ LIMIT 10
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('station_graph', {'Station': 'true'}, {'CONNECTED': 'true'});
+CALL project_graph('station_graph', {'Station': 'true'}, {'[Station, CONNECTED, Station]': 'true'});
 
 -- 无权重最短路径 (BFS)
 CALL shortest_path('station_graph', {source: 'StationA'})
@@ -259,7 +262,7 @@ YIELD node, distance
 RETURN node, distance
 
 -- 加权最短路径
-CALL project_graph('road_graph', {'City': 'true'}, {'ROAD': 'true'});
+CALL project_graph('road_graph', {'City': 'true'}, {'[City, ROAD, City]': 'true'});
 CALL shortest_path('road_graph', {source: 'Beijing', target: 'Shanghai', weight_property: 'distance'})
 YIELD node, distance, path
 RETURN distance, path
@@ -288,7 +291,7 @@ RETURN distance, path
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('social_graph', {'Person': 'true'}, {'KNOWS': 'true'});
+CALL project_graph('social_graph', {'Person': 'true'}, {'[Person, KNOWS, Person]': 'true'});
 
 CALL connected_components('social_graph', {concurrency: 4})
 YIELD node, component_id
@@ -321,7 +324,7 @@ ORDER BY size DESC
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('social_graph', {'Person': 'true'}, {'KNOWS': 'true'});
+CALL project_graph('social_graph', {'Person': 'true'}, {'[Person, KNOWS, Person]': 'true'});
 
 CALL bfs('social_graph', {source: 'Alice', max_depth: 3})
 YIELD node, distance
@@ -352,7 +355,7 @@ ORDER BY distance
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('coauthor_graph', {'Author': 'true'}, {'CO_AUTHOR': 'true'});
+CALL project_graph('coauthor_graph', {'Author': 'true'}, {'[Author, CO_AUTHOR, Author]': 'true'});
 
 CALL lcc('coauthor_graph', {concurrency: 4})
 YIELD node, coefficient
@@ -388,7 +391,7 @@ LIMIT 20
 
 ```cypher
 -- GraphRAG 场景：对文档实体进行社区划分
-CALL project_graph('entity_graph', {'Entity': 'true'}, {'RELATED': 'true'});
+CALL project_graph('entity_graph', {'Entity': 'true'}, {'[Entity, RELATED, Entity]': 'true'});
 
 CALL leiden('entity_graph', {resolution: 1.0, max_iterations: 10, concurrency: 8})
 YIELD node, community_id
@@ -420,7 +423,7 @@ ORDER BY size(entities) DESC
 **Cypher 示例**：
 
 ```cypher
-CALL project_graph('user_graph', {'User': 'true'}, {'FOLLOWS': 'true'});
+CALL project_graph('user_graph', {'User': 'true'}, {'[User, FOLLOWS, User]': 'true'});
 
 CALL label_propagation('user_graph', {max_iterations: 20, concurrency: 4})
 YIELD node, label
@@ -516,7 +519,7 @@ CALL SHOW_LOADED_EXTENSIONS() Return *;
 CALL project_graph(
     <GRAPH_NAME>,
     { <NODE_TABLE_0> : <NODE_PREDICATE_0>, ... },
-    { <REL_TABLE_0> : <REL_PREDICATE_0>, ... }
+    { <[SRC_NODE_TABLE, REL_TABLE, DST_NODE_TABLE]_0> : <REL_PREDICATE_0>, ... }
 );
 ```
 
@@ -540,7 +543,7 @@ YIELD column1, column2, ...
 
 ```cypher
 -- 先投影子图，再执行算法
-CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'KNOWS': 'r.id < 3'});
+CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'[Person, KNOWS, Person]': 'r.id < 3'});
 
 CALL k_core('my_graph', {min_k: 3, concurrency: 4})
 YIELD node, core_number;
@@ -665,7 +668,7 @@ message GDSAlgo {
 }
 ```
 
-上述 `CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'KNOWS': 'r.id < 3'}); CALL k_core('my_graph', {min_k: 3, concurrency: 4}) YIELD node, core_number;` 翻译成 PhysicalPlan 如下（`meta_data` 描述输出列类型与别名，此处为 node 与 core_number）：
+上述 `CALL project_graph('my_graph', {'Person': 'n.name <> "Ira"'}, {'[Person, KNOWS, Person]': 'r.id < 3'}); CALL k_core('my_graph', {min_k: 3, concurrency: 4}) YIELD node, core_number;` 翻译成 PhysicalPlan 如下（`meta_data` 描述输出列类型与别名，此处为 node 与 core_number）：
 
 ```json
 {
