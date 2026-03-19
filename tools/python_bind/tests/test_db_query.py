@@ -2690,3 +2690,29 @@ def test_insert_string_column_exhaustion():
         raise AssertionError(f"Test failed with exception: {e}")
     finally:
         logging.disable(logging.NOTSET)
+
+
+def test_optional_match_on_edge(tmp_path):
+    db_dir = str(tmp_path / "test_optional_match_on_edge")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE SRC_INFRA(id STRING PRIMARY KEY, finder STRING);")
+    conn.execute("CREATE NODE TABLE SRC_LOGGING(id STRING PRIMARY KEY, finder STRING);")
+    conn.execute("CREATE REL TABLE CALLS_NEW (FROM SRC_INFRA TO SRC_INFRA);")
+
+    conn.execute("CREATE (u: SRC_INFRA {id: '1', finder: 'finder'});")
+    conn.execute("CREATE (u: SRC_INFRA {id: '2', finder: 'finder'});")
+    conn.execute("CREATE (u: SRC_LOGGING {id: '1', finder: 'finder'});")
+
+    result = conn.execute(
+        """
+    MATCH (u) WHERE u.finder = 'finder'
+    OPTIONAL MATCH (u)-[e:CALLS_NEW]-(v)
+    RETURN u, e, v;
+    """
+    )
+    length = len(list(result))
+    assert length == 3, f"Expected value 3, got {length}"
+    conn.close()
+    db.close()
