@@ -236,8 +236,8 @@ static std::unique_ptr<CsrBase> create_csr(bool is_mutable,
     return create_csr_impl<EmptyType>(is_mutable, strategy);
   }
   default: {
-    LOG(FATAL) << "not support edge data type: "
-               << std::to_string(property_type);
+    THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
+                                  std::to_string(property_type));
     return nullptr;
   }
   }
@@ -472,7 +472,8 @@ void batch_add_bundled_edges_impl(CsrBase* out_csr, CsrBase* in_csr,
     FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   default:
-    LOG(FATAL) << "not support edge data type: " << prop_types[0].ToString();
+    THROW_NOT_SUPPORTED_EXCEPTION("not support edge data type: " +
+                                  std::to_string(prop_types[0].id()));
   }
 }
 
