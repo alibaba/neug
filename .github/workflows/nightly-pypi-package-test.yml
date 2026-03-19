@@ -1,4 +1,4 @@
-name: Nightly Test
+name: Nightly PyPI Package Test
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/neug-nightly-test.yml'
+      - '.github/workflows/nightly-pypi-package-test.yml'
 
 concurrency:
   group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
