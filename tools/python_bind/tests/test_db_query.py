@@ -2692,6 +2692,39 @@ def test_insert_string_column_exhaustion():
         logging.disable(logging.NOTSET)
 
 
+def test_edge_default_value():
+    db_dir = "/tmp/test_edge_default_value"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            """
+                CREATE NODE TABLE IF NOT EXISTS TestNode(
+                    id INT64 PRIMARY KEY,
+                    thread_id INT64
+                )
+            """
+        )
+        conn.execute(
+            """
+                CREATE REL TABLE IF NOT EXISTS TestEdge(
+                    FROM TestNode TO TestNode
+                )
+            """
+        )
+        conn.execute('ALTER TABLE TestEdge ADD description STRING DEFAULT "unknown"')
+        conn.execute(
+            "CREATE (n1: TestNode {id: 1, thread_id: 1}), (n2: TestNode {id: 2, thread_id: 1}) CREATE (n1)-[:TestEdge]->(n2);"
+        )
+        res = conn.execute("MATCH ()-[e: TestEdge]->() RETURN e.description;")
+        records = list(res)
+        assert records == [["unknown"]], f"Expected value [['unknown']], got {records}"
+    finally:
+        conn.close()
+        db.close()
+
+
 def test_optional_match_on_edge(tmp_path):
     db_dir = str(tmp_path / "test_optional_match_on_edge")
     shutil.rmtree(db_dir, ignore_errors=True)
