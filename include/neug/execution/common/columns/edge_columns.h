@@ -501,6 +501,8 @@ class SDMLEdgeColumn : public IEdgeColumn {
     return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
   }
 
+  bool is_optional() const override { return is_optional_; }
+
  private:
   friend class SDMLEdgeColumnBuilder;
   Direction dir_;
@@ -620,6 +622,8 @@ class BDMLEdgeColumn : public IEdgeColumn {
     const auto& tup = edges_[idx];
     return std::get<1>(tup) != std::numeric_limits<vid_t>::max();
   }
+
+  bool is_optional() const override { return is_optional_; }
 
  private:
   friend class BDMLEdgeColumnBuilder;

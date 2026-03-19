@@ -155,6 +155,11 @@ class ArrowStreamContextColumn : public IContextColumn {
     return Value(DataType::SQLNULL);
   }
 
+  bool is_optional() const override {
+    LOG(FATAL) << "is_optional not implemented for arrow stream column";
+    return false;
+  }
+
  private:
   std::shared_ptr<arrow::RecordBatch> first_batch_;
   std::vector<std::shared_ptr<IRecordBatchSupplier>> suppliers_;

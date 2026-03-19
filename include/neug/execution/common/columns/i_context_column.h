@@ -74,7 +74,7 @@ class IContextColumn {
   virtual Value get_elem(size_t idx) const = 0;
   virtual bool has_value(size_t idx) const { return true; }
 
-  virtual bool is_optional() const { return false; }
+  virtual bool is_optional() const = 0;
 
   virtual bool generate_dedup_offset(std::vector<size_t>& offsets) const {
     LOG(ERROR) << "generate_dedup_offset not implemented for "

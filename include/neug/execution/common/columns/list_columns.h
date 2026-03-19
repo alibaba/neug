@@ -86,6 +86,8 @@ class ListColumn : public IContextColumn {
     return ptr;
   }
 
+  bool is_optional() const override { return false; }
+
  private:
   template <typename T>
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold_impl()
