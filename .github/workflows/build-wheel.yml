@@ -51,9 +51,9 @@ jobs:
       mode: release
       set_nightly_version: false
       pybind11_findpython_off: true
-      linux_x86_python: '3.14'
+      linux_x86_python: '3.13'
       linux_arm_python: '3.13'
-      mac_python: '3.14'
+      mac_python: '3.13'
       cibuildwheel_version: '3.4.0'
       enable_macos_x86: false
       caller_event_name: ${{ github.event_name }}
