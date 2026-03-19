@@ -1,3 +1,5 @@
+#pragma once
+
 #include <arrow/filesystem/localfs.h>
 #include <functional>
 #include <memory>
