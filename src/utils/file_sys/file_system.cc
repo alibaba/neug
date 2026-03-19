@@ -33,6 +33,18 @@ class LocalFileSystem : public FileSystem {
   LocalFileSystem() = default;
 
   std::vector<std::string> glob(const std::string& path) override {
+    // Normalize file:// URIs by stripping the scheme before passing to
+    // match_files_with_pattern, which uses POSIX glob() and std::filesystem
+    // and expects local paths without URI scheme.
+    constexpr const char* kFilePrefix = "file://";
+    constexpr size_t kFilePrefixLen = 7;
+    if (path.starts_with(kFilePrefix)) {
+      std::string local_path = path.substr(kFilePrefixLen);
+      if (local_path.empty() || local_path[0] != '/') {
+        local_path = "/" + local_path;
+      }
+      return neug::execution::ops::match_files_with_pattern(local_path);
+    }
     return neug::execution::ops::match_files_with_pattern(path);
   }
 
@@ -61,6 +73,7 @@ std::unique_ptr<FileSystem> FileSystemRegistry::Provide(
     if (paths.empty()) {
       THROW_INVALID_ARGUMENT_EXCEPTION("No file paths provided");
     }
+    // we assume all paths share the same protocol
     const auto& path = paths[0];
     auto pos = path.find("://");
     if (pos != std::string::npos) {

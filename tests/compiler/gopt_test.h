@@ -189,6 +189,7 @@ class GOptTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    main::MetadataRegistry::unregisterMetadata();
     ctx.reset();
     database.reset();
   }

@@ -25,6 +25,7 @@
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/client_context.h"
+#include "neug/compiler/main/metadata_registry.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -54,7 +55,7 @@ MetadataManager::MetadataManager() {
   this->statsManager = std::move(statsManager);
 }
 
-MetadataManager::~MetadataManager() = default;
+MetadataManager::~MetadataManager() { MetadataRegistry::unregisterMetadata(); }
 
 std::shared_ptr<storage::StatsManager> MetadataManager::getStatsManager()
     const {
