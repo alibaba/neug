@@ -35,25 +35,21 @@ class Table {
   void init(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataType>& types,
-            const std::vector<Property>& default_property_values,
             const std::vector<StorageStrategy>& strategies_);
 
   void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types,
-            const std::vector<Property>& default_property_values,
             const std::vector<StorageStrategy>& strategies_);
 
   void open_in_memory(const std::string& name, const std::string& work_dir,
                       const std::vector<std::string>& col_name,
                       const std::vector<DataType>& property_types,
-                      const std::vector<Property>& default_property_values,
                       const std::vector<StorageStrategy>& strategies_);
 
   void open_with_hugepages(const std::string& name, const std::string& work_dir,
                            const std::vector<std::string>& col_name,
                            const std::vector<DataType>& property_types,
-                           const std::vector<Property>& default_property_values,
                            const std::vector<StorageStrategy>& strategies_,
                            bool force = false);
 
@@ -108,6 +104,12 @@ class Table {
               bool insert_safe = false);
 
   void resize(size_t row_num);
+  /**
+   * @brief Resize the table to row_num, and fill the new rows with default
+   * values. Assume it is safe to insert the default value even if it is
+   * reserving, since user could always override.
+   */
+  void resize(size_t row_num, const std::vector<Property>& default_values);
 
   inline Property at(size_t row_id, size_t col_id) const {
     return column_ptrs_[col_id]->get_prop(row_id);
@@ -130,12 +132,10 @@ class Table {
   void buildColumnPtrs();
   void initColumns(const std::vector<std::string>& col_name,
                    const std::vector<DataType>& types,
-                   const std::vector<Property>& default_property_values,
                    const std::vector<StorageStrategy>& strategies_);
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
-  std::vector<Property> col_default_values_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
   std::vector<ColumnBase*> column_ptrs_;

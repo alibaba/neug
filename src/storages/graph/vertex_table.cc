@@ -34,7 +34,6 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
                  vertex_schema_->property_names, vertex_schema_->property_types,
-                 vertex_schema_->default_property_values,
                  vertex_schema_->storage_strategies);
 
   } else if (memory_level_ == 1) {
@@ -42,7 +41,6 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
                            vertex_schema_->property_types,
-                           vertex_schema_->default_property_values,
                            vertex_schema_->storage_strategies);
 
   } else if (memory_level_ >= 2) {
@@ -51,7 +49,6 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
     table_->open_with_hugepages(
         vertex_table_prefix(label_name), work_dir_,
         vertex_schema_->property_names, vertex_schema_->property_types,
-        vertex_schema_->default_property_values,
         vertex_schema_->storage_strategies, (memory_level_ > 2));
   } else {
     THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
@@ -188,7 +185,7 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     indexer_.reserve(capacity);
   }
   if (table_ && table_->size() < capacity) {
-    table_->resize(capacity);
+    table_->resize(capacity, vertex_schema_->default_property_values);
   }
   v_ts_.Reserve(capacity);
   return indexer_.capacity();

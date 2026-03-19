@@ -34,6 +34,7 @@ NeuG documentation
    :caption: Tutorials
 
    tutorials/tinysnb_tutorial
+   tutorials/codegraph-openclaw-example
 
 .. toctree::
    :maxdepth: 1

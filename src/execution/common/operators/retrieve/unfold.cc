@@ -30,7 +30,7 @@ neug::result<Context> Unfold::unfold(Context&& ctxs, int key, int alias) {
     LOG(ERROR) << "Unfold column type is not list";
     RETURN_INVALID_ARGUMENT_ERROR("Unfold column type is not list");
   }
-  auto list_col = std::dynamic_pointer_cast<ListColumnBase>(col);
+  auto list_col = std::dynamic_pointer_cast<ListColumn>(col);
   auto [ptr, offsets] = list_col->unfold();
 
   ctxs.set_with_reshuffle(alias, ptr, offsets);
