@@ -121,15 +121,21 @@ struct JsonLReadFunction {
   static execution::Context jsonLExecFunc(
       std::shared_ptr<reader::ReadSharedState> state) {
     // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
     // Arrow can support jsonl format by default, no need to register other
     // DatasetBuilder
     auto reader = std::make_unique<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem);
+        state, std::move(optionsBuilder), fs->toArrowFileSystem());
     execution::Context ctx;
     auto localState = std::make_shared<reader::ReadLocalState>();
     reader->read(localState, ctx);
@@ -145,15 +151,21 @@ struct JsonLReadFunction {
     externalSchema.entry = std::make_shared<reader::TableEntrySchema>();
     externalSchema.file = schema;
     // todo: get file system from vfs manager
-    LocalFileSystemProvider fsProvider;
-    auto fileInfo = fsProvider.provide(state->schema.file);
-    state->schema.file.paths = fileInfo.resolvedPaths;
+    const auto& vfs = neug::main::MetadataRegistry::getVFS();
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
+    for (const auto& path : state->schema.file.paths) {
+      const auto& resolved = fs->glob(path);
+      resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
+                           resolved.end());
+    }
+    state->schema.file.paths = std::move(resolvedPaths);
     auto optionsBuilder =
         std::make_unique<reader::ArrowJsonOptionsBuilder>(state);
     // Arrow can support jsonl format by default, no need to register other
     // DatasetBuilder
     auto reader = std::make_shared<reader::ArrowReader>(
-        state, std::move(optionsBuilder), fileInfo.fileSystem);
+        state, std::move(optionsBuilder), fs->toArrowFileSystem());
     auto sniffer = std::make_shared<reader::ArrowSniffer>(reader);
     auto sniffResult = sniffer->sniff();
     if (!sniffResult) {
