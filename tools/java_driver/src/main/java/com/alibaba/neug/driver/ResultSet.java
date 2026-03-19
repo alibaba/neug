@@ -16,7 +16,6 @@ package com.alibaba.neug.driver;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.List;
 
 /**
  * A cursor over the results of a database query.
@@ -334,13 +333,6 @@ public interface ResultSet extends AutoCloseable {
      * @return {@code true} if the ResultSet is closed, {@code false} otherwise
      */
     boolean isClosed();
-
-    /**
-     * Retrieves the names of all columns in this ResultSet.
-     *
-     * @return a list of column names
-     */
-    List<String> getColumnNames();
 
     /** Moves the cursor to the end of this ResultSet object, just after the last row. */
     void afterLast();

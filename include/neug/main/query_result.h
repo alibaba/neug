@@ -26,14 +26,16 @@
 namespace neug {
 
 /**
- * @brief QueryResult purely based on C++ Arrow Table.
+ * @brief Lightweight wrapper around protobuf `QueryResponse`.
  *
- * Provides iterator-style access to query results stored in Arrow format.
- * Supports hasNext()/next() pattern for sequential iteration and random
- * access via operator[].
+ * `QueryResult` stores a full query response and exposes utility methods for:
+ * - constructing from serialized protobuf bytes (`From()`),
+ * - obtaining row count (`length()`),
+ * - accessing response schema (`result_schema()`),
+ * - serializing/deserializing (`Serialize()` / `From()`),
+ * - debugging output (`ToString()`).
  *
- * The underlying Arrow Table may have chunked columns. This implementation
- * combines chunks for easier access.
+ * It does not provide row-iterator semantics such as `hasNext()/next()`.
  */
 class QueryResult {
  public:
@@ -67,9 +69,19 @@ class QueryResult {
    */
   size_t length() const { return response_.row_count(); }
 
+  /**
+   * @brief Get result schema metadata.
+   */
   const neug::MetaDatas& result_schema() const { return response_.schema(); }
+
+  /**
+   * @brief Get underlying protobuf response.
+   */
   const neug::QueryResponse& response() const { return response_; }
 
+  /**
+   * @brief Serialize entire result set to string.
+   */
   std::string Serialize() const;
 
  private:

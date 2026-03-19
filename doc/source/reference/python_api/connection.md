@@ -4,7 +4,7 @@
 
 The Neug connection module.
 
-<a id="neug.connection.Any"></a>
+<a id="neug.connection.annotations"></a>
 
 ## Connection Objects
 
@@ -48,7 +48,7 @@ Close the connection.
 ```python
 def execute(query: str,
             access_mode="",
-            parameters: dict[str, Any] | None = None) -> QueryResult
+            parameters: Optional[Dict[str, Any]] = None) -> QueryResult
 ```
 
 Execute a cypher query on the database. User could specify multiple queries in a single string,

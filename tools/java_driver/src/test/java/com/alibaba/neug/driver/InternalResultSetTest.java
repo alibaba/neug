@@ -19,7 +19,6 @@ import com.alibaba.neug.driver.internal.InternalResultSet;
 import com.google.protobuf.ByteString;
 import java.math.BigDecimal;
 import java.util.Arrays;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -129,14 +128,6 @@ public class InternalResultSetTest {
         resultSet.next();
         assertEquals(30, resultSet.getInt("age"));
         assertEquals(30, resultSet.getInt(1));
-    }
-
-    @Test
-    public void testGetColumnNames() {
-        List<String> columnNames = resultSet.getColumnNames();
-        assertEquals(2, columnNames.size());
-        assertEquals("name", columnNames.get(0));
-        assertEquals("age", columnNames.get(1));
     }
 
     @Test

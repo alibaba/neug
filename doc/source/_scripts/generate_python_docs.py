@@ -96,7 +96,7 @@ def clean_generated_docs(output_dir: Path, scripts_dir: Path):
 def generate_docs():
     """Generate documentation for all modules using pydoc-markdown."""
     # Script is now in source/_scripts/
-    scripts_dir = Path(__file__).parent
+    scripts_dir = Path(__file__).resolve().parent
     doc_dir = scripts_dir.parent.parent  # from source/_scripts/ -> source/ -> doc/
     output_dir = scripts_dir.parent / 'reference' / 'python_api'  # source/reference/python_api
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -435,7 +435,7 @@ def main():
 def generate_docs_no_clean():
     """Generate documentation without cleaning first."""
     # Script is now in source/_scripts/
-    scripts_dir = Path(__file__).parent
+    scripts_dir = Path(__file__).resolve().parent
     doc_dir = scripts_dir.parent.parent  # from source/_scripts/ -> source/ -> doc/
     output_dir = scripts_dir.parent / 'reference' / 'python_api'  # source/reference/python_api
     output_dir.mkdir(parents=True, exist_ok=True)

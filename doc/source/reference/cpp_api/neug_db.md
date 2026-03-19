@@ -188,3 +188,10 @@ Remove a connection from the database.
   - This method is used to remove a connection when it is closed, to remove the handle from the database.
   - This method is not thread-safe, so it should be called only when the connection is closed. And should be only called internally.
 
+#### `CloseAllConnection()`
+
+Remove all connection from the database.
+
+- **Notes:**
+  - This method is used to remove all connection when tp svc created, to remove the handle from the database.
+

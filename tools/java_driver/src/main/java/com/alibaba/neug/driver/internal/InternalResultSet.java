@@ -488,16 +488,6 @@ public class InternalResultSet implements ResultSet {
     }
 
     @Override
-    public List<String> getColumnNames() {
-        Results.MetaDatas metaDatas = response.getSchema();
-        List<String> columnNames = new ArrayList<>();
-        for (int i = 0; i < metaDatas.getNameCount(); i++) {
-            columnNames.add(metaDatas.getName(i));
-        }
-        return columnNames;
-    }
-
-    @Override
     public void close() {
         closed = true;
     }

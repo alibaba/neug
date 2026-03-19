@@ -11,12 +11,20 @@ We follow the [Google C++ Style Guide](https://google.github.io/styleguide/cppgu
 
 We follow the [black](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html) code style for Python coding standards.
 
+## Java Style
+
+Java code in NeuG follows [Google Java Style](https://google.github.io/styleguide/javaguide.html),
+enforced by the Maven Spotless plugin (with `google-java-format`).
+
+Java source is located at [tools/java_driver](../../tools/java_driver).
+
 ## Style Linter and Checker
 
 GraphScope uses different linters and checkers for each language to enforce code style rules:
 
 - C++: [clang-format-8](https://releases.llvm.org/8.0.0/tools/clang/docs/ClangFormat.html) and [cpplint](https://github.com/cpplint/cpplint)
 - Python: [Flake8](https://flake8.pycqa.org/en/latest/)
+- Java: [Spotless Maven Plugin](https://github.com/diffplug/spotless/tree/main/plugin-maven)
 
 Each linter can be included in the build process to ensure that the code adheres to the style guide.
 Below are the commands to check the code style in each language:
@@ -50,5 +58,23 @@ $ pushd tools/shell
 $ python3 -m isort --check --diff .
 $ python3 -m black --check --diff .
 $ python3 -m flake8 .
+$ popd
+```
+
+For Java:
+
+- Check style only:
+
+```bash
+$ pushd tools/java_driver
+$ mvn spotless:check
+$ popd
+```
+
+- Auto-format Java files:
+
+```bash
+$ pushd tools/java_driver
+$ mvn spotless:apply
 $ popd
 ```
