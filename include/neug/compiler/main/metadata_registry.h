@@ -32,8 +32,6 @@ class MetadataRegistry {
 
   static void registerMetadata(main::MetadataManager* metadataManager);
 
-  static void unregisterMetadata();
-
   static MetadataManager* getMetadata();
 
   static catalog::GCatalog* getCatalog();

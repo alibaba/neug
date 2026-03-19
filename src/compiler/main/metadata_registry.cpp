@@ -32,8 +32,6 @@ void MetadataRegistry::registerMetadata(
   MetadataRegistry::metadataManager = metadataManager;
 }
 
-void MetadataRegistry::unregisterMetadata() { metadataManager = nullptr; }
-
 MetadataManager* MetadataRegistry::getMetadata() {
   if (!metadataManager) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Metadata manager is not set");
