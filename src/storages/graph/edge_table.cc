@@ -198,8 +198,9 @@ void batch_put_edges_to_bundled_csr(const std::vector<vid_t>& src_lid,
     break;
   }
   default:
-    LOG(FATAL) << "Unsupported edge property type "
-               << static_cast<int>(property_type);
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Unsupported edge property type: " +
+        std::to_string(static_cast<int>(property_type)));
   }
 }
 
