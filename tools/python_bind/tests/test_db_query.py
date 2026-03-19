@@ -2692,8 +2692,8 @@ def test_insert_string_column_exhaustion():
         logging.disable(logging.NOTSET)
 
 
-def test_optional_match_on_edge():
-    db_dir = "/tmp/test_optional_match_on_edge"
+def test_optional_match_on_edge(tmp_path):
+    db_dir = str(tmp_path / "test_optional_match_on_edge")
     shutil.rmtree(db_dir, ignore_errors=True)
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
