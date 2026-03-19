@@ -639,7 +639,11 @@ jobs:
 
   test_wheels_macos_x86_64:
     needs: build_wheels_macos_x86_64
-    if: ${{ inputs.enable_macos_x86 && inputs.mode == 'release' && needs.build_wheels_macos_x86_64.result == 'success' }}
+    if: ${{
+          inputs.enable_macos_x86 &&
+          ((inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+          (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug'))
+        }}    
     runs-on: macos-15-intel
     strategy:
       matrix:
@@ -678,7 +682,10 @@ jobs:
 
   test_wheels_macos_aarch64:
     needs: build_wheels_macos_aarch64
-    if: ${{ inputs.mode == 'release' && needs.build_wheels_macos_aarch64.result == 'success' }}
+    if: ${{
+          (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+          (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+        }}
     runs-on: macos-15
     strategy:
       matrix:
