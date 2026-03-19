@@ -24,7 +24,7 @@ The Java driver is designed for application integration and service-side usage:
 
 ## Deployment Model
 
-The current Java SDK supports **remote access over HTTP only**, i.e., **service mode**.
+The current Java SDK supports **remote access over HTTP only**, i.e., [**service mode**](../../getting_started/getting_started.md#service-mode).
 
 - **Supported**: connect to a running NeuG server with `GraphDatabase.driver("http://host:port")`
 - **Not supported**: embedded/in-process database access from Java
