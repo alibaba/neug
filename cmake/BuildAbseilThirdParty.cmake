@@ -16,6 +16,46 @@
 # rely on Abseil headers/libraries, so we vendor it explicitly to avoid
 # sliding dependency chains.
 
+function(_neug_strip_absl_randen_flags target)
+    if(NOT TARGET ${target})
+        return()
+    endif()
+
+    set(_neug_forbidden_patterns "-msse4\\.1" "-maes" "-Xarch_x86_64")
+    foreach(_prop IN ITEMS COMPILE_OPTIONS INTERFACE_COMPILE_OPTIONS)
+        get_target_property(_opts ${target} ${_prop})
+        if(NOT _opts OR _opts STREQUAL "NOTFOUND")
+            continue()
+        endif()
+
+        set(_filtered "")
+        set(_changed FALSE)
+        foreach(_opt IN LISTS _opts)
+            set(_drop FALSE)
+            foreach(_pattern IN LISTS _neug_forbidden_patterns)
+                if(_opt MATCHES "${_pattern}")
+                    set(_drop TRUE)
+                    break()
+                endif()
+            endforeach()
+
+            if(_drop)
+                set(_changed TRUE)
+            else()
+                list(APPEND _filtered "${_opt}")
+            endif()
+        endforeach()
+
+        if(_changed)
+            if(_filtered)
+                set_property(TARGET ${target} PROPERTY ${_prop} "${_filtered}")
+            else()
+                set_property(TARGET ${target} PROPERTY ${_prop} "")
+            endif()
+        endif()
+    endforeach()
+endfunction()
+
 function(build_abseil_as_third_party)
     set(_absl_main "${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp")
 
@@ -72,6 +112,35 @@ function(build_abseil_as_third_party)
 
     set(_absl_binary_dir "${CMAKE_CURRENT_BINARY_DIR}/third_party/abseil-cpp")
     add_subdirectory("${_absl_source}" "${_absl_binary_dir}")
+
+    # Apple Silicon toolchains reject x86-only flags such as -msse4.1, so drop
+    # those options from Abseil's Randen targets when building arm64 wheels.
+    if(APPLE)
+        set(_neug_arch_candidates "")
+        if(CMAKE_OSX_ARCHITECTURES)
+            list(APPEND _neug_arch_candidates ${CMAKE_OSX_ARCHITECTURES})
+        elseif(CMAKE_SYSTEM_PROCESSOR)
+            list(APPEND _neug_arch_candidates ${CMAKE_SYSTEM_PROCESSOR})
+        endif()
+
+        set(_neug_has_arm64 FALSE)
+        foreach(_arch IN LISTS _neug_arch_candidates)
+            if(_arch MATCHES "arm64|aarch64")
+                set(_neug_has_arm64 TRUE)
+                break()
+            endif()
+        endforeach()
+
+        if(_neug_has_arm64)
+            foreach(_target IN ITEMS
+                    absl_random_internal_randen_hwaes_impl
+                    random_internal_randen_hwaes_impl
+                    absl_random_internal_randen_hwaes
+                    random_internal_randen_hwaes)
+                _neug_strip_absl_randen_flags(${_target})
+            endforeach()
+        endif()
+    endif()
 
     if(NOT TARGET absl::strings)
         message(FATAL_ERROR "Abseil targets missing after add_subdirectory. Verify Abseil checkout.")

@@ -49,8 +49,6 @@ class StructColumn : public IContextColumn {
   const DataType& elem_type() const override { return type_; }
   Value get_elem(size_t idx) const override;
 
-  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
-
   bool is_optional() const override { return is_optional_; }
 
   bool has_value(size_t idx) const override {
