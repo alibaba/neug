@@ -243,13 +243,11 @@ jobs:
       - determine_python_versions
     runs-on: [self-hosted, linux, arm64]
     if: ${{
-    if: ${{
           (
             inputs.mode == 'release' &&
             (
               startsWith(github.ref, 'refs/tags/v') ||
               inputs.caller_event_name == 'workflow_dispatch' ||
-              inputs.caller_event_name == 'pull_request' ||
               (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
             )
           ) ||
@@ -259,6 +257,8 @@ jobs:
             (inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'pull_request')
           )
         }}
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
     steps:
       - name: checkout
         id: checkout
