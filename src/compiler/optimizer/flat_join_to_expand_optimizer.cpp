@@ -123,13 +123,10 @@ FlatJoinToExpandOptimizer::visitHashJoinReplace(
     if (edgeNum(rightChild) > 1) {
       return op;
     }
-    // the getV operator should not have predicates, otherwise it cannot be
-    // flattened
+    // the getV operator is not fused into expand and cannot guarantee the
+    // optional semantics
     if (rightChild->getOperatorType() == planner::LogicalOperatorType::GET_V) {
-      auto getV = rightChild->ptrCast<planner::LogicalGetV>();
-      if (getV->getPredicates()) {
-        return op;
-      }
+      return op;
     }
   }
 
