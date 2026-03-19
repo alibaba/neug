@@ -117,7 +117,8 @@ struct CSVReadFunction {
       std::shared_ptr<reader::ReadSharedState> state) {
     validateAndConvertExecOptions(state);
     const auto& vfs = neug::main::MetadataRegistry::getVFS();
-    auto fs = vfs->Provide(state->schema.file);
+    const auto& fs = vfs->Provide(state->schema.file);
+    auto resolvedPaths = std::vector<std::string>();
     for (const auto& path : state->schema.file.paths) {
       const auto& resolved = fs->glob(path);
       resolvedPaths.insert(resolvedPaths.end(), resolved.begin(),
