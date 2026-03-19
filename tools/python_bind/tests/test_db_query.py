@@ -2691,6 +2691,7 @@ def test_insert_string_column_exhaustion():
     finally:
         logging.disable(logging.NOTSET)
 
+
 def test_optional_match_on_edge():
     db_dir = "/tmp/test_optional_match_on_edge"
     shutil.rmtree(db_dir, ignore_errors=True)
@@ -2704,9 +2705,11 @@ def test_optional_match_on_edge():
     conn.execute("CREATE (u: SRC_INFRA {id: '2', finder: 'finder'});")
     conn.execute("CREATE (u: SRC_LOGGING {id: '1', finder: 'finder'});")
 
-    result = conn.execute("""
+    result = conn.execute(
+        """
     MATCH (u) WHERE u.finder = 'finder'
     OPTIONAL MATCH (u)-[e:CALLS_NEW]-(v)
     RETURN u, e, v;
-    """)
+    """
+    )
     assert len(list(result)) == 3, f"Expected value 3, got {len(list(result))}"
