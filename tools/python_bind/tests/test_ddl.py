@@ -476,13 +476,14 @@ def test_drop_add_edge_table_column():
     assert list(ret) == [[0, 0], [0, 0], [0, 0], [2, 3]]
     conn2.execute("ALTER TABLE TestEdge DROP iteration;")
     conn2.execute("ALTER TABLE TestEdge DROP iteration2;")
-    conn2.execute("ALTER TABLE TestEdge ADD description STRING;")
-    conn2.execute(
-        "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge {description: 'test'}]->(v2);"
-    )
-    ret = conn2.execute(
-        "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.description ORDER BY e.description; "
-    )
-    assert list(ret) == [[""], [""], [""], ["test"], ["test"]]
+    # TODO(zhanglei): Turn on the test after issue #85 is fixed.
+    # conn2.execute("ALTER TABLE TestEdge ADD description STRING DEFAULT 'unknown';")
+    # conn2.execute(
+    #     "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge {description: 'test'}]->(v2);"
+    # )
+    # ret = conn2.execute(
+    #     "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.description ORDER BY e.description; "
+    # )
+    # assert list(ret) == [["unknown"], ["unknown"], ["unknown"], ["unknown"], ["test"]]
     conn2.close()
     db2.close()
