@@ -134,7 +134,7 @@ class EdgeTable {
   size_t Capacity() const;
 
  private:
-  void dropAndCreateNewBundledCSR();
+  void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
 
