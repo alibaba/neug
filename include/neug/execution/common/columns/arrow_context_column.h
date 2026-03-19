@@ -93,8 +93,6 @@ class ArrowArrayContextColumn : public IContextColumn {
   std::shared_ptr<IContextColumn> shuffle(
       const std::vector<size_t>& offsets) const override;
 
-  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
-
   std::shared_ptr<IContextColumn> cast_to_value_column() const;
 
  private:
@@ -150,6 +148,11 @@ class ArrowStreamContextColumn : public IContextColumn {
 
   std::vector<std::shared_ptr<IRecordBatchSupplier>> GetSuppliers() const {
     return suppliers_;
+  }
+
+  Value get_elem(size_t idx) const override {
+    LOG(FATAL) << "get_elem not implemented for arrow stream column";
+    return Value(DataType::SQLNULL);
   }
 
  private:
