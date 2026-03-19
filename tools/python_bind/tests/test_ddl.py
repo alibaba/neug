@@ -484,6 +484,5 @@ def test_drop_add_edge_table_column():
         "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.description ORDER BY e.description; "
     )
     assert list(ret) == [[""], [""], [""], ["test"], ["test"]]
-    print(list(ret))
     conn2.close()
     db2.close()

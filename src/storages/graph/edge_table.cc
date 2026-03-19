@@ -1144,7 +1144,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     table_idx_.store(prev_data_col->size());
     EnsureCapacity(prev_data_col->size());
   } else if (!delete_property) {
-    table_->resize(std::get<0>(edges).size());
+    table_->resize(std::get<0>(edges).size(), meta_->default_property_values);
     table_idx_.store(std::get<0>(edges).size());
     EnsureCapacity(std::get<0>(edges).size());
   }

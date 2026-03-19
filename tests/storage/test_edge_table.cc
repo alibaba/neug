@@ -1176,7 +1176,6 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
 }
 
 TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
-  GTEST_SKIP() << "Enable this check when string default value is ok";
   this->InitIndexers(4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_empty_);
   this->OpenEdgeTableInMemory(4, 4);
@@ -1237,7 +1236,6 @@ TEST_F(EdgeTableTest, TestAddPropertiesTransitionFromEmptyToBundledUnbundled) {
 }
 
 TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
-  GTEST_SKIP() << "Enable this check when string default value is ok";
   this->InitIndexers(4, 4);
   this->ConstructEdgeTable(src_label_, dst_label_, edge_label_empty_);
   this->OpenEdgeTableInMemory(4, 4);
@@ -1252,20 +1250,31 @@ TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
   this->BatchInsert(std::move(batches));
   this->ExpectBundledStats(src_list.size());
 
-  schema_.AddEdgeProperties("person", "comment", "create0", {"tag"},
-                            {neug::DataTypeId::kVarchar},
-                            {neug::Property::from_string_view("seed")});
   this->edge_table->SetEdgeSchema(
       schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
+  schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_)
+      ->add_properties({"tag"}, {neug::DataTypeId::kVarchar}, {},
+                       {neug::Property::from_string_view("seed")});
   this->edge_table->AddProperties({"tag"}, {neug::DataTypeId::kVarchar},
                                   {neug::Property::from_string_view("seed")});
+  schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_)
+      ->add_properties({"desc"}, {neug::DataTypeId::kVarchar}, {},
+                       {neug::Property::from_string_view("unknown")});
+  this->edge_table->AddProperties(
+      {"desc"}, {neug::DataTypeId::kVarchar},
+      {neug::Property::from_string_view("unknown")});
   this->ExpectUnbundledStats(src_list.size(), 4096);
 
-  std::vector<std::string_view> tags;
+  std::vector<std::string_view> tags, descs;
   this->OutputOutgoingEdgeData<std::string_view>(tags, neug::MAX_TIMESTAMP, 0);
+  this->OutputIncomingEdgeData<std::string_view>(descs, neug::MAX_TIMESTAMP, 1);
   ASSERT_EQ(tags.size(), src_list.size());
   for (auto tag : tags) {
     EXPECT_EQ(tag, "seed");
+  }
+  ASSERT_EQ(descs.size(), dst_list.size());
+  for (auto desc : descs) {
+    EXPECT_EQ(desc, "unknown");
   }
 }
 
