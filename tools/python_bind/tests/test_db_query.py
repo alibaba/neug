@@ -2712,4 +2712,7 @@ def test_optional_match_on_edge():
     RETURN u, e, v;
     """
     )
-    assert len(list(result)) == 3, f"Expected value 3, got {len(list(result))}"
+    length = len(list(result))
+    assert length == 3, f"Expected value 3, got {length}"
+    conn.close()
+    db.close()
