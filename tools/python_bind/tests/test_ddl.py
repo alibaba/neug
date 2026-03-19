@@ -360,3 +360,130 @@ def test_alter_varchar_type():
     assert list(res) == [[1, "Alice"]]
     conn.close()
     db.close()
+
+
+def test_get_varchar_default_value_1():
+    db_dir = "/tmp/test_get_varchar_default_value_1"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY, name VARCHAR(20) DEFAULT 'default_name');"
+    )
+    conn.execute("CREATE (:TestNode {id: 1});")
+    conn.execute("CREATE (:TestNode {id: 2});")
+    conn.execute("CREATE (:TestNode {id: 3});")
+    res = conn.execute("Match (n:TestNode) Return n.name;")
+    assert list(res) == [["default_name"], ["default_name"], ["default_name"]]
+    conn.close()
+    db.close()
+
+
+def test_get_varchar_default_value_2():
+    db_dir = "/tmp/test_get_varchar_default_value_2"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE TestNode(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE TestEdge(FROM TestNode TO TestNode);")
+    conn.execute("CREATE (:TestNode {id: 1});")
+    conn.execute("CREATE (:TestNode {id: 2});")
+    conn.execute("CREATE (:TestNode {id: 3});")
+    conn.execute(
+        "MATCH (a:TestNode {id: 1}), (b:TestNode {id: 2}) CREATE (a)-[:TestEdge]->(b);"
+    )
+    conn.execute(
+        "MATCH (a:TestNode {id: 2}), (b:TestNode {id: 3}) CREATE (a)-[:TestEdge]->(b);"
+    )
+    conn.execute("ALTER TABLE TestNode ADD name VARCHAR(20) DEFAULT 'default_name';")
+    conn.execute("CREATE (:TestNode {id: 4});")
+    conn.execute("CREATE (:TestNode {id: 5, name: 'custom_name'});")
+    res = conn.execute("Match (n:TestNode) Return n.name ORDER BY n.name;")
+    assert list(res) == [
+        ["custom_name"],
+        ["default_name"],
+        ["default_name"],
+        ["default_name"],
+        ["default_name"],
+    ]
+    conn.execute("ALTER TABLE TestEdge ADD date INT64;")
+    conn.execute(
+        "MATCH (a:TestNode {id: 1})-[e:TestEdge]->(b:TestNode {id: 2}) SET e.date = 1234567890;"
+    )
+    conn.execute(
+        "MATCH (a:TestNode {id: 1}), (b:TestNode { id: 3 }) CREATE (a)-[:TestEdge {date: 9876543210}]->(b);"
+    )
+    res = conn.execute(
+        "MATCH (a:TestNode {id: 1})-[e:TestEdge]->(b:TestNode) RETURN e.date;"
+    )
+    assert list(res) == [[1234567890], [9876543210]]
+    conn.close()
+    db.close()
+
+
+def test_drop_add_edge_table_column():
+    db_dir = "/tmp/test_drop_add_edge_table_column"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    # First create the graph schema
+    conn.execute(
+        """
+            CREATE NODE TABLE IF NOT EXISTS TestNode(
+                id INT64 PRIMARY KEY,
+                thread_id INT64
+            )
+        """
+    )
+    conn.execute(
+        """
+            CREATE REL TABLE IF NOT EXISTS TestEdge(
+                FROM TestNode TO TestNode
+            )
+        """
+    )
+    conn.close()
+    db.close()
+
+    db2 = Database(db_dir, "w")
+    conn2 = db2.connect()
+    conn2.execute("CREATE (v:TestNode {id: 1, thread_id: 1});")
+    conn2.execute("CREATE (v:TestNode {id: 2, thread_id: 2});")
+    conn2.execute("CREATE (v:TestNode {id: 3, thread_id: 3});")
+    conn2.execute(
+        "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge]->(v2);"
+    )
+    conn2.execute(
+        "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 3}) CREATE (v)-[:TestEdge]->(v2);"
+    )
+    conn2.execute("ALTER TABLE TestEdge ADD iteration INT64;")
+    conn2.execute(
+        "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge {iteration: 1}]->(v2);"
+    )
+    ret = conn2.execute(
+        "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.iteration;"
+    )
+    assert list(ret) == [[0], [0], [1]]
+    conn2.execute("ALTER TABLE TestEdge DROP iteration;")
+    conn2.execute("ALTER TABLE TestEdge ADD iteration INT64;")
+    conn2.execute("ALTER TABLE TestEdge ADD iteration2 INT64;")
+    conn2.execute(
+        "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge {iteration: 2, iteration2: 3}]->(v2);"
+    )
+    ret = conn2.execute(
+        "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.iteration, e.iteration2;"
+    )
+    assert list(ret) == [[0, 0], [0, 0], [0, 0], [2, 3]]
+    conn2.execute("ALTER TABLE TestEdge DROP iteration;")
+    conn2.execute("ALTER TABLE TestEdge DROP iteration2;")
+    # TODO(zhanglei): Turn on the test after issue #85 is fixed.
+    # conn2.execute("ALTER TABLE TestEdge ADD description STRING DEFAULT 'unknown';")
+    # conn2.execute(
+    #     "MATCH (v:TestNode {id: 1}), (v2:TestNode {id: 2}) CREATE (v)-[:TestEdge {description: 'test'}]->(v2);"
+    # )
+    # ret = conn2.execute(
+    #     "MATCH (v1:TestNode)-[e:TestEdge]->(v2:TestNode) RETURN e.description ORDER BY e.description; "
+    # )
+    # assert list(ret) == [["unknown"], ["unknown"], ["unknown"], ["unknown"], ["test"]]
+    conn2.close()
+    db2.close()

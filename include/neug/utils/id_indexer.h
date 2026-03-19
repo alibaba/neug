@@ -242,13 +242,11 @@ class LFIndexer {
   void init(const DataTypeId& type,
             std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
-    auto default_value = get_default_value(type);
     switch (type) {
-#define TYPE_DISPATCHER(enum_val, T)                                   \
-  case DataTypeId::enum_val: {                                         \
-    keys_ = std::make_shared<TypedColumn<T>>(                          \
-        PropUtils<T>::to_typed(default_value), StorageStrategy::kMem); \
-    break;                                                             \
+#define TYPE_DISPATCHER(enum_val, T)                                 \
+  case DataTypeId::enum_val: {                                       \
+    keys_ = std::make_shared<TypedColumn<T>>(StorageStrategy::kMem); \
+    break;                                                           \
   }
       TYPE_DISPATCHER(kInt64, int64_t)
       TYPE_DISPATCHER(kInt32, int32_t)
