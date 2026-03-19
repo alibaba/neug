@@ -78,9 +78,9 @@ class SDSLEdgeColumn : public IEdgeColumn {
 
   inline Direction dir() const override { return dir_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
-    return true;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    // TODO(liulexiao): dedup with property value
+    ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
   std::string column_info() const override {
@@ -185,9 +185,8 @@ class MSEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return total_size_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    LOG(ERROR) << "not implemented for " << this->column_info();
-    return false;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    LOG(FATAL) << "not implemented for " << this->column_info();
   }
 
   std::string column_info() const override {
@@ -353,9 +352,8 @@ class BDSLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
-    return true;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
   std::string column_info() const override {
@@ -461,9 +459,8 @@ class SDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
-    return true;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
   std::string column_info() const override {
@@ -583,9 +580,8 @@ class BDMLEdgeColumn : public IEdgeColumn {
 
   inline size_t size() const override { return edges_.size(); }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(edges_, offsets);
-    return true;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(edges_, size(), offsets);
   }
 
   std::string column_info() const override {

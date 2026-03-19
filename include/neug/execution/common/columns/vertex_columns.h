@@ -31,7 +31,8 @@ class IVertexColumn : public IContextColumn {
   IVertexColumn() : type_(DataType(DataTypeId::kVertex)) {}
   virtual ~IVertexColumn() = default;
 
-  ContextColumnType column_type() const override {
+  __attribute__((always_inline)) ContextColumnType column_type()
+      const override {
     return ContextColumnType::kVertex;
   }
 
@@ -88,7 +89,8 @@ class SLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  VertexColumnType vertex_column_type() const override {
+  __attribute__((always_inline)) VertexColumnType vertex_column_type()
+      const override {
     return VertexColumnType::kSingle;
   }
 
@@ -114,7 +116,7 @@ class SLVertexColumn : public IVertexColumn {
   std::shared_ptr<IContextColumn> union_col(
       std::shared_ptr<IContextColumn> other) const override;
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
   std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
   generate_aggregate_offset() const override;
@@ -173,7 +175,8 @@ class MSVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  VertexColumnType vertex_column_type() const override {
+  __attribute__((always_inline)) VertexColumnType vertex_column_type()
+      const override {
     return VertexColumnType::kMultiSegment;
   }
 
@@ -230,8 +233,6 @@ class MSVertexColumn : public IVertexColumn {
       size_t seg_id) const {
     return vertices_[seg_id].second;
   }
-
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
  private:
   friend class MSVertexColumnBuilder;
@@ -319,7 +320,8 @@ class MLVertexColumn : public IVertexColumn {
            std::to_string(size()) + "]";
   }
 
-  VertexColumnType vertex_column_type() const override {
+  __attribute__((always_inline)) VertexColumnType vertex_column_type()
+      const override {
     return VertexColumnType::kMultiple;
   }
 
@@ -351,7 +353,7 @@ class MLVertexColumn : public IVertexColumn {
 
   std::set<label_t> get_labels_set() const override { return labels_; }
 
-  bool generate_dedup_offset(std::vector<size_t>& offsets) const override;
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override;
 
  private:
   friend class MLVertexColumnBuilder;

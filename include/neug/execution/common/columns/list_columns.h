@@ -19,6 +19,12 @@
 namespace neug {
 namespace execution {
 
+class ListColumnBase : public IContextColumn {
+ public:
+  virtual std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>>
+  unfold() const = 0;
+};
+
 struct list_item {
   uint64_t offset;
   uint64_t length;
@@ -26,7 +32,7 @@ struct list_item {
 
 class ListColumnBuilder;
 
-class ListColumn : public IContextColumn {
+class ListColumn : public ListColumnBase {
  public:
   explicit ListColumn(DataType type) : elem_type_(type) {
     std::shared_ptr<ExtraTypeInfo> elem_type_info =
@@ -58,8 +64,13 @@ class ListColumn : public IContextColumn {
     return Value::LIST(elem_type_, std::move(list_values));
   }
 
+  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    LOG(FATAL) << "not implemented for " << this->column_info();
+    // ColumnsUtils::generate_dedup_offset(data_, data_.size(), offsets);
+  }
+
   std::pair<std::shared_ptr<IContextColumn>, std::vector<size_t>> unfold()
-      const;
+      const override;
 
   std::shared_ptr<IContextColumn> data_column() const { return datas_; }
 

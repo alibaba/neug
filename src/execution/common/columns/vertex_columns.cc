@@ -59,7 +59,7 @@ std::shared_ptr<IContextColumn> SLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+void SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   offsets.clear();
 
   std::vector<bool> bitset;
@@ -92,7 +92,6 @@ bool SLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   if (flag) {
     offsets.push_back(idx);
   }
-  return true;
 }
 
 std::pair<std::shared_ptr<IContextColumn>, std::vector<std::vector<size_t>>>
@@ -226,25 +225,6 @@ std::shared_ptr<IContextColumn> MSVertexColumnBuilder::finish() {
   }
 }
 
-bool MSVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
-  offsets.clear();
-  std::set<VertexRecord> vset;
-  bool null_seen = false;
-  size_t len = size();
-  for (size_t i = 0; i != len; ++i) {
-    auto cur = get_vertex(i);
-    if (cur.vid_ == std::numeric_limits<vid_t>::max()) {
-      if (!null_seen) {
-        null_seen = true;
-        offsets.push_back(i);
-      }
-    } else if (vset.find(cur) == vset.end()) {
-      offsets.push_back(i);
-      vset.insert(cur);
-    }
-  }
-  return true;
-}
 std::shared_ptr<IContextColumn> MLVertexColumn::shuffle(
     const std::vector<size_t>& offsets) const {
   MLVertexColumnBuilderOpt builder(this->get_labels_set());
@@ -279,7 +259,7 @@ std::shared_ptr<IContextColumn> MLVertexColumn::optional_shuffle(
   return builder.finish();
 }
 
-bool MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
+void MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
   offsets.clear();
   std::set<VertexRecord> vset;
   size_t n = vertices_.size();
@@ -290,7 +270,6 @@ bool MLVertexColumn::generate_dedup_offset(std::vector<size_t>& offsets) const {
       vset.insert(cur);
     }
   }
-  return true;
 }
 
 std::shared_ptr<IContextColumn> MLVertexColumnBuilder::finish() {
