@@ -47,8 +47,9 @@ class PathColumn : public IContextColumn {
   }
   inline const Path& get_path(size_t idx) const { return data_[idx]; }
 
-  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
-    ColumnsUtils::generate_dedup_offset(data_, data_.size(), offsets);
+  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
+    ColumnsUtils::generate_dedup_offset(data_, offsets);
+    return true;
   }
 
   template <typename FUNC>
