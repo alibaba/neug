@@ -1,0 +1,70 @@
+name: Nightly PyPI Package Test
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-pypi-package-test.yml'
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-14
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: ubuntu-24.04-arm
+            python-version: "3.14"
+        include:
+          - os: ubuntu-latest
+            platform-name: "linux-x86_64"
+            arch: "x86_64"
+
+          - os: ubuntu-24.04-arm
+            platform-name: "linux-arm64"
+            arch: "arm64"
+
+          - os: macos-14
+            platform-name: "macos-arm64"
+            arch: "arm64"
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+        cache: 'pip'
+
+    - name: Install NeuG
+      run: |
+        pip install neug
+
+    - name: Run Python Test
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
+        python3 -m unittest tests/test_batch_loading.py
+        python3 -m unittest tests/test_alter_property.py
+        python3 example/complex_test.py

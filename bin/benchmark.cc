@@ -233,7 +233,7 @@ void benchmark_iteration(
 }
 
 int main(int argc, char** argv) {
-  cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
+  cxxopts::Options options("benchmark", "Benchmarking tool for NeuG");
   options.add_options()("help", "Display help message")(
       "data-path,d", "", cxxopts::value<std::string>())(
       "memory-level,m", "", cxxopts::value<int>()->default_value("1"))(

@@ -43,7 +43,7 @@ int main() {
 
   // Process results
   if (result.has_value()) {
-    for (auto& record : result.value()) {
+    for (const auto& record : result.value()) {
       std::cout << record.ToString() << std::endl;
     }
   }

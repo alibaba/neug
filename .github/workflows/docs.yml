@@ -6,6 +6,7 @@ on:
         - main
       paths:
         - 'doc/**'
+        - 'tools/java_driver/**'
         - '.github/workflows/docs.yml'
 
 
@@ -32,11 +33,18 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: '3.9.6'
 
     - name: Build Documentation
       run: |
         sudo apt update
         sudo apt install -y doxygen graphviz
+        cd ${GITHUB_WORKSPACE}/tools/java_driver
+        mvn -DskipTests javadoc:javadoc
         cd ${GITHUB_WORKSPACE}/tools/python_bind
         python3 -m pip  install -r requirements.txt
         python3 -m pip  install -r requirements_dev.txt
@@ -44,4 +52,5 @@ jobs:
         . /home/neug/.neug_env
         make dependencies
         make html
-
+        mkdir -p ${GITHUB_WORKSPACE}/doc/build/html/reference/java_api
+        cp -r ${GITHUB_WORKSPACE}/tools/java_driver/target/site/apidocs ${GITHUB_WORKSPACE}/doc/build/html/reference/java_api/
