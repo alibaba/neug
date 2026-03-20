@@ -13,6 +13,5 @@ CHILD:
 CHILD:
     GET_V[GET_V() Cardinality: 3312]
     EXTEND[com<-waWORKAT,-friend Cardinality: 3312 WHERE LESS_THAN(wa.workFrom,$workFromYear)]
-    GET_V[GET_V() Cardinality: 7954]
     EXTEND[<-ISLOCATEDIN_ORGANISATION_PLACE,-com Cardinality: 7954]
     SCAN_NODE_TABLE[._ID .nameType: INTERNAL_ID Predicates: EQUALS(.name,$countryName) Cardinality: 1460]

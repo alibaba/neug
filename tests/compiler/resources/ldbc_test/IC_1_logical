@@ -1,0 +1,5 @@
+PROJECTION[companies]
+EXTEND[company-ISLOCATEDIN_ORGANISATION_PLACE,->country Cardinality: 3313]
+GET_V[GET_V() Cardinality: 3313]
+EXTEND[f-workAtWORKAT,->company Cardinality: 3313]
+SCAN_NODE_TABLE[f._ID Type: INTERNAL_ID Cardinality: 1528]
