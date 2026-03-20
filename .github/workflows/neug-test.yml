@@ -41,10 +41,10 @@ concurrency:
 
 jobs:
   format_check:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/format-check.yml
-    with :
-      is_pull_request: true
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
 
   # ============================================================
   # Unified Job: Build NeuG + run C++, Python, and E2E tests
