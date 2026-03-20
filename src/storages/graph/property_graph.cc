@@ -154,7 +154,6 @@ Status PropertyGraph::BatchAddEdges(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateVertexType(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<DataType, std::string, Property>>& properties,
@@ -260,7 +259,6 @@ Status PropertyGraph::CreateVertexType(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateEdgeType(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
@@ -338,7 +336,6 @@ Status PropertyGraph::CreateEdgeType(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddVertexProperties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<DataType, std::string, Property>>&
@@ -386,7 +383,6 @@ Status PropertyGraph::AddVertexProperties(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,

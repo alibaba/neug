@@ -60,9 +60,10 @@ class ValueColumn : public IContextColumn {
   const std::vector<T>& data() const { return data_; }
   const std::vector<bool>& validity_bitmap() const { return valid_; }
 
-  void generate_dedup_offset(std::vector<size_t>& offsets) const override {
+  bool generate_dedup_offset(std::vector<size_t>& offsets) const override {
     if (!is_optional_) {
-      return ColumnsUtils::generate_dedup_offset(data_, data_.size(), offsets);
+      ColumnsUtils::generate_dedup_offset(data_, offsets);
+      return true;
     }
     std::set<T> st;
     size_t null_index = std::numeric_limits<size_t>::max();
@@ -79,6 +80,7 @@ class ValueColumn : public IContextColumn {
     if (null_index != std::numeric_limits<size_t>::max()) {
       offsets.push_back(null_index);
     }
+    return true;
   }
 
   std::shared_ptr<IContextColumn> union_col(

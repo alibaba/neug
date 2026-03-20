@@ -238,105 +238,6 @@ shuffle_impl<arrow::LargeStringArray, arrow::LargeStringBuilder>(
   return result_array;
 }
 
-template <typename ArrowArrayType>
-static bool less_than(const std::vector<std::shared_ptr<arrow::Array>>& columns,
-                      size_t size, size_t offset_a, size_t offset_b) {
-  auto [array_idx_a, local_offset_a] =
-      locate_array_and_offset(columns, size, offset_a);
-  auto [array_idx_b, local_offset_b] =
-      locate_array_and_offset(columns, size, offset_b);
-  auto casted_a =
-      std::static_pointer_cast<ArrowArrayType>(columns[array_idx_a]);
-  auto casted_b =
-      std::static_pointer_cast<ArrowArrayType>(columns[array_idx_b]);
-  return casted_a->Value(local_offset_a) < casted_b->Value(local_offset_b);
-}
-
-template <typename ArrowArrayType>
-static bool equal(const std::vector<std::shared_ptr<arrow::Array>>& columns,
-                  size_t size, size_t offset_a, size_t offset_b) {
-  auto [array_idx_a, local_offset_a] =
-      locate_array_and_offset(columns, size, offset_a);
-  auto [array_idx_b, local_offset_b] =
-      locate_array_and_offset(columns, size, offset_b);
-  auto casted_a =
-      std::static_pointer_cast<ArrowArrayType>(columns[array_idx_a]);
-  auto casted_b =
-      std::static_pointer_cast<ArrowArrayType>(columns[array_idx_b]);
-  return casted_a->Value(local_offset_a) == casted_b->Value(local_offset_b);
-}
-
-// Template function to generate dedup offsets
-template <typename ArrowArrayType>
-static void generate_dedup_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    std::vector<size_t>& offsets) {
-  // Create vector of all offsets
-  std::vector<size_t> row_indices(size);
-  std::iota(row_indices.begin(), row_indices.end(), 0);
-
-  // Create comparator that directly uses Arrow arrays
-  auto compare = [&](size_t a, size_t b) -> bool {
-    if (equal<ArrowArrayType>(columns, size, a, b)) {
-      return a < b;
-    }
-    return less_than<ArrowArrayType>(columns, size, a, b);
-  };
-
-  // Sort indices using stable_sort to maintain order for equal values
-  std::stable_sort(row_indices.begin(), row_indices.end(), compare);
-
-  // Extract deduplicated offsets
-  offsets.clear();
-  if (row_indices.empty()) {
-    return;
-  }
-
-  offsets.push_back(row_indices[0]);
-
-  for (size_t i = 1; i < row_indices.size(); ++i) {
-    if (!equal<ArrowArrayType>(columns, size, row_indices[i],
-                               row_indices[i - 1])) {
-      offsets.push_back(row_indices[i]);
-    }
-  }
-}
-
-// Define DISPATCH macro to generate dedup offsets based on Arrow type
-void dispatch_generate_dedup_offset(
-    const std::vector<std::shared_ptr<arrow::Array>>& columns, size_t size,
-    const std::shared_ptr<arrow::DataType>& arrow_type,
-    std::vector<size_t>& offsets) {
-  // Use Arrow type ID for dispatch
-  switch (arrow_type->id()) {
-#define ARROW_TYPE_DISPATCHER_DEDUP(arrow_type_id, arrow_array_type) \
-  case arrow::Type::arrow_type_id: {                                 \
-    generate_dedup_offset<arrow_array_type>(columns, size, offsets); \
-    break;                                                           \
-  }
-
-    ARROW_TYPE_DISPATCHER_DEDUP(BOOL, arrow::BooleanArray)
-    ARROW_TYPE_DISPATCHER_DEDUP(INT64, arrow::Int64Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(INT32, arrow::Int32Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(UINT32, arrow::UInt32Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(UINT64, arrow::UInt64Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(FLOAT, arrow::FloatArray)
-    ARROW_TYPE_DISPATCHER_DEDUP(DOUBLE, arrow::DoubleArray)
-    ARROW_TYPE_DISPATCHER_DEDUP(STRING, arrow::StringArray)
-    ARROW_TYPE_DISPATCHER_DEDUP(LARGE_STRING, arrow::LargeStringArray)
-    ARROW_TYPE_DISPATCHER_DEDUP(DATE32, arrow::Date32Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(DATE64, arrow::Date64Array)
-    ARROW_TYPE_DISPATCHER_DEDUP(TIMESTAMP, arrow::TimestampArray)
-    // Interval type has been converted to arrow string type
-
-#undef ARROW_TYPE_DISPATCHER_DEDUP
-
-  default:
-    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type for dedup: " +
-                                  arrow_type->ToString());
-  }
-}
-
 std::shared_ptr<IContextColumn> ArrowArrayContextColumnBuilder::finish() {
   return std::make_shared<ArrowArrayContextColumn>(columns_);
 }
@@ -465,17 +366,6 @@ Value ArrowArrayContextColumn::get_elem(size_t idx) const {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported arrow type: " +
                                   arrow_type->ToString());
   }
-}
-
-void ArrowArrayContextColumn::generate_dedup_offset(
-    std::vector<size_t>& offsets) const {
-  if (columns_.empty()) {
-    offsets.clear();
-    return;
-  }
-
-  auto arrow_type = columns_[0]->type();
-  dispatch_generate_dedup_offset(columns_, size_, arrow_type, offsets);
 }
 
 std::shared_ptr<IContextColumn> ArrowArrayContextColumn::cast_to_value_column()
