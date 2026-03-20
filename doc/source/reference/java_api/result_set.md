@@ -5,12 +5,13 @@
 ## Common Access Pattern
 
 ```java
-try (Session session = driver.session();
-        ResultSet rs = session.run("MATCH (n:Person) RETURN n.name AS name, n.age AS age")) {
-    while (rs.next()) {
-        String name = rs.getString("name");
-        long age = rs.getLong("age");
-        System.out.println(name + ", " + age);
+try (Session session = driver.session()) {
+    try (ResultSet rs = session.run("MATCH (n:Person) RETURN n.name AS name, n.age AS age")) {
+        while (rs.next()) {
+            String name = rs.getString("name");
+            long age = rs.getLong("age");
+            System.out.println(name + ", " + age);
+        }
     }
 }
 ```
