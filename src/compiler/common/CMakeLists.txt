@@ -6,7 +6,6 @@ add_subdirectory(serializer)
 add_subdirectory(task_system)
 add_subdirectory(types)
 add_subdirectory(vector)
-add_subdirectory(file_system)
 
 add_library(compiler_common
         OBJECT

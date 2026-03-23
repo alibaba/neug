@@ -25,6 +25,7 @@
 #include <string>
 
 #include "neug/compiler/function/read_function.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/generated/proto/response/response.pb.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
@@ -426,10 +427,10 @@ static execution::Context jsonExecFunc(
   if (schema.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
-  LocalFileSystemProvider fsProvider;
-  auto fileInfo = fsProvider.provide(schema, false);
+  const auto& vfs = neug::main::MetadataRegistry::getVFS();
+  const auto& fs = vfs->Provide(schema);
   auto writer = std::make_shared<neug::writer::ArrowJsonArrayExportWriter>(
-      schema, fileInfo.fileSystem, entry_schema);
+      schema, fs->toArrowFileSystem(), entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());
@@ -463,10 +464,10 @@ static execution::Context jsonLExecFunc(
   if (schema.paths.empty()) {
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
-  LocalFileSystemProvider fsProvider;
-  auto fileInfo = fsProvider.provide(schema, false);
+  const auto& vfs = neug::main::MetadataRegistry::getVFS();
+  const auto& fs = vfs->Provide(schema);
   auto writer = std::make_shared<neug::writer::ArrowJsonLExportWriter>(
-      schema, fileInfo.fileSystem, entry_schema);
+      schema, fs->toArrowFileSystem(), entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());

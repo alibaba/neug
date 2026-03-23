@@ -18,7 +18,7 @@ limitations under the License.
 #include <cctype>
 #include "neug/compiler/common/case_insensitive_map.h"
 #include "neug/compiler/gopt/g_catalog.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/gopt/g_result_schema.h"
 #include "neug/utils/exception/exception.h"
 

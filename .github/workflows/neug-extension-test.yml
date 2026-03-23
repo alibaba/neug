@@ -108,6 +108,7 @@ jobs:
         export TEST_PATH=${GITHUB_WORKSPACE}/tests
         cd build/neug_py_bind
         ctest -R json_extension_test -V
+        ctest -R parquet_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -122,6 +123,7 @@ jobs:
         GLOG_v=10 ./build/neug_py_bind/tools/utils/bulk_loader -g ../../example_dataset/comprehensive_graph/graph.yaml -l ../../example_dataset/comprehensive_graph/import.yaml -d /tmp/comprehensive_graph
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, linux, x64]

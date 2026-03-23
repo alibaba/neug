@@ -2,7 +2,7 @@
 
 # Module neug.session
 
-<a id="neug.session.CollectiveResults"></a>
+<a id="neug.session.QueryResult"></a>
 
 ## Session Objects
 

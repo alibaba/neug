@@ -15,7 +15,7 @@ db.Open("/path/to/data", 4);  // 4 threads
 auto conn = db.Connect();
 auto result = conn->Query("MATCH (n:Person) RETURN n LIMIT 10");
 // Process results
-for (auto& record : result.value()) {
+for (const auto& record : result.value()) {
   std::cout << record.ToString() << std::endl;
 }
 // Close database (persists data)
@@ -187,4 +187,11 @@ Remove a connection from the database.
 - **Notes:**
   - This method is used to remove a connection when it is closed, to remove the handle from the database.
   - This method is not thread-safe, so it should be called only when the connection is closed. And should be only called internally.
+
+#### `CloseAllConnection()`
+
+Remove all connection from the database.
+
+- **Notes:**
+  - This method is used to remove all connection when tp svc created, to remove the handle from the database.
 

@@ -8,12 +8,18 @@ This section contains the complete API reference for NeuG.
    :caption: API Documentation
 
    Python API <python_api/index>
+   Java API <java_api/index>
    C++ API <cpp_api/index>
 
 Python API
 ----------
 
 The Python API provides a high-level interface for interacting with NeuG databases.
+
+Java API
+--------
+
+The Java API provides a Java-native driver interface for connecting to NeuG servers and executing queries.
 
 C++ API
 -------

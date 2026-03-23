@@ -18,11 +18,9 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include <vector>
-#include "neug/compiler/catalog/catalog.h"
-#include "neug/compiler/extension/extension.h"
 #include "neug/compiler/gopt/g_catalog.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/main/metadata_registry.h"
 
 namespace neug {
 namespace extension {
@@ -41,11 +39,9 @@ struct ExtensionInfo {
 
 class ExtensionAPI {
  public:
-  static void setCatalog(neug::catalog::Catalog* catalog);
-
   template <typename T>
   static void registerFunction(catalog::CatalogEntryType entryType) {
-    auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+    auto gCatalog = neug::main::MetadataRegistry::getCatalog();
     if (gCatalog->containsFunction(&neug::transaction::DUMMY_TRANSACTION,
                                    T::name, false)) {
       return;
@@ -57,10 +53,21 @@ class ExtensionAPI {
 
   template <typename T>
   static void registerFunctionAlias(catalog::CatalogEntryType entryType) {
-    auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+    auto gCatalog = neug::main::MetadataRegistry::getCatalog();
     gCatalog->addFunctionWithSignature(&neug::transaction::DUMMY_TRANSACTION,
                                        entryType, T::name,
                                        T::alias::getFunctionSet(), false);
+  }
+
+  // Register file system factory for specific protocol.
+  // For example, register "file" protocol file system factory:
+  // registerFileSystem("file", [](const reader::FileSchema& schema) {
+  //   return std::make_unique<LocalFileSystem>(schema);
+  // });
+  static void registerFileSystem(const std::string& protocol,
+                                 neug::fsys::FileSystemFactory factory) {
+    auto vfs = neug::main::MetadataRegistry::getVFS();
+    vfs->Register(protocol, std::move(factory));
   }
 
   static void registerExtension(const ExtensionInfo& info);

@@ -17,7 +17,6 @@
 
 #include <cstdint>
 
-#include "neug/compiler/storage/wal/wal.h"
 #include "neug/compiler/transaction/transaction.h"
 
 namespace neug {

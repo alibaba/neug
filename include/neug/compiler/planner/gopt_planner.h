@@ -4,16 +4,13 @@
 #pragma once
 
 #include <memory>
-#include <shared_mutex>
 #include <string>
 
 #include <yaml-cpp/yaml.h>
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/compiler/gopt/g_alias_manager.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
-#include "neug/compiler/gopt/g_physical_convertor.h"
 #include "neug/compiler/main/client_context.h"
 #include "neug/compiler/main/metadata_manager.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/compiler/planner/graph_planner.h"
 
 namespace neug {
@@ -32,6 +29,7 @@ class GOptPlanner : public neug::IGraphPlanner {
   GOptPlanner() : IGraphPlanner() {
     database = std::make_unique<neug::main::MetadataManager>();
     ctx = std::make_unique<neug::main::ClientContext>(database.get());
+    neug::main::MetadataRegistry::registerMetadata(database.get());
   }
 
   inline std::string type() const override { return "gopt"; }
