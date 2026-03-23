@@ -348,6 +348,9 @@ neug::result<std::pair<Pipeline, ContextMeta>>
 PlanParser::parse_execute_pipeline(const neug::Schema& schema,
                                    const ContextMeta& ctx_meta,
                                    const physical::PhysicalPlan& plan) {
+  std::cout << "PlanParser::parse_execute_pipeline: start parsing plan with "
+            << plan.DebugString() << std::endl;
+  std::cout.flush();
   auto ret = parse_execute_pipeline_with_meta(schema, ctx_meta, plan);
   if (!ret) {
     RETURN_ERROR(ret.error());
