@@ -25,11 +25,6 @@ jobs:
           - ubuntu-24.04-arm
           - macos-14
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        exclude:
-          - os: ubuntu-latest
-            python-version: "3.14"
-          - os: ubuntu-24.04-arm
-            python-version: "3.14"
         include:
           - os: ubuntu-latest
             platform-name: "linux-x86_64"
