@@ -23,6 +23,7 @@ on:
       - 'tools/python_bind/**'
       - 'tools/shell/**'
       - '.github/workflows/build-wheel.yml'
+      - '.github/workflows/wheels-common.yml'
       - 'scripts/install_deps.sh'
       - 'CMakeLists.txt'
       - 'NEUG_VERSION'
