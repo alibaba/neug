@@ -95,6 +95,8 @@ class TestLoadFrom:
         self.db = Database(db_path=self.db_dir, mode="w")
         self.conn = self.db.connect()
         self.tinysnb_path = get_tinysnb_dataset_path()
+        # OSS endpoint for testing
+        self.oss_endpoint = "oss-cn-beijing.aliyuncs.com"
         yield
         self.conn.close()
         self.db.close()
@@ -1294,6 +1296,7 @@ class TestCopyFrom:
         self.db = Database(db_path=self.db_dir, mode="w")
         self.conn = self.db.connect()
         self.tinysnb_path = get_tinysnb_dataset_path()
+        self.oss_endpoint = "oss-cn-beijing.aliyuncs.com"
         yield
         self.conn.close()
         self.db.close()

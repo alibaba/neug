@@ -126,5 +126,7 @@ endfunction()
 add_extension_if_enabled("json")
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add s3 extension
+add_extension_if_enabled("s3")
 
 message(STATUS "=== Extension configuration complete ===")
