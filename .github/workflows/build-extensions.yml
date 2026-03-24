@@ -6,7 +6,7 @@ on:
       extensions:
         description: 'Semicolon-separated list of extensions to build (e.g., json;parquet)'
         required: false
-        default: 'json;parquet'
+        default: 'json;parquet;s3'
       version:
         description: 'Version tag for the extensions (e.g., 0.1.0)'
         required: false
@@ -51,7 +51,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             EXTENSIONS="${{ github.event.inputs.extensions }}"
           else
-            EXTENSIONS="json;parquet"
+            EXTENSIONS="json;parquet;s3"
           fi
           echo "extensions=$EXTENSIONS" >> $GITHUB_OUTPUT
           echo "Building extensions: $EXTENSIONS"
