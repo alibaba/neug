@@ -479,8 +479,9 @@ TEST_F(ValueTest, EdgeCases) {
   // LOG(FATAL) calls abort(); EXPECT_DEATH is unreliable under sanitizers.
 #if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \
     !defined(UNDEFINED_SANITIZER)
-  EXPECT_DEATH({ ValueConverter<bool>::typed_from_string("invalid"); },
-               "Invalid boolean string");
+  EXPECT_DEATH(
+      { ValueConverter<bool>::typed_from_string("invalid"); },
+      "Invalid boolean string");
 #endif
 }
 
@@ -611,7 +612,7 @@ TEST_F(ValueTest, PerformCast) {
   // float to double
   Value float_val = Value::FLOAT(2.718f);
   Value double_result = performCast<double>(float_val);
-  EXPECT_FLOAT_EQ(double_result.GetValue<double>(), 2.718);
+  EXPECT_FLOAT_EQ(static_cast<float>(double_result.GetValue<double>()), 2.718f);
 
   Value str_date = Value::STRING("2023-06-15");
   Value date_result = performCast<Date>(str_date);
