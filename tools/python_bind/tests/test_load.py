@@ -1283,6 +1283,89 @@ class TestLoadFrom:
         assert str(rows[0][5]).startswith(
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
+        
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_on_oss(self):
+        """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
+        # Load required extensions
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+
+        # OSS file path - use inline options to specify anonymous access
+        vertex_oss_path = "oss://graphscope/neug/vPerson.parquet"
+
+        # Execute LOAD FROM query with inline S3 options
+        # This is the CORRECT way: pass options inline, not via environment variables
+        vertex_query = f'''
+        LOAD FROM "{vertex_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='{self.oss_endpoint}'
+        )
+        RETURN *
+        '''
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_oss_path = "oss://graphscope/neug/eMeets.parquet"
+
+        edge_query = f'''
+        LOAD FROM "{edge_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='{self.oss_endpoint}'
+        )
+        RETURN *
+        '''
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+        
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_http(self):
+        """Test LOAD FROM Parquet file via HTTP."""
+        vertex_http_path = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        edge_http_path = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+        vertex_query = f'''
+        LOAD FROM "{vertex_http_path}" 
+        RETURN *
+        '''
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f'''
+        LOAD FROM "{edge_http_path}"
+        RETURN *
+        '''
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
 
 class TestCopyFrom:
