@@ -25,8 +25,8 @@
 #include <unordered_map>
 #include <vector>
 #include "neug/compiler/common/case_insensitive_map.h"
-#include "neug/compiler/function/read_function.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/file_sys/file_system.h"
 #include "neug/utils/reader/schema.h"
 
 namespace neug {
@@ -179,32 +179,40 @@ class HTTPFileSystem : public arrow::fs::FileSystem {
 };
 
 /**
- * HTTP File System Provider for accessing HTTP/HTTPS resources
- * 
+ * HTTPFileSystemWrapper implements the neug::fsys::FileSystem interface for
+ * HTTP/HTTPS resources.
+ *
  * Supports:
  * - Public HTTP/HTTPS URLs
  * - Authenticated endpoints (Bearer token, custom headers)
  * - Streaming reads with HTTP Range requests
  * - Efficient Parquet column pruning
- * 
+ *
  * Features:
  * - No local caching (streams data directly)
  * - Connection reuse for multiple requests
  * - TLS/SSL certificate verification
  */
-class HTTPFileSystemProvider
-    : public function::FileSystemProvider<arrow::fs::FileSystem> {
+class HTTPFileSystemWrapper : public fsys::FileSystem {
  public:
-  /**
-   * Create HTTP filesystem wrapper and resolve paths
-   * 
-   * @param schema File schema with HTTP(S) URLs and options
-   * @return FileInfo with filesystem instance and resolved paths
-   * @throws neug::Exception if initialization fails
-   */
-  function::FileInfo<arrow::fs::FileSystem> provide(
-      const reader::FileSchema& schema) override;
+  explicit HTTPFileSystemWrapper(const reader::FileSchema& schema);
+
+  // fsys::FileSystem interface
+  // HTTP has no glob/directory listing support; returns the path unchanged.
+  std::vector<std::string> glob(const std::string& path) override;
+  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
+
+ private:
+  common::case_insensitive_map_t<std::string> options_;
 };
+
+/**
+ * Factory function to create an HTTPFileSystemWrapper from a FileSchema.
+ * Registers as the factory for "http" and "https" protocols in
+ * FileSystemRegistry.
+ */
+std::unique_ptr<fsys::FileSystem> CreateHTTPFileSystem(
+    const reader::FileSchema& schema);
 
 }  // namespace http
 }  // namespace extension

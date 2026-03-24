@@ -29,6 +29,7 @@
 #include <sstream>
 #include <thread>
 #include <chrono>
+#include "neug/utils/file_sys/file_system.h"
 
 namespace neug {
 namespace extension {
@@ -643,34 +644,38 @@ HTTPFileSystem::OpenAppendStream(
 }
 
 // ============================================================================
-// HTTPFileSystemProvider Implementation
+// HTTPFileSystemWrapper Implementation
 // ============================================================================
 
-function::FileInfo<arrow::fs::FileSystem> HTTPFileSystemProvider::provide(
-    const reader::FileSchema& schema) {
-  
-  LOG(INFO) << "HTTPFileSystemProvider::provide called for " << schema.paths.size() << " paths";
-  
+HTTPFileSystemWrapper::HTTPFileSystemWrapper(const reader::FileSchema& schema)
+    : options_(schema.options) {
   // Validate all paths are HTTP(S) URLs
   for (const auto& path : schema.paths) {
     try {
-      auto components = HTTPURIComponents::parse(path);
-      LOG(INFO) << "Parsed HTTP URL: " << components.toURL();
+      HTTPURIComponents::parse(path);
     } catch (const exception::Exception& e) {
       THROW_IO_EXCEPTION("Invalid HTTP URL: " + path + " - " + e.what());
     }
   }
-  
-  // Create HTTP filesystem with schema options directly
-  // HTTPFileSystem will extract only the HTTP-related options it needs
-  auto http_fs = std::make_shared<HTTPFileSystem>(schema.options);
-  
-  // Return FileInfo with HTTP filesystem and original paths
-  // Note: No glob expansion for HTTP (no directory listing support)
-  return function::FileInfo<arrow::fs::FileSystem>{
-      schema.paths,  // resolvedPaths: keep original HTTP URLs
-      http_fs        // fileSystem: Arrow-compatible HTTP filesystem
-  };
+  LOG(INFO) << "HTTPFileSystemWrapper created for " << schema.paths.size()
+            << " path(s)";
+}
+
+std::vector<std::string> HTTPFileSystemWrapper::glob(const std::string& path) {
+  // HTTP does not support directory listing or glob expansion.
+  // The path is returned as-is (single URL).
+  LOG(INFO) << "HTTPFileSystemWrapper::glob - returning path unchanged: "
+            << path;
+  return {path};
+}
+
+std::unique_ptr<arrow::fs::FileSystem> HTTPFileSystemWrapper::toArrowFileSystem() {
+  return std::make_unique<HTTPFileSystem>(options_);
+}
+
+std::unique_ptr<fsys::FileSystem> CreateHTTPFileSystem(
+    const reader::FileSchema& schema) {
+  return std::make_unique<HTTPFileSystemWrapper>(schema);
 }
 
 }  // namespace http

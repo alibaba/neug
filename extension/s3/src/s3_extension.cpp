@@ -17,8 +17,9 @@
 #include <glog/logging.h>
 #include <arrow/filesystem/s3fs.h>
 #include <cstdlib>
-#include "neug/compiler/function/filesystem_registry.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/file_sys/file_system.h"
 #include "s3_filesystem.h"
 #include "http_filesystem.h"
 
@@ -26,29 +27,27 @@ namespace neug {
 namespace extension {
 namespace s3 {
 
-// Statically initialize S3 provider when extension loads
-// This follows the DuckDB extension pattern
+// Register S3/OSS filesystem factories in the global VFS registry
 static void RegisterS3Provider() {
-  auto registry = function::FileSystemProviderRegistry::getInstance();
-  auto provider = std::make_shared<S3FileSystemProvider>();
-  
+  auto* vfs = neug::main::MetadataRegistry::getVFS();
+
   // Register for both s3:// and oss:// schemes
-  registry->registerProvider("s3", provider);
-  registry->registerProvider("oss", provider);
-  
-  LOG(INFO) << "[s3 extension] S3FileSystemProvider registered for schemes: s3, oss";
+  vfs->Register("s3", neug::extension::s3::CreateS3FileSystem);
+  vfs->Register("oss", neug::extension::s3::CreateS3FileSystem);
+
+  LOG(INFO) << "[s3 extension] S3FileSystem registered for schemes: s3, oss";
 }
 
-// Register HTTP/HTTPS provider
+// Register HTTP/HTTPS filesystem factories in the global VFS registry
 static void RegisterHTTPProvider() {
-  auto registry = function::FileSystemProviderRegistry::getInstance();
-  auto provider = std::make_shared<http::HTTPFileSystemProvider>();
-  
+  auto* vfs = neug::main::MetadataRegistry::getVFS();
+
   // Register for both http:// and https:// schemes
-  registry->registerProvider("http", provider);
-  registry->registerProvider("https", provider);
-  
-  LOG(INFO) << "[s3 extension] HTTPFileSystemProvider registered for schemes: http, https";
+  vfs->Register("http", neug::extension::http::CreateHTTPFileSystem);
+  vfs->Register("https", neug::extension::http::CreateHTTPFileSystem);
+
+  LOG(INFO)
+      << "[s3 extension] HTTPFileSystem registered for schemes: http, https";
 }
 
 // Cleanup function to finalize Arrow S3 (called automatically)

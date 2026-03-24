@@ -164,51 +164,52 @@ TEST_F(HTTPFileSystemTest, NotImplemented_OpenOutputStream) {
 }
 
 // ============================================================================
-// HTTPFileSystemProvider Tests
+// HTTPFileSystemWrapper Tests
 // ============================================================================
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemProvider_ExtractOptions) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_ExtractOptions) {
   neug::reader::FileSchema schema;
   schema.paths = {"https://example.com/data.parquet"};
   schema.options["BEARER_TOKEN"] = "test_token";
   schema.options["VERIFY_SSL"] = "false";
   schema.options["CONNECT_TIMEOUT"] = "60";
-  
-  HTTPFileSystemProvider provider;
-  // Note: extractHTTPOptions is private, test via provide()
-  
+
   EXPECT_NO_THROW({
-    auto fileInfo = provider.provide(schema);
-    EXPECT_EQ(fileInfo.resolvedPaths.size(), 1);
-    EXPECT_EQ(fileInfo.resolvedPaths[0], "https://example.com/data.parquet");
-    EXPECT_NE(fileInfo.fileSystem, nullptr);
+    HTTPFileSystemWrapper wrapper(schema);
+    // glob() returns the path unchanged for HTTP
+    auto resolved = wrapper.glob("https://example.com/data.parquet");
+    EXPECT_EQ(resolved.size(), 1);
+    EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
+    // toArrowFileSystem() returns a non-null HTTPFileSystem
+    auto arrowFs = wrapper.toArrowFileSystem();
+    EXPECT_NE(arrowFs, nullptr);
   });
 }
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemProvider_InvalidURL) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_InvalidURL) {
   neug::reader::FileSchema schema;
   schema.paths = {"not-a-url"};
-  
-  HTTPFileSystemProvider provider;
-  
+
   EXPECT_THROW(
-    provider.provide(schema),
+    HTTPFileSystemWrapper wrapper(schema),
     neug::exception::Exception
   );
 }
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemProvider_MultiplePaths) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_MultiplePaths) {
   neug::reader::FileSchema schema;
   schema.paths = {
     "https://example.com/file1.parquet",
     "https://example.com/file2.parquet"
   };
-  
-  HTTPFileSystemProvider provider;
-  
+
   EXPECT_NO_THROW({
-    auto fileInfo = provider.provide(schema);
-    EXPECT_EQ(fileInfo.resolvedPaths.size(), 2);
+    HTTPFileSystemWrapper wrapper(schema);
+    // glob() returns each path unchanged
+    auto r1 = wrapper.glob(schema.paths[0]);
+    auto r2 = wrapper.glob(schema.paths[1]);
+    EXPECT_EQ(r1.size(), 1);
+    EXPECT_EQ(r2.size(), 1);
   });
 }
 
@@ -226,50 +227,49 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
   schema.protocol = "http";
   schema.options["VERIFY_SSL"] = "true";
   
-  HTTPFileSystemProvider provider;
-  
-  try {
-    auto fileInfo = provider.provide(schema);
-    ASSERT_NE(fileInfo.fileSystem, nullptr);
-    
+  EXPECT_NO_THROW({
+    HTTPFileSystemWrapper wrapper(schema);
+    auto arrowFs = wrapper.toArrowFileSystem();
+    ASSERT_NE(arrowFs, nullptr);
+
     // Verify file access
-    auto file_path = fileInfo.resolvedPaths[0];
-    auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-    
+    auto file_path = schema.paths[0];
+    auto file_info_result = arrowFs->GetFileInfo(file_path);
+
     if (file_info_result.ok()) {
       auto info = *file_info_result;
       LOG(INFO) << "=== HTTP File Access Successful ===";
       LOG(INFO) << "URL: " << file_path;
       LOG(INFO) << "Type: " << (info.IsFile() ? "File" : "Not File");
       LOG(INFO) << "Size: " << info.size() << " bytes";
-      
+
       EXPECT_TRUE(info.IsFile());
       EXPECT_GT(info.size(), 0);
-      
+
       // Try to open and read file header (first 4 bytes - Parquet magic)
-      auto file_result = fileInfo.fileSystem->OpenInputFile(file_path);
+      auto file_result = arrowFs->OpenInputFile(file_path);
       if (file_result.ok()) {
         auto file = *file_result;
-        
+
         // Read first 4 bytes to verify Parquet magic number
         auto buffer_result = file->Read(4);
         if (buffer_result.ok()) {
           auto buffer = *buffer_result;
           const uint8_t* data = buffer->data();
-          
-          LOG(INFO) << "Magic bytes: " 
+
+          LOG(INFO) << "Magic bytes: "
                     << std::hex << std::setfill('0')
                     << std::setw(2) << (int)data[0] << " "
                     << std::setw(2) << (int)data[1] << " "
                     << std::setw(2) << (int)data[2] << " "
                     << std::setw(2) << (int)data[3];
-          
+
           // Verify Parquet magic number "PAR1"
           EXPECT_EQ(data[0], 0x50);  // 'P'
           EXPECT_EQ(data[1], 0x41);  // 'A'
           EXPECT_EQ(data[2], 0x52);  // 'R'
           EXPECT_EQ(data[3], 0x31);  // '1'
-          
+
           LOG(INFO) << "✓ Successfully read Parquet file via HTTPS";
         } else {
           LOG(WARNING) << "Could not read file content: " << buffer_result.status();
@@ -281,10 +281,7 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
       LOG(WARNING) << "Could not get file info: " << file_info_result.status();
       // Don't fail test if network unavailable
     }
-  } catch (const neug::exception::Exception& e) {
-    LOG(WARNING) << "HTTP test skipped (network issue?): " << e.what();
-    // Don't fail test if network unavailable
-  }
+  });
   
   LOG(INFO) << "=== Implementation Notes ===";
   LOG(INFO) << "✓ Current: Simple full-file read (no Range optimization)";

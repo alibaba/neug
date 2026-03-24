@@ -3,6 +3,8 @@
  */
 
 #include "gtest/gtest.h"
+#include <glog/logging.h>
+#include <openssl/crypto.h>
 #include "s3_filesystem.h"
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/exception/exception.h"
@@ -10,20 +12,57 @@
 #include <cstdlib>
 #include <iomanip>
 
-using neug::extension::s3::S3FileSystemProvider;
+using neug::extension::s3::S3FileSystem;
 using neug::extension::s3::S3URIComponents;
 using neug::reader::FileSchema;
+
+// Helper: build resolved paths + arrow FS from a schema via the new interface.
+struct S3FileInfo {
+  std::vector<std::string> resolvedPaths;
+  std::unique_ptr<arrow::fs::FileSystem> fileSystem;
+};
+static S3FileInfo provideS3(const FileSchema& schema) {
+  S3FileSystem fs(schema);
+  S3FileInfo info;
+  for (const auto& path : schema.paths) {
+    auto resolved = fs.glob(path);
+    info.resolvedPaths.insert(info.resolvedPaths.end(), resolved.begin(),
+                              resolved.end());
+  }
+  info.fileSystem = fs.toArrowFileSystem();
+  return info;
+}
 
 // Global test environment to properly finalize S3
 class S3TestEnvironment : public ::testing::Environment {
  public:
   ~S3TestEnvironment() override {}
-  
+
+  void SetUp() override {
+    // Suppress system OpenSSL's atexit cleanup handler.
+    // The test binary links both system libcrypto (via OPENSSL_LIBRARIES) and
+    // Arrow/AWS-CRT's own crypto. Without this, OPENSSL_cleanup() fires during
+    // __cxa_finalize while AWS-CRT crypto state is still live, corrupting the
+    // heap. OPENSSL_INIT_NO_ATEXIT prevents system OpenSSL from registering its
+    // own atexit handler, avoiding the double-free.
+    OPENSSL_init_crypto(OPENSSL_INIT_NO_ATEXIT, nullptr);
+
+    // Ensure Arrow S3 subsystem is initialized before any test runs
+    auto status = arrow::fs::EnsureS3Initialized();
+    if (!status.ok()) {
+      std::cerr << "Warning: Failed to initialize S3: " << status.ToString()
+                << std::endl;
+    }
+  }
+
   void TearDown() override {
-    // Finalize Arrow S3 subsystem to avoid memory leaks and segfault warnings
+    // All test-body locals (S3FileInfo, S3FileSystem) are destroyed before
+    // TearDown() is called, so no arrow::fs::S3FileSystem objects remain
+    // alive at this point. FinalizeS3() is safe to call here.
     auto status = arrow::fs::FinalizeS3();
     if (!status.ok()) {
-      std::cerr << "Warning: Failed to finalize S3: " << status.ToString() << std::endl;
+      std::cerr << "Warning: Failed to finalize S3: " << status.ToString()
+                << std::endl;
     }
   }
 };
@@ -153,10 +192,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_DefaultAWS) {
   schema.paths = {"s3://test-bucket/file.parquet"};
   schema.protocol = "s3";
   // No endpoint specified - should use AWS defaults
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_TRUE(s3_options.endpoint_override.empty());  // Default AWS
   EXPECT_EQ(s3_options.region, "us-east-1");  // Default region
   EXPECT_EQ(s3_options.scheme, "https");
@@ -168,10 +206,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_OSSEndpoint) {
   schema.paths = {"oss://test-bucket/file.parquet"};
   schema.protocol = "s3";
   schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.endpoint_override, "oss-cn-beijing.aliyuncs.com");
   EXPECT_EQ(s3_options.region, "oss-cn-beijing");  // Auto-detected
   EXPECT_EQ(s3_options.scheme, "https");
@@ -184,10 +221,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_ExplicitRegion) {
   schema.protocol = "s3";
   schema.options["OSS_ENDPOINT"] = "oss-cn-beijing.aliyuncs.com";
   schema.options["OSS_REGION"] = "custom-region";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.region, "custom-region");  // Explicit region overrides auto-detect
 }
 
@@ -196,10 +232,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_HTTPSScheme) {
   schema.paths = {"s3://test-bucket/file.parquet"};
   schema.protocol = "s3";
   schema.options["OSS_ENDPOINT"] = "https://oss-cn-shanghai.aliyuncs.com";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.endpoint_override, "oss-cn-shanghai.aliyuncs.com");
   EXPECT_EQ(s3_options.scheme, "https");
 }
@@ -209,10 +244,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_AnonymousCredentials) {
   schema.paths = {"s3://test-bucket/file.parquet"};
   schema.protocol = "s3";
   schema.options["CREDENTIALS_KIND"] = "Anonymous";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.credentials_kind, arrow::fs::S3CredentialsKind::Anonymous);
 }
 
@@ -223,10 +257,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_ExplicitCredentials) {
   schema.options["CREDENTIALS_KIND"] = "Explicit";
   schema.options["OSS_ACCESS_KEY_ID"] = "test-key";
   schema.options["OSS_ACCESS_KEY_SECRET"] = "test-secret";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.credentials_kind, arrow::fs::S3CredentialsKind::Explicit);
   EXPECT_EQ(s3_options.GetAccessKey(), "test-key");
   EXPECT_EQ(s3_options.GetSecretKey(), "test-secret");
@@ -239,10 +272,9 @@ TEST_F(S3ExtensionTest, BuildS3Options_AWSCredentialsAlias) {
   schema.options["CREDENTIALS_KIND"] = "Explicit";
   schema.options["AWS_ACCESS_KEY_ID"] = "aws-key";
   schema.options["AWS_SECRET_ACCESS_KEY"] = "aws-secret";
-  
-  S3FileSystemProvider provider;
-  auto s3_options = provider.buildS3Options(schema);
-  
+
+  auto s3_options = S3FileSystem::buildS3Options(schema);
+
   EXPECT_EQ(s3_options.GetAccessKey(), "aws-key");
   EXPECT_EQ(s3_options.GetSecretKey(), "aws-secret");
 }
@@ -254,16 +286,15 @@ TEST_F(S3ExtensionTest, BuildS3Options_MultiRegion) {
     {"oss-cn-shanghai.aliyuncs.com", "oss-cn-shanghai"},
     {"oss-cn-shenzhen.aliyuncs.com", "oss-cn-shenzhen"}
   };
-  
+
   for (const auto& [endpoint, expected_region] : regions) {
     FileSchema schema;
     schema.paths = {"oss://test/file.parquet"};
     schema.protocol = "s3";
     schema.options["OSS_ENDPOINT"] = endpoint;
-    
-    S3FileSystemProvider provider;
-    auto s3_options = provider.buildS3Options(schema);
-    
+
+    auto s3_options = S3FileSystem::buildS3Options(schema);
+
     EXPECT_EQ(s3_options.endpoint_override, endpoint);
     EXPECT_EQ(s3_options.region, expected_region);
     EXPECT_EQ(s3_options.scheme, "https");
@@ -359,13 +390,11 @@ TEST_F(S3ExtensionTest, E2E_InitializeOSSWithAnonymousAccess) {
   schema.options["ENDPOINT_OVERRIDE"] = "oss-cn-beijing.aliyuncs.com";
   schema.options["AWS_DEFAULT_REGION"] = "oss-cn-beijing";
   schema.options["CREDENTIALS_KIND"] = "Anonymous";
-  
-  S3FileSystemProvider provider;
-  
-  auto fileInfo = provider.provide(schema);
+
+  auto fileInfo = provideS3(schema);
   EXPECT_NE(fileInfo.fileSystem, nullptr);
   EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-  
+
   auto file_path = fileInfo.resolvedPaths[0];
   // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not "s3://" or "oss://"
   // So we can use it directly with Arrow's GetFileInfo()
@@ -396,19 +425,17 @@ TEST_F(S3ExtensionTest, E2E_InitializeAWSS3WithAnonymousAccess) {
   schema.options["ENDPOINT_OVERRIDE"] = "";  // Force default AWS S3 endpoint
   schema.options["AWS_DEFAULT_REGION"] = "us-east-1";  // NOAA bucket is in us-east-1
   schema.options["CREDENTIALS_KIND"] = "Anonymous";
-  
-  S3FileSystemProvider provider;
-  
+
   LOG(INFO) << "Test: Initializing AWS S3 with anonymous credentials...";
-  auto fileInfo = provider.provide(schema);
+  auto fileInfo = provideS3(schema);
   LOG(INFO) << "Test: AWS S3 FileSystem initialized successfully";
   EXPECT_NE(fileInfo.fileSystem, nullptr);
   EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-  
+
   // Verify we can actually get file info (proves connectivity)
   auto file_path = fileInfo.resolvedPaths[0];
   LOG(INFO) << "Test: Attempting to get file info for: " << file_path;
-  
+
   // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not "s3://bucket/key"
   // So we can use it directly with Arrow's GetFileInfo()
   auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
@@ -431,24 +458,18 @@ TEST_F(S3ExtensionTest, E2E_InitializeOSSWithEnvVariables) {
     GTEST_SKIP() << "OSS credentials not configured. "
                  << "Set OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET environment variables to run this test.";
   }
-  
+
   // Test OSS with Default credential mode (Arrow SDK credential chain)
-  // This test uses environment variables for both endpoint and credentials:
-  //   - ENDPOINT (for OSS endpoint)
-  //   - OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET
-  // Using neug private dataset on OSS (requires credentials)
   FileSchema schema;
   schema.paths = {"oss://neug/github_archive/2015-01-01-0.parquet"};
   schema.format = "parquet";
   schema.protocol = "s3";
   schema.options["ENDPOINT_OVERRIDE"] = "oss-cn-beijing.aliyuncs.com";
 
-  S3FileSystemProvider provider;
-  
-  auto fileInfo = provider.provide(schema);
+  auto fileInfo = provideS3(schema);
   EXPECT_NE(fileInfo.fileSystem, nullptr);
   EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-  
+
   auto file_path = fileInfo.resolvedPaths[0];
   // Note: resolvedPaths already returns Arrow-format paths ("bucket/key"), not "s3://" or "oss://"
   // So we can use it directly with Arrow's GetFileInfo()
@@ -484,54 +505,54 @@ TEST_F(S3ExtensionTest, E2E_AccessOSSPublicParquetFile) {
   schema.options["OSS_REGION"] = "oss-cn-beijing";
   schema.options["CREDENTIALS_KIND"] = "Anonymous";
   
-  S3FileSystemProvider provider;
-  
-  LOG(INFO) << "Test: Initializing OSS access for public Parquet file...";
-  auto fileInfo = provider.provide(schema);
+  S3FileSystem fs(schema);
   LOG(INFO) << "Test: OSS FileSystem initialized successfully";
-  
-  EXPECT_NE(fileInfo.fileSystem, nullptr);
-  EXPECT_FALSE(fileInfo.resolvedPaths.empty());
-  
+
+  auto resolvedPaths = fs.glob(schema.paths[0]);
+  auto arrowFs = fs.toArrowFileSystem();
+
+  EXPECT_NE(arrowFs, nullptr);
+  EXPECT_FALSE(resolvedPaths.empty());
+
   // Get file info
-  auto file_path = fileInfo.resolvedPaths[0];
+  auto file_path = resolvedPaths[0];
   LOG(INFO) << "Test: Attempting to access: " << file_path;
-  
-  auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-  ASSERT_TRUE(file_info_result.ok()) 
+
+  auto file_info_result = arrowFs->GetFileInfo(file_path);
+  ASSERT_TRUE(file_info_result.ok())
       << "Failed to get file info: " << file_info_result.status().ToString();
-  
+
   auto info = *file_info_result;
   LOG(INFO) << "Test: File info retrieved successfully";
   LOG(INFO) << "  Path: " << info.path();
   LOG(INFO) << "  Type: " << (info.IsFile() ? "File" : "Directory");
   LOG(INFO) << "  Size: " << info.size() << " bytes";
-  
+
   EXPECT_TRUE(info.IsFile());
   EXPECT_EQ(info.size(), 157466) << "Expected 157466 bytes (154 KB)";
-  
+
   // Try to open and read the file
-  auto file_result = fileInfo.fileSystem->OpenInputFile(file_path);
-  ASSERT_TRUE(file_result.ok()) 
+  auto file_result = arrowFs->OpenInputFile(file_path);
+  ASSERT_TRUE(file_result.ok())
       << "Failed to open file: " << file_result.status().ToString();
-  
+
   auto file = *file_result;
   auto size_result = file->GetSize();
   ASSERT_TRUE(size_result.ok());
-  
+
   LOG(INFO) << "Test: File opened successfully";
   LOG(INFO) << "  Confirmed size: " << *size_result << " bytes";
-  
+
   EXPECT_EQ(*size_result, 157466);
   
   // Read first 4 bytes to verify Parquet magic number
   auto buffer_result = file->Read(4);
-  ASSERT_TRUE(buffer_result.ok()) 
+  ASSERT_TRUE(buffer_result.ok())
       << "Failed to read file: " << buffer_result.status().ToString();
-  
+
   auto buffer = *buffer_result;
   ASSERT_EQ(buffer->size(), 4);
-  
+
   // Parquet magic number: "PAR1" (0x50 0x41 0x52 0x31)
   const uint8_t* data = buffer->data();
   LOG(INFO) << "Test: Read first 4 bytes successfully";
@@ -542,12 +563,12 @@ TEST_F(S3ExtensionTest, E2E_AccessOSSPublicParquetFile) {
             << std::setw(2) << (int)data[2] << " "
             << std::setw(2) << (int)data[3]
             << std::dec;
-  
+
   EXPECT_EQ(data[0], 0x50);  // 'P'
   EXPECT_EQ(data[1], 0x41);  // 'A'
   EXPECT_EQ(data[2], 0x52);  // 'R'
   EXPECT_EQ(data[3], 0x31);  // '1'
-  
+
   LOG(INFO) << "✓ OSS public Parquet file access successful";
   LOG(INFO) << "  - File size verified: 157466 bytes";
   LOG(INFO) << "  - Parquet magic number verified: PAR1";
@@ -576,23 +597,21 @@ TEST_F(S3ExtensionTest, E2E_HTTPSURLNotSupportedViaS3) {
   schema.protocol = "s3";  // Using S3 protocol with HTTPS URL
   schema.options["CREDENTIALS_KIND"] = "Anonymous";
   
-  S3FileSystemProvider provider;
-  
   LOG(INFO) << "Test: Attempting to access HTTPS URL via S3FileSystem (expected to fail)...";
-  
+
   // This should either:
-  // 1. Throw an exception during provide() due to invalid URI format
+  // 1. Throw an exception during S3FileSystem construction due to invalid URI format
   // 2. Fail during GetFileInfo() because the path doesn't exist in S3 format
-  
+
   try {
-    auto fileInfo = provider.provide(schema);
-    
+    auto fileInfo = provideS3(schema);
+
     if (fileInfo.fileSystem != nullptr && !fileInfo.resolvedPaths.empty()) {
       auto file_path = fileInfo.resolvedPaths[0];
       LOG(INFO) << "Test: Resolved path: " << file_path;
-      
+
       auto file_info_result = fileInfo.fileSystem->GetFileInfo(file_path);
-      
+
       // If we get here, the request was made but should fail
       if (!file_info_result.ok()) {
         LOG(INFO) << "✓ As expected: S3 API request to HTTPS URL failed";

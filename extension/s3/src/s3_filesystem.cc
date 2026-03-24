@@ -20,6 +20,79 @@
 #include <algorithm>
 #include <arrow/io/api.h>
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/file_sys/file_system.h"
+
+namespace {
+// Thin wrapper that adapts a shared_ptr<arrow::fs::S3FileSystem> to the
+// unique_ptr<arrow::fs::FileSystem> ownership model required by
+// fsys::FileSystem::toArrowFileSystem().  All calls are delegated to the
+// underlying shared instance.
+class S3FileSystemWrapper : public arrow::fs::FileSystem {
+ public:
+  explicit S3FileSystemWrapper(
+      std::shared_ptr<arrow::fs::S3FileSystem> inner)
+      : arrow::fs::FileSystem(), inner_(std::move(inner)) {}
+
+  std::string type_name() const override { return inner_->type_name(); }
+  bool Equals(const arrow::fs::FileSystem& other) const override {
+    return inner_->Equals(other);
+  }
+  arrow::Result<arrow::fs::FileInfo> GetFileInfo(
+      const std::string& path) override {
+    return inner_->GetFileInfo(path);
+  }
+  arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
+      const arrow::fs::FileSelector& selector) override {
+    return inner_->GetFileInfo(selector);
+  }
+  arrow::Status CreateDir(const std::string& path,
+                          bool recursive) override {
+    return inner_->CreateDir(path, recursive);
+  }
+  arrow::Status DeleteDir(const std::string& path) override {
+    return inner_->DeleteDir(path);
+  }
+  arrow::Status DeleteDirContents(const std::string& path,
+                                   bool missing_dir_ok) override {
+    return inner_->DeleteDirContents(path, missing_dir_ok);
+  }
+  arrow::Status DeleteRootDirContents() override {
+    return inner_->DeleteRootDirContents();
+  }
+  arrow::Status DeleteFile(const std::string& path) override {
+    return inner_->DeleteFile(path);
+  }
+  arrow::Status Move(const std::string& src,
+                     const std::string& dest) override {
+    return inner_->Move(src, dest);
+  }
+  arrow::Status CopyFile(const std::string& src,
+                         const std::string& dest) override {
+    return inner_->CopyFile(src, dest);
+  }
+  arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
+      const std::string& path) override {
+    return inner_->OpenInputStream(path);
+  }
+  arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
+      const std::string& path) override {
+    return inner_->OpenInputFile(path);
+  }
+  arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenOutputStream(
+      const std::string& path,
+      const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
+    return inner_->OpenOutputStream(path, metadata);
+  }
+  arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenAppendStream(
+      const std::string& path,
+      const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
+    return inner_->OpenAppendStream(path, metadata);
+  }
+
+ private:
+  std::shared_ptr<arrow::fs::S3FileSystem> inner_;
+};
+}  // anonymous namespace
 
 namespace neug {
 namespace extension {
@@ -70,54 +143,70 @@ S3URIComponents S3URIComponents::parse(const std::string& uri) {
   return components;
 }
 
-// S3 FileSystemProvider Implementation
-function::FileInfo<arrow::fs::FileSystem> S3FileSystemProvider::provide(
-    const reader::FileSchema& schema) {
-  
+// S3 FileSystem Implementation
+S3FileSystem::S3FileSystem(const reader::FileSchema& schema) {
   if (schema.paths.empty()) {
-    THROW_IO_EXCEPTION("S3FileSystemProvider: no paths provided");
+    THROW_IO_EXCEPTION("S3FileSystem: no paths provided");
   }
-  
+
   // Initialize Arrow S3 subsystem (idempotent, safe to call multiple times)
   auto init_result = arrow::fs::EnsureS3Initialized();
   if (!init_result.ok()) {
-    THROW_IO_EXCEPTION("Failed to initialize Arrow S3 subsystem: " + 
+    THROW_IO_EXCEPTION("Failed to initialize Arrow S3 subsystem: " +
                        init_result.ToString());
   }
-  
-  // Build S3 options
+
+  // Build S3 options and create the Arrow S3FileSystem
   auto s3_options = buildS3Options(schema);
-  
-  // Initialize S3 filesystem
   auto fs_result = arrow::fs::S3FileSystem::Make(s3_options);
   if (!fs_result.ok()) {
-    LOG(ERROR) << "S3FileSystem::Make failed with status: " << fs_result.status().ToString();
+    LOG(ERROR) << "S3FileSystem::Make failed with status: "
+               << fs_result.status().ToString();
     LOG(ERROR) << "  Endpoint: " << s3_options.endpoint_override;
     LOG(ERROR) << "  Region: " << s3_options.region;
     LOG(ERROR) << "  Scheme: " << s3_options.scheme;
-    THROW_IO_EXCEPTION("Failed to initialize S3FileSystem: " + 
+    THROW_IO_EXCEPTION("Failed to initialize S3FileSystem: " +
                        fs_result.status().ToString());
   }
-  
-  auto s3_fs = *fs_result;
-  
-  // Resolve paths (expand globs if needed)
-  auto resolved_paths = resolveS3Paths(s3_fs, schema.paths);
-  
-  LOG(INFO) << "S3FileSystem initialized successfully, resolved " 
-            << resolved_paths.size() << " paths";
-  
-  return function::FileInfo<arrow::fs::FileSystem>{resolved_paths, s3_fs};
+  arrow_fs_ = *fs_result;
+  LOG(INFO) << "S3FileSystem initialized successfully";
 }
 
-arrow::fs::S3Options S3FileSystemProvider::buildS3Options(
+std::vector<std::string> S3FileSystem::glob(const std::string& path) {
+  auto components = S3URIComponents::parse(path);
+
+  // Arrow FileSystem expects paths in "bucket/key" format, not "s3://bucket/key"
+  std::string arrow_path = components.bucket;
+  if (!components.objectKey.empty()) {
+    arrow_path += "/" + components.objectKey;
+  }
+
+  if (!components.hasGlob) {
+    // Direct path - no expansion needed
+    LOG(INFO) << "Direct S3 path: " << arrow_path;
+    return {arrow_path};
+  }
+
+  // Glob pattern - expand using Arrow FileSystem API
+  LOG(INFO) << "Expanding S3 glob pattern: " << path;
+  std::vector<std::string> out_paths;
+  ResolvePathsWithGlobOnFs(arrow_fs_, components.bucket, components.objectKey,
+                           out_paths, path);
+  return out_paths;
+}
+
+std::unique_ptr<arrow::fs::FileSystem> S3FileSystem::toArrowFileSystem() {
+  return std::make_unique<S3FileSystemWrapper>(arrow_fs_);
+}
+
+arrow::fs::S3Options S3FileSystem::buildS3Options(
     const reader::FileSchema& schema) {
   S3OptionsBuilder builder(schema);
   return builder.build();
 }
 
 // Glob pattern expansion for S3 paths
-std::vector<std::string> S3FileSystemProvider::resolveS3Paths(
+std::vector<std::string> S3FileSystem::resolveS3Paths(
     std::shared_ptr<arrow::fs::S3FileSystem> fs,
     const std::vector<std::string>& paths) {
   std::vector<std::string> resolved_paths;
@@ -151,6 +240,11 @@ std::vector<std::string> S3FileSystemProvider::resolveS3Paths(
   std::sort(resolved_paths.begin(), resolved_paths.end());
 
   return resolved_paths;
+}
+
+std::unique_ptr<fsys::FileSystem> CreateS3FileSystem(
+    const reader::FileSchema& schema) {
+  return std::make_unique<S3FileSystem>(schema);
 }
 
 }  // namespace s3
