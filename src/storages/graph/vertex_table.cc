@@ -19,7 +19,7 @@
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, int memory_level) {
+void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -30,29 +30,26 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
       checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
-  if (memory_level_ == 0) {
+  if (memory_level_ == MemoryLevel::kSyncToFile) {
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
-                 vertex_schema_->property_names, vertex_schema_->property_types,
-                 vertex_schema_->storage_strategies);
+                 vertex_schema_->property_names,
+                 vertex_schema_->property_types);
 
-  } else if (memory_level_ == 1) {
+  } else if (memory_level_ == MemoryLevel::kInMemory) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
-                           vertex_schema_->property_types,
-                           vertex_schema_->storage_strategies);
+                           vertex_schema_->property_types);
 
-  } else if (memory_level_ >= 2) {
-    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
-                                 (memory_level_ > 2));
-    table_->open_with_hugepages(
-        vertex_table_prefix(label_name), work_dir_,
-        vertex_schema_->property_names, vertex_schema_->property_types,
-        vertex_schema_->storage_strategies, (memory_level_ > 2));
+  } else if (memory_level_ == MemoryLevel::kHugePagePrefered) {
+    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
+    table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
+                                vertex_schema_->property_names,
+                                vertex_schema_->property_types);
   } else {
-    THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
-                             std::to_string(memory_level_));
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " +
+                                     std::to_string(memory_level_));
   }
   v_ts_.Open(vertex_tracker_filename);
 }
@@ -243,13 +240,11 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   }
 }
 
-void VertexTable::AddProperties(
-    const std::vector<std::string>& properties,
-    const std::vector<DataType>& types,
-    const std::vector<Property>& default_values,
-    const std::vector<StorageStrategy>& strategies) {
+void VertexTable::AddProperties(const std::vector<std::string>& properties,
+                                const std::vector<DataType>& types,
+                                const std::vector<Property>& default_values) {
   table_->add_columns(properties, types, default_values, indexer_.capacity(),
-                      strategies, memory_level_);
+                      memory_level_);
 }
 
 void VertexTable::Drop() {

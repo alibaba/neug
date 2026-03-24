@@ -52,126 +52,32 @@ std::string_view truncate_utf8(std::string_view str, size_t length) {
   return str.substr(0, byte_count);
 }
 
-template <typename T>
-class TypedEmptyColumn : public ColumnBase {
- public:
-  TypedEmptyColumn() {}
-  ~TypedEmptyColumn() {}
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
-  void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name, bool force) override {}
-  void dump(const std::string& filename) override {}
-  void close() override {}
-  size_t size() const override { return 0; }
-  void resize(size_t size) override {}
-  void resize(size_t size, const Property& default_value) override {}
-
-  DataTypeId type() const override { return PropUtils<T>::prop_type(); }
-
-  void set_value(size_t index, const T& val) {}
-
-  void set_any(size_t index, const Property& value, bool insert_safe) override {
-  }
-
-  T get_view(size_t index) const { return T{}; }
-
-  Property get_prop(size_t index) const override { return Property(); }
-
-  void ingest(uint32_t index, OutArchive& arc) override {
-    T val;
-    arc >> val;
-  }
-
-  StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
-  }
-
-  void ensure_writable(const std::string& work_dir) override {}
-};
-
-template <>
-class TypedEmptyColumn<std::string_view> : public ColumnBase {
- public:
-  TypedEmptyColumn() {}
-  ~TypedEmptyColumn() {}
-
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override {}
-  void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name, bool force) override {}
-  void dump(const std::string& filename) override {}
-  void close() override {}
-  size_t size() const override { return 0; }
-  void resize(size_t size) override {}
-  void resize(size_t size, const Property& default_value) override {}
-
-  DataTypeId type() const override { return DataTypeId::kVarchar; }
-
-  void set_value(size_t index, const std::string_view& val) {}
-
-  void set_any(size_t index, const Property& value, bool insert_safe) override {
-  }
-
-  std::string_view get_view(size_t index) const { return std::string_view{}; }
-
-  Property get_prop(size_t index) const override { return Property(); }
-
-  void ingest(uint32_t index, OutArchive& arc) override {
-    std::string_view val;
-    arc >> val;
-  }
-
-  StorageStrategy storage_strategy() const override {
-    return StorageStrategy::kNone;
-  }
-
-  void ensure_writable(const std::string& work_dir) override {}
-};
-
-std::shared_ptr<ColumnBase> CreateColumn(DataType type,
-                                         StorageStrategy strategy) {
+std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
-  if (strategy == StorageStrategy::kNone) {
-    switch (type_id) {
+  switch (type_id) {
 #define TYPE_DISPATCHER(enum_val, type) \
   case DataTypeId::enum_val:            \
-    return std::make_shared<TypedEmptyColumn<type>>();
-      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+    return std::make_shared<TypedColumn<type>>();
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
-    case DataTypeId::kVarchar:
-      return std::make_shared<TypedEmptyColumn<std::string_view>>();
-    default:
-      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for empty column: " +
-                                    type.ToString());
-    }
-  } else {
-    switch (type_id) {
-#define TYPE_DISPATCHER(enum_val, type) \
-  case DataTypeId::enum_val:            \
-    return std::make_shared<TypedColumn<type>>(strategy);
-      FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
-#undef TYPE_DISPATCHER
-    case DataTypeId::kVarchar: {
-      uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
-      if (extra_type_info) {
-        auto str_info = dynamic_cast<const StringTypeInfo*>(extra_type_info);
-        if (str_info) {
-          max_length = str_info->max_length;
-        }
+  case DataTypeId::kVarchar: {
+    uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+    if (extra_type_info) {
+      auto str_info = dynamic_cast<const StringTypeInfo*>(extra_type_info);
+      if (str_info) {
+        max_length = str_info->max_length;
       }
-      return std::make_shared<StringColumn>(strategy, max_length);
     }
-    case DataTypeId::kEmpty: {
-      return std::make_shared<TypedColumn<EmptyType>>(strategy);
-    }
-    default: {
-      THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
-                                    type.ToString());
-    }
-    }
+    return std::make_shared<StringColumn>(max_length);
+  }
+  case DataTypeId::kEmpty: {
+    return std::make_shared<TypedColumn<EmptyType>>();
+  }
+  default: {
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
+                                  type.ToString());
+  }
   }
 }
 

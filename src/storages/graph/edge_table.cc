@@ -548,80 +548,46 @@ void load_statistic_file(const std::string& work_dir,
   table_idx_atomic.store(size);
 }
 
-void EdgeTable::Open(const std::string& work_dir) {
+void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   work_dir_ = work_dir;
-  memory_level_ = 0;
-  auto checkpoint_dir_path = checkpoint_dir(work_dir);
-  in_csr_->open(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                          meta_->edge_label_name),
-                checkpoint_dir_path, work_dir);
-  out_csr_->open(oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                           meta_->edge_label_name),
-                 checkpoint_dir_path, work_dir);
-  if (!meta_->is_bundled()) {
-    table_->open(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
-                              meta_->edge_label_name),
-                 work_dir, meta_->property_names, meta_->properties,
-                 meta_->strategies);
-    assert(table_->col_num() > 0);
-    size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
-          "the graph is not dumped properly");
-    }
+  memory_level_ = memory_level;
+  auto ckp_dir_path = checkpoint_dir(work_dir);
+  auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
+                                  meta_->edge_label_name);
+  auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
+                                  meta_->edge_label_name);
+  auto edata_prefix_path = edata_prefix(
+      meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
+  if (memory_level == MemoryLevel::kSyncToFile) {
+    in_csr_->open(ie_prefix_path, ckp_dir_path, work_dir);
+    out_csr_->open(oe_prefix_path, ckp_dir_path, work_dir);
+  } else if (memory_level == MemoryLevel::kInMemory) {
+    in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
+    out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
+  } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
+    out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "unsupported memory level: " +
+        std::to_string(static_cast<int>(memory_level)));
   }
-}
 
-void EdgeTable::OpenInMemory(const std::string& work_dir) {
-  work_dir_ = work_dir;
-  memory_level_ = 1;
-  auto checkpoint_dir_path = checkpoint_dir(work_dir);
-  in_csr_->open_in_memory(checkpoint_dir_path + "/" +
-                          ie_prefix(meta_->src_label_name,
-                                    meta_->dst_label_name,
-                                    meta_->edge_label_name));
-  out_csr_->open_in_memory(checkpoint_dir_path + "/" +
-                           oe_prefix(meta_->src_label_name,
-                                     meta_->dst_label_name,
-                                     meta_->edge_label_name));
   if (!meta_->is_bundled()) {
-    table_->open_in_memory(
-        edata_prefix(meta_->src_label_name, meta_->dst_label_name,
-                     meta_->edge_label_name),
-        work_dir_, meta_->property_names, meta_->properties, meta_->strategies);
-    assert(table_->col_num() > 0);
-    size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
+    if (memory_level == MemoryLevel::kSyncToFile) {
+      table_->open(edata_prefix_path, work_dir_, meta_->property_names,
+                   meta_->properties);
+    } else if (memory_level == MemoryLevel::kInMemory) {
+      table_->open_in_memory(edata_prefix_path, work_dir_,
+                             meta_->property_names, meta_->properties);
+    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+      table_->open_with_hugepages(edata_prefix_path, work_dir_,
+                                  meta_->property_names, meta_->properties);
+    } else {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
-          "the graph is not dumped properly");
+          "unsupported memory level: " +
+          std::to_string(static_cast<int>(memory_level)));
     }
-  }
-}
-
-void EdgeTable::OpenWithHugepages(const std::string& work_dir) {
-  work_dir_ = work_dir;
-  memory_level_ = 2;  // 2 or 3?
-  auto checkpoint_dir_path = checkpoint_dir(work_dir);
-  in_csr_->open_with_hugepages(checkpoint_dir_path + "/" +
-                               ie_prefix(meta_->src_label_name,
-                                         meta_->dst_label_name,
-                                         meta_->edge_label_name));
-  out_csr_->open_with_hugepages(checkpoint_dir_path + "/" +
-                                oe_prefix(meta_->src_label_name,
-                                          meta_->dst_label_name,
-                                          meta_->edge_label_name));
-  if (!meta_->is_bundled()) {
-    table_->open_with_hugepages(
-        edata_prefix(meta_->src_label_name, meta_->dst_label_name,
-                     meta_->edge_label_name),
-        work_dir_, meta_->property_names, meta_->properties, meta_->strategies,
-        (memory_level_ > 2));
     assert(table_->col_num() > 0);
     size_t table_cap = table_->get_column_by_id(0)->size();
     load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
@@ -819,8 +785,7 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
 
 void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
                               const std::vector<DataType>& prop_types,
-                              const std::vector<Property>& default_values,
-                              const std::vector<StorageStrategy>& strategies) {
+                              const std::vector<Property>& default_values) {
   if (prop_names.empty()) {
     return;
   }
@@ -837,7 +802,7 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
   } else {
     size_t property_size = table_->get_column_by_id(0)->size();
     table_->add_columns(prop_names, prop_types, default_values, property_size,
-                        strategies, memory_level_);
+                        memory_level_);
   }
 }
 
@@ -1074,7 +1039,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(
         std::get<1>(edges), std::get<0>(edges), property_type,
         meta_->default_property_values[0], new_in_csr.get());
   } else {
-    auto row_id_col = std::make_shared<ULongColumn>(StorageStrategy::kMem);
+    auto row_id_col = std::make_shared<ULongColumn>();
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());
@@ -1122,7 +1087,7 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     LOG(INFO) << "rebuild unbundled edge csr with edge properties: "
               << meta_->property_names.size();
     table_->open_in_memory(next_table_prefix, work_dir_, meta_->property_names,
-                           meta_->properties, meta_->strategies);
+                           meta_->properties);
   }
 
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;

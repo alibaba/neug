@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "neug/config.h"
 #include "neug/utils/mmap_array.h"
 
 namespace neug {
@@ -28,14 +29,14 @@ class ArenaAllocator {
   static constexpr size_t batch_size = 16 * 1024 * 1024;
 
  public:
-  ArenaAllocator(MemoryStrategy strategy, const std::string& prefix)
+  ArenaAllocator(MemoryLevel strategy, const std::string& prefix)
       : strategy_(strategy),
         prefix_(prefix),
         cur_loc_(0),
         cur_size_(0),
         allocated_memory_(0),
         allocated_batches_(0) {
-    if (strategy_ != MemoryStrategy::kSyncToFile) {
+    if (strategy_ != MemoryLevel::kSyncToFile) {
       prefix_.clear();
     }
   }
@@ -79,7 +80,7 @@ class ArenaAllocator {
     allocated_batches_ += size;
     if (prefix_.empty()) {
       mmap_array<char>* buf = new mmap_array<char>();
-      if (strategy_ == MemoryStrategy::kHugepagePrefered) {
+      if (strategy_ == MemoryLevel::kHugePagePrefered) {
         buf->open_with_hugepages("");
       } else {
         buf->open("", false);
@@ -96,7 +97,7 @@ class ArenaAllocator {
     }
   }
 
-  MemoryStrategy strategy_;
+  MemoryLevel strategy_;
   std::string prefix_;
   std::vector<mmap_array<char>*> mmap_buffers_;
 

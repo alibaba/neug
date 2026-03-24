@@ -65,33 +65,28 @@ class EdgeTableTest : public ::testing::Test {
 
     schema_.AddVertexLabel("person", {}, {},
                            {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-                           {neug::StorageStrategy::kMem},
+
                            static_cast<size_t>(1) << 32, "person vertex label");
     schema_.AddVertexLabel(
         "comment", {}, {}, {std::make_tuple(neug::DataTypeId::kInt64, "id", 0)},
-        {neug::StorageStrategy::kMem}, static_cast<size_t>(1) << 32,
-        "comment vertex label");
-    schema_.AddEdgeLabel("person", "comment", "create0", {}, {}, {},
+        static_cast<size_t>(1) << 32, "comment vertex label");
+    schema_.AddEdgeLabel("person", "comment", "create0", {}, {},
                          neug::EdgeStrategy::kMultiple,
                          neug::EdgeStrategy::kMultiple, true, true, false,
                          "person creates comment edge without properties");
     schema_.AddEdgeLabel(
         "person", "comment", "create1", {neug::DataTypeId::kInt32}, {"data"},
-        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
-        neug::EdgeStrategy::kMultiple, true, true, false,
-        "person creates comment edge");
+        neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
+        true, false, "person creates comment edge");
     schema_.AddEdgeLabel(
         "person", "comment", "create2", {neug::DataTypeId::kVarchar}, {"data"},
-        {neug::StorageStrategy::kMem}, neug::EdgeStrategy::kMultiple,
-        neug::EdgeStrategy::kMultiple, true, true, false,
-        "person creates comment edge");
-    schema_.AddEdgeLabel(
-        "person", "comment", "create3",
-        {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
-        {"data0", "data1"},
-        {neug::StorageStrategy::kMem, neug::StorageStrategy::kMem},
         neug::EdgeStrategy::kMultiple, neug::EdgeStrategy::kMultiple, true,
-        true, false, "person creates comment edge with two properties");
+        true, false, "person creates comment edge");
+    schema_.AddEdgeLabel("person", "comment", "create3",
+                         {neug::DataTypeId::kVarchar, neug::DataTypeId::kInt32},
+                         {"data0", "data1"}, neug::EdgeStrategy::kMultiple,
+                         neug::EdgeStrategy::kMultiple, true, true, false,
+                         "person creates comment edge with two properties");
     src_label_ = schema_.get_vertex_label_id("person");
     dst_label_ = schema_.get_vertex_label_id("comment");
     edge_label_empty_ = schema_.get_edge_label_id("create0");
@@ -139,10 +134,12 @@ class EdgeTableTest : public ::testing::Test {
         schema_.get_edge_schema(src_label, dst_label, edge_label));
   }
 
-  void OpenEdgeTable() { edge_table->Open(WorkDirectory().string()); }
+  void OpenEdgeTable() {
+    edge_table->Open(WorkDirectory().string(), MemoryLevel::kSyncToFile);
+  }
 
   void OpenEdgeTableInMemory(size_t src_v_cap, size_t dst_v_cap) {
-    edge_table->OpenInMemory(SnapshotDirectory().string());
+    edge_table->Open(SnapshotDirectory().string(), MemoryLevel::kInMemory);
     edge_table->EnsureCapacity(src_v_cap, dst_v_cap);
   }
 
@@ -816,7 +813,7 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
 
   size_t edge_count = 0;
   for (size_t i = 0; i < src_lids.size(); ++i) {
@@ -971,7 +968,7 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
                          neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
 
   size_t edge_count = 0;
   this->edge_table->EnsureCapacity(edge_data.size());
@@ -1057,7 +1054,7 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
     edge_data.push_back({neug::Property::from_int32(static_cast<int>(i))});
   }
 
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -1135,7 +1132,7 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
 
   this->edge_table->EnsureCapacity(edge_data.size());
   this->ExpectUnbundledStats(0, 4096);
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (size_t i = 0; i < src_lids.size(); ++i) {
     this->edge_table->AddEdge(src_lids[i], dst_lids[i], edge_data[i], 0,
                               allocator);
@@ -1253,12 +1250,12 @@ TEST_F(EdgeTableTest, TestAddStringPropertyTransitionFromEmptyToUnbundled) {
   this->edge_table->SetEdgeSchema(
       schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_));
   schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_)
-      ->add_properties({"tag"}, {neug::DataTypeId::kVarchar}, {},
+      ->add_properties({"tag"}, {neug::DataTypeId::kVarchar},
                        {neug::Property::from_string_view("seed")});
   this->edge_table->AddProperties({"tag"}, {neug::DataTypeId::kVarchar},
                                   {neug::Property::from_string_view("seed")});
   schema_.get_edge_schema(src_label_, dst_label_, edge_label_empty_)
-      ->add_properties({"desc"}, {neug::DataTypeId::kVarchar}, {},
+      ->add_properties({"desc"}, {neug::DataTypeId::kVarchar},
                        {neug::Property::from_string_view("unknown")});
   this->edge_table->AddProperties(
       {"desc"}, {neug::DataTypeId::kVarchar},
@@ -1289,7 +1286,7 @@ TEST_F(EdgeTableTest,
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1358,7 +1355,7 @@ TEST_F(EdgeTableTest, TestDeletePropertiesTransitionFromUnbundledToBundled) {
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1415,7 +1412,7 @@ TEST_F(EdgeTableTest, TestAddAndDeletePropertiesStayUnbundled) {
 
   std::vector<std::tuple<int64_t, int64_t, std::string, int>> input = {
       {0, 1, "a", 11}, {1, 2, "b", 22}, {2, 3, "c", 33}};
-  neug::Allocator allocator(neug::MemoryStrategy::kMemoryOnly, allocator_dir_);
+  neug::Allocator allocator(neug::MemoryLevel::kInMemory, allocator_dir_);
   for (const auto& [src_oid, dst_oid, data0, data1] : input) {
     this->edge_table->AddEdge(
         this->GetSrcLid(neug::Property::from_int64(src_oid)),
@@ -1500,7 +1497,6 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   edge_schema->ie_strategy = EdgeStrategy::kMultiple;
   edge_schema->oe_strategy = EdgeStrategy::kMultiple;
   std::vector<std::string> property_name = {"test_property"};
-  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path;
   std::vector<DataType> column_types = {DataTypeId::kUInt32,
@@ -1512,63 +1508,63 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
     file_path = resource_path + "/edges_i32.csv";
     std::vector<DataType> property_type = {DataTypeId::kInt32};
     column_types.emplace_back(DataTypeId::kInt32);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, int64_t>) {
     file_path = resource_path + "/edges_i64.csv";
     std::vector<DataType> property_type = {DataTypeId::kInt64};
     column_types.emplace_back(DataTypeId::kInt64);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint32_t>) {
     file_path = resource_path + "/edges_u32.csv";
     std::vector<DataType> property_type = {DataTypeId::kUInt32};
     column_types.emplace_back(DataTypeId::kUInt32);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, uint64_t>) {
     file_path = resource_path + "/edges_u64.csv";
     std::vector<DataType> property_type = {DataTypeId::kUInt64};
     column_types.emplace_back(DataTypeId::kUInt64);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, float>) {
     file_path = resource_path + "/edges_float.csv";
     std::vector<DataType> property_type = {DataTypeId::kFloat};
     column_types.emplace_back(DataTypeId::kFloat);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, double>) {
     file_path = resource_path + "/edges_double.csv";
     std::vector<DataType> property_type = {DataTypeId::kDouble};
     column_types.emplace_back(DataTypeId::kDouble);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Date>) {
     file_path = resource_path + "/edges_date.csv";
     std::vector<DataType> property_type = {DataTypeId::kDate};
     column_types.emplace_back(DataTypeId::kDate);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, DateTime>) {
     file_path = resource_path + "/edges_datetime.csv";
     std::vector<DataType> property_type = {DataTypeId::kTimestampMs};
     column_types.emplace_back(DataTypeId::kTimestampMs);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else if constexpr (std::is_same_v<EdType, Interval>) {
     file_path = resource_path + "/edges_interval.csv";
     std::vector<DataType> property_type = {DataTypeId::kInterval};
     column_types.emplace_back(DataTypeId::kInterval);
-    edge_schema->add_properties(property_name, property_type, storage_strategy);
+    edge_schema->add_properties(property_name, property_type);
     suppliers = execution::ops::create_csv_record_suppliers(
         file_path, column_types, csv_options);
   } else {
@@ -1609,7 +1605,6 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   edge_schema->oe_mutable = true;
   edge_schema->ie_strategy = EdgeStrategy::kMultiple;
   edge_schema->oe_strategy = EdgeStrategy::kMultiple;
-  std::vector<StorageStrategy> storage_strategy = {StorageStrategy::kMem};
 
   std::string file_path = resource_path + "/edges_empty.csv";
   std::vector<DataType> column_types = {DataTypeId::kUInt32,

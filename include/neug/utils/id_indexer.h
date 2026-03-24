@@ -243,10 +243,10 @@ class LFIndexer {
             std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
     keys_ = nullptr;
     switch (type) {
-#define TYPE_DISPATCHER(enum_val, T)                                 \
-  case DataTypeId::enum_val: {                                       \
-    keys_ = std::make_shared<TypedColumn<T>>(StorageStrategy::kMem); \
-    break;                                                           \
+#define TYPE_DISPATCHER(enum_val, T)            \
+  case DataTypeId::enum_val: {                  \
+    keys_ = std::make_shared<TypedColumn<T>>(); \
+    break;                                      \
   }
       TYPE_DISPATCHER(kInt64, int64_t)
       TYPE_DISPATCHER(kInt32, int32_t)
@@ -262,7 +262,7 @@ class LFIndexer {
           max_length = str_type_info->max_length;
         }
       }
-      keys_ = std::make_shared<StringColumn>(StorageStrategy::kMem, max_length);
+      keys_ = std::make_shared<StringColumn>(max_length);
       break;
     }
     default: {
@@ -473,16 +473,26 @@ class LFIndexer {
     indices_size_ = indices_.size();
   }
 
-  void open_with_hugepages(const std::string& name, bool hugepage_table) {
+  void open_with_hugepages(const std::string& name) {
     if (std::filesystem::exists(name + ".meta")) {
       load_meta(name + ".meta");
     } else {
       num_elements_.store(0);
     }
-    keys_->open_with_hugepages(name + ".keys", true);
-    if (hugepage_table) {
+    try {
+      keys_->open_with_hugepages(name + ".keys");
+    } catch (const std::exception& e) {
+      LOG(WARNING)
+          << "Failed to open keys with hugepages, fallback to open in memory: "
+          << e.what();
+      keys_->open_in_memory(name + ".keys");
+    }
+    try {
       indices_.open_with_hugepages(name + ".indices");
-    } else {
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "Failed to open indices with hugepages, fallback to open "
+                      "in memory: "
+                   << e.what();
       indices_.open(name + ".indices", false);
     }
     indices_size_ = indices_.size();

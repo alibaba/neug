@@ -80,19 +80,9 @@ TEST(TableTest, TestTableBasic) {
       {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
       {DataTypeId::kVarchar}};
 
-  std::vector<StorageStrategy> disk_strategies(col_name.size(),
-                                               StorageStrategy::kDisk);
-  std::vector<StorageStrategy> mem_strategies(col_name.size(),
-                                              StorageStrategy::kMem);
-  std::vector<StorageStrategy> none_strategies(col_name.size(),
-                                               StorageStrategy::kNone);
-
-  disk_table.open("test_dist", TEST_DIR, col_name, property_types,
-                  disk_strategies);
-  mem_table.open("test_dist", TEST_DIR, col_name, property_types,
-                 mem_strategies);
-  none_table.open("test_dist", TEST_DIR, col_name, property_types,
-                  none_strategies);
+  disk_table.open("test_dist", TEST_DIR, col_name, property_types);
+  mem_table.open("test_dist", TEST_DIR, col_name, property_types);
+  none_table.open("test_dist", TEST_DIR, col_name, property_types);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -302,8 +292,8 @@ TEST(TableTest, TestTableBasic) {
   disk_table.drop();
   mem_table.drop();
 
-  disk_table.open("disk_table", std::string(TEST_DIR), col_name, property_types,
-                  disk_strategies);
+  disk_table.open("disk_table", std::string(TEST_DIR), col_name,
+                  property_types);
   EXPECT_EQ(disk_table.col_num(), 11);
   EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
   disk_table.reset_header(col_name);
@@ -315,7 +305,7 @@ TEST(TableTest, TestTableBasic) {
   disk_table.drop();
 
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
-                           property_types, mem_strategies);
+                           property_types);
   EXPECT_EQ(mem_table.col_num(), 11);
   EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
   const Table& mem_table_ref = mem_table;
@@ -335,11 +325,8 @@ TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   Table table;
   std::vector<std::string> col_name = {"string_column"};
   std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
-  std::vector<StorageStrategy> mem_strategies(col_name.size(),
-                                              StorageStrategy::kMem);
 
-  table.open("test_string_validity", TEST_DIR, col_name, property_types,
-             mem_strategies);
+  table.open("test_string_validity", TEST_DIR, col_name, property_types);
   table.resize(2, {Property::from_string_view("default_value")});
 
   auto string_column = std::dynamic_pointer_cast<StringColumn>(
@@ -358,7 +345,7 @@ TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
   std::string path = std::string(TEST_DIR) + "/string_column";
   string_column->dump(path);
 
-  StringColumn new_string_column(StorageStrategy::kMem);
+  StringColumn new_string_column;
   new_string_column.open_in_memory(path);
   EXPECT_EQ(new_string_column.get_prop(0).as_string_view(), "default_value");
   EXPECT_EQ(new_string_column.get_prop(1).as_string_view(),

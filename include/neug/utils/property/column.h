@@ -51,7 +51,7 @@ class ColumnBase {
 
   virtual void open_in_memory(const std::string& name) = 0;
 
-  virtual void open_with_hugepages(const std::string& name, bool force) = 0;
+  virtual void open_with_hugepages(const std::string& name) = 0;
 
   virtual void close() = 0;
 
@@ -79,16 +79,13 @@ class ColumnBase {
 
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 
-  virtual StorageStrategy storage_strategy() const = 0;
-
   virtual void ensure_writable(const std::string& work_dir) = 0;
 };
 
 template <typename T>
 class TypedColumn : public ColumnBase {
  public:
-  explicit TypedColumn(StorageStrategy strategy)
-      : size_(0), strategy_(strategy) {}
+  explicit TypedColumn() : size_(0) {}
   ~TypedColumn() { close(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
@@ -117,19 +114,14 @@ class TypedColumn : public ColumnBase {
     }
   }
 
-  void open_with_hugepages(const std::string& name, bool force) override {
-    if (strategy_ == StorageStrategy::kMem || force) {
-      if (!name.empty() && std::filesystem::exists(name)) {
-        buffer_.open_with_hugepages(name);
-        size_ = buffer_.size();
-      } else {
-        buffer_.reset();
-        buffer_.set_hugepage_prefered(true);
-        size_ = 0;
-      }
-    } else if (strategy_ == StorageStrategy::kDisk) {
-      LOG(INFO) << "Open " << name << " with normal mmap pages";
-      open_in_memory(name);
+  void open_with_hugepages(const std::string& name) override {
+    if (!name.empty() && std::filesystem::exists(name)) {
+      buffer_.open_with_hugepages(name);
+      size_ = buffer_.size();
+    } else {
+      buffer_.reset();
+      buffer_.set_hugepage_prefered(true);
+      size_ = 0;
     }
   }
 
@@ -193,8 +185,6 @@ class TypedColumn : public ColumnBase {
     set_value(index, val);
   }
 
-  StorageStrategy storage_strategy() const override { return strategy_; }
-
   const mmap_array<T>& buffer() const { return buffer_; }
   size_t buffer_size() const { return size_; }
 
@@ -205,7 +195,6 @@ class TypedColumn : public ColumnBase {
  private:
   mmap_array<T> buffer_;
   size_t size_;
-  StorageStrategy strategy_;
 };
 
 using BoolColumn = TypedColumn<bool>;
@@ -224,13 +213,13 @@ using IntervalColumn = TypedColumn<Interval>;
 template <>
 class TypedColumn<EmptyType> : public ColumnBase {
  public:
-  explicit TypedColumn(StorageStrategy strategy) : strategy_(strategy) {}
+  explicit TypedColumn() {}
   ~TypedColumn() {}
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {}
   void open_in_memory(const std::string& name) override {}
-  void open_with_hugepages(const std::string& name, bool force) override {}
+  void open_with_hugepages(const std::string& name) override {}
   void dump(const std::string& filename) override {}
   void close() override {}
   size_t size() const override { return 0; }
@@ -252,34 +241,23 @@ class TypedColumn<EmptyType> : public ColumnBase {
 
   void ingest(uint32_t index, OutArchive& arc) override {}
 
-  StorageStrategy storage_strategy() const override { return strategy_; }
-
   void ensure_writable(const std::string& work_dir) override {}
-
- private:
-  StorageStrategy strategy_;
 };
 
 template <>
 class TypedColumn<std::string_view> : public ColumnBase {
  public:
-  TypedColumn(StorageStrategy strategy, uint16_t width)
+  TypedColumn(uint16_t width)
+      : size_(0), pos_(0), width_(width), type_(DataTypeId::kVarchar) {}
+  explicit TypedColumn()
       : size_(0),
         pos_(0),
-        strategy_(strategy),
-        width_(width),
-        type_(DataTypeId::kVarchar) {}
-  explicit TypedColumn(StorageStrategy strategy)
-      : size_(0),
-        pos_(0),
-        strategy_(strategy),
         width_(STRING_DEFAULT_MAX_LENGTH),
         type_(DataTypeId::kVarchar) {}
   TypedColumn(TypedColumn<std::string_view>&& rhs) {
     buffer_.swap(rhs.buffer_);
     size_ = rhs.size_;
     pos_ = rhs.pos_.load();
-    strategy_ = rhs.strategy_;
     width_ = rhs.width_;
     type_ = rhs.type_;
   }
@@ -311,16 +289,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
     init_pos(prefix + ".pos");
   }
 
-  void open_with_hugepages(const std::string& prefix, bool force) override {
-    if (strategy_ == StorageStrategy::kMem || force) {
-      buffer_.open_with_hugepages(prefix);
-      size_ = buffer_.size();
-      init_pos(prefix + ".pos");
-
-    } else if (strategy_ == StorageStrategy::kDisk) {
-      LOG(INFO) << "Open " << prefix << " with normal mmap pages";
-      open_in_memory(prefix);
-    }
+  void open_with_hugepages(const std::string& prefix) override {
+    buffer_.open_with_hugepages(prefix);
+    size_ = buffer_.size();
+    init_pos(prefix + ".pos");
   }
 
   void close() override { buffer_.reset(); }
@@ -428,8 +400,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   const mmap_array<std::string_view>& buffer() const { return buffer_; }
 
-  StorageStrategy storage_strategy() const override { return strategy_; }
-
   size_t buffer_size() const { return size_; }
 
   void ensure_writable(const std::string& work_dir) override {
@@ -450,7 +420,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   mmap_array<std::string_view> buffer_;
   size_t size_;
   std::atomic<size_t> pos_;
-  StorageStrategy strategy_;
   std::shared_mutex rw_mutex_;
   uint16_t width_;
   DataTypeId type_;
@@ -458,8 +427,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
 using StringColumn = TypedColumn<std::string_view>;
 
-std::shared_ptr<ColumnBase> CreateColumn(
-    DataType type, StorageStrategy strategy = StorageStrategy::kMem);
+std::shared_ptr<ColumnBase> CreateColumn(DataType type);
 
 /// Create RefColumn for ease of usage for hqps
 class RefColumnBase {

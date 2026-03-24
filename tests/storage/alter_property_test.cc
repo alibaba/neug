@@ -269,7 +269,7 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
 void testOpenEmptyGraph(const std::string& graph_dir,
                         const std::string& data_dir) {
   PropertyGraph graph;
-  graph.Open(graph_dir, 0);
+  graph.Open(graph_dir, MemoryLevel::kSyncToFile);
 
   // Create vertex type PERSON
   {
