@@ -683,6 +683,21 @@ if(NEUG_USE_SYSTEM_ARROW)
     if (_ARROW_IO_LIB)
         list(APPEND ARROW_LIB ${_ARROW_IO_LIB})
     endif()
+
+    # Resolve Parquet when the parquet extension is enabled.
+    # find_package(Parquet) must be called first to register Parquet::parquet_*
+    # targets, which resolve_system_arrow_component can then locate.
+    if(ARROW_ENABLE_PARQUET)
+        find_package(Parquet CONFIG QUIET)
+        if(NOT Parquet_FOUND)
+            message(WARNING "System Parquet package not found; parquet extension headers may be missing")
+        endif()
+        resolve_system_arrow_component(parquet ARROW_PARQUET_LIB)
+        if(ARROW_PARQUET_LIB)
+            list(APPEND ARROW_LIB ${ARROW_PARQUET_LIB})
+            message(STATUS "Found system parquet lib: ${ARROW_PARQUET_LIB}")
+        endif()
+    endif()
 else()
     include(cmake/BuildArrowAsThirdParty.cmake)
     build_arrow_as_third_party()
