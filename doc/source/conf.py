@@ -85,7 +85,9 @@ myst_enable_extensions = [
 ]
 
 # Source file suffixes
-source_suffix = ['.rst', '.md']
+# Keep .md before .rst so duplicated docnames (e.g. index.md + index.rst)
+# resolve to Markdown, which is where the Java API landing content lives.
+source_suffix = ['.md', '.rst']
 
 # API documentation settings
 # Templates for API documentation
@@ -100,6 +102,7 @@ api_docs_output_dir = 'reference'
 exclude_patterns = [
     '_build',
     '.ipynb_checkpoints',
+    'reference/java_api/index.rst',
 ]
 
 # -- Options for HTML output -------------------------------------------------

@@ -15,7 +15,7 @@
 
 #include "neug/execution/execute/ops/batch/data_export.h"
 #include "neug/compiler/function/export/export_function.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/reader/reader.h"
@@ -68,7 +68,7 @@ neug::result<OpBuildResultT> DataExportOprBuilder::Build(
   const auto& data_export_opr = plan.plan(op_idx).opr().data_export();
   std::string extension_name = data_export_opr.extension_name();
   auto signatureName = data_export_opr.extension_name();
-  auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+  auto gCatalog = neug::main::MetadataRegistry::getCatalog();
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto writeFunc = func->ptrCast<function::ExportFunction>();
   auto fileSchema =

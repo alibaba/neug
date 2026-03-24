@@ -22,7 +22,7 @@
 
 #include "neug/compiler/binder/binder.h"
 #include "neug/compiler/binder/bound_extension_statement.h"
-#include "neug/compiler/common/file_system/local_file_system.h"
+
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/parser/extension_statement.h"

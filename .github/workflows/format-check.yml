@@ -90,6 +90,12 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: '3.9.6'
+
     - name: Get PR Changes
       uses: dorny/paths-filter@v3
       id: changes
@@ -155,6 +161,12 @@ jobs:
         (python3 -m isort --check --diff .) || (print_error "isort check failed" "tests/e2e" "isort" && exit 1)
         (python3 -m black --check --diff .) || (print_error "black check failed" "tests/e2e" "black" && exit 1)
         (python3 -m flake8 .) || (print_error "flake8 check failed" "tests/e2e" "flake8" && exit 1)
+        popd
+
+    - name: Java Format Check
+      run: |
+        pushd ${GITHUB_WORKSPACE}/tools/java_driver
+        mvn spotless:check
         popd
 
         

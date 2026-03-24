@@ -457,15 +457,16 @@ jobs:
           path: ./wheelhouse/*.whl
           if-no-files-found: error
 
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: ${{ inputs.mode == 'release' && ((github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')) }}
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true
+      # Action only supported on linux, skipped
+      # - name: Publish distribution to PyPI
+      #   uses: pypa/gh-action-pypi-publish@v1.4.2
+      #   if: ${{ inputs.mode == 'release' && ((github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')) }}
+      #   with:
+      #     user: __token__
+      #     password: ${{ secrets.PYPI_PASSWORD }}
+      #     packages_dir: wheelhouse/
+      #     verbose: true
+      #     skip_existing: true
 
       - name: Clean all installed python packages
         run: |
@@ -592,27 +593,27 @@ jobs:
           path: ./wheelhouse/*.whl
           if-no-files-found: error
 
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: ${{
-              (
-                inputs.mode == 'release' &&
-                (
-                  (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
-                  (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-                )
-              ) ||
-              (
-                inputs.mode == 'nightly' &&
-                inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
-              )
-            }}
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true
+      # - name: Publish distribution to PyPI
+      #   uses: pypa/gh-action-pypi-publish@v1.4.2
+      #   if: ${{
+      #         (
+      #           inputs.mode == 'release' &&
+      #           (
+      #             (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
+      #             (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+      #           )
+      #         ) ||
+      #         (
+      #           inputs.mode == 'nightly' &&
+      #           inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
+      #         )
+      #       }}
+      #   with:
+      #     user: __token__
+      #     password: ${{ secrets.PYPI_PASSWORD }}
+      #     packages_dir: wheelhouse/
+      #     verbose: true
+      #     skip_existing: true
 
       - name: Clean all installed python packages
         run: |

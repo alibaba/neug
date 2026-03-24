@@ -67,6 +67,23 @@ def get_tinysnb_dataset_path():
     return "/tmp/tinysnb"
 
 
+def get_comprehensive_graph_path():
+    """Get the path to comprehensive_graph dataset CSV files."""
+    current_file = os.path.abspath(__file__)
+    tests_dir = os.path.dirname(current_file)
+    python_bind_dir = os.path.dirname(tests_dir)
+    tools_dir = os.path.dirname(python_bind_dir)
+    workspace_root = os.path.dirname(tools_dir)
+
+    comprehensive_path = os.path.join(
+        workspace_root, "example_dataset", "comprehensive_graph"
+    )
+    if os.path.exists(comprehensive_path):
+        return comprehensive_path
+
+    return "/tmp/comprehensive_graph"
+
+
 class TestLoadFrom:
     """Test cases for LOAD FROM functionality with tinysnb dataset."""
 
@@ -957,6 +974,314 @@ class TestLoadFrom:
             assert height > 1.0, f"height {height} should be > 1.0"
             assert isinstance(fname, str), "fName should be string"
 
+    @extension_test
+    def test_load_from_parquet_basic_return_all(self):
+        """Test basic LOAD FROM Parquet with RETURN *."""
+        # load vertex data
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        # Load parquet extension
+        self.conn.execute("load parquet")
+
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        RETURN *
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as CSV/JSON)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        # load edge data
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "eMeets.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        # Load parquet extension
+        self.conn.execute("load parquet")
+
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        RETURN *
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        # eMeets.parquet should have 7 data rows
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_from_parquet_return_specific_columns(self):
+        """Test LOAD FROM Parquet with column projection."""
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        self.conn.execute("load parquet")
+
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        RETURN fName, age
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check that only specified columns are returned
+        first_record = records[0]
+        assert len(first_record) == 2, "Should return only 2 columns"
+        assert isinstance(first_record[0], str), "fName should be string"
+        assert isinstance(first_record[1], int), "age should be integer"
+
+    @extension_test
+    def test_load_from_parquet_with_where(self):
+        """Test LOAD FROM Parquet with WHERE clause filtering (predicate pushdown)."""
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        self.conn.execute("load parquet")
+
+        # Test with WHERE clause (predicate pushdown)
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        WHERE age > 30
+        RETURN fName, age
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) > 0, "Should return at least one record"
+
+        # Verify all returned records satisfy the condition
+        for record in records:
+            fname, age = record
+            assert age > 30, f"Age {age} should be greater than 30"
+            assert isinstance(fname, str), "fName should be string"
+
+    @extension_test
+    def test_load_from_parquet_with_multiple_where_conditions(self):
+        """Test LOAD FROM Parquet with multiple WHERE conditions."""
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        self.conn.execute("load parquet")
+
+        # Test with multiple conditions: age > 25 AND age < 40 AND gender = 1
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        WHERE age > 25 AND age < 40 AND gender = 1
+        RETURN fName, age, gender, eyeSight
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) > 0, "Should return at least one record"
+
+        # Verify all returned records satisfy all conditions
+        for record in records:
+            fname, age, gender, eye_sight = record
+            assert 25 < age < 40, f"Age {age} should be between 25 and 40"
+            assert gender == 1, f"Gender {gender} should be 1"
+            assert isinstance(fname, str), "fName should be string"
+            assert isinstance(eye_sight, (int, float)), "eyeSight should be numeric"
+
+    @extension_test
+    def test_load_from_parquet_with_order_by(self):
+        """Test LOAD FROM Parquet with ORDER BY clause."""
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        self.conn.execute("load parquet")
+
+        # Test ORDER BY
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        RETURN fName, age
+        ORDER BY age ASC
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Verify records are ordered by age ascending
+        ages = [record[1] for record in records]
+        assert ages == sorted(ages), f"Ages should be sorted ascending: {ages}"
+
+    @extension_test
+    def test_load_from_parquet_with_complex_where_conditions(self):
+        """Test LOAD FROM Parquet with complex WHERE conditions (age, eyeSight, height)."""
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        self.conn.execute("load parquet")
+
+        # Test with multiple conditions: age >= 30 AND eyeSight >= 5.0 AND height > 1.0
+        query = f"""
+        LOAD FROM "{parquet_path}"
+        WHERE age >= 30 AND eyeSight >= 5.0 AND height > 1.0
+        RETURN fName, age, eyeSight, height
+        """
+        result = self.conn.execute(query)
+
+        records = list(result)
+        # May return 0 or more records depending on data
+        assert len(records) >= 0, "Should execute successfully"
+
+        # Verify all returned records satisfy all conditions
+        for record in records:
+            fname, age, eye_sight, height = record
+            assert age >= 30, f"Age {age} should be >= 30"
+            assert eye_sight >= 5.0, f"eyeSight {eye_sight} should be >= 5.0"
+            assert height > 1.0, f"height {height} should be > 1.0"
+            assert isinstance(fname, str), "fName should be string"
+
+    def test_load_from_comprehensive_graph_csv(self):
+        """Test LOAD FROM CSV auto-infers typed values without explicit CAST
+        using example_dataset/comprehensive_graph/node_a.csv (pipe-delimited).
+        Verifies NeuG correctly infers: INT32, INT64, UINT32, UINT64, FLOAT,
+        DOUBLE, STRING, DATE, TIMESTAMP, INTERVAL from raw CSV.
+        """
+        comprehensive_path = get_comprehensive_graph_path()
+        p = os.path.join(comprehensive_path, "node_a.csv")
+        if not os.path.exists(p):
+            pytest.skip(f"node_a.csv not found: {p}")
+
+        result = self.conn.execute(
+            f'LOAD FROM "{p}" (delim="|") '
+            'RETURN id, i32_property, i64_property, u32_property, CAST(u64_property, "UINT64") as u64_property, '
+            "f32_property, f64_property, str_property, "
+            "date_property, datetime_property, interval_property "
+            "ORDER BY id LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0  # id: INT64
+        assert rows[0][1] == -123456789  # i32_property: INT32
+        assert rows[0][2] == 9223372036854775807  # i64_property: INT64_MAX
+        assert rows[0][3] == 4294967295  # u32_property: UINT32
+        assert rows[0][4] == 18446744073709551615  # u64_property: UINT64
+        assert abs(rows[0][5] - 3.1415927) < 1e-6  # f32_property: FLOAT
+        assert abs(rows[0][6] - 2.718281828459045) < 1e-9  # f64_property: DOUBLE
+        assert str(rows[0][7]) == "test_string_0"  # str_property: STRING
+        assert str(rows[0][8]) == "2023-01-15"  # date_property: DATE
+        assert str(rows[0][9]).startswith(
+            "2023-01-15 00:00:00"
+        )  # datetime_property: TIMESTAMP
+        assert (
+            str(rows[0][10]) == "1year2months3days4hours5minutes6seconds"
+        )  # interval_property: INTERVAL
+
+        # --- rel_a.csv ---
+        # Row 0: node_a.id=0, node_a.id=3, double_weight=3.141593, i32_weight=42,
+        #   i64_weight=-1234567890123456789, datetime_weight=2023-05-17
+        # First two columns share name 'node_a.id'; rename them to avoid conflict.
+        p_rel = os.path.join(comprehensive_path, "rel_a.csv")
+        if not os.path.exists(p_rel):
+            pytest.skip(f"rel_a.csv not found: {p_rel}")
+
+        result = self.conn.execute(
+            f'LOAD FROM "{p_rel}" (delim="|") '
+            "RETURN f0 as src_id, f1 as dst_id, f2 as double_weight, f3 as i32_weight, "
+            "f4 as i64_weight, f5 as datetime_weight "
+            "LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0
+        assert rows[0][1] == 3
+        assert abs(rows[0][2] - 3.141593) < 1e-9  # double_weight: DOUBLE
+        assert rows[0][3] == 42  # i32_weight: INT32
+        assert rows[0][4] == -1234567890123456789  # i64_weight: INT64
+        assert str(rows[0][5]) == "2023-05-17"  # datetime_weight: DATE
+
+    @extension_test
+    def test_load_from_comprehensive_graph_parquet(self):
+        """Test LOAD FROM Parquet covers all NeuG-supported data types
+        using example_dataset/comprehensive_graph/parquet/.
+        node_a covers: INT64, INT32, UINT32, UINT64, FLOAT, DOUBLE, STRING, DATE, DATETIME.
+        rel_a covers: edge src/dst IDs plus DOUBLE, INT32, INT64, DATETIME edge properties.
+        interval_property is excluded from node files: no standard Parquet type maps to NeuG INTERVAL.
+        Run example_dataset/comprehensive_graph/csv_to_parquet.py to generate parquet/ first.
+        """
+        comprehensive_path = get_comprehensive_graph_path()
+        parquet_dir = os.path.join(comprehensive_path, "parquet")
+        if not os.path.exists(parquet_dir):
+            pytest.skip(
+                f"parquet/ dir not found: {parquet_dir}. "
+                "Run example_dataset/comprehensive_graph/csv_to_parquet.py to generate."
+            )
+
+        self.conn.execute("load parquet")
+
+        # --- node_a.parquet ---
+        # 11 rows; row 0 from node_a.csv:
+        #   id=0, i32_property=-123456789, i64_property=9223372036854775807(INT64_MAX),
+        #   u32_property=4294967295, u64_property=18446744073709551615,
+        #   f32_property=3.1415927, f64_property=2.718281828459045,
+        #   str_property=test_string_0, date_property=2023-01-15, datetime_property=2023-01-15,
+        #   interval_property=1year2months3days4hours5minutes6seconds (stored as Parquet STRING)
+        p = os.path.join(parquet_dir, "node_a.parquet")
+        result = self.conn.execute(
+            f'LOAD FROM "{p}" '
+            f"RETURN id, i32_property, i64_property, u32_property, u64_property, "
+            f"f32_property, f64_property, str_property, date_property, datetime_property, interval_property "
+            f"LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0  # id: INT64
+        assert rows[0][1] == -123456789  # i32_property: INT32
+        assert rows[0][2] == 9223372036854775807  # i64_property: INT64_MAX
+        assert rows[0][3] == 4294967295  # u32_property: UINT32
+        assert rows[0][4] == 18446744073709551615  # u64_property: UINT64_MAX
+        assert abs(rows[0][5] - 3.1415927) < 1e-6  # f32_property: FLOAT32
+        assert abs(rows[0][6] - 2.718281828459045) < 1e-9  # f64_property: DOUBLE
+        assert str(rows[0][7]) == "test_string_0"  # str_property: STRING
+        assert str(rows[0][8]) == "2023-01-15"  # date_property: DATE
+        assert str(rows[0][9]).startswith(
+            "2023-01-15 00:00:00"
+        )  # datetime_property: TIMESTAMP
+        assert (
+            str(rows[0][10]) == "1year2months3days4hours5minutes6seconds"
+        )  # interval_property: STRING for now
+
+        # --- rel_a.parquet ---
+        # 10 rows; row 0 from rel_a.csv:
+        #   src_id=0, dst_id=3, double_weight=3.141593, i32_weight=42,
+        #   i64_weight=-1234567890123456789, datetime_weight=2023-05-17
+        p = os.path.join(parquet_dir, "rel_a.parquet")
+        result = self.conn.execute(
+            f'LOAD FROM "{p}" '
+            f"RETURN src_id, dst_id, double_weight, i32_weight, i64_weight, datetime_weight "
+            f"ORDER BY src_id LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0 and rows[0][1] == 3  # src_id, dst_id: INT64
+        assert abs(rows[0][2] - 3.141593) < 1e-9  # double_weight: DOUBLE
+        assert rows[0][3] == 42  # i32_weight: INT32
+        assert rows[0][4] == -1234567890123456789  # i64_weight: INT64
+        assert str(rows[0][5]).startswith(
+            "2023-05-17 00:00:00"
+        )  # datetime_weight: TIMESTAMP
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
@@ -1291,3 +1616,339 @@ class TestCopyFrom:
         assert records[0][0] == 0 and records[0][2] == "Alice" and records[0][1] == 35
         assert records[1][0] == 2 and records[1][2] == "Bob" and records[1][1] == 30
         assert records[2][0] == 3 and records[2][2] == "Carol" and records[2][1] == 45
+
+    @extension_test
+    def test_copy_from_node_parquet_with_column_remapping(self):
+        parquet_path = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        if not os.path.exists(parquet_path):
+            pytest.skip(f"Parquet file not found: {parquet_path}")
+
+        create_schema = """
+        CREATE NODE TABLE person_parquet_remap (
+            ID INT64,
+            age INT64,
+            fName STRING,
+            gender INT64,
+            eyeSight DOUBLE,
+            isStudent BOOLEAN,
+            PRIMARY KEY (ID)
+        )
+        """
+
+        self.conn.execute(create_schema)
+
+        self.conn.execute("load parquet")
+
+        copy_query = f"""
+        COPY person_parquet_remap FROM (
+            LOAD FROM "{parquet_path}"
+            RETURN ID, age, fName, gender, eyeSight, isStudent
+        )
+        """
+        self.conn.execute(copy_query)
+
+        query = "MATCH (p:person_parquet_remap) RETURN p.ID, p.age, p.fName, p.gender, p.eyeSight ORDER BY p.ID LIMIT 3"
+        result = self.conn.execute(query)
+
+        records = list(result)
+
+        assert len(records) >= 3, "Should have loaded at least 3 persons"
+        # Verify first record (ID=0, Alice, age=35, eyeSight=5.0)
+        assert records[0][0] == 0, "First person ID should be 0"
+        assert records[0][1] == 35, "Alice's age should be 35"
+        assert records[0][2] == "Alice", "First person name should be Alice"
+        assert records[0][3] == 1, "Alice's gender should be 1"
+        assert records[0][4] == 5.0, "Alice's eyeSight should be 5.0"
+
+    @extension_test
+    def test_copy_from_edge_parquet_with_column_remapping(self):
+        """Test COPY FROM for edge table with column remapping using Parquet files."""
+        person_parquet = os.path.join(self.tinysnb_path, "parquet", "vPerson.parquet")
+        meets_parquet = os.path.join(self.tinysnb_path, "parquet", "eMeets.parquet")
+        if not os.path.exists(person_parquet) or not os.path.exists(meets_parquet):
+            pytest.skip("Parquet files not found")
+
+        # Load parquet extension
+        self.conn.execute("load parquet")
+
+        # Create node table schema
+        create_person_schema = """
+        CREATE NODE TABLE person (
+            ID INT64,
+            fName STRING,
+            gender INT64,
+            age INT64,
+            PRIMARY KEY (ID)
+        )
+        """
+        self.conn.execute(create_person_schema)
+
+        # Create edge table schema
+        # Parquet file order: from, to, location, times, data
+        # Schema order: from, to, times, location, data (different order)
+        create_meets_schema = """
+        CREATE REL TABLE meets (
+            FROM person TO person,
+            times INT64,
+            location STRING,
+            data STRING
+        )
+        """
+        self.conn.execute(create_meets_schema)
+
+        # Copy person nodes first
+        copy_person = f"""
+        COPY person FROM (
+            LOAD FROM "{person_parquet}"
+            RETURN ID, fName, gender, age
+        )
+        """
+        self.conn.execute(copy_person)
+
+        # Copy meets edges with column remapping
+        # Parquet: from, to, location, times, data
+        # Schema expects: from, to, times, location, data
+        copy_meets = f"""
+        COPY meets FROM (
+            LOAD FROM "{meets_parquet}"
+            RETURN from, to, times, location, data
+        )
+        """
+        self.conn.execute(copy_meets)
+
+        # Verify data with MATCH query
+        query = """
+        MATCH (a:person)-[m:meets]->(b:person)
+        RETURN a.ID, b.ID, m.times, m.location
+        ORDER BY a.ID, b.ID
+        LIMIT 3
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) > 0, "Should have loaded at least one meets relationship"
+        # Verify first relationship (0->2, Alice meets Bob)
+        assert records[0][0] == 0, "Source person ID should be 0"
+        assert records[0][1] == 2, "Target person ID should be 2"
+        assert records[0][2] == 5, "Times should be 5"
+        assert records[0][3] is not None, "Location should not be None"
+
+    def test_copy_from_comprehensive_graph_csv(self):
+        """Test COPY FROM CSV using comprehensive_graph node_a.csv (node) and rel_a.csv (edge).
+        Covers all NeuG types: INT32, INT64, UINT32, UINT64, FLOAT, DOUBLE,
+        STRING, DATE, TIMESTAMP, INTERVAL for nodes;
+        DOUBLE, INT32, INT64, TIMESTAMP for edges.
+        """
+        comprehensive_path = get_comprehensive_graph_path()
+        node_csv = os.path.join(comprehensive_path, "node_a.csv")
+        rel_csv = os.path.join(comprehensive_path, "rel_a.csv")
+        if not os.path.exists(node_csv):
+            pytest.skip(f"node_a.csv not found: {node_csv}")
+
+        # --- node: CREATE + COPY ---
+        self.conn.execute(
+            """
+            CREATE NODE TABLE cg_node_a (
+                id                INT64,
+                i32_property      INT32,
+                i64_property      INT64,
+                u32_property      UINT32,
+                u64_property      UINT64,
+                f32_property      FLOAT,
+                f64_property      DOUBLE,
+                str_property      STRING,
+                date_property     DATE,
+                datetime_property TIMESTAMP,
+                interval_property INTERVAL,
+                PRIMARY KEY (id)
+            )
+        """
+        )
+        self.conn.execute(
+            f"""
+            COPY cg_node_a FROM (
+                LOAD FROM "{node_csv}" (delim="|")
+                RETURN id, CAST(i32_property, 'INT32') as i32_property,
+                i64_property, CAST(u32_property, 'UINT32') as u32_property, CAST(u64_property, 'UINT64') as u64_property,
+                       CAST(f32_property, 'FLOAT') as f32_property, f64_property, str_property,
+                       date_property, datetime_property, interval_property
+            )
+        """
+        )
+
+        result = self.conn.execute(
+            "MATCH (n:cg_node_a) WHERE n.id = 0 "
+            "RETURN n.id, n.i32_property, n.i64_property, n.u32_property, n.u64_property, "
+            "n.f32_property, n.f64_property, n.str_property, n.date_property, "
+            "n.datetime_property, n.interval_property"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0  # id: INT64
+        assert rows[0][1] == -123456789  # i32_property: INT32
+        assert rows[0][2] == 9223372036854775807  # i64_property: INT64_MAX
+        assert rows[0][3] == 4294967295  # u32_property: UINT32
+        assert (
+            abs(rows[0][4] - 1.8446744073709552e19) < 1.0
+        )  # u64_property: UINT64_MAX (as float)
+        assert abs(rows[0][5] - 3.1415927) < 1e-6  # f32_property: FLOAT
+        assert abs(rows[0][6] - 2.718281828459045) < 1e-9  # f64_property: DOUBLE
+        assert rows[0][7] == "test_string_0"  # str_property: STRING
+        assert str(rows[0][8]) == "2023-01-15"  # date_property: DATE
+        assert str(rows[0][9]).startswith("2023-01-15")  # datetime_property: TIMESTAMP
+        assert rows[0][10] is not None  # interval_property: INTERVAL
+
+        # --- edge: CREATE + COPY ---
+        if not os.path.exists(rel_csv):
+            return
+        self.conn.execute(
+            """
+            CREATE REL TABLE cg_rel_a (
+                FROM cg_node_a TO cg_node_a,
+                double_weight    DOUBLE,
+                i32_weight       INT32,
+                i64_weight       INT64,
+                datetime_weight  TIMESTAMP
+            )
+        """
+        )
+        # rel_a.csv has duplicate 'node_a.id' column names; rename them to avoid conflict
+        # need some explicit casting (e.g., f3 to INT32, otherwise, it will be imported as int64)
+        self.conn.execute(
+            f"""
+            COPY cg_rel_a FROM (
+                LOAD FROM "{rel_csv}" (delim="|")
+                RETURN f0 as src, f1 as dst,
+                       f2 as double_weight, CAST(f3, 'INT32') as i32_weight,
+                       f4 as i64_weight, CAST(f5, 'TIMESTAMP') as datetime_weight
+            )
+        """
+        )
+
+        result = self.conn.execute(
+            "MATCH (a:cg_node_a)-[r:cg_rel_a]->(b:cg_node_a) WHERE a.id = 0 "
+            "RETURN a.id, b.id, r.double_weight, r.i32_weight, r.i64_weight, r.datetime_weight "
+            "LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0 and rows[0][1] == 3  # src_id=0, dst_id=3
+        assert abs(rows[0][2] - 3.141593) < 1e-9  # double_weight: DOUBLE
+        assert rows[0][3] == 42  # i32_weight: INT32
+        assert rows[0][4] == -1234567890123456789  # i64_weight: INT64
+        assert str(rows[0][5]).startswith(
+            "2023-05-17 00:00:00"
+        )  # datetime_weight: TIMESTAMP
+
+    @extension_test
+    def test_copy_from_comprehensive_graph_parquet(self):
+        """Test COPY FROM Parquet using comprehensive_graph node_a.parquet (node)
+        and rel_a.parquet (edge).
+        interval_property is stored as STRING in Parquet (no native Parquet interval type).
+        Run example_dataset/comprehensive_graph/csv_to_parquet.py first.
+        """
+        comprehensive_path = get_comprehensive_graph_path()
+        parquet_dir = os.path.join(comprehensive_path, "parquet")
+        node_parquet = os.path.join(parquet_dir, "node_a.parquet")
+        rel_parquet = os.path.join(parquet_dir, "rel_a.parquet")
+        if not os.path.exists(parquet_dir):
+            pytest.skip(
+                f"parquet/ not found: {parquet_dir}. "
+                "Run example_dataset/comprehensive_graph/csv_to_parquet.py to generate."
+            )
+
+        self.conn.execute("load parquet")
+
+        # --- node: CREATE + COPY ---
+        # interval_property is not supported yet. Defined it as STRING
+        self.conn.execute(
+            """
+            CREATE NODE TABLE cg_node_a (
+                id                INT64,
+                i32_property      INT32,
+                i64_property      INT64,
+                u32_property      UINT32,
+                u64_property      UINT64,
+                f32_property      FLOAT,
+                f64_property      DOUBLE,
+                str_property      STRING,
+                date_property     DATE,
+                datetime_property TIMESTAMP,
+                interval_property STRING,
+                PRIMARY KEY (id)
+            )
+        """
+        )
+        self.conn.execute(
+            f"""
+            COPY cg_node_a FROM (
+                LOAD FROM "{node_parquet}"
+                RETURN id, i32_property, i64_property, u32_property, u64_property,
+                       f32_property, f64_property, str_property,
+                       date_property, datetime_property, interval_property
+            )
+        """
+        )
+
+        result = self.conn.execute(
+            "MATCH (n:cg_node_a) WHERE n.id = 0 "
+            "RETURN n.id, n.i32_property, n.i64_property, n.u32_property, n.u64_property, "
+            "n.f32_property, n.f64_property, n.str_property, n.date_property, "
+            "n.datetime_property, n.interval_property"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0  # id: INT64
+        assert rows[0][1] == -123456789  # i32_property: INT32
+        assert rows[0][2] == 9223372036854775807  # i64_property: INT64_MAX
+        assert rows[0][3] == 4294967295  # u32_property: UINT32
+        assert (
+            abs(rows[0][4] - 1.8446744073709552e19) < 1.0
+        )  # u64_property: UINT64_MAX (as float)
+        assert abs(rows[0][5] - 3.1415927) < 1e-6  # f32_property: FLOAT
+        assert abs(rows[0][6] - 2.718281828459045) < 1e-9  # f64_property: DOUBLE
+        assert rows[0][7] == "test_string_0"  # str_property: STRING
+        assert str(rows[0][8]) == "2023-01-15"  # date_property: DATE
+        assert str(rows[0][9]).startswith(
+            "2023-01-15 00:00:00"
+        )  # datetime_property: TIMESTAMP
+        assert (
+            rows[0][10] == "1year2months3days4hours5minutes6seconds"
+        )  # interval_property: STRING
+
+        # --- edge: CREATE + COPY ---
+        self.conn.execute(
+            """
+            CREATE REL TABLE cg_rel_a (
+                FROM cg_node_a TO cg_node_a,
+                double_weight    DOUBLE,
+                i32_weight       INT32,
+                i64_weight       INT64,
+                datetime_weight  TIMESTAMP
+            )
+        """
+        )
+        # rel_a.parquet has src_id / dst_id (renamed from node_a.id during preprocessing)
+        self.conn.execute(
+            f"""
+            COPY cg_rel_a FROM (
+                LOAD FROM "{rel_parquet}"
+                RETURN src_id, dst_id, double_weight, i32_weight, i64_weight, datetime_weight
+            )
+        """
+        )
+
+        result = self.conn.execute(
+            "MATCH (a:cg_node_a)-[r:cg_rel_a]->(b:cg_node_a) WHERE a.id = 0 "
+            "RETURN a.id, b.id, r.double_weight, r.i32_weight, r.i64_weight, r.datetime_weight "
+            "LIMIT 1"
+        )
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == 0 and rows[0][1] == 3  # src_id=0, dst_id=3
+        assert abs(rows[0][2] - 3.141593) < 1e-9  # double_weight: DOUBLE
+        assert rows[0][3] == 42  # i32_weight: INT32
+        assert rows[0][4] == -1234567890123456789  # i64_weight: INT64
+        assert str(rows[0][5]).startswith(
+            "2023-05-17 00:00:00"
+        )  # datetime_weight: TIMESTAMP

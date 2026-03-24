@@ -124,5 +124,7 @@ endfunction()
 
 # Add json extension
 add_extension_if_enabled("json")
+# Add parquet extension
+add_extension_if_enabled("parquet")
 
 message(STATUS "=== Extension configuration complete ===")

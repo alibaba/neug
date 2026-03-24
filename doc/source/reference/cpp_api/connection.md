@@ -61,8 +61,8 @@ result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
 "read", params);
 // Process results
 if (result.has_value()) {
-  for (auto& record : result.value()) {
-    // Access columns via record.entries()
+  for (const auto& record : result.value()) {
+   
   }
 } else {
   std::cerr << "Query failed: " << result.error().message() << std::endl;
@@ -83,7 +83,7 @@ if (result.has_value()) {
   - Use parameterized queries for dynamic values to prevent injection.
   - Specifying correct access_mode ensures proper transaction handling.
 
-- **Returns:** `result<QueryResult>` containing either:
+- **Returns:** result<QueryResult> containing either:
 
 - `QueryResult` with query results on success
 - Error status with message on failure

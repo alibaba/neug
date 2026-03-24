@@ -96,12 +96,6 @@ std::unique_ptr<BoundStatement> Binder::bind(const Statement& statement) {
   case StatementType::EXTENSION: {
     boundStatement = bindExtension(statement);
   } break;
-  case StatementType::EXPORT_DATABASE: {
-    boundStatement = bindExportDatabaseClause(statement);
-  } break;
-  case StatementType::IMPORT_DATABASE: {
-    boundStatement = bindImportDatabaseClause(statement);
-  } break;
   case StatementType::ATTACH_DATABASE: {
     boundStatement = bindAttachDatabase(statement);
   } break;

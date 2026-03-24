@@ -253,7 +253,7 @@ auto param_result = guard->Eval(query);
 - **Parameters:**
   - `query`: JSON string containing query, access_mode, and parameters
 
-- **Returns:** Result containing CollectiveResults on success, or error status
+- **Returns:** Result containing `QueryResult` on success, or error status
 
 
 ---

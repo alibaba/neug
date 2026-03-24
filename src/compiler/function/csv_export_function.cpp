@@ -21,7 +21,7 @@
  */
 
 #include "neug/compiler/function/export/export_function.h"
-#include "neug/compiler/function/read_function.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/writer/writer.h"
 
 namespace neug {
@@ -34,11 +34,13 @@ static void convertFileSchemaOptions(reader::FileSchema& schema) {
   // convert user-specified 'DELIMITER' to 'DELIM' for arrow csv options, all
   // options are case insensitive. Use operator[] so DELIMITER overwrites DELIM
   // when both are set (avoids silently ignoring DELIMITER).
-  if (options.contains("DELIMITER")) {
-    options["DELIM"] = options.at("DELIMITER");
+  auto it = options.find("DELIMITER");
+  if (it != options.end()) {
+    options["DELIM"] = it->second;
   }
-  if (options.contains("DELIM")) {
-    auto value = options.at("DELIM");
+  it = options.find("DELIM");
+  if (it != options.end()) {
+    auto value = it->second;
     if (value.size() != 1) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Delimiter should be a single character: " + value);
@@ -58,10 +60,10 @@ execution::Context writeExecFunc(
     THROW_INVALID_ARGUMENT_EXCEPTION("Schema paths is empty");
   }
   convertFileSchemaOptions(schema);
-  LocalFileSystemProvider fsProvider;
-  auto fileInfo = fsProvider.provide(schema, false);
+  const auto& vfs = neug::main::MetadataRegistry::getVFS();
+  const auto& fs = vfs->Provide(schema);
   auto writer = std::make_shared<neug::writer::CsvQueryExportWriter>(
-      schema, fileInfo.fileSystem, entry_schema);
+      schema, fs->toArrowFileSystem(), entry_schema);
   auto status = writer->write(ctx, graph);
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Export failed: " + status.ToString());
