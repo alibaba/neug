@@ -32,11 +32,6 @@ class Table {
   Table();
   ~Table();
 
-  void init(const std::string& name, const std::string& work_dir,
-            const std::vector<std::string>& col_name,
-            const std::vector<DataType>& types,
-            const std::vector<StorageStrategy>& strategies_);
-
   void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types,

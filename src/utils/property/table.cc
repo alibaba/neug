@@ -52,20 +52,6 @@ void Table::initColumns(const std::vector<std::string>& col_name,
   columns_.resize(col_id_map_.size());
 }
 
-void Table::init(const std::string& name, const std::string& work_dir,
-                 const std::vector<std::string>& col_name,
-                 const std::vector<DataType>& property_types,
-                 const std::vector<StorageStrategy>& strategies_) {
-  name_ = name;
-  work_dir_ = work_dir;
-  initColumns(col_name, property_types, strategies_);
-  for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open(name + ".col_" + std::to_string(i), "", work_dir);
-  }
-  touched_ = true;
-  buildColumnPtrs();
-}
-
 void Table::open(const std::string& name, const std::string& work_dir,
                  const std::vector<std::string>& col_name,
                  const std::vector<DataType>& property_types,
@@ -301,7 +287,6 @@ void Table::insert(size_t index, const std::vector<Property>& values,
   CHECK_EQ(values.size(), columns_.size());
   size_t col_num = columns_.size();
   for (size_t i = 0; i < col_num; ++i) {
-    columns_[i]->ensure_writable(work_dir_);
     columns_[i]->set_any(index, values[i], insert_safe);
   }
 }
