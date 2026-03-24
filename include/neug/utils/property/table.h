@@ -53,9 +53,6 @@ class Table {
                            const std::vector<StorageStrategy>& strategies_,
                            bool force = false);
 
-  void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
-                   const std::string& work_dir);
-
   void dump(const std::string& name, const std::string& snapshot_dir);
 
   void reset_header(const std::vector<std::string>& col_name);

@@ -59,8 +59,6 @@ class ColumnBase {
 
   virtual size_t size() const = 0;
 
-  virtual void copy_to_tmp(const std::string& cur_path,
-                           const std::string& tmp_path) = 0;
   virtual void resize(size_t size) = 0;
   virtual void resize(size_t size, const Property& default_value) = 0;
 
@@ -136,19 +134,6 @@ class TypedColumn : public ColumnBase {
   }
 
   void close() override { buffer_.reset(); }
-
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {
-    mmap_array<T> tmp;
-    if (!std::filesystem::exists(cur_path)) {
-      return;
-    }
-    copy_file(cur_path, tmp_path);
-    tmp.open(tmp_path, true);
-    buffer_.reset();
-    buffer_.swap(tmp);
-    tmp.reset();
-  }
 
   void dump(const std::string& filename) override { buffer_.dump(filename); }
 
@@ -247,8 +232,6 @@ class TypedColumn<EmptyType> : public ColumnBase {
   void open_in_memory(const std::string& name) override {}
   void open_with_hugepages(const std::string& name, bool force) override {}
   void dump(const std::string& filename) override {}
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {}
   void close() override {}
   size_t size() const override { return 0; }
   void resize(size_t size) override {}
@@ -341,23 +324,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void close() override { buffer_.reset(); }
-
-  void copy_to_tmp(const std::string& cur_path,
-                   const std::string& tmp_path) override {
-    mmap_array<std::string_view> tmp;
-    if (!std::filesystem::exists(cur_path + ".data")) {
-      return;
-    }
-    copy_file(cur_path + ".data", tmp_path + ".data");
-    copy_file(cur_path + ".items", tmp_path + ".items");
-    copy_file(cur_path + ".pos", tmp_path + ".pos");
-
-    buffer_.reset();
-    tmp.open(tmp_path, true);
-    buffer_.swap(tmp);
-    tmp.reset();
-    init_pos(tmp_path + ".pos");
-  }
 
   void dump(const std::string& filename) override {
     size_t pos_val = pos_.load();

@@ -311,8 +311,6 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(disk_table.get_column_id_by_name("renamed_bool_column"), 0);
   disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(disk_table.col_num(), 10);
-  disk_table.copy_to_tmp("disk_table", std::string(TEST_DIR) + "/checkpoint",
-                         std::string(TEST_DIR));
   disk_table.set_work_dir(std::string(TEST_DIR));
   disk_table.drop();
 
