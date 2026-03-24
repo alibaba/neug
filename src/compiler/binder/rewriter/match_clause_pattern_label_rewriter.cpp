@@ -32,9 +32,11 @@ namespace binder {
 void MatchClausePatternLabelRewriter::visitMatchUnsafe(
     BoundReadingClause& readingClause) {
   auto& matchClause = readingClause.cast<BoundMatchClause>();
+  bool skipNodes =
+      matchClause.getMatchClauseType() == MatchClauseType::OPTIONAL_MATCH;
   auto collection = matchClause.getQueryGraphCollectionUnsafe();
   for (auto i = 0u; i < collection->getNumQueryGraphs(); ++i) {
-    analyzer.pruneLabel(*collection->getQueryGraphUnsafe(i));
+    analyzer.pruneLabel(*collection->getQueryGraphUnsafe(i), skipNodes);
   }
 }
 

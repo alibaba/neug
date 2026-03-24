@@ -34,7 +34,7 @@ class QueryGraphLabelAnalyzer {
                                    bool throwOnViolate)
       : throwOnViolate{throwOnViolate}, clientContext{clientContext} {}
 
-  void pruneLabel(QueryGraph& graph) const;
+  void pruneLabel(QueryGraph& graph, bool skipNodes = false) const;
 
  private:
   void pruneNode(const QueryGraph& graph, NodeExpression& node) const;
