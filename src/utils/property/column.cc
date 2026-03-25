@@ -55,9 +55,10 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   auto type_id = type.id();
   auto extra_type_info = type.RawExtraTypeInfo();
   switch (type_id) {
-        enum_val, type) case DataTypeId::enum_val : return std::make_shared <
-        TypedColumn < type>>();
-        FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
+#define TYPE_DISPATCHER(enum_val, type) \
+  case DataTypeId::enum_val:            \
+    return std::make_shared<TypedColumn<type>>();
+    FOR_EACH_DATA_TYPE_NO_STRING(TYPE_DISPATCHER)
 #undef TYPE_DISPATCHER
   case DataTypeId::kVarchar: {
     uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
@@ -110,8 +111,7 @@ void OpenContainerForColumnInMemory(IDataContainer& buffer,
 }
 
 void OpenContainerForColumnWithHugePages(IDataContainer& buffer,
-                                         const std::string& name,
-                                         MemoryLevel strategy) {
+                                         const std::string& name) {
   if (!name.empty() && std::filesystem::exists(name)) {
     buffer.Open(name);
   }

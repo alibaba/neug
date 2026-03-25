@@ -79,7 +79,8 @@ class MutableCsrTest : public ::testing::Test {
   static constexpr const char* TEST_DIR = "/tmp/mutable_csr_test";
 
   void SetUp() override {
-    allocators.resize(1, Allocator(neug::MemoryLevel::kInMemory, ""));
+    allocators.emplace_back(
+        std::make_unique<Allocator>(MemoryLevel::kInMemory, ""));
   }
 
   size_t count_edge_num(MutableCsr<EDATA_T>& csr) {
@@ -330,7 +331,7 @@ class MutableCsrTest : public ::testing::Test {
     }
   }
 
-  std::vector<neug::Allocator> allocators;
+  std::vector<std::unique_ptr<neug::Allocator>> allocators;
 };
 TYPED_TEST_SUITE(MutableCsrTest, Datatypes);
 
@@ -571,13 +572,13 @@ TYPED_TEST(MutableCsrTest, TestPutEdge) {
   timestamp_t insert_ts = 6;
   this->template put_single_edge<MutableCsr>(mutable_csr, insert_src_vid,
                                              insert_dst_vid, insert_ts,
-                                             this->allocators[0]);
+                                             *(this->allocators[0]));
   this->template put_single_edge<SingleMutableCsr>(
       single_mutable_csr, insert_src_vid, insert_dst_vid, insert_ts,
-      this->allocators[0]);
+      *(this->allocators[0]));
   this->template put_single_edge<EmptyCsr>(empty_csr, insert_src_vid,
                                            insert_dst_vid, insert_ts,
-                                           this->allocators[0]);
+                                           *(this->allocators[0]));
   EXPECT_EQ(mutable_csr.edge_num(), edge_num + 1);
   EXPECT_EQ(single_mutable_csr.edge_num(), edge_num);
   EXPECT_EQ(empty_csr.edge_num(), 0);
@@ -648,7 +649,7 @@ TYPED_TEST(MutableCsrTest, TestDeleteEdge) {
     for (size_t src_ind = 0; src_ind < src_vid.size(); ++src_ind) {
       this->template put_single_edge<MutableCsr>(mutable_csr, src_vid[src_ind],
                                                  dst_vid[src_ind], 0,
-                                                 this->allocators[0]);
+                                                 *(this->allocators[0]));
     }
   }
   EXPECT_EQ(this->count_edge_num(mutable_csr), edge_num + 50 * src_vid.size());

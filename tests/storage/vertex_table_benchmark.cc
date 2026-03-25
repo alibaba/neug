@@ -162,6 +162,10 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<neug::Property> property_values_;
   std::vector<neug::Property> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
+  std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;
+  std::vector<std::shared_ptr<neug::ExtraTypeInfo>> property_extra_infos_;
+  std::string description;
+  std::mt19937 generator_;
 };
 
 TEST_F(VertexTableBenchmark, AddVertexPerformance) {

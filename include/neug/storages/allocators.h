@@ -45,11 +45,6 @@ class ArenaAllocator {
         allocated_batches_(0) {}
   ~ArenaAllocator() {}
 
-  ArenaAllocator(const ArenaAllocator&) = delete;
-  ArenaAllocator& operator=(const ArenaAllocator&) = delete;
-  ArenaAllocator(ArenaAllocator&&) noexcept = default;
-  ArenaAllocator& operator=(ArenaAllocator&&) noexcept = default;
-
   void reserve(size_t cap) {
     if (cur_size_ - cur_loc_ >= cap) {
       return;

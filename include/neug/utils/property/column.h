@@ -92,8 +92,7 @@ void OpenContainerForColumnInMemory(IDataContainer& container,
                                     const std::string& name);
 
 void OpenContainerForColumnWithHugePages(IDataContainer& container,
-                                         const std::string& name,
-                                         MemoryLevel strategy);
+                                         const std::string& name);
 
 template <typename T>
 class TypedColumn : public ColumnBase {
@@ -116,7 +115,7 @@ class TypedColumn : public ColumnBase {
 
   void open_with_hugepages(const std::string& name) override {
     buffer_ = std::make_unique<AnonHugeMMap>();
-    OpenContainerForColumnWithHugePages(*buffer_, name, strategy_);
+    OpenContainerForColumnWithHugePages(*buffer_, name);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -294,10 +293,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ = std::make_unique<AnonHugeMMap>();
     data_buffer_ = std::make_unique<AnonHugeMMap>();
-    OpenContainerForColumnWithHugePages(*items_buffer_, prefix + ".items",
-                                        strategy_);
-    OpenContainerForColumnWithHugePages(*data_buffer_, prefix + ".data",
-                                        strategy_);
+    OpenContainerForColumnWithHugePages(*items_buffer_, prefix + ".items");
+    OpenContainerForColumnWithHugePages(*data_buffer_, prefix + ".data");
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
