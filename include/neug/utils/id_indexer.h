@@ -285,8 +285,6 @@ class LFIndexer {
     keys_->open(filename + ".keys", "", work_dir);
     auto tmp_indices = std::make_unique<FileSharedMMap>();
     auto full_path = work_dir + "/" + filename + ".indices";
-    ensure_directory_exists(
-        std::filesystem::path(full_path).parent_path().string());
     file_utils::create_file(full_path, sizeof(FileHeader));
     tmp_indices->Open(full_path);
 

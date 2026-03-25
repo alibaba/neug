@@ -217,14 +217,10 @@ void NeugDB::initAllocators() {
   std::filesystem::create_directories(allocator_dir(work_dir_));
   assert(config_.thread_num > 0);
   for (int i = 0; i < config_.thread_num; ++i) {
-    // safe to pass the same prefix for both anon-based and file-based
-    // strategies, as the allocator will ignore the prefix for anon-based
-    // strategy
-    auto allocator_file = config_.memory_level == MemoryLevel::kSyncToFile
-                              ? wal_ingest_allocator_prefix(work_dir_, i)
-                              : "";
-    allocators_.emplace_back(
-        std::make_shared<Allocator>(config_.memory_level, allocator_file));
+    allocators_.emplace_back(std::make_shared<Allocator>(
+        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
+                                  ? ""
+                                  : wal_ingest_allocator_prefix(work_dir_, i)));
   }
 }
 

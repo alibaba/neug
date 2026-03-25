@@ -480,7 +480,7 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
   std::vector<std::pair<vid_t, int32_t>> edges_to_delete;
-  auto view = mutable_csr.get_generic_view(3);
+  auto view = mutable_csr.get_generic_view(1);
   for (size_t i = 0; i < delete_src_edges.size(); ++i) {
     auto edges = view.get_edges(delete_src_edges[i]);
     for (auto it = edges.begin(); it != edges.end(); ++it) {
@@ -500,7 +500,7 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdges) {
   SingleMutableCsr<TypeParam> single_mutable_csr;
   this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
   edges_to_delete.clear();
-  view = single_mutable_csr.get_generic_view(3);
+  view = single_mutable_csr.get_generic_view(1);
   for (size_t i = 0; i < delete_src_edges.size(); ++i) {
     auto edges = view.get_edges(delete_src_edges[i]);
     for (auto it = edges.begin(); it != edges.end(); ++it) {
@@ -526,7 +526,7 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdgesById) {
   MutableCsr<TypeParam> mutable_csr;
   this->load_csr_data(mutable_csr, MemoryLevel::kInMemory);
   std::vector<vid_t> src_ids, dst_ids;
-  auto view = mutable_csr.get_generic_view(3);
+  auto view = mutable_csr.get_generic_view(1);
   for (vid_t i = 0; i < mutable_csr.size(); i++) {
     auto edges = view.get_edges(i);
     for (auto it = edges.begin(); it != edges.end(); ++it) {
@@ -544,7 +544,7 @@ TYPED_TEST(MutableCsrTest, TestBatchDeleteEdgesById) {
   this->load_single_csr_data(single_mutable_csr, MemoryLevel::kInMemory);
   src_ids.clear();
   dst_ids.clear();
-  view = single_mutable_csr.get_generic_view(3);
+  view = single_mutable_csr.get_generic_view(1);
   for (size_t i = 0; i < 4; ++i) {
     auto edges = view.get_edges(i);
     for (auto it = edges.begin(); it != edges.end(); ++it) {

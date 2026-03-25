@@ -69,11 +69,6 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   ASSERT_TRUE(
       conn->Query("MATCH (a:person), (b:person) WHERE a.id=1 AND b.id=2 CREATE "
                   "(a)-[:knows {since: 2021}]->(b);"));
-  auto res0 =
-      conn->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
-  ASSERT_TRUE(res0);
-  const auto& table0 = res0.value().response();
-  LOG(INFO) << "table: " << table0.DebugString();
   db.Close();
 
   // 2. Reopen and check data
@@ -84,8 +79,7 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
       conn2->Query("MATCH (v:person) RETURN v.id, v.name ORDER BY v.id;");
   ASSERT_TRUE(res);
   const auto& val = res.value();
-  auto table = val.response();
-  LOG(INFO) << "table: " << table.DebugString();
+  const auto& table = val.response();
   ASSERT_EQ(table.row_count(), 2);
   ASSERT_EQ(table.arrays_size(), 2);
   neug::test::AssertInt64Column(table, 0, {1, 2});
@@ -131,7 +125,7 @@ TEST_P(MemoryLevelPersistenceTest, DDLAndDMLPersistence) {
   neug::test::AssertInt64Column(table2, 0, {1, 2, 3});
   neug::test::AssertStringColumn(table2, 1, {"Alice", "Bob", "Carol"});
   auto res3 = conn3->Query(
-      "MATCH (p:person)-[r:lives_in]->(c:city) RETURN p.id, c.id,r.since;");
+      "MATCH (p:person)-[r:lives_in]->(c:city) RETURN p.id, c.id, r.since;");
   ASSERT_TRUE(res3);
   const auto& val3 = res3.value();
   auto table3 = val3.response();

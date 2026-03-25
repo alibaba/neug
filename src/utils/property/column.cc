@@ -80,9 +80,9 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   }
 }
 
-void OpenContainerForColumn(IDataContainer& buffer, const std::string& name,
-                            const std::string& snapshot_dir,
-                            const std::string& work_dir) {
+void open_container_shared(IDataContainer& buffer, const std::string& name,
+                           const std::string& snapshot_dir,
+                           const std::string& work_dir) {
   std::string basic_path = snapshot_dir + "/" + name;
   if (std::filesystem::exists(basic_path)) {
     auto tmp_path = work_dir + "/" + name;
@@ -103,15 +103,7 @@ void OpenContainerForColumn(IDataContainer& buffer, const std::string& name,
   }
 }
 
-void OpenContainerForColumnInMemory(IDataContainer& buffer,
-                                    const std::string& name) {
-  if (!name.empty() && std::filesystem::exists(name)) {
-    buffer.Open(name);
-  }
-}
-
-void OpenContainerForColumnWithHugePages(IDataContainer& buffer,
-                                         const std::string& name) {
+void open_container_in_memory(IDataContainer& buffer, const std::string& name) {
   if (!name.empty() && std::filesystem::exists(name)) {
     buffer.Open(name);
   }

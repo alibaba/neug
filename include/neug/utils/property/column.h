@@ -84,15 +84,12 @@ class ColumnBase {
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
 
-void OpenContainerForColumn(IDataContainer& container, const std::string& name,
-                            const std::string& snapshot_dir,
-                            const std::string& work_dir);
+void open_container_shared(IDataContainer& container, const std::string& name,
+                           const std::string& snapshot_dir,
+                           const std::string& work_dir);
 
-void OpenContainerForColumnInMemory(IDataContainer& container,
-                                    const std::string& name);
-
-void OpenContainerForColumnWithHugePages(IDataContainer& container,
-                                         const std::string& name);
+void open_container_in_memory(IDataContainer& container,
+                              const std::string& name);
 
 template <typename T>
 class TypedColumn : public ColumnBase {
@@ -103,19 +100,19 @@ class TypedColumn : public ColumnBase {
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
     buffer_ = std::make_unique<FileSharedMMap>();
-    OpenContainerForColumn(*buffer_, name, snapshot_dir, work_dir);
+    open_container_shared(*buffer_, name, snapshot_dir, work_dir);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_in_memory(const std::string& name) override {
     buffer_ = std::make_unique<FilePrivateMMap>();
-    OpenContainerForColumnInMemory(*buffer_, name);
+    open_container_in_memory(*buffer_, name);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_with_hugepages(const std::string& name) override {
     buffer_ = std::make_unique<AnonHugeMMap>();
-    OpenContainerForColumnWithHugePages(*buffer_, name);
+    open_container_in_memory(*buffer_, name);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -149,7 +146,6 @@ class TypedColumn : public ColumnBase {
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
-      // buffer_.set(index, val);
       data_ptr()[index] = val;
     } else {
       THROW_RUNTIME_ERROR("Index out of range");
@@ -273,10 +269,10 @@ class TypedColumn<std::string_view> : public ColumnBase {
             const std::string& work_dir) override {
     items_buffer_ = std::make_unique<FileSharedMMap>();
     data_buffer_ = std::make_unique<FileSharedMMap>();
-    OpenContainerForColumn(*items_buffer_, name + ".items", snapshot_dir,
-                           work_dir);
-    OpenContainerForColumn(*data_buffer_, name + ".data", snapshot_dir,
-                           work_dir);
+    open_container_shared(*items_buffer_, name + ".items", snapshot_dir,
+                          work_dir);
+    open_container_shared(*data_buffer_, name + ".data", snapshot_dir,
+                          work_dir);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
@@ -284,8 +280,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_in_memory(const std::string& prefix) override {
     items_buffer_ = std::make_unique<FilePrivateMMap>();
     data_buffer_ = std::make_unique<FilePrivateMMap>();
-    OpenContainerForColumnInMemory(*items_buffer_, prefix + ".items");
-    OpenContainerForColumnInMemory(*data_buffer_, prefix + ".data");
+    open_container_in_memory(*items_buffer_, prefix + ".items");
+    open_container_in_memory(*data_buffer_, prefix + ".data");
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
@@ -293,8 +289,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ = std::make_unique<AnonHugeMMap>();
     data_buffer_ = std::make_unique<AnonHugeMMap>();
-    OpenContainerForColumnWithHugePages(*items_buffer_, prefix + ".items");
-    OpenContainerForColumnWithHugePages(*data_buffer_, prefix + ".data");
+    open_container_in_memory(*items_buffer_, prefix + ".items");
+    open_container_in_memory(*data_buffer_, prefix + ".data");
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
@@ -321,10 +317,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void resize(size_t size) override {
     std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-    // size_ = size;
     if (items_buffer_->GetDataSize() != 0) {
       size_t avg_width =
-          avg_item_size();  // calculate average width of existing strings
+          avg_string_size();  // calculate average width of existing strings
       items_buffer_->Resize(size * sizeof(string_item));
       data_buffer_->Resize(
           std::max(size * (avg_width > 0 ? avg_width : width_), pos_.load()));
@@ -347,7 +342,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
     if (items_buffer_->GetDataSize() != 0) {
       size_t avg_width =
-          avg_item_size();  // calculate average width of existing strings
+          avg_string_size();  // calculate average width of existing strings
       items_buffer_->Resize(size * sizeof(string_item));
       data_buffer_->Resize(
           std::max(size * (avg_width > 0 ? avg_width : width_), pos_.load()));
@@ -381,8 +376,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (idx < size_ &&
         pos_.load() + copied_val.size() <= data_buffer_->GetDataSize()) {
       // NOTE: Even if idx has been set before, we always append the new value
-      // to the end of buffer_. The previous value is not reclaimed, and
-      // should be handled by garbage collection or compaction.
+      // to the end of buffer_. The previous value is not reclaimed, and should
+      // be handled by garbage collection or compaction.
       size_t offset = pos_.fetch_add(copied_val.size());
       set_string_item(idx, {offset, static_cast<uint32_t>(copied_val.size())});
       assert(offset + copied_val.size() <= data_buffer_->GetDataSize());
@@ -435,7 +430,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  size_t avg_item_size() const {
+  size_t avg_string_size() const {
     if (items_buffer_->GetDataSize() == 0) {
       return 0;
     }
@@ -493,7 +488,7 @@ class RefColumnBase {
   virtual ColType col_type() const = 0;
 };
 
-// Different from TypedColumn, RefColumn is a wrapper of TypedColumn
+// RefColumn is a wrapper of TypedColumn
 template <typename T>
 class TypedRefColumn : public RefColumnBase {
  public:

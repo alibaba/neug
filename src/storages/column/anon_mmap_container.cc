@@ -26,7 +26,6 @@
 
 namespace neug {
 
-// AnonMMap implementation
 AnonMMap::AnonMMap() : MMapContainer() {}
 
 AnonMMap::~AnonMMap() {
@@ -54,7 +53,7 @@ void AnonMMap::OpenAnonymous(size_t size) {
 
 void AnonMMap::Resize(size_t size) {
   if (size == size_) {
-    return;  // No need to resize if the new size is smaller or equal
+    return;
   }
   void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);

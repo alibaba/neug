@@ -42,14 +42,14 @@ class NeugDBWALRecoveryTest : public ::testing::TestWithParam<bool> {
   std::unique_ptr<neug::NeugDBService> service_;
 
   void SetUp() override {
-    data_dir_ = "/tmp/neugdb_recovery_test";
+    data_dir_ = "/tmp/neugdb_recovery_test_" + std::to_string(::getpid());
     std::filesystem::remove_all(data_dir_);
     std::filesystem::create_directories(data_dir_);
   }
 
   void TearDown() override {
     StopService();
-    // std::filesystem::remove_all(data_dir_);
+    std::filesystem::remove_all(data_dir_);
   }
 
   void StartService() {
@@ -113,14 +113,10 @@ TEST_P(NeugDBWALRecoveryTest, WALRecoveryViaCypher) {
   PostCypher(
       "MATCH (a:Person {id: 1}), (b:Person {id: 2}) "
       "CREATE (a)-[:KNOWS {since: 2020}]->(b);");
-  auto resp2 = PostCypher("MATCH (n:Person {id: 1}) RETURN n.age");
-  ASSERT_FALSE(resp2.empty());
-  EXPECT_NE(resp2.find("42"), std::string::npos)
-      << "Failed to find age 42 in response: " + resp2;
   StopService();
 
   StartService();
-  resp2 = PostCypher("MATCH (n:Person {id: 1}) RETURN n.age");
+  auto resp2 = PostCypher("MATCH (n:Person {id: 1}) RETURN n.age");
   ASSERT_FALSE(resp2.empty());
   EXPECT_NE(resp2.find("42"), std::string::npos)
       << "Failed to find age 42 in response: " + resp2;

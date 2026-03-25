@@ -25,7 +25,6 @@
 
 namespace neug {
 
-// FilePrivateMMap implementation
 FilePrivateMMap::FilePrivateMMap() : MMapContainer() {}
 
 FilePrivateMMap::~FilePrivateMMap() {
@@ -51,7 +50,7 @@ void FilePrivateMMap::OpenAnonymous(size_t size) {
 
 void FilePrivateMMap::Resize(size_t size) {
   if (size == size_) {
-    return;  // No need to resize if the new size is smaller or equal
+    return;
   }
   void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -84,7 +83,6 @@ void FilePrivateMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
   munmap(mmap_data, mmap_size);
 }
 
-// FileSharedMMap implementation
 FileSharedMMap::FileSharedMMap() : MMapContainer() {}
 
 FileSharedMMap::~FileSharedMMap() {
@@ -95,13 +93,12 @@ FileSharedMMap::~FileSharedMMap() {
 
 void FileSharedMMap::Resize(size_t size) {
   if (size == size_) {
-    return;  // No need to resize if the new size is smaller or equal
+    return;
   }
   if (mmap_data_ && size_ > 0) {
     Sync();  // Ensure changes are flushed before resizing
   }
   size_t real_size = size + sizeof(FileHeader);
-  // Unmap the old mapping
   if (mmap_data_ && mmap_size_ > 0) {
     munmapImpl(mmap_data_, mmap_size_);
   }
@@ -109,7 +106,7 @@ void FileSharedMMap::Resize(size_t size) {
   mmap_size_ = 0;
   data_ = nullptr;
   size_ = 0;
-  // Update the file size
+
   int fd = open(path_.c_str(), O_RDWR);
   if (fd == -1) {
     throw std::runtime_error("Failed to open file for resizing: " + path_);

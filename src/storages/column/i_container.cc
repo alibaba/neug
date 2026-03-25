@@ -44,8 +44,6 @@ std::unique_ptr<IDataContainer> CreateDataContainer(
     }
   }
   case MemoryLevel::kHugePagePrefered: {
-    // TODO(zhanglei): Determine whether hugepage is actually available and
-    // fallback to normal mmap if not
     auto ret = std::make_unique<AnonHugeMMap>();
     ret->Open(file_name);
     ret->Resize(size);
