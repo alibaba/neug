@@ -687,7 +687,7 @@ jobs:
           (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
           (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
         }}
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       matrix:
         python-version: ['3.14']
