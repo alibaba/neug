@@ -26,7 +26,7 @@
 class InsertTransactionTest : public ::testing::Test {
  protected:
   std::string db_dir;
-  int memory_level;
+  neug::MemoryLevel memory_level;
 
   void SetUp() override {
     db_dir = "/tmp/test_insert_transaction_db";
@@ -37,7 +37,7 @@ class InsertTransactionTest : public ::testing::Test {
 
     neug::NeugDB db;
     neug::NeugDBConfig config(db_dir);
-    config.memory_level = 1;
+    config.memory_level = neug::MemoryLevel::kInMemory;
     config.checkpoint_on_close = true;
     db.Open(db_dir);
     auto conn = db.Connect();
@@ -91,7 +91,7 @@ class InsertTransactionTest : public ::testing::Test {
 TEST_F(InsertTransactionTest, InsertTransactionBasic) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -105,7 +105,7 @@ TEST_F(InsertTransactionTest, InsertTransactionBasic) {
 TEST_F(InsertTransactionTest, AddVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -133,7 +133,7 @@ TEST_F(InsertTransactionTest, AddVertex) {
 TEST_F(InsertTransactionTest, AddEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -183,7 +183,7 @@ TEST_F(InsertTransactionTest, AddEdge) {
 TEST_F(InsertTransactionTest, TestUnsupportedInterface) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 

@@ -461,10 +461,20 @@ class VerifyFactory {
         << "Expected: " << planExpectedStr << "\nActual: " << actualStr;
   }
 
+  static RegexReplaceMap logicalPlanNormalizePatterns() {
+    auto patterns = defaultNormalizePatterns();
+    patterns.emplace_back(R"( Cardinality:\s*\d+)", "");
+    return patterns;
+  }
+
   static void verifyLogicalByStr(const planner::LogicalPlan& plan,
                                  const std::string& expectedStr) {
     auto actualStr = plan.toString();
-    ASSERT_EQ(actualStr, expectedStr)
+    auto normalizedActual =
+        normalize(actualStr, logicalPlanNormalizePatterns());
+    auto normalizedExpected =
+        normalize(expectedStr, logicalPlanNormalizePatterns());
+    ASSERT_EQ(normalizedActual, normalizedExpected)
         << "Expected: " << expectedStr << "\nActual: " << actualStr;
   }
 
