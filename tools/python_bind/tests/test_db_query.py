@@ -1917,6 +1917,53 @@ def test_where_subquery():
     assert records == [[1]]
 
 
+def test_exists_correlated_pattern_order(tmp_path):
+    """Correlated EXISTS: two comma-separated patterns, same semantics, different order.
+
+    Both queries must compile and return the same start_id; covers NODE_LABEL_FILTER
+    folded into GetV via FilterPushDownPattern.
+    """
+    db_dir = tmp_path / "exists_pattern_order"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE L0 (id STRING PRIMARY KEY);")
+    conn.execute("CREATE NODE TABLE L2 (id STRING PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE T2 (FROM L2 TO L0);")
+    conn.execute("CREATE REL TABLE T0 (FROM L0 TO L2);")
+
+    conn.execute("CREATE (n:L2 {id: 'a'});")
+    conn.execute("CREATE (n:L0 {id: 'b'});")
+    conn.execute("CREATE (n:L2 {id: 'c'});")
+    conn.execute(
+        "MATCH (n1:L2), (n2:L0) WHERE n1.id = 'a' AND n2.id = 'b' "
+        "CREATE (n1)-[:T2]->(n2);"
+    )
+    conn.execute(
+        "MATCH (n2:L0), (n3:L2) WHERE n2.id = 'b' AND n3.id = 'c' "
+        "CREATE (n2)-[:T0]->(n3);"
+    )
+
+    q10 = (
+        "MATCH (n1) WHERE EXISTS { MATCH (n1:L2)-[r1:T2]->(n2:L0), "
+        "(n2:L0)-[r2:T0]->(n3:L2) } RETURN n1.id AS start_id"
+    )
+    q11 = (
+        "MATCH (n1) WHERE EXISTS { MATCH (n2)-[r2:T0]->(n3:L2), "
+        "(n1:L2)-[r1:T2]->(n2:L0) } RETURN n1.id AS start_id"
+    )
+
+    rows10 = list(conn.execute(q10))
+    rows11 = list(conn.execute(q11))
+    assert rows10 == [["a"]], f"STEP10 expected [['a']], got {rows10!r}"
+    assert rows11 == [["a"]], f"STEP11 expected [['a']], got {rows11!r}"
+
+    conn.close()
+    db.close()
+
+
 def aggregate_dependent_key_1():
     db_dir = "/tmp/tinysnb"
     db = Database(db_path=str(db_dir), mode="w")
