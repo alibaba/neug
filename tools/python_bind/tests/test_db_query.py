@@ -1487,6 +1487,45 @@ def test_tinysnb_path_expand():
     assert records[0][0] == 13
 
 
+def test_path_expand_count_on_typed_rel_table(tmp_path):
+    db_dir = tmp_path / "path_expand_typed_rel"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    setup_queries = [
+        ("CREATE NODE TABLE A(id STRING, p INT32, PRIMARY KEY(id));", "schema"),
+        ("CREATE NODE TABLE B(id STRING, q INT32, PRIMARY KEY(id));", "schema"),
+        ("CREATE REL TABLE R(FROM A TO B, w INT32);", "schema"),
+        ("CREATE (a:A {id:'a1', p:1});", "update"),
+        ("CREATE (a:A {id:'a2', p:2});", "update"),
+        ("CREATE (b:B {id:'b1', q:1});", "update"),
+        (
+            "MATCH (a:A {id:'a1'}), (b:B {id:'b1'}) CREATE (a)-[:R {w:1}]->(b);",
+            "update",
+        ),
+        (
+            "MATCH (a:A {id:'a2'}), (b:B {id:'b1'}) CREATE (a)-[:R {w:2}]->(b);",
+            "update",
+        ),
+    ]
+
+    for query, access_mode in setup_queries:
+        conn.execute(query, access_mode=access_mode)
+
+    result = conn.execute(
+        "MATCH (a:A)-[:R*1..2]->(b:B) RETURN count(*) AS c",
+        access_mode="read",
+    )
+    records = list(result)
+
+    assert len(records) == 1
+    assert records[0][0] == 2
+
+    conn.close()
+    db.close()
+
+
 def test_path_expand_with_filter():
     db_dir = "/tmp/tinysnb"
     db = Database(db_path=db_dir, mode="r")
