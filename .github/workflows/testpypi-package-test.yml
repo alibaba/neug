@@ -51,7 +51,7 @@ jobs:
 
     - name: Install NeuG from TestPyPI
       run: |
-        pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ neug
+        pip install --index-url https://test.pypi.org/simple/ neug
 
     - name: Run Python Test
       run: |
