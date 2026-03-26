@@ -240,7 +240,7 @@ Status PropertyGraph::CreateVertexType(
     vertex_tables_.emplace_back(schema_.get_vertex_schema(vertex_label_id));
   }
 
-  auto& vtable = vertex_tables_.back();
+  auto& vtable = vertex_tables_[vertex_label_id];
   vtable.Open(work_dir_, memory_level_);
   vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
