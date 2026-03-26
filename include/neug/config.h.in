@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 /**
@@ -37,6 +38,21 @@ enum class DBMode {
 };
 
 /**
+ * @brief Memory usage level enumeration.
+ *
+ * Defines the memory usage strategy for NeugDB, allowing users to choose
+ * between different levels of memory optimization and performance.
+ *
+ * @since v0.1.0
+ */
+enum class MemoryLevel : uint8_t {
+  kUnSet = 0,
+  kInMemory = 1,
+  kSyncToFile = 2,
+  kHugePagePrefered = 3
+};
+
+/**
  * @brief Configuration structure for NeugDB initialization.
  *
  * NeugDBConfig provides comprehensive configuration options for
@@ -49,7 +65,7 @@ enum class DBMode {
  * config.data_dir = "/path/to/graph";
  * config.thread_num = 8;
  * config.mode = neug::DBMode::READ_WRITE;
- * config.memory_level = 2;  // Use hugepages
+ * config.memory_level = 1;  // Use memory-mapped virtual memory
  * config.enable_auto_compaction = true;
  * config.checkpoint_on_close = true;
  *
@@ -58,10 +74,10 @@ enum class DBMode {
  * @endcode
  *
  * **Memory Levels:**
- * - 0: Sync with disk (lowest memory, highest I/O latency)
+ * - 0: Unset
  * - 1: Memory-mapped virtual memory (default, balanced)
- * - 2: Prefer hugepages (better TLB performance)
- * - 3: Force hugepages (best performance, requires system config)
+ * - 2: Sync with disk (lowest memory, highest I/O latency)
+ * - 3: Prefer hugepages (better TLB performance)
  *
  * @see NeugDB::Open For using this configuration
  *
@@ -80,7 +96,7 @@ struct NeugDBConfig {
         planner_kind("gopt"),
         thread_num(1),
         enable_auto_compaction(false),
-        memory_level(1),
+        memory_level(MemoryLevel::kInMemory),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
@@ -100,7 +116,7 @@ struct NeugDBConfig {
         planner_kind("gopt"),
         thread_num(thread_num_),
         enable_auto_compaction(false),
-        memory_level(1),
+        memory_level(MemoryLevel::kInMemory),
         wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
@@ -131,9 +147,8 @@ struct NeugDBConfig {
    * - 0: Sync with disk
    * - 1: Memory-mapped virtual memory (default)
    * - 2: Prefer hugepages
-   * - 3: Force hugepages
    */
-  int memory_level;
+  MemoryLevel memory_level;
 
   /// WAL (Write-Ahead Log) storage URI. Use {GRAPH_DATA_DIR} as placeholder.
   std::string wal_uri;

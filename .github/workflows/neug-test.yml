@@ -13,6 +13,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
@@ -28,6 +29,7 @@ on:
       - 'proto/**'
       - 'third_party/**'
       - 'tools/python_bind/**'
+      - 'tools/java_driver/**'
       - 'tests/**'
       - '.github/workflows/neug-test.yml'
       - 'scripts/install_deps.sh'
@@ -78,6 +80,7 @@ jobs:
             - 'proto/**'
             - 'third_party/**'
             - 'tools/python_bind/**'
+            - 'tools/java_driver/**'
             - 'tests/**'
             - '!tests/extension/**'
             - '!tests/extensions/**'
@@ -102,7 +105,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', 'include/**', 'proto/**', 'tools/python_bind/**', '.github/workflows/neug-test.yml') }}
+        key: ${{ runner.os }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'src/**', 'include/**', 'proto/**', 'tools/python_bind/**', 'tools/java_driver/**', '.github/workflows/neug-test.yml') }}
         restore-keys: |
           ${{ runner.os }}-ccache-${{ github.ref_name }}-
           ${{ runner.os }}-ccache-main-
@@ -139,6 +142,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
+
+    - name: Setup Java and Maven
+      uses: s4u/setup-maven-action@v1.19.0
+      with:
+        java-version: '17'
+        maven-version: '3.9.6'
 
     - name: Set ENABLE_GCOV for main branch
       if: steps.scope.outputs.extension_only != 'true' && (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' && github.event_name == 'push')
@@ -346,6 +355,14 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_commands.py
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_ngcli_basics.py
+
+    - name: Run Java Driver Test
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/java_driver/
+        mvn test
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pytest -sv tests/test_java_driver.py
 
     # ========================================
     # Phase 4: E2E Tests

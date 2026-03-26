@@ -102,7 +102,7 @@ class PropertyGraph {
    * @brief Construct PropertyGraph with default settings.
    *
    * Implementation: Initializes vertex_label_total_count_=0,
-   * edge_label_total_count_=0, memory_level_=1.
+   * edge_label_total_count_=0, memory_level_=kInMemory
    *
    * @since v0.1.0
    */
@@ -127,10 +127,10 @@ class PropertyGraph {
    *
    * @since v0.1.0
    */
-  void Open(const std::string& work_dir, int memory_level);
+  void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   void Open(const Schema& schema, const std::string& work_dir,
-            int memory_level);
+            MemoryLevel memory_level);
 
   void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
@@ -626,7 +626,7 @@ class PropertyGraph {
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
-  int memory_level_;
+  MemoryLevel memory_level_;
 };
 
 }  // namespace neug

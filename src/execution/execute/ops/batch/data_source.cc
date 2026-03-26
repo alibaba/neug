@@ -22,7 +22,7 @@
 
 #include "neug/compiler/common/assert.h"
 #include "neug/compiler/function/read_function.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/data_source.h"
 #include "neug/utils/reader/reader.h"
@@ -125,7 +125,7 @@ neug::result<OpBuildResultT> DataSourceOprBuilder::Build(
 
   // look up read function from catalog
   auto signatureName = sourcePB.extension_name();
-  auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+  auto gCatalog = neug::main::MetadataRegistry::getCatalog();
   auto func = gCatalog->getFunctionWithSignature(signatureName);
   auto readFunc = func->ptrCast<function::ReadFunction>();
   return std::make_pair(std::make_unique<DataSourceOpr>(state, readFunc),

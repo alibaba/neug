@@ -35,7 +35,7 @@ class VertexTableTest : public ::testing::Test {
  protected:
   void SetUp() override {
     dir_ = "/tmp/test_vertex_table";
-    memory_level_ = 1;
+    memory_level_ = neug::MemoryLevel::kInMemory;
     // remove the directory if it exists
     if (std::filesystem::exists(dir_)) {
       std::filesystem::remove_all(dir_);
@@ -51,16 +51,13 @@ class VertexTableTest : public ::testing::Test {
     property_values_ = {neug::Property::from_string_view("Alice"),
                         neug::Property::from_int32(30),
                         neug::Property::from_double(88.5)};
-    storage_strategies_ = {neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem};
     default_prop_values_ = {neug::Property::from_string_view(""),
                             neug::Property::from_int32(0),
                             neug::Property::from_double(0.0)};
     vertex_count_ = 1000000;
     schema_.AddVertexLabel(v_label_name_, property_types_, property_names_,
-                           {std::make_tuple(pk_type_, "id", 0)},
-                           storage_strategies_, 4096, "", default_prop_values_);
+                           {std::make_tuple(pk_type_, "id", 0)}, 4096, "",
+                           default_prop_values_);
     v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
   }
   void TearDown() override {
@@ -96,13 +93,12 @@ class VertexTableTest : public ::testing::Test {
   }
 
   std::string dir_;
-  int32_t memory_level_;
+  neug::MemoryLevel memory_level_;
   std::string v_label_name_;
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
-  std::vector<neug::StorageStrategy> storage_strategies_;
   std::vector<neug::Property> default_prop_values_;
   std::mt19937 generator_;
   neug::Schema schema_;

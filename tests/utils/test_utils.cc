@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+#include <cstdio>
+#include <filesystem>
+
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
@@ -21,6 +24,7 @@
 #include "neug/utils/encoder.h"
 #include "neug/utils/pb_utils.h"
 #include "neug/utils/string_view_vector.h"
+#include "neug/utils/yaml_utils.h"
 
 namespace neug {
 namespace test {
@@ -1133,6 +1137,636 @@ TEST_F(PBUtilsTest, PropertyDefsToTuple_Valid) {
   EXPECT_EQ(tuples[1].second.type().id(), DataTypeId::kVarchar);
   EXPECT_EQ(tuples[1].first, "name");
   EXPECT_EQ(tuples[1].second.GetValue<std::string>(), "");
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_NoDefaultValue) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  // INT64 with no default value → should use type default (0)
+  auto* prop = props.Add();
+  prop->set_name("score");
+  prop->mutable_type()->set_primitive_type(
+      ::common::PrimitiveType::DT_SIGNED_INT64);
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  auto& tuples = result.value();
+  ASSERT_EQ(tuples.size(), 1U);
+  EXPECT_EQ(tuples[0].first, "score");
+  EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kInt64);
+  EXPECT_EQ(tuples[0].second.GetValue<int64_t>(), 0LL);
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_AllPrimitiveTypes) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+
+  // BOOL
+  {
+    auto* p = props.Add();
+    p->set_name("flag");
+    p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_BOOL);
+    p->mutable_default_value()->set_boolean(true);
+  }
+  // INT64
+  {
+    auto* p = props.Add();
+    p->set_name("big_id");
+    p->mutable_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_SIGNED_INT64);
+    p->mutable_default_value()->set_i64(9876543210LL);
+  }
+  // UINT32
+  {
+    auto* p = props.Add();
+    p->set_name("count");
+    p->mutable_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_UNSIGNED_INT32);
+    p->mutable_default_value()->set_u32(100U);
+  }
+  // UINT64
+  {
+    auto* p = props.Add();
+    p->set_name("big_count");
+    p->mutable_type()->set_primitive_type(
+        ::common::PrimitiveType::DT_UNSIGNED_INT64);
+    p->mutable_default_value()->set_u64(123456789012345ULL);
+  }
+  // FLOAT
+  {
+    auto* p = props.Add();
+    p->set_name("weight");
+    p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_FLOAT);
+    p->mutable_default_value()->set_f32(1.5f);
+  }
+  // DOUBLE
+  {
+    auto* p = props.Add();
+    p->set_name("ratio");
+    p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_DOUBLE);
+    p->mutable_default_value()->set_f64(3.14);
+  }
+
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  auto& tuples = result.value();
+  ASSERT_EQ(tuples.size(), 6U);
+
+  EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kBoolean);
+  EXPECT_EQ(tuples[0].second.GetValue<bool>(), true);
+
+  EXPECT_EQ(tuples[1].second.type().id(), DataTypeId::kInt64);
+  EXPECT_EQ(tuples[1].second.GetValue<int64_t>(), 9876543210LL);
+
+  EXPECT_EQ(tuples[2].second.type().id(), DataTypeId::kUInt32);
+  EXPECT_EQ(tuples[2].second.GetValue<uint32_t>(), 100U);
+
+  EXPECT_EQ(tuples[3].second.type().id(), DataTypeId::kUInt64);
+  EXPECT_EQ(tuples[3].second.GetValue<uint64_t>(), 123456789012345ULL);
+
+  EXPECT_EQ(tuples[4].second.type().id(), DataTypeId::kFloat);
+  EXPECT_FLOAT_EQ(tuples[4].second.GetValue<float>(), 1.5f);
+
+  EXPECT_EQ(tuples[5].second.type().id(), DataTypeId::kDouble);
+  EXPECT_DOUBLE_EQ(tuples[5].second.GetValue<double>(), 3.14);
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_StringTypes) {
+  // VarChar with default max_length
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("tag");
+    p->mutable_type()->mutable_string()->mutable_var_char();
+    p->mutable_default_value()->set_str("hello");
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    auto& tuples = result.value();
+    ASSERT_EQ(tuples.size(), 1U);
+    EXPECT_EQ(tuples[0].second.type().id(), DataTypeId::kVarchar);
+    EXPECT_EQ(tuples[0].second.GetValue<std::string>(), "hello");
+  }
+
+  // VarChar with explicit max_length
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("short_tag");
+    p->mutable_type()->mutable_string()->mutable_var_char()->set_max_length(64);
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+  }
+
+  // LongText
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("description");
+    p->mutable_type()->mutable_string()->mutable_long_text();
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kVarchar);
+  }
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_TemporalTypes) {
+  // Date type
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("birthday");
+    p->mutable_type()->mutable_temporal()->mutable_date32();
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kDate);
+  }
+
+  // DateTime type
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("created_at");
+    p->mutable_type()->mutable_temporal()->mutable_date_time();
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kTimestampMs);
+  }
+
+  // Interval type
+  {
+    google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+    auto* p = props.Add();
+    p->set_name("duration");
+    p->mutable_type()->mutable_temporal()->mutable_interval();
+
+    auto result = property_defs_to_value(props);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value()[0].second.type().id(), DataTypeId::kInterval);
+  }
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_InvalidType_DT_ANY) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+  auto* p = props.Add();
+  p->set_name("bad");
+  p->mutable_type()->set_primitive_type(::common::PrimitiveType::DT_ANY);
+
+  auto result = property_defs_to_value(props);
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_InvalidType_Decimal) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+  auto* p = props.Add();
+  p->set_name("price");
+  p->mutable_type()->mutable_decimal();
+
+  auto result = property_defs_to_value(props);
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_InvalidType_Array) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+  auto* p = props.Add();
+  p->set_name("arr");
+  p->mutable_type()->mutable_array();
+
+  auto result = property_defs_to_value(props);
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(PBUtilsTest, PropertyDefsToTuple_EmptyProps) {
+  google::protobuf::RepeatedPtrField<::physical::PropertyDef> props;
+  auto result = property_defs_to_value(props);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result.value().size(), 0U);
+}
+
+TEST_F(PBUtilsTest, ParseResultSchemaColumnNames_Empty) {
+  auto names = parse_result_schema_column_names("");
+  EXPECT_TRUE(names.empty());
+}
+
+TEST_F(PBUtilsTest, ParseResultSchemaColumnNames_ValidYaml) {
+  std::string schema = R"(
+returns:
+  - name: id
+  - name: name
+  - name: age
+)";
+  auto names = parse_result_schema_column_names(schema);
+  ASSERT_EQ(names.size(), 3U);
+  EXPECT_EQ(names[0], "id");
+  EXPECT_EQ(names[1], "name");
+  EXPECT_EQ(names[2], "age");
+}
+
+TEST_F(PBUtilsTest, ParseResultSchemaColumnNames_NoReturns) {
+  std::string schema = R"(
+graph: modern
+)";
+  auto names = parse_result_schema_column_names(schema);
+  EXPECT_TRUE(names.empty());
+}
+
+TEST_F(PBUtilsTest, ParseResultSchemaColumnNames_InvalidYaml) {
+  std::string schema = "{{invalid: yaml: [}}}";
+  auto names = parse_result_schema_column_names(schema);
+  EXPECT_TRUE(names.empty());
+}
+
+TEST_F(PBUtilsTest, ParseResultSchemaColumnNames_SingleColumn) {
+  std::string schema = R"(
+returns:
+  - name: result
+)";
+  auto names = parse_result_schema_column_names(schema);
+  ASSERT_EQ(names.size(), 1U);
+  EXPECT_EQ(names[0], "result");
+}
+
+TEST_F(PBUtilsTest, ProtoToString_BasicProto) {
+  ::physical::CreateEdgeSchema schema;
+  // Add a TypeInfo with multiplicity
+  auto* type_info = schema.add_type_info();
+  type_info->set_multiplicity(::physical::CreateEdgeSchema::MANY_TO_MANY);
+
+  std::string json = proto_to_string(schema);
+  EXPECT_FALSE(json.empty());
+  // Should contain whitespace (pretty-printed)
+  EXPECT_NE(json.find('\n'), std::string::npos);
+  // Should contain the multiplicity field
+  EXPECT_NE(json.find("MANY_TO_MANY"), std::string::npos);
+}
+
+TEST_F(PBUtilsTest, ProtoToString_EmptyProto) {
+  ::physical::CreateEdgeSchema schema;
+  std::string json = proto_to_string(schema);
+  EXPECT_FALSE(json.empty());
+  // Empty proto should still produce valid JSON
+  EXPECT_NE(json.find('{'), std::string::npos);
+  EXPECT_NE(json.find('}'), std::string::npos);
+}
+
+// ================================================================
+// YamlUtilsTest
+// ================================================================
+class YamlUtilsTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    tmp_dir_ = std::filesystem::temp_directory_path() / "yaml_utils_test";
+    std::filesystem::create_directories(tmp_dir_);
+  }
+  void TearDown() override { std::filesystem::remove_all(tmp_dir_); }
+  std::filesystem::path tmp_dir_;
+};
+
+// ----------------------------------------------------------------
+// property_type_to_yaml
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, PropertyTypeToYaml_PrimitiveTypes) {
+  struct Case {
+    DataType type;
+    std::string expected_str;
+  };
+  std::vector<Case> cases = {
+      {DataType(DataType::BOOLEAN), DT_BOOL},
+      {DataType(DataType::INT32), DT_SIGNED_INT32},
+      {DataType(DataType::UINT32), DT_UNSIGNED_INT32},
+      {DataType(DataType::INT64), DT_SIGNED_INT64},
+      {DataType(DataType::UINT64), DT_UNSIGNED_INT64},
+      {DataType(DataType::FLOAT), DT_FLOAT},
+      {DataType(DataType::DOUBLE), DT_DOUBLE},
+  };
+  for (const auto& c : cases) {
+    YAML::Node node = property_type_to_yaml(c.type);
+    ASSERT_TRUE(node["primitive_type"])
+        << "Missing primitive_type for: " << c.expected_str;
+    EXPECT_EQ(node["primitive_type"].as<std::string>(), c.expected_str);
+  }
+}
+
+TEST_F(YamlUtilsTest, PropertyTypeToYaml_Varchar_DefaultLength) {
+  DataType type = DataType::Varchar(STRING_DEFAULT_MAX_LENGTH);
+  YAML::Node node = property_type_to_yaml(type);
+  ASSERT_TRUE(node["string"]["var_char"]["max_length"]);
+  EXPECT_EQ(node["string"]["var_char"]["max_length"].as<int>(),
+            STRING_DEFAULT_MAX_LENGTH);
+}
+
+TEST_F(YamlUtilsTest, PropertyTypeToYaml_Varchar_CustomLength) {
+  DataType type = DataType::Varchar(128);
+  YAML::Node node = property_type_to_yaml(type);
+  ASSERT_TRUE(node["string"]["var_char"]["max_length"]);
+  EXPECT_EQ(node["string"]["var_char"]["max_length"].as<int>(), 128);
+}
+
+TEST_F(YamlUtilsTest, PropertyTypeToYaml_TemporalTypes) {
+  // Date
+  {
+    DataType type(DataType::DATE);
+    YAML::Node node = property_type_to_yaml(type);
+    EXPECT_TRUE(node["temporal"]);
+  }
+  // TimestampMs
+  {
+    DataType type(DataType::TIMESTAMP_MS);
+    YAML::Node node = property_type_to_yaml(type);
+    EXPECT_TRUE(node["temporal"]);
+  }
+  // Interval
+  {
+    DataType type(DataType::INTERVAL);
+    YAML::Node node = property_type_to_yaml(type);
+    EXPECT_TRUE(node["temporal"]);
+  }
+}
+
+TEST_F(YamlUtilsTest, PropertyTypeToYaml_UnknownType_Throws) {
+  DataType type(DataType::SQLNULL);
+  EXPECT_THROW(property_type_to_yaml(type), std::exception);
+}
+
+// ----------------------------------------------------------------
+// get_yaml_files
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, GetYamlFiles_NonExistentDir) {
+  auto files = get_yaml_files("/nonexistent/path/abc123");
+  EXPECT_TRUE(files.empty());
+}
+
+TEST_F(YamlUtilsTest, GetYamlFiles_EmptyDir) {
+  auto files = get_yaml_files(tmp_dir_.string());
+  EXPECT_TRUE(files.empty());
+}
+
+TEST_F(YamlUtilsTest, GetYamlFiles_MixedFiles) {
+  // Create some test files using POSIX API to avoid PCH fstream issues
+  auto create_file = [](const std::filesystem::path& p) {
+    FILE* f = fopen(p.string().c_str(), "w");
+    if (f)
+      fclose(f);
+  };
+  create_file(tmp_dir_ / "a.yaml");
+  create_file(tmp_dir_ / "b.yml");
+  create_file(tmp_dir_ / "c.json");
+  create_file(tmp_dir_ / "d.txt");
+
+  auto files = get_yaml_files(tmp_dir_.string());
+  EXPECT_EQ(files.size(), 2U);
+  // Both .yaml and .yml should be collected
+  bool has_yaml = false, has_yml = false;
+  for (const auto& f : files) {
+    if (f.find(".yaml") != std::string::npos)
+      has_yaml = true;
+    if (f.find(".yml") != std::string::npos)
+      has_yml = true;
+  }
+  EXPECT_TRUE(has_yaml);
+  EXPECT_TRUE(has_yml);
+}
+
+// ----------------------------------------------------------------
+// get_json_string_from_yaml(YAML::Node)
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_NullNode) {
+  YAML::Node node;
+  auto result = get_json_string_from_yaml(node);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result.value(), "{}");
+}
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_MapNode) {
+  YAML::Node node;
+  node["name"] = "Alice";
+  node["age"] = 30;
+  node["active"] = true;
+
+  auto result = get_json_string_from_yaml(node);
+  ASSERT_TRUE(result.has_value());
+  const auto& json = result.value();
+  EXPECT_NE(json.find("\"name\""), std::string::npos);
+  EXPECT_NE(json.find("Alice"), std::string::npos);
+  EXPECT_NE(json.find("30"), std::string::npos);
+}
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_SequenceNode) {
+  YAML::Node node;
+  node.push_back(1);
+  node.push_back(2);
+  node.push_back(3);
+
+  auto result = get_json_string_from_yaml(node);
+  ASSERT_TRUE(result.has_value());
+  const auto& json = result.value();
+  // Should be a JSON array
+  EXPECT_NE(json.find('['), std::string::npos);
+  EXPECT_NE(json.find("1"), std::string::npos);
+  EXPECT_NE(json.find("3"), std::string::npos);
+}
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_NestedMap) {
+  YAML::Node node = YAML::Load(R"(
+graph:
+  name: modern
+  vertices:
+    - person
+    - software
+)");
+  auto result = get_json_string_from_yaml(node);
+  ASSERT_TRUE(result.has_value());
+  const auto& json = result.value();
+  EXPECT_NE(json.find("graph"), std::string::npos);
+  EXPECT_NE(json.find("modern"), std::string::npos);
+  EXPECT_NE(json.find("person"), std::string::npos);
+}
+
+// ----------------------------------------------------------------
+// get_json_string_from_yaml(file_path)
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_FileNotFound) {
+  auto result = get_json_string_from_yaml("/nonexistent/file.yaml");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(YamlUtilsTest, GetJsonFromYaml_ValidFile) {
+  auto yaml_file = tmp_dir_ / "test.yaml";
+  // Write using POSIX API
+  FILE* f = fopen(yaml_file.string().c_str(), "w");
+  ASSERT_NE(f, nullptr);
+  fputs("key: value\n", f);
+  fclose(f);
+
+  auto result = get_json_string_from_yaml(yaml_file.string());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_NE(result.value().find("key"), std::string::npos);
+  EXPECT_NE(result.value().find("value"), std::string::npos);
+}
+
+// ----------------------------------------------------------------
+// get_yaml_string_from_yaml_node
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, GetYamlStringFromNode_NullNode) {
+  YAML::Node node;  // Null node
+  auto result = get_yaml_string_from_yaml_node(node);
+  ASSERT_TRUE(result.has_value());
+  // Null YAML emits "~" or "null"
+  const auto& yaml_str = result.value();
+  EXPECT_FALSE(yaml_str.empty());
+}
+
+TEST_F(YamlUtilsTest, GetYamlStringFromNode_ScalarNode) {
+  YAML::Node node = YAML::Load("hello");
+  auto result = get_yaml_string_from_yaml_node(node);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_NE(result.value().find("hello"), std::string::npos);
+}
+
+TEST_F(YamlUtilsTest, GetYamlStringFromNode_MapNode) {
+  YAML::Node node;
+  node["key1"] = "val1";
+  node["key2"] = 42;
+  auto result = get_yaml_string_from_yaml_node(node);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_NE(result.value().find("key1"), std::string::npos);
+  EXPECT_NE(result.value().find("val1"), std::string::npos);
+  EXPECT_NE(result.value().find("42"), std::string::npos);
+}
+
+TEST_F(YamlUtilsTest, GetYamlStringFromNode_SequenceNode) {
+  YAML::Node node;
+  node.push_back("a");
+  node.push_back("b");
+  node.push_back("c");
+  auto result = get_yaml_string_from_yaml_node(node);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_NE(result.value().find('a'), std::string::npos);
+  EXPECT_NE(result.value().find('c'), std::string::npos);
+}
+
+// ----------------------------------------------------------------
+// write_yaml_file
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, WriteYamlFile_Success) {
+  YAML::Node node;
+  node["greeting"] = "hello";
+  node["count"] = 5;
+
+  auto out_path = tmp_dir_ / "out.yaml";
+  EXPECT_TRUE(write_yaml_file(node, out_path.string()));
+  EXPECT_TRUE(std::filesystem::exists(out_path));
+
+  // Read back and verify
+  YAML::Node loaded = YAML::LoadFile(out_path.string());
+  EXPECT_EQ(loaded["greeting"].as<std::string>(), "hello");
+  EXPECT_EQ(loaded["count"].as<int>(), 5);
+}
+
+TEST_F(YamlUtilsTest, WriteYamlFile_InvalidPath) {
+  YAML::Node node;
+  node["x"] = 1;
+  EXPECT_FALSE(write_yaml_file(node, "/nonexistent_dir/abc/out.yaml"));
+}
+
+// ----------------------------------------------------------------
+// config_parsing::get_scalar
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetScalar_Found) {
+  YAML::Node node = YAML::Load("name: Alice\nage: 30");
+  std::string name;
+  EXPECT_TRUE(config_parsing::get_scalar(node, "name", name));
+  EXPECT_EQ(name, "Alice");
+
+  int age = 0;
+  EXPECT_TRUE(config_parsing::get_scalar(node, "age", age));
+  EXPECT_EQ(age, 30);
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetScalar_NotFound) {
+  YAML::Node node = YAML::Load("name: Alice");
+  std::string val;
+  EXPECT_FALSE(config_parsing::get_scalar(node, "missing_key", val));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetScalar_NotScalar) {
+  YAML::Node node = YAML::Load("items:\n  - a\n  - b");
+  std::string val;
+  // "items" exists but is a sequence, not a scalar
+  EXPECT_FALSE(config_parsing::get_scalar(node, "items", val));
+}
+
+// ----------------------------------------------------------------
+// config_parsing::get_sequence
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetSequence_Found) {
+  YAML::Node node = YAML::Load("tags:\n  - cpp\n  - python\n  - rust");
+  std::vector<std::string> tags;
+  EXPECT_TRUE(config_parsing::get_sequence(node, "tags", tags));
+  ASSERT_EQ(tags.size(), 3U);
+  EXPECT_EQ(tags[0], "cpp");
+  EXPECT_EQ(tags[1], "python");
+  EXPECT_EQ(tags[2], "rust");
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetSequence_NotFound) {
+  YAML::Node node = YAML::Load("name: test");
+  std::vector<std::string> seq;
+  EXPECT_FALSE(config_parsing::get_sequence(node, "missing", seq));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetSequence_NotSequence) {
+  YAML::Node node = YAML::Load("count: 5");
+  std::vector<int> seq;
+  EXPECT_FALSE(config_parsing::get_sequence(node, "count", seq));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_GetSequence_IntSequence) {
+  YAML::Node node = YAML::Load("ids:\n  - 1\n  - 2\n  - 3");
+  std::vector<int> ids;
+  EXPECT_TRUE(config_parsing::get_sequence(node, "ids", ids));
+  ASSERT_EQ(ids.size(), 3U);
+  EXPECT_EQ(ids[0], 1);
+  EXPECT_EQ(ids[2], 3);
+}
+
+// ----------------------------------------------------------------
+// config_parsing::expect_config
+// ----------------------------------------------------------------
+
+TEST_F(YamlUtilsTest, ConfigParsing_ExpectConfig_Match) {
+  YAML::Node node = YAML::Load("version: 1");
+  EXPECT_TRUE(config_parsing::expect_config(node, "version", 1));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_ExpectConfig_Mismatch) {
+  YAML::Node node = YAML::Load("version: 2");
+  EXPECT_FALSE(config_parsing::expect_config(node, "version", 1));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_ExpectConfig_KeyNotFound) {
+  YAML::Node node = YAML::Load("name: test");
+  EXPECT_FALSE(config_parsing::expect_config(node, "version", 1));
+}
+
+TEST_F(YamlUtilsTest, ConfigParsing_ExpectConfig_StringMatch) {
+  YAML::Node node = YAML::Load("engine: neug");
+  EXPECT_TRUE(
+      config_parsing::expect_config(node, "engine", std::string("neug")));
+  EXPECT_FALSE(
+      config_parsing::expect_config(node, "engine", std::string("other")));
 }
 
 }  // namespace test

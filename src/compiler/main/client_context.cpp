@@ -150,10 +150,6 @@ Catalog* ClientContext::getCatalog() const {
   return localDatabase->catalog.get();
 }
 
-VirtualFileSystem* ClientContext::getVFSUnsafe() const {
-  return localDatabase->vfs.get();
-}
-
 std::string ClientContext::getEnvVariable(const std::string& name) {
 #if defined(_WIN32)
   auto envValue = WindowsUtils::utf8ToUnicode(name.c_str());

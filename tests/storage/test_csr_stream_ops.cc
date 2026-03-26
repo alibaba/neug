@@ -110,7 +110,7 @@ class CsrStreamTest : public ::testing::Test {
     std::vector<std::thread> threads;
     if (this->allocators.size() < static_cast<size_t>(thread_num)) {
       this->allocators.resize(
-          thread_num, neug::Allocator(neug::MemoryStrategy::kMemoryOnly, ""));
+          thread_num, neug::Allocator(neug::MemoryLevel::kInMemory, ""));
     }
     std::atomic<size_t> counter(0);
     for (int i = 0; i < thread_num; ++i) {

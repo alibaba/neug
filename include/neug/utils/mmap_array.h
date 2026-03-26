@@ -72,12 +72,6 @@ namespace neug {
 template <typename T>
 class TypedColumn;
 
-enum class MemoryStrategy {
-  kSyncToFile,
-  kMemoryOnly,
-  kHugepagePrefered,
-};
-
 template <typename T>
 class mmap_array {
  public:
