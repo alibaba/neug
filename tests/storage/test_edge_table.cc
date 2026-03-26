@@ -26,26 +26,6 @@
 namespace neug {
 namespace test {
 
-class LocalGeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
- public:
-  explicit LocalGeneratedRecordBatchSupplier(
-      std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches)
-      : batch_index_(0), batches_(std::move(batches)) {}
-
-  std::shared_ptr<arrow::RecordBatch> GetNextBatch() override {
-    if (batch_index_ >= batches_.size()) {
-      return nullptr;
-    }
-    auto batch = batches_[batch_index_];
-    batch_index_++;
-    return batch;
-  }
-
- private:
-  size_t batch_index_ = 0;
-  std::vector<std::shared_ptr<arrow::RecordBatch>> batches_;
-};
-
 class EdgeTableTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -145,7 +125,7 @@ class EdgeTableTest : public ::testing::Test {
 
   void BatchInsert(std::vector<std::shared_ptr<arrow::RecordBatch>>&& batches) {
     auto supplier =
-        std::make_shared<LocalGeneratedRecordBatchSupplier>(std::move(batches));
+        std::make_shared<GeneratedRecordBatchSupplier>(std::move(batches));
     edge_table->BatchAddEdges(src_indexer, dst_indexer, supplier);
   }
 
