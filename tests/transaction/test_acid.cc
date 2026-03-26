@@ -37,9 +37,9 @@
 namespace fs = std::filesystem;
 using namespace neug;
 using neug::EdgeStrategy;
+using neug::MemoryLevel;
 using neug::NeugDB;
 using neug::NeugDBSession;
-using neug::StorageStrategy;
 using oid_t = int64_t;
 using neug::DataTypeId;
 using neug::Schema;

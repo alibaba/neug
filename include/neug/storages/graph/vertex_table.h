@@ -83,7 +83,7 @@ class VertexTable {
       : table_(std::make_unique<Table>()),
         vertex_schema_(vertex_schema),
         v_ts_(),
-        memory_level_(1),
+        memory_level_(MemoryLevel::kInMemory),
         work_dir_("") {
     assert(vertex_schema->primary_keys.size() == 1);
     pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
@@ -111,7 +111,7 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
-  void Open(const std::string& work_dir, int memory_level);
+  void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -180,11 +180,9 @@ class VertexTable {
 
   void RevertDeleteVertex(vid_t lid, timestamp_t ts);
 
-  void AddProperties(
-      const std::vector<std::string>& property_names,
-      const std::vector<DataType>& property_types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& storage_strategies = {});
+  void AddProperties(const std::vector<std::string>& property_names,
+                     const std::vector<DataType>& property_types,
+                     const std::vector<Property>& default_property_values);
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -316,7 +314,7 @@ class VertexTable {
   DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
   VertexTimestamp v_ts_;
-  int memory_level_;
+  MemoryLevel memory_level_;
 
   std::string work_dir_;
 

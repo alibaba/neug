@@ -49,14 +49,11 @@ class VertexTableBenchmark : public ::testing::Test {
     property_values_ = {neug::Property::from_string_view("Alice"),
                         neug::Property::from_int32(30),
                         neug::Property::from_double(88.5)};
-    storage_strategies_ = {neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem,
-                           neug::StorageStrategy::kMem};
     pk_types_ = {{neug::DataTypeId::kVarchar, "name", 0}};
     description = "Person vertex label";
     v_schema_ = std::make_shared<neug::VertexSchema>(
         v_label_name_, property_types_, property_names_, pk_types_,
-        storage_strategies_, default_prop_values_, description);
+        default_prop_values_, description);
     // Initialize random number generator
     generator_.seed(42);  // Fixed seed for reproducible results
   }
@@ -70,7 +67,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
     // Open the vertex table
-    table.Open(test_dir_, 1);  // memory_level=1 for in-memory
+    table.Open(test_dir_, neug::MemoryLevel::kInMemory);
   }
 
   void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
@@ -163,7 +160,6 @@ class VertexTableBenchmark : public ::testing::Test {
   std::vector<std::string> property_names_;
   std::vector<neug::DataType> property_types_;
   std::vector<neug::Property> property_values_;
-  std::vector<neug::StorageStrategy> storage_strategies_;
   std::vector<neug::Property> default_prop_values_;
   std::shared_ptr<neug::VertexSchema> v_schema_;
   std::vector<std::tuple<neug::DataType, std::string, size_t>> pk_types_;

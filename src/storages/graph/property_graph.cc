@@ -39,7 +39,7 @@ namespace neug {
 PropertyGraph::PropertyGraph()
     : vertex_label_total_count_(0),
       edge_label_total_count_(0),
-      memory_level_(1) {}
+      memory_level_(MemoryLevel::kInMemory) {}
 
 PropertyGraph::~PropertyGraph() { Clear(); }
 
@@ -218,12 +218,11 @@ Status PropertyGraph::CreateVertexType(
     default_property_values.erase(default_property_values.begin() +
                                   primary_key_inds[i]);
   }
-  std::vector<StorageStrategy> strategies(property_types.size(),
-                                          StorageStrategy::kMem);
+
   std::string description;
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
-                         primary_keys, strategies, Schema::MAX_VNUM,
-                         description, default_property_values);
+                         primary_keys, Schema::MAX_VNUM, description,
+                         default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   if (vertex_label_id < vertex_tables_.size()) {
     auto& vtable = vertex_tables_[vertex_label_id];
@@ -309,7 +308,7 @@ Status PropertyGraph::CreateEdgeType(
   bool cur_sort_on_compaction = false;
   std::string description;
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
-                       property_types, property_names, {}, cur_oe, cur_ie,
+                       property_types, property_names, cur_oe, cur_ie,
                        oe_mutable, ie_mutable, cur_sort_on_compaction,
                        description, default_property_values);
   edge_label_total_count_ = schema_.edge_label_frontier();
@@ -330,7 +329,7 @@ Status PropertyGraph::CreateEdgeType(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).OpenInMemory(work_dir_);
+  edge_tables_.at(index).Open(work_dir_, memory_level_);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
@@ -345,7 +344,6 @@ Status PropertyGraph::AddVertexProperties(
                             error_on_conflict);
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<StorageStrategy> add_property_storages;
   std::vector<Property> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
@@ -365,18 +363,10 @@ Status PropertyGraph::AddVertexProperties(
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
-    if (memory_level_ == 0) {
-      add_property_storages.emplace_back(StorageStrategy::kDisk);
-    } else if (memory_level_ >= 1) {
-      add_property_storages.emplace_back(StorageStrategy::kMem);
-    } else {
-      add_property_storages.emplace_back(StorageStrategy::kNone);
-    }
     add_default_property_values.emplace_back(default_value);
   }
   schema_.AddVertexProperties(vertex_type_name, add_property_names,
-                              add_property_types, add_property_storages,
-                              add_default_property_values);
+                              add_property_types, add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
                                         add_default_property_values);
@@ -795,12 +785,13 @@ void PropertyGraph::DumpSchema() {
 }
 
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
-                         int memory_level) {
+                         MemoryLevel memory_level) {
   schema_ = schema;
   Open(work_dir, memory_level);
 }
 
-void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
+void PropertyGraph::Open(const std::string& work_dir,
+                         MemoryLevel memory_level) {
   // copy work_dir to work_dir_
   memory_level_ = memory_level;
   work_dir_.assign(work_dir);
@@ -818,11 +809,6 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     if (!schema_.vertex_label_valid(i)) {
       THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " + std::to_string(i));
     }
-    std::string v_label_name = schema_.get_vertex_label_name(i);
-    auto properties = schema_.get_vertex_properties(i);
-    auto property_names = schema_.get_vertex_property_names(i);
-    auto property_strategies =
-        schema_.get_vertex_storage_strategies(v_label_name);
     vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
   }
 
@@ -881,13 +867,7 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
 
         EdgeTable edge_table(
             schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-        if (memory_level == 0) {
-          edge_table.Open(work_dir_);
-        } else if (memory_level >= 2) {
-          edge_table.OpenWithHugepages(work_dir_);
-        } else {
-          edge_table.OpenInMemory(work_dir_);
-        }
+        edge_table.Open(work_dir_, memory_level_);
         auto e_size = edge_table.Size();
         size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
         edge_table.EnsureCapacity(vertex_capacities[src_label_i],

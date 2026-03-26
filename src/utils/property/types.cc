@@ -682,4 +682,24 @@ std::string to_string(neug::DataTypeId type) {
   }
   }
 }
+
+std::string to_string(neug::MemoryLevel level) {
+  switch (level) {
+  case neug::MemoryLevel::kUnSet: {
+    return "Unset";
+  }
+  case neug::MemoryLevel::kSyncToFile: {
+    return "SyncToFile";
+  }
+  case neug::MemoryLevel::kInMemory: {
+    return "InMemory";
+  }
+  case neug::MemoryLevel::kHugePagePrefered: {
+    return "HugePagePrefered";
+  }
+  default: {
+    return "Unknown";
+  }
+  }
+}
 }  // namespace std

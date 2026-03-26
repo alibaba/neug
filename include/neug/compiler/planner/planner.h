@@ -479,8 +479,6 @@ class NEUG_API Planner {
       std::unique_ptr<LogicalPlan> leftPlan,
       std::unique_ptr<LogicalPlan> rightPlan,
       const binder::expression_vector& joinNodeIDs);
-  std::vector<common::table_id_t> transformRelTableIds(
-      const binder::RelExpression& relExpr);
 
  private:
   std::shared_ptr<planner::LogicalOperator> extractExtend(
