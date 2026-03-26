@@ -26,13 +26,14 @@
 │  P2: 临时图载入 (依赖 P1)            │                                       │
 │  ┌──────────────────────────────────┴────────────────────────────────────┐  │
 │  │                                                                       │  │
+│  │  COPY FROM 无 Schema（自动推断）[M5]                                        │  │
 │  │  ┌────────────────────┐  ┌────────────────────┐  ┌─────────────────┐  │  │
 │  │  │ BatchInsertTemp    │  │ BatchInsertTemp    │  │ 生命周期管理     │  │  │
-│  │  │ Vertex [M5]        │  │ Edge [M6]          │  │ [M7]            │  │  │
+│  │  │ Vertex [M6]        │  │ Edge [M7]          │  │ [M8]            │  │  │
 │  │  └────────────────────┘  └────────────────────┘  └─────────────────┘  │  │
 │  │                                                                       │  │
 │  │  ┌────────────────────┐  ┌────────────────────┐                       │  │
-│  │  │ 统一查询接口 [M8]   │  │ 场景边界控制 [M9]  │                       │  │
+│  │  │ 统一查询接口 [M9]   │  │ 场景边界控制 [M10] │                       │  │
 │  │  └────────────────────┘  └────────────────────┘                       │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -40,15 +41,15 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  P3: 网络资源支持 (可并行开发，扩展 P1 的数据源)                              │
 │  ┌─────────────────────┬─────────────────────┬─────────────────────┐        │
-│  │  HTTP 资源 [M10]    │  S3 资源 [M11]      │  OSS 资源 [M12]     │        │
+│  │  HTTP 资源 [M11]    │  S3 资源 [M12]      │  OSS 资源 [M13]     │        │
 │  └─────────────────────┴─────────────────────┴─────────────────────┘        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **并行开发说明**:
 - **P1 内部**: M1(CSV), M2(JSON), M3(Parquet), M4(关系型查询) 可并行开发
-- **P2 内部**: M5(临时点), M6(临时边) 需顺序执行；M7-M9 可与 M5/M6 部分并行
-- **P3 内部**: M10(HTTP), M11(S3), M12(OSS) 可并行开发
+- **P2 内部**: M5(COPY FROM 无 Schema) 依赖 P1 的 Sniff/Read（子查询源依赖 M4）；M6(临时点)→M7(临时边) 需顺序执行；M8-M10 可与 M6/M7 部分并行
+- **P3 内部**: M11(HTTP), M12(S3), M13(OSS) 可并行开发
 
 ---
 
@@ -224,11 +225,236 @@
 
 > **目标**: 将外部数据载入为临时点/边，支持与持久图混合查询。
 > **依赖**: 需要 P1 的文件格式模块完成后才能开始。
-> **顺序约束**: M5(临时点) → M6(临时边)，M7-M9 可与 M5/M6 部分并行。
+> **顺序约束**: M5(COPY FROM 无 Schema) 依赖 P1（子查询路径依赖 M4）；M6(临时点)→M7(临时边) 顺序开发；M8–M10 可与 M6/M7 部分并行。
 
 ---
 
-### Module 5: 临时点载入 (BatchInsertTempVertex) (Priority: P2)
+### Module 5: Copy From With No Schema
+
+**设计细化（Binder / TableInfo）**: [`table-info-copy-from-design.md`](./table-info-copy-from-design.md)
+
+**用户说明（英文）**: [`doc/source/data_io/import_data.md`](../../doc/source/data_io/import_data.md) 中「COPY FROM without a predefined schema」一节。
+
+#### 目标与范围
+
+在目标点类型或边类型**尚未存在于 catalog** 时，仍可通过 `COPY ... FROM` 完成「推断列结构 → 可选自动建表 → 批量写入」；用户无需先手写 `CREATE NODE/REL TABLE`。本模块描述该路径下的**用户面语法、流水线阶段与物理计划形态**；与「已有 Schema 的 COPY」共用同一套 DML 读取与 `BatchInsert*` 写入语义，差异主要在 Binder 是否产出补充 DDL 与元数据。
+
+#### 端到端流水线
+
+1. **收集（Sniff / Scan）**：对外部数据源执行 sniff 或绑定扫描，得到列名与逻辑类型（`EntrySchema` / 等价结构）。
+2. **组装（Infer）**：将列映射为点或边的属性列表；推断主键列（默认第一列或与选项一致）；边需同时确定 **边标签 + 源/宿点标签** 三元组。
+3. **自动 DDL（可选）**：当 `auto_detect`（或等价策略）为真且类型不存在时，在物理计划中**前置** `CreateVertexSchema` / `CreateEdgeSchema`，在执行期先于 DML 应用。
+4. **数据导入（DML）**：`DataSource`（及可能的 `Project` 等关系算子）读出行批，**`BatchInsertVertex` / `BatchInsertEdge`** 将列绑定到属性并调用存储批量写入。
+
+#### Cypher 接口（当前聚焦形态）
+
+**从文件载入点**
+
+```cypher
+COPY person FROM 'person.csv';
+```
+
+**从文件载入边**（需显式给出端点类型；边类型为单一三元组，暂不支持一次 COPY 声明多种 `(src,dst)` 组合）
+
+```cypher
+COPY knows FROM 'knows.csv' (from='person', to='person');
+```
+
+**从子查询载入点**
+
+```cypher
+COPY person FROM (LOAD FROM 'person.csv' RETURN id, name, age);
+```
+
+**从子查询载入边**
+
+```cypher
+COPY knows FROM (LOAD FROM 'knows.csv' RETURN src_id, dst_id, weight) (from='person', to='person');
+```
+
+上述四种用法均可配合 **schema 自动推断**：当目标类型尚不存在时，由编译与执行路径插入 DDL 再导入。用户可通过选项显式控制：
+
+| 名称 | 含义 | 默认值 |
+|------|------|--------|
+| `auto_detect` | 当目标类型在 catalog 中不存在时，是否根据 sniff/扫描结果自动创建点/边类型 | `true` |
+
+示例：
+
+```cypher
+COPY person FROM 'person.csv' (auto_detect=true);
+COPY knows FROM 'knows.csv' (from='person', to='person') (auto_detect=true);
+COPY person FROM (LOAD FROM 'person.csv' RETURN id, name, age) (auto_detect=true);
+COPY knows FROM (LOAD FROM 'knows.csv' RETURN src_id, dst_id, weight) (from='person', to='person', auto_detect=true);
+```
+
+#### 技术实现要点
+
+引擎与存储已提供 DDL、DML 及文件 sniff/read 能力；本功能主要在**查询编译链路**中组合算子，生成可下发的 Physical Plan。
+
+**Sniff / Read 表函数（概念接口）**
+
+```c++
+using read_exec_func_t = std::function<execution::Context(
+    std::shared_ptr<reader::ReadSharedState> state)>;
+
+// 从外部数据源推断列名与列类型
+using read_sniff_func_t = std::function<std::shared_ptr<reader::EntrySchema>(
+    const reader::FileSchema& schema)>;
+
+struct ReadFunction : public TableFunction {
+  read_exec_func_t execFunc = nullptr;
+  read_sniff_func_t sniffFunc = nullptr;
+
+  ReadFunction(std::string name, std::vector<common::LogicalTypeID> inputTypes)
+      : TableFunction{std::move(name), std::move(inputTypes)} {}
+};
+```
+
+**Physical Plan 中的 DDL 算子（节选）**
+
+```proto
+message CreateVertexSchema {
+    common.NameOrId vertex_type = 1;
+    repeated PropertyDef properties = 2;
+    repeated string primary_key = 3;
+    ConflictAction conflict_action = 4;
+}
+
+message CreateEdgeSchema {
+    enum Multiplicity { ONE_TO_ONE = 0; ONE_TO_MANY = 1; MANY_TO_ONE = 2; MANY_TO_MANY = 3; }
+    message TypeInfo {
+        EdgeType edge_type = 1;
+        Multiplicity multiplicity = 2;
+    }
+    repeated TypeInfo type_info = 1;
+    repeated PropertyDef properties = 2;
+    repeated string primary_key = 3;
+    ConflictAction conflict_action = 4;
+}
+```
+
+**Physical Plan 中的 COPY DML 算子（节选）**
+
+```proto
+// COPY User FROM 'user.csv'
+message BatchInsertVertex {
+    common.NameOrId vertex_type = 1;
+    repeated PropertyMapping property_mappings = 2;
+}
+
+// COPY Knows FROM 'knows_user_user.csv' (from='User', to='User');
+message BatchInsertEdge {
+    EdgeType edge_type = 1;
+    repeated PropertyMapping source_vertex_binding = 2;
+    repeated PropertyMapping destination_vertex_binding = 3;
+    repeated PropertyMapping property_mappings = 4;
+}
+```
+
+**执行期解析标签（与无 Schema COPY 强相关）**
+
+`BatchInsertVertex` 携带 `common.NameOrId`，`BatchInsertEdge` 携带完整 `EdgeType`（边名 + 源/宿 `NameOrId`）。**Build 阶段不把名称解析为数值 label_id**；在 **`Eval` 阶段**根据**当前图上的 `Schema`** 解析 id 或 name。这样在同一物理计划中「先 `Create*Schema`、后 `BatchInsert*`」时，插入算子总能看到已注册的类型，避免计划构建时刻 catalog 尚未刷新的问题。
+
+#### 编译侧：Binder 与 Planner
+
+- **Binder**：`bindCopyFrom` 在「需要从无推断建表」时，构造 `BoundCopyFromInfo`，并填充 **`ddlTableInfo`**（如 `DDLVertexInfo` / `DDLEdgeInfo`），内含可下发为 `CreateVertexSchema` / `CreateEdgeSchema` 的 `BoundCreateTableInfo` 及临时 `TableCatalogEntry`；扫描源绑定与列表达式与常规 COPY 一致。
+- **Planner / GOPT / `plan_copy`**：若存在 `ddlTableInfo`，在 COPY 子计划前插入对应 **Create*Schema** 物理算子，再衔接 **DataSource →（可选 Project）→ BatchInsert***。
+
+（具体字段与分支以 `bound_copy_from.h`、`bind_copy_from.cpp`、`plan_copy.cpp`、`g_query_converter.cpp` 为准。）
+
+#### 示例：点 COPY + 自动建表
+
+数据文件 `/data/legacy_users.csv`：
+
+```csv
+user_id,user_name,total_spent
+1,user1,20.0
+2,user2,21.2
+3,user3,21.4
+```
+
+```cypher
+COPY ExtLegacyUser FROM '/data/legacy_users.csv' (auto_detect=true);
+```
+
+典型 Physical Plan 形态（示意；谓词下推等到 Reader 的细节以实现为准）：
+
+```yaml
+CreateVertexSchema:
+  entry_schema:
+    label: "ExtLegacyUser"
+    primary_col: "user_id"
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+
+DataSource:
+  entry_schema:
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+  file_schema:
+    file_path:
+      - "/data/legacy_users.csv"
+    format_type: "csv"
+    format_opts:
+      header: true
+      delimiter: "|"
+
+BatchInsertVertex:
+  vertex_type: { name: "ExtLegacyUser" }   # 执行期解析为 label_id
+  property_mappings: # 列下标 → 属性名，以实现为准
+    ...
+```
+
+#### 示例：列顺序与主键列 — 经子查询重排
+
+同一数据若文件中 **主键不是第一列**，可通过 `LOAD ... RETURN` 重排后再 COPY，使推断的主键与属性顺序一致：
+
+```csv
+user_name,user_id,total_spent
+user1,1,20.0
+user2,2,21.2
+user3,3,21.4
+```
+
+```cypher
+COPY ExtLegacyUser FROM (
+  LOAD FROM '/data/legacy_users.csv' RETURN user_id, user_name, total_spent
+) (auto_detect=true);
+```
+
+典型 Physical Plan 在 `DataSource` 与 `BatchInsertVertex` 之间增加 **Project**，将扫描列投影为 `user_id, user_name, total_spent`；`CreateVertexSchema` 与 `BatchInsertVertex` 所见的逻辑列序一致，`BatchInsertVertex` 仍通过 **name 或 id** 在执行期绑定到已创建的 `ExtLegacyUser`。
+
+```yaml
+CreateVertexSchema:
+  entry_schema:
+    label: "ExtLegacyUser"
+    primary_col: "user_id"
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+
+DataSource:
+  entry_schema:
+    column_names: ["user_name", "user_id", "total_spent"]
+    column_types: ["string", "uint64_t", "double"]
+  file_schema:
+    file_path:
+      - "/data/legacy_users.csv"
+    format_type: "csv"
+    format_opts:
+      header: true
+      delimiter: "|"
+
+Project:
+  column_names: ["user_id", "user_name", "total_spent"]
+  column_types: ["uint64_t", "string", "double"]
+
+BatchInsertVertex:
+  vertex_type: { name: "ExtLegacyUser" }
+  property_mappings: ...
+```
+
+
+### Module 6: 临时点载入 (BatchInsertTempVertex) (Priority: P2)
 
 **Purpose**: 将外部数据载入为临时点，写入 Connection 级别的临时图存储。支持与持久图进行混合查询。
 
@@ -246,11 +472,11 @@
 
 **Functional Requirements**:
 
-1. **FR-501**: 系统 MUST 支持 `LOAD FROM <source> (primary_key=<col>) AS <label>` 语法载入临时点
-2. **FR-502**: 系统 MUST 在 Connection 本地存储中注册临时点的 Schema
-3. **FR-503**: 临时点的 label_id MUST 与持久图的 label_id 不冲突（从 max-1 倒序编码）
-4. **FR-504**: 系统 MUST 支持在 LOAD AS 之前使用 WHERE 子句过滤要载入的数据
-5. **FR-505**: 载入的临时点 MUST 可通过 MATCH 语句查询，与持久点语法一致
+1. **FR-601**: 系统 MUST 支持 `LOAD FROM <source> (primary_key=<col>) AS <label>` 语法载入临时点
+2. **FR-602**: 系统 MUST 在 Connection 本地存储中注册临时点的 Schema
+3. **FR-603**: 临时点的 label_id MUST 与持久图的 label_id 不冲突（从 max-1 倒序编码）
+4. **FR-604**: 系统 MUST 支持在 LOAD AS 之前使用 WHERE 子句过滤要载入的数据
+5. **FR-605**: 载入的临时点 MUST 可通过 MATCH 语句查询，与持久点语法一致
 
 **Acceptance Scenarios**:
 
@@ -265,13 +491,13 @@
 
 ---
 
-### Module 6: 临时边载入 (BatchInsertTempEdge) (Priority: P2)
+### Module 7: 临时边载入 (BatchInsertTempEdge) (Priority: P2)
 
 **Purpose**: 将外部数据载入为临时边，建立临时点之间以及临时点与持久点之间的关联关系。
 
-**Why this priority**: 临时边依赖 M5 临时点功能，是构建完整临时图结构的关键。
+**Why this priority**: 临时边依赖 M6 临时点功能，是构建完整临时图结构的关键。
 
-**Depends on**: M5 (临时点载入)
+**Depends on**: M6 (临时点载入)
 
 **Independent Test**: 在临时点存在的前提下，执行 LOAD EDGE AS 后，通过路径查询验证边已创建。
 
@@ -283,14 +509,14 @@
 
 **Functional Requirements**:
 
-1. **FR-601**: 系统 MUST 支持 `LOAD EDGE FROM <source> (from=<src_label>, to=<dst_label>, from_col=<col>, to_col=<col>) AS <label>` 语法载入临时边
-2. **FR-602**: 系统 MUST 支持三种临时边类型：
+1. **FR-701**: 系统 MUST 支持 `LOAD EDGE FROM <source> (from=<src_label>, to=<dst_label>, from_col=<col>, to_col=<col>) AS <label>` 语法载入临时边
+2. **FR-702**: 系统 MUST 支持三种临时边类型：
    - 临时点 ↔ 临时点（纯临时边）
    - 临时点 → 持久点（出向桥接边）
    - 持久点 → 临时点（入向桥接边）
-3. **FR-603**: 系统 MUST 在写入桥接边时，根据关联列查询对应的点 ID 进行关联
-4. **FR-604**: 当桥接边的目标/源点不存在时，系统 MUST 跳过该边并记录警告
-5. **FR-605**: 载入的临时边 MUST 可通过路径模式查询，支持与持久边混合遍历
+3. **FR-703**: 系统 MUST 在写入桥接边时，根据关联列查询对应的点 ID 进行关联
+4. **FR-704**: 当桥接边的目标/源点不存在时，系统 MUST 跳过该边并记录警告
+5. **FR-705**: 载入的临时边 MUST 可通过路径模式查询，支持与持久边混合遍历
 
 **Acceptance Scenarios**:
 
@@ -305,13 +531,13 @@
 
 ---
 
-### Module 7: 生命周期管理 (Priority: P2)
+### Module 8: 生命周期管理 (Priority: P2)
 
 **Purpose**: 管理临时点边数据的生命周期，确保资源正确绑定到 Connection 并在适当时机自动清理。
 
 **Why this priority**: 生命周期管理是系统稳定性的关键。
 
-**Parallel**: 可与 M5/M6 部分并行开发（基础框架可先行，与存储集成需等 M5/M6）
+**Parallel**: 可与 M6/M7 部分并行开发（基础框架可先行，与存储集成需等 M6/M7）
 
 **Independent Test**: 创建 Connection → 载入临时数据 → 关闭 Connection → 验证数据已清理。
 
@@ -323,11 +549,11 @@
 
 **Functional Requirements**:
 
-1. **FR-701**: 临时点边的生命周期 MUST 绑定到当前 Connection
-2. **FR-702**: Connection 关闭时 MUST 自动清理该连接的所有临时点边数据
-3. **FR-703**: 用户 MUST 能够通过 `DROP TABLE <label>` 显式删除临时点或边类型，删除临时点的时候，如果其有对应临时边，也一并删除
-4. **FR-704**: 多个 Connection 的临时存储 MUST 相互隔离
-5. **FR-705**: 系统 MUST 在异常退出时尽可能清理临时文件
+1. **FR-801**: 临时点边的生命周期 MUST 绑定到当前 Connection
+2. **FR-802**: Connection 关闭时 MUST 自动清理该连接的所有临时点边数据
+3. **FR-803**: 用户 MUST 能够通过 `DROP TABLE <label>` 显式删除临时点或边类型，删除临时点的时候，如果其有对应临时边，也一并删除
+4. **FR-804**: 多个 Connection 的临时存储 MUST 相互隔离
+5. **FR-805**: 系统 MUST 在异常退出时尽可能清理临时文件
 
 **Acceptance Scenarios**:
 
@@ -341,13 +567,13 @@
 
 ---
 
-### Module 8: 统一查询接口 (Priority: P2)
+### Module 9: 统一查询接口 (Priority: P2)
 
 **Purpose**: 提供统一的图查询接口，使查询层无需区分临时图还是持久图，实现透明的混合查询。
 
 **Why this priority**: 统一查询是用户体验的核心。
 
-**Parallel**: 可与 M5/M6 部分并行开发（接口设计可先行，实现需等 M5/M6）
+**Parallel**: 可与 M6/M7 部分并行开发（接口设计可先行，实现需等 M6/M7）
 
 **Independent Test**: 执行涉及临时和持久元素的混合 MATCH 查询，验证结果正确性。
 
@@ -358,10 +584,10 @@
 
 **Functional Requirements**:
 
-1. **FR-801**: 系统 MUST 提供统一的 Schema 视图
-2. **FR-802**: MATCH 语句 MUST 能够透明地引用临时点/边标签
-3. **FR-803**: Scan、Expand 算子 MUST 能够统一操作临时图和持久图数据
-4. **FR-804**: 跨临时图和持久图的路径查询 MUST 正确返回完整结果
+1. **FR-901**: 系统 MUST 提供统一的 Schema 视图
+2. **FR-902**: MATCH 语句 MUST 能够透明地引用临时点/边标签
+3. **FR-903**: Scan、Expand 算子 MUST 能够统一操作临时图和持久图数据
+4. **FR-904**: 跨临时图和持久图的路径查询 MUST 正确返回完整结果
 
 **Acceptance Scenarios**:
 
@@ -375,13 +601,13 @@
 
 ---
 
-### Module 9: 场景边界控制 (Priority: P2)
+### Module 10: 场景边界控制 (Priority: P2)
 
 **Purpose**: 确保临时图功能只在允许的场景下可用，在不支持的场景下返回清晰的错误信息。
 
 **Why this priority**: 边界控制是系统健壮性的保障。
 
-**Parallel**: 可与 M5-M8 并行开发
+**Parallel**: 可与 M6-M9 并行开发
 
 **Independent Test**: 在 read-only 模式或 TP 模式下执行 LOAD AS，验证返回正确的错误信息。
 
@@ -392,10 +618,10 @@
 
 **Functional Requirements**:
 
-1. **FR-901**: 系统 MUST 仅在 AP（Embedded）模式下支持临时点边功能（LOAD AS）
-2. **FR-902**: 系统 MUST 仅在 read-write 模式下支持临时点边功能（LOAD AS）
-3. **FR-903**: 关系型查询（LOAD ... RETURN 不带 AS）在 read-only 模式下 MAY 支持
-4. **FR-904**: 系统 MUST 在不支持的场景下返回明确的错误信息
+1. **FR-1001**: 系统 MUST 仅在 AP（Embedded）模式下支持临时点边功能（LOAD AS）
+2. **FR-1002**: 系统 MUST 仅在 read-write 模式下支持临时点边功能（LOAD AS）
+3. **FR-1003**: 关系型查询（LOAD ... RETURN 不带 AS）在 read-only 模式下 MAY 支持
+4. **FR-1004**: 系统 MUST 在不支持的场景下返回明确的错误信息
 
 **Acceptance Scenarios**:
 
@@ -414,17 +640,17 @@
 
 > **目标**: 扩展数据源范围，支持从网络资源（HTTP/S3/OSS）读取数据。
 > **依赖**: 可独立于 P2 开发，但需要 P1 的格式模块作为基础。
-> **可并行开发**: M10, M11, M12 之间无强依赖，可同时开发。
+> **可并行开发**: M11, M12, M13 之间无强依赖，可同时开发。
 
 ---
 
-### Module 10: HTTP 资源访问 (Priority: P3)
+### Module 11: HTTP 资源访问 (Priority: P3)
 
 **Purpose**: 支持通过 HTTP/HTTPS 协议访问远程文件资源，扩展数据源范围。
 
 **Why this priority**: HTTP 是最通用的网络协议，支持大量公开数据源。
 
-**Parallel**: 可与 M11, M12 并行开发
+**Parallel**: 可与 M12, M13 并行开发
 
 **Independent Test**: 执行 `LOAD FROM "https://example.com/data.csv" RETURN *` 验证远程文件下载和解析。
 
@@ -436,11 +662,11 @@
 
 **Functional Requirements**:
 
-1. **FR-1001**: 系统 MUST 支持从 HTTP/HTTPS URL 读取文件
-2. **FR-1002**: 系统 MUST 根据 URL 扩展名或 Content-Type 自动识别文件格式（CSV/JSON/Parquet）
-3. **FR-1003**: 系统 MUST 支持 HTTP 重定向（301/302/307）
-4. **FR-1004**: 系统 MUST 支持配置超时时间和重试次数
-5. **FR-1005**: 系统 MUST 支持 HTTPS 证书验证（可配置跳过）
+1. **FR-1101**: 系统 MUST 支持从 HTTP/HTTPS URL 读取文件
+2. **FR-1102**: 系统 MUST 根据 URL 扩展名或 Content-Type 自动识别文件格式（CSV/JSON/Parquet）
+3. **FR-1103**: 系统 MUST 支持 HTTP 重定向（301/302/307）
+4. **FR-1104**: 系统 MUST 支持配置超时时间和重试次数
+5. **FR-1105**: 系统 MUST 支持 HTTPS 证书验证（可配置跳过）
 
 **Acceptance Scenarios**:
 
@@ -455,13 +681,13 @@
 
 ---
 
-### Module 11: S3 资源访问 (Priority: P3)
+### Module 12: S3 资源访问 (Priority: P3)
 
 **Purpose**: 支持从 AWS S3 存储桶读取文件，满足云端数据分析场景。
 
 **Why this priority**: S3 是最流行的云存储服务，是企业数据湖的常见选择。
 
-**Parallel**: 可与 M10, M12 并行开发
+**Parallel**: 可与 M11, M13 并行开发
 
 **Independent Test**: 配置 S3 凭证后，执行 `LOAD FROM "s3://bucket/path/data.csv" RETURN *` 验证 S3 访问。
 
@@ -473,11 +699,11 @@
 
 **Functional Requirements**:
 
-1. **FR-1101**: 系统 MUST 支持从 S3 存储桶读取文件（`s3://bucket/path/file`）
-2. **FR-1102**: 系统 MUST 支持多种 S3 凭证配置方式（环境变量、配置文件、显式传入）
-3. **FR-1103**: 系统 MUST 支持配置 S3 区域（Region）和端点（Endpoint）
-4. **FR-1104**: 系统 MUST 支持大文件的分段下载（避免内存溢出）
-5. **FR-1105**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
+1. **FR-1201**: 系统 MUST 支持从 S3 存储桶读取文件（`s3://bucket/path/file`）
+2. **FR-1202**: 系统 MUST 支持多种 S3 凭证配置方式（环境变量、配置文件、显式传入）
+3. **FR-1203**: 系统 MUST 支持配置 S3 区域（Region）和端点（Endpoint）
+4. **FR-1204**: 系统 MUST 支持大文件的分段下载（避免内存溢出）
+5. **FR-1205**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
 
 **Acceptance Scenarios**:
 
@@ -492,13 +718,13 @@
 
 ---
 
-### Module 12: OSS 资源访问 (Priority: P3)
+### Module 13: OSS 资源访问 (Priority: P3)
 
 **Purpose**: 支持从阿里云 OSS 存储桶读取文件，满足国内云环境的数据分析场景。
 
 **Why this priority**: OSS 是国内最流行的云存储服务。
 
-**Parallel**: 可与 M10, M11 并行开发
+**Parallel**: 可与 M11, M12 并行开发
 
 **Independent Test**: 配置 OSS 凭证后，执行 `LOAD FROM "oss://bucket/path/data.csv" RETURN *` 验证 OSS 访问。
 
@@ -510,11 +736,11 @@
 
 **Functional Requirements**:
 
-1. **FR-1201**: 系统 MUST 支持从 OSS 存储桶读取文件（`oss://bucket/path/file`）
-2. **FR-1202**: 系统 MUST 支持 AccessKeyId/AccessKeySecret 认证
-3. **FR-1203**: 系统 MUST 支持配置 OSS Endpoint（区分内网/外网）
-4. **FR-1204**: 系统 MUST 支持 STS 临时凭证
-5. **FR-1205**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
+1. **FR-1301**: 系统 MUST 支持从 OSS 存储桶读取文件（`oss://bucket/path/file`）
+2. **FR-1302**: 系统 MUST 支持 AccessKeyId/AccessKeySecret 认证
+3. **FR-1303**: 系统 MUST 支持配置 OSS Endpoint（区分内网/外网）
+4. **FR-1304**: 系统 MUST 支持 STS 临时凭证
+5. **FR-1305**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
 
 **Acceptance Scenarios**:
 

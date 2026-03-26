@@ -2,11 +2,86 @@
 
 `COPY FROM` persists external data into NeuG's graph storage. It builds on top of [`LOAD FROM`](load_data) — internally, `COPY FROM` uses `LOAD FROM` to read and parse external files, then writes the result into node or relationship tables.
 
-## Schema Requirement
+For **import without creating tables first**, see [COPY FROM without a predefined schema](#copy-from-without-a-predefined-schema).
 
-Currently, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
+## Schema requirement
 
-> **Tip:** Coming in v0.2: NeuG will support schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets.
+`COPY FROM` supports two modes:
+
+1. **Existing table** — The target node or relationship label already exists in the catalog. Column layout must match the table (see the sections below).
+2. **No predefined schema** — The target label does **not** exist yet. NeuG can **infer** column names and types from the data source (same pipeline as [`LOAD FROM`](load_data)), **create** the node or relationship type, and **import** rows in one statement. This is controlled with the **`auto_detect`** option (default: **`true`**).
+
+If `auto_detect` is **`false`** and the table is missing, the binder reports that the table does not exist.
+
+---
+
+## COPY FROM without a predefined schema
+
+When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new** label skips manual `CREATE NODE TABLE` / `CREATE REL TABLE` for that label. The compiler builds a plan that applies DDL for the inferred type, then runs the same bulk insert path as a normal `COPY`.
+
+### Option: `auto_detect`
+
+| Option         | Type | Default | Description |
+| -------------- | ---- | ------- | ----------- |
+| `auto_detect`  | bool | `true`  | If the target table does not exist, infer schema from the scan/sniff result and create it before insert. If `false`, a missing table is an error. |
+
+You can set it explicitly when needed:
+
+```cypher
+COPY LegacyUser FROM "users.csv" (header=true, auto_detect=true);
+COPY LegacyUser FROM "users.csv" (header=true, auto_detect=false);  -- require table to exist
+```
+
+Parser option names are matched case-insensitively; `AUTO_DETECT` is accepted as well.
+
+### Nodes (new label)
+
+- The **first column** of the source (after any `LOAD FROM ... RETURN` projection) is used as the **primary key** property.
+- **All columns** become node properties; types are taken from type inference on the file or subquery output.
+- The **COPY target** (`COPY <Label> FROM ...`) is the new **vertex label** name.
+
+```cypher
+-- File has header: id,name,score — id becomes PRIMARY KEY
+COPY LegacyUser FROM "legacy_users.csv" (header=true);
+```
+
+If the file column order is wrong for inference, reorder with a subquery (first returned column = primary key):
+
+```cypher
+COPY LegacyUser FROM (
+    LOAD FROM "legacy_users.csv" (header=true)
+    RETURN user_id AS id, name, score
+);
+```
+
+### Relationships (new edge type)
+
+For a **new** relationship label, NeuG still needs to know the **endpoint node types**. You must pass **`from`** and **`to`** — each must name an **existing** node table (create or `COPY` those nodes first).
+
+- The **first two columns** of the source are the **source** and **destination** endpoint keys (values must match the primary keys of the `from` / `to` node tables).
+- **Remaining columns** map to relationship properties.
+
+```cypher
+-- After Person nodes exist:
+COPY LegacyKnows FROM "knows.csv" (
+    from="Person",
+    to="Person",
+    header=true
+);
+```
+
+You can combine with a `LOAD FROM` subquery for column order, filtering, or projection, same as for node `COPY`.
+
+### Import order
+
+Rules are unchanged: **endpoints must exist** before loading edges. For no-schema edge `COPY`, create or import **`from` / `to`** node tables first, then run the edge `COPY`.
+
+### Limitations (current behavior)
+
+- **Edge inference** uses a **single** `(from, to)` pair per `COPY`; multi-pair relationship groups still need an existing schema or explicit DDL.
+- **No-schema edge `COPY`** requires **`from`** and **`to`** to refer to **already registered** vertex types (no automatic creation of endpoint types in that step).
+
+---
 
 ## Quick Start
 
@@ -215,15 +290,19 @@ split -l 100000 large_users.csv users_chunk_
 
 ### "Table does not exist" Error
 
-Schema must be created before importing:
+- **If `auto_detect` is `true` (default)** for a **new** label, NeuG should infer schema and create the table; if you still see this error, check that the data source binds correctly (e.g. file path, `header`, delimiter) so columns are discovered. For edges, **`from` and `to`** must name **existing** node types — create or `COPY` those nodes first.
+- **If `auto_detect` is `false`**, the target table must already exist:
 
 ```cypher
--- Wrong: importing before creating schema
-COPY User FROM "users.csv" (header=true);
+-- With auto_detect=false, table must exist
+COPY User FROM "users.csv" (header=true, auto_detect=false);
 
--- Correct: create schema first
+-- Either create DDL first:
 CREATE NODE TABLE User(id INT64 PRIMARY KEY, name STRING);
-COPY User FROM "users.csv" (header=true);
+COPY User FROM "users.csv" (header=true, auto_detect=false);
+
+-- Or rely on default auto_detect=true for a new label (see section above)
+COPY NewLabel FROM "users.csv" (header=true);
 ```
 
 ### "Column count mismatch" Error
