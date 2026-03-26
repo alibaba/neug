@@ -859,64 +859,82 @@ def test_complex_example(tmp_path):
     conn = db.connect()
 
     # Create schema
-    conn.execute("""
+    conn.execute(
+        """
         CREATE NODE TABLE Person(
             id INT64 PRIMARY KEY,
             name STRING,
             age INT32,
             email STRING
         )
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE NODE TABLE Company(
             id INT64 PRIMARY KEY,
             name STRING,
             industry STRING,
             founded_year INT32
         )
-    """)
+    """
+    )
 
     # Create edge tables
-    conn.execute("""
+    conn.execute(
+        """
         CREATE REL TABLE WORKS_FOR(
             FROM Person TO Company,
             position STRING,
             start_date DATE,
             salary DOUBLE
         )
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE REL TABLE KNOWS(
             FROM Person TO Person,
             since_year INT32,
             relationship_type STRING
         )
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
     CREATE (p:Person {id: 1, name: 'Alice Johnson', age: 30, email: 'alice@example.com'})
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE (p:Person {id: 2, name: 'Bob Smith', age: 35, email: 'bob@example.com'})
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE (c:Company {id: 1, name: 'TechCorp', industry: 'Technology', founded_year: 2010})
-    """)
+    """
+    )
 
     # Insert relationships
-    conn.execute("""
+    conn.execute(
+        """
         MATCH (p:Person), (c:Company) WHERE p.id = 1 AND c.id = 1
         CREATE (p)-[:WORKS_FOR {position: 'Software Engineer', start_date: date('2020-01-15'), salary: 75000.0}]->(c)
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         MATCH (p1:Person {id: 1}), (p2:Person {id: 2})
         CREATE (p1)-[:KNOWS {since_year: 2018, relationship_type: 'colleague'}]->(p2)
-    """)
+    """
+    )
 
     conn.close()
 
@@ -925,17 +943,21 @@ def test_complex_example(tmp_path):
 
     session = Session("http://localhost:10010/")
 
-    session.execute("""
+    session.execute(
+        """
         CREATE NODE TABLE User(
             id INT64 PRIMARY KEY,
             username STRING,
             created_at TIMESTAMP
         )
-    """)
+    """
+    )
 
-    session.execute("""
+    session.execute(
+        """
         CREATE (u:User {id: 1, username: 'user1', created_at: timestamp('2024-01-01 10:00:00')})
-    """)
+    """
+    )
 
     result = session.execute("MATCH (u:User) RETURN u.username, u.created_at")
     for record in result:
@@ -960,14 +982,18 @@ def test_join_queries():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=str(db_dir), mode="r")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH (a:person), (b:person) WHERE a.ID = b.ID AND a.ID = 1 RETURN a.id, b.id, a.age, b.age;
-        """)
+        """
+    )
     assert res.__next__() == [1, 1, 29, 29]
 
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH (a:person) WHERE a.name = 'marko' OPTIONAL MATCH (b:person) WHERE b.name = 'm' RETURN a.ID, b.ID;
-        """)
+        """
+    )
     assert res.__next__() == [1, None]
 
 
@@ -1249,9 +1275,11 @@ def test_no_existing_property():
     db_dir = "/tmp/tinysnb"
     db = Database(db_path=str(db_dir), mode="r")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH (a:person)-[e1:knows|:studyAt|:workAt]->(b:person:organisation) WHERE a.age > 35 RETURN b.fName, b.name;
-        """)
+        """
+    )
     for record in res:
         print(record)
 
@@ -1403,10 +1431,12 @@ def test_create_edge_with_prop_on_both_end():
         "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
     )
 
-    conn.execute("""
+    conn.execute(
+        """
         MATCH (p1: Person {id: 111})-[k: Knows]-(p2:Person {id: 222})
         RETURN k.id
-        """)
+        """
+    )
 
 
 def test_copy_from():
@@ -1430,14 +1460,16 @@ def test_copy_from():
         f.write('10,"0-1000000","属性"\n')
         f.close()
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE NODE TABLE Entity(
             id STRING,
             entity STRING,
             entity_type STRING,
             PRIMARY KEY(id)
         )
-    """)
+    """
+    )
     conn.execute(f"COPY Entity FROM '{file}' (HEADER TRUE, DELIMITER=',')")
 
 
@@ -1445,9 +1477,11 @@ def test_tinysnb_path_expand():
     db_dir = "/tmp/tinysnb"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    result = conn.execute("""
+    result = conn.execute(
+        """
         MATCH (n:Person)-[:Meets*1..2]->(m:Person) return count(*);
-        """)
+        """
+    )
     records = list(result)
     assert len(records) == 1
     assert records[0][0] == 13
@@ -1572,9 +1606,11 @@ def test_length():
     )
     for record in result:
         assert record[0] == 1, f"Expected value 1, got {record[0]}"
-    result = conn.execute("""
+    result = conn.execute(
+        """
     MATCH (:TAGCLASS {name: "OfficeHolder"})<-[:HASTYPE]-(:TAG)<-[:HASTAG]-(message)-[:REPLYOF*0..30]->(p:POST)
-        RETURN count(p) AS numPosts""")
+        RETURN count(p) AS numPosts"""
+    )
     for record in result:
         assert record[0] == 19519, f"Expected value 19519, got {record[0]}"
     conn.close()
@@ -1754,7 +1790,8 @@ def test_date_time_to_string():
     db_dir = "/tmp/ldbc"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    result = conn.execute("""
+    result = conn.execute(
+        """
     MATCH (m:POST:COMMENT {id: 1030792332314})
     RETURN
         CASE
@@ -1762,7 +1799,8 @@ def test_date_time_to_string():
                 THEN m.imageFile
             ELSE m.content END as messageContent,
         m.creationDate as messageCreationDate
-    """)
+    """
+    )
     result = list(result)
     from datetime import datetime
 
@@ -1823,13 +1861,15 @@ def test_intersect_predicate():
         "MATCH (a: address), (b: address) WHERE a.id = 4 AND b.id = 5 CREATE (a)-[:belong {weight: 2.1}]->(b)"
     )
 
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH(n1: address)-[e1: structure]->(m1: address),
               (n1: address)-[e2: structure]->(m2: address),
               (m1)-[e3: belong]->(m2)
         WHERE n1.id = 1 AND e1.weight > 2.0 AND e2.weight > 2.0 AND e3.weight > 1.9
         RETURN e1.weight, e2.weight, e3.weight
-    """)
+    """
+    )
     assert res.__next__() == [2.2, 2.3, 2.0]
 
 
@@ -1837,11 +1877,13 @@ def test_intersect_predicate_ml():
     db_dir = "/tmp/tinysnb"
     db = Database(db_path=db_dir)
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
             MATCH(p1)<-[e1:studyAt]-(t2), (p1)<-[e2:studyAt]-(t1),  (t1)-[e3]-(t2)
             WHERE e1.year > 2020
             RETURN e1.year,e2.year
-                       """)
+                       """
+    )
     assert list(res) == [[2021, 2020], [2021, 2020], [2021, 2020], [2021, 2020]]
 
 
@@ -1849,11 +1891,13 @@ def test_where_not_subquery():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir)
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         Match (a:person)-[:created]->(b)<-[:created]-(c:person)
         Where NOT (a)-[:knows]->(c) AND a <> c
         Return count(a);
-    """)
+    """
+    )
     records = list(res)
     assert records == [[5]]
 
@@ -1862,11 +1906,13 @@ def test_where_subquery():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir)
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         Match (a:person)-[:created]->(b)<-[:created]-(c:person)
         Where (a)-[:knows]->(c) AND a <> c
         Return count(a);
-    """)
+    """
+    )
     records = list(res)
     assert records == [[1]]
 
@@ -1923,11 +1969,13 @@ def aggregate_dependent_key_1():
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
 
-    result = conn.execute("""
+    result = conn.execute(
+        """
         MATCH (a:person)-[:knows]->(b:person)
         RETURN a.ID, a.gender, b.gender, sum(b.age)
         ORDER BY a.ID, a.gender, b.gender
-    """)
+    """
+    )
 
     records = list(result)
     assert records == [
@@ -1948,12 +1996,14 @@ def aggregate_dependent_key_2():
     db = Database(db_path=str(db_dir), mode="w")
     conn = db.connect()
 
-    result = conn.execute("""
+    result = conn.execute(
+        """
         MATCH (a:person)
         WHERE a.ID > 4 WITH a, a.age AS foo
         MATCH (a)-[:knows]->(b:person)
         RETURN a.ID, foo, COUNT(*)
-    """)
+    """
+    )
 
     records = list(result)
     assert records == [[5, 20, 3], [7, 20, 2]]
@@ -2079,9 +2129,11 @@ def test_delete_edges():
         "MATCH (p1: Person {id: 111}), (p2: Person {id: 333}) CREATE (p1)-[k:Knows {id: 444}]->(p2);"
     )
 
-    conn.execute("""
+    conn.execute(
+        """
         MATCH (p1: Person)-[k: Knows]->(p2:Person) WHERE k.id = 333 DELETE k
-        """)
+        """
+    )
     res = conn.execute("MATCH (p1: Person)-[k: Knows]->(p2:Person) RETURN count(k)")
     records = list(res)
     assert records == [[1]]
@@ -2122,10 +2174,12 @@ def test_create_person_if_not_exists():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
-    conn.execute("""
+    conn.execute(
+        """
         create node table if not exists
         person(name STRING, PRIMARY KEY(name));
-    """)
+    """
+    )
     res = conn.execute("match (p:person) return count(p.age);")
     records = list(res)
     assert records == [[4]]
@@ -2136,14 +2190,18 @@ def test_create_knows_if_not_exists():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
-    conn.execute("""
+    conn.execute(
+        """
         create rel table if not exists
         knows(FROM person TO person, name STRING);
-    """)
-    res = conn.execute("""
+    """
+    )
+    res = conn.execute(
+        """
         match (p:person)-[r:knows]->(q:person)
         return count(r.weight);
-    """)
+    """
+    )
     records = list(res)
     assert records == [[2]]
     db.close()
@@ -2269,9 +2327,11 @@ def test_delete_vertex_detach_edge():
         "MATCH (p1: Person {id: 111}), (p2: Person {id: 222}) CREATE (p1)-[k:Knows {id: 333}]->(p2);"
     )
 
-    conn.execute("""
+    conn.execute(
+        """
         MATCH (p1: Person)-[k: Knows]->(p2:Person) WHERE p1.id = 111 DETACH DELETE p1
-        """)
+        """
+    )
     res = conn.execute("MATCH (p: Person) RETURN p.id;")
     records = list(res)
     assert records == [[222]], f"Expected value [[222]], got {records}"
@@ -2383,11 +2443,13 @@ def test_list_extract_function():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         Match (a)
         WITH a ORDER BY a.name
         RETURN labels(a) as label, collect(a.name)[0];
-    """)
+    """
+    )
     records = list(res)
     assert records == [["person", "josh"], ["software", "lop"]]
 
@@ -2396,10 +2458,12 @@ def test_weight_shortest_path():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         Match (a:person {name : 'marko'})-[k * WSHORTEST(weight)]-(b:person {name: 'josh'})
         Return a.name, b.name, cost(k);
-        """)
+        """
+    )
     records = list(res)
     assert records == [["marko", "josh", 0.8]]
     db.close()
@@ -2416,12 +2480,14 @@ def test_optional_match_person_software():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH (p: PERSON) WHERE p.id=1
         OPTIONAL MATCH (p)-[]-(other:PERSON:SOFTWARE)
         WHERE other.id>0
         RETURN other;
-        """)
+        """
+    )
     records = list(res)
     print(records)
     # TODO(zhanglei): fix the output format
@@ -2453,12 +2519,14 @@ def test_optional_match_person_software_with_edge_weight():
     db_dir = "/tmp/modern_graph"
     db = Database(db_path=db_dir, mode="r")
     conn = db.connect()
-    res = conn.execute("""
+    res = conn.execute(
+        """
         MATCH (p: PERSON) WHERE p.id=1
         OPTIONAL MATCH (p)-[e]->(other:PERSON:Software)
         WHERE e.weight>10 and other.id>10
         RETURN other;
-        """)
+        """
+    )
     records = list(res)
     assert records == [[None]]
     conn.close()
@@ -2470,9 +2538,11 @@ def test_multi_ddl_queries():
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
     with pytest.raises(Exception) as excinfo:
-        conn.execute("""
+        conn.execute(
+            """
        CREATE NODE TABLE N (id SERIAL, PRIMARY KEY(id));
-        """)
+        """
+        )
     assert str("Unsupported basic type for conversion: SERIAL") in str(excinfo.value)
     conn.close()
     db.close()
@@ -2675,17 +2745,21 @@ def test_edge_default_value():
     db = Database(db_path=db_dir, mode="w")
     conn = db.connect()
     try:
-        conn.execute("""
+        conn.execute(
+            """
                 CREATE NODE TABLE IF NOT EXISTS TestNode(
                     id INT64 PRIMARY KEY,
                     thread_id INT64
                 )
-            """)
-        conn.execute("""
+            """
+        )
+        conn.execute(
+            """
                 CREATE REL TABLE IF NOT EXISTS TestEdge(
                     FROM TestNode TO TestNode
                 )
-            """)
+            """
+        )
         conn.execute('ALTER TABLE TestEdge ADD description STRING DEFAULT "unknown"')
         conn.execute(
             "CREATE (n1: TestNode {id: 1, thread_id: 1}), (n2: TestNode {id: 2, thread_id: 1}) CREATE (n1)-[:TestEdge]->(n2);"
@@ -2711,11 +2785,13 @@ def test_optional_match_on_edge(tmp_path):
     conn.execute("CREATE (u: SRC_INFRA {id: '2', finder: 'finder'});")
     conn.execute("CREATE (u: SRC_LOGGING {id: '1', finder: 'finder'});")
 
-    result = conn.execute("""
+    result = conn.execute(
+        """
     MATCH (u) WHERE u.finder = 'finder'
     OPTIONAL MATCH (u)-[e:CALLS_NEW]-(v)
     RETURN u, e, v;
-    """)
+    """
+    )
     length = len(list(result))
     assert length == 3, f"Expected value 3, got {length}"
     conn.close()
