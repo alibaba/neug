@@ -27,206 +27,213 @@ neug::result<Context> PathExpand::edge_expand_v(
     const StorageReadInterface& graph, Context&& ctx,
     const PathExpandParams& params) {
   std::vector<size_t> shuffle_offset;
+
   if (params.labels.size() == 1 &&
-      ctx.get(params.start_tag)->column_type() == ContextColumnType::kVertex &&
-      std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag))
-              ->vertex_column_type() == VertexColumnType::kSingle) {
-    auto& input_vertex_list =
-        *std::dynamic_pointer_cast<SLVertexColumn>(ctx.get(params.start_tag));
-    auto pair = path_expand_vertex_without_predicate_impl(
-        graph, input_vertex_list, params.labels, params.dir, params.hop_lower,
-        params.hop_upper);
-    ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
-    return ctx;
-  } else {
-    if (params.dir == Direction::kOut) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
-      std::set<label_t> labels;
-      std::vector<std::vector<LabelTriplet>> out_labels_map(
-          graph.schema().vertex_label_frontier());
-      for (const auto& label : params.labels) {
-        labels.emplace(label.dst_label);
-        if (params.hop_lower == 0) {
-          labels.emplace(label.src_label);
-        }
-        out_labels_map[label.src_label].emplace_back(label);
+      params.labels[0].src_label == params.labels[0].dst_label &&
+      ctx.get(params.start_tag)->column_type() == ContextColumnType::kVertex) {
+    auto vertex_col =
+        dynamic_cast<const IVertexColumn*>(ctx.get(params.start_tag).get());
+    if (vertex_col->vertex_column_type() == VertexColumnType::kSingle) {
+      const auto& input_vertex_list =
+          dynamic_cast<const SLVertexColumn&>(*ctx.get(params.start_tag));
+      if (input_vertex_list.label() == params.labels[0].src_label) {
+        auto pair = path_expand_vertex_without_predicate_impl(
+            graph, input_vertex_list, params.labels, params.dir,
+            params.hop_lower, params.hop_upper);
+        ctx.set_with_reshuffle(params.alias, pair.first, pair.second);
+        return ctx;
       }
-
-      MLVertexColumnBuilderOpt builder(labels);
-      std::vector<std::tuple<label_t, vid_t, size_t>> input;
-      std::vector<std::tuple<label_t, vid_t, size_t>> output;
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       output.emplace_back(label, v, index);
-                     });
-      int depth = 0;
-      while (depth < params.hop_upper && (!output.empty())) {
-        input.clear();
-        std::swap(input, output);
-        if (depth >= params.hop_lower) {
-          for (auto& tuple : input) {
-            builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
-            shuffle_offset.push_back(std::get<2>(tuple));
-          }
-        }
-
-        if (depth + 1 >= params.hop_upper) {
-          break;
-        }
-
-        for (auto& tuple : input) {
-          auto label = std::get<0>(tuple);
-          auto v = std::get<1>(tuple);
-          auto index = std::get<2>(tuple);
-          for (const auto& label_triplet : out_labels_map[label]) {
-            auto oe_view = graph.GetGenericOutgoingGraphView(
-                label_triplet.src_label, label_triplet.dst_label,
-                label_triplet.edge_label);
-            auto oes = oe_view.get_edges(v);
-            for (auto it = oes.begin(); it != oes.end(); ++it) {
-              output.emplace_back(label_triplet.dst_label, it.get_vertex(),
-                                  index);
-            }
-          }
-        }
-        ++depth;
-      }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
-    } else if (params.dir == Direction::kIn) {
-      auto& input_vertex_list =
-          *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
-      std::set<label_t> labels;
-      std::vector<std::vector<LabelTriplet>> in_labels_map(
-          graph.schema().vertex_label_frontier());
-      for (auto& label : params.labels) {
-        labels.emplace(label.src_label);
-        if (params.hop_lower == 0) {
-          labels.emplace(label.dst_label);
-        }
-        in_labels_map[label.dst_label].emplace_back(label);
-      }
-
-      MLVertexColumnBuilderOpt builder(labels);
-      std::vector<std::tuple<label_t, vid_t, size_t>> input;
-      std::vector<std::tuple<label_t, vid_t, size_t>> output;
-      foreach_vertex(input_vertex_list,
-                     [&](size_t index, label_t label, vid_t v) {
-                       output.emplace_back(label, v, index);
-                     });
-      int depth = 0;
-      while (depth < params.hop_upper && (!output.empty())) {
-        input.clear();
-        std::swap(input, output);
-        if (depth >= params.hop_lower) {
-          for (const auto& tuple : input) {
-            builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
-            shuffle_offset.push_back(std::get<2>(tuple));
-          }
-        }
-
-        if (depth + 1 >= params.hop_upper) {
-          break;
-        }
-
-        for (const auto& tuple : input) {
-          auto label = std::get<0>(tuple);
-          auto v = std::get<1>(tuple);
-          auto index = std::get<2>(tuple);
-          for (const auto& label_triplet : in_labels_map[label]) {
-            auto iview = graph.GetGenericIncomingGraphView(
-                label_triplet.dst_label, label_triplet.src_label,
-                label_triplet.edge_label);
-            auto ies = iview.get_edges(v);
-            for (auto it = ies.begin(); it != ies.end(); ++it) {
-              output.emplace_back(label_triplet.src_label, it.get_vertex(),
-                                  index);
-            }
-          }
-        }
-        ++depth;
-      }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
-    } else if (params.dir == Direction::kBoth) {
-      std::set<label_t> labels;
-      std::vector<std::vector<LabelTriplet>> in_labels_map(
-          graph.schema().vertex_label_frontier()),
-          out_labels_map(graph.schema().vertex_label_frontier());
-      for (const auto& label : params.labels) {
-        labels.emplace(label.dst_label);
-        labels.emplace(label.src_label);
-        in_labels_map[label.dst_label].emplace_back(label);
-        out_labels_map[label.src_label].emplace_back(label);
-      }
-
-      MLVertexColumnBuilderOpt builder(labels);
-      std::vector<std::tuple<label_t, vid_t, size_t>> input;
-      std::vector<std::tuple<label_t, vid_t, size_t>> output;
-      auto input_vertex_list =
-          std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
-      if (input_vertex_list->vertex_column_type() ==
-          VertexColumnType::kMultiple) {
-        auto& input_vertex_list = *std::dynamic_pointer_cast<MLVertexColumn>(
-            ctx.get(params.start_tag));
-
-        input_vertex_list.foreach_vertex(
-            [&](size_t index, label_t label, vid_t v) {
-              output.emplace_back(label, v, index);
-            });
-      } else {
-        foreach_vertex(*input_vertex_list,
-                       [&](size_t index, label_t label, vid_t v) {
-                         output.emplace_back(label, v, index);
-                       });
-      }
-      int depth = 0;
-      while (depth < params.hop_upper && (!output.empty())) {
-        input.clear();
-        std::swap(input, output);
-        if (depth >= params.hop_lower) {
-          for (auto& tuple : input) {
-            builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
-            shuffle_offset.push_back(std::get<2>(tuple));
-          }
-        }
-
-        if (depth + 1 >= params.hop_upper) {
-          break;
-        }
-
-        for (auto& tuple : input) {
-          auto label = std::get<0>(tuple);
-          auto v = std::get<1>(tuple);
-          auto index = std::get<2>(tuple);
-          for (const auto& label_triplet : out_labels_map[label]) {
-            auto oview = graph.GetGenericOutgoingGraphView(
-                label_triplet.src_label, label_triplet.dst_label,
-                label_triplet.edge_label);
-            auto oes = oview.get_edges(v);
-            for (auto it = oes.begin(); it != oes.end(); ++it) {
-              output.emplace_back(label_triplet.dst_label, it.get_vertex(),
-                                  index);
-            }
-          }
-          for (const auto& label_triplet : in_labels_map[label]) {
-            auto iview = graph.GetGenericIncomingGraphView(
-                label_triplet.dst_label, label_triplet.src_label,
-                label_triplet.edge_label);
-            auto ies = iview.get_edges(v);
-            for (auto it = ies.begin(); it != ies.end(); ++it) {
-              output.emplace_back(label_triplet.src_label, it.get_vertex(),
-                                  index);
-            }
-          }
-        }
-        depth++;
-      }
-      ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
-      return ctx;
     }
   }
+
+  if (params.dir == Direction::kOut) {
+    auto& input_vertex_list =
+        *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+    std::set<label_t> labels;
+    std::vector<std::vector<LabelTriplet>> out_labels_map(
+        graph.schema().vertex_label_frontier());
+    for (const auto& label : params.labels) {
+      labels.emplace(label.dst_label);
+      if (params.hop_lower == 0) {
+        labels.emplace(label.src_label);
+      }
+      out_labels_map[label.src_label].emplace_back(label);
+    }
+
+    MLVertexColumnBuilderOpt builder(labels);
+    std::vector<std::tuple<label_t, vid_t, size_t>> input;
+    std::vector<std::tuple<label_t, vid_t, size_t>> output;
+    foreach_vertex(input_vertex_list,
+                   [&](size_t index, label_t label, vid_t v) {
+                     output.emplace_back(label, v, index);
+                   });
+    int depth = 0;
+    while (depth < params.hop_upper && (!output.empty())) {
+      input.clear();
+      std::swap(input, output);
+      if (depth >= params.hop_lower) {
+        for (auto& tuple : input) {
+          builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
+          shuffle_offset.push_back(std::get<2>(tuple));
+        }
+      }
+
+      if (depth + 1 >= params.hop_upper) {
+        break;
+      }
+
+      for (auto& tuple : input) {
+        auto label = std::get<0>(tuple);
+        auto v = std::get<1>(tuple);
+        auto index = std::get<2>(tuple);
+        for (const auto& label_triplet : out_labels_map[label]) {
+          auto oe_view = graph.GetGenericOutgoingGraphView(
+              label_triplet.src_label, label_triplet.dst_label,
+              label_triplet.edge_label);
+          auto oes = oe_view.get_edges(v);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                index);
+          }
+        }
+      }
+      ++depth;
+    }
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return ctx;
+  } else if (params.dir == Direction::kIn) {
+    auto& input_vertex_list =
+        *std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+    std::set<label_t> labels;
+    std::vector<std::vector<LabelTriplet>> in_labels_map(
+        graph.schema().vertex_label_frontier());
+    for (auto& label : params.labels) {
+      labels.emplace(label.src_label);
+      if (params.hop_lower == 0) {
+        labels.emplace(label.dst_label);
+      }
+      in_labels_map[label.dst_label].emplace_back(label);
+    }
+
+    MLVertexColumnBuilderOpt builder(labels);
+    std::vector<std::tuple<label_t, vid_t, size_t>> input;
+    std::vector<std::tuple<label_t, vid_t, size_t>> output;
+    foreach_vertex(input_vertex_list,
+                   [&](size_t index, label_t label, vid_t v) {
+                     output.emplace_back(label, v, index);
+                   });
+    int depth = 0;
+    while (depth < params.hop_upper && (!output.empty())) {
+      input.clear();
+      std::swap(input, output);
+      if (depth >= params.hop_lower) {
+        for (const auto& tuple : input) {
+          builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
+          shuffle_offset.push_back(std::get<2>(tuple));
+        }
+      }
+
+      if (depth + 1 >= params.hop_upper) {
+        break;
+      }
+
+      for (const auto& tuple : input) {
+        auto label = std::get<0>(tuple);
+        auto v = std::get<1>(tuple);
+        auto index = std::get<2>(tuple);
+        for (const auto& label_triplet : in_labels_map[label]) {
+          auto iview = graph.GetGenericIncomingGraphView(
+              label_triplet.dst_label, label_triplet.src_label,
+              label_triplet.edge_label);
+          auto ies = iview.get_edges(v);
+          for (auto it = ies.begin(); it != ies.end(); ++it) {
+            output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                index);
+          }
+        }
+      }
+      ++depth;
+    }
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return ctx;
+  } else {
+    std::set<label_t> labels;
+    std::vector<std::vector<LabelTriplet>> in_labels_map(
+        graph.schema().vertex_label_frontier()),
+        out_labels_map(graph.schema().vertex_label_frontier());
+    for (const auto& label : params.labels) {
+      labels.emplace(label.dst_label);
+      labels.emplace(label.src_label);
+      in_labels_map[label.dst_label].emplace_back(label);
+      out_labels_map[label.src_label].emplace_back(label);
+    }
+
+    MLVertexColumnBuilderOpt builder(labels);
+    std::vector<std::tuple<label_t, vid_t, size_t>> input;
+    std::vector<std::tuple<label_t, vid_t, size_t>> output;
+    auto input_vertex_list =
+        std::dynamic_pointer_cast<IVertexColumn>(ctx.get(params.start_tag));
+    if (input_vertex_list->vertex_column_type() ==
+        VertexColumnType::kMultiple) {
+      auto& input_vertex_list =
+          *std::dynamic_pointer_cast<MLVertexColumn>(ctx.get(params.start_tag));
+
+      input_vertex_list.foreach_vertex(
+          [&](size_t index, label_t label, vid_t v) {
+            output.emplace_back(label, v, index);
+          });
+    } else {
+      foreach_vertex(*input_vertex_list,
+                     [&](size_t index, label_t label, vid_t v) {
+                       output.emplace_back(label, v, index);
+                     });
+    }
+    int depth = 0;
+    while (depth < params.hop_upper && (!output.empty())) {
+      input.clear();
+      std::swap(input, output);
+      if (depth >= params.hop_lower) {
+        for (auto& tuple : input) {
+          builder.push_back_vertex({std::get<0>(tuple), std::get<1>(tuple)});
+          shuffle_offset.push_back(std::get<2>(tuple));
+        }
+      }
+
+      if (depth + 1 >= params.hop_upper) {
+        break;
+      }
+
+      for (auto& tuple : input) {
+        auto label = std::get<0>(tuple);
+        auto v = std::get<1>(tuple);
+        auto index = std::get<2>(tuple);
+        for (const auto& label_triplet : out_labels_map[label]) {
+          auto oview = graph.GetGenericOutgoingGraphView(
+              label_triplet.src_label, label_triplet.dst_label,
+              label_triplet.edge_label);
+          auto oes = oview.get_edges(v);
+          for (auto it = oes.begin(); it != oes.end(); ++it) {
+            output.emplace_back(label_triplet.dst_label, it.get_vertex(),
+                                index);
+          }
+        }
+        for (const auto& label_triplet : in_labels_map[label]) {
+          auto iview = graph.GetGenericIncomingGraphView(
+              label_triplet.dst_label, label_triplet.src_label,
+              label_triplet.edge_label);
+          auto ies = iview.get_edges(v);
+          for (auto it = ies.begin(); it != ies.end(); ++it) {
+            output.emplace_back(label_triplet.src_label, it.get_vertex(),
+                                index);
+          }
+        }
+      }
+      depth++;
+    }
+    ctx.set_with_reshuffle(params.alias, builder.finish(), shuffle_offset);
+    return ctx;
+  }
+
   LOG(ERROR) << "not support path expand options";
   RETURN_UNSUPPORTED_ERROR("not support path expand options");
 }
