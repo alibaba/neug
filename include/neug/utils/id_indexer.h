@@ -503,7 +503,7 @@ class LFIndexer {
 
   void close() {
     keys_->close();
-    CLOSE_AND_RESET(indices_);
+    CloseAndReset(indices_);
     indices_size_ = 0;
   }
 

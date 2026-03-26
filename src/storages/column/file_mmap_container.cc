@@ -42,7 +42,7 @@ void FilePrivateMMap::OpenAnonymous(size_t size) {
   mmap_data_ = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (mmap_data_ == MAP_FAILED) {
-    throw std::runtime_error("Failed to allocate memory");
+    THROW_RUNTIME_ERROR("Failed to allocate memory");
   }
   data_ = mmap_data_;
   size_ = mmap_size_;
@@ -51,7 +51,7 @@ void FilePrivateMMap::OpenAnonymous(size_t size) {
 void* FilePrivateMMap::mmapImpl(const std::string& path, size_t mmap_size) {
   int fd = open(path.c_str(), O_RDONLY);
   if (fd == -1) {
-    throw std::runtime_error("Failed to open file: " + path);
+    THROW_RUNTIME_ERROR("Failed to open file: " + path);
   }
   void* mmap_data =
       mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
@@ -89,11 +89,11 @@ void FileSharedMMap::Resize(size_t size) {
 
   int fd = open(path_.c_str(), O_RDWR);
   if (fd == -1) {
-    throw std::runtime_error("Failed to open file for resizing: " + path_);
+    THROW_RUNTIME_ERROR("Failed to open file for resizing: " + path_);
   }
   if (ftruncate(fd, real_size) == -1) {
     close(fd);
-    throw std::runtime_error("Failed to resize file: " + path_);
+    THROW_RUNTIME_ERROR("Failed to resize file: " + path_);
   }
   close(fd);
   mmap_size_ = std::filesystem::file_size(path_);
@@ -101,7 +101,7 @@ void FileSharedMMap::Resize(size_t size) {
   // Create a new mapping with the updated file size
   mmap_data_ = mmapImpl(path_, mmap_size_);
   if (mmap_data_ == MAP_FAILED) {
-    throw std::runtime_error("Failed to mmap file after resizing: " + path_);
+    THROW_RUNTIME_ERROR("Failed to mmap file after resizing: " + path_);
   }
   data_ = static_cast<char*>(mmap_data_) + sizeof(FileHeader);
   size_ = mmap_size_ - sizeof(FileHeader);
@@ -110,7 +110,7 @@ void FileSharedMMap::Resize(size_t size) {
 void* FileSharedMMap::mmapImpl(const std::string& path, size_t mmap_size) {
   int fd = open(path.c_str(), O_RDWR);
   if (fd == -1) {
-    throw std::runtime_error("Failed to open file: " + path);
+    THROW_RUNTIME_ERROR("Failed to open file: " + path);
   }
   void* mmap_data =
       mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

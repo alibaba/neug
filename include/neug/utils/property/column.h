@@ -293,8 +293,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void close() override {
-    CLOSE_AND_RESET(items_buffer_);
-    CLOSE_AND_RESET(data_buffer_);
+    CloseAndReset(items_buffer_);
+    CloseAndReset(data_buffer_);
   }
 
   void dump(const std::string& filename) override {
@@ -308,8 +308,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
       data_buffer_->Sync();
       data_buffer_->Dump(filename + ".data");
     }
-    CLOSE_AND_RESET(items_buffer_);
-    CLOSE_AND_RESET(data_buffer_);
+    CloseAndReset(items_buffer_);
+    CloseAndReset(data_buffer_);
   }
 
   size_t size() const override { return size_; }

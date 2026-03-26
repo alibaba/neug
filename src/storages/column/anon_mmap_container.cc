@@ -45,7 +45,7 @@ void AnonMMap::OpenAnonymous(size_t size) {
   mmap_data_ = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (mmap_data_ == MAP_FAILED) {
-    throw std::runtime_error("Failed to allocate memory");
+    THROW_RUNTIME_ERROR("Failed to allocate memory");
   }
   data_ = mmap_data_;
   size_ = mmap_size_;
@@ -54,7 +54,7 @@ void AnonMMap::OpenAnonymous(size_t size) {
 void* AnonMMap::mmapImpl(const std::string& path, size_t mmap_size) {
   int fd = open(path.c_str(), O_RDONLY);
   if (fd == -1) {
-    throw std::runtime_error("Failed to open file: " + path);
+    THROW_RUNTIME_ERROR("Failed to open file: " + path);
   }
   void* mmap_data =
       mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
@@ -84,7 +84,7 @@ void AnonHugeMMap::OpenAnonymous(size_t size) {
   size_t hugepage_size = file_utils::hugepage_round_up(size);
   mmap_data_ = file_utils::allocate_hugepages(hugepage_size);
   if (mmap_data_ == MAP_FAILED) {
-    throw std::runtime_error("Failed to allocate memory");
+    THROW_RUNTIME_ERROR("Failed to allocate memory");
   }
   data_ = mmap_data_;
   size_ = size;
@@ -98,7 +98,7 @@ void* try_allocate_hugepages(size_t size) {
     mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mmap_data == MAP_FAILED) {
-      throw std::runtime_error("Failed to allocate memory");
+      THROW_RUNTIME_ERROR("Failed to allocate memory");
     }
   }
   return mmap_data;
@@ -136,11 +136,11 @@ void* AnonHugeMMap::mmapImpl(const std::string& path, size_t mmap_size) {
   void* mmap_data = try_allocate_hugepages(hugepage_size);
   FILE* fp = fopen(path.c_str(), "rb");
   if (fp == nullptr) {
-    throw std::runtime_error("Failed to open file: " + path);
+    THROW_RUNTIME_ERROR("Failed to open file: " + path);
   }
   auto ret = fread(mmap_data, 1, mmap_size, fp);
   if (ret != mmap_size) {
-    throw std::runtime_error("Failed to read from file: " + path);
+    THROW_RUNTIME_ERROR("Failed to read from file: " + path);
   }
   fclose(fp);
   return mmap_data;

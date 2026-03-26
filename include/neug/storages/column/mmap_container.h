@@ -39,6 +39,13 @@ class MMapContainer : public IDataContainer {
   virtual void Resize(size_t size) override;
   std::string GetPath() const override;
 
+  void Open(const std::string& path) override;
+  void Close() override;
+  void Dump(const std::string& path) override;
+  virtual void Sync() override;
+  bool IsDirty() override;
+
+ protected:
   /**
    * @brief Implementation-specific mmap call.
    */
@@ -48,14 +55,6 @@ class MMapContainer : public IDataContainer {
    * @brief Implementation-specific munmap call.
    */
   virtual void munmapImpl(void* mmap_data, size_t mmap_size) = 0;
-
-  void Open(const std::string& path) override;
-  void Close() override;
-  void Dump(const std::string& path) override;
-  virtual void Sync() override;
-  bool IsDirty() override;
-
- protected:
   std::string path_;
   void* mmap_data_;
   size_t mmap_size_;

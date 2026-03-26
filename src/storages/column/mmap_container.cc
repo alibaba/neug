@@ -25,6 +25,8 @@
 #include "neug/storages/column/file_header.h"
 #include "neug/storages/column/mmap_container.h"
 
+#include <glog/logging.h>
+
 namespace neug {
 
 MMapContainer::MMapContainer()
@@ -48,6 +50,7 @@ void MMapContainer::Open(const std::string& path) {
   path_ = path;
   mmap_size_ = std::filesystem::file_size(path);
   if (mmap_size_ == 0) {
+    path_.clear();
     LOG(WARNING) << "File is empty: " << path;
     return;
   }
@@ -56,6 +59,13 @@ void MMapContainer::Open(const std::string& path) {
   if (mmap_data_ == MAP_FAILED) {
     throw std::runtime_error("Failed to mmap file: " + path);
   }
+  if (mmap_size_ < sizeof(FileHeader)) {
+    munmapImpl(mmap_data_, mmap_size_);
+    mmap_data_ = nullptr;
+    mmap_size_ = 0;
+    path_.clear();
+    throw std::runtime_error("File too small to contain header: " + path);
+  }
   data_ = static_cast<char*>(mmap_data_) + sizeof(FileHeader);
   size_ = mmap_size_ - sizeof(FileHeader);
   unsigned char data_md5[MD5_DIGEST_LENGTH];
@@ -63,6 +73,7 @@ void MMapContainer::Open(const std::string& path) {
   if (size_ > 0) {
     if (memcmp(data_md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
                MD5_DIGEST_LENGTH) != 0) {
+      Close();
       THROW_INTERNAL_EXCEPTION("Data integrity check failed for file: " + path);
     }
   }

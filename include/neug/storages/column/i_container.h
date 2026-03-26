@@ -21,15 +21,15 @@
 #include "neug/config.h"
 #include "neug/utils/property/types.h"
 
-#define CLOSE_AND_RESET(ptr) \
-  do {                       \
-    if (ptr) {               \
-      ptr->Close();          \
-      ptr.reset();           \
-    }                        \
-  } while (0)
-
 namespace neug {
+
+template <typename T>
+inline void CloseAndReset(T& ptr) {
+  if (ptr) {
+    ptr->Close();
+    ptr.reset();
+  }
+}
 
 enum class ContainerType {
   kAnonMMap = 0,

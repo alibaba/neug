@@ -37,6 +37,7 @@ class AnonMMap : public MMapContainer {
    */
   void OpenAnonymous(size_t size);
 
+ protected:
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;
 };
@@ -61,6 +62,8 @@ class AnonHugeMMap : public MMapContainer {
   void OpenAnonymous(size_t size);
 
   void Resize(size_t size) override;
+
+ protected:
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;
 };

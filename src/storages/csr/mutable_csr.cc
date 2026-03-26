@@ -48,16 +48,18 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open(const std::string& name,
                                const std::string& snapshot_dir,
                                const std::string& work_dir) {
-  close();
-  std::string prefix = snapshot_dir + "/" + name;
-  auto deg_file_name = prefix + ".deg";
-  auto cap_file_name = prefix + ".cap";
-  auto snap_nbr_file_name = prefix + ".nbr";
-  auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
   if (snapshot_dir.empty() || !std::filesystem::exists(snapshot_dir)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Snapshot directory is required for disk-backed open()");
   }
+  close();
+  std::string prefix = snapshot_dir + "/" + name;
+  load_meta(prefix);
+
+  auto deg_file_name = prefix + ".deg";
+  auto cap_file_name = prefix + ".cap";
+  auto snap_nbr_file_name = prefix + ".nbr";
+  auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
 
   std::shared_ptr<IDataContainer> degree_list =
       std::make_shared<FilePrivateMMap>();
@@ -80,7 +82,6 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
   }
   nbr_list_ = std::make_unique<FileSharedMMap>();
   nbr_list_->Open(tmp_nbr_file_name);
-  load_meta(prefix);
   auto v_cap = degree_list->GetDataSize() / sizeof(int);
 
   adj_list_buffer_ = std::make_unique<FileSharedMMap>();
@@ -128,7 +129,7 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   auto snap_nbr_file_name = prefix + ".nbr";
 
   std::shared_ptr<IDataContainer> degree_list =
-      std::make_unique<FilePrivateMMap>();
+      std::make_shared<FilePrivateMMap>();
   if (std::filesystem::exists(degree_file_name)) {
     degree_list->Open(degree_file_name);
   }
@@ -410,10 +411,10 @@ void MutableCsr<EDATA_T>::close() {
     delete[] locks_;
     locks_ = nullptr;
   }
-  CLOSE_AND_RESET(adj_list_buffer_);
-  CLOSE_AND_RESET(adj_list_size_);
-  CLOSE_AND_RESET(adj_list_capacity_);
-  CLOSE_AND_RESET(nbr_list_);
+  CloseAndReset(adj_list_buffer_);
+  CloseAndReset(adj_list_size_);
+  CloseAndReset(adj_list_capacity_);
+  CloseAndReset(nbr_list_);
 }
 
 template <typename EDATA_T>
@@ -745,7 +746,7 @@ size_t SingleMutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::close() {
-  CLOSE_AND_RESET(nbr_list_);
+  CloseAndReset(nbr_list_);
 }
 
 template <typename EDATA_T>

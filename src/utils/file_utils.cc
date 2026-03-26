@@ -24,6 +24,7 @@
 #include <system_error>
 #ifdef __linux__
 #include <linux/fs.h>
+#include <sys/syscall.h>
 #endif
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -153,7 +154,7 @@ static bool try_reflink(const std::string& src_path,
 static bool try_copy_file_range(const std::string& src_path,
                                 const std::string& dst_path,
                                 const struct stat& src_stat) {
-#ifdef __NR_copy_file_range
+#ifdef SYS_copy_file_range
   int src_fd = ::open(src_path.c_str(), O_RDONLY);
   if (src_fd < 0) {
     return false;
@@ -172,7 +173,7 @@ static bool try_copy_file_range(const std::string& src_path,
 
   // copy_file_range may require multiple calls for large files
   while (remaining > 0) {
-    ssize_t copied = syscall(__NR_copy_file_range, src_fd, &offset, dst_fd,
+    ssize_t copied = syscall(SYS_copy_file_range, src_fd, &offset, dst_fd,
                              nullptr, remaining, 0);
 
     if (copied <= 0) {

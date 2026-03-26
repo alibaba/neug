@@ -41,6 +41,10 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
                                  const std::string& work_dir) {
   // Changes made to the CSR will not be synchronized to the file
   // TODO(luoxiaojian): Implement the insert operation on ImmutableCsr.
+  if (snapshot_dir.empty() || !std::filesystem::exists(snapshot_dir)) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Snapshot directory is required for disk-backed open()");
+  }
   auto prefix = snapshot_dir + "/" + name;
   close();
   load_meta(prefix);
@@ -48,10 +52,7 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
   auto nbr_file_name = prefix + ".nbr";
   auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
   auto tmp_degree_file_name = tmp_dir(work_dir) + "/" + name + ".deg";
-  if (snapshot_dir.empty() || !std::filesystem::exists(snapshot_dir)) {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Snapshot directory is required for disk-backed open()");
-  }
+
   if (!std::filesystem::exists(degree_file_name)) {
     file_utils::create_file(tmp_degree_file_name, sizeof(FileHeader));
   } else {
@@ -273,9 +274,9 @@ size_t ImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::close() {
-  CLOSE_AND_RESET(adj_list_buffer_);
-  CLOSE_AND_RESET(degree_list_buffer_);
-  CLOSE_AND_RESET(nbr_list_buffer_);
+  CloseAndReset(adj_list_buffer_);
+  CloseAndReset(degree_list_buffer_);
+  CloseAndReset(nbr_list_buffer_);
 }
 
 template <typename EDATA_T>
@@ -537,7 +538,7 @@ size_t SingleImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::close() {
-  CLOSE_AND_RESET(nbr_list_buffer_);
+  CloseAndReset(nbr_list_buffer_);
 }
 
 template <typename EDATA_T>

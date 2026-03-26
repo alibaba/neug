@@ -40,6 +40,7 @@ class FilePrivateMMap : public MMapContainer {
    */
   void OpenAnonymous(size_t size);
 
+ protected:
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;
 };
@@ -59,9 +60,11 @@ class FileSharedMMap : public MMapContainer {
   }
 
   void Resize(size_t size) override;
+  void Sync() override;
+
+ protected:
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;
-  void Sync() override;
 };
 
 }  // namespace neug
