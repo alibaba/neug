@@ -40,7 +40,7 @@ class GeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
     }
   }
 
-  int64_t row_num() const override {
+  int64_t RowNum() const override {
     int64_t total_rows = 0;
     for (const auto& batch : batches_) {
       total_rows += batch->num_rows();

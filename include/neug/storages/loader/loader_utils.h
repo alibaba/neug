@@ -78,7 +78,7 @@ class IRecordBatchSupplier {
  public:
   virtual ~IRecordBatchSupplier() = default;
   virtual std::shared_ptr<arrow::RecordBatch> GetNextBatch() = 0;
-  virtual int64_t row_num() const = 0;
+  virtual int64_t RowNum() const = 0;
 };
 
 class SupplierWrapperWithFirstBatch : public IRecordBatchSupplier {
@@ -112,10 +112,10 @@ class SupplierWrapperWithFirstBatch : public IRecordBatchSupplier {
     return batch;  // Return the batch from the current supplier
   }
 
-  int64_t row_num() const override {
+  int64_t RowNum() const override {
     int64_t total_rows = 0;
     for (const auto& supplier : suppliers_) {
-      total_rows += supplier->row_num();
+      total_rows += supplier->RowNum();
     }
     return total_rows;
   }
@@ -136,7 +136,7 @@ class CSVStreamRecordBatchSupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
-  int64_t row_num() const override { return row_num_; }
+  int64_t RowNum() const override { return row_num_; }
 
  private:
   int64_t row_num_;
@@ -153,7 +153,7 @@ class CSVTableRecordBatchSupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
-  int64_t row_num() const override { return table_->num_rows(); }
+  int64_t RowNum() const override { return table_->num_rows(); }
 
  private:
   std::string file_path_;
@@ -180,7 +180,7 @@ class ArrowRecordBatchArraySupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
-  int64_t row_num() const override {
+  int64_t RowNum() const override {
     int64_t total_rows = 0;
     if (!arrays_.empty()) {
       for (const auto& batch : arrays_[0]) {
@@ -211,7 +211,7 @@ class ArrowRecordBatchStreamSupplier : public IRecordBatchSupplier {
 
   std::shared_ptr<arrow::RecordBatch> GetNextBatch() override;
 
-  int64_t row_num() const override { return row_num_; }
+  int64_t RowNum() const override { return row_num_; }
 
  private:
   int64_t row_num_;

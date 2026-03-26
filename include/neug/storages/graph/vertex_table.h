@@ -274,7 +274,11 @@ class VertexTable {
 
   template <typename PK_T>
   void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier) {
-    auto row_nums = supplier->row_num();
+    auto row_nums = supplier->RowNum();
+    if (row_nums <= 0) {
+      LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
+      row_nums = 0;
+    }
     size_t new_size = indexer_.size() + row_nums;
     if (new_size > indexer_.capacity()) {
       size_t cap = indexer_.capacity();
