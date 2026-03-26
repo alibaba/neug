@@ -36,6 +36,7 @@ class MMapContainer : public IDataContainer {
 
   void* GetData() const override;
   size_t GetDataSize() const override;
+  virtual void Resize(size_t size) override;
   std::string GetPath() const override;
 
   /**

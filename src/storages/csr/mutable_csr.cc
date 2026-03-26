@@ -58,12 +58,17 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Snapshot directory is required for disk-backed open()");
   }
-  auto degree_list = std::make_shared<FilePrivateMMap>();
-  if (!std::filesystem::exists(deg_file_name)) {
-    file_utils::create_file(deg_file_name, sizeof(FileHeader));
+
+  std::shared_ptr<IDataContainer> degree_list;
+  if (std::filesystem::exists(deg_file_name)) {
+    degree_list = std::make_shared<FilePrivateMMap>();
+    degree_list->Open(deg_file_name);
+  } else {
+    // create an empty degree list
+    degree_list = std::make_unique<AnonMMap>();
   }
-  degree_list->Open(deg_file_name);
-  std::shared_ptr<FilePrivateMMap> cap_list = degree_list;
+
+  std::shared_ptr<IDataContainer> cap_list = degree_list;
   if (std::filesystem::exists(cap_file_name)) {
     cap_list = std::make_shared<FilePrivateMMap>();
     cap_list->Open(cap_file_name);
@@ -104,17 +109,14 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
   locks_ = new SpinLock[v_cap];
 
   nbr_t* ptr = nbr_entries_ptr();
-  auto adj_buffers = adj_list_buffer_ptr();
-  auto adj_sizes = adj_list_size_ptr();
-  auto adj_caps = adj_list_capacity_ptr();
   auto degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
   for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_ptr[i];
     int cap = cap_ptr[i];
-    adj_buffers[i] = ptr;
-    adj_sizes[i].store(deg, std::memory_order_relaxed);
-    adj_caps[i] = cap;
+    adj_list_buffer_ptr()[i] = ptr;
+    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
+    adj_list_cap_ptr()[i] = cap;
     ptr += cap;
   }
 }
@@ -122,6 +124,7 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
+  load_meta(prefix);
 
   auto degree_file_name = prefix + ".deg";
   auto cap_file_name = prefix + ".cap";
@@ -134,8 +137,6 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
     degree_list = std::make_unique<FilePrivateMMap>();
     degree_list->Open(degree_file_name);
   }
-
-  load_meta(prefix);
 
   std::shared_ptr<IDataContainer> cap_list = degree_list;
   if (std::filesystem::exists(cap_file_name)) {
@@ -163,16 +164,13 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
 
   auto* degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-  auto* adj_buffers = adj_list_buffer_ptr();
-  auto* adj_sizes = adj_list_size_ptr();
-  auto* adj_caps = adj_list_capacity_ptr();
 
   for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_ptr[i];
     int cap = cap_ptr[i];
-    adj_buffers[i] = ptr;
-    adj_sizes[i].store(deg, std::memory_order_relaxed);
-    adj_caps[i] = cap;
+    adj_list_buffer_ptr()[i] = ptr;
+    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
+    adj_list_cap_ptr()[i] = cap;
     ptr += cap;
   }
 }
@@ -180,20 +178,21 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
+  load_meta(prefix);
   auto degree_file_name = prefix + ".deg";
   auto cap_file_name = prefix + ".cap";
   auto snap_nbr_file_name = prefix + ".nbr";
 
   // For tmp degree_list, we FilePrivateMap since we only need to read it once
-  std::shared_ptr<FilePrivateMMap> degree_list =
-      std::make_shared<FilePrivateMMap>();
+  std::shared_ptr<IDataContainer> degree_list;
   if (std::filesystem::exists(degree_file_name)) {
+    degree_list = std::make_shared<FilePrivateMMap>();
     degree_list->Open(degree_file_name);
+  } else {
+    degree_list = std::make_unique<AnonMMap>();
   }
 
-  load_meta(prefix);
-
-  std::shared_ptr<FilePrivateMMap> cap_list = degree_list;
+  std::shared_ptr<IDataContainer> cap_list = degree_list;
   if (std::filesystem::exists(cap_file_name)) {
     cap_list = std::make_shared<FilePrivateMMap>();
     cap_list->Open(cap_file_name);
@@ -217,16 +216,13 @@ void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
 
   auto* degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-  auto* adj_buffers = adj_list_buffer_ptr();
-  auto* adj_sizes = adj_list_size_ptr();
-  auto* adj_caps = adj_list_capacity_ptr();
 
   for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_ptr[i];
     int cap = cap_ptr[i];
-    adj_buffers[i] = ptr;
-    adj_sizes[i].store(deg, std::memory_order_relaxed);
-    adj_caps[i] = cap;
+    adj_list_buffer_ptr()[i] = ptr;
+    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
+    adj_list_cap_ptr()[i] = cap;
     ptr += cap;
   }
 }
@@ -244,15 +240,13 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
-  auto* sizes = adj_list_size_ptr();
-  auto* caps = adj_list_capacity_ptr();
   size_t offset = 0;
   for (size_t i = 0; i < vnum; ++i) {
-    offset += caps[i];
-    degree_ptr[i] = sizes[i].load(std::memory_order_relaxed);
-    cap_ptr[i] = caps[i];
+    offset += adj_list_cap_ptr()[i];
+    degree_ptr[i] = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
+    cap_ptr[i] = adj_list_cap_ptr()[i];
 
-    if (degree_ptr[i] != caps[i]) {
+    if (degree_ptr[i] != cap_ptr[i]) {
       need_cap_list = true;
     }
   }
@@ -284,22 +278,23 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
     LOG(ERROR) << ss.str();
     throw std::runtime_error(ss.str());
   }
-  auto buffers = adj_list_buffer_ptr();
   MD5_CTX md5_ctx;
   MD5_Init(&md5_ctx);
 
   for (size_t i = 0; i < vnum; ++i) {
     size_t ret{};
-    if ((ret = fwrite(buffers[i], sizeof(nbr_t), caps[i], fout)) !=
-        static_cast<size_t>(caps[i])) {
+    if ((ret = fwrite(adj_list_buffer_ptr()[i], sizeof(nbr_t),
+                      adj_list_cap_ptr()[i], fout)) !=
+        static_cast<size_t>(adj_list_cap_ptr()[i])) {
       fclose(fout);
       std::stringstream ss;
-      ss << "Failed to write nbr list " << filename << ", expected " << caps[i]
-         << ", got " << ret << ", " << strerror(errno);
+      ss << "Failed to write nbr list " << filename << ", expected "
+         << adj_list_cap_ptr()[i] << ", got " << ret << ", " << strerror(errno);
       LOG(ERROR) << ss.str();
       throw std::runtime_error(ss.str());
     }
-    MD5_Update(&md5_ctx, buffers[i], sizeof(nbr_t) * caps[i]);
+    MD5_Update(&md5_ctx, adj_list_buffer_ptr()[i],
+               sizeof(nbr_t) * adj_list_cap_ptr()[i]);
   }
 
   MD5_Final(header.data_md5, &md5_ctx);
@@ -342,15 +337,13 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::reset_timestamp() {
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   size_t vnum = vertex_capacity();
   for (size_t i = 0; i != vnum; ++i) {
-    nbr_t* nbrs = buffers[i];
+    nbr_t* nbrs = adj_list_buffer_ptr()[i];
     if (nbrs == nullptr) {
       continue;
     }
-    size_t deg = sizes[i].load(std::memory_order_relaxed);
+    size_t deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
     for (size_t j = 0; j != deg; ++j) {
       if (nbrs[j].timestamp != INVALID_TIMESTAMP) {
         nbrs[j].timestamp.store(0, std::memory_order_relaxed);
@@ -363,17 +356,15 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::compact() {
   // We don't shrink the capacity of each adjacency list, but just remove the
   // deleted edges.
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   size_t vnum = vertex_capacity();
   for (size_t i = 0; i != vnum; ++i) {
-    int sz = sizes[i];
-    nbr_t* read_ptr = buffers[i];
+    int sz = adj_list_size_ptr()[i];
+    nbr_t* read_ptr = adj_list_buffer_ptr()[i];
     if (read_ptr == nullptr) {
       continue;
     }
     nbr_t* read_end = read_ptr + sz;
-    nbr_t* write_ptr = buffers[i];
+    nbr_t* write_ptr = adj_list_buffer_ptr()[i];
     int removed = 0;
     while (read_ptr != read_end) {
       if (read_ptr->timestamp != INVALID_TIMESTAMP) {
@@ -386,7 +377,7 @@ void MutableCsr<EDATA_T>::compact() {
       }
       ++read_ptr;
     }
-    sizes[i] -= removed;
+    adj_list_size_ptr()[i] -= removed;
   }
 }
 
@@ -402,13 +393,10 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
     adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
     adj_list_size_->Resize(vnum * sizeof(std::atomic<int>));
     adj_list_capacity_->Resize(vnum * sizeof(int));
-    auto buffers = adj_list_buffer_ptr();
-    auto sizes = adj_list_size_ptr();
-    auto caps = adj_list_capacity_ptr();
     for (vid_t i = old_vnum; i < vnum; ++i) {
-      buffers[i] = nullptr;
-      sizes[i].store(0, std::memory_order_relaxed);
-      caps[i] = 0;
+      adj_list_buffer_ptr()[i] = nullptr;
+      adj_list_size_ptr()[i].store(0, std::memory_order_relaxed);
+      adj_list_cap_ptr()[i] = 0;
     }
     delete[] locks_;
     locks_ = new SpinLock[vnum];
@@ -440,15 +428,14 @@ void MutableCsr<EDATA_T>::close() {
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (adj_list_buffer_ != nullptr) {
-    auto** buffers = adj_list_buffer_ptr();
-    auto* sizes = adj_list_size_ptr();
     size_t vnum = vertex_capacity();
     for (size_t i = 0; i != vnum; ++i) {
-      nbr_t* begin = buffers[i];
+      nbr_t* begin = adj_list_buffer_ptr()[i];
       if (begin == nullptr) {
         continue;
       }
-      std::sort(begin, begin + sizes[i].load(std::memory_order_relaxed),
+      std::sort(begin,
+                begin + adj_list_size_ptr()[i].load(std::memory_order_relaxed),
                 [](const nbr_t& lhs, const nbr_t& rhs) {
                   return lhs.data < rhs.data;
                 });
@@ -460,25 +447,23 @@ void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (vid_t src : src_set) {
     if (src < vnum) {
-      sizes[src] = 0;
+      adj_list_size_ptr()[src].store(0, std::memory_order_relaxed);
     }
   }
   for (vid_t src = 0; src < vnum; ++src) {
-    if (sizes[src].load(std::memory_order_relaxed) == 0) {
+    if (adj_list_size_ptr()[src].load(std::memory_order_relaxed) == 0) {
       continue;
     }
-    const nbr_t* read_ptr = buffers[src];
+    const nbr_t* read_ptr = adj_list_buffer_ptr()[src];
     if (read_ptr == nullptr) {
       continue;
     }
     const nbr_t* read_end =
-        read_ptr + sizes[src].load(std::memory_order_relaxed);
-    nbr_t* write_ptr = buffers[src];
+        read_ptr + adj_list_size_ptr()[src].load(std::memory_order_relaxed);
+    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
     int removed = 0;
     while (read_ptr != read_end) {
       vid_t nbr = read_ptr->neighbor;
@@ -492,7 +477,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
       }
       ++read_ptr;
     }
-    sizes[src] -= removed;
+    adj_list_size_ptr()[src] -= removed;
   }
 }
 
@@ -500,8 +485,6 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<vid_t>& src_list, const std::vector<vid_t>& dst_list) {
   std::map<vid_t, std::set<vid_t>> src_dst_map;
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (size_t i = 0; i < src_list.size(); ++i) {
     vid_t src = src_list[i];
@@ -512,11 +495,12 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
   }
   for (const auto& pair : src_dst_map) {
     vid_t src = pair.first;
-    nbr_t* write_ptr = buffers[src];
+    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
     if (write_ptr == nullptr) {
       continue;
     }
-    const nbr_t* read_end = write_ptr + sizes[src].load();
+    const nbr_t* read_end =
+        write_ptr + adj_list_size_ptr()[src].load(std::memory_order_relaxed);
     while (write_ptr != read_end) {
       if (pair.second.find(write_ptr->neighbor) != pair.second.end()) {
         write_ptr->timestamp.store(std::numeric_limits<timestamp_t>::max());
@@ -530,19 +514,18 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
   std::map<vid_t, std::set<int32_t>> src_offset_map;
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (const auto& edge : edges) {
     if (edge.first >= vnum ||
-        edge.second >= sizes[edge.first].load(std::memory_order_relaxed)) {
+        edge.second >=
+            adj_list_size_ptr()[edge.first].load(std::memory_order_relaxed)) {
       continue;
     }
     src_offset_map[edge.first].insert(edge.second);
   }
   for (const auto& pair : src_offset_map) {
     vid_t src = pair.first;
-    nbr_t* write_ptr = buffers[src];
+    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
     if (write_ptr == nullptr) {
       continue;
     }
@@ -556,13 +539,12 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                       timestamp_t ts) {
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
-  if (src >= vnum || offset >= sizes[src].load(std::memory_order_relaxed)) {
+  if (src >= vnum ||
+      offset >= adj_list_size_ptr()[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = buffers[src];
+  nbr_t* nbrs = adj_list_buffer_ptr()[src];
   if (nbrs == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
@@ -580,13 +562,12 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
                                              int32_t offset, timestamp_t ts) {
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
-  if (src >= vnum || offset >= sizes[src].load(std::memory_order_relaxed)) {
+  if (src >= vnum ||
+      offset >= adj_list_size_ptr()[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = buffers[src];
+  nbr_t* nbrs = adj_list_buffer_ptr()[src];
   if (nbrs == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
@@ -612,9 +593,6 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   if (vnum == 0) {
     return;
   }
-  auto** buffers = adj_list_buffer_ptr();
-  auto* sizes = adj_list_size_ptr();
-  auto* caps = adj_list_capacity_ptr();
   std::vector<int> degree(vnum, 0);
   for (auto src : src_list) {
     if (src < vnum) {
@@ -625,20 +603,21 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   size_t total_to_move = 0;
   size_t total_to_allocate = 0;
   for (vid_t i = 0; i < vnum; ++i) {
-    int old_deg = sizes[i].load(std::memory_order_relaxed);
+    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
     total_to_move += old_deg;
     int new_degree = degree[i] + old_deg;
     int new_cap = std::ceil(new_degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
-    caps[i] = new_cap;
+    adj_list_cap_ptr()[i] = new_cap;
     total_to_allocate += new_cap;
   }
 
   std::vector<nbr_t> new_nbr_list(total_to_move);
   size_t offset = 0;
   for (vid_t i = 0; i < vnum; ++i) {
-    int old_deg = sizes[i].load(std::memory_order_relaxed);
-    if (old_deg > 0 && buffers[i] != nullptr) {
-      memcpy(new_nbr_list.data() + offset, buffers[i], sizeof(nbr_t) * old_deg);
+    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
+    if (old_deg > 0 && adj_list_buffer_ptr()[i] != nullptr) {
+      memcpy(new_nbr_list.data() + offset, adj_list_buffer_ptr()[i],
+             sizeof(nbr_t) * old_deg);
     }
     offset += old_deg;
   }
@@ -648,15 +627,15 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   size_t new_offset = 0;
   for (vid_t i = 0; i < vnum; ++i) {
     nbr_t* new_buffer = base_ptr != nullptr ? base_ptr + offset : nullptr;
-    int old_deg = sizes[i].load(std::memory_order_relaxed);
+    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
     if (old_deg > 0 && new_buffer != nullptr) {
       memcpy(new_buffer, new_nbr_list.data() + new_offset,
              sizeof(nbr_t) * old_deg);
     }
     new_offset += old_deg;
-    offset += caps[i];
-    buffers[i] = new_buffer;
-    sizes[i].store(old_deg, std::memory_order_relaxed);
+    offset += adj_list_cap_ptr()[i];
+    adj_list_buffer_ptr()[i] = new_buffer;
+    adj_list_size_ptr()[i].store(old_deg, std::memory_order_relaxed);
   }
 
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -666,8 +645,8 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     }
     vid_t dst = dst_list[i];
     const EDATA_T& data = data_list[i];
-    auto& nbr =
-        buffers[src][sizes[src].fetch_add(1, std::memory_order_relaxed)];
+    auto& nbr = adj_list_buffer_ptr()[src][adj_list_size_ptr()[src].fetch_add(
+        1, std::memory_order_relaxed)];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
@@ -679,7 +658,6 @@ void MutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
   std::string meta_file_path = prefix + ".meta";
   if (std::filesystem::exists(meta_file_path)) {
     read_file(meta_file_path, &unsorted_since_, sizeof(timestamp_t), 1);
-
   } else {
     unsorted_since_ = 0;
   }
@@ -712,9 +690,11 @@ void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
 
   auto snapshot_file = prefix + ".snbr";
-  nbr_list_ = std::make_unique<FilePrivateMMap>();
   if (std::filesystem::exists(snapshot_file)) {
+    nbr_list_ = std::make_unique<FilePrivateMMap>();
     nbr_list_->Open(snapshot_file);
+  } else {
+    nbr_list_ = std::make_unique<AnonMMap>();
   }
 }
 

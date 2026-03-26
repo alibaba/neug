@@ -136,7 +136,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     }
     auto** buffers = adj_list_buffer_ptr();
     auto* sizes = adj_list_size_ptr();
-    auto* caps = adj_list_capacity_ptr();
+    auto* caps = adj_list_cap_ptr();
     locks_[src].lock();
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
@@ -220,11 +220,11 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     assert(adj_list_size_);
     return reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
   }
-  int* adj_list_capacity_ptr() {
+  int* adj_list_cap_ptr() {
     assert(adj_list_capacity_);
     return reinterpret_cast<int*>(adj_list_capacity_->GetData());
   }
-  const int* adj_list_capacity_ptr() const {
+  const int* adj_list_cap_ptr() const {
     assert(adj_list_capacity_);
     return reinterpret_cast<const int*>(adj_list_capacity_->GetData());
   }

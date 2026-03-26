@@ -41,8 +41,9 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
                                  const std::string& work_dir) {
   // Changes made to the CSR will not be synchronized to the file
   // TODO(luoxiaojian): Implement the insert operation on ImmutableCsr.
-  close();
   auto prefix = snapshot_dir + "/" + name;
+  close();
+  load_meta(prefix);
   auto degree_file_name = prefix + ".deg";
   auto nbr_file_name = prefix + ".nbr";
   auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
@@ -66,7 +67,6 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
   }
   nbr_list_buffer_ = std::make_unique<FileSharedMMap>();
   nbr_list_buffer_->Open(tmp_nbr_file_name);
-  load_meta(prefix);
 
   adj_list_buffer_ = std::make_unique<FileSharedMMap>();
   auto tmp_adj_list_file_name = tmp_dir(work_dir) + "/" + name + ".adj";
@@ -91,6 +91,7 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
+  load_meta(prefix);
   auto degree_file_name = prefix + ".deg";
   auto nbr_file_name = prefix + ".nbr";
   if (std::filesystem::exists(degree_file_name)) {
@@ -106,7 +107,6 @@ void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   } else {
     nbr_list_buffer_ = std::make_unique<AnonMMap>();
   }
-  load_meta(prefix);
 
   adj_list_buffer_ = std::make_unique<AnonMMap>();
   auto v_cap = size();
@@ -127,6 +127,7 @@ void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
+  load_meta(prefix);
   auto degree_file_name = prefix + ".deg";
   auto nbr_file_name = prefix + ".nbr";
   degree_list_buffer_ = std::make_unique<AnonHugeMMap>();
@@ -138,7 +139,6 @@ void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   if (std::filesystem::exists(nbr_file_name)) {
     nbr_list_buffer_->Open(nbr_file_name);
   }
-  load_meta(prefix);
 
   auto v_cap = size();
   adj_list_buffer_ = std::make_unique<AnonHugeMMap>();
@@ -218,7 +218,6 @@ void ImmutableCsr<EDATA_T>::reset_timestamp() {}
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::compact() {
   // For current adj_list where the dst vertex is invalid, swap it to the end.
-  // vid_t vnum = adj_lists_.size();
   vid_t vnum = size();
   if (vnum <= 0) {
     return;

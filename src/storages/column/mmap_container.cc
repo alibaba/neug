@@ -81,6 +81,37 @@ void MMapContainer::Close() {
 
 void MMapContainer::Sync() {}
 
+void MMapContainer::Resize(size_t size) {
+  if (size == size_) {
+    return;
+  }
+  path_.clear();
+  if (size == 0) {
+    if (mmap_data_ && mmap_size_ > 0) {
+      munmapImpl(mmap_data_, mmap_size_);
+    }
+    mmap_data_ = nullptr;
+    mmap_size_ = 0;
+    data_ = nullptr;
+    size_ = 0;
+    return;
+  }
+
+  void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (new_mmap_data == MAP_FAILED) {
+    throw std::runtime_error("Failed to allocate memory for resizing");
+  }
+  if (mmap_data_ && size_ > 0) {
+    memcpy(new_mmap_data, data_, size_ < size ? size_ : size);
+    munmapImpl(mmap_data_, mmap_size_);
+  }
+  mmap_data_ = new_mmap_data;
+  mmap_size_ = size;
+  data_ = mmap_data_;
+  size_ = size;
+}
+
 void MMapContainer::Dump(const std::string& path) {
   FileHeader header;
   MD5((unsigned char*) data_, size_, header.data_md5);

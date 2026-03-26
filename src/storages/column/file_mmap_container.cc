@@ -48,26 +48,6 @@ void FilePrivateMMap::OpenAnonymous(size_t size) {
   size_ = mmap_size_;
 }
 
-void FilePrivateMMap::Resize(size_t size) {
-  if (size == size_) {
-    return;
-  }
-  void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (new_mmap_data == MAP_FAILED) {
-    throw std::runtime_error("Failed to allocate memory for resizing");
-  }
-  if (mmap_data_ && size_ > 0) {
-    memcpy(new_mmap_data, data_, size_ < size ? size_ : size);
-    munmapImpl(mmap_data_, mmap_size_);
-  }
-  // Update pointers and sizes
-  mmap_data_ = new_mmap_data;
-  mmap_size_ = size;
-  data_ = mmap_data_;
-  size_ = size;
-}
-
 void* FilePrivateMMap::mmapImpl(const std::string& path, size_t mmap_size) {
   int fd = open(path.c_str(), O_RDONLY);
   if (fd == -1) {

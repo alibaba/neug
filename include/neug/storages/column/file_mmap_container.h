@@ -40,7 +40,6 @@ class FilePrivateMMap : public MMapContainer {
    */
   void OpenAnonymous(size_t size);
 
-  void Resize(size_t size) override;
   void* mmapImpl(const std::string& path, size_t mmap_size) override;
   void munmapImpl(void* mmap_data, size_t mmap_size) override;
 };

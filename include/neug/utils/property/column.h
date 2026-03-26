@@ -88,8 +88,8 @@ void open_container_shared(IDataContainer& container, const std::string& name,
                            const std::string& snapshot_dir,
                            const std::string& work_dir);
 
-void open_container_in_memory(IDataContainer& container,
-                              const std::string& name);
+std::unique_ptr<IDataContainer> open_container_in_memory(
+    const std::string& name, bool use_hugepages);
 
 template <typename T>
 class TypedColumn : public ColumnBase {
@@ -105,14 +105,12 @@ class TypedColumn : public ColumnBase {
   }
 
   void open_in_memory(const std::string& name) override {
-    buffer_ = std::make_unique<FilePrivateMMap>();
-    open_container_in_memory(*buffer_, name);
+    buffer_ = open_container_in_memory(name, false);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_with_hugepages(const std::string& name) override {
-    buffer_ = std::make_unique<AnonHugeMMap>();
-    open_container_in_memory(*buffer_, name);
+    buffer_ = open_container_in_memory(name, true);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -278,19 +276,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void open_in_memory(const std::string& prefix) override {
-    items_buffer_ = std::make_unique<FilePrivateMMap>();
-    data_buffer_ = std::make_unique<FilePrivateMMap>();
-    open_container_in_memory(*items_buffer_, prefix + ".items");
-    open_container_in_memory(*data_buffer_, prefix + ".data");
+    items_buffer_ = open_container_in_memory(prefix + ".items", false);
+    data_buffer_ = open_container_in_memory(prefix + ".data", false);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
 
   void open_with_hugepages(const std::string& prefix) override {
-    items_buffer_ = std::make_unique<AnonHugeMMap>();
-    data_buffer_ = std::make_unique<AnonHugeMMap>();
-    open_container_in_memory(*items_buffer_, prefix + ".items");
-    open_container_in_memory(*data_buffer_, prefix + ".data");
+    items_buffer_ = open_container_in_memory(prefix + ".items", true);
+    data_buffer_ = open_container_in_memory(prefix + ".data", true);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
