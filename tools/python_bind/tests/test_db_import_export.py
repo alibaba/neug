@@ -368,9 +368,7 @@ def test_copy_from_no_schema_node_basic(tmp_path):
 
     conn.execute(f'COPY ns_person FROM "{csv_path}";')
 
-    res = conn.execute(
-        "MATCH (n:ns_person) RETURN n.id, n.name ORDER BY n.id;"
-    )
+    res = conn.execute("MATCH (n:ns_person) RETURN n.id, n.name ORDER BY n.id;")
     rows = list(res)
     assert len(rows) == 3
     assert rows[0][0] == 1
@@ -396,13 +394,9 @@ def test_copy_from_no_schema_node_subquery(tmp_path):
     with open(csv_path, "w") as f:
         f.write("name|user_id\nAlice|1\nBob|2\nCharlie|3\n")
 
-    conn.execute(
-        f'COPY ns_user FROM (LOAD FROM "{csv_path}" RETURN user_id, name);'
-    )
+    conn.execute(f'COPY ns_user FROM (LOAD FROM "{csv_path}" RETURN user_id, name);')
 
-    res = conn.execute(
-        "MATCH (u:ns_user) RETURN u.user_id, u.name ORDER BY u.user_id;"
-    )
+    res = conn.execute("MATCH (u:ns_user) RETURN u.user_id, u.name ORDER BY u.user_id;")
     rows = list(res)
     assert len(rows) == 3
     assert rows[0][0] == 1
@@ -424,18 +418,14 @@ def test_copy_from_no_schema_edge_from_file(tmp_path):
     person_csv = tmp_path / "person.csv"
     with open(person_csv, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n3|Charlie\n")
-    conn.execute(
-        "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));"
-    )
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     conn.execute(f'COPY person FROM "{person_csv}";')
 
     edge_csv = tmp_path / "knows.csv"
     with open(edge_csv, "w") as f:
         f.write("from|to|weight\n1|2|0.5\n2|3|0.8\n")
 
-    conn.execute(
-        f'COPY ns_knows FROM "{edge_csv}" (from="person", to="person");'
-    )
+    conn.execute(f'COPY ns_knows FROM "{edge_csv}" (from="person", to="person");')
 
     res = conn.execute(
         "MATCH (a:person)-[k:ns_knows]->(b:person) "
@@ -463,9 +453,7 @@ def test_copy_from_no_schema_edge_subquery(tmp_path):
     person_csv = tmp_path / "person.csv"
     with open(person_csv, "w") as f:
         f.write("id|name\n1|Alice\n2|Bob\n3|Charlie\n")
-    conn.execute(
-        "CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));"
-    )
+    conn.execute("CREATE NODE TABLE person(id INT64, name STRING, PRIMARY KEY(id));")
     conn.execute(f'COPY person FROM "{person_csv}";')
 
     edge_csv = tmp_path / "follows.csv"
@@ -504,13 +492,9 @@ def test_copy_from_no_schema_vertex_then_edge_no_ddl(tmp_path):
 
     e_csv = tmp_path / "ns_edges.csv"
     e_csv.write_text("from|to|weight\n1|2|0.5\n2|3|0.8\n", encoding="utf-8")
-    conn.execute(
-        f'COPY ns5_knows FROM "{e_csv}" (from="ns5_person", to="ns5_person");'
-    )
+    conn.execute(f'COPY ns5_knows FROM "{e_csv}" (from="ns5_person", to="ns5_person");')
 
-    vrows = list(
-        conn.execute("MATCH (n:ns5_person) RETURN n.id ORDER BY n.id;")
-    )
+    vrows = list(conn.execute("MATCH (n:ns5_person) RETURN n.id ORDER BY n.id;"))
     assert len(vrows) == 3
     erows = list(
         conn.execute(
@@ -535,15 +519,9 @@ def test_copy_from_no_schema_header_false_f_column_names(tmp_path):
 
     v_csv = tmp_path / "vnh.csv"
     v_csv.write_text("1|Alice\n2|Bob\n3|Charlie\n", encoding="utf-8")
-    conn.execute(
-        f'COPY ns_fvert FROM "{v_csv}" (HEADER FALSE, DELIMITER="|");'
-    )
+    conn.execute(f'COPY ns_fvert FROM "{v_csv}" (HEADER FALSE, DELIMITER="|");')
 
-    vrows = list(
-        conn.execute(
-            "MATCH (n:ns_fvert) RETURN n.f0, n.f1 ORDER BY n.f0;"
-        )
-    )
+    vrows = list(conn.execute("MATCH (n:ns_fvert) RETURN n.f0, n.f1 ORDER BY n.f0;"))
     assert vrows == [[1, "Alice"], [2, "Bob"], [3, "Charlie"]]
 
     e_csv = tmp_path / "enh.csv"
@@ -612,9 +590,7 @@ def test_copy_from_no_schema_pk_is_first_column(tmp_path):
 
     conn.execute(f'COPY ns_item FROM "{csv_path}";')
 
-    res = conn.execute(
-        "MATCH (i:ns_item) RETURN i.item_id ORDER BY i.item_id;"
-    )
+    res = conn.execute("MATCH (i:ns_item) RETURN i.item_id ORDER BY i.item_id;")
     rows = list(res)
     assert len(rows) == 3
     assert rows[0][0] == 10
@@ -647,9 +623,7 @@ def test_copy_from_no_schema_node_wide_row(tmp_path):
 
     conn.execute(f'COPY ns_comp FROM "{csv_path}";')
 
-    assert (
-        len(list(conn.execute("MATCH (n:ns_comp) RETURN n.id ORDER BY n.id;"))) == 2
-    )
+    assert len(list(conn.execute("MATCH (n:ns_comp) RETURN n.id ORDER BY n.id;"))) == 2
 
     r1 = list(
         conn.execute(
@@ -665,17 +639,13 @@ def test_copy_from_no_schema_node_wide_row(tmp_path):
     assert r1[5] == "3years"
 
     dt_row = list(
-        conn.execute(
-            "MATCH (n:ns_comp) WHERE n.id = 1 RETURN n.datetime_property;"
-        )
+        conn.execute("MATCH (n:ns_comp) WHERE n.id = 1 RETURN n.datetime_property;")
     )[0]
     assert isinstance(dt_row[0], datetime)
     assert dt_row[0].year == 2023 and dt_row[0].month == 6 and dt_row[0].day == 22
 
     date_row = list(
-        conn.execute(
-            "MATCH (n:ns_comp) WHERE n.id = 1 RETURN n.date_property;"
-        )
+        conn.execute("MATCH (n:ns_comp) WHERE n.id = 1 RETURN n.date_property;")
     )[0]
     assert "2023-06-22" in str(date_row[0])
 
@@ -687,11 +657,9 @@ def test_copy_from_no_schema_node_wide_row(tmp_path):
     assert u32_u64[0] == 0
     assert u32_u64[1] == 0.0
 
-    r2 = list(
-        conn.execute(
-            "MATCH (n:ns_comp) WHERE n.id = 2 RETURN n.str_property;"
-        )
-    )[0]
+    r2 = list(conn.execute("MATCH (n:ns_comp) WHERE n.id = 2 RETURN n.str_property;"))[
+        0
+    ]
     assert r2[0] == "test_string_2"
 
     conn.close()
@@ -713,9 +681,7 @@ def test_copy_from_no_schema_node_string_pk(tmp_path):
 
     conn.execute(f'COPY ns_sku FROM "{csv_path}";')
 
-    res = conn.execute(
-        "MATCH (s:ns_sku) RETURN s.sku, s.qty ORDER BY s.sku;"
-    )
+    res = conn.execute("MATCH (s:ns_sku) RETURN s.sku, s.qty ORDER BY s.sku;")
     rows = list(res)
     assert len(rows) == 2
     assert rows[0][0] == "ABC-001"
@@ -766,9 +732,7 @@ def test_copy_from_no_schema_node_reopen_database(tmp_path):
     db2 = Database(db_path=str(db_dir), mode="r")
     conn2 = db2.connect()
     rows = list(
-        conn2.execute(
-            "MATCH (n:ns_persist) RETURN n.id, n.name ORDER BY n.id;"
-        )
+        conn2.execute("MATCH (n:ns_persist) RETURN n.id, n.name ORDER BY n.id;")
     )
     assert len(rows) == 1
     assert rows[0][0] == 7
@@ -792,9 +756,7 @@ def test_copy_from_no_schema_node_second_copy_appends(tmp_path):
     conn.execute(f'COPY ns_twice FROM "{a}";')
     conn.execute(f'COPY ns_twice FROM "{b}";')
 
-    rows = list(
-        conn.execute("MATCH (n:ns_twice) RETURN n.id, n.v ORDER BY n.id;")
-    )
+    rows = list(conn.execute("MATCH (n:ns_twice) RETURN n.id, n.v ORDER BY n.id;"))
     assert len(rows) == 2
     assert rows[0] == [1, "a"]
     assert rows[1] == [2, "b"]
@@ -818,9 +780,7 @@ def test_copy_from_no_schema_node_subquery_where_filter(tmp_path):
         f'COPY ns_filt FROM (LOAD FROM "{csv_path}" WHERE id > 1 RETURN id, name);'
     )
 
-    rows = list(
-        conn.execute("MATCH (n:ns_filt) RETURN n.id ORDER BY n.id;")
-    )
+    rows = list(conn.execute("MATCH (n:ns_filt) RETURN n.id ORDER BY n.id;"))
     assert len(rows) == 2
     assert [r[0] for r in rows] == [2, 3]
 
@@ -862,9 +822,7 @@ def test_copy_from_no_schema_node_unicode_string(tmp_path):
 
     conn.execute(f'COPY ns_uni FROM "{csv_path}";')
 
-    rows = list(
-        conn.execute("MATCH (u:ns_uni) RETURN u.id, u.label ORDER BY u.id;")
-    )
+    rows = list(conn.execute("MATCH (u:ns_uni) RETURN u.id, u.label ORDER BY u.id;"))
     assert len(rows) == 2
     assert rows[0][1] == "你好"
     assert rows[1][1] == "English"
