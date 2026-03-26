@@ -80,11 +80,6 @@ DDLVertexInfo::DDLVertexInfo(const std::string& vertexLabelName,
         primaryKeyName, vertexLabelName));
   }
   auto propCopies = nodeTableEntry->getProperties();
-  // std::vector<PropertyDefinition> propCopies;
-  // propCopies.reserve(props.size());
-  // for (auto& p : props) {
-  //   propCopies.push_back(p.copy());
-  // }
   auto boundExtra = std::make_unique<BoundExtraCreateNodeTableInfo>(
       primaryKeyName, std::move(propCopies));
   createTableInfo =
@@ -352,8 +347,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFrom(
   auto dstOffset = createVariable(std::string(InternalKeyword::DST_OFFSET),
                                   LogicalType::INT64());
   expression_vector columns = boundSource->getColumns();
-  std::vector<ColumnEvaluateType> evaluateTypes{columns.size(),
-                                                ColumnEvaluateType::REFERENCE};
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
   std::shared_ptr<Expression> srcKey = nullptr, dstKey = nullptr;
   if (expectedColumnTypes[0] != columns[0]->getDataType()) {
     srcKey = expressionBinder.forceCast(columns[0], expectedColumnTypes[0]);
@@ -399,10 +394,6 @@ std::unique_ptr<BoundStatement> Binder::bindCopyNodeFromNoSchema(
   const auto& primaryKey = columns[0]->rawName();
   auto ddlTableInfo = std::make_unique<DDLVertexInfo>(
       labelName, primaryKey, columns, expressionBinder);
-  if (ddlTableInfo) {
-    LOG(INFO) << "label name in extra table info is "
-              << ddlTableInfo->getVertexLabelName();
-  }
   auto boundCopyFromInfo =
       BoundCopyFromInfo(std::move(boundSource), std::move(offset),
                         std::move(columns), std::move(evaluateTypes),
@@ -452,8 +443,8 @@ std::unique_ptr<BoundStatement> Binder::bindCopyRelFromNoSchema(
         "Cannot infer edge schema: need at least two columns (source key, "
         "destination key).");
   }
-  std::vector<ColumnEvaluateType> evaluateTypes{columns.size(),
-                                                ColumnEvaluateType::REFERENCE};
+  std::vector<ColumnEvaluateType> evaluateTypes(columns.size(),
+                                                ColumnEvaluateType::REFERENCE);
   std::shared_ptr<Expression> srcKey = columns[0], dstKey = columns[1];
 
   auto srcLookUpInfo =

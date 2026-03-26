@@ -44,8 +44,6 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
     VLOG(1) << "Logical Plan: " << std::endl
             << statement->logicalPlan->toString() << std::endl;
 
-    LOG(INFO) << "logical plan: " << statement->logicalPlan->toString();
-
     if (statement->logicalPlan->emptyResult(
             statement->logicalPlan->getLastOperator())) {
       // If the logical plan results in an empty result,
@@ -59,8 +57,7 @@ result<std::pair<physical::PhysicalPlan, std::string>> GOptPlanner::compilePlan(
                                              database->getCatalog());
     auto physicalPlan = converter.convert(*statement->logicalPlan);
 
-    // VLOG(10) << "got plan: " << physicalPlan->DebugString();
-    LOG(INFO) << "physical plan:" << physicalPlan->DebugString();
+    VLOG(10) << "got plan: " << physicalPlan->DebugString();
 
     // set result schema
     auto resultYaml = gopt::GResultSchema::infer(

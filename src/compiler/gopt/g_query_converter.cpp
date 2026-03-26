@@ -1344,13 +1344,7 @@ std::unique_ptr<::physical::EdgeType> convertEdgeType(
 void GQueryConvertor::convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
                                       ::physical::PhysicalPlan* plan) {
   auto info = copyFrom.getInfo();
-  if (!info) {
-    LOG(INFO) << "info is nullptr";
-  }
   auto tableEntry = info->tableEntry;
-  if (!tableEntry) {
-    LOG(INFO) << "tableEntry is nullptr";
-  }
   auto columnExprs = binder::expression_vector();
   for (auto column : info->columnExprs) {
     if (!skipColumn(column->toString())) {
