@@ -28,7 +28,7 @@ jobs:
   extension_tests_default:
     runs-on: [self-hosted]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -72,8 +72,8 @@ jobs:
       with:
         python-version: '3.13'
 
-    # TODO: After unifying wheel build (neug-manylinux:v0.1.0-x86_64) and dev images (neug-dev:v0.1.0), 
-    # skip the build process and use `pip3 install neug` to test the locally built json/parquet extension 
+    # TODO: After unifying wheel build (neug-manylinux:v0.1.1-x86_64) and dev images (neug-dev:v0.1.1), 
+    # skip the build process and use `pip3 install neug` to test the locally built json extension 
     # with the released wheel package.
     - name: Build NeuG with extensions
       run: |
