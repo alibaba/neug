@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neug"
 requires-python = ">=3.8"
-version = "0.1.0"
+version = "0.1.1"
 description = "GraphScope NeuG for python"
 authors = [{name="GraphScope Team", email="graphscope@alibaba-inc.com"}]
 readme = "README.md"
@@ -65,8 +65,8 @@ build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
 enable = ["cpython-prerelease"]
 skip = ["*-musllinux_*", "*i686*"]
 environment-pass = ["BUILD_TYPE", "CMAKE_BUILD_PARALLEL_LEVEL", "CMAKE_PREFIX_PATH", "MACOSX_DEPLOYMENT_TARGET", "PYBIND11_FINDPYTHON", "CI_INSTALL_EXTENSIONS"]
-manylinux-x86_64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-x86_64"
-manylinux-aarch64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-arm64"
+manylinux-x86_64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-x86_64"
+manylinux-aarch64-image = "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-arm64"
 
 [tool.cibuildwheel.linux]
 before-all = ["git submodule update --init --recursive"]
