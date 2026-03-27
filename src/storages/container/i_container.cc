@@ -68,7 +68,6 @@ std::unique_ptr<IDataContainer> OpenDataContainer(
 
 void CreateEmptyContainerFile(const std::string& path) {
   file_utils::create_file(path, sizeof(FileHeader));
-  // Initialize the file with an empty header
   FileHeader header;
   memset(header.data_md5, 0, MD5_DIGEST_LENGTH);
   FILE* fp = fopen(path.c_str(), "wb");

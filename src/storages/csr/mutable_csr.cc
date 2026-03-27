@@ -33,9 +33,10 @@
 #include <utility>
 #include <vector>
 
-#include "neug/storages/column/anon_mmap_container.h"
-#include "neug/storages/column/file_header.h"
-#include "neug/storages/column/file_mmap_container.h"
+#include "neug/storages/container/anon_mmap_container.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/file_mmap_container.h"
+#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -43,6 +44,79 @@
 #include "neug/utils/spinlock.h"
 
 namespace neug {
+
+template <typename NbrType>
+void initialize_adj_lists(NbrType** adj_lists_ptr,
+                          std::atomic<int>* adj_list_size_ptr,
+                          int* adj_list_cap_ptr, NbrType* nbr_list_ptr,
+                          const int* degree_list_ptr, const int* cap_list_ptr,
+                          size_t num_vertices) {
+  for (size_t i = 0; i < num_vertices; ++i) {
+    int deg = degree_list_ptr[i];
+    int cap = cap_list_ptr[i];
+    adj_lists_ptr[i] = nbr_list_ptr;
+    adj_list_size_ptr[i].store(deg);
+    adj_list_cap_ptr[i] = cap;
+    nbr_list_ptr += cap;
+  }
+}
+
+std::pair<std::shared_ptr<IDataContainer>, std::shared_ptr<IDataContainer>>
+load_degree_and_capacity(const std::string& prefix) {
+  auto degree_file_name = prefix + ".deg";
+  auto cap_file_name = prefix + ".cap";
+
+  std::shared_ptr<IDataContainer> degree_list =
+      std::make_shared<FilePrivateMMap>();
+  if (std::filesystem::exists(degree_file_name)) {
+    degree_list->Open(degree_file_name);
+  }
+
+  std::shared_ptr<IDataContainer> cap_list = degree_list;
+  if (std::filesystem::exists(cap_file_name)) {
+    cap_list = std::make_shared<FilePrivateMMap>();
+    cap_list->Open(cap_file_name);
+  }
+  return {degree_list, cap_list};
+}
+
+template <typename EDATA_T>
+void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
+                                        const std::string& tmp_prefix,
+                                        MemoryLevel mem_level) {
+  close();
+  load_meta(snapshot_prefix);
+  auto [degree_list, cap_list] = load_degree_and_capacity(snapshot_prefix);
+
+  // For nbr_list: kSyncToFile copies snapshot to tmp and opens with
+  // FileSharedMMap; kInMemory/kHugePagePrefered opens snapshot directly with
+  // the corresponding anonymous/private mapping (same as the original code).
+  nbr_list_ = prepare_and_open_container(snapshot_prefix + ".nbr",
+                                         tmp_prefix + ".nbr", mem_level);
+  auto v_cap = degree_list->GetDataSize() / sizeof(int);
+  if (mem_level == MemoryLevel::kSyncToFile) {
+    adj_list_buffer_ =
+        prepare_and_open_container("", tmp_prefix + ".buf", mem_level);
+    adj_list_size_ =
+        prepare_and_open_container("", tmp_prefix + ".size", mem_level);
+    adj_list_capacity_ =
+        prepare_and_open_container("", tmp_prefix + ".cap", mem_level);
+  } else {
+    adj_list_buffer_ = prepare_and_open_container("", "", mem_level);
+    adj_list_size_ = prepare_and_open_container("", "", mem_level);
+    adj_list_capacity_ = prepare_and_open_container("", "", mem_level);
+  }
+  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
+  adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
+  adj_list_capacity_->Resize(v_cap * sizeof(int));
+  locks_ = new SpinLock[v_cap];
+
+  auto degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
+  auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
+  initialize_adj_lists(adj_list_buffer_ptr(), adj_list_size_ptr(),
+                       adj_list_cap_ptr(), nbr_entries_ptr(), degree_ptr,
+                       cap_ptr, v_cap);
+}
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open(const std::string& name,
@@ -52,171 +126,19 @@ void MutableCsr<EDATA_T>::open(const std::string& name,
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Snapshot directory is required for disk-backed open()");
   }
-  close();
-  std::string prefix = snapshot_dir + "/" + name;
-  load_meta(prefix);
-
-  auto deg_file_name = prefix + ".deg";
-  auto cap_file_name = prefix + ".cap";
-  auto snap_nbr_file_name = prefix + ".nbr";
-  auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
-
-  std::shared_ptr<IDataContainer> degree_list =
-      std::make_shared<FilePrivateMMap>();
-  if (std::filesystem::exists(deg_file_name)) {
-    degree_list->Open(deg_file_name);
-  }
-
-  std::shared_ptr<IDataContainer> cap_list = degree_list;
-  if (std::filesystem::exists(cap_file_name)) {
-    cap_list = std::make_shared<FilePrivateMMap>();
-    cap_list->Open(cap_file_name);
-  }
-  // For nbr_list, we will copy it to tmp, and then open with mmap_shared.
-  std::filesystem::create_directories(tmp_dir(work_dir));
-  std::filesystem::remove(tmp_nbr_file_name);
-  if (!std::filesystem::exists(snap_nbr_file_name)) {
-    file_utils::create_file(tmp_nbr_file_name, sizeof(FileHeader));
-  } else {
-    file_utils::copy_file(snap_nbr_file_name, tmp_nbr_file_name, true);
-  }
-  nbr_list_ = std::make_unique<FileSharedMMap>();
-  nbr_list_->Open(tmp_nbr_file_name);
-  auto v_cap = degree_list->GetDataSize() / sizeof(int);
-
-  adj_list_buffer_ = std::make_unique<FileSharedMMap>();
-  adj_list_size_ = std::make_unique<FileSharedMMap>();
-  adj_list_capacity_ = std::make_unique<FileSharedMMap>();
-  // Should be ok even if the previous file exists.
-  std::filesystem::remove(tmp_dir(work_dir) + "/" + name + ".buf");
-  std::filesystem::remove(tmp_dir(work_dir) + "/" + name + ".size");
-  std::filesystem::remove(tmp_dir(work_dir) + "/" + name + ".cap");
-  file_utils::create_file(tmp_dir(work_dir) + "/" + name + ".buf",
-                          sizeof(FileHeader));
-  file_utils::create_file(tmp_dir(work_dir) + "/" + name + ".size",
-                          sizeof(FileHeader));
-  file_utils::create_file(tmp_dir(work_dir) + "/" + name + ".cap",
-                          sizeof(FileHeader));
-  adj_list_buffer_->Open(tmp_dir(work_dir) + "/" + name + ".buf");
-  adj_list_size_->Open(tmp_dir(work_dir) + "/" + name + ".size");
-  adj_list_capacity_->Open(tmp_dir(work_dir) + "/" + name + ".cap");
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
-  adj_list_capacity_->Resize(v_cap * sizeof(int));
-
-  locks_ = new SpinLock[v_cap];
-
-  nbr_t* ptr = nbr_entries_ptr();
-  auto degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_ptr[i];
-    int cap = cap_ptr[i];
-    adj_list_buffer_ptr()[i] = ptr;
-    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
-    adj_list_cap_ptr()[i] = cap;
-    ptr += cap;
-  }
+  auto snap_prefix = snapshot_dir + "/" + name;
+  auto tmp_prefix = tmp_dir(work_dir) + "/" + name;
+  open_internal(snap_prefix, tmp_prefix, MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-
-  auto degree_file_name = prefix + ".deg";
-  auto cap_file_name = prefix + ".cap";
-  auto snap_nbr_file_name = prefix + ".nbr";
-
-  std::shared_ptr<IDataContainer> degree_list =
-      std::make_shared<FilePrivateMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list->Open(degree_file_name);
-  }
-
-  std::shared_ptr<IDataContainer> cap_list = degree_list;
-  if (std::filesystem::exists(cap_file_name)) {
-    cap_list = std::make_shared<FilePrivateMMap>();
-    cap_list->Open(cap_file_name);
-  }
-
-  auto v_cap = degree_list->GetDataSize() / sizeof(int);
-  nbr_list_ = std::make_unique<FilePrivateMMap>();
-  if (std::filesystem::exists(snap_nbr_file_name)) {
-    nbr_list_->Open(snap_nbr_file_name);
-  }
-  adj_list_buffer_ = std::make_unique<AnonMMap>();
-  adj_list_size_ = std::make_unique<AnonMMap>();
-  adj_list_capacity_ = std::make_unique<AnonMMap>();
-
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
-  adj_list_capacity_->Resize(v_cap * sizeof(int));
-  locks_ = new SpinLock[v_cap];
-
-  auto* ptr = nbr_entries_ptr();
-
-  auto* degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_ptr[i];
-    int cap = cap_ptr[i];
-    adj_list_buffer_ptr()[i] = ptr;
-    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
-    adj_list_cap_ptr()[i] = cap;
-    ptr += cap;
-  }
+  open_internal(prefix, "", MemoryLevel::kInMemory);
 }
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-  auto degree_file_name = prefix + ".deg";
-  auto cap_file_name = prefix + ".cap";
-  auto snap_nbr_file_name = prefix + ".nbr";
-
-  // For tmp degree_list, we FilePrivateMap since we only need to read it once
-  std::shared_ptr<IDataContainer> degree_list =
-      std::make_shared<FilePrivateMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list->Open(degree_file_name);
-  }
-
-  std::shared_ptr<IDataContainer> cap_list = degree_list;
-  if (std::filesystem::exists(cap_file_name)) {
-    cap_list = std::make_shared<FilePrivateMMap>();
-    cap_list->Open(cap_file_name);
-  }
-
-  auto v_cap = degree_list->GetDataSize() / sizeof(int);
-  nbr_list_ = std::make_unique<AnonHugeMMap>();
-  if (std::filesystem::exists(snap_nbr_file_name)) {
-    nbr_list_->Open(snap_nbr_file_name);
-  }
-  adj_list_buffer_ = std::make_unique<AnonHugeMMap>();
-  adj_list_size_ = std::make_unique<AnonHugeMMap>();
-  adj_list_capacity_ = std::make_unique<AnonHugeMMap>();
-
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
-  adj_list_capacity_->Resize(v_cap * sizeof(int));
-  locks_ = new SpinLock[v_cap];
-
-  auto* ptr = nbr_entries_ptr();
-
-  auto* degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_ptr[i];
-    int cap = cap_ptr[i];
-    adj_list_buffer_ptr()[i] = ptr;
-    adj_list_size_ptr()[i].store(deg, std::memory_order_relaxed);
-    adj_list_cap_ptr()[i] = cap;
-    ptr += cap;
-  }
+  open_internal(prefix, "", MemoryLevel::kHugePagePrefered);
 }
 
 template <typename EDATA_T>
@@ -225,10 +147,10 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   size_t vnum = vertex_capacity();
   dump_meta(new_snapshot_dir + "/" + name);
 
-  auto degree_list = std::make_unique<AnonMMap>();
-  degree_list->OpenAnonymous(vnum * sizeof(int));
-  auto cap_list = std::make_unique<AnonMMap>();
-  cap_list->OpenAnonymous(vnum * sizeof(int));
+  auto degree_list = OpenDataContainer(MemoryLevel::kInMemory, "");
+  degree_list->Resize(vnum * sizeof(int));
+  auto cap_list = OpenDataContainer(MemoryLevel::kInMemory, "");
+  cap_list->Resize(vnum * sizeof(int));
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
@@ -666,37 +588,22 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
   close();
-  auto snapshot_file = snapshot_dir + "/" + name + ".snbr";
-  auto tmp_file = tmp_dir(work_dir) + "/" + name + ".snbr";
-  if (!std::filesystem::exists(snapshot_file)) {
-    file_utils::create_file(tmp_file, sizeof(FileHeader));
-  } else {
-    file_utils::copy_file(snapshot_file, tmp_file, true);
-  }
-  nbr_list_ = std::make_unique<FileSharedMMap>();
-  nbr_list_->Open(tmp_file);
+  nbr_list_ = prepare_and_open_container(
+      snapshot_dir + "/" + name + ".snbr",
+      tmp_dir(work_dir) + "/" + name + ".snbr", MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
-
-  auto snapshot_file = prefix + ".snbr";
-  nbr_list_ = std::make_unique<FilePrivateMMap>();
-  if (std::filesystem::exists(snapshot_file)) {
-    nbr_list_->Open(snapshot_file);
-  }
+  nbr_list_ = OpenDataContainer(MemoryLevel::kInMemory, prefix + ".snbr");
 }
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
-
-  auto snapshot_file = prefix + ".snbr";
-  nbr_list_ = std::make_unique<AnonHugeMMap>();
-  if (std::filesystem::exists(snapshot_file)) {
-    nbr_list_->Open(snapshot_file);
-  }
+  nbr_list_ =
+      OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".snbr");
 }
 
 template <typename EDATA_T>
@@ -706,7 +613,6 @@ void SingleMutableCsr<EDATA_T>::dump(const std::string& name,
   if (!nbr_list_) {
     return;
   }
-  nbr_list_->Sync();
   nbr_list_->Dump(new_snapshot_dir + "/" + name + ".snbr");
 }
 

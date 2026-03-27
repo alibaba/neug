@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "neug/storages/allocators.h"
-#include "neug/storages/column/i_container.h"
+#include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
@@ -196,6 +196,9 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   void load_meta(const std::string& prefix);
 
   void dump_meta(const std::string& prefix) const;
+
+  void open_internal(const std::string& snapshot_prefix,
+                     const std::string& tmp_prefix, MemoryLevel mem_level);
 
   SpinLock* locks_;
   std::unique_ptr<IDataContainer> adj_list_buffer_;

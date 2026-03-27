@@ -32,10 +32,11 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
-#include "neug/storages/column/anon_mmap_container.h"
-#include "neug/storages/column/file_header.h"
-#include "neug/storages/column/file_mmap_container.h"
-#include "neug/storages/column/i_container.h"
+#include "neug/storages/container/anon_mmap_container.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/file_mmap_container.h"
+#include "neug/storages/container/i_container.h"
+#include "neug/storages/container_utils.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
@@ -283,10 +284,9 @@ class LFIndexer {
                              const std::string& snapshot_dir,
                              const std::string& work_dir) {
     keys_->open(filename + ".keys", "", work_dir);
-    auto tmp_indices = std::make_unique<FileSharedMMap>();
     auto full_path = work_dir + "/" + filename + ".indices";
     file_utils::create_file(full_path, sizeof(FileHeader));
-    tmp_indices->Open(full_path);
+    auto tmp_indices = OpenDataContainer(MemoryLevel::kSyncToFile, full_path);
 
     num_elements_.store(0);
     indices_size_ = 0;
@@ -439,57 +439,29 @@ class LFIndexer {
     return keys_->get_prop(index);
   }
 
-  void copy_to_tmp(const std::string& cur_path, const std::string& tmp_path) {
-    file_utils::copy_file(cur_path + ".meta", tmp_path + ".meta", true);
-    load_meta(tmp_path + ".meta");
-    file_utils::copy_file(cur_path + ".keys", tmp_path + ".keys", true);
-    file_utils::copy_file(cur_path + ".indices", tmp_path + ".indices", true);
-  }
-
   void open(const std::string& name, const std::string& checkpoint_dir,
             const std::string& work_dir) {
-    if (std::filesystem::exists(checkpoint_dir + "/" + name + ".meta")) {
-      copy_to_tmp(checkpoint_dir + "/" + name, tmp_dir(work_dir) + "/" + name);
-    } else {
-      build_empty_LFIndexer(name, "", tmp_dir(work_dir));
-    }
-
-    load_meta(tmp_dir(work_dir) + "/" + name + ".meta");
-    keys_->open(name + ".keys", "", tmp_dir(work_dir));
-    indices_ = std::make_unique<FileSharedMMap>();
-    auto indices_path = tmp_dir(work_dir) + "/" + name + ".indices";
-    indices_->Open(indices_path);
+    std::filesystem::create_directories(tmp_dir(work_dir));
+    load_meta(checkpoint_dir + "/" + name + ".meta");
+    keys_->open(name + ".keys", checkpoint_dir, tmp_dir(work_dir));
+    indices_ = prepare_and_open_container(
+        checkpoint_dir + "/" + name + ".indices",
+        tmp_dir(work_dir) + "/" + name + ".indices", MemoryLevel::kSyncToFile);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
   void open_in_memory(const std::string& name) {
-    if (std::filesystem::exists(name + ".meta")) {
-      load_meta(name + ".meta");
-    } else {
-      num_elements_.store(0);
-    }
+    load_meta(name + ".meta");
     keys_->open_in_memory(name + ".keys");
-
-    indices_ = std::make_unique<AnonMMap>();
-    auto file_name = name + ".indices";
-    if (std::filesystem::exists(file_name)) {
-      indices_->Open(file_name);
-    }
+    indices_ = OpenDataContainer(MemoryLevel::kInMemory, name + ".indices");
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
   void open_with_hugepages(const std::string& name) {
-    if (std::filesystem::exists(name + ".meta")) {
-      load_meta(name + ".meta");
-    } else {
-      num_elements_.store(0);
-    }
+    load_meta(name + ".meta");
     keys_->open_with_hugepages(name + ".keys");
-    auto file_name = name + ".indices";
-    indices_ = std::make_unique<AnonHugeMMap>();
-    if (std::filesystem::exists(file_name)) {
-      indices_->Open(file_name);
-    }
+    indices_ =
+        OpenDataContainer(MemoryLevel::kHugePagePrefered, name + ".indices");
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
@@ -523,6 +495,10 @@ class LFIndexer {
   }
 
   void load_meta(const std::string& filename) {
+    if (!std::filesystem::exists(filename)) {
+      num_elements_.store(0);
+      return;
+    }
     OutArchive arc;
     FILE* fin = fopen(filename.c_str(), "r");
     size_t meta_file_size = std::filesystem::file_size(filename);
@@ -1077,12 +1053,9 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
   _move_data<KEY_T, INDEX_T>()(input.keys_, *lf.keys_, size);
   lf.num_elements_.store(size);
 
-  lf.indices_ = std::make_unique<FileSharedMMap>();
   auto indices_path = work_dir + "/" + filename + ".indices";
-  if (!std::filesystem::exists(indices_path)) {
-    file_utils::create_file(indices_path, sizeof(FileHeader));
-  }
-  lf.indices_->Open(work_dir + "/" + filename + ".indices");
+  file_utils::create_file(indices_path, sizeof(FileHeader));
+  lf.indices_ = OpenDataContainer(MemoryLevel::kSyncToFile, indices_path);
   lf.indices_->Resize((input.num_slots_minus_one_ + 1) * sizeof(INDEX_T));
   auto lf_indices_ptr = lf.indices_data();
   lf.indices_size_ = lf.indices_->GetDataSize() / sizeof(INDEX_T);

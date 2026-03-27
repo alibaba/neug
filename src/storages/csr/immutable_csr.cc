@@ -26,14 +26,52 @@
 #include <memory>
 #include <thread>
 #include <utility>
-#include "neug/storages/column/anon_mmap_container.h"
-#include "neug/storages/column/file_header.h"
-#include "neug/storages/column/file_mmap_container.h"
-#include "neug/storages/column/i_container.h"
+#include "neug/storages/container/anon_mmap_container.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/file_mmap_container.h"
+#include "neug/storages/container/i_container.h"
+#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
+
+template <typename NbrType>
+void initialize_adj_lists(NbrType** adj_lists_ptr, const int* degree_list_ptr,
+                          NbrType* nbr_list_ptr, size_t num_vertices) {
+  NbrType* cur_nbr_list_ptr = nbr_list_ptr;
+  for (size_t i = 0; i < num_vertices; ++i) {
+    int deg = degree_list_ptr[i];
+    if (deg != 0) {
+      adj_lists_ptr[i] = cur_nbr_list_ptr;
+    } else {
+      adj_lists_ptr[i] = NULL;
+    }
+    cur_nbr_list_ptr += deg;
+  }
+}
+
+template <typename EDATA_T>
+void ImmutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
+                                          const std::string& tmp_prefix,
+                                          MemoryLevel mem_level) {
+  close();
+  load_meta(snapshot_prefix);
+  degree_list_buffer_ = prepare_and_open_container(
+      snapshot_prefix + ".deg", tmp_prefix + ".deg", mem_level);
+  nbr_list_buffer_ = prepare_and_open_container(snapshot_prefix + ".nbr",
+                                                tmp_prefix + ".nbr", mem_level);
+  if (mem_level == MemoryLevel::kSyncToFile) {
+    adj_list_buffer_ =
+        prepare_and_open_container("", tmp_prefix + ".adj", mem_level);
+  } else {
+    adj_list_buffer_ = prepare_and_open_container("", "", mem_level);
+  }
+  auto v_cap = size();
+  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
+  initialize_adj_lists(adj_lists_ptr(), degree_list_ptr(), nbr_list_ptr(),
+                       v_cap);
+}
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open(const std::string& name,
@@ -46,119 +84,24 @@ void ImmutableCsr<EDATA_T>::open(const std::string& name,
         "Snapshot directory is required for disk-backed open()");
   }
   auto prefix = snapshot_dir + "/" + name;
-  close();
-  load_meta(prefix);
-  auto degree_file_name = prefix + ".deg";
-  auto nbr_file_name = prefix + ".nbr";
-  auto tmp_nbr_file_name = tmp_dir(work_dir) + "/" + name + ".nbr";
-  auto tmp_degree_file_name = tmp_dir(work_dir) + "/" + name + ".deg";
-
-  if (!std::filesystem::exists(degree_file_name)) {
-    file_utils::create_file(tmp_degree_file_name, sizeof(FileHeader));
-  } else {
-    file_utils::copy_file(degree_file_name, tmp_degree_file_name, true);
-  }
-  degree_list_buffer_ = std::make_unique<FileSharedMMap>();
-  degree_list_buffer_->Open(tmp_degree_file_name);
-
-  if (!std::filesystem::exists(nbr_file_name)) {
-    file_utils::create_file(tmp_nbr_file_name, sizeof(FileHeader));
-  } else {
-    file_utils::copy_file(nbr_file_name, tmp_nbr_file_name, true);
-  }
-  nbr_list_buffer_ = std::make_unique<FileSharedMMap>();
-  nbr_list_buffer_->Open(tmp_nbr_file_name);
-
-  adj_list_buffer_ = std::make_unique<FileSharedMMap>();
-  auto tmp_adj_list_file_name = tmp_dir(work_dir) + "/" + name + ".adj";
-  std::filesystem::remove(tmp_adj_list_file_name);
-  file_utils::create_file(tmp_adj_list_file_name, sizeof(FileHeader));
-  adj_list_buffer_->Open(tmp_adj_list_file_name);
-  auto v_cap = size();
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-
-  auto cur_nbr_list_ptr = nbr_list_ptr();
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_list_ptr()[i];
-    if (deg != 0) {
-      adj_lists_ptr()[i] = cur_nbr_list_ptr;
-    } else {
-      adj_lists_ptr()[i] = NULL;
-    }
-    cur_nbr_list_ptr += deg;
-  }
+  auto tmp_prefix = tmp_dir(work_dir) + "/" + name;
+  open_internal(prefix, tmp_prefix, MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-  auto degree_file_name = prefix + ".deg";
-  auto nbr_file_name = prefix + ".nbr";
-  degree_list_buffer_ = std::make_unique<FilePrivateMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list_buffer_->Open(degree_file_name);
-  }
-
-  nbr_list_buffer_ = std::make_unique<FilePrivateMMap>();
-  if (std::filesystem::exists(nbr_file_name)) {
-    nbr_list_buffer_->Open(nbr_file_name);
-  }
-
-  adj_list_buffer_ = std::make_unique<AnonMMap>();
-  auto v_cap = size();
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-
-  auto cur_nbr_list_ptr = nbr_list_ptr();
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_list_ptr()[i];
-    if (deg != 0) {
-      adj_lists_ptr()[i] = cur_nbr_list_ptr;
-    } else {
-      adj_lists_ptr()[i] = NULL;
-    }
-    cur_nbr_list_ptr += deg;
-  }
+  open_internal(prefix, "", MemoryLevel::kInMemory);
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-  auto degree_file_name = prefix + ".deg";
-  auto nbr_file_name = prefix + ".nbr";
-  degree_list_buffer_ = std::make_unique<AnonHugeMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list_buffer_->Open(degree_file_name);
-  }
-
-  nbr_list_buffer_ = std::make_unique<AnonHugeMMap>();
-  if (std::filesystem::exists(nbr_file_name)) {
-    nbr_list_buffer_->Open(nbr_file_name);
-  }
-
-  auto v_cap = size();
-  adj_list_buffer_ = std::make_unique<AnonHugeMMap>();
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  auto cur_nbr_list_ptr = nbr_list_ptr();
-
-  for (size_t i = 0; i < v_cap; ++i) {
-    int deg = degree_list_ptr()[i];
-    if (deg != 0) {
-      adj_lists_ptr()[i] = cur_nbr_list_ptr;
-    } else {
-      adj_lists_ptr()[i] = NULL;
-    }
-    cur_nbr_list_ptr += deg;
-  }
+  open_internal(prefix, "", MemoryLevel::kHugePagePrefered);
 }
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::dump(const std::string& name,
                                  const std::string& new_snapshot_dir) {
   dump_meta(new_snapshot_dir + "/" + name);
-  degree_list_buffer_->Sync();
-  nbr_list_buffer_->Sync();
   degree_list_buffer_->Dump(new_snapshot_dir + "/" + name + ".deg");
   auto vnum = size();
   FILE* fout = fopen((new_snapshot_dir + "/" + name + ".nbr").c_str(), "wb");
@@ -477,34 +420,22 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
                                        const std::string& snapshot_dir,
                                        const std::string& work_dir) {
-  auto tmp_file = tmp_dir(work_dir) + "/" + name + ".snbr";
-  auto snapshot_file = snapshot_dir + "/" + name + ".snbr";
-  if (std::filesystem::exists(snapshot_file)) {
-    file_utils::copy_file(snapshot_file, tmp_file, true);
-  } else {
-    file_utils::create_file(tmp_file, sizeof(FileHeader));
-  }
-  nbr_list_buffer_ = std::make_unique<FileSharedMMap>();
-  nbr_list_buffer_->Open(tmp_file);
+  nbr_list_buffer_ = prepare_and_open_container(
+      snapshot_dir + "/" + name + ".snbr",
+      tmp_dir(work_dir) + "/" + name + ".snbr", MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  auto snapshot_file = prefix + ".snbr";
-  nbr_list_buffer_ = std::make_unique<FilePrivateMMap>();
-  if (std::filesystem::exists(snapshot_file)) {
-    nbr_list_buffer_->Open(snapshot_file);
-  }
+  nbr_list_buffer_ =
+      OpenDataContainer(MemoryLevel::kInMemory, prefix + ".snbr");
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_with_hugepages(
     const std::string& prefix) {
-  auto snapshot_file = prefix + ".snbr";
-  nbr_list_buffer_ = std::make_unique<AnonHugeMMap>();
-  if (std::filesystem::exists(snapshot_file)) {
-    nbr_list_buffer_->Open(snapshot_file);
-  }
+  nbr_list_buffer_ =
+      OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".snbr");
 }
 
 template <typename EDATA_T>

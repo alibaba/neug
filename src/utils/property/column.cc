@@ -17,6 +17,7 @@
 
 #include <limits>
 
+#include "neug/storages/container_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
@@ -78,43 +79,6 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
                                   type.ToString());
   }
   }
-}
-
-void open_container_shared(IDataContainer& buffer, const std::string& name,
-                           const std::string& snapshot_dir,
-                           const std::string& work_dir) {
-  std::string basic_path = snapshot_dir + "/" + name;
-  if (std::filesystem::exists(basic_path)) {
-    auto tmp_path = work_dir + "/" + name;
-    file_utils::copy_file(basic_path, tmp_path, true);
-    buffer.Open(tmp_path);
-  } else {
-    if (work_dir == "") {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Column file " + basic_path +
-          " does not exist, and work_dir is not provided to create a new one");
-    } else {
-      auto file_path = work_dir + "/" + name;
-      if (!std::filesystem::exists(file_path)) {
-        file_utils::create_file(file_path, sizeof(FileHeader));
-      }
-      buffer.Open(file_path);
-    }
-  }
-}
-
-std::unique_ptr<IDataContainer> open_container_in_memory(
-    const std::string& name, bool use_hugepages) {
-  std::unique_ptr<IDataContainer> buffer;
-  if (use_hugepages) {
-    buffer = std::make_unique<AnonHugeMMap>();
-  } else {
-    buffer = std::make_unique<FilePrivateMMap>();
-  }
-  if (!name.empty() && std::filesystem::exists(name)) {
-    buffer->Open(name);
-  }
-  return buffer;
 }
 
 void TypedColumn<std::string_view>::set_value_safe(

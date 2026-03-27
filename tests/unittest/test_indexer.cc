@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "neug/common/extra_type_info.h"
-#include "neug/storages/column/file_header.h"
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"

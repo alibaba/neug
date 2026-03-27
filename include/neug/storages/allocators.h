@@ -24,8 +24,8 @@
 #include <vector>
 
 #include "neug/config.h"
-#include "neug/storages/column/file_header.h"
-#include "neug/storages/column/mmap_container.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/mmap_container.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 
@@ -77,12 +77,15 @@ class ArenaAllocator {
  private:
   void* allocate_batch(size_t size) {
     allocated_batches_ += size;
-    auto file_name = prefix_ + std::to_string(mmap_buffers_.size());
-    if (!std::filesystem::exists(file_name) &&
-        (strategy_ == MemoryLevel::kSyncToFile)) {
-      file_utils::create_file(file_name, sizeof(FileHeader));
+    std::string file_name;
+    if (strategy_ == MemoryLevel::kSyncToFile) {
+      file_name = prefix_ + std::to_string(mmap_buffers_.size());
+      if (!std::filesystem::exists(file_name)) {
+        CreateEmptyContainerFile(file_name);
+      }
     }
-    auto buf = CreateDataContainer(strategy_, file_name, size);
+    auto buf = OpenDataContainer(strategy_, file_name);
+    buf->Resize(size);
     mmap_buffers_.push_back(std::move(buf));
     return mmap_buffers_.back()->GetData();
   }

@@ -29,10 +29,11 @@
 #include <vector>
 
 #include "neug/config.h"
-#include "neug/storages/column/anon_mmap_container.h"
-#include "neug/storages/column/file_header.h"
-#include "neug/storages/column/file_mmap_container.h"
-#include "neug/storages/column/i_container.h"
+#include "neug/storages/container/anon_mmap_container.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/file_mmap_container.h"
+#include "neug/storages/container/i_container.h"
+#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -84,13 +85,6 @@ class ColumnBase {
   virtual void ingest(uint32_t index, OutArchive& arc) = 0;
 };
 
-void open_container_shared(IDataContainer& container, const std::string& name,
-                           const std::string& snapshot_dir,
-                           const std::string& work_dir);
-
-std::unique_ptr<IDataContainer> open_container_in_memory(
-    const std::string& name, bool use_hugepages);
-
 template <typename T>
 class TypedColumn : public ColumnBase {
  public:
@@ -99,27 +93,26 @@ class TypedColumn : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    buffer_ = std::make_unique<FileSharedMMap>();
-    open_container_shared(*buffer_, name, snapshot_dir, work_dir);
+    buffer_ = prepare_and_open_container(snapshot_dir + "/" + name,
+                                         work_dir + "/" + name,
+                                         MemoryLevel::kSyncToFile);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_in_memory(const std::string& name) override {
-    buffer_ = open_container_in_memory(name, false);
+    buffer_ = prepare_and_open_container(name, "", MemoryLevel::kInMemory);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_with_hugepages(const std::string& name) override {
-    buffer_ = open_container_in_memory(name, true);
+    buffer_ =
+        prepare_and_open_container(name, "", MemoryLevel::kHugePagePrefered);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void close() override { buffer_.reset(); }
 
-  void dump(const std::string& filename) override {
-    buffer_->Sync();
-    buffer_->Dump(filename);
-  }
+  void dump(const std::string& filename) override { buffer_->Dump(filename); }
 
   size_t size() const override { return size_; }
 
@@ -268,26 +261,29 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    items_buffer_ = std::make_unique<FileSharedMMap>();
-    data_buffer_ = std::make_unique<FileSharedMMap>();
-    open_container_shared(*items_buffer_, name + ".items", snapshot_dir,
-                          work_dir);
-    open_container_shared(*data_buffer_, name + ".data", snapshot_dir,
-                          work_dir);
+    items_buffer_ = prepare_and_open_container(
+        snapshot_dir + "/" + name + ".items", work_dir + "/" + name + ".items",
+        MemoryLevel::kSyncToFile);
+    data_buffer_ = prepare_and_open_container(
+        snapshot_dir + "/" + name + ".data", work_dir + "/" + name + ".data",
+        MemoryLevel::kSyncToFile);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
   void open_in_memory(const std::string& prefix) override {
-    items_buffer_ = open_container_in_memory(prefix + ".items", false);
-    data_buffer_ = open_container_in_memory(prefix + ".data", false);
+    items_buffer_ =
+        OpenDataContainer(MemoryLevel::kInMemory, prefix + ".items");
+    data_buffer_ = OpenDataContainer(MemoryLevel::kInMemory, prefix + ".data");
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
 
   void open_with_hugepages(const std::string& prefix) override {
-    items_buffer_ = open_container_in_memory(prefix + ".items", true);
-    data_buffer_ = open_container_in_memory(prefix + ".data", true);
+    items_buffer_ =
+        OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".items");
+    data_buffer_ =
+        OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".data");
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
