@@ -401,7 +401,11 @@ void Schema::AddVertexLabel(
   if (vlabel_tomb_.get(v_label_id)) {  // Add back a deleted label
     vlabel_tomb_.reset(v_label_id);
   }
-  v_schemas_.resize(v_label_id + 1);
+  // Only grow, never shrink: a lower label_id being re-added must not
+  // truncate entries for higher (possibly tombstoned) label_ids.
+  if (v_schemas_.size() <= v_label_id) {
+    v_schemas_.resize(v_label_id + 1);
+  }
   v_schemas_[v_label_id] = std::make_shared<VertexSchema>(
       label, property_types, property_names, primary_key,
       default_property_values, description, max_vnum);

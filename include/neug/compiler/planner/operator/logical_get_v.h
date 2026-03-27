@@ -72,6 +72,10 @@ class LogicalGetV : public LogicalOperator {
     return nodeTableIDs;
   }
 
+  inline void setTableIDs(std::vector<common::table_id_t> tableIDs) {
+    nodeTableIDs = std::move(tableIDs);
+  }
+
   inline std::string getStartAliasName() const {
     return boundRel->getUniqueName();
   }
