@@ -58,15 +58,18 @@ static void IngestWalRange(PropertyGraph& graph,
     threads[i] = std::thread(
         [&](int tid) {
           while (true) {
-            uint32_t got_ts = cur_ts.fetch_add(1);
+            uint32_t got_ts = cur_ts.fetch_add(10000);
             if (got_ts >= to) {
               break;
             }
-            const auto& unit = parser.get_insert_wal(got_ts);
-            InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
-                                         *allocators[i]);
-            if (got_ts % 1000000 == 0) {
-              LOG(INFO) << "Ingested " << got_ts << " WALs";
+            for (size_t j = 0; j < 10000 && got_ts < to; ++j, ++got_ts) {
+              const auto& unit = parser.get_insert_wal(got_ts);
+              CHECK(allocators[tid] != nullptr);
+              InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
+                                           *allocators[tid]);
+              if (got_ts % 1000000 == 0) {
+                LOG(INFO) << "Ingested " << got_ts << " WALs";
+              }
             }
           }
         },
