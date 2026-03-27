@@ -2835,3 +2835,39 @@ def test_optional_match_on_edge(tmp_path):
     assert length == 3, f"Expected value 3, got {length}"
     conn.close()
     db.close()
+
+
+def test_drop_and_recreate_table_same_name(tmp_path):
+    """Test that dropping node tables with relationships and recreating
+    with the same name but different schema does not crash (SIGSEGV)."""
+    db_dir = tmp_path / "drop_recreate"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        queries = [
+            "CREATE NODE TABLE Y0(id STRING, p0 INT32, PRIMARY KEY(id));",
+            "CREATE NODE TABLE Y1(id STRING, p1 STRING, PRIMARY KEY(id));",
+            "CREATE REL TABLE YR0(FROM Y0 TO Y1, rp0 DOUBLE);",
+            'CREATE (a:Y0 {id: "a", p0: 1});',
+            'CREATE (b:Y1 {id: "b", p1: "x"});',
+            'MATCH (a:Y0 {id: "a"}), (b:Y1 {id: "b"}) CREATE (a)-[:YR0 {rp0: 1.5}]->(b);',
+            "DROP TABLE IF EXISTS Y1;",
+            "DROP TABLE IF EXISTS Y0;",
+            "CREATE NODE TABLE Y0(id STRING, q DOUBLE, PRIMARY KEY(id));",
+        ]
+
+        for query in queries:
+            conn.execute(query)
+
+        # Verify the recreated table works correctly
+        conn.execute('CREATE (c:Y0 {id: "c", q: 3.14});')
+        result = conn.execute("MATCH (n:Y0) RETURN n.id, n.q;")
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == "c"
+        assert rows[0][1] == pytest.approx(3.14, abs=1e-6)
+    finally:
+        conn.close()
+        db.close()
