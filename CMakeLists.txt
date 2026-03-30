@@ -696,9 +696,10 @@ if(NEUG_USE_SYSTEM_ARROW)
             # can find <parquet/properties.h> and <parquet/arrow/writer.h> when
             # compiling against system Arrow.
             #
-            # Read INTERFACE_INCLUDE_DIRECTORIES from the imported target.
-            # Skip generator expressions ($<...>) since include_directories()
-            # cannot resolve them as plain paths.
+            # Strategy 1: read INTERFACE_INCLUDE_DIRECTORIES from the imported
+            # target. Skip generator expressions ($<...>) since
+            # include_directories() cannot resolve them as plain paths.
+            set(_parquet_inc "")
             foreach(_parquet_target Parquet::parquet_static Parquet::parquet parquet_static parquet)
                 if(TARGET ${_parquet_target})
                     get_target_property(_parquet_inc ${_parquet_target} INTERFACE_INCLUDE_DIRECTORIES)
@@ -709,6 +710,24 @@ if(NEUG_USE_SYSTEM_ARROW)
                     break()
                 endif()
             endforeach()
+            # Strategy 2: find_path fallback — used when Strategy 1 found no
+            # plain path (e.g. INTERFACE_INCLUDE_DIRECTORIES only has generator
+            # expressions, or the target was not found).
+            if(NOT _parquet_inc OR _parquet_inc MATCHES "\\$<")
+                find_path(_PARQUET_INCLUDE_DIR
+                    NAMES parquet/properties.h
+                    HINTS ${ARROW_INCLUDE_DIR} /usr/include /usr/local/include
+                    NO_DEFAULT_PATH)
+                if(NOT _PARQUET_INCLUDE_DIR)
+                    find_path(_PARQUET_INCLUDE_DIR NAMES parquet/properties.h)
+                endif()
+                if(_PARQUET_INCLUDE_DIR)
+                    list(APPEND ARROW_INCLUDE_DIRS ${_PARQUET_INCLUDE_DIR})
+                    message(STATUS "Appended Parquet include dir via find_path: ${_PARQUET_INCLUDE_DIR}")
+                else()
+                    message(WARNING "Could not locate parquet/properties.h; parquet extension may fail to compile")
+                endif()
+            endif()
         endif()
         resolve_system_arrow_component(parquet ARROW_PARQUET_LIB)
         if(ARROW_PARQUET_LIB)
