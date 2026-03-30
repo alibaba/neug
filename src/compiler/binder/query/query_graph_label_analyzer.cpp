@@ -36,9 +36,12 @@ namespace binder {
 
 // NOLINTNEXTLINE(readability-non-const-parameter): graph is supposed to be
 // modified.
-void QueryGraphLabelAnalyzer::pruneLabel(QueryGraph& graph) const {
-  for (auto i = 0u; i < graph.getNumQueryNodes(); ++i) {
-    pruneNode(graph, *graph.getQueryNode(i));
+void QueryGraphLabelAnalyzer::pruneLabel(QueryGraph& graph,
+                                         bool skipNodes) const {
+  if (!skipNodes) {
+    for (auto i = 0u; i < graph.getNumQueryNodes(); ++i) {
+      pruneNode(graph, *graph.getQueryNode(i));
+    }
   }
   for (auto i = 0u; i < graph.getNumQueryRels(); ++i) {
     pruneRel(*graph.getQueryRel(i));

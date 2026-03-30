@@ -147,7 +147,7 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
 
   // ee_opr1 and v_opr1
   if (ee_opr1.is_optional() || (!ee_opr1.has_v_tag()) ||
-      ee_opr1.v_tag().value() != alias3 || ee_opr1.has_alias()) {
+      ee_opr1.v_tag().value() != alias3) {
     return false;
   }
   if (ee_opr1.direction() ==
@@ -157,13 +157,8 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
   if (ee_opr1.params().has_predicate()) {
     return false;
   }
-  // tag -1
-  auto v_opr1 = plan.plan(op_idx + 6).opr().vertex();
-  if (v_opr1.has_tag() || (!v_opr1.has_alias())) {
-    return false;
-  }
 
-  const auto& ee_opr2 = plan.plan(op_idx + 7).opr().edge();
+  const auto& ee_opr2 = plan.plan(op_idx + 6).opr().edge();
   // ee_opr2, tag -1
   if (ee_opr2.is_optional() || (!ee_opr2.has_v_tag()) ||
       (!ee_opr2.has_alias())) {
@@ -179,7 +174,7 @@ bool tc_fusable(const physical::PhysicalPlan& plan, int op_idx) {
 
   int alias7 = ee_opr2.alias().value();
   // select_opr
-  const auto& select_opr = plan.plan(op_idx + 8).opr().select();
+  const auto& select_opr = plan.plan(op_idx + 7).opr().select();
   if (select_opr.predicate().operators_size() != 7) {
     return false;
   }
@@ -246,14 +241,13 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
     const neug::Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
   if (tc_fusable(plan, op_idx)) {
-    int alias1 = plan.plan(op_idx + 6).opr().vertex().alias().value();
+    int alias1 = plan.plan(op_idx + 5).opr().edge().alias().value();
 
-    int alias2 = plan.plan(op_idx + 7).opr().edge().alias().value();
+    int alias2 = plan.plan(op_idx + 6).opr().edge().alias().value();
 
     auto labels0 = parse_label_triplets(plan.plan(op_idx).meta_data(0));
     auto labels1 = parse_label_triplets(plan.plan(op_idx + 5).meta_data(0));
-    auto labels2 = parse_label_triplets(plan.plan(op_idx + 7).meta_data(0));
-
+    auto labels2 = parse_label_triplets(plan.plan(op_idx + 6).meta_data(0));
     if (labels0.size() != 1 || labels1.size() != 1 || labels2.size() != 1) {
       return std::make_pair(nullptr, ContextMeta());
     }
@@ -265,7 +259,7 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
     }
     auto opr = make_tc_opr(plan.plan(op_idx).opr().edge(),
                            plan.plan(op_idx + 5).opr().edge(),
-                           plan.plan(op_idx + 7).opr().edge(), labels0[0],
+                           plan.plan(op_idx + 6).opr().edge(), labels0[0],
                            labels1[0], labels2[0], eps, alias1, alias2);
     if (opr == nullptr) {
       return std::make_pair(nullptr, ContextMeta());
@@ -273,7 +267,6 @@ neug::result<OpBuildResultT> TCOprBuilder::Build(
     ContextMeta meta = ctx_meta;
     meta.set(alias1, DataType::VERTEX);
     meta.set(alias2, DataType::VERTEX);
-
     return std::make_pair(std::move(opr), meta);
   } else {
     return std::make_pair(nullptr, ContextMeta());

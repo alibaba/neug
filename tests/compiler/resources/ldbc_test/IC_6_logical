@@ -17,6 +17,5 @@ CHILD:
     SCAN_NODE_TABLE[p_._ID p_.id PK_SCAN($personId)Type: INTERNAL_ID Cardinality: 1]
 CHILD:
     EXTEND[p-HASCREATOR_POST_PERSON,->other Cardinality: 51118]
-    GET_V[GET_V() Cardinality: 51118]
     EXTEND[t<-HASTAG_POST_TAG,-p Cardinality: 51118]
     SCAN_NODE_TABLE[t._ID t.id,t.name,t.url,t._LABELType: INTERNAL_ID Predicates: EQUALS(t.name,$tagName) Cardinality: 16080]

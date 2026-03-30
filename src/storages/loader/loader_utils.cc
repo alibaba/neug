@@ -242,10 +242,35 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
     : file_path_(file_path) {
   auto read_result = arrow::io::ReadableFile::Open(file_path);
   if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << file_path
+    LOG(ERROR) << "Failed to open file: " << file_path
                << " error: " << read_result.status().message();
+    THROW_IO_EXCEPTION("Failed to open file: " + file_path +
+                       " error: " + read_result.status().message());
   }
   auto file = read_result.ValueOrDie();
+  auto count_file_result = arrow::io::ReadableFile::Open(file_path);
+  if (count_file_result.ok()) {
+    auto count_file = count_file_result.ValueOrDie();
+    auto future = arrow::csv::CountRowsAsync(
+        arrow::io::default_io_context(), count_file,
+        arrow::internal::GetCpuThreadPool(), read_options, parse_options);
+    future.Wait();
+
+    auto count_result = future.result();
+    if (count_result.ok()) {
+      row_num_ = count_result.ValueUnsafe();
+    } else {
+      LOG(WARNING) << "Failed to count rows for " << file_path << ": "
+                   << count_result.status().message();
+      THROW_IO_EXCEPTION("Failed to count rows for " + file_path + ": " +
+                         count_result.status().message());
+    }
+  } else {
+    LOG(WARNING) << "Failed to reopen file for counting: "
+                 << count_file_result.status().message();
+    THROW_IO_EXCEPTION("Failed to reopen file for counting: " +
+                       count_file_result.status().message());
+  }
   auto res = arrow::csv::StreamingReader::Make(arrow::io::default_io_context(),
                                                file, read_options,
                                                parse_options, convert_options);

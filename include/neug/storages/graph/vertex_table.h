@@ -83,7 +83,7 @@ class VertexTable {
       : table_(std::make_unique<Table>()),
         vertex_schema_(vertex_schema),
         v_ts_(),
-        memory_level_(1),
+        memory_level_(MemoryLevel::kInMemory),
         work_dir_("") {
     assert(vertex_schema->primary_keys.size() == 1);
     pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
@@ -111,7 +111,7 @@ class VertexTable {
     std::swap(work_dir_, other.work_dir_);
   }
 
-  void Open(const std::string& work_dir, int memory_level);
+  void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& target_dir);
 
@@ -180,11 +180,9 @@ class VertexTable {
 
   void RevertDeleteVertex(vid_t lid, timestamp_t ts);
 
-  void AddProperties(
-      const std::vector<std::string>& property_names,
-      const std::vector<DataType>& property_types,
-      const std::vector<Property>& default_property_values,
-      const std::vector<StorageStrategy>& storage_strategies = {});
+  void AddProperties(const std::vector<std::string>& property_names,
+                     const std::vector<DataType>& property_types,
+                     const std::vector<Property>& default_property_values);
 
   void DeleteProperties(const std::vector<std::string>& properties);
 
@@ -276,6 +274,19 @@ class VertexTable {
 
   template <typename PK_T>
   void insert_vertices_impl(std::shared_ptr<IRecordBatchSupplier> supplier) {
+    auto row_nums = supplier->RowNum();
+    if (row_nums <= 0) {
+      LOG(WARNING) << "Row number from supplier is negative, treat it as 0.";
+      row_nums = 0;
+    }
+    size_t new_size = indexer_.size() + row_nums;
+    if (new_size > indexer_.capacity()) {
+      size_t cap = indexer_.capacity();
+      while (new_size >= cap) {
+        cap = cap < 4096 ? 4096 : cap + cap / 4;
+      }
+      EnsureCapacity(cap);
+    }
     while (true) {
       auto batch = supplier->GetNextBatch();
       if (batch == nullptr) {
@@ -290,13 +301,14 @@ class VertexTable {
       auto ind = std::get<2>(vertex_schema_->primary_keys[0]);
       auto pk_array = columns[ind];
       columns.erase(columns.begin() + ind);
-      size_t new_size = indexer_.size() + pk_array->length();
-      if (new_size >= indexer_.capacity()) {
-        size_t new_cap = new_size;
-        while (new_size >= new_cap) {
-          new_cap = new_cap < 4096 ? 4096 : new_cap + new_cap / 4;
+      // Add capacity checking logic when performing the actual batch insert.
+      size_t new_size = indexer_.size() + batch->num_rows();
+      if (new_size > indexer_.capacity()) {
+        size_t cap = indexer_.capacity();
+        while (new_size >= cap) {
+          cap = cap < 4096 ? 4096 : cap + cap / 4;
         }
-        EnsureCapacity(new_cap);
+        EnsureCapacity(cap);
       }
 
       auto vids = insert_primary_keys<PK_T>(pk_array);
@@ -316,7 +328,7 @@ class VertexTable {
   DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
   VertexTimestamp v_ts_;
-  int memory_level_;
+  MemoryLevel memory_level_;
 
   std::string work_dir_;
 

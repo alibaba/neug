@@ -32,7 +32,7 @@ class PropertyGraphTest : public ::testing::Test {
     }
     std::filesystem::create_directories(work_dir_);
     graph_ = std::make_unique<PropertyGraph>();
-    graph_->Open(work_dir_, 1);
+    graph_->Open(work_dir_, MemoryLevel::kInMemory);
   }
 
   void TearDown() override {
@@ -124,7 +124,7 @@ TEST_F(PropertyGraphTest, TestOpenAndBulkInsert) {
                       vid4097, 0)
           .ok());
 
-  Allocator allocator(MemoryStrategy::kMemoryOnly, "");
+  Allocator allocator(MemoryLevel::kInMemory, "");
   for (vid_t i = 0; i < 4094; ++i) {
     graph_->AddEdge(person_label, i, person_label, i + 1, knows_label,
                     {Property::from_double(1.0)}, MAX_TIMESTAMP, allocator);

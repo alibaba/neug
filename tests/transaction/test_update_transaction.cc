@@ -29,7 +29,7 @@
 class UpdateTransactionTest : public ::testing::Test {
  protected:
   std::string db_dir;
-  int memory_level;
+  neug::MemoryLevel memory_level;
 
   void SetUp() override {
     db_dir = "/tmp/test_update_transaction_db";
@@ -40,7 +40,7 @@ class UpdateTransactionTest : public ::testing::Test {
 
     neug::NeugDB db;
     neug::NeugDBConfig config(db_dir);
-    config.memory_level = 1;
+    config.memory_level = neug::MemoryLevel::kInMemory;
     config.checkpoint_on_close = true;
     db.Open(db_dir);
     auto conn = db.Connect();
@@ -264,7 +264,7 @@ class UpdateTransactionTest : public ::testing::Test {
 TEST_F(UpdateTransactionTest, AddVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -293,7 +293,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
   // we add a batch of vertices.
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -322,7 +322,7 @@ TEST_F(UpdateTransactionTest, AddVertexBatch) {
 TEST_F(UpdateTransactionTest, AddEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -371,7 +371,7 @@ TEST_F(UpdateTransactionTest, AddEdge) {
 TEST_F(UpdateTransactionTest, AddVertexEdge) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -438,7 +438,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdge) {
 TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -488,7 +488,7 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
 TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -524,7 +524,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexProperty) {
 TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -575,7 +575,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeProperty) {
 TEST_F(UpdateTransactionTest, AddVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -608,7 +608,7 @@ TEST_F(UpdateTransactionTest, AddVertexAbort) {
 TEST_F(UpdateTransactionTest, AddEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -655,7 +655,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAbort) {
 TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -700,7 +700,7 @@ TEST_F(UpdateTransactionTest, UpdateVertexAbort) {
 TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -756,7 +756,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort) {
   {
     neug::NeugDB db2;
     neug::NeugDBConfig config2(db_dir);
-    config2.memory_level = 1;
+    config2.memory_level = neug::MemoryLevel::kInMemory;
     db2.Open(config2);
     auto conn = db2.Connect();
     auto result = conn->Query(
@@ -773,7 +773,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   // Update a bundled edge property and abort the transaction
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -821,7 +821,7 @@ TEST_F(UpdateTransactionTest, UpdateEdgeAbort2) {
   {
     neug::NeugDB db2;
     neug::NeugDBConfig config2(db_dir);
-    config2.memory_level = 1;
+    config2.memory_level = neug::MemoryLevel::kInMemory;
     db2.Open(config2);
     auto conn = db2.Connect();
     auto result = conn->Query(
@@ -838,7 +838,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
       << "Currently not support update bundled edge property and abort";
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -906,7 +906,7 @@ TEST_F(UpdateTransactionTest, AddEdgeAndUpdateAndAbort) {
 TEST_F(UpdateTransactionTest, DeleteVertex) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -953,7 +953,7 @@ TEST_F(UpdateTransactionTest, DeleteVertex) {
 TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1047,7 +1047,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeAbort) {
 TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1108,7 +1108,7 @@ TEST_F(UpdateTransactionTest, AddDeleteVertexAbort) {
 TEST_F(UpdateTransactionTest, CreteEdgeTypeAndAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1148,7 +1148,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
   GTEST_SKIP() << "Enable this test after in-place AddEdge is supported";
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1179,7 +1179,7 @@ TEST_F(UpdateTransactionTest, CreteEdgeTypeAndCommit) {
 TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1211,7 +1211,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeTypeAbort) {
 TEST_F(UpdateTransactionTest, AddVertexProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1274,7 +1274,7 @@ TEST_F(UpdateTransactionTest, AddVertexProperties) {
 TEST_F(UpdateTransactionTest, AddEdgeProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1336,7 +1336,7 @@ TEST_F(UpdateTransactionTest, AddEdgeProperties) {
 TEST_F(UpdateTransactionTest, RenameVertexProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1375,7 +1375,7 @@ TEST_F(UpdateTransactionTest, RenameVertexProperty) {
 TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1428,7 +1428,7 @@ TEST_F(UpdateTransactionTest, RenameEdgeProperty) {
 TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1499,7 +1499,7 @@ TEST_F(UpdateTransactionTest, DeleteEdgeProperties) {
 TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1544,7 +1544,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexProperties) {
 
 TEST_F(UpdateTransactionTest, TestReplayWal) {
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = false;
   config.compact_on_close = false;
   config.checkpoint_after_recovery = true;
@@ -1659,7 +1659,7 @@ TEST_F(UpdateTransactionTest, TestReplayWal) {
 TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1721,7 +1721,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteVertexLabel) {
 TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -1782,7 +1782,7 @@ TEST_F(UpdateTransactionTest, TestAPIAfterDeleteEdgeLabel) {
 TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -1820,7 +1820,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithOutgoingEdges) {
 TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -1875,7 +1875,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithBidirectionalEdges) {
 TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   size_t initial_created_count, initial_knows_count;
@@ -1962,7 +1962,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexAbortRestoresEdges) {
 TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2021,7 +2021,7 @@ TEST_F(UpdateTransactionTest, DeleteVertexWithMultipleEdgeTypes) {
 TEST_F(UpdateTransactionTest, TestCheckpoint) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2036,7 +2036,7 @@ TEST_F(UpdateTransactionTest, TestCheckpoint) {
 TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2057,7 +2057,7 @@ TEST_F(UpdateTransactionTest, TestUnsupportedInterface) {
 TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2089,7 +2089,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVertices) {
 TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2135,7 +2135,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdges) {
 TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2166,7 +2166,7 @@ TEST_F(UpdateTransactionTest, BatchDeleteVerticesFailure) {
 TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
 
@@ -2204,7 +2204,7 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
   // By default, the string property has max length: STRING_DEFAULT_MAX_LENGTH.
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   {
@@ -2252,7 +2252,7 @@ TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
 TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = true;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
@@ -2366,7 +2366,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
 TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
-  config.memory_level = 1;
+  config.memory_level = neug::MemoryLevel::kInMemory;
   db.Open(config);
   auto conn = db.Connect();
   auto svc = std::make_shared<neug::NeugDBService>(db);
@@ -2428,7 +2428,7 @@ TEST_F(UpdateTransactionTest, TestTPServiceStart) {
   {
     neug::NeugDB db2;
     neug::NeugDBConfig config2(db_dir);
-    config2.memory_level = 1;
+    config2.memory_level = neug::MemoryLevel::kInMemory;
     db2.Open(config2);
     auto conn2 = db2.Connect();
     auto result = conn2->Query(

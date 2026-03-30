@@ -161,6 +161,22 @@ function(build_arrow_as_third_party)
                 message(STATUS "Patched Arrow ThirdpartyToolchain.cmake for CMake 4.x compatibility")
             endif()
         endif()
+        # Propagate CMAKE_OSX_ARCHITECTURES into Arrow's bundled ExternalProject
+        # sub-builds (snappy, zlib, zstd, etc.) so they are compiled for the
+        # correct target architecture (e.g. arm64 on macos-15 / Apple Silicon).
+        if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+            set(_toolchain "${arrow_SOURCE_DIR}/cpp/cmake_modules/ThirdpartyToolchain.cmake")
+            file(READ "${_toolchain}" _toolchain_content)
+            string(FIND "${_toolchain_content}" "CMAKE_OSX_ARCHITECTURES_PROPAGATED" _arch_already_patched)
+            if(_arch_already_patched EQUAL -1)
+                string(REPLACE
+                    "# if building with a toolchain file, pass that through"
+                    "# Propagate OSX architecture to all bundled ExternalProject builds\n# CMAKE_OSX_ARCHITECTURES_PROPAGATED sentinel\nlist(APPEND EP_COMMON_CMAKE_ARGS \"-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}\")\n\n# if building with a toolchain file, pass that through"
+                    _toolchain_content "${_toolchain_content}")
+                file(WRITE "${_toolchain}" "${_toolchain_content}")
+                message(STATUS "Patched Arrow ThirdpartyToolchain.cmake to propagate CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
+            endif()
+        endif()
         add_subdirectory(${arrow_SOURCE_DIR}/cpp ${arrow_BINARY_DIR} EXCLUDE_FROM_ALL)
     endif()
 

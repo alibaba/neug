@@ -54,7 +54,8 @@ int main(int argc, char** argv) {
       "p,http-port", "HTTP port of query handler",
       cxxopts::value<uint16_t>()->default_value("10000"))(
       "d,data-path", "Data directory path", cxxopts::value<std::string>())(
-      "m,memory-level", "Memory level for graph data",
+      "m,memory-level",
+      "1 for InMemory, 2 for SyncToFile, 3 for HugePagePrefered",
       cxxopts::value<int>()->default_value("1"))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
       cxxopts::value<std::string>()->default_value("cooperative"))(
@@ -79,7 +80,8 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  int memory_level = vm["memory-level"].as<int>();
+  MemoryLevel memory_level =
+      static_cast<MemoryLevel>(vm["memory-level"].as<int>());
   uint32_t shard_num = vm["shard-num"].as<uint32_t>();
   uint16_t http_port = vm["http-port"].as<uint16_t>();
 
@@ -99,7 +101,7 @@ int main(int argc, char** argv) {
   neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
-  if (config.memory_level >= 2) {
+  if (config.memory_level == neug::MemoryLevel::kHugePagePrefered) {
     config.enable_auto_compaction = true;
   }
   db.Open(config);

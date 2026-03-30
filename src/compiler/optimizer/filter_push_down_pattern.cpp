@@ -43,18 +43,38 @@ FilterPushDownPattern::visitNodeLabelFilterReplace(
     std::shared_ptr<planner::LogicalOperator> op) {
   auto filter = op->ptrCast<planner::LogicalNodeLabelFilter>();
   auto child = op->getChild(0);
-  if (child->getOperatorType() !=
+  const auto& filterNodeName = filter->getNodeID()->getUniqueName();
+  const auto& tableIDSet = filter->getTableIDSet();
+
+  if (child->getOperatorType() ==
       planner::LogicalOperatorType::SCAN_NODE_TABLE) {
+    auto scanOp = child->ptrCast<planner::LogicalScanNodeTable>();
+    if (scanOp->getNodeID()->getUniqueName() == filterNodeName) {
+      scanOp->setTableIDs(std::vector<common::table_id_t>(tableIDSet.begin(),
+                                                          tableIDSet.end()));
+      return child;
+    }
     return op;
   }
-  auto scanOp = child->ptrCast<planner::LogicalScanNodeTable>();
-  if (scanOp->getNodeID()->getUniqueName() ==
-      filter->getNodeID()->getUniqueName()) {
-    auto tableIDSet = filter->getTableIDSet();
-    scanOp->setTableIDs(
-        std::vector<common::table_id_t>(tableIDSet.begin(), tableIDSet.end()));
+
+  if (child->getOperatorType() == planner::LogicalOperatorType::GET_V) {
+    auto getVOp = child->ptrCast<planner::LogicalGetV>();
+    if (getVOp->getNodeID()->getUniqueName() != filterNodeName) {
+      return op;
+    }
+    std::vector<common::table_id_t> narrowed;
+    for (auto tid : getVOp->getTableIDs()) {
+      if (tableIDSet.contains(tid)) {
+        narrowed.push_back(tid);
+      }
+    }
+    if (narrowed.empty()) {
+      return op;
+    }
+    getVOp->setTableIDs(std::move(narrowed));
     return child;
   }
+
   return op;
 }
 

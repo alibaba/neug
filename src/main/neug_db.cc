@@ -215,18 +215,12 @@ void NeugDB::initAllocators() {
   // Initialize the default allocator for ingesting wals
   remove_directory(allocator_dir(work_dir_));
   std::filesystem::create_directories(allocator_dir(work_dir_));
-  MemoryStrategy strategy = MemoryStrategy::kMemoryOnly;
-  if (config_.memory_level == 0) {
-    strategy = MemoryStrategy::kSyncToFile;
-  } else if (config_.memory_level >= 2) {
-    strategy = MemoryStrategy::kHugepagePrefered;
-  }
   assert(config_.thread_num > 0);
   for (int i = 0; i < config_.thread_num; ++i) {
     allocators_.emplace_back(std::make_shared<Allocator>(
-        strategy, strategy != MemoryStrategy::kSyncToFile
-                      ? ""
-                      : wal_ingest_allocator_prefix(work_dir_, i)));
+        config_.memory_level, config_.memory_level != MemoryLevel::kSyncToFile
+                                  ? ""
+                                  : wal_ingest_allocator_prefix(work_dir_, i)));
   }
 }
 

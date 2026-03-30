@@ -236,8 +236,10 @@ int main(int argc, char** argv) {
   cxxopts::Options options("benchmark", "Benchmarking tool for NeuG");
   options.add_options()("help", "Display help message")(
       "data-path,d", "", cxxopts::value<std::string>())(
-      "memory-level,m", "", cxxopts::value<int>()->default_value("1"))(
-      "benchmark-config,c", "", cxxopts::value<std::string>());
+      "memory-level,m",
+      "1 for InMemory, 2 for SyncToFile, 3 for HugePagePrefered",
+      cxxopts::value<int>()->default_value("1"))("benchmark-config,c", "",
+                                                 cxxopts::value<std::string>());
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
   cxxopts::ParseResult vm = options.parse(argc, argv);
@@ -246,7 +248,8 @@ int main(int argc, char** argv) {
     std::cout << options.help() << std::endl;
     return 0;
   }
-  int memory_level = vm["memory-level"].as<int>();
+  neug::MemoryLevel memory_level =
+      static_cast<neug::MemoryLevel>(vm["memory-level"].as<int>());
 
   std::string data_path = "";
   if (!vm.count("data-path")) {

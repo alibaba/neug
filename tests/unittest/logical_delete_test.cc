@@ -32,7 +32,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
       std::filesystem::remove_all(test_dir_);
     }
     std::filesystem::create_directories(test_dir_);
-    graph_.Open(test_dir_, 1);
+    graph_.Open(test_dir_, MemoryLevel::kInMemory);
   }
 
   void TearDown() override {

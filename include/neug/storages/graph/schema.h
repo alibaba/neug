@@ -58,7 +58,6 @@ inline void process_default_values(
  * - Label name and description
  * - Property definitions (types, names, defaults)
  * - Primary key specification
- * - Storage strategies for properties
  *
  * **Usage Example:**
  * @code{.cpp}
@@ -90,7 +89,6 @@ struct VertexSchema {
    * @param property_types_ Data types for each property
    * @param property_names_ Names for each property
    * @param primary_keys_ Primary key specification (type, name, index)
-   * @param storage_strategies_ Storage strategy for each property
    * @param default_property_values_ Default values for properties
    * @param description_ Human-readable description
    * @param max_num_ Maximum number of vertices of this type
@@ -102,7 +100,6 @@ struct VertexSchema {
                const std::vector<std::string>& property_names_,
                const std::vector<std::tuple<DataType, std::string, size_t>>&
                    primary_keys_,
-               const std::vector<StorageStrategy>& storage_strategies_,
                const std::vector<Property>& default_property_values_ = {},
                const std::string& description_ = "",
                size_t max_num_ = static_cast<size_t>(1) << 32)
@@ -110,12 +107,10 @@ struct VertexSchema {
         property_types(property_types_),
         property_names(property_names_),
         primary_keys(primary_keys_),
-        storage_strategies(storage_strategies_),
         default_property_values(default_property_values_),
         description(description_),
         max_num(max_num_) {
     vprop_soft_deleted.resize(property_names_.size(), false);
-    storage_strategies.resize(property_types_.size(), StorageStrategy::kMem);
     if (default_property_values.empty()) {
       for (size_t i = 0; i < property_types_.size(); ++i) {
         default_property_values.emplace_back(
@@ -133,11 +128,9 @@ struct VertexSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& strategies,
                       const std::vector<Property>& default_values = {});
 
   void set_properties(const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& strategies,
                       const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
@@ -175,7 +168,6 @@ struct VertexSchema {
   std::vector<std::string> property_names;
   // <DataType, property_name, index_in_property_list>
   std::vector<std::tuple<DataType, std::string, size_t>> primary_keys;
-  std::vector<StorageStrategy> storage_strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
   std::string description;
@@ -197,7 +189,6 @@ struct VertexSchema {
  * vertex types. It includes:
  * - Edge label name and endpoints (src -> dst)
  * - Property definitions
- * - Edge storage strategies (for both directions)
  * - Mutability settings
  *
  * **Edge Strategies:**
@@ -240,7 +231,6 @@ struct EdgeSchema {
    * @param ie_strategy_ Incoming edge storage strategy
    * @param properties_ Data types for edge properties
    * @param property_names_ Names for edge properties
-   * @param strategies_ Storage strategy for each property
    * @param default_property_values_ Default values for properties
    *
    * @since v0.1.0
@@ -253,7 +243,6 @@ struct EdgeSchema {
              EdgeStrategy ie_strategy_,
              const std::vector<DataType>& properties_,
              const std::vector<std::string>& property_names_,
-             const std::vector<StorageStrategy>& strategies_,
              const std::vector<Property>& default_property_values_ = {})
       : src_label_name(src_label_name_),
         dst_label_name(dst_label_name_),
@@ -266,12 +255,9 @@ struct EdgeSchema {
         ie_strategy(ie_strategy_),
         properties(properties_),
         property_names(property_names_),
-        strategies(strategies_),
         default_property_values(default_property_values_) {
     eprop_soft_deleted.resize(property_names_.size(), false);
-    strategies.resize(properties_.size(), StorageStrategy::kMem);
     assert(properties.size() == property_names.size());
-    assert(properties.size() == strategies.size());
     if (default_property_values.empty()) {
       for (size_t i = 0; i < properties_.size(); ++i) {
         default_property_values.emplace_back(
@@ -280,7 +266,6 @@ struct EdgeSchema {
     }
     assert(properties.size() == default_property_values.size());
     CHECK(properties.size() == property_names.size());
-    CHECK(properties.size() == strategies.size());
     process_default_values(default_property_values, default_property_strings);
   }
 
@@ -292,7 +277,6 @@ struct EdgeSchema {
 
   void add_properties(const std::vector<std::string>& names,
                       const std::vector<DataType>& types,
-                      const std::vector<StorageStrategy>& new_strategies = {},
                       const std::vector<Property>& default_values = {});
 
   void rename_properties(const std::vector<std::string>& names,
@@ -322,7 +306,6 @@ struct EdgeSchema {
   EdgeStrategy ie_strategy;
   std::vector<DataType> properties;
   std::vector<std::string> property_names;
-  std::vector<StorageStrategy> strategies;
   std::vector<Property> default_property_values;
   std::vector<std::string> default_property_strings;
 
@@ -467,7 +450,6 @@ class Schema {
       const std::string& label, const std::vector<DataType>& property_types,
       const std::vector<std::string>& property_names,
       const std::vector<std::tuple<DataType, std::string, size_t>>& primary_key,
-      const std::vector<StorageStrategy>& strategies = {},
       size_t max_vnum = static_cast<size_t>(1) << 32,
       const std::string& description = "",
       const std::vector<Property>& default_property_values = {});
@@ -476,7 +458,6 @@ class Schema {
                     const std::string& edge_label,
                     const std::vector<DataType>& properties,
                     const std::vector<std::string>& prop_names,
-                    const std::vector<StorageStrategy>& strategies = {},
                     EdgeStrategy oe = EdgeStrategy::kMultiple,
                     EdgeStrategy ie = EdgeStrategy::kMultiple,
                     bool oe_mutable = true, bool ie_mutable = true,
@@ -507,7 +488,6 @@ class Schema {
       const std::string& label,
       const std::vector<std::string>& properties_names,
       const std::vector<DataType>& properties_types,
-      const std::vector<StorageStrategy>& storage_strategies,
       const std::vector<Property>& properties_default_values);
 
   void AddEdgeProperties(
@@ -611,7 +591,6 @@ class Schema {
 
   void set_vertex_properties(
       label_t label_id, const std::vector<DataType>& types,
-      const std::vector<StorageStrategy>& strategies = {},
       const std::vector<Property>& default_property_values = {});
 
   std::vector<DataType> get_vertex_properties(const std::string& label) const;
@@ -632,9 +611,6 @@ class Schema {
   const std::string& get_vertex_description(const std::string& label) const;
 
   const std::string& get_vertex_description(label_t label) const;
-
-  std::vector<StorageStrategy> get_vertex_storage_strategies(
-      const std::string& label) const;
 
   size_t get_max_vnum(const std::string& label) const;
 

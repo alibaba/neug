@@ -75,6 +75,7 @@ environment = {CMAKE_PREFIX_PATH="/opt/neug/", OPENSSL_ROOT_DIR="/opt/neug", LIB
 
 [tool.cibuildwheel.macos]
 before-all = ["git submodule update --init --recursive"]
+
 environment = {MACOSX_DEPLOYMENT_TARGET="10.15", CMAKE_PREFIX_PATH="/opt/neug/", DYLD_LIBRARY_PATH="/opt/neug/lib:/opt/neug/lib64", OPENSSL_ROOT_DIR="/opt/neug"}
 repair-wheel-command = [
     'source ~/.neug_env',
