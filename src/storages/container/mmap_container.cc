@@ -159,8 +159,17 @@ void MMapContainer::Dump(const std::string& path) {
 }
 
 bool MMapContainer::IsDirty() {
-  if (path_ == "" && mmap_data_ != nullptr) {
+  // Guard: no mapping or mapping too small to hold a header → never dirty.
+  if (mmap_data_ == nullptr || mmap_size_ < sizeof(FileHeader)) {
+    return false;
+  }
+  if (path_.empty()) {
+    // Anonymous mmap with no backing file – always considered dirty.
     return true;
+  }
+  if (size_ == 0) {
+    // Header-only file: no payload to compare, so not dirty.
+    return false;
   }
   unsigned char md5[MD5_DIGEST_LENGTH];
   MD5((unsigned char*) data_, size_, md5);
