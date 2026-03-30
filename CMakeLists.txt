@@ -691,6 +691,24 @@ if(NEUG_USE_SYSTEM_ARROW)
         find_package(Parquet CONFIG QUIET)
         if(NOT Parquet_FOUND)
             message(WARNING "System Parquet package not found; parquet extension headers may be missing")
+        else()
+            # Extract Parquet include directories so extension sources and tests
+            # can find <parquet/properties.h> and <parquet/arrow/writer.h> when
+            # compiling against system Arrow.
+            #
+            # Read INTERFACE_INCLUDE_DIRECTORIES from the imported target.
+            # Skip generator expressions ($<...>) since include_directories()
+            # cannot resolve them as plain paths.
+            foreach(_parquet_target Parquet::parquet_static Parquet::parquet parquet_static parquet)
+                if(TARGET ${_parquet_target})
+                    get_target_property(_parquet_inc ${_parquet_target} INTERFACE_INCLUDE_DIRECTORIES)
+                    if(_parquet_inc AND NOT _parquet_inc MATCHES "\\$<")
+                        list(APPEND ARROW_INCLUDE_DIRS ${_parquet_inc})
+                        message(STATUS "Appended Parquet include dirs from ${_parquet_target}: ${_parquet_inc}")
+                    endif()
+                    break()
+                endif()
+            endforeach()
         endif()
         resolve_system_arrow_component(parquet ARROW_PARQUET_LIB)
         if(ARROW_PARQUET_LIB)
