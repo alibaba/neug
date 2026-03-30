@@ -81,6 +81,13 @@ Rules are unchanged: **endpoints must exist** before loading edges. For no-schem
 - **Edge inference** uses a **single** `(from, to)` pair per `COPY`; multi-pair relationship groups still need an existing schema or explicit DDL.
 - **No-schema edge `COPY`** requires **`from`** and **`to`** to refer to **already registered** vertex types (no automatic creation of endpoint types in that step).
 
+### JSON and Parquet Support
+
+No-schema `COPY FROM` also works with JSON and Parquet files when the corresponding extension is loaded:
+
+- [JSON Extension — COPY FROM JSON (No Schema)](../extensions/load_json#copy-from-json-no-schema)
+- [Parquet Extension — COPY FROM Parquet (No Schema)](../extensions/load_parquet#copy-from-parquet-no-schema)
+
 ---
 
 ## Quick Start

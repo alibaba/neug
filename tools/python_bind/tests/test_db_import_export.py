@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 import os
 import sys
 from datetime import datetime
@@ -35,6 +36,17 @@ from neug.proto.error_pb2 import ERR_PERMISSION
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
 from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+
+EXTENSION_TESTS_ENABLED = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+extension_test = pytest.mark.skipif(
+    not EXTENSION_TESTS_ENABLED,
+    reason="Extension tests disabled; set NEUG_RUN_EXTENSION_TESTS=1 to enable.",
+)
 
 
 def _neug_repo_root() -> Path:
@@ -826,6 +838,174 @@ def test_copy_from_no_schema_node_unicode_string(tmp_path):
     assert len(rows) == 2
     assert rows[0][1] == "你好"
     assert rows[1][1] == "English"
+
+    conn.close()
+    db.close()
+
+
+# ---------------------------------------------------------------------------
+# Extension Tests: COPY FROM JSON / JSONL / Parquet
+# ---------------------------------------------------------------------------
+
+
+def _tinysnb_path() -> Path:
+    """Return <repo>/example_dataset/tinysnb."""
+    return _neug_repo_root() / "example_dataset" / "tinysnb"
+
+
+@extension_test
+def test_copy_from_json_node_no_schema(tmp_path):
+    """COPY FROM JSON into a new label — auto-detect schema."""
+    db_dir = tmp_path / "copy_json_no_schema"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD JSON")
+
+    json_path = tmp_path / "employees.json"
+    data = [
+        {"emp_id": 100, "name": "Alice", "salary": 55000.0},
+        {"emp_id": 200, "name": "Bob", "salary": 62000.5},
+    ]
+    with open(json_path, "w") as f:
+        json.dump(data, f)
+
+    conn.execute(f'COPY ns_employee FROM "{json_path}";')
+
+    res = conn.execute(
+        "MATCH (e:ns_employee) RETURN e.emp_id, e.name, e.salary ORDER BY e.emp_id;"
+    )
+    rows = list(res)
+    assert len(rows) == 2
+    assert rows[0][0] == 100
+    assert rows[0][1] == "Alice"
+    assert abs(rows[0][2] - 55000.0) < 0.01
+
+    conn.close()
+    db.close()
+
+
+@extension_test
+def test_copy_from_jsonl_node_no_schema(tmp_path):
+    """COPY FROM JSONL into a new label — auto-detect schema."""
+    db_dir = tmp_path / "copy_jsonl_no_schema"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD JSON")
+
+    jsonl_path = tmp_path / "items.jsonl"
+    records = [
+        {"item_id": 1, "description": "Pen", "price": 1.5},
+        {"item_id": 2, "description": "Pencil", "price": 0.75},
+        {"item_id": 3, "description": "Eraser", "price": 0.50},
+    ]
+    with open(jsonl_path, "w") as f:
+        for rec in records:
+            f.write(json.dumps(rec) + "\n")
+
+    conn.execute(f'COPY ns_item FROM "{jsonl_path}";')
+
+    res = conn.execute(
+        "MATCH (i:ns_item) RETURN i.item_id, i.description, i.price ORDER BY i.item_id;"
+    )
+    rows = list(res)
+    assert len(rows) == 3
+    assert rows[0] == [1, "Pen", 1.5]
+
+    conn.close()
+    db.close()
+
+
+@extension_test
+def test_copy_from_json_with_subquery(tmp_path):
+    """COPY FROM (LOAD FROM 'file.json' RETURN ...) — column reorder via subquery."""
+    db_dir = tmp_path / "copy_json_subquery"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD JSON")
+
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+
+    json_path = tmp_path / "unordered.json"
+    data = [
+        {"name": "Alice", "age": 30, "user_id": 1},
+        {"name": "Bob", "age": 25, "user_id": 2},
+    ]
+    with open(json_path, "w") as f:
+        json.dump(data, f)
+
+    conn.execute(
+        f'COPY person FROM (LOAD FROM "{json_path}" RETURN user_id AS id, name, age);'
+    )
+
+    res = conn.execute("MATCH (n:person) RETURN n.id, n.name, n.age ORDER BY n.id;")
+    rows = list(res)
+    assert len(rows) == 2
+    assert rows[0] == [1, "Alice", 30]
+    assert rows[1] == [2, "Bob", 25]
+
+    conn.close()
+    db.close()
+
+
+@extension_test
+def test_copy_from_parquet_node_no_schema(tmp_path):
+    """COPY FROM Parquet into a new label — auto-detect schema."""
+    parquet_path = _tinysnb_path() / "parquet" / "vPerson.parquet"
+    if not parquet_path.is_file():
+        pytest.skip(f"Parquet file not found: {parquet_path}")
+
+    db_dir = tmp_path / "copy_parquet_no_schema"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD PARQUET")
+
+    conn.execute(f'COPY ns_person FROM "{parquet_path}";')
+
+    res = conn.execute("MATCH (n:ns_person) RETURN n.ID, n.fName, n.age ORDER BY n.ID;")
+    rows = list(res)
+    assert len(rows) == 8
+    assert rows[0][1] == "Alice"
+    assert rows[0][2] == 35
+    assert rows[-1][1] == "Hubert Blaine Wolfeschlegelsteinhausenbergerdorff"
+
+    conn.close()
+    db.close()
+
+
+@extension_test
+def test_copy_from_parquet_edge_no_schema(tmp_path):
+    """COPY FROM Parquet edge file with auto-detect, endpoints created first."""
+    person_parquet = _tinysnb_path() / "parquet" / "vPerson.parquet"
+    meets_parquet = _tinysnb_path() / "parquet" / "eMeets.parquet"
+    if not person_parquet.is_file() or not meets_parquet.is_file():
+        pytest.skip("Parquet test data not found")
+
+    db_dir = tmp_path / "copy_parquet_edge"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    conn.execute("LOAD PARQUET")
+
+    # Import person nodes first (auto-detect)
+    conn.execute(f'COPY ns_person FROM "{person_parquet}";')
+
+    # Import meets edges (auto-detect, need from/to)
+    conn.execute(
+        f'COPY ns_meets FROM "{meets_parquet}" (from="ns_person", to="ns_person");'
+    )
+
+    res = conn.execute(
+        "MATCH (a:ns_person)-[m:ns_meets]->(b:ns_person) "
+        "RETURN a.fName, b.fName ORDER BY a.fName;"
+    )
+    rows = list(res)
+    assert len(rows) == 7
 
     conn.close()
     db.close()

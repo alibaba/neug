@@ -77,3 +77,24 @@ RETURN fName AS name, age AS years;
 ```
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with Parquet files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
+
+### COPY FROM Parquet (No Schema)
+
+With the Parquet extension loaded, you can use `COPY FROM` to import Parquet files directly — without creating the table first. NeuG infers the schema from the Parquet file metadata.
+
+#### Node Import
+
+```cypher
+-- Schema auto-detected from Parquet metadata, first column becomes primary key
+COPY person FROM "person.parquet";
+```
+
+#### Edge Import
+
+For edges, endpoint node tables must already exist. Specify `from` and `to`:
+
+```cypher
+COPY meets FROM "meets.parquet" (from="person", to="person");
+```
+
+For more details on no-schema import behavior and options, see [COPY FROM without a predefined schema](../data_io/import_data#copy-from-without-a-predefined-schema).
