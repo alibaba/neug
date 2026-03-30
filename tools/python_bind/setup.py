@@ -143,7 +143,8 @@ class CMakeBuild(build_ext):
         cmake_library_output_dir = f"{extdir}{os.sep}"
         cmake_args = [
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={cmake_library_output_dir}",
-            f"-DPYTHON_EXECUTABLE={sys.executable}",
+            f"-DPYTHON_EXECUTABLE={sys.executable}",  # legacy variable
+            f"-DPython_EXECUTABLE={sys.executable}",  # used by find_package(Python) / pybind11
             f"-DCMAKE_BUILD_TYPE={build_type}",  # not used on MSVC, but no harm
             "-DOPTIMIZE_FOR_HOST=OFF",
             f"-DBUILD_EXECUTABLES={build_executables}",
