@@ -30,6 +30,9 @@ class EdgeExpand {
   static neug::result<Context> expand_degree(const StorageReadInterface& graph,
                                              Context&& ctx,
                                              const EdgeExpandParams& params);
+  static neug::result<Context> expand_count(const StorageReadInterface& graph,
+                                            Context&& ctx,
+                                            const EdgeExpandParams& params);
   template <typename PRED_T>
   static neug::result<Context> expand_edge(const StorageReadInterface& graph,
                                            Context&& ctx,
