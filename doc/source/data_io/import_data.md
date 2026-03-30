@@ -13,6 +13,8 @@ For **import without creating tables first**, see [COPY FROM without a predefine
 
 If `auto_detect` is **`false`** and the table is missing, the binder reports that the table does not exist.
 
+> **Note:** All option names are case-insensitive — for example, `HEADER`, `Header`, and `header` are all equivalent.
+
 ---
 
 ## COPY FROM without a predefined schema
@@ -28,11 +30,9 @@ When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new*
 You can set it explicitly when needed:
 
 ```cypher
-COPY LegacyUser FROM "users.csv" (header=true, auto_detect=true);
-COPY LegacyUser FROM "users.csv" (header=true, auto_detect=false);  -- require table to exist
+COPY person FROM "person.csv" (header=true, auto_detect=true);
+COPY person FROM "person.csv" (header=true, auto_detect=false);  -- require table to exist
 ```
-
-Parser option names are matched case-insensitively; `AUTO_DETECT` is accepted as well.
 
 ### Nodes (new label)
 
@@ -41,16 +41,16 @@ Parser option names are matched case-insensitively; `AUTO_DETECT` is accepted as
 - The **COPY target** (`COPY <Label> FROM ...`) is the new **vertex label** name.
 
 ```cypher
--- File has header: id,name,score — id becomes PRIMARY KEY
-COPY LegacyUser FROM "legacy_users.csv" (header=true);
+-- File has header: id,name,age — id becomes PRIMARY KEY
+COPY person FROM "person.csv" (header=true);
 ```
 
 If the file column order is wrong for inference, reorder with a subquery (first returned column = primary key):
 
 ```cypher
-COPY LegacyUser FROM (
-    LOAD FROM "legacy_users.csv" (header=true)
-    RETURN user_id AS id, name, score
+COPY person FROM (
+    LOAD FROM "person.csv" (header=true)
+    RETURN user_id AS id, name, age
 );
 ```
 
@@ -62,10 +62,10 @@ For a **new** relationship label, NeuG still needs to know the **endpoint node t
 - **Remaining columns** map to relationship properties.
 
 ```cypher
--- After Person nodes exist:
-COPY LegacyKnows FROM "knows.csv" (
-    from="Person",
-    to="Person",
+-- After person nodes exist:
+COPY knows FROM "knows.csv" (
+    from="person",
+    to="person",
     header=true
 );
 ```
