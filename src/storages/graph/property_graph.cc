@@ -1267,20 +1267,6 @@ std::string PropertyGraph::get_statistics_json() const {
   return buffer.GetString();
 }
 
-void PropertyGraph::generateStatistics() const {
-  std::string filename = statisticsFilePath();
-
-  {
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-      LOG(ERROR) << "Failed to open file: " << filename;
-      return;
-    }
-    out << get_statistics_json();
-    out.close();
-  }
-}
-
 Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
                                          const std::string& dst_type_name,
                                          const std::string& edge_type_name) {
