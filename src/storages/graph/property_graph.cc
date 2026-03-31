@@ -765,24 +765,6 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  write_yaml_file(schema_res.value(), filename);
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
-}
 
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
                          MemoryLevel memory_level) {
@@ -1061,7 +1043,22 @@ void PropertyGraph::Dump(bool reopen) {
       }
     }
   }
-  DumpSchema();
+  auto _schema_path = schema_path(work_dir_);
+  std::ofstream out(_schema_path);
+  schema_.Serialize(out);
+  out.flush();
+  out.close();
+
+  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.error().error_message();
+    return;
+  }
+  write_yaml_file(schema_res.value(), filename);
+  LOG(INFO) << "Dump schema to yaml file: " << filename;
   copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
   remove_directory(target_dir);
   remove_directory(tmp_dir(work_dir_));

@@ -141,13 +141,6 @@ class PropertyGraph {
   void Dump(bool reopen = true);
 
   /**
-   * @brief Dump schema information to a file.
-   *
-   * @since v0.1.0
-   */
-  void DumpSchema();
-
-  /**
    * @brief Get read-only access to the schema.
    *
    * @return const Schema& Reference to the graph schema
