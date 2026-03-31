@@ -26,7 +26,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "neug/config.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/result.h"
@@ -162,19 +161,12 @@ class LoadingConfig {
   }
   inline int32_t GetParallelism() const { return parallelism_; }
 
-  inline void SetMemoryLevel(MemoryLevel memory_level) {
-    memory_level_ = memory_level;
-  }
-
-  inline MemoryLevel GetMemoryLevel() const { return memory_level_; }
-
  private:
   const Schema& schema_;
-  std::string scheme_;        // "file", "hdfs", "oss", "s3"
-  BulkLoadMethod method_;     // init, append, overwrite
-  std::string format_;        // csv, tsv, json, parquet
-  int32_t parallelism_;       // Number of thread should be used in loading
-  MemoryLevel memory_level_;  // Memory level for loading
+  std::string scheme_;     // "file", "hdfs", "oss", "s3"
+  BulkLoadMethod method_;  // init, append, overwrite
+  std::string format_;     // csv, tsv, json, parquet
+  int32_t parallelism_;    // Number of thread should be used in loading
 
   std::vector<std::string> null_values_;
 

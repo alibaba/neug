@@ -108,9 +108,12 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
 
   auto degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-  initialize_adj_lists(adj_list_buffer_ptr(), adj_list_size_ptr(),
-                       adj_list_cap_ptr(), nbr_entries_ptr(), degree_ptr,
-                       cap_ptr, v_cap);
+  initialize_adj_lists(
+      reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData()),
+      reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData()),
+      reinterpret_cast<int*>(adj_list_capacity_->GetData()),
+      reinterpret_cast<nbr_t*>(nbr_list_->GetData()), degree_ptr, cap_ptr,
+      v_cap);
 }
 
 template <typename EDATA_T>
@@ -151,9 +154,12 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
+  const auto* sz_arr =
+      reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+  const int* caps = reinterpret_cast<const int*>(adj_list_capacity_->GetData());
   for (size_t i = 0; i < vnum; ++i) {
-    degree_ptr[i] = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
-    cap_ptr[i] = adj_list_cap_ptr()[i];
+    degree_ptr[i] = sz_arr[i].load(std::memory_order_relaxed);
+    cap_ptr[i] = caps[i];
     if (degree_ptr[i] != cap_ptr[i]) {
       need_cap_list = true;
     }
@@ -168,8 +174,8 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
   degree_list->Dump(new_snapshot_dir + "/" + name + ".deg");
 
-  const nbr_t* const* lists = adj_list_buffer_ptr();
-  const int* caps = adj_list_cap_ptr();
+  const nbr_t* const* lists =
+      reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
   write_nbr_file(
       new_snapshot_dir + "/" + name + ".nbr", vnum,
       [lists, caps](size_t i) -> std::pair<const void*, size_t> {
@@ -180,12 +186,14 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::reset_timestamp() {
   size_t vnum = vertex_capacity();
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (size_t i = 0; i != vnum; ++i) {
-    nbr_t* nbrs = adj_list_buffer_ptr()[i];
+    nbr_t* nbrs = buf_arr[i];
     if (nbrs == nullptr) {
       continue;
     }
-    size_t deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
+    size_t deg = sz_arr[i].load(std::memory_order_relaxed);
     for (size_t j = 0; j != deg; ++j) {
       if (nbrs[j].timestamp != INVALID_TIMESTAMP) {
         nbrs[j].timestamp.store(0, std::memory_order_relaxed);
@@ -199,14 +207,16 @@ void MutableCsr<EDATA_T>::compact() {
   // We don't shrink the capacity of each adjacency list, but just remove the
   // deleted edges.
   size_t vnum = vertex_capacity();
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (size_t i = 0; i != vnum; ++i) {
-    int sz = adj_list_size_ptr()[i];
-    nbr_t* read_ptr = adj_list_buffer_ptr()[i];
+    int sz = sz_arr[i];
+    nbr_t* read_ptr = buf_arr[i];
     if (read_ptr == nullptr) {
       continue;
     }
     nbr_t* read_end = read_ptr + sz;
-    nbr_t* write_ptr = adj_list_buffer_ptr()[i];
+    nbr_t* write_ptr = buf_arr[i];
     int removed = 0;
     while (read_ptr != read_end) {
       if (read_ptr->timestamp != INVALID_TIMESTAMP) {
@@ -219,7 +229,7 @@ void MutableCsr<EDATA_T>::compact() {
       }
       ++read_ptr;
     }
-    adj_list_size_ptr()[i] -= removed;
+    sz_arr[i] -= removed;
   }
 }
 
@@ -235,10 +245,14 @@ void MutableCsr<EDATA_T>::resize(vid_t vnum) {
     adj_list_buffer_->Resize(vnum * sizeof(nbr_t*));
     adj_list_size_->Resize(vnum * sizeof(std::atomic<int>));
     adj_list_capacity_->Resize(vnum * sizeof(int));
+    auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* sz_arr =
+        reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+    auto* cap_arr = reinterpret_cast<int*>(adj_list_capacity_->GetData());
     for (vid_t i = old_vnum; i < vnum; ++i) {
-      adj_list_buffer_ptr()[i] = nullptr;
-      adj_list_size_ptr()[i].store(0, std::memory_order_relaxed);
-      adj_list_cap_ptr()[i] = 0;
+      buf_arr[i] = nullptr;
+      sz_arr[i].store(0, std::memory_order_relaxed);
+      cap_arr[i] = 0;
     }
     delete[] locks_;
     locks_ = new SpinLock[vnum];
@@ -271,13 +285,15 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_sort_by_edge_data(timestamp_t ts) {
   if (adj_list_buffer_ != nullptr) {
     size_t vnum = vertex_capacity();
+    auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* sz_arr =
+        reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
     for (size_t i = 0; i != vnum; ++i) {
-      nbr_t* begin = adj_list_buffer_ptr()[i];
+      nbr_t* begin = buf_arr[i];
       if (begin == nullptr) {
         continue;
       }
-      std::sort(begin,
-                begin + adj_list_size_ptr()[i].load(std::memory_order_relaxed),
+      std::sort(begin, begin + sz_arr[i].load(std::memory_order_relaxed),
                 [](const nbr_t& lhs, const nbr_t& rhs) {
                   return lhs.data < rhs.data;
                 });
@@ -290,22 +306,24 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::batch_delete_vertices(
     const std::set<vid_t>& src_set, const std::set<vid_t>& dst_set) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (vid_t src : src_set) {
     if (src < vnum) {
-      adj_list_size_ptr()[src].store(0, std::memory_order_relaxed);
+      sz_arr[src].store(0, std::memory_order_relaxed);
     }
   }
   for (vid_t src = 0; src < vnum; ++src) {
-    if (adj_list_size_ptr()[src].load(std::memory_order_relaxed) == 0) {
+    if (sz_arr[src].load(std::memory_order_relaxed) == 0) {
       continue;
     }
-    const nbr_t* read_ptr = adj_list_buffer_ptr()[src];
+    const nbr_t* read_ptr = buf_arr[src];
     if (read_ptr == nullptr) {
       continue;
     }
     const nbr_t* read_end =
-        read_ptr + adj_list_size_ptr()[src].load(std::memory_order_relaxed);
-    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
+        read_ptr + sz_arr[src].load(std::memory_order_relaxed);
+    nbr_t* write_ptr = buf_arr[src];
     int removed = 0;
     while (read_ptr != read_end) {
       vid_t nbr = read_ptr->neighbor;
@@ -319,7 +337,7 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
       }
       ++read_ptr;
     }
-    adj_list_size_ptr()[src] -= removed;
+    sz_arr[src] -= removed;
   }
 }
 
@@ -335,14 +353,16 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     }
     src_dst_map[src].insert(dst_list[i]);
   }
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (const auto& pair : src_dst_map) {
     vid_t src = pair.first;
-    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
+    nbr_t* write_ptr = buf_arr[src];
     if (write_ptr == nullptr) {
       continue;
     }
     const nbr_t* read_end =
-        write_ptr + adj_list_size_ptr()[src].load(std::memory_order_relaxed);
+        write_ptr + sz_arr[src].load(std::memory_order_relaxed);
     while (write_ptr != read_end) {
       if (pair.second.find(write_ptr->neighbor) != pair.second.end()) {
         write_ptr->timestamp.store(std::numeric_limits<timestamp_t>::max());
@@ -357,17 +377,19 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     const std::vector<std::pair<vid_t, int32_t>>& edges) {
   std::map<vid_t, std::set<int32_t>> src_offset_map;
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
+  const auto* sz_arr =
+      reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   for (const auto& edge : edges) {
     if (edge.first >= vnum ||
-        edge.second >=
-            adj_list_size_ptr()[edge.first].load(std::memory_order_relaxed)) {
+        edge.second >= sz_arr[edge.first].load(std::memory_order_relaxed)) {
       continue;
     }
     src_offset_map[edge.first].insert(edge.second);
   }
   for (const auto& pair : src_offset_map) {
     vid_t src = pair.first;
-    nbr_t* write_ptr = adj_list_buffer_ptr()[src];
+    nbr_t* write_ptr = buf_arr[src];
     if (write_ptr == nullptr) {
       continue;
     }
@@ -382,11 +404,12 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
                                       timestamp_t ts) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
-  if (src >= vnum ||
-      offset >= adj_list_size_ptr()[src].load(std::memory_order_relaxed)) {
+  const auto* sz_arr =
+      reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+  if (src >= vnum || offset >= sz_arr[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = adj_list_buffer_ptr()[src];
+  nbr_t* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
   if (nbrs == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
@@ -405,11 +428,12 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
                                              int32_t offset, timestamp_t ts) {
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
-  if (src >= vnum ||
-      offset >= adj_list_size_ptr()[src].load(std::memory_order_relaxed)) {
+  const auto* sz_arr =
+      reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+  if (src >= vnum || offset >= sz_arr[src].load(std::memory_order_relaxed)) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* nbrs = adj_list_buffer_ptr()[src];
+  nbr_t* nbrs = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData())[src];
   if (nbrs == nullptr) {
     THROW_INVALID_ARGUMENT_EXCEPTION("adjacency buffer is null");
   }
@@ -442,24 +466,26 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     }
   }
 
+  auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+  auto* cap_arr = reinterpret_cast<int*>(adj_list_capacity_->GetData());
   size_t total_to_move = 0;
   size_t total_to_allocate = 0;
   for (vid_t i = 0; i < vnum; ++i) {
-    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
+    int old_deg = sz_arr[i].load(std::memory_order_relaxed);
     total_to_move += old_deg;
     int new_degree = degree[i] + old_deg;
     int new_cap = std::ceil(new_degree * NeugDBConfig::DEFAULT_RESERVE_RATIO);
-    adj_list_cap_ptr()[i] = new_cap;
+    cap_arr[i] = new_cap;
     total_to_allocate += new_cap;
   }
 
   std::vector<nbr_t> new_nbr_list(total_to_move);
   size_t offset = 0;
   for (vid_t i = 0; i < vnum; ++i) {
-    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
-    if (old_deg > 0 && adj_list_buffer_ptr()[i] != nullptr) {
-      memcpy(new_nbr_list.data() + offset, adj_list_buffer_ptr()[i],
-             sizeof(nbr_t) * old_deg);
+    int old_deg = sz_arr[i].load(std::memory_order_relaxed);
+    if (old_deg > 0 && buf_arr[i] != nullptr) {
+      memcpy(new_nbr_list.data() + offset, buf_arr[i], sizeof(nbr_t) * old_deg);
     }
     offset += old_deg;
   }
@@ -469,15 +495,15 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
   size_t new_offset = 0;
   for (vid_t i = 0; i < vnum; ++i) {
     nbr_t* new_buffer = base_ptr != nullptr ? base_ptr + offset : nullptr;
-    int old_deg = adj_list_size_ptr()[i].load(std::memory_order_relaxed);
+    int old_deg = sz_arr[i].load(std::memory_order_relaxed);
     if (old_deg > 0 && new_buffer != nullptr) {
       memcpy(new_buffer, new_nbr_list.data() + new_offset,
              sizeof(nbr_t) * old_deg);
     }
     new_offset += old_deg;
-    offset += adj_list_cap_ptr()[i];
-    adj_list_buffer_ptr()[i] = new_buffer;
-    adj_list_size_ptr()[i].store(old_deg, std::memory_order_relaxed);
+    offset += cap_arr[i];
+    buf_arr[i] = new_buffer;
+    sz_arr[i].store(old_deg, std::memory_order_relaxed);
   }
 
   for (size_t i = 0; i < src_list.size(); ++i) {
@@ -487,8 +513,8 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     }
     vid_t dst = dst_list[i];
     const EDATA_T& data = data_list[i];
-    auto& nbr = adj_list_buffer_ptr()[src][adj_list_size_ptr()[src].fetch_add(
-        1, std::memory_order_relaxed)];
+    auto& nbr =
+        buf_arr[src][sz_arr[src].fetch_add(1, std::memory_order_relaxed)];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
@@ -549,7 +575,7 @@ void SingleMutableCsr<EDATA_T>::reset_timestamp() {
   if (!nbr_list_) {
     return;
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   size_t vnum = vertex_capacity();
   for (size_t i = 0; i != vnum; ++i) {
     if (data[i].timestamp != INVALID_TIMESTAMP) {
@@ -566,7 +592,7 @@ void SingleMutableCsr<EDATA_T>::resize(vid_t vnum) {
   size_t old_vnum = vertex_capacity();
   nbr_list_->Resize(vnum * sizeof(nbr_t));
   if (vnum > old_vnum) {
-    auto data = nbr_entries();
+    auto* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
     for (vid_t i = old_vnum; i < vnum; ++i) {
       data[i].timestamp.store(std::numeric_limits<timestamp_t>::max());
     }
@@ -592,7 +618,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_vertices(
   if (!nbr_list_) {
     return;
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (auto src : src_set) {
     if (src < vnum) {
@@ -613,7 +639,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
   if (!nbr_list_) {
     return;
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (size_t i = 0; i != src_list.size(); ++i) {
     vid_t src = src_list[i];
@@ -634,7 +660,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
   if (!nbr_list_) {
     return;
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (const auto& edge : edge_list) {
     vid_t src = edge.first;
@@ -659,7 +685,7 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
         "src out of bound: " + std::to_string(src) +
         " >= " + std::to_string(vnum));
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   auto& nbr = data[src];
   assert(offset == 0);
   if (nbr.timestamp.load() <= ts) {
@@ -682,7 +708,7 @@ void SingleMutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr_vid,
   if (src >= vnum || offset != 0) {
     THROW_INVALID_ARGUMENT_EXCEPTION("src out of bound or offset out of bound");
   }
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   auto& nbr = data[src];
   if (nbr.neighbor != nbr_vid) {
     THROW_INVALID_ARGUMENT_EXCEPTION("neighbor id not match");
@@ -703,7 +729,7 @@ void SingleMutableCsr<EDATA_T>::batch_put_edges(
     return;
   }
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
-  nbr_t* data = nbr_entries();
+  nbr_t* data = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
   for (size_t i = 0; i != src_list.size(); ++i) {
     vid_t src = src_list[i];
     if (src >= vnum) {

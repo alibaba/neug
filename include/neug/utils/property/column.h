@@ -140,7 +140,7 @@ class TypedColumn : public ColumnBase {
 
   void set_value(size_t index, const T& val) {
     if (index < size_) {
-      data_ptr()[index] = val;
+      reinterpret_cast<T*>(buffer_->GetData())[index] = val;
     } else {
       THROW_RUNTIME_ERROR("Index out of range");
     }
@@ -153,7 +153,7 @@ class TypedColumn : public ColumnBase {
 
   inline T get_view(size_t index) const {
     assert(index < size_);
-    return data_ptr()[index];
+    return reinterpret_cast<const T*>(buffer_->GetData())[index];
   }
 
   Property get_prop(size_t index) const override {
@@ -174,16 +174,6 @@ class TypedColumn : public ColumnBase {
   size_t buffer_size() const { return size_; }
 
  private:
-  inline T* data_ptr() {
-    assert(buffer_);
-    return reinterpret_cast<T*>(buffer_->GetData());
-  }
-
-  inline const T* data_ptr() const {
-    assert(buffer_);
-    return reinterpret_cast<const T*>(buffer_->GetData());
-  }
-
   std::unique_ptr<IDataContainer> buffer_;
   size_t size_;
 };

@@ -61,9 +61,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(adj_list_buffer_ptr()),
-                       reinterpret_cast<const int*>(adj_list_size_ptr()), cfg,
-                       ts, unsorted_since_);
+    return GenericView(
+        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+        reinterpret_cast<const int*>(adj_list_size_->GetData()), cfg, ts,
+        unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
@@ -72,8 +73,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override {
     size_t res = 0;
-    auto adj_lists = adj_list_buffer_ptr();
-    auto degrees = adj_list_size_ptr();
+    auto* adj_lists =
+        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
+    auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
     for (size_t i = 0; i < vertex_capacity(); ++i) {
       auto begin = adj_lists[i];
       for (int j = 0; j < degrees[i].load(); ++j) {
@@ -134,9 +137,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
           "Source vertex id out of range: " + std::to_string(src) +
           " >= " + std::to_string(vertex_capacity()));
     }
-    auto** buffers = adj_list_buffer_ptr();
-    auto* sizes = adj_list_size_ptr();
-    auto* caps = adj_list_cap_ptr();
+    auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* sizes =
+        reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+    auto* caps = reinterpret_cast<int*>(adj_list_capacity_->GetData());
     locks_[src].lock();
     int sz = sizes[src].load(std::memory_order_relaxed);
     int cap = caps[src];
@@ -164,8 +168,10 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
-    const nbr_t* const* adjlists = adj_list_buffer_ptr();
-    const std::atomic<int>* degrees = adj_list_size_ptr();
+    const nbr_t* const* adjlists =
+        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
+    const std::atomic<int>* degrees =
+        reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
     for (vid_t src = 0; src < static_cast<vid_t>(vertex_capacity()); ++src) {
       auto deg = degrees[src].load();
       for (int i = 0; i < deg; ++i) {
@@ -207,39 +213,6 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
 
-  nbr_t** adj_list_buffer_ptr() {
-    assert(adj_list_buffer_);
-    return reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-  }
-  const nbr_t* const* adj_list_buffer_ptr() const {
-    assert(adj_list_buffer_);
-    return reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-  }
-  std::atomic<int>* adj_list_size_ptr() {
-    assert(adj_list_size_);
-    return reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
-  }
-  const std::atomic<int>* adj_list_size_ptr() const {
-    assert(adj_list_size_);
-    return reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
-  }
-  int* adj_list_cap_ptr() {
-    assert(adj_list_capacity_);
-    return reinterpret_cast<int*>(adj_list_capacity_->GetData());
-  }
-  const int* adj_list_cap_ptr() const {
-    assert(adj_list_capacity_);
-    return reinterpret_cast<const int*>(adj_list_capacity_->GetData());
-  }
-  nbr_t* nbr_entries_ptr() {
-    assert(nbr_list_);
-    return reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-  }
-  const nbr_t* nbr_entries_ptr() const {
-    assert(nbr_list_);
-    return reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
-  }
-
   size_t vertex_capacity() const {
     if (!adj_list_size_) {
       return 0;
@@ -264,8 +237,8 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_entries()), cfg, ts,
-                       std::numeric_limits<timestamp_t>::max());
+    return GenericView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
+                       ts, std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {
@@ -276,7 +249,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override {
     size_t cnt = 0;
-    auto* nbrs = nbr_entries();
+    auto* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
     for (size_t i = 0; i < vertex_capacity(); ++i) {
       if (nbrs[i].timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
         cnt++;
@@ -333,7 +306,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
           "Source vertex id out of range: " + std::to_string(src) +
           " >= " + std::to_string(vertex_capacity()));
     }
-    auto* nbrs = nbr_entries();
+    auto* nbrs = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
     nbrs[src].neighbor = dst;
     nbrs[src].data = data;
     CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
@@ -350,16 +323,10 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
  private:
   std::unique_ptr<IDataContainer> nbr_list_;
 
-  nbr_t* nbr_entries() {
-    assert(nbr_list_);
-    return reinterpret_cast<nbr_t*>(nbr_list_->GetData());
-  }
-  const nbr_t* nbr_entries() const {
-    assert(nbr_list_);
-    return reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
-  }
   size_t vertex_capacity() const {
-    assert(nbr_list_);
+    if (!nbr_list_) {
+      return 0;
+    }
     return nbr_list_->GetDataSize() / sizeof(nbr_t);
   }
 };

@@ -45,7 +45,8 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
     return GenericView(
-        reinterpret_cast<const char*>(adj_lists_ptr()), degree_list_ptr(), cfg,
+        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+        reinterpret_cast<const int*>(degree_list_buffer_->GetData()), cfg,
         std::numeric_limits<timestamp_t>::max() - 1, unsorted_since_);
   }
 
@@ -62,8 +63,10 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     if (!degree_list_buffer_ || !adj_list_buffer_) {
       return 0;
     }
-    const nbr_t** adj_lists_ptr = this->adj_lists_ptr();
-    auto degree_list_ptr = this->degree_list_ptr();
+    const nbr_t** adj_lists_ptr =
+        reinterpret_cast<const nbr_t**>(adj_list_buffer_->GetData());
+    const int* degree_list_ptr =
+        reinterpret_cast<const int*>(degree_list_buffer_->GetData());
     auto v_cap = size();
     for (size_t i = 0; i < v_cap; ++i) {
       auto deg = degree_list_ptr[i];
@@ -136,33 +139,6 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> degree_list_buffer_;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
   timestamp_t unsorted_since_;
-
-  nbr_t** adj_lists_ptr() {
-    assert(adj_list_buffer_);
-    return reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
-  }
-
-  const nbr_t** adj_lists_ptr() const {
-    assert(adj_list_buffer_);
-    return reinterpret_cast<const nbr_t**>(adj_list_buffer_->GetData());
-  }
-
-  int* degree_list_ptr() {
-    assert(degree_list_buffer_);
-    return reinterpret_cast<int*>(degree_list_buffer_->GetData());
-  }
-  const int* degree_list_ptr() const {
-    assert(degree_list_buffer_);
-    return reinterpret_cast<const int*>(degree_list_buffer_->GetData());
-  }
-  nbr_t* nbr_list_ptr() {
-    assert(nbr_list_buffer_);
-    return reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
-  }
-  const nbr_t* nbr_list_ptr() const {
-    assert(nbr_list_buffer_);
-    return reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
-  }
 };
 
 template <typename EDATA_T>
@@ -181,9 +157,10 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = 0;
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_list_ptr()), cfg,
-                       std::numeric_limits<timestamp_t>::max() - 1,
-                       std::numeric_limits<timestamp_t>::max());
+    return GenericView(
+        reinterpret_cast<const char*>(nbr_list_buffer_->GetData()), cfg,
+        std::numeric_limits<timestamp_t>::max() - 1,
+        std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {
@@ -201,8 +178,10 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
       return 0;
     }
     auto v_cap = nbr_list_buffer_->GetDataSize() / sizeof(nbr_t);
+    const auto* nbr_arr =
+        reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
     for (size_t i = 0; i < v_cap; ++i) {
-      if (nbr_list_ptr()[i].neighbor != std::numeric_limits<vid_t>::max()) {
+      if (nbr_arr[i].neighbor != std::numeric_limits<vid_t>::max()) {
         ++ret;
       }
     }
@@ -258,15 +237,6 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
  private:
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
-
-  nbr_t* nbr_list_ptr() {
-    assert(nbr_list_buffer_);
-    return reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
-  }
-  const nbr_t* nbr_list_ptr() const {
-    assert(nbr_list_buffer_);
-    return reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
-  }
 };
 
 }  // namespace neug

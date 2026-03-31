@@ -574,23 +574,6 @@ Status parse_bulk_load_config_yaml(const YAML::Node& root, const Schema& schema,
       get_scalar(data_source_node, "location", data_location);
     }
 
-    if (loading_config_node["memory_level"]) {
-      auto str = loading_config_node["memory_level"].as<std::string>();
-      std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-      if (str == "inmemory" || str == "in_memory" || str == "1") {
-        load_config.memory_level_ = MemoryLevel::kInMemory;
-      } else if (str == "synctofile" || str == "sync_to_file" || str == "2") {
-        load_config.memory_level_ = MemoryLevel::kSyncToFile;
-      } else if (str == "hugepagepreferred" || str == "huge_page_preferred" ||
-                 str == "3") {
-        load_config.memory_level_ = MemoryLevel::kHugePagePrefered;
-      } else {
-        LOG(WARNING) << "Unknown memory_level: " << str
-                     << ", using default InMemory";
-        load_config.memory_level_ = MemoryLevel::kInMemory;
-      }
-    }
-
     if (loading_config_node["x_csr_params"]) {
       if (get_scalar(loading_config_node["x_csr_params"],
                      loader_options::PARALLELISM, load_config.parallelism_)) {
@@ -767,8 +750,7 @@ LoadingConfig::LoadingConfig(const Schema& schema)
       scheme_("file"),
       method_(BulkLoadMethod::kInit),
       format_("csv"),
-      parallelism_(loader_options::DEFAULT_PARALLELISM),
-      memory_level_(MemoryLevel::kSyncToFile) {}
+      parallelism_(loader_options::DEFAULT_PARALLELISM) {}
 
 LoadingConfig::LoadingConfig(const Schema& schema,
                              const std::string& data_source,
@@ -779,8 +761,7 @@ LoadingConfig::LoadingConfig(const Schema& schema,
       scheme_(data_source),
       method_(method),
       format_(format),
-      parallelism_(loader_options::DEFAULT_PARALLELISM),
-      memory_level_(MemoryLevel::kSyncToFile) {
+      parallelism_(loader_options::DEFAULT_PARALLELISM) {
   metadata_[reader_options::DELIMITER] = delimiter;
 }
 
