@@ -227,8 +227,9 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
-          python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
@@ -365,8 +366,9 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
-          python3 -m pip install neug==${version} || echo "Failed to install neug ${version}"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
           rm -rf ${TMP_DIR}/test_example
           GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
 
