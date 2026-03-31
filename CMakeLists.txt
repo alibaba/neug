@@ -673,6 +673,10 @@ if(NEUG_USE_SYSTEM_ARROW)
 
     if (_ARROW_DATASET_LIB)
         list(APPEND ARROW_LIB ${_ARROW_DATASET_LIB})
+        # Expose for extension subdirectories (e.g. parquet) that need to link
+        # against the dataset library directly instead of arrow_dataset_objlib
+        # (which only exists when Arrow is built from source).
+        set(ARROW_DATASET_LIB ${_ARROW_DATASET_LIB})
     endif()
     if (_ARROW_ACERO_LIB)
         list(APPEND ARROW_LIB ${_ARROW_ACERO_LIB})

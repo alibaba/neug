@@ -38,9 +38,18 @@ target_link_libraries(neug_parquet_extension PRIVATE
 
 # Build test by compiling extension sources directly (no link to neug_parquet_extension)
 if(BUILD_TEST)
+    # arrow_dataset_objlib only exists when Arrow is built from source.
+    # Under system Arrow (CI=ON), fall back to ARROW_DATASET_LIB instead.
+    if(TARGET arrow_dataset_objlib)
+        set(_parquet_test_dataset_lib arrow_dataset_objlib)
+    elseif(ARROW_DATASET_LIB)
+        set(_parquet_test_dataset_lib ${ARROW_DATASET_LIB})
+    else()
+        set(_parquet_test_dataset_lib "")
+    endif()
     add_extension_test(NAME parquet
         TEST_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tests/parquet_test.cpp
-        EXTRA_LINK_LIBS arrow_dataset_objlib ${ARROW_PARQUET_LIB}
+        EXTRA_LINK_LIBS ${_parquet_test_dataset_lib} ${ARROW_PARQUET_LIB}
     )
 endif()
 
