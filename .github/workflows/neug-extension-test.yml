@@ -57,7 +57,7 @@ jobs:
 
     - name: Setup CCache
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache libparquet-dev
+        sudo apt-get update && sudo apt-get install -y ccache
         ccache --max-size=2G
         ccache --zero-stats
 
