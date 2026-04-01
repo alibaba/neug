@@ -33,6 +33,7 @@
 #include "neug/compiler/gopt/g_precedence.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/config.h"
 #include "neug/generated/proto/plan/algebra.pb.h"
 #include "neug/generated/proto/plan/common.pb.h"
@@ -44,8 +45,9 @@ namespace gopt {
 
 class GExprConverter {
  public:
-  GExprConverter(const std::shared_ptr<gopt::GAliasManager> aliasManager)
-      : aliasManager{std::move(aliasManager)} {}
+  GExprConverter(const std::shared_ptr<gopt::GAliasManager> aliasManager,
+                 main::ClientContext* clientContext)
+      : aliasManager{std::move(aliasManager)}, ctx{clientContext} {}
 
   // Main conversion function
   std::unique_ptr<::common::Expression> convert(
@@ -158,11 +160,13 @@ class GExprConverter {
 
   std::unique_ptr<::common::Value> castLiteral(
       const binder::Expression& castExpr);
+  std::shared_ptr<binder::Expression> foldExpression(
+      std::shared_ptr<binder::Expression> expr);
 
- private:
   const std::shared_ptr<gopt::GAliasManager> aliasManager;
   gopt::GPhysicalTypeConverter typeConverter;
   gopt::GPrecedence preced;
+  main::ClientContext* ctx;
 };
 
 }  // namespace gopt

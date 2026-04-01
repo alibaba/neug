@@ -69,7 +69,7 @@ neug::result<Context> CreateEdge::insert_edge(
                             std::to_string(dst_label) + ", got " +
                             std::to_string(v2.label_));
       }
-      std::vector<Property> property_values(properties.size());
+      std::vector<OwnedProperty> owned_props(properties.size());
       for (size_t j = 0; j < properties.size(); ++j) {
         const auto& [prop_name, prop_expr] = properties[j];
         Value value = prop_expr->Cast<RecordExprBase>().eval_record(ctx, i);
@@ -83,11 +83,16 @@ neug::result<Context> CreateEdge::insert_edge(
         } else {
           size_t index = std::distance(properties_name.begin(), it);
           if (value.IsNull()) {
-            property_values[index] = default_values[index];
+            owned_props[index] = OwnedProperty(default_values[index]);
           } else {
-            property_values[index] = value_to_property(value);
+            owned_props[index] = value_to_property(value);
           }
         }
+      }
+      // Extract Property views for storage layer (owned_props keeps memory alive)
+      std::vector<Property> property_values(owned_props.size());
+      for (size_t k = 0; k < owned_props.size(); ++k) {
+        property_values[k] = owned_props[k].prop();
       }
       if (!graph.AddEdge(src_label, v1.vid_, dst_label, v2.vid_, edge_label,
                          property_values)) {

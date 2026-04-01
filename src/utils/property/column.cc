@@ -74,6 +74,9 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   case DataTypeId::kEmpty: {
     return std::make_shared<TypedColumn<EmptyType>>();
   }
+  case DataTypeId::kList: {
+    return std::make_shared<ListColumn>(type);
+  }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
                                   type.ToString());
@@ -93,6 +96,10 @@ std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   case DataTypeId::kVarchar: {
     return std::make_shared<TypedRefColumn<std::string_view>>(
         dynamic_cast<const StringColumn&>(column));
+  }
+  case DataTypeId::kList: {
+    return std::make_shared<TypedRefColumn<ListView>>(
+        dynamic_cast<const ListColumn&>(column));
   }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for reference column: " +

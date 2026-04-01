@@ -339,7 +339,7 @@ bool ConstantExpressionVisitor::isConstant(const Expression& expr) {
 bool ConstantExpressionVisitor::visitFunction(const Expression& expr) {
   auto& funcExpr = expr.constCast<ScalarFunctionExpression>();
   if (funcExpr.getFunction().name == function::ListCreationFunction::name) {
-    return false;
+    return visitChildren(expr);
   }
 
   auto& function = funcExpr.getFunction();

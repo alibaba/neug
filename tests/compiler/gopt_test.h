@@ -249,7 +249,8 @@ class GOptTest : public ::testing::Test {
   std::unique_ptr<::physical::PhysicalPlan> planPhysical(
       const planner::LogicalPlan& plan,
       std::shared_ptr<gopt::GAliasManager> aliasManager) {
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog(),
+                                       ctx.get());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }
@@ -258,7 +259,8 @@ class GOptTest : public ::testing::Test {
       const planner::LogicalPlan& plan) {
     // Convert to physical plan
     auto aliasManager = std::make_shared<gopt::GAliasManager>(plan);
-    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog());
+    gopt::GPhysicalConvertor converter(aliasManager, database->getCatalog(),
+                                       ctx.get());
     auto physicalPlan = converter.convert(plan);
     return physicalPlan;
   }

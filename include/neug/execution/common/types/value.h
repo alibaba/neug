@@ -25,7 +25,9 @@
 #include <charconv>
 #include "neug/common/types.h"
 #include "neug/execution/common/types/graph_types.h"
+#include "neug/execution/common/types/owned_property.h"
 #include "neug/execution/utils/numeric_cast.h"
+#include "neug/utils/property/list_view.h"
 
 namespace neug {
 class Property;
@@ -631,8 +633,8 @@ bool Value::ApplyComparisonOp(const Value& lhs, const Value& rhs) {
   }
 }
 
-Property value_to_property(const Value& value);
-Value property_to_value(const Property& property);
+OwnedProperty value_to_property(const Value& value);
+Value property_to_value(const Property& property, const DataType& type);
 
 template <typename T>
 Value performCast(const Value& input) {

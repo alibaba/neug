@@ -21,6 +21,7 @@
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/gopt/g_expr_converter.h"
 #include "neug/compiler/gopt/g_type_converter.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/ddl/logical_alter.h"
 #include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/ddl/logical_drop.h"
@@ -45,8 +46,9 @@ struct EdgeLabel {
 class GDDLConverter {
  public:
   explicit GDDLConverter(std::shared_ptr<GAliasManager> aliasManager,
-                         neug::catalog::Catalog* catalog)
-      : catalog{catalog}, exprConverter(aliasManager) {}
+                         neug::catalog::Catalog* catalog,
+                         main::ClientContext* clientContext)
+      : catalog{catalog}, exprConverter(aliasManager, clientContext) {}
 
   virtual ~GDDLConverter() = default;
 

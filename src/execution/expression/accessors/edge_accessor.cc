@@ -62,7 +62,7 @@ class BindedEdgePropertyAccessor : public EdgeExprBase {
     }
     auto accessor = it->second;
     auto prop = accessor.get_data_from_ptr(data_ptr);
-    return property_to_value(prop);
+    return property_to_value(prop, type_);
   }
 
   const DataType& type() const override { return type_; }

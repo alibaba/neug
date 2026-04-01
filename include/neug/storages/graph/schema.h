@@ -42,11 +42,16 @@ class Schema;
 inline void process_default_values(
     std::vector<Property>& default_property_values,
     std::vector<std::string>& default_property_strings) {
-  // Keep the ownership of string default property in default_property_strings
+  // Keep the ownership of string/list default property in
+  // default_property_strings so the Property's string_view remains valid.
   for (auto& prop : default_property_values) {
     if (prop.type() == DataTypeId::kVarchar && prop.as_string_view() != "") {
       default_property_strings.emplace_back(prop.as_string_view());
       prop.set_string_view(std::string_view(default_property_strings.back()));
+    } else if (prop.type() == DataTypeId::kList &&
+               !prop.as_list_data().empty()) {
+      default_property_strings.emplace_back(prop.as_list_data());
+      prop.set_list_data(std::string_view(default_property_strings.back()));
     }
   }
 }

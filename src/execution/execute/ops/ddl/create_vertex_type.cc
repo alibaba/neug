@@ -41,11 +41,13 @@ class CreateVertexTypeOpr : public IOperator {
     StorageUpdateInterface& storage =
         dynamic_cast<StorageUpdateInterface&>(graph);
     CreateVertexTypeParamBuilder builder;
+    std::vector<OwnedProperty> owned_defaults;
     builder.VertexLabel(type_name_).PrimaryKeyNames(pks_);
     std::vector<std::tuple<DataType, std::string, Property>> property_tuples;
     for (const auto& [prop_name, prop_value] : properties_) {
+      owned_defaults.emplace_back(value_to_property(prop_value));
       builder.AddProperty(prop_value.type(), prop_name,
-                           value_to_property(prop_value));
+                          owned_defaults.back().prop());
     }
     auto res = storage.CreateVertexType(builder.Build(), error_on_conflict_);
     if (!res.ok()) {

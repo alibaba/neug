@@ -659,9 +659,9 @@ neug::result<Context> Join::pk_join(IStorageInterface& graph, Context&& ctx,
   for (label_t label : labels) {
     builder.start_label(label);
     for (size_t i = 0; i < row_num; ++i) {
-      auto any = value_to_property(column->get_elem(i));
+      auto owned_any = value_to_property(column->get_elem(i));
       vid_t index;
-      if (graph.GetVertexIndex(label, any, index)) {
+      if (graph.GetVertexIndex(label, owned_any.prop(), index)) {
         builder.push_back_opt(index);
         offsets.push_back(i);
       }

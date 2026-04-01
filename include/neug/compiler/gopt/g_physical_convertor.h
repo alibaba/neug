@@ -19,6 +19,7 @@
 #include "neug/compiler/gopt/g_ddl_converter.h"
 #include "neug/compiler/gopt/g_physical_analyzer.h"
 #include "neug/compiler/gopt/g_query_converter.h"
+#include "neug/compiler/main/client_context.h"
 #include "neug/compiler/planner/operator/logical_plan.h"
 #include "neug/compiler/planner/operator/simple/logical_extension.h"
 #include "neug/generated/proto/plan/physical.pb.h"
@@ -29,8 +30,11 @@ namespace gopt {
 class GPhysicalConvertor {
  public:
   GPhysicalConvertor(std::shared_ptr<GAliasManager> aliasManager,
-                     neug::catalog::Catalog* catalog)
-      : aliasManager{aliasManager}, catalog{catalog} {}
+                     neug::catalog::Catalog* catalog,
+                     main::ClientContext* clientContext)
+      : aliasManager{aliasManager},
+        catalog{catalog},
+        clientContext{clientContext} {}
 
   std::unique_ptr<::physical::PhysicalPlan> createEmptyPlan() {
     auto physicalPlan = std::make_unique<::physical::PhysicalPlan>();
@@ -83,13 +87,15 @@ class GPhysicalConvertor {
  private:
   std::unique_ptr<::physical::PhysicalPlan> convertQuery(
       const planner::LogicalPlan& plan, bool skipSink) {
-    auto converter = std::make_unique<GQueryConvertor>(aliasManager, catalog);
+    auto converter =
+        std::make_unique<GQueryConvertor>(aliasManager, catalog, clientContext);
     return converter->convert(plan, skipSink);
   }
 
  private:
   std::shared_ptr<GAliasManager> aliasManager;
   neug::catalog::Catalog* catalog;
+  main::ClientContext* clientContext;
 };
 
 }  // namespace gopt

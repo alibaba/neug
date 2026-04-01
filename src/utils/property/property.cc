@@ -57,6 +57,12 @@ Property get_default_value(const DataTypeId& type) {
   case DataTypeId::kInterval:
     default_value.set_interval(Interval());
     break;
+  case DataTypeId::kList:
+    // An empty list blob (no elements) serves as the default value for list
+    // properties.  ListView::size() returns 0 when the blob is shorter than
+    // 4 bytes, so an empty string_view is a valid representation.
+    default_value.set_list_data(std::string_view{});
+    break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION(
         "Unsupported property type for default value: " + std::to_string(type) +
@@ -91,6 +97,8 @@ InArchive& operator<<(InArchive& in_archive, const Property& value) {
   } else if (value.type() == DataTypeId::kInterval) {
     in_archive << value.type() << value.as_interval().months
                << value.as_interval().days << value.as_interval().micros;
+  } else if (value.type() == DataTypeId::kList) {
+    in_archive << value.type() << value.as_list_data();
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION(std::string("Not supported: ") +
                                   std::to_string(value.type()));
@@ -148,6 +156,10 @@ OutArchive& operator>>(OutArchive& out_archive, Property& value) {
     out_archive >> interval_val.months >> interval_val.days >>
         interval_val.micros;
     value.set_interval(interval_val);
+  } else if (pt == DataTypeId::kList) {
+    std::string_view tmp;
+    out_archive >> tmp;
+    value.set_list_data(tmp);
   } else {
     THROW_NOT_SUPPORTED_EXCEPTION("Not supported: " +
                                   std::to_string(value.type()));

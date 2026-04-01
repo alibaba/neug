@@ -39,7 +39,7 @@ class BindedVertexPropertyAccessor : public VertexExprBase {
       return Value(type_);  // return null value
     }
     auto val = property_columns_[v_label]->get(v);
-    return property_to_value(val);
+    return property_to_value(val, type_);
   }
 
   const DataType& type() const override { return type_; }
