@@ -50,30 +50,16 @@ class Connection;
 static void IngestWalRange(PropertyGraph& graph,
                            std::vector<std::shared_ptr<Allocator>>& allocators,
                            const IWalParser& parser, uint32_t from, uint32_t to,
-                           const std::string& work_dir, int thread_num) {
-  std::atomic<uint32_t> cur_ts(from);
-  std::vector<std::thread> threads(thread_num);
-  assert(thread_num == allocators.size());
-  for (int i = 0; i < thread_num; ++i) {
-    threads[i] = std::thread(
-        [&](int tid) {
-          while (true) {
-            uint32_t got_ts = cur_ts.fetch_add(1);
-            if (got_ts >= to) {
-              break;
-            }
-            const auto& unit = parser.get_insert_wal(got_ts);
-            InsertTransaction::IngestWal(graph, got_ts, unit.ptr, unit.size,
-                                         *allocators[i]);
-            if (got_ts % 1000000 == 0) {
-              LOG(INFO) << "Ingested " << got_ts << " WALs";
-            }
-          }
-        },
-        i);
+                           const std::string& work_dir) {
+  if (from >= to) {
+    return;
   }
-  for (auto& thrd : threads) {
-    thrd.join();
+  for (size_t j = from; j < to; ++j) {
+    const auto& unit = parser.get_insert_wal(j);
+    InsertTransaction::IngestWal(graph, j, unit.ptr, unit.size, *allocators[0]);
+    if (j % 1000000 == 0) {
+      LOG(INFO) << "Ingested " << j << " WALs";
+    }
   }
 }
 
@@ -252,8 +238,7 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
   for (auto& update_wal : parser.get_update_wals()) {
     uint32_t to_ts = update_wal.timestamp;
     if (from_ts < to_ts) {
-      IngestWalRange(graph_, allocators_, parser, from_ts, to_ts, work_dir,
-                     thread_num_);
+      IngestWalRange(graph_, allocators_, parser, from_ts, to_ts, work_dir);
     }
     if (update_wal.size == 0) {
       graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
@@ -267,7 +252,7 @@ void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
   }
   if (from_ts <= parser.last_ts()) {
     IngestWalRange(graph_, allocators_, parser, from_ts, parser.last_ts() + 1,
-                   work_dir, thread_num_);
+                   work_dir);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
   last_ts_ = parser.last_ts();

@@ -69,7 +69,7 @@ class OprTimer {
   OprTimer* next() { return next_.get(); }
 
   void output(const std::string& prefix, std::ostream& os) const {
-    os << prefix << name_ << " elapsed: " << time_ << " ms, " << numTuples_
+    os << prefix << name_ << " elapsed: " << time_ << " s, " << numTuples_
        << " tuples" << std::endl;
     int idx = 0;
     std::string child_prefix = prefix + "         ";

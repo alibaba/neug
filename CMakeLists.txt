@@ -673,6 +673,10 @@ if(NEUG_USE_SYSTEM_ARROW)
 
     if (_ARROW_DATASET_LIB)
         list(APPEND ARROW_LIB ${_ARROW_DATASET_LIB})
+        # Expose for extension subdirectories (e.g. parquet) that need to link
+        # against the dataset library directly instead of arrow_dataset_objlib
+        # (which only exists when Arrow is built from source).
+        set(ARROW_DATASET_LIB ${_ARROW_DATASET_LIB})
     endif()
     if (_ARROW_ACERO_LIB)
         list(APPEND ARROW_LIB ${_ARROW_ACERO_LIB})
@@ -682,6 +686,58 @@ if(NEUG_USE_SYSTEM_ARROW)
     endif()
     if (_ARROW_IO_LIB)
         list(APPEND ARROW_LIB ${_ARROW_IO_LIB})
+    endif()
+
+    # Resolve Parquet when the parquet extension is enabled.
+    # find_package(Parquet) must be called first to register Parquet::parquet_*
+    # targets, which resolve_system_arrow_component can then locate.
+    if(ARROW_ENABLE_PARQUET)
+        find_package(Parquet CONFIG QUIET)
+        if(NOT Parquet_FOUND)
+            message(WARNING "System Parquet package not found; parquet extension headers may be missing")
+        else()
+            # Extract Parquet include directories so extension sources and tests
+            # can find <parquet/properties.h> and <parquet/arrow/writer.h> when
+            # compiling against system Arrow.
+            #
+            # Strategy 1: read INTERFACE_INCLUDE_DIRECTORIES from the imported
+            # target. Skip generator expressions ($<...>) since
+            # include_directories() cannot resolve them as plain paths.
+            set(_parquet_inc "")
+            foreach(_parquet_target Parquet::parquet_static Parquet::parquet parquet_static parquet)
+                if(TARGET ${_parquet_target})
+                    get_target_property(_parquet_inc ${_parquet_target} INTERFACE_INCLUDE_DIRECTORIES)
+                    if(_parquet_inc AND NOT _parquet_inc MATCHES "\\$<")
+                        list(APPEND ARROW_INCLUDE_DIRS ${_parquet_inc})
+                        message(STATUS "Appended Parquet include dirs from ${_parquet_target}: ${_parquet_inc}")
+                    endif()
+                    break()
+                endif()
+            endforeach()
+            # Strategy 2: find_path fallback — used when Strategy 1 found no
+            # plain path (e.g. INTERFACE_INCLUDE_DIRECTORIES only has generator
+            # expressions, or the target was not found).
+            if(NOT _parquet_inc OR _parquet_inc MATCHES "\\$<")
+                find_path(_PARQUET_INCLUDE_DIR
+                    NAMES parquet/properties.h
+                    HINTS ${ARROW_INCLUDE_DIR} /usr/include /usr/local/include
+                    NO_DEFAULT_PATH)
+                if(NOT _PARQUET_INCLUDE_DIR)
+                    find_path(_PARQUET_INCLUDE_DIR NAMES parquet/properties.h)
+                endif()
+                if(_PARQUET_INCLUDE_DIR)
+                    list(APPEND ARROW_INCLUDE_DIRS ${_PARQUET_INCLUDE_DIR})
+                    message(STATUS "Appended Parquet include dir via find_path: ${_PARQUET_INCLUDE_DIR}")
+                else()
+                    message(WARNING "Could not locate parquet/properties.h; parquet extension may fail to compile")
+                endif()
+            endif()
+        endif()
+        resolve_system_arrow_component(parquet ARROW_PARQUET_LIB)
+        if(ARROW_PARQUET_LIB)
+            list(APPEND ARROW_LIB ${ARROW_PARQUET_LIB})
+            message(STATUS "Found system parquet lib: ${ARROW_PARQUET_LIB}")
+        endif()
     endif()
 else()
     include(cmake/BuildArrowAsThirdParty.cmake)

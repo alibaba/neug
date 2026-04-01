@@ -580,10 +580,6 @@ class PropertyGraph {
     return vertex_tables_[label].GetVertexSet(ts);
   }
 
-  inline std::string statisticsFilePath() const {
-    return work_dir_ + "/statistics.json";
-  }
-
   std::string get_statistics_json() const;
 
   inline std::string get_schema_yaml_path() const {
@@ -591,8 +587,6 @@ class PropertyGraph {
   }
 
   inline std::string work_dir() const { return work_dir_; }
-
-  void generateStatistics() const;
 
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,
