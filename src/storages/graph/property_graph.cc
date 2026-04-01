@@ -765,25 +765,6 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  write_yaml_file(schema_res.value(), filename);
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
-}
-
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
                          MemoryLevel memory_level) {
   schema_ = schema;
@@ -1073,6 +1054,27 @@ void PropertyGraph::Dump(bool reopen) {
   }
 }
 
+void PropertyGraph::DumpSchema() {
+  auto _schema_path = schema_path(work_dir_);
+  std::ofstream out(_schema_path);
+  schema_.Serialize(out);
+  out.flush();
+  out.close();
+
+  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.error().error_message();
+    return;
+  }
+  if (!write_yaml_file(schema_res.value(), filename)) {
+    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
+  }
+  LOG(INFO) << "Dump schema to yaml file: " << filename;
+}
+
 const Schema& PropertyGraph::schema() const { return schema_; }
 
 Schema& PropertyGraph::mutable_schema() { return schema_; }
@@ -1268,20 +1270,6 @@ std::string PropertyGraph::get_statistics_json() const {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   document.Accept(writer);
   return buffer.GetString();
-}
-
-void PropertyGraph::generateStatistics() const {
-  std::string filename = statisticsFilePath();
-
-  {
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-      LOG(ERROR) << "Failed to open file: " << filename;
-      return;
-    }
-    out << get_statistics_json();
-    out.close();
-  }
 }
 
 Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,
