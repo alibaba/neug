@@ -73,7 +73,7 @@ jobs:
         python-version: '3.13'
 
     # TODO: After unifying wheel build (neug-manylinux:v0.1.0-x86_64) and dev images (neug-dev:v0.1.0), 
-    # skip the build process and use `pip3 install neug` to test the locally built json extension 
+    # skip the build process and use `pip3 install neug` to test the locally built json/parquet extension 
     # with the released wheel package.
     - name: Build NeuG with extensions
       run: |
@@ -88,7 +88,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json"
+        export BUILD_EXTENSIONS="json;parquet"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
@@ -169,7 +169,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -248,7 +248,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
