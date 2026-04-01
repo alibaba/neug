@@ -1061,7 +1061,6 @@ void PropertyGraph::DumpSchema() {
   out.flush();
   out.close();
 
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();
   if (!schema_res) {
@@ -1072,7 +1071,7 @@ void PropertyGraph::DumpSchema() {
   if (!write_yaml_file(schema_res.value(), filename)) {
     THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
   }
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
+  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
