@@ -765,7 +765,6 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
                          MemoryLevel memory_level) {
   schema_ = schema;
@@ -1070,7 +1069,9 @@ void PropertyGraph::DumpSchema() {
                << schema_res.error().error_message();
     return;
   }
-  write_yaml_file(schema_res.value(), filename);
+  if (!write_yaml_file(schema_res.value(), filename)) {
+    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
+  }
   LOG(INFO) << "Dump schema to yaml file: " << filename;
 }
 
