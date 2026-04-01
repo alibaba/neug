@@ -74,6 +74,9 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   case DataTypeId::kEmpty: {
     return std::make_shared<TypedColumn<EmptyType>>();
   }
+  case DataTypeId::kList: {
+    return std::make_shared<ListColumn>(type);
+  }
   default: {
     THROW_NOT_SUPPORTED_EXCEPTION("Unsupported type for column: " +
                                   type.ToString());

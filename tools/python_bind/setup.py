@@ -80,7 +80,6 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
-
     def initialize_options(self):
         super().initialize_options()
         # We set the build_temp to the local build/ directory

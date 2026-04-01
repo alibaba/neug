@@ -24,7 +24,6 @@ DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "type_pb2", globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
-
     DESCRIPTOR._options = None
     DESCRIPTOR._serialized_options = (
         b"\n!com.alibaba.graphscope.gaia.protoB\010DataType"

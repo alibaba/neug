@@ -119,6 +119,20 @@ static std::unique_ptr<ExprBase> build_expr(
       return std::make_unique<TupleExpr>(std::move(exprs_vec));
     }
 
+    case ::common::ExprOpr::kToList: {
+      const auto& list_fields = opr.to_list().fields();
+      std::vector<std::unique_ptr<ExprBase>> exprs_vec;
+      for (int i = 0; i < list_fields.size(); ++i) {
+        exprs_vec.emplace_back(
+            parse_expression(list_fields[i], ctx_meta, var_type));
+      }
+      DataType list_type = opr.has_node_type()
+                               ? parse_from_ir_data_type(opr.node_type())
+                               : DataType::List(exprs_vec[0]->type());
+      return std::make_unique<ListExpr>(std::move(exprs_vec),
+                                        std::move(list_type));
+    }
+
     case ::common::ExprOpr::kToDate: {
       Date date(opr.to_date().date_str());
       return std::make_unique<ConstExpr>(Value::DATE(date));
@@ -317,6 +331,7 @@ std::unique_ptr<ExprBase> parse_expression(const ::common::Expression& expr,
     case ::common::ExprOpr::kToDate:
     case ::common::ExprOpr::kToDatetime:
     case ::common::ExprOpr::kToTuple:
+    case ::common::ExprOpr::kToList:
     case ::common::ExprOpr::kScalarFunc:
     case ::common::ExprOpr::kPathFunc: {
       opr_stack2.push(*it);

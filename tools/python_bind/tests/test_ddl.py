@@ -487,3 +487,20 @@ def test_drop_add_edge_table_column():
     # assert list(ret) == [["unknown"], ["unknown"], ["unknown"], ["unknown"], ["test"]]
     conn2.close()
     db2.close()
+
+
+def test_list_type():
+    db_dir = "/tmp/test_list_type"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    res = conn.execute("Return ['tag1', 'tag2'];")
+    assert list(res) == [[["tag1", "tag2"]]]
+    conn.execute(
+        "CREATE NODE TABLE TestNode(id INT64, tags STRING[], PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE (:TestNode {id: 1, tags: ['tag1', 'tag2']});")
+    res = conn.execute("Match (n:TestNode) Return n.tags;")
+    assert list(res) == [[["tag1", "tag2"]]]
+    conn.close()
+    db.close()
