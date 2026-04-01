@@ -471,6 +471,64 @@ neug::result<OpBuildResultT> EdgeExpandGetVOprBuilder::Build(
   }
   return std::make_pair(nullptr, ContextMeta());
 }
+
+class ExpandCountOpr : public IOperator {
+ public:
+  ExpandCountOpr(const EdgeExpandParams& eep) : eep_(eep) {}
+
+  neug::result<neug::execution::Context> Eval(
+      IStorageInterface& graph_interface, const ParamsMap& params,
+      neug::execution::Context&& ctx,
+      neug::execution::OprTimer* timer) override {
+    const auto& graph =
+        dynamic_cast<const StorageReadInterface&>(graph_interface);
+    return EdgeExpand::expand_count(graph, std::move(ctx), eep_);
+  }
+
+  std::string get_operator_name() const override { return "ExpandCountOpr"; }
+
+ private:
+  EdgeExpandParams eep_;
+};
+
+neug::result<OpBuildResultT> ExpandCountFuseBuilder::Build(
+    const neug::Schema& schema, const ContextMeta& ctx_meta,
+    const physical::PhysicalPlan& plan, int op_idx) {
+  auto group_by_opr = plan.plan(op_idx + 1).opr().group_by();
+  if (group_by_opr.mappings_size() != 0 || group_by_opr.functions_size() != 1) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  auto func = group_by_opr.functions(0);
+  if (func.vars_size() != 0 || func.aggregate() !=
+                                   physical::GroupBy_AggFunc_Aggregate::
+                                       GroupBy_AggFunc_Aggregate_COUNT) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  auto edge_opr = plan.plan(op_idx).opr().edge();
+  if (edge_opr.expand_opt() ==
+          physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX ||
+      edge_opr.expand_opt() ==
+          physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  if (edge_opr.is_optional()) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  if (edge_opr.has_params() && edge_opr.params().has_predicate()) {
+    return std::make_pair(nullptr, ContextMeta());
+  }
+  EdgeExpandParams eep;
+  int v_tag = edge_opr.has_v_tag() ? edge_opr.v_tag().value() : -1;
+  eep.v_tag = v_tag;
+  eep.labels = parse_label_triplets(plan.plan(op_idx).meta_data(0));
+  eep.dir = parse_direction(edge_opr.direction());
+  eep.is_optional = edge_opr.is_optional();
+  int alias = func.has_alias() ? func.alias().value() : -1;
+  eep.alias = alias;
+  ContextMeta meta;
+  meta.set(alias, DataType::INT64);
+  return std::make_pair(std::make_unique<ExpandCountOpr>(eep), meta);
+}
 }  // namespace ops
 
 }  // namespace execution

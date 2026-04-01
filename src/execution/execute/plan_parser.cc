@@ -82,6 +82,7 @@ void PlanParser::init() {
 
   register_operator_builder(std::make_unique<ops::TCOprBuilder>());
   register_operator_builder(std::make_unique<ops::EdgeExpandGetVOprBuilder>());
+  register_operator_builder(std::make_unique<ops::ExpandCountFuseBuilder>());
   register_operator_builder(std::make_unique<ops::EdgeExpandOprBuilder>());
 
   register_operator_builder(std::make_unique<ops::VertexOprBuilder>());
