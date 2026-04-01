@@ -1043,6 +1043,19 @@ void PropertyGraph::Dump(bool reopen) {
       }
     }
   }
+  DumpSchema();
+  copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
+  remove_directory(target_dir);
+  remove_directory(tmp_dir(work_dir_));
+  remove_directory(wal_dir(work_dir_));
+  LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
+  Clear();
+  if (reopen) {
+    Open(work_dir_, memory_level_);
+  }
+}
+
+void PropertyGraph::DumpSchema() {
   auto _schema_path = schema_path(work_dir_);
   std::ofstream out(_schema_path);
   schema_.Serialize(out);
@@ -1059,15 +1072,6 @@ void PropertyGraph::Dump(bool reopen) {
   }
   write_yaml_file(schema_res.value(), filename);
   LOG(INFO) << "Dump schema to yaml file: " << filename;
-  copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
-  remove_directory(target_dir);
-  remove_directory(tmp_dir(work_dir_));
-  remove_directory(wal_dir(work_dir_));
-  LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
-  Clear();
-  if (reopen) {
-    Open(work_dir_, memory_level_);
-  }
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

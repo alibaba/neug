@@ -140,6 +140,8 @@ class PropertyGraph {
    */
   void Dump(bool reopen = true);
 
+  void DumpSchema();
+
   /**
    * @brief Get read-only access to the schema.
    *
