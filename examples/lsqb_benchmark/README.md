@@ -29,7 +29,21 @@ pip install -r requirements.txt
 
 # Run the benchmark
 python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+
+# To overwrite an existing database, use --force
+python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 ```
+
+## Command Line Options
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--data-dir` | Yes | - | Path to LDBC SNB SF1 dataset directory |
+| `--db-path` | No | `./lsqb_sf1.db` | Path to NeuG database |
+| `--derived-dir` | No | `./derived_csvs` | Path to derived CSV directory |
+| `--output-dir` | No | `./results` | Path to output directory |
+| `--skip-load` | No | false | Skip data loading (use existing database) |
+| `--force` | No | false | Force overwrite existing database |
 
 ## Expected Results
 

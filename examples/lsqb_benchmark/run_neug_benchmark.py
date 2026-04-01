@@ -160,12 +160,18 @@ def preprocess_csvs(data_dir: Path, derived_dir: Path) -> Dict[str, Path]:
 
     for relpath, new_header in DEDUP_CSVS.items():
         out = derived_dir / Path(relpath).name
-        mapping[relpath] = out
-        if out.exists():
-            continue
         src = data_dir / relpath
+
+        # Only add to mapping if source file exists
         if not src.exists():
+            print(f"  Warning: Source CSV not found: {relpath}")
             continue
+
+        # Add to mapping (either use existing derived file or create new one)
+        if out.exists():
+            mapping[relpath] = out
+            continue
+
         with src.open("r", encoding="utf-8") as fi, \
              out.open("w", encoding="utf-8", newline="") as fo:
             reader = csv.reader(fi, delimiter="|")
@@ -176,6 +182,7 @@ def preprocess_csvs(data_dir: Path, derived_dir: Path) -> Dict[str, Path]:
             writer.writerow(new_header)
             for row in reader:
                 writer.writerow(row)
+        mapping[relpath] = out
 
     return mapping
 
@@ -262,7 +269,7 @@ def get_copy_statements(data_dir: Path, dedup_map: Dict[str, Path],
     ]
 
 
-def load_data(data_dir: Path, db_path: Path, derived_dir: Path):
+def load_data(data_dir: Path, db_path: Path, derived_dir: Path, force: bool = False):
     """Load LDBC SNB SF1 data into NeuG."""
     from neug.database import Database
 
@@ -270,8 +277,35 @@ def load_data(data_dir: Path, db_path: Path, derived_dir: Path):
     print(f"  Data directory: {data_dir}")
     print(f"  Database path: {db_path}")
 
-    # Clean up existing database
+    # Clean up existing database with safety checks
     if db_path.exists():
+        # Safety check: refuse to delete dangerous paths
+        abs_path = db_path.resolve()
+        dangerous_paths = [
+            Path.home(),
+            Path.home() / "Documents",
+            Path("/"),
+            Path.cwd(),
+        ]
+        for dangerous in dangerous_paths:
+            if abs_path == dangerous or str(abs_path).startswith(str(dangerous) + "/") and abs_path.parent == dangerous:
+                print(f"Error: Refusing to delete path: {db_path}")
+                print("       This path appears to be a system or user directory.")
+                print("       Please specify a different --db-path.")
+                raise SystemExit(1)
+
+        # Check if it looks like a NeuG database
+        if not (db_path.is_dir() and (db_path / "graph.yaml").exists()):
+            print(f"Warning: {db_path} exists but does not look like a NeuG database.")
+            if not force:
+                print("       Use --force to overwrite.")
+                raise SystemExit(1)
+
+        if not force:
+            print(f"Error: Database already exists: {db_path}")
+            print("       Use --force to overwrite.")
+            raise SystemExit(1)
+
         print(f"  Removing existing database...")
         shutil.rmtree(db_path)
 
@@ -392,7 +426,8 @@ def print_results(results: List[QueryResult]):
     print(f"|-------|----------|--------|--------|")
     for r in results:
         status = "OK" if r.ok else "FAIL"
-        print(f"| Q{r.query_id}    | {r.elapsed_ms:8.2f} | {r.result or 'N/A':>12} | {status} |")
+        result_str = "N/A" if r.result is None else str(r.result)
+        print(f"| Q{r.query_id}    | {r.elapsed_ms:8.2f} | {result_str:>12} | {status} |")
 
 
 def save_results(results: List[QueryResult], output_dir: Path):
@@ -436,6 +471,8 @@ def main():
                         help="Path to output directory")
     parser.add_argument("--skip-load", action="store_true",
                         help="Skip data loading (use existing database)")
+    parser.add_argument("--force", action="store_true",
+                        help="Force overwrite existing database")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -452,7 +489,7 @@ def main():
             return 1
 
         # Load data
-        load_data(data_dir, db_path, derived_dir)
+        load_data(data_dir, db_path, derived_dir, force=args.force)
     else:
         if not db_path.exists():
             print(f"Error: Database not found: {db_path}")

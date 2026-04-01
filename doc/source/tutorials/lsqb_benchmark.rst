@@ -47,10 +47,10 @@ Benchmark Script
 ----------------
 
 The complete benchmark script is available in the NeuG repository at
-``examples/lsqb_benchmark/``. Here's a simplified version:
+``examples/lsqb_benchmark/run_neug_benchmark.py``. Here's a simplified version:
 
 .. code-block:: python
-   :caption: run_lsqb_benchmark.py
+   :caption: run_neug_benchmark.py (simplified)
 
    import json
    import time
@@ -189,7 +189,11 @@ Running the Benchmark
    pip install neug
 
    # 3. Run the benchmark
-   python run_lsqb_benchmark.py
+   cd neug/examples/lsqb_benchmark
+   python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+
+   # Or with force to overwrite existing database
+   python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 
 Expected Results
 ----------------
