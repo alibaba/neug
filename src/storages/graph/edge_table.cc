@@ -14,6 +14,8 @@
  */
 
 #include "neug/storages/graph/edge_table.h"
+#include "neug/execution/common/types/value.h"
+#include "neug/utils/property/nest_column.h"
 
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
@@ -300,12 +302,10 @@ static std::vector<execution::Value> get_row_from_recordbatch(
   for (int i = 0; i < rb->num_columns(); ++i) {
     auto array = rb->column(i);
     if (!array->type()->Equals(expected_types[i])) {
-      // Except for large string and string
       if ((expected_types[i]->Equals(arrow::utf8()) &&
            array->type()->Equals(arrow::large_utf8())) ||
           (expected_types[i]->Equals(arrow::large_utf8()) &&
            array->type()->Equals(arrow::utf8()))) {
-        // pass
       } else {
         THROW_INVALID_ARGUMENT_EXCEPTION(
             std::string("property type not match recordbatch column type: ") +
@@ -371,6 +371,21 @@ static std::vector<execution::Value> get_row_from_recordbatch(
         THROW_NOT_IMPLEMENTED_EXCEPTION("Not support typed: " +
                                         array->type()->ToString());
       }
+      break;
+    }
+    case DataTypeId::kList: {
+      auto list_arr = std::static_pointer_cast<arrow::ListArray>(array);
+      auto child_type = ListType::GetChildType(prop_types[i]);
+      auto values_arr = list_arr->values();
+      auto start = list_arr->value_offset(row_idx);
+      auto length = list_arr->value_length(row_idx);
+      std::vector<execution::Value> children;
+      children.reserve(length);
+      for (int64_t j = 0; j < length; ++j) {
+        children.push_back(
+            arrow_element_to_value(values_arr, start + j, child_type));
+      }
+      row.push_back(execution::Value::LIST(child_type, std::move(children)));
       break;
     }
     default:
@@ -748,7 +763,8 @@ void EdgeTable::AddProperties(
     // NOTE: Rather than check meta_->is_bundled(),we check whether the table
     // is empty.
     if (meta_->properties.size() == 1 &&
-        meta_->properties[0].id() != DataTypeId::kVarchar) {
+        meta_->properties[0].id() != DataTypeId::kVarchar &&
+        meta_->properties[0].id() != DataTypeId::kList) {
       dropAndCreateNewBundledCSR(ckp, nullptr);
     } else {
       dropAndCreateNewUnbundledCSR(ckp, false);
@@ -795,7 +811,8 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
       dropAndCreateNewUnbundledCSR(ckp, true);
     } else if (table_->col_num() == 1) {
       auto remaining_col = table_->get_column_by_id(0);
-      if (remaining_col->type() != DataTypeId::kVarchar) {
+      if (remaining_col->type() != DataTypeId::kVarchar &&
+          remaining_col->type() != DataTypeId::kList) {
         dropAndCreateNewBundledCSR(ckp, remaining_col);
       }
     }
@@ -893,6 +910,7 @@ void EdgeTable::BatchAddEdges(
     }
     EnsureCapacity(new_cap);
   }
+
   if (meta_->is_bundled()) {
     std::vector<execution::Value> flat_edge_data;
     assert(meta_->properties.size() == 1);
@@ -1151,9 +1169,17 @@ EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
   if (!es->is_bundled()) {
     auto table = std::make_unique<Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
+      const std::string key = KeyProperty(src, edge, dst, i);
+      auto col = store.TakeModule<ColumnBase>(key);
+      if (es->properties[i].id() == DataTypeId::kList) {
+        auto* list_col = dynamic_cast<ListColumn*>(col.get());
+        if (list_col) {
+          list_col->SetListType(es->properties[i]);
+        }
+      }
+      col->RestoreChildren(store, key);
       table->SetColumn(static_cast<int>(i),
-                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
-                           KeyProperty(src, edge, dst, i))));
+                       std::shared_ptr<ColumnBase>(std::move(col)));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(
@@ -1182,8 +1208,9 @@ void EdgeTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   if (!meta_->is_bundled()) {
     auto table = TakeTable();
     for (size_t i = 0; i < table->col_num(); ++i) {
-      meta.set_module(KeyProperty(src, edge, dst, i),
-                      table->get_column_by_id(i)->Dump(ckp));
+      const std::string key = KeyProperty(src, edge, dst, i);
+      auto col = table->get_column_by_id(i);
+      col->DumpTo(ckp, meta, key);
     }
     meta.SetScalar(ScalarKey(src, edge, dst, "table_idx"),
                    std::to_string(GetTableIdx()));

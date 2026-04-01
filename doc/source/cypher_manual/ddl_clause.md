@@ -16,6 +16,9 @@ The following table lists the recommended syntax for defining default values for
 | `DATE`            | `prop DATE DEFAULT DATE('1970-01-01')`    | `DATE('1970-01-01')`               |
 | `TIMESTAMP`       | `prop TIMESTAMP DEFAULT TIMESTAMP('1970-01-01')` | `TIMESTAMP('1970-01-01')`    |
 | `INTERVAL`        | `prop INTERVAL DEFAULT INTERVAL('0 year 0 month 0 day')` | `INTERVAL('0 year 0 month 0 day')`         |
+| `<type>[]`        | `prop INT64[] DEFAULT [1, 2, 3]`          | `[]` (empty list)                  |
+
+List types are declared by appending `[]` to any supported element type (e.g., `STRING[]`, `DOUBLE[]`). Nesting is supported — `<type>[][]` declares a list of lists, and deeper nesting follows the same pattern. Default values use list literal syntax: `DEFAULT ['a', 'b']` or `DEFAULT [[1, 2], [3]]` for nested lists.
 
 Please refer to the following examples for more usages.
 

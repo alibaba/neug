@@ -380,7 +380,6 @@ class LFIndexer {
     while (true) {
       INDEX_T ind = indices_ptr[index];
       if (ind == LFIndexer<INDEX_T>::sentinel) {
-        VLOG(10) << "cannot find " << oid.to_string() << " in lf_indexer";
         return ind;
       } else if (keys_->get_any(ind) == oid) {
         return ind;

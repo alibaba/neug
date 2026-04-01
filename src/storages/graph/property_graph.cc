@@ -994,6 +994,7 @@ bool PropertyGraph::get_lid(label_t label, const execution::Value& oid,
 
 execution::Value PropertyGraph::GetOid(label_t label, vid_t lid,
                                        timestamp_t ts) const {
+  schema_.ensure_vertex_label_valid(label);
   return vertex_tables_[label].GetOid(lid, ts);
 }
 

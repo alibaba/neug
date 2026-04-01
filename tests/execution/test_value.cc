@@ -15,6 +15,8 @@
 #include <gtest/gtest.h>
 
 #include "neug/execution/common/types/value.h"
+#include "neug/utils/serialization/in_archive.h"
+#include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 namespace execution {
@@ -415,13 +417,38 @@ TEST_F(ValueTest, GetValueTemplate) {
   EXPECT_EQ(str_result, "hello");
 }
 
-TEST_F(ValueTest, PropertyConversion) {
-  // value_to_property/property_to_value have been removed; this test is
-  // intentionally left empty after the Property type retirement.
+TEST_F(ValueTest, ArchiveRoundTrip) {
+  auto round_trip = [](const Value& original) {
+    InArchive in;
+    in << original;
+    OutArchive out;
+    out.SetSlice(in.GetBuffer(), in.GetSize());
+    Value restored;
+    out >> restored;
+    EXPECT_TRUE(restored == original);
+  };
+
+  round_trip(Value::BOOLEAN(false));
+  round_trip(Value::INT32(0x7fffffff));
+  round_trip(Value::INT64(123456789012345LL));
+  round_trip(Value::UINT32(42));
+  round_trip(Value::UINT64(0xdeadbeefdeadbeefULL));
+  round_trip(Value::FLOAT(2.71828f));
+  round_trip(Value::DOUBLE(3.141592653589793));
+  round_trip(Value::STRING("archive round trip"));
+  round_trip(Value::DATE(Date(std::string("2026-06-02"))));
+  round_trip(Value::TIMESTAMPMS(DateTime(987654321)));
+  round_trip(Value::INTERVAL(Interval(std::string("3years"))));
+  round_trip(Value::LIST(DataType(DataTypeId::kInt32),
+                         {Value::INT32(1), Value::INT32(2), Value::INT32(3)}));
 }
 
 TEST_F(ValueTest, EdgeCases) {
-  EXPECT_THROW({ Value::LIST(std::vector<Value>()); }, std::runtime_error);
+  {
+    auto empty_list = Value::LIST(std::vector<Value>());
+    EXPECT_EQ(empty_list.type().id(), DataTypeId::kList);
+    EXPECT_TRUE(ListValue::GetChildren(empty_list).empty());
+  }
 
   // LOG(FATAL) calls abort(); EXPECT_DEATH is unreliable under sanitizers.
 #if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \

@@ -27,8 +27,10 @@
 #include <memory>
 #include <ostream>
 
+#include "neug/common/types.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/exception/exception.h"
+#include "neug/utils/property/nest_column.h"
 #include "neug/utils/string_utils.h"
 
 namespace neug {
@@ -875,6 +877,94 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
   }
 }
 
+execution::Value arrow_element_to_value(
+    const std::shared_ptr<arrow::Array>& arr, int64_t idx,
+    const DataType& neug_type) {
+  if (arr->IsNull(idx)) {
+    return execution::Value(DataType::SQLNULL);
+  }
+  switch (neug_type.id()) {
+  case DataTypeId::kBoolean:
+    return execution::Value::CreateValue<bool>(
+        std::static_pointer_cast<arrow::BooleanArray>(arr)->Value(idx));
+  case DataTypeId::kInt32:
+    return execution::Value::CreateValue<int32_t>(
+        std::static_pointer_cast<arrow::Int32Array>(arr)->Value(idx));
+  case DataTypeId::kUInt32:
+    return execution::Value::CreateValue<uint32_t>(
+        std::static_pointer_cast<arrow::UInt32Array>(arr)->Value(idx));
+  case DataTypeId::kInt64:
+    return execution::Value::CreateValue<int64_t>(
+        std::static_pointer_cast<arrow::Int64Array>(arr)->Value(idx));
+  case DataTypeId::kUInt64:
+    return execution::Value::CreateValue<uint64_t>(
+        std::static_pointer_cast<arrow::UInt64Array>(arr)->Value(idx));
+  case DataTypeId::kFloat:
+    return execution::Value::CreateValue<float>(
+        std::static_pointer_cast<arrow::FloatArray>(arr)->Value(idx));
+  case DataTypeId::kDouble:
+    return execution::Value::CreateValue<double>(
+        std::static_pointer_cast<arrow::DoubleArray>(arr)->Value(idx));
+  case DataTypeId::kVarchar: {
+    auto str = std::static_pointer_cast<arrow::StringArray>(arr)->GetView(idx);
+    return execution::Value::STRING(std::string(str));
+  }
+  case DataTypeId::kDate:
+    return execution::Value::CreateValue<execution::date_t>(
+        Date(std::static_pointer_cast<arrow::Date32Array>(arr)->Value(idx)));
+  case DataTypeId::kTimestampMs:
+    return execution::Value::CreateValue<execution::timestamp_ms_t>(DateTime(
+        std::static_pointer_cast<arrow::TimestampArray>(arr)->Value(idx)));
+  case DataTypeId::kList: {
+    auto list_arr = std::static_pointer_cast<arrow::ListArray>(arr);
+    auto child_type = ListType::GetChildType(neug_type);
+    auto values_arr = list_arr->values();
+    auto start = list_arr->value_offset(idx);
+    auto length = list_arr->value_length(idx);
+    std::vector<execution::Value> children;
+    children.reserve(length);
+    for (int64_t j = 0; j < length; ++j) {
+      children.push_back(
+          arrow_element_to_value(values_arr, start + j, child_type));
+    }
+    return execution::Value::LIST(child_type, std::move(children));
+  }
+  default:
+    THROW_NOT_SUPPORTED_EXCEPTION("Unsupported list child type: " +
+                                  neug_type.ToString());
+  }
+}
+
+void set_column_from_list_array(std::shared_ptr<neug::ColumnBase> col,
+                                std::shared_ptr<arrow::ChunkedArray> array,
+                                const std::vector<vid_t>& vids) {
+  auto* list_col = dynamic_cast<neug::ListColumn*>(col.get());
+  CHECK(list_col != nullptr) << "Expected ListColumn";
+  auto neug_type = list_col->list_type();
+  for (int j = 0; j < array->num_chunks(); ++j) {
+    auto chunk = array->chunk(j);
+    auto list_arr = std::static_pointer_cast<arrow::ListArray>(chunk);
+    for (int64_t k = 0; k < list_arr->length(); ++k) {
+      if (vids[k] >= std::numeric_limits<vid_t>::max()) {
+        continue;
+      }
+      auto child_type = ListType::GetChildType(neug_type);
+      auto values_arr = list_arr->values();
+      auto start = list_arr->value_offset(k);
+      auto length = list_arr->value_length(k);
+      std::vector<execution::Value> children;
+      children.reserve(length);
+      for (int64_t i = 0; i < length; ++i) {
+        children.push_back(
+            arrow_element_to_value(values_arr, start + i, child_type));
+      }
+      col->set_any(vids[k],
+                   execution::Value::LIST(child_type, std::move(children)),
+                   true);
+    }
+  }
+}
+
 void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
                            const std::vector<vid_t>& vids,
@@ -901,6 +991,9 @@ void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
     break;
   case DataTypeId::kVarchar:
     set_column_from_string_array(col, array, vids, mutex, true);
+    break;
+  case DataTypeId::kList:
+    set_column_from_list_array(col, array, vids);
     break;
   default:
     THROW_NOT_SUPPORTED_EXCEPTION("Not support type: " + type->ToString());

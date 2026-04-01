@@ -96,6 +96,10 @@ tools/python_bind/
 Cypher → ANTLR Parser → Binder → Logical Plan → gopt Converter → Physical Plan → Execution
 ```
 
+## Known Limitations
+
+- **CSV-based bulk load does not support List type**: The CSV-based `COPY FROM` path does not support `List` type properties because Arrow CSV reader cannot natively parse list values from CSV. The Arrow RecordBatch-based bulk loader (used by the programmatic API) does support List type properties.
+
 ## Code Style
 
 - **C++**: C++20, clang-format (style=file)

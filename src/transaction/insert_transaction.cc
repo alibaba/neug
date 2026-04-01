@@ -58,10 +58,11 @@ bool InsertTransaction::GetVertexIndex(label_t label,
   if (graph_.get_lid(label, id, index, timestamp_)) {
     return true;
   }
-  if (added_vertices_.size() > label && added_vertices_[label] != nullptr &&
-      added_vertices_[label]->get_index(id, index)) {
-    index += added_vertices_base_[label];
-    return true;
+  if (added_vertices_.size() > label && added_vertices_[label] != nullptr) {
+    if (added_vertices_[label]->get_index(id, index)) {
+      index += added_vertices_base_[label];
+      return true;
+    }
   }
   return false;
 }
@@ -111,6 +112,19 @@ Status InsertTransaction::AddVertex(label_t label, const execution::Value& id,
                         types[col_i].ToString() + ", but got " +
                         prop.type().ToString());
     }
+    if (types[col_i].id() == DataTypeId::kList &&
+        !(prop.type() == types[col_i])) {
+      std::string label_name = graph_.schema().get_vertex_label_name(label);
+      LOG(ERROR) << "Vertex [" << label_name << "][" << col_i
+                 << "] list child type not match, expected "
+                 << types[col_i].ToString() << ", but got "
+                 << prop.type().ToString();
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Vertex [" + label_name + "][" + std::to_string(col_i) +
+                        "] list child type not match, expected " +
+                        types[col_i].ToString() + ", but got " +
+                        prop.type().ToString());
+    }
   }
   create_id_indexer_if_not_exists(label);
   if (!GetVertexIndex(label, id, vid)) {
@@ -150,6 +164,19 @@ Status InsertTransaction::AddEdge(
                     "Edge property " + label_name +
                         " type not match, expected " + types[i].ToString() +
                         ", got " + properties[i].type().ToString());
+    }
+    if (types[i].id() == DataTypeId::kList &&
+        !(properties[i].type() == types[i])) {
+      std::string label_name = graph_.schema().get_edge_label_name(edge_label);
+      LOG(ERROR) << "Edge property " << label_name
+                 << " list child type not match, expected "
+                 << types[i].ToString() << ", got "
+                 << properties[i].type().ToString();
+      return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                    "Edge property " + label_name +
+                        " list child type not match, expected " +
+                        types[i].ToString() + ", got " +
+                        properties[i].type().ToString());
     }
   }
   InsertEdgeRedo::Serialize(arc_, src_label, src, dst_label, dst, edge_label,
