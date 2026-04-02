@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "neug/common/extra_type_info.h"
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
@@ -57,6 +58,14 @@ class LFIndexerTest : public ::testing::Test {
     }
   }
 
+  static void CreateEmptyIndicesFile(const std::string& base_path) {
+    std::filesystem::create_directories(
+        std::filesystem::path(base_path).parent_path());
+    FileHeader header{};
+    std::ofstream fout(base_path + ".indices", std::ios::binary);
+    fout.write(reinterpret_cast<const char*>(&header), sizeof(header));
+  }
+
   template <typename INDEX_T>
   static void ExpectInt64Values(const LFIndexer<INDEX_T>& indexer,
                                 const std::vector<int64_t>& values) {
@@ -74,6 +83,22 @@ class LFIndexerTest : public ::testing::Test {
     }
   }
 
+  template <typename INDEX_T>
+  static void ExpectStringValues(const LFIndexer<INDEX_T>& indexer,
+                                 const std::vector<std::string>& values) {
+    ASSERT_EQ(indexer.size(), values.size());
+    for (size_t i = 0; i < values.size(); ++i) {
+      INDEX_T lid;
+      ASSERT_TRUE(
+          indexer.get_index(Property::from_string_view(values[i]), lid));
+      EXPECT_EQ(lid, static_cast<INDEX_T>(i));
+
+      auto key = indexer.get_key(static_cast<INDEX_T>(i));
+      EXPECT_EQ(key.type(), DataTypeId::kVarchar);
+      EXPECT_EQ(key.as_string_view(), values[i]);
+    }
+  }
+
   std::string test_dir_;
   std::string snapshot_dir_;
   std::string checkpoint_dir_;
@@ -82,6 +107,7 @@ class LFIndexerTest : public ::testing::Test {
 
 TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   const std::string base_path = test_dir_ + "/core_index";
+  CreateEmptyIndicesFile(base_path);
 
   LFIndexer<uint32_t> indexer;
   EXPECT_EQ(LFIndexer<uint32_t>::prefix(), "indexer");
@@ -121,13 +147,13 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   EXPECT_GE(indexer.capacity(), 64U);
   ExpectInt64Values(indexer, values);
 
-  indexer.ensure_writable(work_dir_);
   indexer.close();
 }
 
 TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   const std::string name = "persisted_index";
   const std::string in_memory_base = test_dir_ + "/persisted_seed";
+  CreateEmptyIndicesFile(in_memory_base);
 
   LFIndexer<uint32_t> writable;
   writable.init(DataTypeId::kInt64);
@@ -143,16 +169,78 @@ TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".keys"));
   EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".indices"));
 
-  LFIndexer<uint32_t> readonly;
-  readonly.init(DataTypeId::kInt64);
-  readonly.open(name, snapshot_dir_);
-  ExpectInt64Values(readonly, values);
-  EXPECT_EQ(readonly.get_keys().type(), DataTypeId::kInt64);
-  readonly.close();
+  LFIndexer<uint32_t> copied_to_workdir;
+  copied_to_workdir.init(DataTypeId::kInt64);
+  copied_to_workdir.open(name, snapshot_dir_, work_dir_);
+  ExpectInt64Values(copied_to_workdir, values);
+  EXPECT_TRUE(
+      std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".keys"));
+  EXPECT_TRUE(
+      std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".indices"));
+  copied_to_workdir.drop();
 
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".meta"));
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".keys"));
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".indices"));
+  LFIndexer<uint32_t> in_memory;
+  in_memory.init(DataTypeId::kInt64);
+  in_memory.open_in_memory(snapshot_dir_ + "/" + name);
+  ExpectInt64Values(in_memory, values);
+  in_memory.close();
+
+  LFIndexer<uint32_t> hugepage_indexer;
+  hugepage_indexer.init(DataTypeId::kInt64);
+  hugepage_indexer.open_with_hugepages(snapshot_dir_ + "/" + name);
+  ExpectInt64Values(hugepage_indexer, values);
+  hugepage_indexer.close();
+}
+
+TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
+  const std::string empty_name = "empty_index";
+  const std::string empty_dir = test_dir_ + "/empty_dir";
+  std::filesystem::create_directories(empty_dir);
+  CreateEmptyIndicesFile(empty_dir + "/" + empty_name);
+
+  LFIndexer<uint32_t> empty_indexer;
+  empty_indexer.init(DataTypeId::kInt64);
+  empty_indexer.build_empty_LFIndexer(empty_name, "", empty_dir);
+  EXPECT_TRUE(std::filesystem::exists(empty_dir + "/" + empty_name + ".meta"));
+  EXPECT_TRUE(
+      std::filesystem::exists(empty_dir + "/" + empty_name + ".indices"));
+
+  const std::string lhs_base = test_dir_ + "/lhs_varchar";
+  const std::string rhs_base = test_dir_ + "/rhs_varchar";
+  CreateEmptyIndicesFile(lhs_base);
+  CreateEmptyIndicesFile(rhs_base);
+
+  auto string_type_info = std::make_shared<StringTypeInfo>(64);
+  LFIndexer<uint32_t> lhs;
+  lhs.init(DataTypeId::kVarchar, string_type_info);
+  lhs.open_in_memory(lhs_base);
+  lhs.reserve(4);
+
+  LFIndexer<uint32_t> rhs;
+  rhs.init(DataTypeId::kVarchar, string_type_info);
+  rhs.open_in_memory(rhs_base);
+  rhs.reserve(4);
+
+  std::vector<std::string> lhs_values = {"alice", "bob"};
+  std::vector<std::string> rhs_values = {"carol", "dave", "erin"};
+  for (const auto& value : lhs_values) {
+    lhs.insert_safe(Property::from_string_view(value));
+  }
+  for (const auto& value : rhs_values) {
+    rhs.insert_safe(Property::from_string_view(value));
+  }
+
+  EXPECT_EQ(lhs.get_type(), DataTypeId::kVarchar);
+  EXPECT_EQ(lhs.get_keys().type(), DataTypeId::kVarchar);
+  ExpectStringValues(lhs, lhs_values);
+  ExpectStringValues(rhs, rhs_values);
+
+  lhs.swap(rhs);
+  ExpectStringValues(lhs, rhs_values);
+  ExpectStringValues(rhs, lhs_values);
+
+  rhs.drop();
+  lhs.close();
 }
 
 }  // namespace

@@ -1040,6 +1040,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(
         meta_->default_property_values[0], new_in_csr.get());
   } else {
     auto row_id_col = std::make_shared<ULongColumn>();
+    row_id_col->open_in_memory("");
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());

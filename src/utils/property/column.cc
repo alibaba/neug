@@ -17,8 +17,8 @@
 
 #include <limits>
 
+#include "neug/storages/container/container_utils.h"
 #include "neug/utils/id_indexer.h"
-#include "neug/utils/mmap_array.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/out_archive.h"
@@ -90,18 +90,22 @@ void TypedColumn<std::string_view>::set_value_safe(
       v = truncate_utf8(v, width_);
     }
     size_t offset = pos_.fetch_add(v.size());
-    if (pos_.load() > buffer_.data_size()) {
+    if (pos_.load() > data_buffer_->GetDataSize()) {
       lock.unlock();
       std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (pos_.load() > buffer_.data_size()) {
+      if (pos_.load() > data_buffer_->GetDataSize()) {
         size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
         size_t new_len = std::max(size_ * new_avg_width, pos_.load());
-        buffer_.resize(buffer_.size(), new_len);
+        data_buffer_->Resize(new_len);
       }
       w_lock.unlock();
       lock.lock();
     }
-    buffer_.set(idx, offset, v);
+    auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
+    auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
+    raw_items[idx] = {offset, static_cast<uint32_t>(v.size())};
+    assert(offset + v.size() <= data_buffer_->GetDataSize());
+    std::memcpy(raw_data + offset, v.data(), v.size());
   } else {
     THROW_INDEX_EXCEPTION(
         "Index out of range in set_value_safe: " + std::to_string(idx) +

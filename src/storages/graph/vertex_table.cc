@@ -122,7 +122,6 @@ size_t VertexTable::LidNum() const { return indexer_.size(); }
 bool VertexTable::AddVertex(const Property& id,
                             const std::vector<Property>& props, vid_t& vid,
                             timestamp_t ts, bool insert_safe) {
-  indexer_.ensure_writable(work_dir_);
   if (indexer_.capacity() <= indexer_.size()) {
     return false;
   }
@@ -153,7 +152,6 @@ bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
     LOG(ERROR) << "Property id " << prop_id << " is out of range.";
     return false;
   }
-  table_->ensure_writable(prop_id);
   table_->get_column_by_id(prop_id)->set_any(vid, value);
   return true;
 }
@@ -190,7 +188,6 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
 }
 
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
-  indexer_.ensure_writable(work_dir_);
   size_t delete_cnt = 0;
   for (auto v : vids) {
     if (v < indexer_.size() && v_ts_.IsVertexValid(v, MAX_TIMESTAMP)) {
@@ -202,7 +199,6 @@ void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
 }
 
 void VertexTable::DeleteVertex(const Property& id, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   vid_t vid;
   if (!get_index(id, vid, ts)) {
     LOG(WARNING) << "Vertex with id " << id.to_string() << " not found.";
@@ -212,7 +208,6 @@ void VertexTable::DeleteVertex(const Property& id, timestamp_t ts) {
 }
 
 void VertexTable::DeleteVertex(vid_t lid, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   if (lid >= indexer_.size()) {
     LOG(WARNING) << "Lid " << lid << " is out of range.";
     return;
@@ -225,7 +220,6 @@ void VertexTable::DeleteVertex(vid_t lid, timestamp_t ts) {
 }
 
 void VertexTable::RevertDeleteVertex(vid_t lid, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   assert(lid < indexer_.size());
   if (v_ts_.IsRemoved(lid)) {
     v_ts_.RevertRemoveVertex(lid, ts);

@@ -26,6 +26,7 @@
 
 #include <flat_hash_map.hpp>
 #include "neug/common/extra_type_info.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/file_names.h"
@@ -34,7 +35,6 @@
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/likely.h"
