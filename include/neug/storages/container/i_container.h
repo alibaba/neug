@@ -105,8 +105,4 @@ class IDataContainer {
   size_t size_;
 };
 
-std::unique_ptr<IDataContainer> OpenDataContainer(MemoryLevel strategy,
-                                                  const std::string& file_name);
-void CreateEmptyContainerFile(const std::string& path);
-
 }  // namespace neug

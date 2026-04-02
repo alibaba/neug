@@ -21,9 +21,6 @@ namespace neug {
 
 namespace file_utils {
 
-void* allocate_hugepages(size_t size);
-size_t hugepage_round_up(size_t size);
-
 /**
  * @brief File copy utility with Copy-on-Write (COW) optimization.
  *

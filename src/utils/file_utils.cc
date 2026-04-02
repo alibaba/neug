@@ -30,55 +30,13 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "neug/utils/file_utils.h"
-
 #include <cstring>
-
 #include <memory>
 #include <stdexcept>
-
-#ifdef __ia64__
-#define ADDR (void*) (0x8000000000000000UL)
-#ifdef MAP_HUGETLB
-#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED)
-#else
-#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED)
-#endif
-#else
-#define ADDR (void*) (0x0UL)
-#ifdef MAP_HUGETLB
-#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
-#else
-#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS)
-#endif
-#endif
-
-#define PROTECTION (PROT_READ | PROT_WRITE)
-
-#define HUGEPAGE_SIZE (2UL * 1024 * 1024)
-#define HUGEPAGE_MASK (2UL * 1024 * 1024 - 1UL)
-#define ROUND_UP(size) (((size) + HUGEPAGE_MASK) & (~HUGEPAGE_MASK))
 
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
-
-namespace file_utils {
-
-void* allocate_hugepages(size_t size) {
-  return mmap(ADDR, ROUND_UP(size), PROTECTION, FLAGS, -1, 0);
-}
-
-size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
-
-}  // namespace file_utils
-
-#undef ADDR
-#undef FLAGS
-#undef HUGEPAGE_SIZE
-#undef HUGEPAGE_MASK
-#undef ROUND_UP
-#undef PROTECTION
 
 namespace file_utils {
 

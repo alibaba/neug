@@ -20,6 +20,39 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#ifdef __linux__
+#include <linux/fs.h>
+#include <sys/syscall.h>
+#endif
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <cstring>
+#include <memory>
+#include <stdexcept>
+
+#ifdef __ia64__
+#define ADDR (void*) (0x8000000000000000UL)
+#ifdef MAP_HUGETLB
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_FIXED)
+#else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED)
+#endif
+#else
+#define ADDR (void*) (0x0UL)
+#ifdef MAP_HUGETLB
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB)
+#else
+#define FLAGS (MAP_PRIVATE | MAP_ANONYMOUS)
+#endif
+#endif
+
+#define PROTECTION (PROT_READ | PROT_WRITE)
+
+#define HUGEPAGE_SIZE (2UL * 1024 * 1024)
+#define HUGEPAGE_MASK (2UL * 1024 * 1024 - 1UL)
+#define ROUND_UP(size) (((size) + HUGEPAGE_MASK) & (~HUGEPAGE_MASK))
 
 #include <glog/logging.h>
 #include "neug/storages/container/anon_mmap_container.h"
@@ -27,6 +60,19 @@
 #include "neug/utils/file_utils.h"
 
 namespace neug {
+
+void* allocate_hugepages(size_t size) {
+  return mmap(ADDR, ROUND_UP(size), PROTECTION, FLAGS, -1, 0);
+}
+
+size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
+
+#undef ADDR
+#undef FLAGS
+#undef HUGEPAGE_SIZE
+#undef HUGEPAGE_MASK
+#undef ROUND_UP
+#undef PROTECTION
 
 AnonMMap::AnonMMap() : MMapContainer() {}
 
@@ -73,8 +119,8 @@ void AnonHugeMMap::OpenAnonymous(size_t size) {
   }
   path_.clear();
   mmap_size_ = size;
-  size_t hugepage_size = file_utils::hugepage_round_up(size);
-  mmap_data_ = file_utils::allocate_hugepages(hugepage_size);
+  size_t hugepage_size = hugepage_round_up(size);
+  mmap_data_ = allocate_hugepages(hugepage_size);
   if (mmap_data_ == MAP_FAILED) {
     THROW_RUNTIME_ERROR("Failed to allocate memory");
   }
@@ -83,7 +129,7 @@ void AnonHugeMMap::OpenAnonymous(size_t size) {
 }
 
 void* try_allocate_hugepages(size_t size) {
-  void* mmap_data = file_utils::allocate_hugepages(size);
+  void* mmap_data = allocate_hugepages(size);
   if (mmap_data == MAP_FAILED) {
     LOG(WARNING)
         << "Failed to allocate hugepages, falling back to regular mmap";
@@ -111,7 +157,7 @@ void AnonHugeMMap::Resize(size_t size) {
     size_ = 0;
     return;
   }
-  size_t hugepage_size = file_utils::hugepage_round_up(size);
+  size_t hugepage_size = hugepage_round_up(size);
   void* new_mmap_data = try_allocate_hugepages(hugepage_size);
   if (mmap_data_ && size_ > 0) {
     memcpy(new_mmap_data, data_, size_ < size ? size_ : size);
@@ -124,7 +170,7 @@ void AnonHugeMMap::Resize(size_t size) {
 }
 
 void* AnonHugeMMap::mmapImpl(const std::string& path, size_t mmap_size) {
-  size_t hugepage_size = file_utils::hugepage_round_up(mmap_size);
+  size_t hugepage_size = hugepage_round_up(mmap_size);
   void* mmap_data = try_allocate_hugepages(hugepage_size);
   // RAII guard: munmap hugepages on any error path.
   auto mmap_guard = std::unique_ptr<void, std::function<void(void*)>>(
@@ -144,7 +190,7 @@ void* AnonHugeMMap::mmapImpl(const std::string& path, size_t mmap_size) {
 }
 
 void AnonHugeMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
-  size_t hugepage_size = file_utils::hugepage_round_up(mmap_size);
+  size_t hugepage_size = hugepage_round_up(mmap_size);
   munmap(mmap_data, hugepage_size);
 }
 

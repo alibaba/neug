@@ -30,8 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_mmap_container.h"
-#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -75,6 +75,43 @@ load_degree_and_capacity(const std::string& prefix) {
   return {degree_list, cap_list};
 }
 
+void write_nbr_file(
+    const std::string& path, size_t num_segs,
+    const std::function<std::pair<const void*, size_t>(size_t)>& seg_fn) {
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
+                                              &fclose);
+  if (fp == nullptr) {
+    THROW_IO_EXCEPTION("Failed to open file for writing: " + path);
+  }
+  FileHeader header{};
+  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
+    THROW_IO_EXCEPTION("Failed to write header to: " + path);
+  }
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  for (size_t i = 0; i < num_segs; ++i) {
+    auto [data, len] = seg_fn(i);
+    if (len == 0 || data == nullptr) {
+      continue;
+    }
+    if (fwrite(data, 1, len, fp.get()) != len) {
+      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
+                         " to: " + path);
+    }
+    MD5_Update(&ctx, data, len);
+  }
+  MD5_Final(header.data_md5, &ctx);
+  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
+    THROW_IO_EXCEPTION("Failed to seek in: " + path);
+  }
+  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
+    THROW_IO_EXCEPTION("Failed to rewrite header in: " + path);
+  }
+  if (fclose(fp.release()) != 0) {
+    THROW_IO_EXCEPTION("Failed to close file: " + path);
+  }
+}
+
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
                                         const std::string& tmp_prefix,
@@ -86,20 +123,17 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
   // For nbr_list: kSyncToFile copies snapshot to tmp and opens with
   // FileSharedMMap; kInMemory/kHugePagePrefered opens snapshot directly with
   // the corresponding anonymous/private mapping (same as the original code).
-  nbr_list_ = prepare_and_open_container(snapshot_prefix + ".nbr",
-                                         tmp_prefix + ".nbr", mem_level);
+  nbr_list_ =
+      OpenContainer(snapshot_prefix + ".nbr", tmp_prefix + ".nbr", mem_level);
   auto v_cap = degree_list->GetDataSize() / sizeof(int);
   if (mem_level == MemoryLevel::kSyncToFile) {
-    adj_list_buffer_ =
-        prepare_and_open_container("", tmp_prefix + ".buf", mem_level);
-    adj_list_size_ =
-        prepare_and_open_container("", tmp_prefix + ".size", mem_level);
-    adj_list_capacity_ =
-        prepare_and_open_container("", tmp_prefix + ".cap", mem_level);
+    adj_list_buffer_ = OpenContainer("", tmp_prefix + ".buf", mem_level);
+    adj_list_size_ = OpenContainer("", tmp_prefix + ".size", mem_level);
+    adj_list_capacity_ = OpenContainer("", tmp_prefix + ".cap", mem_level);
   } else {
-    adj_list_buffer_ = prepare_and_open_container("", "", mem_level);
-    adj_list_size_ = prepare_and_open_container("", "", mem_level);
-    adj_list_capacity_ = prepare_and_open_container("", "", mem_level);
+    adj_list_buffer_ = OpenContainer("", "", mem_level);
+    adj_list_size_ = OpenContainer("", "", mem_level);
+    adj_list_capacity_ = OpenContainer("", "", mem_level);
   }
   adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
   adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
@@ -147,9 +181,9 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   size_t vnum = vertex_capacity();
   dump_meta(new_snapshot_dir + "/" + name);
 
-  auto degree_list = OpenDataContainer(MemoryLevel::kInMemory, "");
+  auto degree_list = OpenContainer("", "", MemoryLevel::kInMemory);
   degree_list->Resize(vnum * sizeof(int));
-  auto cap_list = OpenDataContainer(MemoryLevel::kInMemory, "");
+  auto cap_list = OpenContainer("", "", MemoryLevel::kInMemory);
   cap_list->Resize(vnum * sizeof(int));
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
@@ -542,22 +576,22 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
   close();
-  nbr_list_ = prepare_and_open_container(
-      snapshot_dir + "/" + name + ".snbr",
-      tmp_dir(work_dir) + "/" + name + ".snbr", MemoryLevel::kSyncToFile);
+  nbr_list_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
+                            tmp_dir(work_dir) + "/" + name + ".snbr",
+                            MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
-  nbr_list_ = OpenDataContainer(MemoryLevel::kInMemory, prefix + ".snbr");
+  nbr_list_ = OpenContainer(prefix + ".snbr", "", MemoryLevel::kInMemory);
 }
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
   nbr_list_ =
-      OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".snbr");
+      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePrefered);
 }
 
 template <typename EDATA_T>

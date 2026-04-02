@@ -31,9 +31,9 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/i_container.h"
-#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -93,20 +93,18 @@ class TypedColumn : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    buffer_ = prepare_and_open_container(snapshot_dir + "/" + name,
-                                         work_dir + "/" + name,
-                                         MemoryLevel::kSyncToFile);
+    buffer_ = OpenContainer(snapshot_dir + "/" + name, work_dir + "/" + name,
+                            MemoryLevel::kSyncToFile);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_in_memory(const std::string& name) override {
-    buffer_ = prepare_and_open_container(name, "", MemoryLevel::kInMemory);
+    buffer_ = OpenContainer(name, "", MemoryLevel::kInMemory);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
   void open_with_hugepages(const std::string& name) override {
-    buffer_ =
-        prepare_and_open_container(name, "", MemoryLevel::kHugePagePrefered);
+    buffer_ = OpenContainer(name, "", MemoryLevel::kHugePagePrefered);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -251,29 +249,29 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override {
-    items_buffer_ = prepare_and_open_container(
-        snapshot_dir + "/" + name + ".items", work_dir + "/" + name + ".items",
-        MemoryLevel::kSyncToFile);
-    data_buffer_ = prepare_and_open_container(
-        snapshot_dir + "/" + name + ".data", work_dir + "/" + name + ".data",
-        MemoryLevel::kSyncToFile);
+    items_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".items",
+                                  work_dir + "/" + name + ".items",
+                                  MemoryLevel::kSyncToFile);
+    data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
+                                 work_dir + "/" + name + ".data",
+                                 MemoryLevel::kSyncToFile);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
 
   void open_in_memory(const std::string& prefix) override {
     items_buffer_ =
-        OpenDataContainer(MemoryLevel::kInMemory, prefix + ".items");
-    data_buffer_ = OpenDataContainer(MemoryLevel::kInMemory, prefix + ".data");
+        OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
+    data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
 
   void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ =
-        OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".items");
+        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePrefered);
     data_buffer_ =
-        OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".data");
+        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePrefered);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }

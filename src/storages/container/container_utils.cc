@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "neug/storages/container_utils.h"
+#include "neug/storages/container/container_utils.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -21,7 +21,9 @@
 #include <memory>
 #include <utility>
 
+#include "neug/storages/container/anon_mmap_container.h"
 #include "neug/storages/container/file_header.h"
+#include "neug/storages/container/file_mmap_container.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
@@ -39,13 +41,55 @@ void prepare_container_file(const std::string& snapshot_file,
   if (std::filesystem::exists(snapshot_file)) {
     file_utils::copy_file(snapshot_file, tmp_file, true);
   } else {
-    CreateEmptyContainerFile(tmp_file);
+    file_utils::create_file(tmp_file, sizeof(FileHeader));
   }
 }
 
-std::unique_ptr<IDataContainer> prepare_and_open_container(
-    const std::string& snapshot_file, const std::string& tmp_file,
-    MemoryLevel memory_level) {
+std::unique_ptr<IDataContainer> OpenDataContainer(
+    MemoryLevel strategy, const std::string& file_name) {
+  if (strategy == MemoryLevel::kSyncToFile) {
+    if (file_name.empty()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "File name must be provided for file-backed mmap strategy");
+    }
+  }
+  switch (strategy) {
+  case MemoryLevel::kInMemory: {
+    if (file_name.empty()) {
+      return std::make_unique<AnonMMap>();
+    } else {
+      auto ret = std::make_unique<FilePrivateMMap>();
+      if (std::filesystem::exists(file_name)) {
+        ret->Open(file_name);
+      }
+      return ret;
+    }
+  }
+  case MemoryLevel::kHugePagePrefered: {
+    auto ret = std::make_unique<AnonHugeMMap>();
+    if (std::filesystem::exists(file_name)) {
+      ret->Open(file_name);
+    }
+    return ret;
+  }
+  case MemoryLevel::kSyncToFile: {
+    auto ret = std::make_unique<FileSharedMMap>();
+    if (!std::filesystem::exists(file_name)) {
+      file_utils::create_file(file_name, sizeof(FileHeader));
+    }
+    ret->Open(file_name);
+    return ret;
+  }
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Unsupported storage strategy: " +
+        std::to_string(static_cast<int>(strategy)));
+  }
+}
+
+std::unique_ptr<IDataContainer> OpenContainer(const std::string& snapshot_file,
+                                              const std::string& tmp_file,
+                                              MemoryLevel memory_level) {
   if (memory_level == MemoryLevel::kSyncToFile) {
     if (tmp_file.empty()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -57,43 +101,6 @@ std::unique_ptr<IDataContainer> prepare_and_open_container(
   } else {
     // For in-memory or hugepage containers, use snapshot file directly
     return OpenDataContainer(memory_level, snapshot_file);
-  }
-}
-
-void write_nbr_file(
-    const std::string& path, size_t num_segs,
-    const std::function<std::pair<const void*, size_t>(size_t)>& seg_fn) {
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
-                                              &fclose);
-  if (fp == nullptr) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + path);
-  }
-  FileHeader header{};
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to write header to: " + path);
-  }
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
-  for (size_t i = 0; i < num_segs; ++i) {
-    auto [data, len] = seg_fn(i);
-    if (len == 0 || data == nullptr) {
-      continue;
-    }
-    if (fwrite(data, 1, len, fp.get()) != len) {
-      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
-                         " to: " + path);
-    }
-    MD5_Update(&ctx, data, len);
-  }
-  MD5_Final(header.data_md5, &ctx);
-  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
-    THROW_IO_EXCEPTION("Failed to seek in: " + path);
-  }
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to rewrite header in: " + path);
-  }
-  if (fclose(fp.release()) != 0) {
-    THROW_IO_EXCEPTION("Failed to close file: " + path);
   }
 }
 

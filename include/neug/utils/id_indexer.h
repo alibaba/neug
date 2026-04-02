@@ -32,8 +32,8 @@ limitations under the License.
 
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
-#include "neug/storages/container_utils.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
@@ -282,13 +282,11 @@ class LFIndexer {
                              const std::string& work_dir) {
     keys_->open(filename + ".keys", "", work_dir);
     auto full_path = work_dir + "/" + filename + ".indices";
-    CreateEmptyContainerFile(full_path);
-    auto tmp_indices = OpenDataContainer(MemoryLevel::kSyncToFile, full_path);
+    file_utils::create_file(full_path, sizeof(FileHeader));
 
     num_elements_.store(0);
     indices_size_ = 0;
     dump_meta(work_dir + "/" + filename + ".meta");
-    tmp_indices->Close();
     keys_->close();
   }
 
@@ -441,16 +439,16 @@ class LFIndexer {
     std::filesystem::create_directories(tmp_dir(work_dir));
     load_meta(checkpoint_dir + "/" + name + ".meta");
     keys_->open(name + ".keys", checkpoint_dir, tmp_dir(work_dir));
-    indices_ = prepare_and_open_container(
-        checkpoint_dir + "/" + name + ".indices",
-        tmp_dir(work_dir) + "/" + name + ".indices", MemoryLevel::kSyncToFile);
+    indices_ = OpenContainer(checkpoint_dir + "/" + name + ".indices",
+                             tmp_dir(work_dir) + "/" + name + ".indices",
+                             MemoryLevel::kSyncToFile);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
   void open_in_memory(const std::string& name) {
     load_meta(name + ".meta");
     keys_->open_in_memory(name + ".keys");
-    indices_ = OpenDataContainer(MemoryLevel::kInMemory, name + ".indices");
+    indices_ = OpenContainer(name + ".indices", "", MemoryLevel::kInMemory);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
@@ -458,7 +456,7 @@ class LFIndexer {
     load_meta(name + ".meta");
     keys_->open_with_hugepages(name + ".keys");
     indices_ =
-        OpenDataContainer(MemoryLevel::kHugePagePrefered, name + ".indices");
+        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePrefered);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
@@ -1040,8 +1038,10 @@ void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
   lf.num_elements_.store(size);
 
   auto indices_path = work_dir + "/" + filename + ".indices";
-  CreateEmptyContainerFile(indices_path);
-  lf.indices_ = OpenDataContainer(MemoryLevel::kSyncToFile, indices_path);
+  file_utils::create_file(indices_path, sizeof(FileHeader));
+  lf.indices_ = OpenContainer(indices_path,
+                              tmp_dir(work_dir) + "/" + filename + ".indices",
+                              MemoryLevel::kSyncToFile);
   lf.indices_->Resize((input.num_slots_minus_one_ + 1) * sizeof(INDEX_T));
   auto* lf_indices_ptr = reinterpret_cast<INDEX_T*>(lf.indices_->GetData());
   lf.indices_size_ = lf.indices_->GetDataSize() / sizeof(INDEX_T);

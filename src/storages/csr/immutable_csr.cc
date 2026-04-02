@@ -27,8 +27,8 @@
 #include <thread>
 #include <utility>
 
+#include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
-#include "neug/storages/container_utils.h"
 #include "neug/storages/file_names.h"
 #include "neug/utils/property/types.h"
 
@@ -55,15 +55,14 @@ void ImmutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
                                           MemoryLevel mem_level) {
   close();
   load_meta(snapshot_prefix);
-  degree_list_buffer_ = prepare_and_open_container(
-      snapshot_prefix + ".deg", tmp_prefix + ".deg", mem_level);
-  nbr_list_buffer_ = prepare_and_open_container(snapshot_prefix + ".nbr",
-                                                tmp_prefix + ".nbr", mem_level);
+  degree_list_buffer_ =
+      OpenContainer(snapshot_prefix + ".deg", tmp_prefix + ".deg", mem_level);
+  nbr_list_buffer_ =
+      OpenContainer(snapshot_prefix + ".nbr", tmp_prefix + ".nbr", mem_level);
   if (mem_level == MemoryLevel::kSyncToFile) {
-    adj_list_buffer_ =
-        prepare_and_open_container("", tmp_prefix + ".adj", mem_level);
+    adj_list_buffer_ = OpenContainer("", tmp_prefix + ".adj", mem_level);
   } else {
-    adj_list_buffer_ = prepare_and_open_container("", "", mem_level);
+    adj_list_buffer_ = OpenContainer("", "", mem_level);
   }
   auto v_cap = size();
   adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
@@ -399,22 +398,22 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open(const std::string& name,
                                        const std::string& snapshot_dir,
                                        const std::string& work_dir) {
-  nbr_list_buffer_ = prepare_and_open_container(
-      snapshot_dir + "/" + name + ".snbr",
-      tmp_dir(work_dir) + "/" + name + ".snbr", MemoryLevel::kSyncToFile);
+  nbr_list_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
+                                   tmp_dir(work_dir) + "/" + name + ".snbr",
+                                   MemoryLevel::kSyncToFile);
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   nbr_list_buffer_ =
-      OpenDataContainer(MemoryLevel::kInMemory, prefix + ".snbr");
+      OpenContainer(prefix + ".snbr", "", MemoryLevel::kInMemory);
 }
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_with_hugepages(
     const std::string& prefix) {
   nbr_list_buffer_ =
-      OpenDataContainer(MemoryLevel::kHugePagePrefered, prefix + ".snbr");
+      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePrefered);
 }
 
 template <typename EDATA_T>
