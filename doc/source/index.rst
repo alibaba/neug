@@ -35,7 +35,8 @@ NeuG documentation
 
    tutorials/tinysnb_tutorial
    tutorials/codegraph-openclaw-example
-   tutorials/lsqb_benchmark
+   tutorials/lsqb-benchmark-embedded
+   tutorials/ldbc-interactive-benchmark-service
 
 .. toctree::
    :maxdepth: 1
