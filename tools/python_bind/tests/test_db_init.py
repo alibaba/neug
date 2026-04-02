@@ -340,6 +340,10 @@ def test_memory_level_in_memory(tmp_path):
     db = Database(db_path=str(db_dir), mode="w", memory_level="in_memory")
     assert db is not None
     db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", memory_level="M_FULL")
+    assert db is not None
+    db.close()
 
 
 # DB-001-20
@@ -358,6 +362,10 @@ def test_memory_level_sync_to_file(tmp_path):
     db = Database(db_path=str(db_dir), mode="w", memory_level="sync_to_file")
     assert db is not None
     db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", memory_level="M_LAZY")
+    assert db is not None
+    db.close()
 
 
 # DB-001-21
@@ -374,6 +382,10 @@ def test_memory_level_huge_page_preferred(tmp_path):
     db.close()
     # underscore alias
     db = Database(db_path=str(db_dir), mode="w", memory_level="huge_page_preferred")
+    assert db is not None
+    db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", memory_level="M_HUGE")
     assert db is not None
     db.close()
 

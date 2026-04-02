@@ -151,14 +151,15 @@ void PyDatabase::close() {
 }
 
 MemoryLevel PyDatabase::parse_memory_level(const std::string& level) {
-  if (level == "InMemory" || level == "inmemory" || level == "in_memory") {
+  if (level == "InMemory" || level == "inmemory" || level == "in_memory" ||
+      level == "M_FULL") {
     return MemoryLevel::kInMemory;
   } else if (level == "SyncToFile" || level == "synctofile" ||
-             level == "sync_to_file") {
+             level == "sync_to_file" || level == "M_LAZY") {
     return MemoryLevel::kSyncToFile;
   } else if (level == "HugePagePreferred" || level == "hugepagepreferred" ||
-             level == "huge_page_preferred") {
-    return MemoryLevel::kHugePagePrefered;
+             level == "huge_page_preferred" || level == "M_HUGE") {
+    return MemoryLevel::kHugePagePreferred;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " + level);
   }

@@ -42,7 +42,7 @@ void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
                            vertex_schema_->property_names,
                            vertex_schema_->property_types);
 
-  } else if (memory_level_ == MemoryLevel::kHugePagePrefered) {
+  } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
     indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
                                 vertex_schema_->property_names,
