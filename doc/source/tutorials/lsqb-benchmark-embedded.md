@@ -82,10 +82,9 @@ pip install neug real_ladybug
 ```bash
 cd neug/examples/lsqb_benchmark
 python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
-
-# To overwrite an existing database, use --force
-python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 ```
+
+Use `--force` to overwrite an existing database. See [Command Line Options](#command-line-options) for all available flags.
 
 ### Command Line Options
 
