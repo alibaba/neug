@@ -291,6 +291,95 @@ def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
     shutil.rmtree(db_path_parquet, ignore_errors=True)
 
 
+OSS_ENDPOINT = "oss-cn-beijing.aliyuncs.com"
+OSS_VERTEX_PATH = "oss://graphscope/neug/vPerson.parquet"
+OSS_EDGE_PATH = "oss://graphscope/neug/eMeets.parquet"
+HTTP_VERTEX_PATH = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+HTTP_EDGE_PATH = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+
+
+def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
+    run_statement(conn_s3, "LOAD S3 succeeded", "LOAD S3;")
+    run_statement(conn_s3, "LOAD PARQUET succeeded (for S3 tests)", "LOAD PARQUET;")
+
+    # OSS: load vPerson.parquet via S3/OSS protocol with anonymous credentials
+    def _oss_vertex(rows):
+        print(f"       OSS vPerson.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 8, f"Expected 8 rows, got {len(rows)}"
+        assert len(rows[0]) == 16, f"Expected 16 columns, got {len(rows[0])}"
+        return f"LOAD FROM OSS vPerson.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_s3,
+        "LOAD FROM OSS vPerson.parquet",
+        f'LOAD FROM "{OSS_VERTEX_PATH}" ('
+        f"CREDENTIALS_KIND='Anonymous', ENDPOINT_OVERRIDE='{OSS_ENDPOINT}'"
+        f") RETURN *;",
+        _oss_vertex,
+        print_traceback=True,
+    )
+
+    # OSS: load eMeets.parquet via S3/OSS protocol with anonymous credentials
+    def _oss_edge(rows):
+        print(f"       OSS eMeets.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 7, f"Expected 7 rows, got {len(rows)}"
+        assert len(rows[0]) == 5, f"Expected 5 columns, got {len(rows[0])}"
+        return f"LOAD FROM OSS eMeets.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_s3,
+        "LOAD FROM OSS eMeets.parquet",
+        f'LOAD FROM "{OSS_EDGE_PATH}" ('
+        f"CREDENTIALS_KIND='Anonymous', ENDPOINT_OVERRIDE='{OSS_ENDPOINT}'"
+        f") RETURN *;",
+        _oss_edge,
+        print_traceback=True,
+    )
+
+    # HTTP: load vPerson.parquet via HTTP URL
+    def _http_vertex(rows):
+        print(f"       HTTP vPerson.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 8, f"Expected 8 rows, got {len(rows)}"
+        assert len(rows[0]) == 16, f"Expected 16 columns, got {len(rows[0])}"
+        return f"LOAD FROM HTTP vPerson.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_s3,
+        "LOAD FROM HTTP vPerson.parquet",
+        f'LOAD FROM "{HTTP_VERTEX_PATH}" RETURN *;',
+        _http_vertex,
+        print_traceback=True,
+    )
+
+    # HTTP: load eMeets.parquet via HTTP URL
+    def _http_edge(rows):
+        print(f"       HTTP eMeets.parquet: {len(rows)} rows")
+        if rows:
+            print(f"       First row sample: {rows[0]}")
+        assert len(rows) == 7, f"Expected 7 rows, got {len(rows)}"
+        assert len(rows[0]) == 5, f"Expected 5 columns, got {len(rows[0])}"
+        return f"LOAD FROM HTTP eMeets.parquet returned {len(rows)} rows"
+
+    run_query_with_handler(
+        conn_s3,
+        "LOAD FROM HTTP eMeets.parquet",
+        f'LOAD FROM "{HTTP_EDGE_PATH}" RETURN *;',
+        _http_edge,
+        print_traceback=True,
+    )
+
+    conn_s3.close()
+    db_s3.close()
+    ok("Closed S3 extension test database")
+    shutil.rmtree(db_path_s3, ignore_errors=True)
+
+
 def run_json_extension_suite(db_json, conn_json, db_path_json):
     statements = [
         ("LOAD JSON succeeded", "LOAD JSON;"),
@@ -679,6 +768,29 @@ else:
     if db_parquet is not None and conn_parquet is not None:
         run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet)
 
+# ================================================================
+#  7. Extensions — S3 Extension
+# ================================================================
+section("7. Extensions — S3 Extension (OSS / HTTP)")
+
+_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
+_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
+
+if not _run_ext_tests:
+    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
+else:
+    conn_s3 = None
+    db_path_s3 = tempfile.mkdtemp(prefix="neug_s3_ext_")
+    try:
+        db_s3 = neug.Database(db_path_s3)
+        conn_s3 = db_s3.connect()
+        ok(f"Created persistent database for S3 extension test at {db_path_s3}")
+    except Exception as e:
+        fail("Create database for S3 extension", e)
+        db_s3 = None
+
+    if db_s3 is not None and conn_s3 is not None:
+        run_s3_extension_suite(db_s3, conn_s3, db_path_s3)
 # ================================================================
 #  Summary
 # ================================================================
