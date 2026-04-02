@@ -105,7 +105,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   preprocessConfig();
 
   work_dir_ = config_.data_dir;
-  VLOG(1) << "Opening NeuGDB at " << work_dir_;
+  VLOG(1) << "Opening NeuGDB at " << work_dir_
+          << ", memory level: " << std::to_string(config_.memory_level);
   if (!std::filesystem::exists(work_dir_)) {
     std::filesystem::create_directories(work_dir_);
   }
