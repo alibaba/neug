@@ -17,10 +17,10 @@
 #include <string_view>
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
-#include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -1554,6 +1554,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1562,6 +1563,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   }
 
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);
@@ -1598,6 +1600,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1608,6 +1611,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<std::string> new_property_name = {"new_property"};
   std::vector<DataType> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);

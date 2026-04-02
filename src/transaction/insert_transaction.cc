@@ -22,12 +22,12 @@
 #include <ostream>
 #include <thread>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/table.h"
 #include "neug/utils/property/types.h"
