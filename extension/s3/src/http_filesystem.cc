@@ -115,9 +115,6 @@ size_t WriteCallbackDirect(void* contents, size_t size, size_t nmemb, void* user
   size_t real_size = size * nmemb;
   auto* info = static_cast<std::pair<void*, size_t>*>(userp);
   
-  LOG(INFO) << "WriteCallbackDirect called: real_size=" << real_size 
-            << ", buffer remaining=" << info->second;
-  
   size_t to_copy = std::min(real_size, info->second);
   if (to_copy > 0) {
     std::memcpy(info->first, contents, to_copy);
@@ -204,8 +201,6 @@ HTTPRandomAccessFile::HTTPRandomAccessFile(
     THROW_IO_EXCEPTION("Failed to initialize HTTP file: " + status.ToString());
   }
   
-  LOG(INFO) << "HTTPRandomAccessFile opened: " << url_ 
-            << " (size: " << file_size_ << " bytes)";
 }
 
 HTTPRandomAccessFile::~HTTPRandomAccessFile() {
@@ -346,9 +341,6 @@ arrow::Status HTTPRandomAccessFile::ReadRange(int64_t offset, int64_t length, vo
     return arrow::Status::Invalid("File is closed");
   }
   
-  LOG(INFO) << "HTTPRandomAccessFile::ReadRange - offset=" << offset 
-            << ", length=" << length << ", url=" << url_;
-  
   // Setup GET request with HTTP Range header (RFC 7233)
   curl_easy_reset(curl_handle_);
   SetupCURLHandle(curl_handle_);
@@ -360,8 +352,6 @@ arrow::Status HTTPRandomAccessFile::ReadRange(int64_t offset, int64_t length, vo
   std::string range_value = std::to_string(offset) + "-" + 
                            std::to_string(offset + length - 1);
   curl_easy_setopt(curl_handle_, CURLOPT_RANGE, range_value.c_str());
-  
-  LOG(INFO) << "HTTP Range request: bytes=" << range_value << " for URL: " << url_;
   
   // Setup direct write to buffer
   std::pair<void*, size_t> write_info{buffer, static_cast<size_t>(length)};
@@ -381,9 +371,6 @@ arrow::Status HTTPRandomAccessFile::ReadRange(int64_t offset, int64_t length, vo
   // 206 = Partial Content (server supports Range, sent requested range)
   long response_code = 0;
   curl_easy_getinfo(curl_handle_, CURLINFO_RESPONSE_CODE, &response_code);
-  
-  LOG(INFO) << "HTTP response code: " << response_code 
-            << " for Range: bytes=" << offset << "-" << (offset + length - 1);
   
   if (response_code == 206) {
     // Success: server sent the requested range
@@ -519,7 +506,6 @@ HTTPFileSystem::HTTPFileSystem(const reader::FileSchema& schema)
       THROW_IO_EXCEPTION("Invalid HTTP URL: " + path + " - " + e.what());
     }
   }
-  LOG(INFO) << "HTTPFileSystem created for " << schema.paths.size() << " path(s)";
 }
 
 HTTPFileSystem::~HTTPFileSystem() {
@@ -541,8 +527,6 @@ bool HTTPFileSystem::Equals(const arrow::fs::FileSystem& other) const {
 
 arrow::Result<arrow::fs::FileInfo> HTTPFileSystem::GetFileInfo(
     const std::string& path) {
-  LOG(INFO) << "HTTPFileSystem::GetFileInfo: " << path;
-  
   // Validate path is HTTP(S) URL
   try {
     auto components = HTTPURIComponents::parse(path);
@@ -629,8 +613,6 @@ HTTPFileSystem::OpenInputStream(const std::string& path) {
 
 arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> 
 HTTPFileSystem::OpenInputFile(const std::string& path) {
-  LOG(INFO) << "HTTPFileSystem::OpenInputFile: " << path;
-  
   try {
     auto file = std::make_shared<HTTPRandomAccessFile>(path, options_);
     return file;
@@ -660,7 +642,6 @@ HTTPFileSystem::OpenAppendStream(
 
 std::vector<std::string> HTTPFileSystem::glob(const std::string& path) {
   // HTTP has no directory listing or glob expansion; return path unchanged.
-  LOG(INFO) << "HTTPFileSystem::glob - returning path unchanged: " << path;
   return {path};
 }
 

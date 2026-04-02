@@ -61,21 +61,14 @@ extern "C" {
  * This is the main entry point for the S3 extension
  */
 void Init() {
-  LOG(INFO) << "[s3 extension] init called";
-  
   try {
     // Register S3 filesystem provider in the global registry
     neug::extension::s3::RegisterS3Provider();
-    
+
     // Register HTTP/HTTPS filesystem provider
     neug::extension::s3::RegisterHTTPProvider();
 
-    LOG(INFO) << "[s3 extension] initialization completed successfully";
-    LOG(INFO) << "[s3 extension] S3, OSS, HTTP, and HTTPS filesystem support is now available";
-    LOG(INFO) << "[s3 extension] Usage:";
-    LOG(INFO) << "[s3 extension]   - S3: LOAD FROM 's3://bucket/file.json' (CREDENTIALS_KIND='Default', AWS_ENDPOINT_URL='{aws_endpoint}')";
-    LOG(INFO) << "[s3 extension]   - OSS: LOAD FROM 'oss://bucket/file.parquet' (CREDENTIALS_KIND='Anonymous', OSS_ENDPOINT='{oss_endpoint}')";
-    LOG(INFO) << "[s3 extension]   - HTTP: LOAD FROM 'https://example.com/data.csv'";
+    LOG(INFO) << "[s3 extension] initialized (s3, oss, http, https)";
   } catch (const std::exception& e) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "[s3 extension] initialization failed: " + std::string(e.what()));
