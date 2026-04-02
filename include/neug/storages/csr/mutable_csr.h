@@ -48,11 +48,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   MutableCsr() : locks_(nullptr) {}
-  ~MutableCsr() {
-    if (locks_ != nullptr) {
-      delete[] locks_;
-    }
-  }
+  ~MutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
@@ -228,7 +224,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   SingleMutableCsr() {}
-  ~SingleMutableCsr() {}
+  ~SingleMutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 

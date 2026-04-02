@@ -40,85 +40,25 @@
 
 namespace neug {
 
-template <typename NbrType>
-void initialize_adj_lists(NbrType** adj_lists_ptr,
-                          std::atomic<int>* adj_list_size_ptr,
-                          int* adj_list_cap_ptr, NbrType* nbr_list_ptr,
-                          const int* degree_list_ptr, const int* cap_list_ptr,
-                          size_t num_vertices) {
-  for (size_t i = 0; i < num_vertices; ++i) {
-    int deg = degree_list_ptr[i];
-    int cap = cap_list_ptr[i];
-    adj_lists_ptr[i] = nbr_list_ptr;
-    adj_list_size_ptr[i].store(deg);
-    adj_list_cap_ptr[i] = cap;
-    nbr_list_ptr += cap;
-  }
-}
-
-std::pair<std::shared_ptr<IDataContainer>, std::shared_ptr<IDataContainer>>
-load_degree_and_capacity(const std::string& prefix) {
-  auto degree_file_name = prefix + ".deg";
-  auto cap_file_name = prefix + ".cap";
-
-  std::shared_ptr<IDataContainer> degree_list =
-      std::make_shared<FilePrivateMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list->Open(degree_file_name);
-  }
-
-  std::shared_ptr<IDataContainer> cap_list = degree_list;
-  if (std::filesystem::exists(cap_file_name)) {
-    cap_list = std::make_shared<FilePrivateMMap>();
-    cap_list->Open(cap_file_name);
-  }
-  return {degree_list, cap_list};
-}
-
-void write_nbr_file(
-    const std::string& path, size_t num_segs,
-    const std::function<std::pair<const void*, size_t>(size_t)>& seg_fn) {
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
-                                              &fclose);
-  if (fp == nullptr) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + path);
-  }
-  FileHeader header{};
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to write header to: " + path);
-  }
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
-  for (size_t i = 0; i < num_segs; ++i) {
-    auto [data, len] = seg_fn(i);
-    if (len == 0 || data == nullptr) {
-      continue;
-    }
-    if (fwrite(data, 1, len, fp.get()) != len) {
-      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
-                         " to: " + path);
-    }
-    MD5_Update(&ctx, data, len);
-  }
-  MD5_Final(header.data_md5, &ctx);
-  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
-    THROW_IO_EXCEPTION("Failed to seek in: " + path);
-  }
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to rewrite header in: " + path);
-  }
-  if (fclose(fp.release()) != 0) {
-    THROW_IO_EXCEPTION("Failed to close file: " + path);
-  }
-}
-
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
                                         const std::string& tmp_prefix,
                                         MemoryLevel mem_level) {
   close();
   load_meta(snapshot_prefix);
-  auto [degree_list, cap_list] = load_degree_and_capacity(snapshot_prefix);
+
+  auto degree_file_name = snapshot_prefix + ".deg";
+  auto cap_file_name = snapshot_prefix + ".cap";
+  std::shared_ptr<IDataContainer> degree_list =
+      std::make_shared<FilePrivateMMap>();
+  if (std::filesystem::exists(degree_file_name)) {
+    degree_list->Open(degree_file_name);
+  }
+  std::shared_ptr<IDataContainer> cap_list = degree_list;
+  if (std::filesystem::exists(cap_file_name)) {
+    cap_list = std::make_shared<FilePrivateMMap>();
+    cap_list->Open(cap_file_name);
+  }
 
   // For nbr_list: kSyncToFile copies snapshot to tmp and opens with
   // FileSharedMMap; kInMemory/kHugePagePrefered opens snapshot directly with
@@ -140,14 +80,23 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
   adj_list_capacity_->Resize(v_cap * sizeof(int));
   locks_ = new SpinLock[v_cap];
 
-  auto degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
-  initialize_adj_lists(
-      reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData()),
-      reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData()),
-      reinterpret_cast<int*>(adj_list_capacity_->GetData()),
-      reinterpret_cast<nbr_t*>(nbr_list_->GetData()), degree_ptr, cap_ptr,
-      v_cap);
+  const auto* degree_ptr =
+      reinterpret_cast<const int*>(degree_list->GetData());
+  const auto* cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
+  auto* adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto* adj_list_size_ptr =
+      reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+  auto* adj_list_cap_ptr =
+      reinterpret_cast<int*>(adj_list_capacity_->GetData());
+  auto* nbr_list_ptr = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
+  for (size_t i = 0; i < v_cap; ++i) {
+    int deg = degree_ptr[i];
+    int cap = cap_ptr[i];
+    adj_lists_ptr[i] = nbr_list_ptr;
+    adj_list_size_ptr[i].store(deg);
+    adj_list_cap_ptr[i] = cap;
+    nbr_list_ptr += cap;
+  }
 }
 
 template <typename EDATA_T>
@@ -210,11 +159,40 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
   const nbr_t* const* lists =
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-  write_nbr_file(
-      new_snapshot_dir + "/" + name + ".nbr", vnum,
-      [lists, caps](size_t i) -> std::pair<const void*, size_t> {
-        return {lists[i], static_cast<size_t>(caps[i]) * sizeof(nbr_t)};
-      });
+  const std::string nbr_path = new_snapshot_dir + "/" + name + ".nbr";
+  std::unique_ptr<FILE, decltype(&fclose)> fp(
+      fopen(nbr_path.c_str(), "wb"), &fclose);
+  if (fp == nullptr) {
+    THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
+  }
+  FileHeader header{};
+  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
+    THROW_IO_EXCEPTION("Failed to write header to: " + nbr_path);
+  }
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  for (size_t i = 0; i < vnum; ++i) {
+    const void* data = lists[i];
+    size_t len = static_cast<size_t>(caps[i]) * sizeof(nbr_t);
+    if (len == 0 || data == nullptr) {
+      continue;
+    }
+    if (fwrite(data, 1, len, fp.get()) != len) {
+      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
+                         " to: " + nbr_path);
+    }
+    MD5_Update(&ctx, data, len);
+  }
+  MD5_Final(header.data_md5, &ctx);
+  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
+    THROW_IO_EXCEPTION("Failed to seek in: " + nbr_path);
+  }
+  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
+    THROW_IO_EXCEPTION("Failed to rewrite header in: " + nbr_path);
+  }
+  if (fclose(fp.release()) != 0) {
+    THROW_IO_EXCEPTION("Failed to close file: " + nbr_path);
+  }
 }
 
 template <typename EDATA_T>
@@ -309,10 +287,18 @@ void MutableCsr<EDATA_T>::close() {
     delete[] locks_;
     locks_ = nullptr;
   }
-  CloseAndReset(adj_list_buffer_);
-  CloseAndReset(adj_list_size_);
-  CloseAndReset(adj_list_capacity_);
-  CloseAndReset(nbr_list_);
+  if (adj_list_buffer_) {
+    adj_list_buffer_->Close();
+  }
+  if (adj_list_size_) {
+    adj_list_size_->Close();
+  }
+  if (adj_list_capacity_) {
+    adj_list_capacity_->Close();
+  }
+  if (nbr_list_) {
+    nbr_list_->Close();
+  }
 }
 
 template <typename EDATA_T>
@@ -640,7 +626,9 @@ size_t SingleMutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::close() {
-  CloseAndReset(nbr_list_);
+  if (nbr_list_) {
+    nbr_list_->Close();
+  }
 }
 
 template <typename EDATA_T>

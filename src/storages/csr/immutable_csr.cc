@@ -34,21 +34,6 @@
 
 namespace neug {
 
-template <typename NbrType>
-void initialize_adj_lists(NbrType** adj_lists_ptr, const int* degree_list_ptr,
-                          NbrType* nbr_list_ptr, size_t num_vertices) {
-  NbrType* cur_nbr_list_ptr = nbr_list_ptr;
-  for (size_t i = 0; i < num_vertices; ++i) {
-    int deg = degree_list_ptr[i];
-    if (deg != 0) {
-      adj_lists_ptr[i] = cur_nbr_list_ptr;
-    } else {
-      adj_lists_ptr[i] = NULL;
-    }
-    cur_nbr_list_ptr += deg;
-  }
-}
-
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
                                           const std::string& tmp_prefix,
@@ -66,10 +51,20 @@ void ImmutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
   }
   auto v_cap = size();
   adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  initialize_adj_lists(
-      reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData()),
-      reinterpret_cast<const int*>(degree_list_buffer_->GetData()),
-      reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData()), v_cap);
+  auto adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+  auto degree_list_ptr =
+      reinterpret_cast<const int*>(degree_list_buffer_->GetData());
+  auto nbr_list_ptr = reinterpret_cast<nbr_t*>(nbr_list_buffer_->GetData());
+  nbr_t* cur_nbr_list_ptr = nbr_list_ptr;
+  for (size_t i = 0; i < v_cap; ++i) {
+    int deg = degree_list_ptr[i];
+    if (deg != 0) {
+      adj_lists_ptr[i] = cur_nbr_list_ptr;
+    } else {
+      adj_lists_ptr[i] = NULL;
+    }
+    cur_nbr_list_ptr += deg;
+  }
 }
 
 template <typename EDATA_T>
@@ -178,9 +173,15 @@ size_t ImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::close() {
-  CloseAndReset(adj_list_buffer_);
-  CloseAndReset(degree_list_buffer_);
-  CloseAndReset(nbr_list_buffer_);
+  if (adj_list_buffer_) {
+    adj_list_buffer_->Close();
+  }
+  if (degree_list_buffer_) {
+    degree_list_buffer_->Close();
+  }
+  if (nbr_list_buffer_) {
+    nbr_list_buffer_->Close();
+  }
 }
 
 template <typename EDATA_T>
@@ -448,7 +449,9 @@ size_t SingleImmutableCsr<EDATA_T>::capacity() const {
 
 template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::close() {
-  CloseAndReset(nbr_list_buffer_);
+  if (nbr_list_buffer_) {
+    nbr_list_buffer_->Close();
+  }
 }
 
 template <typename EDATA_T>

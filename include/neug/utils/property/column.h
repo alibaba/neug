@@ -277,8 +277,12 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void close() override {
-    CloseAndReset(items_buffer_);
-    CloseAndReset(data_buffer_);
+    if (items_buffer_) {
+      items_buffer_->Close();
+    }
+    if (data_buffer_) {
+      data_buffer_->Close();
+    }
   }
 
   void dump(const std::string& filename) override {
@@ -303,8 +307,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
         if (items_buffer_) {
           items_buffer_->Dump(filename + ".items");
         }
-        CloseAndReset(items_buffer_);
-        CloseAndReset(data_buffer_);
+        items_buffer_->Close();
+        data_buffer_->Close();
         return;
       }
       pos_val = pos_.load();
@@ -319,8 +323,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (data_buffer_) {
       data_buffer_->Dump(filename + ".data");
     }
-    CloseAndReset(items_buffer_);
-    CloseAndReset(data_buffer_);
+    items_buffer_->Close();
+    data_buffer_->Close();
   }
 
   size_t size() const override { return size_; }

@@ -35,7 +35,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   ImmutableCsr() {}
-  ~ImmutableCsr() {}
+  ~ImmutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kImmutable; }
 
@@ -148,7 +148,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   SingleImmutableCsr() {}
-  ~SingleImmutableCsr() {}
+  ~SingleImmutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kSingleImmutable; }
 

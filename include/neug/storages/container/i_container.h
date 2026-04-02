@@ -97,11 +97,4 @@ class IDataContainer {
   size_t size_;
 };
 
-inline void CloseAndReset(std::unique_ptr<IDataContainer>& ptr) {
-  if (ptr) {
-    ptr->Close();
-    ptr.reset();
-  }
-}
-
 }  // namespace neug
