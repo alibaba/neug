@@ -136,38 +136,11 @@ TEST_F(HTTPFileSystemTest, Equals) {
   EXPECT_TRUE(fs1.Equals(fs2));  // Different instances, same type
 }
 
-TEST_F(HTTPFileSystemTest, NotImplemented_CreateDir) {
-  neug::common::case_insensitive_map_t<std::string> options;
-  HTTPFileSystem fs(options);
-  
-  auto status = fs.CreateDir("https://example.com/dir");
-  EXPECT_FALSE(status.ok());
-  EXPECT_TRUE(status.IsNotImplemented());
-}
-
-TEST_F(HTTPFileSystemTest, NotImplemented_DeleteFile) {
-  neug::common::case_insensitive_map_t<std::string> options;
-  HTTPFileSystem fs(options);
-  
-  auto status = fs.DeleteFile("https://example.com/file.txt");
-  EXPECT_FALSE(status.ok());
-  EXPECT_TRUE(status.IsNotImplemented());
-}
-
-TEST_F(HTTPFileSystemTest, NotImplemented_OpenOutputStream) {
-  neug::common::case_insensitive_map_t<std::string> options;
-  HTTPFileSystem fs(options);
-  
-  auto result = fs.OpenOutputStream("https://example.com/file.txt", nullptr);
-  EXPECT_FALSE(result.ok());
-  EXPECT_TRUE(result.status().IsNotImplemented());
-}
-
 // ============================================================================
-// HTTPFileSystemWrapper Tests
+// HTTPFileSystem (neug VFS interface) Tests
 // ============================================================================
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_ExtractOptions) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystem_ExtractOptions) {
   neug::reader::FileSchema schema;
   schema.paths = {"https://example.com/data.parquet"};
   schema.options["BEARER_TOKEN"] = "test_token";
@@ -175,28 +148,28 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_ExtractOptions) {
   schema.options["CONNECT_TIMEOUT"] = "60";
 
   EXPECT_NO_THROW({
-    HTTPFileSystemWrapper wrapper(schema);
+    HTTPFileSystem fs(schema);
     // glob() returns the path unchanged for HTTP
-    auto resolved = wrapper.glob("https://example.com/data.parquet");
+    auto resolved = fs.glob("https://example.com/data.parquet");
     EXPECT_EQ(resolved.size(), 1);
     EXPECT_EQ(resolved[0], "https://example.com/data.parquet");
     // toArrowFileSystem() returns a non-null HTTPFileSystem
-    auto arrowFs = wrapper.toArrowFileSystem();
+    auto arrowFs = fs.toArrowFileSystem();
     EXPECT_NE(arrowFs, nullptr);
   });
 }
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_InvalidURL) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystem_InvalidURL) {
   neug::reader::FileSchema schema;
   schema.paths = {"not-a-url"};
 
   EXPECT_THROW(
-    HTTPFileSystemWrapper wrapper(schema),
+    HTTPFileSystem fs(schema),
     neug::exception::Exception
   );
 }
 
-TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_MultiplePaths) {
+TEST_F(HTTPFileSystemTest, HTTPFileSystem_MultiplePaths) {
   neug::reader::FileSchema schema;
   schema.paths = {
     "https://example.com/file1.parquet",
@@ -204,10 +177,10 @@ TEST_F(HTTPFileSystemTest, HTTPFileSystemWrapper_MultiplePaths) {
   };
 
   EXPECT_NO_THROW({
-    HTTPFileSystemWrapper wrapper(schema);
+    HTTPFileSystem fs(schema);
     // glob() returns each path unchanged
-    auto r1 = wrapper.glob(schema.paths[0]);
-    auto r2 = wrapper.glob(schema.paths[1]);
+    auto r1 = fs.glob(schema.paths[0]);
+    auto r2 = fs.glob(schema.paths[1]);
     EXPECT_EQ(r1.size(), 1);
     EXPECT_EQ(r2.size(), 1);
   });
@@ -228,8 +201,8 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
   schema.options["VERIFY_SSL"] = "true";
   
   EXPECT_NO_THROW({
-    HTTPFileSystemWrapper wrapper(schema);
-    auto arrowFs = wrapper.toArrowFileSystem();
+    HTTPFileSystem fs(schema);
+    auto arrowFs = fs.toArrowFileSystem();
     ASSERT_NE(arrowFs, nullptr);
 
     // Verify file access

@@ -121,95 +121,83 @@ class HTTPRandomAccessFile : public arrow::io::RandomAccessFile {
 };
 
 /**
- * HTTP FileSystem - Arrow FileSystem implementation for HTTP/HTTPS URLs
- * 
- * Implements arrow::fs::FileSystem interface to integrate with Arrow Dataset API.
- * Provides read-only access to HTTP/HTTPS resources with Range request support.
+ * HTTP FileSystem - implements both arrow::fs::FileSystem and neug::fsys::FileSystem.
+ *
+ * As arrow::fs::FileSystem: provides read-only HTTP/HTTPS file access via
+ * libcurl with Range request support, integrating with Arrow Dataset API.
+ *
+ * As neug::fsys::FileSystem: glob() returns the path unchanged (HTTP has no
+ * directory listing), toArrowFileSystem() constructs a new HTTPFileSystem
+ * instance from the stored options.
  */
-class HTTPFileSystem : public arrow::fs::FileSystem {
+class HTTPFileSystem : public arrow::fs::FileSystem, public fsys::FileSystem {
  public:
+  // Construct from raw options (used internally and by toArrowFileSystem()).
   explicit HTTPFileSystem(const common::case_insensitive_map_t<std::string>& options);
+
+  // Construct from FileSchema (used by CreateHTTPFileSystem factory).
+  explicit HTTPFileSystem(const reader::FileSchema& schema);
+
   ~HTTPFileSystem() override;
 
-  // Arrow FileSystem interface implementation
+  // --- arrow::fs::FileSystem interface ---
   std::string type_name() const override { return "http"; }
-  
+
   bool Equals(const arrow::fs::FileSystem& other) const override;
-  
+
   arrow::Result<arrow::fs::FileInfo> GetFileInfo(const std::string& path) override;
-  
+
   arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
       const arrow::fs::FileSelector& selector) override;
-  
+
   arrow::Status CreateDir(const std::string& path, bool recursive = true) override;
-  
+
   arrow::Status DeleteDir(const std::string& path) override;
-  
+
   arrow::Status DeleteDirContents(const std::string& path,
-                                   bool missing_dir_ok = false) override;
-  
+                                  bool missing_dir_ok = false) override;
+
   arrow::Status DeleteRootDirContents() override;
-  
+
   arrow::Status DeleteFile(const std::string& path) override;
-  
+
   arrow::Status Move(const std::string& src, const std::string& dest) override;
-  
+
   arrow::Status CopyFile(const std::string& src, const std::string& dest) override;
-  
+
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
       const std::string& path) override;
-  
+
   arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
       const std::string& path) override;
-  
+
   arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenOutputStream(
       const std::string& path,
       const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override;
-  
+
   arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenAppendStream(
       const std::string& path,
       const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override;
 
+  // --- neug::fsys::FileSystem interface ---
+  // HTTP has no directory listing; returns the path unchanged.
+  std::vector<std::string> glob(const std::string& path) override;
+
+  // Returns a new HTTPFileSystem instance built from the stored options.
+  // Each call produces an independent instance; the caller owns it exclusively.
+  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
+
  private:
   common::case_insensitive_map_t<std::string> options_;
-  
-  // Global CURL initialization (shared across all files)
+
+  // Global CURL initialization (shared across all instances).
   static bool curl_global_initialized_;
   static std::mutex curl_init_mutex_;
 };
 
 /**
- * HTTPFileSystemWrapper implements the neug::fsys::FileSystem interface for
- * HTTP/HTTPS resources.
- *
- * Supports:
- * - Public HTTP/HTTPS URLs
- * - Authenticated endpoints (Bearer token, custom headers)
- * - Streaming reads with HTTP Range requests
- * - Efficient Parquet column pruning
- *
- * Features:
- * - No local caching (streams data directly)
- * - Connection reuse for multiple requests
- * - TLS/SSL certificate verification
- */
-class HTTPFileSystemWrapper : public fsys::FileSystem {
- public:
-  explicit HTTPFileSystemWrapper(const reader::FileSchema& schema);
-
-  // fsys::FileSystem interface
-  // HTTP has no glob/directory listing support; returns the path unchanged.
-  std::vector<std::string> glob(const std::string& path) override;
-  std::unique_ptr<arrow::fs::FileSystem> toArrowFileSystem() override;
-
- private:
-  common::case_insensitive_map_t<std::string> options_;
-};
-
-/**
- * Factory function to create an HTTPFileSystemWrapper from a FileSchema.
- * Registers as the factory for "http" and "https" protocols in
- * FileSystemRegistry.
+ * Factory function: constructs an HTTPFileSystem from a FileSchema.
+ * Registered for "http" and "https" protocols in FileSystemRegistry.
  */
 std::unique_ptr<fsys::FileSystem> CreateHTTPFileSystem(
     const reader::FileSchema& schema);

@@ -4,7 +4,6 @@
 
 #include "gtest/gtest.h"
 #include <glog/logging.h>
-#include <openssl/crypto.h>
 #include "s3_filesystem.h"
 #include "neug/utils/reader/schema.h"
 #include "neug/utils/exception/exception.h"
@@ -39,14 +38,6 @@ class S3TestEnvironment : public ::testing::Environment {
   ~S3TestEnvironment() override {}
 
   void SetUp() override {
-    // Suppress system OpenSSL's atexit cleanup handler.
-    // The test binary links both system libcrypto (via OPENSSL_LIBRARIES) and
-    // Arrow/AWS-CRT's own crypto. Without this, OPENSSL_cleanup() fires during
-    // __cxa_finalize while AWS-CRT crypto state is still live, corrupting the
-    // heap. OPENSSL_INIT_NO_ATEXIT prevents system OpenSSL from registering its
-    // own atexit handler, avoiding the double-free.
-    OPENSSL_init_crypto(OPENSSL_INIT_NO_ATEXIT, nullptr);
-
     // Ensure Arrow S3 subsystem is initialized before any test runs
     auto status = arrow::fs::EnsureS3Initialized();
     if (!status.ok()) {

@@ -34,9 +34,25 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
       : arrow::fs::FileSystem(), inner_(std::move(inner)) {}
 
   std::string type_name() const override { return inner_->type_name(); }
+
   bool Equals(const arrow::fs::FileSystem& other) const override {
     return inner_->Equals(other);
   }
+
+  arrow::Result<std::string> NormalizePath(std::string path) override {
+    return inner_->NormalizePath(std::move(path));
+  }
+
+  arrow::Result<std::string> PathFromUri(
+      const std::string& uri_string) const override {
+    return inner_->PathFromUri(uri_string);
+  }
+
+  arrow::Result<std::string> MakeUri(std::string path) const override {
+    return inner_->MakeUri(std::move(path));
+  }
+
+  // Pure-virtual overrides
   arrow::Result<arrow::fs::FileInfo> GetFileInfo(
       const std::string& path) override {
     return inner_->GetFileInfo(path);
@@ -45,6 +61,13 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
       const arrow::fs::FileSelector& selector) override {
     return inner_->GetFileInfo(selector);
   }
+
+  // Non-pure overrides: delegate to inner_ for correct S3 behavior
+  arrow::Result<std::vector<arrow::fs::FileInfo>> GetFileInfo(
+      const std::vector<std::string>& paths) override {
+    return inner_->GetFileInfo(paths);
+  }
+
   arrow::Status CreateDir(const std::string& path,
                           bool recursive) override {
     return inner_->CreateDir(path, recursive);
@@ -53,7 +76,7 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
     return inner_->DeleteDir(path);
   }
   arrow::Status DeleteDirContents(const std::string& path,
-                                   bool missing_dir_ok) override {
+                                  bool missing_dir_ok) override {
     return inner_->DeleteDirContents(path, missing_dir_ok);
   }
   arrow::Status DeleteRootDirContents() override {
@@ -61,6 +84,10 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
   }
   arrow::Status DeleteFile(const std::string& path) override {
     return inner_->DeleteFile(path);
+  }
+  arrow::Status DeleteFiles(
+      const std::vector<std::string>& paths) override {
+    return inner_->DeleteFiles(paths);
   }
   arrow::Status Move(const std::string& src,
                      const std::string& dest) override {
@@ -70,14 +97,27 @@ class S3FileSystemWrapper : public arrow::fs::FileSystem {
                          const std::string& dest) override {
     return inner_->CopyFile(src, dest);
   }
+
+  // OpenInputStream: both string-path and FileInfo overloads
   arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
       const std::string& path) override {
     return inner_->OpenInputStream(path);
   }
+  arrow::Result<std::shared_ptr<arrow::io::InputStream>> OpenInputStream(
+      const arrow::fs::FileInfo& info) override {
+    return inner_->OpenInputStream(info);
+  }
+
+  // OpenInputFile: both string-path and FileInfo overloads
   arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
       const std::string& path) override {
     return inner_->OpenInputFile(path);
   }
+  arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(
+      const arrow::fs::FileInfo& info) override {
+    return inner_->OpenInputFile(info);
+  }
+
   arrow::Result<std::shared_ptr<arrow::io::OutputStream>> OpenOutputStream(
       const std::string& path,
       const std::shared_ptr<const arrow::KeyValueMetadata>& metadata) override {
