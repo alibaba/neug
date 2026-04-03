@@ -9,7 +9,7 @@ results from the blog article. Uses LDBC SNB SF1 dataset.
 Dataset: https://neug.oss-cn-hangzhou.aliyuncs.com/datasets/ldbc-snb-sf1-lsqb.tar.gz
 
 Usage:
-    python run_neug_benchmark.py --data-dir /path/to/dataset
+    python run_benchmark.py --data-dir /path/to/dataset
 """
 
 import argparse

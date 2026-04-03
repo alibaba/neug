@@ -10,9 +10,9 @@ It includes:
 - Throughput testing with concurrent clients
 
 Usage:
-    python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
-    python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --skip-load
-    python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
+    python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+    python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --skip-load
+    python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 """
 
 import argparse

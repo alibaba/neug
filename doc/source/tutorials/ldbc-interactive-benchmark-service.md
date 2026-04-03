@@ -82,7 +82,7 @@ pip install neug neo4j
 
 ```bash
 cd neug/examples/ldbc_interactive_benchmark
-python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 ```
 
 ## Expected Results

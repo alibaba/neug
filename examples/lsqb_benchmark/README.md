@@ -28,10 +28,10 @@ source neug-env/bin/activate
 pip install -r requirements.txt
 
 # Run the benchmark
-python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 
 # To overwrite an existing database, use --force
-python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 ```
 
 ## Command Line Options
@@ -63,7 +63,7 @@ On Apple Silicon Mac (M1/M2/M3), you should see results similar to:
 
 ## Files
 
-- `run_neug_benchmark.py` - Main benchmark script for NeuG
+- `run_benchmark.py` - Main benchmark script for NeuG
 - `requirements.txt` - Python dependencies
 - `README.md` - This file
 

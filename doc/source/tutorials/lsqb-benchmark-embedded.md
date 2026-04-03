@@ -61,7 +61,7 @@ social_network-sf1-CsvComposite-StringDateFormatter/
 
 ## Running the Benchmark
 
-The complete benchmark script is available in the NeuG repository at `examples/lsqb_benchmark/run_neug_benchmark.py`.
+The complete benchmark script is available in the NeuG repository at `examples/lsqb_benchmark/run_benchmark.py`.
 
 ### Step 1: Create Virtual Environment
 
@@ -81,7 +81,7 @@ pip install neug real_ladybug
 
 ```bash
 cd neug/examples/lsqb_benchmark
-python run_neug_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 ```
 
 Use `--force` to overwrite an existing database. See [Command Line Options](#command-line-options) for all available flags.

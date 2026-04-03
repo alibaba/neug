@@ -35,13 +35,13 @@ source neug-env/bin/activate
 pip install -r requirements.txt
 
 # Run the benchmark (NeuG only)
-python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 
 # Run with Neo4j comparison (requires Neo4j server running)
-python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 
 # To overwrite an existing database, use --force
-python run_interactive_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
+python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb --force
 ```
 
 ## Command Line Options
