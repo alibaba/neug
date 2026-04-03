@@ -127,16 +127,16 @@ python run_benchmark.py --data-dir /path/to/ldbc-snb-sf1-lsqb
 
 ### Expected Results
 
-On Apple Silicon Mac (M1/M2/M3), with 4 concurrent clients:
+On Apple Silicon Mac (M1/M2/M3), with 4 concurrent clients for 300 seconds:
 
 **Throughput Comparison**
 
-| Engine | QPS | P50 Latency | P95 Latency |
-|--------|-----|-------------|-------------|
-| NeuG | **617** | 3.1 ms | 20.6 ms |
-| Neo4j | 12.2 | 16.0 ms | 1,728 ms |
+| Engine | QPS | P50 Latency | P95 Latency | Total Queries |
+|--------|-----|-------------|-------------|---------------|
+| NeuG | **617** | 3.1 ms | 20.6 ms | 185,156 |
+| Neo4j | 12.2 | 16.0 ms | 1,728 ms | 3,659 |
 
-NeuG achieves **50.6x** the throughput of Neo4j.
+NeuG achieves **50.6x** the throughput of Neo4j. On latency, NeuG's P95 is just 20.6ms while Neo4j's P95 reaches 1,728ms.
 
 **Per-Query Latency (P50 ms)**
 
@@ -147,7 +147,7 @@ NeuG achieves **50.6x** the throughput of Neo4j.
 | IC3 | 11.1 | 984.4 | **89x** |
 | IC4 | 10.9 | 8.0 | - |
 | IC5 | 22.3 | 1892.4 | **85x** |
-| IC6 | 2.7 | 423.0 | **157x** |
+| IC6 | 2.7 | 423.0 | **159x** |
 | IC7 | 4.5 | 4.0 | - |
 | IC8 | 2.4 | 1.0 | - |
 | IC9 | 3.9 | 829.8 | **212x** |
