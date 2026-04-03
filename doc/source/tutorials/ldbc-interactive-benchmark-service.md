@@ -6,6 +6,8 @@ This tutorial demonstrates how to reproduce the LDBC SNB Interactive Benchmark p
 
 [LDBC SNB Interactive](https://ldbcouncil.org/benchmarks/snb-interactive/) contains 14 complex read queries (IC1–IC14) covering multi-hop friend finding, shortest paths, and aggregation — typical transactional graph workloads.
 
+> **Note**: This tutorial covers only the complex read queries (IC1–IC14) from the LDBC SNB Interactive Benchmark. It does not include the write operations and transactional updates that are part of the complete benchmark. A full LDBC SNB Interactive Benchmark tutorial will be provided in a future release.
+
 ### Dataset: LDBC SNB SF1
 
 - **Nodes**: ~3 million (Person, Post, Comment, Tag, etc.)
