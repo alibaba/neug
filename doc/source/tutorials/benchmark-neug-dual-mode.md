@@ -63,21 +63,21 @@ Use `--force` to overwrite an existing database.
 
 ### Expected Results
 
-On Apple Silicon Mac (M1/M2/M3), NeuG wins **all 9 queries** with just a single thread, even when comparing against LadybugDB's best multi-threaded result:
+On Apple Silicon Mac (M1/M2/M3), NeuG wins **8 out of 9 queries** with just a single thread, even when comparing against LadybugDB's best multi-threaded result:
 
 | Query | NeuG (1 thread) | LadybugDB (best) | Winner |
 |-------|-----------------|------------------|--------|
-| Q1 | 4.85s | 60.24s (4t) | NeuG **12.4x** |
-| Q2 | 0.16s | 12.69s (8t) | NeuG **79.3x** |
-| Q3 | 0.38s | 106.22s (2t) | NeuG **279.5x** |
-| Q4 | 0.47s | 1.24s (8t) | NeuG **2.6x** |
-| Q5 | 0.86s | 5.72s (8t) | NeuG **6.7x** |
-| Q6 | 0.48s | 1.54s (4t) | NeuG **3.2x** |
-| Q7 | 0.57s | 4.91s (8t) | NeuG **8.6x** |
-| Q8 | 0.74s | 7.09s (8t) | NeuG **9.6x** |
+| Q1 | 2.60s | 60.24s (4t) | NeuG **23.2x** |
+| Q2 | 0.14s | 12.69s (8t) | NeuG **90.6x** |
+| Q3 | 0.37s | 106.22s (2t) | NeuG **287.1x** |
+| Q4 | 0.14s | 1.24s (8t) | NeuG **8.9x** |
+| Q5 | 0.83s | 5.72s (8t) | NeuG **6.9x** |
+| Q6 | 0.48s | 0.15s (4t) | Ladybug **3.2x** |
+| Q7 | 0.58s | 4.91s (8t) | NeuG **8.5x** |
+| Q8 | 0.71s | 7.09s (8t) | NeuG **10.0x** |
 | Q9 | 0.60s | 1.02s (8t) | NeuG **1.7x** |
 
-NeuG excels on complex join-heavy queries, achieving dramatic speedups up to **279.5x** on triangle patterns (Q3) and **79.3x** on multi-hop filtering (Q2). Even on simpler short-path traversals (Q6, Q9) where multi-threading typically benefits competitors, NeuG single-threaded still outperforms.
+NeuG excels on complex join-heavy queries, achieving dramatic speedups up to **287x** on triangle patterns (Q3) and **91x** on multi-hop filtering (Q2). LadybugDB's multi-threading advantage shows on simpler traversal queries like Q6.
 
 ---
 
