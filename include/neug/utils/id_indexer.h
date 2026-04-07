@@ -456,7 +456,7 @@ class LFIndexer {
     load_meta(name + ".meta");
     keys_->open_with_hugepages(name + ".keys");
     indices_ =
-        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePrefered);
+        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePreferred);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 

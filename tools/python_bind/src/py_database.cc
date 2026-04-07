@@ -150,7 +150,7 @@ void PyDatabase::close() {
   }
 }
 
-MemoryLevel PyDatabase::parse_memory_level(const std::string& level) {
+MemoryLevel PyDatabase::parse_buffer_strategy(const std::string& level) {
   if (level == "InMemory" || level == "inmemory" || level == "in_memory" ||
       level == "M_FULL") {
     return MemoryLevel::kInMemory;

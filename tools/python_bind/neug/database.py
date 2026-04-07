@@ -82,7 +82,7 @@ class Database(object):
         mode: str = "read-write",
         max_thread_num: int = 0,
         checkpoint_on_close: bool = True,
-        memory_level: str = "InMemory",
+        buffer_strategy: str = "InMemory",
     ):
         """
         Open a database.
@@ -100,8 +100,8 @@ class Database(object):
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
-        memory_level : str
-            Memory level to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
+        buffer_strategy : str
+            Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
             or 'HugePagePreferred' (or 'M_HUGE'). Default is 'InMemory'.
             - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
               persisted to disk until checkpoint is created.
@@ -182,7 +182,7 @@ class Database(object):
             mode=readable(mode),
             planner="gopt",
             checkpoint_on_close=checkpoint_on_close,
-            memory_level=memory_level,
+            buffer_strategy=buffer_strategy,
         )
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":
