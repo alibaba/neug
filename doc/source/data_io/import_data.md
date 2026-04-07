@@ -2,91 +2,11 @@
 
 `COPY FROM` persists external data into NeuG's graph storage. It builds on top of [`LOAD FROM`](load_data) — internally, `COPY FROM` uses `LOAD FROM` to read and parse external files, then writes the result into node or relationship tables.
 
-For **import without creating tables first**, see [COPY FROM without a predefined schema](#copy-from-without-a-predefined-schema).
-
 ## Schema requirement
 
-`COPY FROM` supports two modes:
+In v0.1, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
 
-1. **Existing table** — The target node or relationship label already exists in the catalog. Column layout must match the table (see the sections below).
-2. **No predefined schema** — The target label does **not** exist yet. NeuG can **infer** column names and types from the data source (same pipeline as [`LOAD FROM`](load_data)), **create** the node or relationship type, and **import** rows in one statement. This is controlled with the **`auto_detect`** option (default: **`true`**).
-
-If `auto_detect` is **`false`** and the table is missing, the binder reports that the table does not exist.
-
-> **Note:** All option names are case-insensitive — for example, `HEADER`, `Header`, and `header` are all equivalent.
-
----
-
-## COPY FROM without a predefined schema
-
-When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new** label skips manual `CREATE NODE TABLE` / `CREATE REL TABLE` for that label. The compiler builds a plan that applies DDL for the inferred type, then runs the same bulk insert path as a normal `COPY`.
-
-### Option: `auto_detect`
-
-| Option         | Type | Default | Description |
-| -------------- | ---- | ------- | ----------- |
-| `auto_detect`  | bool | `true`  | If the target table does not exist, infer schema from the scan/sniff result and create it before insert. If `false`, a missing table is an error. |
-
-You can set it explicitly when needed:
-
-```cypher
-COPY person FROM "person.csv" (header=true, auto_detect=true);
-COPY person FROM "person.csv" (header=true, auto_detect=false);  -- require table to exist
-```
-
-### Nodes (new label)
-
-- The **first column** of the source (after any `LOAD FROM ... RETURN` projection) is used as the **primary key** property.
-- **All columns** become node properties; types are taken from type inference on the file or subquery output.
-- The **COPY target** (`COPY <Label> FROM ...`) is the new **vertex label** name.
-
-```cypher
--- File has header: id,name,age — id becomes PRIMARY KEY
-COPY person FROM "person.csv" (header=true);
-```
-
-If the file column order is wrong for inference, reorder with a subquery (first returned column = primary key):
-
-```cypher
-COPY person FROM (
-    LOAD FROM "person.csv" (header=true)
-    RETURN user_id AS id, name, age
-);
-```
-
-### Relationships (new edge type)
-
-For a **new** relationship label, NeuG still needs to know the **endpoint node types**. You must pass **`from`** and **`to`** — each must name an **existing** node table (create or `COPY` those nodes first).
-
-- The **first two columns** of the source are the **source** and **destination** endpoint keys (values must match the primary keys of the `from` / `to` node tables).
-- **Remaining columns** map to relationship properties.
-
-```cypher
--- After person nodes exist:
-COPY knows FROM "knows.csv" (
-    from="person",
-    to="person",
-    header=true
-);
-```
-
-You can combine with a `LOAD FROM` subquery for column order, filtering, or projection, same as for node `COPY`.
-
-### Import order
-
-Rules are unchanged: **endpoints must exist** before loading edges. For no-schema edge `COPY`, create or import **`from` / `to`** node tables first, then run the edge `COPY`.
-
-### Limitations (current behavior)
-
-- **Edge inference** uses a **single** `(from, to)` pair per `COPY`; multi-pair relationship groups still need an existing schema or explicit DDL.
-- **No-schema edge `COPY`** requires **`from`** and **`to`** to refer to **already registered** vertex types (no automatic creation of endpoint types in that step).
-
-### JSON and Parquet Support
-
-No-schema `COPY FROM` also works with JSON and Parquet files when the corresponding extension is loaded:
-
-- [JSON Extension — COPY FROM JSON (No Schema)](../extensions/load_json#copy-from-json-no-schema)
-- [Parquet Extension — COPY FROM Parquet (No Schema)](../extensions/load_parquet#copy-from-parquet-no-schema)
+Coming in v0.2, NeuG supports schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets. See [Import without a predefined schema](#import-without-a-predefined-schema) for more usages.
 
 ---
 
@@ -186,7 +106,55 @@ COPY knows FROM "person_knows_person.csv" (from="person", to="person", header=tr
 
 > **Note:** NeuG assumes the first two columns are the primary keys of the `FROM` and `TO` nodes. The remaining columns correspond to relationship properties. The `from` and `to` parameters must be specified to identify the endpoint node tables.
 
-## CSV Options
+## Import without a predefined schema
+
+When **`auto_detect`** is enabled (the default), a `COPY ... FROM` into a **new** label skips manual `CREATE NODE TABLE` / `CREATE REL TABLE` for that label. The compiler builds a plan that applies DDL for the inferred type, then runs the same bulk insert path as a normal `COPY`.
+
+| Option        | Type | Default | Description                                                                                                                                       |
+| ------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_detect` | bool | `true`  | If the target table does not exist, infer schema from the scan/sniff result and create it before insert. If `false`, a missing table is an error. |
+
+You can set it explicitly when needed:
+
+```cypher
+COPY User FROM "users.csv" (header=true, auto_detect=true);
+COPY User FROM "users.csv" (header=true, auto_detect=false);  -- require table to exist
+```
+
+### Nodes (new label)
+
+```cypher
+// File has header: id,name,age 
+// id becomes PRIMARY KEY
+COPY person FROM "person.csv" (header=true);
+```
+
+- The **first column** of the source is used as the **primary key** property, If the file column order is wrong for inference, reorder with a `LOAD FROM` subquery (first returned column = primary key), see [Column remapping with load from](#column-remapping-with-load-from) for reference.
+- **Other columns** become node properties; types are taken from type inference on the file or subquery output.
+- The **COPY target** (`COPY <Label> FROM ...`) is the new **vertex label** name.
+
+### Relationships (new edge type)
+
+```cypher
+// File has header: src,dst,weight
+// src becomes source column
+// dst becomes destination column
+// other columns are edge properties
+COPY knows FROM "person_knows_person.csv" (
+    from="person",
+    to="person",
+    header=true,
+    delimiter=","
+);
+```
+
+- The **first two columns** in the input file must be **source** and **destination** vertex primary keys. If not, use [Column remapping with load from](#column-remapping-with-load-from) before loading.
+- **Remaining columns** are loaded as relationship properties.
+- For a **new** relationship label, you must provide **`from`** and **`to`** to specify endpoint node tables. Both tables must already exist (create or `COPY` them first). The `COPY` target name in `COPY <Label> FROM ...` becomes the new edge label between those two node types.
+
+## Format Options
+
+### CSV
 
 The following options control how CSV files are parsed during `COPY FROM`. These are the same options supported by [`LOAD FROM`](load_data#csv):
 
@@ -198,6 +166,39 @@ The following options control how CSV files are parsed during `COPY FROM`. These
 | `escape`   | char | `\`     | Escape character |
 | `quoting`  | bool | `true`  | Whether to enable quote processing |
 | `escaping` | bool | `true`  | Whether to enable escape character processing |
+
+### JSON/JSONL
+
+JSON/JSONL support is provided via the [JSON Extension](../extensions/load_json). With the JSON extension loaded, you can use `COPY FROM` to import JSON or JSONL files directly into the graph — without creating the table first. NeuG infers the schema automatically from the file content.
+
+```cypher
+INSTALL json;
+LOAD json;
+```
+
+```cypher
+// JSON array file — schema auto-detected,
+// first column becomes primary key
+COPY person FROM "person.json";
+
+// JSONL file — same auto-detection
+COPY person FROM "person.jsonl";
+```
+
+### Parquet
+
+Coming in V0.2, Parquet support is provided via the [Parquet Extension](../extensions/load_parquet). After installing and loading the extension, `COPY FROM` can import Parquet files directly — without creating the table first. NeuG infers the schema from the Parquet file metadata.
+
+```cypher
+INSTALL parquet;
+LOAD parquet;
+```
+
+```cypher
+// Schema auto-detected from Parquet metadata
+// first column becomes primary key
+COPY person FROM "person.parquet";
+```
 
 ## Column Remapping with LOAD FROM
 

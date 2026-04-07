@@ -89,40 +89,6 @@ RETURN fName AS name, age AS years;
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with JSON files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
 
-### COPY FROM JSON (No Schema)
-
-With the JSON extension loaded, you can use `COPY FROM` to import JSON or JSONL files directly into the graph — without creating the table first. NeuG infers the schema automatically from the file content.
-
-#### Node Import
-
-```cypher
--- JSON array file — schema auto-detected, first column becomes primary key
-COPY person FROM "person.json";
-
--- JSONL file — same auto-detection
-COPY person FROM "person.jsonl";
-```
-
-#### Edge Import
-
-For edges, endpoint node tables must already exist. Specify `from` and `to`:
-
-```cypher
-COPY knows FROM "knows.json" (from="person", to="person");
-```
-
-#### Column Reordering via Subquery
-
-Use a `LOAD FROM` subquery to reorder columns or rename them before import:
-
-```cypher
-COPY person FROM (
-    LOAD FROM "person.json"
-    RETURN user_id AS id, name, age
-);
-```
-
-For more details on no-schema import behavior and options, see [COPY FROM without a predefined schema](../data_io/import_data#copy-from-without-a-predefined-schema).
 
 ### Export to JSON
 
