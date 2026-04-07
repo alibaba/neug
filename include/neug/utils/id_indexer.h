@@ -33,6 +33,7 @@ limitations under the License.
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "glog/logging.h"
 #include "neug/storages/container/container_utils.h"
+#include "neug/storages/container/file_header.h"
 #include "neug/storages/container/i_container.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/file_utils.h"
