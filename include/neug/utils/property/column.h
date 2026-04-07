@@ -391,9 +391,18 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
-  // TODO(zhanglei): Maybe set_any dose not need insert_safe parameter
+  // When insert_safe is set to true, concurrency control should be guaranteed
+  // by caller.
   void set_any(size_t idx, const Property& value, bool insert_safe) override {
-    set_value(idx, value.as_string_view());
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
+    }
+    auto dst_value = value.as_string_view();
+    if (insert_safe && data_buffer_->GetDataSize() - pos_.load() <=
+                           std::min(dst_value.size(), (size_t) width_)) {
+      resize(size_);  // must ensure enough space for the new value
+    }
+    set_value(idx, dst_value);
   }
 
   inline std::string_view get_view(size_t idx) const {
@@ -522,7 +531,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
                          data_filename);
     }
 
-    // Write a placeholder header; will be overwritten after MD5 is finalised.
+    // Write a empty header.
     FileHeader header{};
     if (fwrite(&header, sizeof(header), 1, fout) != 1) {
       fclose(fout);
