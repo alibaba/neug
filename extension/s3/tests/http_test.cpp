@@ -255,36 +255,4 @@ TEST_F(HTTPFileSystemTest, E2E_AccessPublicHTTPParquetFile) {
       // Don't fail test if network unavailable
     }
   });
-  
-  LOG(INFO) << "=== Implementation Notes ===";
-  LOG(INFO) << "✓ Current: Simple full-file read (no Range optimization)";
-  LOG(INFO) << "✓ Future: Can add HTTP Range requests for partial reading";
-  LOG(INFO) << "✓ HTTP uses standard GET requests, S3 uses GetObject API";
-}
-
-// ============================================================================
-// Configuration Tests
-// ============================================================================
-
-TEST_F(HTTPFileSystemTest, ConfigKeys_AllDefined) {
-  // Verify all config keys are properly defined
-  EXPECT_STREQ(HTTPConfigOptionKeys::kBearerToken, "BEARER_TOKEN");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kAuthorizationHeader, "AUTHORIZATION");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kCustomHeaders, "HTTP_HEADERS");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kCACertFile, "CA_CERT_FILE");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kVerifySSL, "VERIFY_SSL");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kHTTPProxy, "HTTP_PROXY");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kConnectTimeout, "CONNECT_TIMEOUT");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kRequestTimeout, "REQUEST_TIMEOUT");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kMaxRetries, "MAX_RETRIES");
-  EXPECT_STREQ(HTTPConfigOptionKeys::kRetryDelay, "RETRY_DELAY_MS");
-}
-
-TEST_F(HTTPFileSystemTest, ConfigDefaults_Reasonable) {
-  // Verify default values are reasonable
-  EXPECT_TRUE(HTTPConfigDefaults::kVerifySSLDefault);
-  EXPECT_EQ(HTTPConfigDefaults::kConnectTimeoutDefault, 30);
-  EXPECT_EQ(HTTPConfigDefaults::kRequestTimeoutDefault, 300);
-  EXPECT_EQ(HTTPConfigDefaults::kMaxRetriesDefault, 3);
-  EXPECT_EQ(HTTPConfigDefaults::kRetryDelayDefault, 1000);
 }

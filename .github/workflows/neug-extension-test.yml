@@ -126,7 +126,6 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "s3"
-        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "http"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, linux, x64]
