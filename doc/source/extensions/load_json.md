@@ -89,7 +89,6 @@ RETURN fName AS name, age AS years;
 
 > **Note:** All relational operations supported by `LOAD FROM` — including type conversion, WHERE filtering, aggregation, sorting, and limiting — work the same way with JSON files. See the [LOAD FROM reference](../data_io/load_data) for the complete list of operations.
 
-
 ### Export to JSON
 
 With the JSON extension loaded, you can export query results to JSON or JSONL using the `COPY TO` syntax.

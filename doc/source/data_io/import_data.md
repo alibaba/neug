@@ -2,7 +2,7 @@
 
 `COPY FROM` persists external data into NeuG's graph storage. It builds on top of [`LOAD FROM`](load_data) — internally, `COPY FROM` uses `LOAD FROM` to read and parse external files, then writes the result into node or relationship tables.
 
-## Schema requirement
+## Schema Requirement
 
 In v0.1, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
 
@@ -308,9 +308,6 @@ COPY User FROM "users.csv" (header=true, auto_detect=false);
 -- Either create DDL first:
 CREATE NODE TABLE User(id INT64 PRIMARY KEY, name STRING);
 COPY User FROM "users.csv" (header=true, auto_detect=false);
-
--- Or rely on default auto_detect=true for a new label (see section above)
-COPY NewLabel FROM "users.csv" (header=true);
 ```
 
 ### "Column count mismatch" Error
