@@ -296,6 +296,11 @@ class TypedColumn<std::string_view> : public ColumnBase {
     // When there is nothing to compact we fall through and let the container
     // handle the write as usual (e.g. reflink / copy_file_range via
     // FileSharedMMap::Dump, or a single fwrite via MMapContainer::Dump).
+    if (!items_buffer_ || !data_buffer_) {
+      THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
+    }
+    resize(size_);  // Resize the string column with avg size to shrink or
+                    // expand data buffer
     size_t pos_val;
     if (size_ > 0) {
       auto plan = prepare_compaction_plan();
@@ -304,25 +309,17 @@ class TypedColumn<std::string_view> : public ColumnBase {
         // are always different files, so there is no aliasing hazard.
         pos_val = stream_compact_and_dump(plan, filename + ".data");
         write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
-        if (items_buffer_) {
-          items_buffer_->Dump(filename + ".items");
-        }
+        items_buffer_->Dump(filename + ".items");
         items_buffer_->Close();
         data_buffer_->Close();
         return;
       }
-      pos_val = pos_.load();
-    } else {
-      pos_val = pos_.load();
     }
+    pos_val = pos_.load();
     // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
-    if (items_buffer_) {
-      items_buffer_->Dump(filename + ".items");
-    }
-    if (data_buffer_) {
-      data_buffer_->Dump(filename + ".data");
-    }
+    items_buffer_->Dump(filename + ".items");
+    data_buffer_->Dump(filename + ".data");
     items_buffer_->Close();
     data_buffer_->Close();
   }
@@ -330,16 +327,15 @@ class TypedColumn<std::string_view> : public ColumnBase {
   size_t size() const override { return size_; }
 
   void resize(size_t size) override {
-    std::unique_lock<std::shared_mutex> lock(rw_mutex_);
-    // Number of brand-new item slots being added (may be 0 for shrinks).
-    size_t new_items = (size > size_) ? (size - size_) : 0;
-    items_buffer_->Resize(size * sizeof(string_item));
-    // Guarantee the data buffer has room for new_items strings each up to
-    // width_ bytes.  Using width_ (not avg) makes set_value() safe for any
-    // string within the column's declared maximum length.
-    // Never shrink the allocation: pos_.load() bytes are already committed.
-    size_t needed = pos_.load() + new_items * static_cast<size_t>(width_);
-    data_buffer_->Resize(std::max(needed, data_buffer_->GetDataSize()));
+    if (items_buffer_->GetDataSize() == 0) {
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(
+          std::max(size * static_cast<size_t>(width_), pos_.load()));
+    } else {
+      size_t avg_size = string_avg_size() > 0 ? string_avg_size() : width_;
+      items_buffer_->Resize(size * sizeof(string_item));
+      data_buffer_->Resize(std::max(size * avg_size, pos_.load()));
+    }
     size_ = size;
   }
 
@@ -347,7 +343,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     if (default_value.type() != type()) {
       THROW_RUNTIME_ERROR("Default value type does not match column type");
     }
-    std::unique_lock<std::shared_mutex> lock(rw_mutex_);
     size_t old_size = size_;
     size_ = size;
     auto default_str = PropUtils<std::string_view>::to_typed(default_value);
@@ -356,7 +351,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
     size_t new_items = (size > old_size) ? (size - old_size) : 0;
     items_buffer_->Resize(size * sizeof(string_item));
     size_t needed = pos_.load() + new_items * static_cast<size_t>(width_);
-    data_buffer_->Resize(std::max(needed, data_buffer_->GetDataSize()));
+    data_buffer_->Resize(std::max(needed, size * string_avg_size()));
 
     if (default_str.size() == 0) {
       return;
@@ -395,15 +390,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
   }
 
+  // When insert_safe is set to true, concurrency control should be guaranteed
+  // by caller.
   void set_any(size_t idx, const Property& value, bool insert_safe) override {
-    if (insert_safe) {
-      set_value_safe(idx, PropUtils<std::string_view>::to_typed(value));
-    } else {
-      set_value(idx, value.as_string_view());
+    if (idx >= size_) {
+      THROW_RUNTIME_ERROR("Index out of range");
     }
+    auto dst_value = value.as_string_view();
+    if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
+      size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+      size_t new_len =
+          std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
+      data_buffer_->Resize(new_len);
+    }
+    set_value(idx, dst_value);
   }
-
-  void set_value_safe(size_t idx, const std::string_view& value);
 
   inline std::string_view get_view(size_t idx) const {
     const auto& item = get_string_item(idx);
@@ -424,6 +425,14 @@ class TypedColumn<std::string_view> : public ColumnBase {
     std::string_view val;
     arc >> val;
     set_value(index, val);
+  }
+
+  size_t available_space() const {
+    if (!data_buffer_) {
+      return 0;
+    }
+    assert(pos_.load() <= data_buffer_->GetDataSize());
+    return data_buffer_->GetDataSize() - pos_.load();
   }
 
  private:
@@ -448,6 +457,21 @@ class TypedColumn<std::string_view> : public ColumnBase {
     assert(idx < size_);
     auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
     raw_items[idx] = item;
+  }
+
+  size_t string_avg_size() const {
+    if (size_ == 0) {
+      return 0;
+    }
+    size_t total_length = 0;
+    size_t non_zero_count = 0;
+    for (size_t i = 0; i < size_; ++i) {
+      if (get_string_item(i).length > 0) {
+        total_length += get_string_item(i).length;
+        non_zero_count++;
+      }
+    }
+    return non_zero_count > 0 ? total_length / non_zero_count : 0;
   }
 
   // Descriptor of a single live string entry used during compaction.
@@ -556,6 +580,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       fclose(fout);
       THROW_IO_EXCEPTION("Failed to write final header to: " + data_filename);
     }
+
     if (fflush(fout) != 0) {
       fclose(fout);
       THROW_IO_EXCEPTION("Failed to fflush: " + data_filename);
@@ -575,7 +600,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
   std::unique_ptr<IDataContainer> data_buffer_;
   size_t size_;
   std::atomic<size_t> pos_;
-  std::shared_mutex rw_mutex_;
   uint16_t width_;
   DataTypeId type_;
 };

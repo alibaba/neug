@@ -81,38 +81,6 @@ std::shared_ptr<ColumnBase> CreateColumn(DataType type) {
   }
 }
 
-void TypedColumn<std::string_view>::set_value_safe(
-    size_t idx, const std::string_view& value) {
-  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
-  if (idx < size_) {
-    std::string_view v = value;
-    if (v.size() >= width_) {
-      v = truncate_utf8(v, width_);
-    }
-    size_t offset = pos_.fetch_add(v.size());
-    if (pos_.load() > data_buffer_->GetDataSize()) {
-      lock.unlock();
-      std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
-      if (pos_.load() > data_buffer_->GetDataSize()) {
-        size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
-        size_t new_len = std::max(size_ * new_avg_width, pos_.load());
-        data_buffer_->Resize(new_len);
-      }
-      w_lock.unlock();
-      lock.lock();
-    }
-    auto raw_items = reinterpret_cast<string_item*>(items_buffer_->GetData());
-    auto raw_data = reinterpret_cast<char*>(data_buffer_->GetData());
-    raw_items[idx] = {offset, static_cast<uint32_t>(v.size())};
-    assert(offset + v.size() <= data_buffer_->GetDataSize());
-    std::memcpy(raw_data + offset, v.data(), v.size());
-  } else {
-    THROW_INDEX_EXCEPTION(
-        "Index out of range in set_value_safe: " + std::to_string(idx) +
-        " for size: " + std::to_string(size_));
-  }
-}
-
 std::shared_ptr<RefColumnBase> CreateRefColumn(const ColumnBase& column) {
   auto type = column.type();
   switch (type) {

@@ -159,6 +159,7 @@ void FileSharedMMap::Dump(const std::string& path) {
                  << "), falling back to fwrite for " << path;
     MMapContainer::Dump(path);
   }
+  Close();
 }
 
 }  // namespace neug

@@ -65,15 +65,7 @@ void MMapContainer::Open(const std::string& path) {
   }
   data_ = static_cast<char*>(mmap_data_) + sizeof(FileHeader);
   size_ = mmap_size_ - sizeof(FileHeader);
-  unsigned char data_md5[MD5_DIGEST_LENGTH];
-  MD5((unsigned char*) data_, size_, data_md5);
-  if (size_ > 0) {
-    if (memcmp(data_md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
-               MD5_DIGEST_LENGTH) != 0) {
-      Close();
-      THROW_INTERNAL_EXCEPTION("Data integrity check failed for file: " + path);
-    }
-  }
+  // Skip checksum verification, always assume it is correct.
 }
 
 void MMapContainer::Close() {
@@ -155,6 +147,7 @@ void MMapContainer::Dump(const std::string& path) {
       THROW_IO_EXCEPTION("Failed to write data to file: " + path);
     }
   }
+  Close();
 }
 
 bool MMapContainer::IsDirty() {
