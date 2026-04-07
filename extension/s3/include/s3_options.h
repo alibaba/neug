@@ -60,8 +60,8 @@ struct S3CredentialsKindValues {
   static constexpr const char* kExplicit = "explicit";       // Use explicit AK/SK from options
   static constexpr const char* kAnonymous = "anonymous";     // No credentials (public buckets)
   static constexpr const char* kDefault = "default";         // Arrow's default chain (env/config/role)
-  static constexpr const char* kRole = "role";               // Assume role
-  static constexpr const char* kWebIdentity = "webidentity"; // Web identity token
+  static constexpr const char* kRole = "role";               // Assume role (not yet supported)
+  static constexpr const char* kWebIdentity = "webidentity"; // Web identity token (not yet supported)
 };
 
 // Logical S3 options schema (NeuG-level knobs)

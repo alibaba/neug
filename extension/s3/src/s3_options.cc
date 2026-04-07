@@ -213,13 +213,17 @@ arrow::fs::S3CredentialsKind S3OptionsBuilder::resolveCredentialsKind() const {
   } else if (kind_str == S3CredentialsKindValues::kDefault) {
     return arrow::fs::S3CredentialsKind::Default;
   } else if (kind_str == S3CredentialsKindValues::kRole) {
-    return arrow::fs::S3CredentialsKind::Role;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREDENTIALS_KIND='Role' is not supported yet. "
+        "Use 'Explicit', 'Anonymous', or 'Default' instead.");
   } else if (kind_str == S3CredentialsKindValues::kWebIdentity) {
-    return arrow::fs::S3CredentialsKind::WebIdentity;
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "CREDENTIALS_KIND='WebIdentity' is not supported yet. "
+        "Use 'Explicit', 'Anonymous', or 'Default' instead.");
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Invalid CREDENTIALS_KIND: " + kind_str + 
-        ". Valid values: 'Explicit', 'Anonymous', 'Default', 'Role', 'WebIdentity'");
+        ". Valid values: 'Explicit', 'Anonymous', 'Default'");
   }
 }
 
@@ -305,12 +309,13 @@ void S3OptionsBuilder::configureCredentials(arrow::fs::S3Options& s3_options, bo
     }
     
     case arrow::fs::S3CredentialsKind::WebIdentity:
-      s3_options.ConfigureAssumeRoleWithWebIdentityCredentials();
-      LOG(INFO) << "Configured web identity credentials";
+      // Should never reach here: 'WebIdentity' is rejected early in resolveCredentialsKind()
+      THROW_INVALID_ARGUMENT_EXCEPTION("CREDENTIALS_KIND='WebIdentity' is not supported");
       break;
     
     case arrow::fs::S3CredentialsKind::Role:
-      THROW_INVALID_ARGUMENT_EXCEPTION("CREDENTIALS_KIND=Role requires additional configuration");
+      // Should never reach here: 'Role' is rejected early in resolveCredentialsKind()
+      THROW_INVALID_ARGUMENT_EXCEPTION("CREDENTIALS_KIND='Role' is not supported");
       break;
     
     default:

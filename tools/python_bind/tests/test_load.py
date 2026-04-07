@@ -95,7 +95,6 @@ class TestLoadFrom:
         self.db = Database(db_path=self.db_dir, mode="w")
         self.conn = self.db.connect()
         self.tinysnb_path = get_tinysnb_dataset_path()
-        # OSS endpoint for testing
         yield
         self.conn.close()
         self.db.close()
@@ -1284,7 +1283,7 @@ class TestLoadFrom:
         )  # datetime_weight: TIMESTAMP
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_on_oss(self):
+    def test_load_vertices_and_edges_from_parquet_on_s3_oss(self):
         """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
         # Load required extensions
         self.conn.execute("load s3")
@@ -1332,7 +1331,7 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_via_http(self):
+    def test_load_vertices_and_edges_from_parquet_via_s3_http(self):
         """Test LOAD FROM Parquet file via HTTP."""
         vertex_http_path = (
             "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
@@ -1371,7 +1370,7 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_vertices_and_edges_from_parquet_via_https(self):
+    def test_load_vertices_and_edges_from_parquet_via_s3_https(self):
         """Test LOAD FROM Parquet file via HTTPS."""
         vertex_https_path = (
             "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
@@ -1410,7 +1409,7 @@ class TestLoadFrom:
         assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
 
     @extension_test
-    def test_load_from_parquet_on_public_s3(self):
+    def test_load_from_parquet_on_public_s3_aws(self):
         """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
 
         Dataset: s3://ookla-open-data (Speedtest by Ookla, fixed tiles, Q1 2019)

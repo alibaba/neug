@@ -294,10 +294,8 @@ def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
 OSS_ENDPOINT = "oss-cn-beijing.aliyuncs.com"
 OSS_VERTEX_PATH = "oss://graphscope/neug/vPerson.parquet"
 OSS_EDGE_PATH = "oss://graphscope/neug/eMeets.parquet"
-HTTPS_VERTEX_PATH = (
-    "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
-)
-HTTPS_EDGE_PATH = "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+HTTP_VERTEX_PATH = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+HTTP_EDGE_PATH = "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
 # Public AWS S3 dataset: Ookla Open Data (us-west-2, anonymous access)
 # Schema (2019 Q1): avg_d_kbps, avg_u_kbps, avg_lat_ms, tests, devices, quadkey, tile
 S3_OOKLA_PATH = (
@@ -361,7 +359,7 @@ def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
     run_query_with_handler(
         conn_s3,
         "LOAD FROM HTTP vPerson.parquet",
-        f'LOAD FROM "{HTTPS_VERTEX_PATH}" RETURN *;',
+        f'LOAD FROM "{HTTP_VERTEX_PATH}" RETURN *;',
         _http_vertex,
         print_traceback=True,
     )
@@ -378,7 +376,7 @@ def run_s3_extension_suite(db_s3, conn_s3, db_path_s3):
     run_query_with_handler(
         conn_s3,
         "LOAD FROM HTTP eMeets.parquet",
-        f'LOAD FROM "{HTTPS_EDGE_PATH}" RETURN *;',
+        f'LOAD FROM "{HTTP_EDGE_PATH}" RETURN *;',
         _http_edge,
         print_traceback=True,
     )

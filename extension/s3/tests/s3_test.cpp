@@ -270,6 +270,46 @@ TEST_F(S3ExtensionTest, BuildS3Options_AWSCredentialsAlias) {
   EXPECT_EQ(s3_options.GetSecretKey(), "aws-secret");
 }
 
+// ============================================================================
+// Unsupported CREDENTIALS_KIND values (Role, WebIdentity) are rejected
+// early in resolveCredentialsKind() with a clear error message.
+// ============================================================================
+
+TEST_F(S3ExtensionTest, CredentialsKind_Role_ThrowsUnsupported) {
+  // Rejection must be case-insensitive ("role", "ROLE", "Role" all unsupported)
+  for (const std::string val : {"role", "ROLE", "Role"}) {
+    FileSchema schema;
+    schema.paths = {"s3://test-bucket/file.parquet"};
+    schema.protocol = "s3";
+    schema.options["CREDENTIALS_KIND"] = val;
+
+    EXPECT_THROW(S3FileSystem::buildS3Options(schema), neug::exception::Exception)
+        << "Expected throw for CREDENTIALS_KIND='" << val << "'";
+  }
+}
+
+TEST_F(S3ExtensionTest, CredentialsKind_WebIdentity_ThrowsUnsupported) {
+  for (const std::string val : {"webidentity", "WEBIDENTITY", "WebIdentity"}) {
+    FileSchema schema;
+    schema.paths = {"s3://test-bucket/file.parquet"};
+    schema.protocol = "s3";
+    schema.options["CREDENTIALS_KIND"] = val;
+
+    EXPECT_THROW(S3FileSystem::buildS3Options(schema), neug::exception::Exception)
+        << "Expected throw for CREDENTIALS_KIND='" << val << "'";
+  }
+}
+
+TEST_F(S3ExtensionTest, CredentialsKind_InvalidValue_ThrowsWithHint) {
+  // An unrecognized value should also throw, with a hint listing valid values.
+  FileSchema schema;
+  schema.paths = {"s3://test-bucket/file.parquet"};
+  schema.protocol = "s3";
+  schema.options["CREDENTIALS_KIND"] = "NotARealKind";
+
+  EXPECT_THROW(S3FileSystem::buildS3Options(schema), neug::exception::Exception);
+}
+
 TEST_F(S3ExtensionTest, BuildS3Options_MultiRegion) {
   std::vector<std::pair<std::string, std::string>> regions = {
     {"oss-cn-hangzhou.aliyuncs.com", "oss-cn-hangzhou"},
