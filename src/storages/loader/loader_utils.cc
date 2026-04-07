@@ -788,6 +788,7 @@ void set_interval_column_from_string_array(
 void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
                                   const std::vector<vid_t>& vids,
+                                  std::shared_mutex& rw_mutex,
                                   bool enable_resize = false) {
   auto type = array->type();
   auto typed_col =
@@ -795,7 +796,6 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
   if (enable_resize) {
     CHECK(typed_col != nullptr) << "Only support TypedColumn<std::string_view>";
   }
-  std::shared_mutex rw_mutex_;
   CHECK(type->Equals(arrow::large_utf8()) || type->Equals(arrow::utf8()))
       << "Inconsistent data type, expect string, but got " << type->ToString();
   if (type->Equals(arrow::large_utf8())) {
@@ -818,10 +818,10 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           Property any_val = Property::From(sw);
           col->set_any(vids[k], any_val);
         } else {
-          std::shared_lock<std::shared_mutex> lock(rw_mutex_);
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
           if (typed_col->available_space() <= sw.size()) {
             lock.unlock();
-            std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
             typed_col->resize(typed_col->size());
             w_lock.unlock();
             lock.lock();
@@ -845,10 +845,10 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           Property any_val = Property::From(sw);
           col->set_any(vids[k], std::move(any_val));
         } else {
-          std::shared_lock<std::shared_mutex> lock(rw_mutex_);
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
           if (typed_col->available_space() <= sw.size()) {
             lock.unlock();
-            std::unique_lock<std::shared_mutex> w_lock(rw_mutex_);
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
             typed_col->resize(typed_col->size());
             w_lock.unlock();
             lock.lock();
@@ -862,7 +862,8 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
 
 void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
-                           const std::vector<vid_t>& vids) {
+                           const std::vector<vid_t>& vids,
+                           std::shared_mutex& mutex) {
   auto type = array->type();
   auto col_type = col->type();
 
@@ -884,7 +885,7 @@ void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
     set_interval_column_from_string_array(col, array, vids);
     break;
   case DataTypeId::kVarchar:
-    set_column_from_string_array(col, array, vids, true);
+    set_column_from_string_array(col, array, vids, mutex, true);
     break;
   default:
     LOG(FATAL) << "Not support type: " << type->ToString();

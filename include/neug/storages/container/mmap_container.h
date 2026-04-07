@@ -31,7 +31,7 @@ namespace neug {
  */
 class MMapContainer : public IDataContainer {
  public:
-  MMapContainer(bool enable_checksum = true);
+  MMapContainer();
   virtual ~MMapContainer() {}
 
   virtual void Resize(size_t size) override;
@@ -56,7 +56,6 @@ class MMapContainer : public IDataContainer {
   std::string path_;
   void* mmap_data_;
   size_t mmap_size_;
-  bool enable_checksum_;
 };
 
 }  // namespace neug

@@ -254,7 +254,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
                                   MemoryLevel::kSyncToFile);
     data_buffer_ = OpenContainer(snapshot_dir + "/" + name + ".data",
                                  work_dir + "/" + name + ".data",
-                                 MemoryLevel::kSyncToFile, false);
+                                 MemoryLevel::kSyncToFile);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(snapshot_dir + "/" + name + ".pos");
   }
@@ -262,8 +262,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_in_memory(const std::string& prefix) override {
     items_buffer_ =
         OpenContainer(prefix + ".items", "", MemoryLevel::kInMemory);
-    data_buffer_ =
-        OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory, false);
+    data_buffer_ = OpenContainer(prefix + ".data", "", MemoryLevel::kInMemory);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
@@ -271,8 +270,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
   void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ =
         OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePrefered);
-    data_buffer_ = OpenContainer(prefix + ".data", "",
-                                 MemoryLevel::kHugePagePrefered, false);
+    data_buffer_ =
+        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePrefered);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }
@@ -398,9 +397,11 @@ class TypedColumn<std::string_view> : public ColumnBase {
       THROW_RUNTIME_ERROR("Index out of range");
     }
     auto dst_value = value.as_string_view();
-    if (insert_safe && data_buffer_->GetDataSize() - pos_.load() <=
-                           std::min(dst_value.size(), (size_t) width_)) {
-      resize(size_);  // must ensure enough space for the new value
+    if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
+      size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+      size_t new_len =
+          std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
+      data_buffer_->Resize(new_len);
     }
     set_value(idx, dst_value);
   }

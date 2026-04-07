@@ -26,8 +26,7 @@
 
 namespace neug {
 
-FilePrivateMMap::FilePrivateMMap(bool enable_checksum)
-    : MMapContainer(enable_checksum) {}
+FilePrivateMMap::FilePrivateMMap() : MMapContainer() {}
 
 FilePrivateMMap::~FilePrivateMMap() { Close(); }
 
@@ -61,8 +60,7 @@ void FilePrivateMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
   munmap(mmap_data, mmap_size);
 }
 
-FileSharedMMap::FileSharedMMap(bool enable_checksum)
-    : MMapContainer(enable_checksum) {}
+FileSharedMMap::FileSharedMMap() : MMapContainer() {}
 
 FileSharedMMap::~FileSharedMMap() { Close(); }
 
@@ -122,8 +120,7 @@ void FileSharedMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
 }
 
 void FileSharedMMap::Sync() {
-  if (mmap_data_ == nullptr || data_ == nullptr || size_ == 0 ||
-      !enable_checksum_) {
+  if (mmap_data_ == nullptr || data_ == nullptr || size_ == 0) {
     return;
   }
   unsigned char md5[MD5_DIGEST_LENGTH];

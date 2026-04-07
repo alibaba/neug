@@ -74,7 +74,7 @@ size_t hugepage_round_up(size_t size) { return ROUND_UP(size); }
 #undef ROUND_UP
 #undef PROTECTION
 
-AnonMMap::AnonMMap(bool enable_checksum) : MMapContainer(enable_checksum) {}
+AnonMMap::AnonMMap() : MMapContainer() {}
 
 AnonMMap::~AnonMMap() { Close(); }
 
@@ -109,8 +109,7 @@ void AnonMMap::munmapImpl(void* mmap_data, size_t mmap_size) {
 }
 
 // AnonHugeMMap implementation
-AnonHugeMMap::AnonHugeMMap(bool enable_checksum)
-    : MMapContainer(enable_checksum) {}
+AnonHugeMMap::AnonHugeMMap() : MMapContainer() {}
 
 AnonHugeMMap::~AnonHugeMMap() { Close(); }
 

@@ -45,9 +45,8 @@ void prepare_container_file(const std::string& snapshot_file,
   }
 }
 
-std::unique_ptr<IDataContainer> OpenDataContainer(MemoryLevel strategy,
-                                                  const std::string& file_name,
-                                                  bool enable_checksum) {
+std::unique_ptr<IDataContainer> OpenDataContainer(
+    MemoryLevel strategy, const std::string& file_name) {
   if (strategy == MemoryLevel::kSyncToFile) {
     if (file_name.empty()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -57,9 +56,9 @@ std::unique_ptr<IDataContainer> OpenDataContainer(MemoryLevel strategy,
   switch (strategy) {
   case MemoryLevel::kInMemory: {
     if (file_name.empty()) {
-      return std::make_unique<AnonMMap>(enable_checksum);
+      return std::make_unique<AnonMMap>();
     } else {
-      auto ret = std::make_unique<FilePrivateMMap>(enable_checksum);
+      auto ret = std::make_unique<FilePrivateMMap>();
       if (std::filesystem::exists(file_name)) {
         ret->Open(file_name);
       }
@@ -67,14 +66,14 @@ std::unique_ptr<IDataContainer> OpenDataContainer(MemoryLevel strategy,
     }
   }
   case MemoryLevel::kHugePagePrefered: {
-    auto ret = std::make_unique<AnonHugeMMap>(enable_checksum);
+    auto ret = std::make_unique<AnonHugeMMap>();
     if (std::filesystem::exists(file_name)) {
       ret->Open(file_name);
     }
     return ret;
   }
   case MemoryLevel::kSyncToFile: {
-    auto ret = std::make_unique<FileSharedMMap>(enable_checksum);
+    auto ret = std::make_unique<FileSharedMMap>();
     if (!std::filesystem::exists(file_name)) {
       file_utils::create_file(file_name, sizeof(FileHeader));
     }
@@ -90,8 +89,7 @@ std::unique_ptr<IDataContainer> OpenDataContainer(MemoryLevel strategy,
 
 std::unique_ptr<IDataContainer> OpenContainer(const std::string& snapshot_file,
                                               const std::string& tmp_file,
-                                              MemoryLevel memory_level,
-                                              bool enable_checksum) {
+                                              MemoryLevel memory_level) {
   if (memory_level == MemoryLevel::kSyncToFile) {
     if (tmp_file.empty()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
@@ -99,10 +97,10 @@ std::unique_ptr<IDataContainer> OpenContainer(const std::string& snapshot_file,
     }
     // For disk-backed containers, prepare the file first
     prepare_container_file(snapshot_file, tmp_file);
-    return OpenDataContainer(memory_level, tmp_file, enable_checksum);
+    return OpenDataContainer(memory_level, tmp_file);
   } else {
     // For in-memory or hugepage containers, use snapshot file directly
-    return OpenDataContainer(memory_level, snapshot_file, enable_checksum);
+    return OpenDataContainer(memory_level, snapshot_file);
   }
 }
 
