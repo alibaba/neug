@@ -25,6 +25,7 @@
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/query/reading_clause/bound_load_from.h"
 #include "neug/compiler/common/types/value/value.h"
+#include "neug/compiler/function/table/scan_file_function.h"
 #include "neug/compiler/parser/query/reading_clause/load_from.h"
 #include "neug/compiler/parser/scan_source.h"
 #include "neug/utils/exception/exception.h"
@@ -56,11 +57,6 @@ std::unique_ptr<BoundReadingClause> Binder::bindLoadFrom(
     auto boundScanSource = bindFileScanSource(
         *source, loadFrom.getParsingOptions(), columnNames, columnTypes);
     auto& scanInfo = boundScanSource->constCast<BoundTableScanSource>().info;
-    auto& bindData = scanInfo.bindData->cast<function::ScanFileBindData>();
-    auto& fileInfo = bindData.fileScanInfo;
-    // We support LOAD FROM by ArrowArrayContextColumn with BATCH_READ set to
-    // false.
-    fileInfo.options.insert({"BATCH_READ", common::Value::createValue(false)});
     boundLoadFrom = std::make_unique<BoundLoadFrom>(scanInfo.copy());
   } break;
   default:

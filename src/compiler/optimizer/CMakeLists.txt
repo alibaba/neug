@@ -21,7 +21,8 @@ add_library(neug_optimizer
         union_alias_map_optimizer.cpp
         remove_subquery_as_join.cpp
         common_pattern_reuse_optimizer.cpp
-        project_join_condition_optimizer.cpp)
+        project_join_condition_optimizer.cpp
+        project_into_data_source_optimizer.cpp)
 add_dependencies(neug_optimizer neug_plan_proto)
 
 set(ALL_OBJECT_FILES

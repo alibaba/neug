@@ -27,7 +27,7 @@ message DataSource {
     string extension_name = 1;
     EntrySchema entry_schema = 4;
     FileSchema file_schema = 5;
-    repeated string skip_columns = 6;
+    repeated string project_columns = 6;
     common.Expression skip_rows = 7;
 }
 

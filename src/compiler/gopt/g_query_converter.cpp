@@ -1173,15 +1173,10 @@ void GQueryConvertor::convertDataSource(
     sourcePB->set_allocated_skip_rows(
         exprConvertor->convert(*rowSkips, {}).release());
   }
-  auto columnSkips = scanBindData->getColumnSkips();
-  if (scanBindData->columns.size() != columnSkips.size()) {
-    THROW_EXCEPTION_WITH_FILE_LINE("Each column should have a skip flag");
-  }
-  for (auto idx = 0; idx < scanBindData->columns.size(); idx++) {
-    if (columnSkips[idx]) {
-      sourcePB->mutable_skip_columns()->Add(
-          scanBindData->columns[idx]->rawName());
-    }
+  // Proto field is named skip_columns for historical reasons; it now carries
+  // the list of columns to project (include), not skip.
+  for (const auto& column : scanBindData->getProjectColumns()) {
+    sourcePB->add_project_columns(column);
   }
 
   auto physicalPB = std::make_unique<::physical::PhysicalOpr>();
