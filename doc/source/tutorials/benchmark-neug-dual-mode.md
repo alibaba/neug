@@ -30,6 +30,8 @@ tar -xzf ldbc-snb-sf1-lsqb.tar.gz
 
 [LSQB](https://github.com/ldbc/lsqb) contains 9 complex subgraph matching queries that lean toward analytical workloads. This benchmark compares NeuG with LadybugDB in embedded mode.
 
+> **Note on KNOWS Edges**: The original LSQB benchmark assumes KNOWS relationships are bidirectional (i.e., if A knows B, then B also knows A). In our tests, we modified all queries involving KNOWS edges to use directed traversal (`-[:KNOWS]->`). This adjustment allows the **same LDBC SNB SF1 dataset to be used for both SNB Interactive and LSQB benchmarks**, since the KNOWS relationships in the original LDBC SNB data are unidirectional. This modification does not affect the fairness of evaluating graph database query optimization and execution capabilities.
+
 ### Query Descriptions
 
 | Query | Description |
