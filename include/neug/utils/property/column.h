@@ -26,7 +26,7 @@
 #include <shared_mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "neug/config.h"
@@ -288,8 +288,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
       THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
     }
     compact_in_place();
-    resize(size_);  // Resize the string column with avg size to shrink or
-                    // expand data buffer
     size_t pos_val = pos_.load();
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
     items_buffer_->Dump(filename + ".items");
@@ -450,26 +448,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   // Compact data_buffer_ in-place, reclaiming stale bytes left by
   // append-only updates (each set_value appends without freeing the old copy).
-  //
-  // Algorithm (O(size_ log size_) time, O(size_) metadata space):
-  //   0. Fast-exit: sum(item.length) == pos_ means every byte is referenced
-  //      exactly once (no stale bytes, no shared offsets) — nothing to do.
-  //   1. Collect {slot, old_offset, length} for every item and sort by offset.
-  //   2. Walk in offset order with write_ptr=0:
-  //        - First occurrence of an offset: memmove bytes down to write_ptr
-  //          (safe because write_ptr <= old_offset always holds after sorting),
-  //          record old→new mapping, advance write_ptr.
-  //        - Duplicate offset (slots sharing default value from resize()):
-  //          look up new offset via old→new map, update item only.
-  //   3. Resize data_buffer_ to write_ptr and store new pos_.
   void compact_in_place() {
     if (size_ == 0)
       return;
-    size_t total = 0;
-    for (size_t i = 0; i < size_; ++i) {
-      total += get_string_item(i).length;
+    size_t unique_total = 0;
+    {
+      std::unordered_set<uint64_t> seen_offsets;
+      for (size_t i = 0; i < size_; ++i) {
+        const auto item = get_string_item(i);
+        if (item.length != 0 && seen_offsets.insert(item.offset).second) {
+          unique_total += item.length;
+        }
+      }
     }
-    if (total == pos_.load()) {
+    if (unique_total == pos_.load()) {
       VLOG(10) << "StringColumn compact_in_place: no stale bytes to reclaim";
       return;
     }
@@ -492,30 +484,31 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
     auto* raw = reinterpret_cast<char*>(data_buffer_->GetData());
     size_t write_ptr = 0;
-    std::unordered_map<uint64_t, uint64_t> old_to_new;
+    // Entries are sorted by offset, so duplicate offsets are always contiguous.
+    uint64_t cur_old_offset = UINT64_MAX;
+    uint64_t cur_new_offset = 0;
 
     for (const auto& e : entries) {
       if (e.length == 0) {
         set_string_item(e.index, {0, 0});
         continue;
       }
-      auto it = old_to_new.find(e.offset);
-      if (it == old_to_new.end()) {
-        // First time we see this offset: slide bytes down if needed.
+      if (e.offset != cur_old_offset) {
         if (write_ptr != e.offset) {
           memmove(raw + write_ptr, raw + e.offset, e.length);
         }
-        old_to_new.emplace(e.offset, write_ptr);
-        set_string_item(e.index, {write_ptr, e.length});
+        cur_old_offset = e.offset;
+        cur_new_offset = write_ptr;
         write_ptr += e.length;
-      } else {
-        // Duplicate offset (shared default): remap to the new location.
-        set_string_item(e.index, {it->second, e.length});
       }
+      set_string_item(e.index, {cur_new_offset, e.length});
     }
 
     size_t old_pos = pos_.load();
-    data_buffer_->Resize(write_ptr);
+    // After compaction, also reserve some extra space based on average string
+    // length.
+    size_t avg_size = string_avg_size() > 0 ? string_avg_size() : width_;
+    data_buffer_->Resize(std::max(size_ * avg_size, write_ptr));
     pos_.store(write_ptr);
     VLOG(1) << "StringColumn compact_in_place: " << old_pos << " -> "
             << write_ptr << " bytes";
