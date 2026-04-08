@@ -25,7 +25,7 @@ make neug-manylinux
 And tag the images to the desired registry
 
 ```bash
-export ARCH=aarch64 # x86_64
+export ARCH=arm64 # x86_64
 docker tag graphscope/neug-manylinux:${ARCH} neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-${ARCH}
 ```
 
