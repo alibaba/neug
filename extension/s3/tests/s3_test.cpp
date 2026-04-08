@@ -32,38 +32,18 @@ static S3FileInfo provideS3(const FileSchema& schema) {
   return info;
 }
 
-// Global test environment to properly finalize S3
-class S3TestEnvironment : public ::testing::Environment {
- public:
-  ~S3TestEnvironment() override {}
-
-  void SetUp() override {
-    // Ensure Arrow S3 subsystem is initialized before any test runs
-    auto status = arrow::fs::EnsureS3Initialized();
-    if (!status.ok()) {
-      std::cerr << "Warning: Failed to initialize S3: " << status.ToString()
-                << std::endl;
-    }
-  }
-
-  void TearDown() override {
-    // All test-body locals (S3FileInfo, S3FileSystem) are destroyed before
-    // TearDown() is called, so no arrow::fs::S3FileSystem objects remain
-    // alive at this point. FinalizeS3() is safe to call here.
-    auto status = arrow::fs::FinalizeS3();
-    if (!status.ok()) {
-      std::cerr << "Warning: Failed to finalize S3: " << status.ToString()
-                << std::endl;
-    }
-  }
-};
-
-// Register the global test environment
-static ::testing::Environment* const s3_env =
-    ::testing::AddGlobalTestEnvironment(new S3TestEnvironment);
-
 class S3ExtensionTest : public ::testing::Test {
  protected:
+  // Called once before all tests in this test suite
+  static void SetUpTestSuite() {
+    // Initialize Arrow S3 subsystem once for all tests
+    auto status = arrow::fs::EnsureS3Initialized();
+    if (!status.ok()) {
+      FAIL() << "Failed to initialize Arrow S3: " << status.ToString();
+    }
+  }
+
+  // Called before each test case
   void SetUp() override {
     oss_endpoint_ = getEnvOrDefault("OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com");
     oss_bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "neug");
