@@ -65,12 +65,6 @@ static ::testing::Environment* const s3_env =
 class S3ExtensionTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // Initialize Arrow S3 subsystem (required for buildS3Options tests)
-    auto init_result = arrow::fs::EnsureS3Initialized();
-    if (!init_result.ok()) {
-      GTEST_SKIP() << "Failed to initialize Arrow S3: " << init_result.ToString();
-    }
-    
     oss_endpoint_ = getEnvOrDefault("OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com");
     oss_bucket_ = getEnvOrDefault("OSS_TEST_BUCKET", "neug");
     oss_access_key_ = getEnvOrDefault("OSS_ACCESS_KEY_ID", "");
