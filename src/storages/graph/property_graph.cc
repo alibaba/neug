@@ -1008,24 +1008,15 @@ void PropertyGraph::Dump(bool reopen) {
     if (!schema_.vertex_label_valid(src_label_i)) {
       continue;
     }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.vertex_label_valid(dst_label_i)) {
         continue;
       }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label) ||
-            !schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+        if (!schema_.edge_label_valid(e_label_i) ||
+            !schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         size_t index =

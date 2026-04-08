@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/serialization/in_archive.h"
