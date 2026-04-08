@@ -82,7 +82,7 @@ class Database(object):
         mode: str = "read-write",
         max_thread_num: int = 0,
         checkpoint_on_close: bool = True,
-        buffer_strategy: str = "InMemory",
+        buffer_strategy: str = "M_HUGE",
     ):
         """
         Open a database.
