@@ -84,7 +84,6 @@ function(add_extension_test)
         message(FATAL_ERROR "add_extension_test: ${_sources_var} is not set. Set it in the extension CMakeLists before calling add_extension_test.")
     endif()
     set(_test_name ${ARG_NAME}_extension_test)
-    find_package(OpenSSL REQUIRED)
     add_executable(${_test_name}
         ${ARG_TEST_SRCS}
         ${${_sources_var}})
@@ -103,9 +102,7 @@ function(add_extension_test)
         neug
         ${ARG_EXTRA_LINK_LIBS}
         ${GLOG_LIBRARIES}
-        ${ARROW_LIB}
-        ${OPENSSL_LIBRARIES}
-        ${CRYPTO_LIB})
+        ${ARROW_LIB})
     if(ENABLE_GCOV)
         target_compile_options(${_test_name} PRIVATE --coverage)
         target_link_options(${_test_name} PRIVATE --coverage)
@@ -126,5 +123,7 @@ endfunction()
 add_extension_if_enabled("json")
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add s3 extension
+add_extension_if_enabled("s3")
 
 message(STATUS "=== Extension configuration complete ===")

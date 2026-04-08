@@ -104,6 +104,18 @@ class Option {
         });
   }
 
+  static Option<double> DoubleOption(const std::string& key,
+                                     double default_val) {
+    return Option<double>(
+        key, std::to_string(default_val), [](const std::string& s) -> double {
+          try {
+            return std::stod(s);
+          } catch (const std::exception& e) {
+            THROW_INVALID_ARGUMENT_EXCEPTION("Failed to parse double: " + s);
+          }
+        });
+  }
+
  private:
   std::string key_;
   std::string default_val_;

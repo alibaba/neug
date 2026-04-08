@@ -88,7 +88,7 @@ jobs:
         export USE_NINJA=OFF
         export WITH_MIMALLOC=OFF
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
-        export BUILD_EXTENSIONS="json;parquet"
+        export BUILD_EXTENSIONS="json;parquet;s3"
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
         export CC="ccache gcc"
@@ -109,6 +109,7 @@ jobs:
         cd build/neug_py_bind
         ctest -R json_extension_test -V
         ctest -R parquet_extension_test -V
+        ctest -R s3_extension_test -V
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb
         ctest -R test_extension -V
 
@@ -124,6 +125,7 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "s3"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, linux, x64]
@@ -169,7 +171,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="json;parquet;s3" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |
@@ -248,7 +250,7 @@ jobs:
           export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
           export BUILD_TYPE=RELEASE
           export PYBIND11_FINDPYTHON=OFF
-          CI_INSTALL_EXTENSIONS="json;parquet" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
+          CI_INSTALL_EXTENSIONS="json;parquet;s3" python3 -m cibuildwheel ./tools/python_bind --output-dir extension_packages
 
       - name: Clean all installed python packages
         run: |

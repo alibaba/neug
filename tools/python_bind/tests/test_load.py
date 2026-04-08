@@ -1282,6 +1282,172 @@ class TestLoadFrom:
             "2023-05-17 00:00:00"
         )  # datetime_weight: TIMESTAMP
 
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_on_s3_oss(self):
+        """Test LOAD FROM Parquet file on OSS (oss://graphscope/neug/vPerson.parquet)."""
+        # Load required extensions
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+
+        # OSS file path - use inline options to specify anonymous access
+        vertex_oss_path = "oss://graphscope/neug/vPerson.parquet"
+
+        # Execute LOAD FROM query with inline S3 options
+        # This is the CORRECT way: pass options inline, not via environment variables
+        vertex_query = f"""
+        LOAD FROM "{vertex_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_oss_path = "oss://graphscope/neug/eMeets.parquet"
+
+        edge_query = f"""
+        LOAD FROM "{edge_oss_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            ENDPOINT_OVERRIDE='oss-cn-beijing.aliyuncs.com'
+        )
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_s3_http(self):
+        """Test LOAD FROM Parquet file via HTTP."""
+        vertex_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_http_path = (
+            "http://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_http_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # vPerson.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_vertices_and_edges_from_parquet_via_s3_https(self):
+        """Test LOAD FROM Parquet file via HTTPS."""
+        vertex_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/vPerson.parquet"
+        )
+        edge_https_path = (
+            "https://graphscope.oss-cn-beijing.aliyuncs.com/neug/eMeets.parquet"
+        )
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+        vertex_query = f"""
+        LOAD FROM "{vertex_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(vertex_query)
+
+        records = list(result)
+        # vPerson.parquet should have 8 data rows (same as local version)
+        assert len(records) == 8, f"Expected 8 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 16, f"Expected 16 columns, got {len(first_record)}"
+
+        edge_query = f"""
+        LOAD FROM "{edge_https_path}"
+        RETURN *
+        """
+        result = self.conn.execute(edge_query)
+
+        records = list(result)
+        # eMeets.parquet should have 7 data rows (same as local version)
+        assert len(records) == 7, f"Expected 7 records, got {len(records)}"
+
+        # Check first record structure (should have all columns)
+        first_record = records[0]
+        assert len(first_record) == 5, f"Expected 5 columns, got {len(first_record)}"
+
+    @extension_test
+    def test_load_from_parquet_on_public_s3_aws(self):
+        """Test LOAD FROM Parquet on public AWS S3 (Ookla Open Data, anonymous, us-west-2).
+
+        Dataset: s3://ookla-open-data (Speedtest by Ookla, fixed tiles, Q1 2019)
+        Schema (2019 Q1): avg_d_kbps, avg_u_kbps, avg_lat_ms, tests, devices, quadkey, tile
+        Access: anonymous (--no-sign-request equivalent)
+        """
+        self.conn.execute("load s3")
+        self.conn.execute("load parquet")
+
+        s3_path = (
+            "s3://ookla-open-data/parquet/performance/type=fixed/year=2019/quarter=1/"
+            "2019-01-01_performance_fixed_tiles.parquet"
+        )
+
+        query = f"""
+        LOAD FROM "{s3_path}" (
+            CREDENTIALS_KIND='Anonymous',
+            AWS_DEFAULT_REGION='us-west-2'
+        )
+        RETURN avg_d_kbps, avg_u_kbps, tests
+        LIMIT 5
+        """
+        result = self.conn.execute(query)
+        records = list(result)
+
+        assert len(records) == 5, f"Expected 5 records (LIMIT 5), got {len(records)}"
+        for record in records:
+            avg_d, avg_u, tests = record
+            assert (
+                isinstance(avg_d, int) and avg_d > 0
+            ), f"avg_d_kbps should be positive int, got {avg_d}"
+            assert (
+                isinstance(avg_u, int) and avg_u > 0
+            ), f"avg_u_kbps should be positive int, got {avg_u}"
+            assert (
+                isinstance(tests, int) and tests > 0
+            ), f"tests should be positive int, got {tests}"
+
 
 class TestCopyFrom:
     """Test cases for COPY FROM functionality with schema creation and data verification."""
