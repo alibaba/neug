@@ -615,7 +615,7 @@ void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
         checkpoint_dir_path + "/" +
         statistics_file_prefix(meta_->src_label_name, meta_->dst_label_name,
                                meta_->edge_label_name);
-    write_statistic_file(statistc_file_path, Capacity(), Size());
+    write_statistic_file(statistc_file_path, Capacity(), PropTableSize());
   }
 }
 
@@ -975,15 +975,9 @@ void EdgeTable::Compact(bool compact_csr, bool sort_on_compaction,
   in_csr_->reset_timestamp();
 }
 
-size_t EdgeTable::Size() const {
+size_t EdgeTable::PropTableSize() const {
   if (meta_->is_bundled()) {
-    if (out_csr_) {
-      return out_csr_->edge_num();
-    } else if (in_csr_) {
-      return in_csr_->edge_num();
-    } else {
-      THROW_RUNTIME_ERROR("both csr are null");
-    }
+    return 0;
   }
   // TODO(zhanglei): the size may be inaccurate if some edges are deleted but
   // not compacted yet.

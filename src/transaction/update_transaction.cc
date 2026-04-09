@@ -743,10 +743,11 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
 
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
-  if (edge_table.Size() >= edge_table.Capacity()) {
-    auto new_capacity = edge_table.Size() < 4096
-                            ? 4096
-                            : edge_table.Size() + edge_table.Size() / 4;
+  if (edge_table.PropTableSize() >= edge_table.Capacity()) {
+    auto new_capacity =
+        edge_table.PropTableSize() < 4096
+            ? 4096
+            : edge_table.PropTableSize() + edge_table.PropTableSize() / 4;
     auto status =
         graph_.EnsureCapacity(src_label, dst_label, edge_label, new_capacity);
     if (!status.ok()) {
