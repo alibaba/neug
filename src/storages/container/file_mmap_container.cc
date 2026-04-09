@@ -68,10 +68,6 @@ void FileSharedMMap::Resize(size_t size) {
   if (size == size_) {
     return;
   }
-  if (mmap_data_ && size_ > 0) {
-    // Avoid MD5 recomputation here.
-    msync(mmap_data_, mmap_size_, MS_SYNC);
-  }
   size_t real_size = size + sizeof(FileHeader);
   if (mmap_data_ && mmap_size_ > 0) {
     munmapImpl(mmap_data_, mmap_size_);
