@@ -15,10 +15,32 @@
  */
 
 #include "neug/compiler/optimizer/filter_push_down_pattern.h"
+#include "neug/compiler/binder/expression_visitor.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 
 namespace neug {
 namespace optimizer {
+
+namespace {
+// Detects whole-node / whole-rel references (ExpressionType::PATTERN) in the
+// predicate, e.g. "WHERE a IS NOT NULL" or "WHERE a IS NULL" on a bound alias.
+// Pushing such predicates into SCAN/EXTEND/GET_V embeds a Variable without
+// `property` in the scan predicate; execution parses that with VarType::kVertex
+// and aborts in parse_vertex_var ("vertex variable missing property"). Keeping
+// the filter above the scan uses VarType::kRecord (select.cc) and is correct.
+class BarePatternDetector final : public binder::ExpressionVisitor {
+ public:
+  bool hasBarePattern() const { return found_; }
+
+ protected:
+  void visitNodeRelExpr(std::shared_ptr<binder::Expression>) override {
+    found_ = true;
+  }
+
+ private:
+  bool found_ = false;
+};
+}  // namespace
 
 void FilterPushDownPattern::rewrite(planner::LogicalPlan* plan) {
   auto root = plan->getLastOperator();
@@ -110,6 +132,13 @@ bool FilterPushDownPattern::canPushDown(
   if (childType != planner::LogicalOperatorType::SCAN_NODE_TABLE &&
       childType != planner::LogicalOperatorType::EXTEND &&
       childType != planner::LogicalOperatorType::GET_V) {
+    return false;
+  }
+  // Do not fuse bare PATTERN null checks into scan predicates; see
+  // BarePatternDetector.
+  BarePatternDetector patternDetector;
+  patternDetector.visit(predicate);
+  if (patternDetector.hasBarePattern()) {
     return false;
   }
   auto uniqueName = getUniqueName(child);

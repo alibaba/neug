@@ -2852,6 +2852,34 @@ def test_optional_match_on_edge(tmp_path):
     db.close()
 
 
+def test_is_not_null_on_node_variable(tmp_path):
+    """IS NOT NULL on a bound node variable should not abort.
+
+    Reproducer: MATCH (a:Node) WHERE a IS NOT NULL RETURN 1
+    Previously aborted in variable.cc with 'vertex variable missing property'
+    because the physical plan emitted a Variable without a property field
+    for the whole-node null check.
+    """
+    db_dir = tmp_path / "is_not_null_node"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Node(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (a:Node {id: 1});")
+
+    result = conn.execute(
+        "MATCH (a:Node) WHERE a IS NOT NULL RETURN 1;",
+        access_mode="read",
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0] == 1
+
+    conn.close()
+    db.close()
+
+
 def test_drop_and_recreate_table_same_name(tmp_path):
     """Test that dropping node tables with relationships and recreating
     with the same name but different schema does not crash (SIGSEGV)."""
