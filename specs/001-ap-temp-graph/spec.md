@@ -26,14 +26,13 @@
 │  P2: 临时图载入 (依赖 P1)            │                                       │
 │  ┌──────────────────────────────────┴────────────────────────────────────┐  │
 │  │                                                                       │  │
-│  │  COPY FROM 无 Schema（自动推断）[M5]                                        │  │
 │  │  ┌────────────────────┐  ┌────────────────────┐  ┌─────────────────┐  │  │
 │  │  │ BatchInsertTemp    │  │ BatchInsertTemp    │  │ 生命周期管理     │  │  │
-│  │  │ Vertex [M6]        │  │ Edge [M7]          │  │ [M8]            │  │  │
+│  │  │ Vertex [M5]        │  │ Edge [M6]          │  │ [M7]            │  │  │
 │  │  └────────────────────┘  └────────────────────┘  └─────────────────┘  │  │
 │  │                                                                       │  │
 │  │  ┌────────────────────┐  ┌────────────────────┐                       │  │
-│  │  │ 统一查询接口 [M9]   │  │ 场景边界控制 [M10] │                       │  │
+│  │  │ 统一查询接口 [M8]   │  │ 场景边界控制 [M9]  │                       │  │
 │  │  └────────────────────┘  └────────────────────┘                       │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -41,15 +40,15 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  P3: 网络资源支持 (可并行开发，扩展 P1 的数据源)                              │
 │  ┌─────────────────────┬─────────────────────┬─────────────────────┐        │
-│  │  HTTP 资源 [M11]    │  S3 资源 [M12]      │  OSS 资源 [M13]     │        │
+│  │  HTTP 资源 [M10]    │  S3 资源 [M11]      │  OSS 资源 [M12]     │        │
 │  └─────────────────────┴─────────────────────┴─────────────────────┘        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **并行开发说明**:
 - **P1 内部**: M1(CSV), M2(JSON), M3(Parquet), M4(关系型查询) 可并行开发
-- **P2 内部**: M5(COPY FROM 无 Schema) 依赖 P1 的 Sniff/Read（子查询源依赖 M4）；M6(临时点)→M7(临时边) 需顺序执行；M8-M10 可与 M6/M7 部分并行
-- **P3 内部**: M11(HTTP), M12(S3), M13(OSS) 可并行开发
+- **P2 内部**: M5(临时点), M6(临时边) 需顺序执行；M7-M9 可与 M5/M6 部分并行
+- **P3 内部**: M10(HTTP), M11(S3), M12(OSS) 可并行开发
 
 ---
 
@@ -225,11 +224,312 @@
 
 > **目标**: 将外部数据载入为临时点/边，支持与持久图混合查询。
 > **依赖**: 需要 P1 的文件格式模块完成后才能开始。
-> **顺序约束**: M5(COPY FROM 无 Schema) 依赖 P1（子查询路径依赖 M4）；M6(临时点)→M7(临时边) 顺序开发；M8–M10 可与 M6/M7 部分并行。
+> **顺序约束**: M5(临时点) → M6(临时边)，M7-M9 可与 M5/M6 部分并行。
 
 ---
 
-### Module 5: Copy From With No Schema
+### Module 5: 临时点载入 (BatchInsertTempVertex) (Priority: P2)
+
+**Purpose**: 将外部数据载入为临时点，写入 Connection 级别的临时图存储。支持与持久图进行混合查询。
+
+**Why this priority**: 临时点是临时图功能的核心，依赖 P1 的数据读取能力。
+
+**Depends on**: P1 (至少一个文件格式模块)
+
+**Independent Test**: 执行 `LOAD FROM "file.csv" (primary_key="id") AS TempNode` 后，通过 `MATCH (n:TempNode)` 验证数据已写入临时图。
+
+**Key Components**:
+
+1. **Temp Vertex Schema Builder (临时点 Schema 构建器)**: 基于 EntrySchema 构建临时点类型定义，包含 label、primary_key、属性列表。
+2. **BatchInsertTempVertex Operator (批量临时点插入算子)**: 将 RecordBatch 数据批量写入临时图存储，注册 Schema 并分配临时 label_id。
+3. **Temp Vertex Storage (临时点存储)**: Connection 级别的点数据存储，与基图隔离。
+
+**Functional Requirements**:
+
+1. **FR-501**: 系统 MUST 支持 `LOAD FROM <source> (primary_key=<col>) AS <label>` 语法载入临时点
+2. **FR-502**: 系统 MUST 在 Connection 本地存储中注册临时点的 Schema
+3. **FR-503**: 临时点的 label_id MUST 与持久图的 label_id 不冲突（从 max-1 倒序编码）
+4. **FR-504**: 系统 MUST 支持在 LOAD AS 之前使用 WHERE 子句过滤要载入的数据
+5. **FR-505**: 载入的临时点 MUST 可通过 MATCH 语句查询，与持久点语法一致
+
+**Acceptance Scenarios**:
+
+1. **Given** CSV 文件，**When** 执行 `LOAD FROM "file.csv" (primary_key="id") AS TempUser`，**Then** 创建临时点类型 `TempUser`，可通过 `MATCH (n:TempUser)` 查询
+2. **Given** CSV 文件和 WHERE 条件，**When** 执行 `LOAD FROM "file.csv" (primary_key="id") WHERE value > 100 AS TempNode`，**Then** 只有符合条件的数据被载入为临时点
+3. **Given** 已存在持久点类型 `Person`，**When** 创建同名临时点 `Person`，**Then** 系统返回冲突错误
+
+**Test Strategy**:
+
+- **Unit Tests**: Schema 构建正确性；label_id 编码逻辑；主键唯一性检查
+- **Integration Tests**: LOAD AS → MATCH 完整流程
+
+---
+
+### Module 6: 临时边载入 (BatchInsertTempEdge) (Priority: P2)
+
+**Purpose**: 将外部数据载入为临时边，建立临时点之间以及临时点与持久点之间的关联关系。
+
+**Why this priority**: 临时边依赖 M5 临时点功能，是构建完整临时图结构的关键。
+
+**Depends on**: M5 (临时点载入)
+
+**Independent Test**: 在临时点存在的前提下，执行 LOAD EDGE AS 后，通过路径查询验证边已创建。
+
+**Key Components**:
+
+1. **Temp Edge Schema Builder (临时边 Schema 构建器)**: 构建边类型定义，包含边标签三元组、源/目标点类型、关联列映射。
+2. **Bridging Edge Resolver (桥接边解析器)**: 在写入桥接边时，根据关联列在持久图或临时图中查询对应的点 ID。
+3. **BatchInsertTempEdge Operator (批量临时边插入算子)**: 将边数据批量写入临时图存储，处理三种边类型。
+
+**Functional Requirements**:
+
+1. **FR-601**: 系统 MUST 支持 `LOAD EDGE FROM <source> (from=<src_label>, to=<dst_label>, from_col=<col>, to_col=<col>) AS <label>` 语法载入临时边
+2. **FR-602**: 系统 MUST 支持三种临时边类型：
+   - 临时点 ↔ 临时点（纯临时边）
+   - 临时点 → 持久点（出向桥接边）
+   - 持久点 → 临时点（入向桥接边）
+3. **FR-603**: 系统 MUST 在写入桥接边时，根据关联列查询对应的点 ID 进行关联
+4. **FR-604**: 当桥接边的目标/源点不存在时，系统 MUST 跳过该边并记录警告
+5. **FR-605**: 载入的临时边 MUST 可通过路径模式查询，支持与持久边混合遍历
+
+**Acceptance Scenarios**:
+
+1. **Given** 临时点 `TempUser` 和持久点 `Product`，**When** 执行边载入语句，**Then** 创建桥接边，可通过 `MATCH (u:TempUser)-[r:TempPurchased]->(p:Product)` 查询
+2. **Given** 两个临时点类型 `TempA` 和 `TempB`，**When** 载入连接它们的边，**Then** 系统创建纯临时边
+3. **Given** 边文件中存在引用不存在的点 ID，**When** 执行载入，**Then** 系统跳过这些边并输出警告
+
+**Test Strategy**:
+
+- **Unit Tests**: 三种边类型的正确创建；桥接边 ID 解析逻辑
+- **Integration Tests**: 临时点→桥接边→持久点 的完整路径查询
+
+---
+
+### Module 7: 生命周期管理 (Priority: P2)
+
+**Purpose**: 管理临时点边数据的生命周期，确保资源正确绑定到 Connection 并在适当时机自动清理。
+
+**Why this priority**: 生命周期管理是系统稳定性的关键。
+
+**Parallel**: 可与 M5/M6 部分并行开发（基础框架可先行，与存储集成需等 M5/M6）
+
+**Independent Test**: 创建 Connection → 载入临时数据 → 关闭 Connection → 验证数据已清理。
+
+**Key Components**:
+
+1. **ConnectionGraph (连接级图存储)**: 封装基图引用和本地临时存储，维护 Connection 级别的 Schema 和数据表。
+2. **Temporary Schema Registry (临时 Schema 注册表)**: 维护当前 Connection 的所有临时点/边类型定义。
+3. **Resource Cleaner (资源清理器)**: 在 Connection 关闭时自动释放所有临时图资源。
+
+**Functional Requirements**:
+
+1. **FR-701**: 临时点边的生命周期 MUST 绑定到当前 Connection
+2. **FR-702**: Connection 关闭时 MUST 自动清理该连接的所有临时点边数据
+3. **FR-703**: 用户 MUST 能够通过 `DROP TABLE <label>` 显式删除临时点或边类型，删除临时点的时候，如果其有对应临时边，也一并删除
+4. **FR-704**: 多个 Connection 的临时存储 MUST 相互隔离
+5. **FR-705**: 系统 MUST 在异常退出时尽可能清理临时文件
+
+**Acceptance Scenarios**:
+
+1. **Given** 已载入临时点的 Connection，**When** 关闭该 Connection，**Then** 临时点数据被自动清理
+2. **Given** 已载入临时边，**When** 执行 `DROP TABLE TempEdge`，**Then** 临时边被删除
+
+**Test Strategy**:
+
+- **Unit Tests**: DROP TABLE 执行；Connection 关闭时的资源释放
+- **Integration Tests**: 多 Connection 隔离性测试
+
+---
+
+### Module 8: 统一查询接口 (Priority: P2)
+
+**Purpose**: 提供统一的图查询接口，使查询层无需区分临时图还是持久图，实现透明的混合查询。
+
+**Why this priority**: 统一查询是用户体验的核心。
+
+**Parallel**: 可与 M5/M6 部分并行开发（接口设计可先行，实现需等 M5/M6）
+
+**Independent Test**: 执行涉及临时和持久元素的混合 MATCH 查询，验证结果正确性。
+
+**Key Components**:
+
+1. **Unified Schema View (统一 Schema 视图)**: 合并基图 Schema 和临时 Schema，对外提供单一视图。
+2. **Transparent Scan/Expand (透明扫描/展开)**: 支持对临时和持久数据的统一操作。
+
+**Functional Requirements**:
+
+1. **FR-801**: 系统 MUST 提供统一的 Schema 视图
+2. **FR-802**: MATCH 语句 MUST 能够透明地引用临时点/边标签
+3. **FR-803**: Scan、Expand 算子 MUST 能够统一操作临时图和持久图数据
+4. **FR-804**: 跨临时图和持久图的路径查询 MUST 正确返回完整结果
+
+**Acceptance Scenarios**:
+
+1. **Given** 临时点、临时边、持久点、持久边，**When** 执行跨越它们的路径查询，**Then** 系统正确返回结果
+2. **Given** 临时点和持久点有同名属性，**When** 查询该属性，**Then** 根据变量绑定返回正确值
+
+**Test Strategy**:
+
+- **Unit Tests**: Schema 合并逻辑；label_id 路由
+- **Integration Tests**: 复杂混合查询
+
+---
+
+### Module 9: 场景边界控制 (Priority: P2)
+
+**Purpose**: 确保临时图功能只在允许的场景下可用，在不支持的场景下返回清晰的错误信息。
+
+**Why this priority**: 边界控制是系统健壮性的保障。
+
+**Parallel**: 可与 M5-M8 并行开发
+
+**Independent Test**: 在 read-only 模式或 TP 模式下执行 LOAD AS，验证返回正确的错误信息。
+
+**Key Components**:
+
+1. **Mode Validator (模式验证器)**: 验证当前运行模式和数据库打开模式。
+2. **Error Message Provider (错误信息提供器)**: 提供清晰的错误信息。
+
+**Functional Requirements**:
+
+1. **FR-901**: 系统 MUST 仅在 AP（Embedded）模式下支持临时点边功能（LOAD AS）
+2. **FR-902**: 系统 MUST 仅在 read-write 模式下支持临时点边功能（LOAD AS）
+3. **FR-903**: 关系型查询（LOAD ... RETURN 不带 AS）在 read-only 模式下 MAY 支持
+4. **FR-904**: 系统 MUST 在不支持的场景下返回明确的错误信息
+
+**Acceptance Scenarios**:
+
+1. **Given** read-only 模式，**When** 执行 LOAD AS，**Then** 返回错误 "Temporary graph requires read-write mode"
+2. **Given** TP 服务模式，**When** 执行 LOAD AS，**Then** 返回错误 "Temporary graph is only supported in AP mode"
+3. **Given** read-only 模式，**When** 执行 `LOAD FROM "file.csv" RETURN *`（不带 AS），**Then** 查询正常执行
+
+**Test Strategy**:
+
+- **Unit Tests**: 各种模式组合的验证结果
+- **Integration Tests**: E2E 错误信息验证
+
+---
+
+## P3: 网络资源支持
+
+> **目标**: 扩展数据源范围，支持从网络资源（HTTP/S3/OSS）读取数据。
+> **依赖**: 可独立于 P2 开发，但需要 P1 的格式模块作为基础。
+> **可并行开发**: M10, M11, M12 之间无强依赖，可同时开发。
+
+---
+
+### Module 10: HTTP 资源访问 (Priority: P3)
+
+**Purpose**: 支持通过 HTTP/HTTPS 协议访问远程文件资源，扩展数据源范围。
+
+**Why this priority**: HTTP 是最通用的网络协议，支持大量公开数据源。
+
+**Parallel**: 可与 M11, M12 并行开发
+
+**Independent Test**: 执行 `LOAD FROM "https://example.com/data.csv" RETURN *` 验证远程文件下载和解析。
+
+**Key Components**:
+
+1. **HTTP Client (HTTP 客户端)**: 支持 HTTP/HTTPS GET 请求，处理重定向、超时、重试。
+2. **Stream Adapter (流适配器)**: 将 HTTP 响应流转换为文件格式 Reader 可处理的输入流。
+3. **URL Parser (URL 解析器)**: 识别 HTTP/HTTPS URL，提取主机、路径、参数。
+
+**Functional Requirements**:
+
+1. **FR-1001**: 系统 MUST 支持从 HTTP/HTTPS URL 读取文件
+2. **FR-1002**: 系统 MUST 根据 URL 扩展名或 Content-Type 自动识别文件格式（CSV/JSON/Parquet）
+3. **FR-1003**: 系统 MUST 支持 HTTP 重定向（301/302/307）
+4. **FR-1004**: 系统 MUST 支持配置超时时间和重试次数
+5. **FR-1005**: 系统 MUST 支持 HTTPS 证书验证（可配置跳过）
+
+**Acceptance Scenarios**:
+
+1. **Given** 公开的 CSV 文件 URL，**When** 执行 `LOAD FROM "https://example.com/data.csv" RETURN *`，**Then** 系统下载并解析文件
+2. **Given** 返回 JSON 的 API URL，**When** 执行 `LOAD FROM "https://api.example.com/users" RETURN *`，**Then** 系统识别 JSON 格式并解析
+3. **Given** 需要重定向的 URL，**When** 执行 LOAD，**Then** 系统自动跟随重定向获取最终资源
+
+**Test Strategy**:
+
+- **Unit Tests**: URL 解析；HTTP 状态码处理；超时和重试逻辑
+- **Integration Tests**: Mock HTTP 服务器集成测试
+
+---
+
+### Module 11: S3 资源访问 (Priority: P3)
+
+**Purpose**: 支持从 AWS S3 存储桶读取文件，满足云端数据分析场景。
+
+**Why this priority**: S3 是最流行的云存储服务，是企业数据湖的常见选择。
+
+**Parallel**: 可与 M10, M12 并行开发
+
+**Independent Test**: 配置 S3 凭证后，执行 `LOAD FROM "s3://bucket/path/data.csv" RETURN *` 验证 S3 访问。
+
+**Key Components**:
+
+1. **S3 Client (S3 客户端)**: 封装 AWS SDK，支持 GetObject 操作和分段下载。
+2. **Credential Manager (凭证管理器)**: 支持多种凭证来源（环境变量、配置文件、IAM Role）。
+3. **S3 URL Parser (S3 URL 解析器)**: 解析 `s3://bucket/key` 格式的 URL。
+
+**Functional Requirements**:
+
+1. **FR-1101**: 系统 MUST 支持从 S3 存储桶读取文件（`s3://bucket/path/file`）
+2. **FR-1102**: 系统 MUST 支持多种 S3 凭证配置方式（环境变量、配置文件、显式传入）
+3. **FR-1103**: 系统 MUST 支持配置 S3 区域（Region）和端点（Endpoint）
+4. **FR-1104**: 系统 MUST 支持大文件的分段下载（避免内存溢出）
+5. **FR-1105**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
+
+**Acceptance Scenarios**:
+
+1. **Given** 有效的 S3 凭证和存储桶权限，**When** 执行 `LOAD FROM "s3://mybucket/data/file.csv" RETURN *`，**Then** 系统成功读取文件
+2. **Given** 无效的 S3 凭证，**When** 执行 LOAD，**Then** 系统返回 "Invalid AWS credentials" 错误
+3. **Given** 大型 Parquet 文件（>1GB），**When** 执行 LOAD，**Then** 系统流式下载，不会内存溢出
+
+**Test Strategy**:
+
+- **Unit Tests**: URL 解析；凭证加载逻辑；错误处理
+- **Integration Tests**: LocalStack 或真实 S3 集成测试
+
+---
+
+### Module 12: OSS 资源访问 (Priority: P3)
+
+**Purpose**: 支持从阿里云 OSS 存储桶读取文件，满足国内云环境的数据分析场景。
+
+**Why this priority**: OSS 是国内最流行的云存储服务。
+
+**Parallel**: 可与 M10, M11 并行开发
+
+**Independent Test**: 配置 OSS 凭证后，执行 `LOAD FROM "oss://bucket/path/data.csv" RETURN *` 验证 OSS 访问。
+
+**Key Components**:
+
+1. **OSS Client (OSS 客户端)**: 封装阿里云 OSS SDK，支持 GetObject 操作。
+2. **OSS Credential Manager (OSS 凭证管理器)**: 支持 AccessKey、STS Token、RAM Role 等认证方式。
+3. **OSS URL Parser (OSS URL 解析器)**: 解析 `oss://bucket/key` 格式的 URL。
+
+**Functional Requirements**:
+
+1. **FR-1201**: 系统 MUST 支持从 OSS 存储桶读取文件（`oss://bucket/path/file`）
+2. **FR-1202**: 系统 MUST 支持 AccessKeyId/AccessKeySecret 认证
+3. **FR-1203**: 系统 MUST 支持配置 OSS Endpoint（区分内网/外网）
+4. **FR-1204**: 系统 MUST 支持 STS 临时凭证
+5. **FR-1205**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
+
+**Acceptance Scenarios**:
+
+1. **Given** 有效的 OSS 凭证和存储桶权限，**When** 执行 `LOAD FROM "oss://mybucket/data/file.csv" RETURN *`，**Then** 系统成功读取文件
+2. **Given** 内网环境的 OSS Endpoint 配置，**When** 执行 LOAD，**Then** 系统使用内网地址访问 OSS
+3. **Given** STS 临时凭证，**When** 执行 LOAD，**Then** 系统正确使用临时凭证访问
+
+**Test Strategy**:
+
+- **Unit Tests**: URL 解析；凭证加载逻辑；Endpoint 配置
+- **Integration Tests**: 真实 OSS 或 Mock 服务集成测试
+
+---
+
+### Module 13: Copy From With No Schema (Priority: P2)
 
 **设计细化（Binder / TableInfo）**: [`table-info-copy-from-design.md`](./table-info-copy-from-design.md)
 
@@ -452,306 +752,6 @@ BatchInsertVertex:
   vertex_type: { name: "ExtLegacyUser" }
   property_mappings: ...
 ```
-
-
-### Module 6: 临时点载入 (BatchInsertTempVertex) (Priority: P2)
-
-**Purpose**: 将外部数据载入为临时点，写入 Connection 级别的临时图存储。支持与持久图进行混合查询。
-
-**Why this priority**: 临时点是临时图功能的核心，依赖 P1 的数据读取能力。
-
-**Depends on**: P1 (至少一个文件格式模块)
-
-**Independent Test**: 执行 `LOAD FROM "file.csv" (primary_key="id") AS TempNode` 后，通过 `MATCH (n:TempNode)` 验证数据已写入临时图。
-
-**Key Components**:
-
-1. **Temp Vertex Schema Builder (临时点 Schema 构建器)**: 基于 EntrySchema 构建临时点类型定义，包含 label、primary_key、属性列表。
-2. **BatchInsertTempVertex Operator (批量临时点插入算子)**: 将 RecordBatch 数据批量写入临时图存储，注册 Schema 并分配临时 label_id。
-3. **Temp Vertex Storage (临时点存储)**: Connection 级别的点数据存储，与基图隔离。
-
-**Functional Requirements**:
-
-1. **FR-601**: 系统 MUST 支持 `LOAD FROM <source> (primary_key=<col>) AS <label>` 语法载入临时点
-2. **FR-602**: 系统 MUST 在 Connection 本地存储中注册临时点的 Schema
-3. **FR-603**: 临时点的 label_id MUST 与持久图的 label_id 不冲突（从 max-1 倒序编码）
-4. **FR-604**: 系统 MUST 支持在 LOAD AS 之前使用 WHERE 子句过滤要载入的数据
-5. **FR-605**: 载入的临时点 MUST 可通过 MATCH 语句查询，与持久点语法一致
-
-**Acceptance Scenarios**:
-
-1. **Given** CSV 文件，**When** 执行 `LOAD FROM "file.csv" (primary_key="id") AS TempUser`，**Then** 创建临时点类型 `TempUser`，可通过 `MATCH (n:TempUser)` 查询
-2. **Given** CSV 文件和 WHERE 条件，**When** 执行 `LOAD FROM "file.csv" (primary_key="id") WHERE value > 100 AS TempNode`，**Then** 只有符合条件的数据被载入为临时点
-3. **Given** 已存在持久点类型 `Person`，**When** 创建同名临时点 `Person`，**Then** 系统返回冲突错误
-
-**Test Strategy**:
-
-- **Unit Tests**: Schema 构建正确性；label_id 编码逻辑；主键唯一性检查
-- **Integration Tests**: LOAD AS → MATCH 完整流程
-
----
-
-### Module 7: 临时边载入 (BatchInsertTempEdge) (Priority: P2)
-
-**Purpose**: 将外部数据载入为临时边，建立临时点之间以及临时点与持久点之间的关联关系。
-
-**Why this priority**: 临时边依赖 M6 临时点功能，是构建完整临时图结构的关键。
-
-**Depends on**: M6 (临时点载入)
-
-**Independent Test**: 在临时点存在的前提下，执行 LOAD EDGE AS 后，通过路径查询验证边已创建。
-
-**Key Components**:
-
-1. **Temp Edge Schema Builder (临时边 Schema 构建器)**: 构建边类型定义，包含边标签三元组、源/目标点类型、关联列映射。
-2. **Bridging Edge Resolver (桥接边解析器)**: 在写入桥接边时，根据关联列在持久图或临时图中查询对应的点 ID。
-3. **BatchInsertTempEdge Operator (批量临时边插入算子)**: 将边数据批量写入临时图存储，处理三种边类型。
-
-**Functional Requirements**:
-
-1. **FR-701**: 系统 MUST 支持 `LOAD EDGE FROM <source> (from=<src_label>, to=<dst_label>, from_col=<col>, to_col=<col>) AS <label>` 语法载入临时边
-2. **FR-702**: 系统 MUST 支持三种临时边类型：
-   - 临时点 ↔ 临时点（纯临时边）
-   - 临时点 → 持久点（出向桥接边）
-   - 持久点 → 临时点（入向桥接边）
-3. **FR-703**: 系统 MUST 在写入桥接边时，根据关联列查询对应的点 ID 进行关联
-4. **FR-704**: 当桥接边的目标/源点不存在时，系统 MUST 跳过该边并记录警告
-5. **FR-705**: 载入的临时边 MUST 可通过路径模式查询，支持与持久边混合遍历
-
-**Acceptance Scenarios**:
-
-1. **Given** 临时点 `TempUser` 和持久点 `Product`，**When** 执行边载入语句，**Then** 创建桥接边，可通过 `MATCH (u:TempUser)-[r:TempPurchased]->(p:Product)` 查询
-2. **Given** 两个临时点类型 `TempA` 和 `TempB`，**When** 载入连接它们的边，**Then** 系统创建纯临时边
-3. **Given** 边文件中存在引用不存在的点 ID，**When** 执行载入，**Then** 系统跳过这些边并输出警告
-
-**Test Strategy**:
-
-- **Unit Tests**: 三种边类型的正确创建；桥接边 ID 解析逻辑
-- **Integration Tests**: 临时点→桥接边→持久点 的完整路径查询
-
----
-
-### Module 8: 生命周期管理 (Priority: P2)
-
-**Purpose**: 管理临时点边数据的生命周期，确保资源正确绑定到 Connection 并在适当时机自动清理。
-
-**Why this priority**: 生命周期管理是系统稳定性的关键。
-
-**Parallel**: 可与 M6/M7 部分并行开发（基础框架可先行，与存储集成需等 M6/M7）
-
-**Independent Test**: 创建 Connection → 载入临时数据 → 关闭 Connection → 验证数据已清理。
-
-**Key Components**:
-
-1. **ConnectionGraph (连接级图存储)**: 封装基图引用和本地临时存储，维护 Connection 级别的 Schema 和数据表。
-2. **Temporary Schema Registry (临时 Schema 注册表)**: 维护当前 Connection 的所有临时点/边类型定义。
-3. **Resource Cleaner (资源清理器)**: 在 Connection 关闭时自动释放所有临时图资源。
-
-**Functional Requirements**:
-
-1. **FR-801**: 临时点边的生命周期 MUST 绑定到当前 Connection
-2. **FR-802**: Connection 关闭时 MUST 自动清理该连接的所有临时点边数据
-3. **FR-803**: 用户 MUST 能够通过 `DROP TABLE <label>` 显式删除临时点或边类型，删除临时点的时候，如果其有对应临时边，也一并删除
-4. **FR-804**: 多个 Connection 的临时存储 MUST 相互隔离
-5. **FR-805**: 系统 MUST 在异常退出时尽可能清理临时文件
-
-**Acceptance Scenarios**:
-
-1. **Given** 已载入临时点的 Connection，**When** 关闭该 Connection，**Then** 临时点数据被自动清理
-2. **Given** 已载入临时边，**When** 执行 `DROP TABLE TempEdge`，**Then** 临时边被删除
-
-**Test Strategy**:
-
-- **Unit Tests**: DROP TABLE 执行；Connection 关闭时的资源释放
-- **Integration Tests**: 多 Connection 隔离性测试
-
----
-
-### Module 9: 统一查询接口 (Priority: P2)
-
-**Purpose**: 提供统一的图查询接口，使查询层无需区分临时图还是持久图，实现透明的混合查询。
-
-**Why this priority**: 统一查询是用户体验的核心。
-
-**Parallel**: 可与 M6/M7 部分并行开发（接口设计可先行，实现需等 M6/M7）
-
-**Independent Test**: 执行涉及临时和持久元素的混合 MATCH 查询，验证结果正确性。
-
-**Key Components**:
-
-1. **Unified Schema View (统一 Schema 视图)**: 合并基图 Schema 和临时 Schema，对外提供单一视图。
-2. **Transparent Scan/Expand (透明扫描/展开)**: 支持对临时和持久数据的统一操作。
-
-**Functional Requirements**:
-
-1. **FR-901**: 系统 MUST 提供统一的 Schema 视图
-2. **FR-902**: MATCH 语句 MUST 能够透明地引用临时点/边标签
-3. **FR-903**: Scan、Expand 算子 MUST 能够统一操作临时图和持久图数据
-4. **FR-904**: 跨临时图和持久图的路径查询 MUST 正确返回完整结果
-
-**Acceptance Scenarios**:
-
-1. **Given** 临时点、临时边、持久点、持久边，**When** 执行跨越它们的路径查询，**Then** 系统正确返回结果
-2. **Given** 临时点和持久点有同名属性，**When** 查询该属性，**Then** 根据变量绑定返回正确值
-
-**Test Strategy**:
-
-- **Unit Tests**: Schema 合并逻辑；label_id 路由
-- **Integration Tests**: 复杂混合查询
-
----
-
-### Module 10: 场景边界控制 (Priority: P2)
-
-**Purpose**: 确保临时图功能只在允许的场景下可用，在不支持的场景下返回清晰的错误信息。
-
-**Why this priority**: 边界控制是系统健壮性的保障。
-
-**Parallel**: 可与 M6-M9 并行开发
-
-**Independent Test**: 在 read-only 模式或 TP 模式下执行 LOAD AS，验证返回正确的错误信息。
-
-**Key Components**:
-
-1. **Mode Validator (模式验证器)**: 验证当前运行模式和数据库打开模式。
-2. **Error Message Provider (错误信息提供器)**: 提供清晰的错误信息。
-
-**Functional Requirements**:
-
-1. **FR-1001**: 系统 MUST 仅在 AP（Embedded）模式下支持临时点边功能（LOAD AS）
-2. **FR-1002**: 系统 MUST 仅在 read-write 模式下支持临时点边功能（LOAD AS）
-3. **FR-1003**: 关系型查询（LOAD ... RETURN 不带 AS）在 read-only 模式下 MAY 支持
-4. **FR-1004**: 系统 MUST 在不支持的场景下返回明确的错误信息
-
-**Acceptance Scenarios**:
-
-1. **Given** read-only 模式，**When** 执行 LOAD AS，**Then** 返回错误 "Temporary graph requires read-write mode"
-2. **Given** TP 服务模式，**When** 执行 LOAD AS，**Then** 返回错误 "Temporary graph is only supported in AP mode"
-3. **Given** read-only 模式，**When** 执行 `LOAD FROM "file.csv" RETURN *`（不带 AS），**Then** 查询正常执行
-
-**Test Strategy**:
-
-- **Unit Tests**: 各种模式组合的验证结果
-- **Integration Tests**: E2E 错误信息验证
-
----
-
-## P3: 网络资源支持
-
-> **目标**: 扩展数据源范围，支持从网络资源（HTTP/S3/OSS）读取数据。
-> **依赖**: 可独立于 P2 开发，但需要 P1 的格式模块作为基础。
-> **可并行开发**: M11, M12, M13 之间无强依赖，可同时开发。
-
----
-
-### Module 11: HTTP 资源访问 (Priority: P3)
-
-**Purpose**: 支持通过 HTTP/HTTPS 协议访问远程文件资源，扩展数据源范围。
-
-**Why this priority**: HTTP 是最通用的网络协议，支持大量公开数据源。
-
-**Parallel**: 可与 M12, M13 并行开发
-
-**Independent Test**: 执行 `LOAD FROM "https://example.com/data.csv" RETURN *` 验证远程文件下载和解析。
-
-**Key Components**:
-
-1. **HTTP Client (HTTP 客户端)**: 支持 HTTP/HTTPS GET 请求，处理重定向、超时、重试。
-2. **Stream Adapter (流适配器)**: 将 HTTP 响应流转换为文件格式 Reader 可处理的输入流。
-3. **URL Parser (URL 解析器)**: 识别 HTTP/HTTPS URL，提取主机、路径、参数。
-
-**Functional Requirements**:
-
-1. **FR-1101**: 系统 MUST 支持从 HTTP/HTTPS URL 读取文件
-2. **FR-1102**: 系统 MUST 根据 URL 扩展名或 Content-Type 自动识别文件格式（CSV/JSON/Parquet）
-3. **FR-1103**: 系统 MUST 支持 HTTP 重定向（301/302/307）
-4. **FR-1104**: 系统 MUST 支持配置超时时间和重试次数
-5. **FR-1105**: 系统 MUST 支持 HTTPS 证书验证（可配置跳过）
-
-**Acceptance Scenarios**:
-
-1. **Given** 公开的 CSV 文件 URL，**When** 执行 `LOAD FROM "https://example.com/data.csv" RETURN *`，**Then** 系统下载并解析文件
-2. **Given** 返回 JSON 的 API URL，**When** 执行 `LOAD FROM "https://api.example.com/users" RETURN *`，**Then** 系统识别 JSON 格式并解析
-3. **Given** 需要重定向的 URL，**When** 执行 LOAD，**Then** 系统自动跟随重定向获取最终资源
-
-**Test Strategy**:
-
-- **Unit Tests**: URL 解析；HTTP 状态码处理；超时和重试逻辑
-- **Integration Tests**: Mock HTTP 服务器集成测试
-
----
-
-### Module 12: S3 资源访问 (Priority: P3)
-
-**Purpose**: 支持从 AWS S3 存储桶读取文件，满足云端数据分析场景。
-
-**Why this priority**: S3 是最流行的云存储服务，是企业数据湖的常见选择。
-
-**Parallel**: 可与 M11, M13 并行开发
-
-**Independent Test**: 配置 S3 凭证后，执行 `LOAD FROM "s3://bucket/path/data.csv" RETURN *` 验证 S3 访问。
-
-**Key Components**:
-
-1. **S3 Client (S3 客户端)**: 封装 AWS SDK，支持 GetObject 操作和分段下载。
-2. **Credential Manager (凭证管理器)**: 支持多种凭证来源（环境变量、配置文件、IAM Role）。
-3. **S3 URL Parser (S3 URL 解析器)**: 解析 `s3://bucket/key` 格式的 URL。
-
-**Functional Requirements**:
-
-1. **FR-1201**: 系统 MUST 支持从 S3 存储桶读取文件（`s3://bucket/path/file`）
-2. **FR-1202**: 系统 MUST 支持多种 S3 凭证配置方式（环境变量、配置文件、显式传入）
-3. **FR-1203**: 系统 MUST 支持配置 S3 区域（Region）和端点（Endpoint）
-4. **FR-1204**: 系统 MUST 支持大文件的分段下载（避免内存溢出）
-5. **FR-1205**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
-
-**Acceptance Scenarios**:
-
-1. **Given** 有效的 S3 凭证和存储桶权限，**When** 执行 `LOAD FROM "s3://mybucket/data/file.csv" RETURN *`，**Then** 系统成功读取文件
-2. **Given** 无效的 S3 凭证，**When** 执行 LOAD，**Then** 系统返回 "Invalid AWS credentials" 错误
-3. **Given** 大型 Parquet 文件（>1GB），**When** 执行 LOAD，**Then** 系统流式下载，不会内存溢出
-
-**Test Strategy**:
-
-- **Unit Tests**: URL 解析；凭证加载逻辑；错误处理
-- **Integration Tests**: LocalStack 或真实 S3 集成测试
-
----
-
-### Module 13: OSS 资源访问 (Priority: P3)
-
-**Purpose**: 支持从阿里云 OSS 存储桶读取文件，满足国内云环境的数据分析场景。
-
-**Why this priority**: OSS 是国内最流行的云存储服务。
-
-**Parallel**: 可与 M11, M12 并行开发
-
-**Independent Test**: 配置 OSS 凭证后，执行 `LOAD FROM "oss://bucket/path/data.csv" RETURN *` 验证 OSS 访问。
-
-**Key Components**:
-
-1. **OSS Client (OSS 客户端)**: 封装阿里云 OSS SDK，支持 GetObject 操作。
-2. **OSS Credential Manager (OSS 凭证管理器)**: 支持 AccessKey、STS Token、RAM Role 等认证方式。
-3. **OSS URL Parser (OSS URL 解析器)**: 解析 `oss://bucket/key` 格式的 URL。
-
-**Functional Requirements**:
-
-1. **FR-1301**: 系统 MUST 支持从 OSS 存储桶读取文件（`oss://bucket/path/file`）
-2. **FR-1302**: 系统 MUST 支持 AccessKeyId/AccessKeySecret 认证
-3. **FR-1303**: 系统 MUST 支持配置 OSS Endpoint（区分内网/外网）
-4. **FR-1304**: 系统 MUST 支持 STS 临时凭证
-5. **FR-1305**: 系统 MUST 在凭证无效或权限不足时返回清晰的错误信息
-
-**Acceptance Scenarios**:
-
-1. **Given** 有效的 OSS 凭证和存储桶权限，**When** 执行 `LOAD FROM "oss://mybucket/data/file.csv" RETURN *`，**Then** 系统成功读取文件
-2. **Given** 内网环境的 OSS Endpoint 配置，**When** 执行 LOAD，**Then** 系统使用内网地址访问 OSS
-3. **Given** STS 临时凭证，**When** 执行 LOAD，**Then** 系统正确使用临时凭证访问
-
-**Test Strategy**:
-
-- **Unit Tests**: URL 解析；凭证加载逻辑；Endpoint 配置
-- **Integration Tests**: 真实 OSS 或 Mock 服务集成测试
 
 ---
 
