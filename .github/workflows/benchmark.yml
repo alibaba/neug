@@ -26,7 +26,7 @@ jobs:
   test-py-neug:
     runs-on: ubuntu-22.04
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
       # options: --user root
     steps:
     - name: checkout

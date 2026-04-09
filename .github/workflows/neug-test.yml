@@ -56,7 +56,7 @@ jobs:
     if: ${{ needs.format_check.result == 'success' || needs.format_check.result == 'skipped' }}
     runs-on: [self-hosted]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
     steps:
     - name: checkout
       id: checkout
