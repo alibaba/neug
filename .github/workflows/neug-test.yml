@@ -54,7 +54,7 @@ jobs:
   build_and_test:
     needs: format_check
     if: ${{ needs.format_check.result == 'success' || needs.format_check.result == 'skipped' }}
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, linux]
     container:
       image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
     steps:
