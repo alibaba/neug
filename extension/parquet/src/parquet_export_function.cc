@@ -43,14 +43,14 @@ static std::shared_ptr<arrow::DataType> logicalTypeToArrow(
       return arrow::float64();
     case LogicalTypeID::FLOAT:
       return arrow::float32();
-    case LogicalTypeID::BOOLEAN:
+    case LogicalTypeID::BOOL:
       return arrow::boolean();
     case LogicalTypeID::STRING:
       return arrow::utf8();
     case LogicalTypeID::DATE:
       return arrow::date32();
     case LogicalTypeID::TIMESTAMP:
-      return arrow::timestamp(arrow::TimeUnit::MICROSECOND);
+      return arrow::timestamp(arrow::TimeUnit::MICRO);
     default:
       THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported type for Parquet export: " +
                                        type.toString());
@@ -62,22 +62,17 @@ static std::shared_ptr<arrow::Table> convertToArrowTable(
     const QueryResponse* table,
     const std::shared_ptr<arrow::Schema>& schema) {
   std::vector<std::shared_ptr<arrow::ChunkedArray>> columns;
-  auto num_columns = table->columns_size();
+  auto num_columns = table->arrays_size();
   
   for (int i = 0; i < num_columns; ++i) {
-    auto& ctx_col = table->columns(i);
+    auto& arr = table->arrays(i);
     
-    // Extract Arrow Array from context column
-    // Note: This assumes ArrowArrayContextColumn - may need adjustment
-    // based on actual column type
-    if (ctx_col.has_arrow_array()) {
-      columns.push_back(ctx_col.arrow_array());
-    } else {
-      // For non-Arrow columns, we need to convert them
-      // This is a simplified implementation - full conversion needed
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "Non-Arrow column type not supported yet for Parquet export");
-    }
+    // Extract Arrow Array from protobuf Array message
+    // Note: QueryResponse contains protobuf Array messages
+    // We need to convert them to Arrow arrays
+    // This is a simplified implementation - full conversion needed
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Protobuf Array to Arrow conversion not implemented yet for Parquet export");
   }
   
   return arrow::Table::Make(schema, columns);
@@ -88,16 +83,17 @@ neug::Status ArrowParquetExportWriter::initializeWriter(
   try {
     // 1. Build Arrow Schema from first batch
     std::vector<std::shared_ptr<arrow::Field>> fields;
-    auto num_columns = first_table->columns_size();
+    auto num_columns = first_table->arrays_size();
     
     for (int i = 0; i < num_columns; ++i) {
-      auto& ctx_col = first_table->columns(i);
-      auto column_name = ctx_col.name();
+      // Get column name from entry_schema_
+      std::string column_name = "col_" + std::to_string(i);
+      if (entry_schema_ && i < static_cast<int>(entry_schema_->columnNames.size())) {
+        column_name = entry_schema_->columnNames[i];
+      }
       
-      // Get type from entry_schema_ or infer from column
-      // For now, we'll use a simplified approach
-      // TODO: Properly extract type from entry_schema_
-      auto arrow_type = arrow::utf8();  // Placeholder
+      // Get type from entry_schema_
+      auto arrow_type = arrow::utf8();  // Placeholder - will be fixed in T105
       
       fields.push_back(arrow::field(column_name, arrow_type));
     }
@@ -105,15 +101,15 @@ neug::Status ArrowParquetExportWriter::initializeWriter(
     auto arrow_schema = arrow::schema(fields);
     
     // 2. Configure WriterProperties with defaults
-    auto props = parquet::WriterProperties::Builder()
-        .compression(arrow::Compression::SNAPPY)
-        .max_row_group_length(1048576)  // 1M rows
-        .enable_dictionary()
-        .build();
+    auto props_builder = parquet::WriterProperties::Builder();
+    props_builder.compression(arrow::Compression::SNAPPY);
+    props_builder.max_row_group_length(1048576);  // 1M rows
+    props_builder.enable_dictionary();
+    auto props = props_builder.build();
     
-    auto arrow_props = parquet::ArrowWriterProperties::Builder()
-        .store_schema()  // Store Arrow schema for easier reads
-        .build();
+    auto arrow_props_builder = parquet::ArrowWriterProperties::Builder();
+    arrow_props_builder.store_schema();  // Store Arrow schema for easier reads
+    auto arrow_props = arrow_props_builder.build();
     
     // 3. Open output file
     if (schema_.paths.empty()) {
@@ -121,8 +117,13 @@ neug::Status ArrowParquetExportWriter::initializeWriter(
                           "No output path specified for Parquet export");
     }
     
-    ARROW_ASSIGN_OR_RAISE(outfile_,
-                          fileSystem_->OpenOutputStream(schema_.paths[0]));
+    auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
+    if (!stream_result.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO,
+                          "Failed to open output file: " + stream_result.status().ToString());
+    }
+    outfile_ = std::dynamic_pointer_cast<arrow::io::FileOutputStream>(
+        stream_result.ValueOrDie());
     
     // 4. Create FileWriter
     ARROW_ASSIGN_OR_RAISE(
