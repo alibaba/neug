@@ -14,7 +14,7 @@ concurrency:
 jobs:
   run:
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, daily, ldbc-benchmark]
+    runs-on: [self-hosted, ldbc-benchmark]
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
