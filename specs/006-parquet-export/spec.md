@@ -38,17 +38,23 @@
 **Key Components**:
 
 1. **Parquet Export Function**: Registers as COPY_PARQUET handler in the extension system, receives query results and writes to Parquet format
-2. **Streaming Writer**: Processes query results in batches to avoid loading entire dataset into memory
-3. **Type Mapping**: Converts NeuG data types (INT64, STRING, DOUBLE, etc.) to corresponding Parquet/Arrow types
-4. **File Output Manager**: Handles file creation, writing, and proper cleanup on completion or error
+2. **Type Mapping**: Converts NeuG data types (INT64, STRING, DOUBLE, etc.) to corresponding Parquet/Arrow types
+3. **File Output Manager**: Handles file creation, writing, and proper cleanup on completion or error
 
 **Functional Requirements**:
 
 1. **FR-001**: System MUST accept Cypher query wrapped in COPY (...) TO 'path.parquet' syntax
 2. **FR-002**: System MUST create a valid Parquet file that can be read by Apache Arrow, Spark, DuckDB, and Presto
 3. **FR-003**: System MUST preserve all column names and data types from the query result
-4. **FR-004**: System MUST handle streaming batches without loading entire result set into memory
-5. **FR-005**: System MUST write Arrow schema metadata to enable easier reads back into Arrow
+4. **FR-005**: System MUST write Arrow schema metadata to enable easier reads back into Arrow
+
+**Known Limitations**:
+- **LM-001**: Current implementation loads entire query result into memory before writing (limited by `sink_results` design)
+- **LM-002**: Streaming write support will be added in future iteration to handle very large datasets (100M+ rows) without OOM
+
+**Future Improvements**:
+- **FI-001**: Implement streaming write mode with `beginWrite()` / `writeTable()` / `endWrite()` lifecycle to support batch processing
+- **FI-002**: Integrate with modified `sink_results` that yields results in batches instead of all-at-once
 
 **Acceptance Scenarios**:
 
@@ -138,7 +144,7 @@
 - What if query returns 0 rows? **System SHOULD create empty Parquet file with correct schema**
 - What if disk space runs out during export? **System SHOULD fail gracefully with clear error message and cleanup partial file**
 - What if query contains unsupported data type? **System SHOULD fail with descriptive error indicating which column and type is unsupported**
-- How does system handle very large exports (100M+ rows)? **System MUST use streaming writes to avoid OOM**
+- How does system handle very large exports (100M+ rows)? **System SHOULD use streaming writes (to be implemented in future iteration); current implementation loads all results into memory**
 
 ## Success Criteria *(mandatory)*
 
@@ -146,7 +152,7 @@
 
 - **SC-001**: Users can export query results to Parquet file that is readable by at least 3 external tools (Spark, DuckDB, Presto)
 - **SC-002**: Export performance achieves at least 100 MB/s write throughput on standard hardware
-- **SC-003**: System can export datasets up to 10M rows without memory errors (using streaming writes)
+- **SC-003**: System can export datasets up to 10M rows without memory errors (streaming writes to be implemented in future iteration)
 - **SC-004**: Compressed file size with SNAPPY is at least 2x smaller than uncompressed CSV export
 - **SC-005**: All NeuG scalar types (INT64, INT32, DOUBLE, STRING, BOOLEAN, DATE, TIMESTAMP) are correctly preserved in roundtrip test (export → import)
 - **SC-006**: Export command completes with clear error message within 5 seconds for invalid inputs (bad path, unsupported type, etc.)

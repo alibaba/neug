@@ -16,6 +16,8 @@
 
 #include "parquet_export_function.h"
 
+#include <arrow/array.h>
+#include <arrow/builder.h>
 #include <arrow/table.h>
 #include <arrow/type.h>
 
@@ -25,163 +27,287 @@
 namespace neug {
 namespace writer {
 
-// Convert NeuG LogicalType to Arrow DataType
-static std::shared_ptr<arrow::DataType> logicalTypeToArrow(
-    const common::LogicalType& type) {
-  using common::LogicalTypeID;
-  
-  switch (type.getLogicalTypeID()) {
-    case LogicalTypeID::INT64:
-      return arrow::int64();
-    case LogicalTypeID::INT32:
-      return arrow::int32();
-    case LogicalTypeID::UINT64:
-      return arrow::uint64();
-    case LogicalTypeID::UINT32:
-      return arrow::uint32();
-    case LogicalTypeID::DOUBLE:
-      return arrow::float64();
-    case LogicalTypeID::FLOAT:
-      return arrow::float32();
-    case LogicalTypeID::BOOL:
-      return arrow::boolean();
-    case LogicalTypeID::STRING:
-      return arrow::utf8();
-    case LogicalTypeID::DATE:
-      return arrow::date32();
-    case LogicalTypeID::TIMESTAMP:
-      return arrow::timestamp(arrow::TimeUnit::MICRO);
-    default:
-      THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported type for Parquet export: " +
-                                       type.toString());
+// Infer Arrow type from protobuf Array structure
+static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
+    const Array& proto_array) {
+  if (proto_array.has_int32_array()) {
+    return arrow::int32();
+  } else if (proto_array.has_int64_array()) {
+    return arrow::int64();
+  } else if (proto_array.has_uint32_array()) {
+    return arrow::uint32();
+  } else if (proto_array.has_uint64_array()) {
+    return arrow::uint64();
+  } else if (proto_array.has_float_array()) {
+    return arrow::float32();
+  } else if (proto_array.has_double_array()) {
+    return arrow::float64();
+  } else if (proto_array.has_bool_array()) {
+    return arrow::boolean();
+  } else if (proto_array.has_string_array()) {
+    return arrow::large_utf8();
+  } else if (proto_array.has_date_array()) {
+    return arrow::date64();
+  } else if (proto_array.has_timestamp_array()) {
+    return arrow::timestamp(arrow::TimeUnit::MICRO);
+  } else {
+    LOG(WARNING) << "Unknown protobuf array type, defaulting to large_utf8";
+    return arrow::large_utf8();
   }
 }
 
-// Convert QueryResponse to Arrow Table
-static std::shared_ptr<arrow::Table> convertToArrowTable(
-    const QueryResponse* table,
-    const std::shared_ptr<arrow::Schema>& schema) {
-  std::vector<std::shared_ptr<arrow::ChunkedArray>> columns;
-  auto num_columns = table->arrays_size();
+// Convert protobuf Array to Arrow Array
+static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
+    const Array& proto_array, const std::shared_ptr<arrow::DataType>& arrow_type,
+    int row_count) {
+  arrow::MemoryPool* pool = arrow::default_memory_pool();
   
-  for (int i = 0; i < num_columns; ++i) {
-    auto& arr = table->arrays(i);
-    
-    // Extract Arrow Array from protobuf Array message
-    // Note: QueryResponse contains protobuf Array messages
-    // We need to convert them to Arrow arrays
-    // This is a simplified implementation - full conversion needed
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Protobuf Array to Arrow conversion not implemented yet for Parquet export");
+  // Handle different array types based on Arrow type
+  if (arrow_type->Equals(arrow::int32())) {
+    arrow::Int32Builder builder(pool);
+    if (proto_array.has_int32_array()) {
+      const auto& arr = proto_array.int32_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append int32 value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish int32 array: " + status.ToString());
+    }
+    return result;
+  } else if (arrow_type->Equals(arrow::int64())) {
+    arrow::Int64Builder builder(pool);
+    if (proto_array.has_int64_array()) {
+      const auto& arr = proto_array.int64_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append int64 value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish int64 array: " + status.ToString());
+    }
+    return result;
+  } else if (arrow_type->Equals(arrow::float32())) {
+    arrow::FloatBuilder builder(pool);
+    if (proto_array.has_float_array()) {
+      const auto& arr = proto_array.float_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append float value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish float array: " + status.ToString());
+    }
+    return result;
+  } else if (arrow_type->Equals(arrow::float64())) {
+    arrow::DoubleBuilder builder(pool);
+    if (proto_array.has_double_array()) {
+      const auto& arr = proto_array.double_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append double value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish double array: " + status.ToString());
+    }
+    return result;
+  } else if (arrow_type->Equals(arrow::boolean())) {
+    arrow::BooleanBuilder builder(pool);
+    if (proto_array.has_bool_array()) {
+      const auto& arr = proto_array.bool_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append bool value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish bool array: " + status.ToString());
+    }
+    return result;
+  } else if (arrow_type->Equals(arrow::utf8()) || 
+             arrow_type->Equals(arrow::large_utf8())) {
+    arrow::LargeStringBuilder builder(pool);
+    if (proto_array.has_string_array()) {
+      const auto& arr = proto_array.string_array();
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (arr.validity().empty() || 
+            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append string value: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    }
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish string array: " + status.ToString());
+    }
+    return result;
   }
   
-  return arrow::Table::Make(schema, columns);
+  THROW_INVALID_ARGUMENT_EXCEPTION(
+      "Unsupported Arrow type for conversion: " + arrow_type->ToString());
 }
 
-neug::Status ArrowParquetExportWriter::initializeWriter(
-    const QueryResponse* first_table) {
+neug::Status ArrowParquetExportWriter::writeTable(const QueryResponse* table) {
+  if (!table || table->row_count() == 0) {
+    return neug::Status::OK();
+  }
+  
   try {
-    // 1. Build Arrow Schema from first batch
+    // 1. Create Arrow schema from QueryResponse (infer types from protobuf arrays)
     std::vector<std::shared_ptr<arrow::Field>> fields;
-    auto num_columns = first_table->arrays_size();
+    int num_columns = table->arrays_size();
     
     for (int i = 0; i < num_columns; ++i) {
-      // Get column name from entry_schema_
-      std::string column_name = "col_" + std::to_string(i);
-      if (entry_schema_ && i < static_cast<int>(entry_schema_->columnNames.size())) {
+      // Get column name from QueryResponse schema or entry_schema_
+      std::string column_name;
+      if (i < table->schema().name_size()) {
+        column_name = table->schema().name(i);
+      } else if (entry_schema_ && i < static_cast<int>(entry_schema_->columnNames.size())) {
         column_name = entry_schema_->columnNames[i];
+      } else {
+        column_name = "col_" + std::to_string(i);
       }
       
-      // Get type from entry_schema_
-      auto arrow_type = arrow::utf8();  // Placeholder - will be fixed in T105
+      // Infer Arrow type from protobuf array structure
+      const auto& proto_array = table->arrays(i);
+      auto arrow_type = inferArrowTypeFromArray(proto_array);
       
       fields.push_back(arrow::field(column_name, arrow_type));
     }
     
     auto arrow_schema = arrow::schema(fields);
     
-    // 2. Configure WriterProperties with defaults
-    auto props_builder = parquet::WriterProperties::Builder();
-    props_builder.compression(arrow::Compression::SNAPPY);
-    props_builder.max_row_group_length(1048576);  // 1M rows
-    props_builder.enable_dictionary();
-    auto props = props_builder.build();
+    // 2. Open output file
+    auto result = fileSystem_->OpenOutputStream(schema_.paths[0]);
+    if (!result.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to open output file: " + result.status().ToString());
+    }
+    auto outfile = result.ValueOrDie();
     
-    auto arrow_props_builder = parquet::ArrowWriterProperties::Builder();
-    arrow_props_builder.store_schema();  // Store Arrow schema for easier reads
-    auto arrow_props = arrow_props_builder.build();
+    // 3. Create Parquet writer
+    parquet::WriterProperties::Builder builder;
+    builder.compression(arrow::Compression::SNAPPY);
+    builder.enable_dictionary();
+    auto properties = builder.build();
     
-    // 3. Open output file
-    if (schema_.paths.empty()) {
-      return neug::Status(neug::StatusCode::ERR_INVALID_ARGUMENT,
-                          "No output path specified for Parquet export");
+    auto writer_result = parquet::arrow::FileWriter::Open(
+        *arrow_schema, arrow::default_memory_pool(), outfile, properties);
+    if (!writer_result.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to create Parquet writer: " + writer_result.status().ToString());
+    }
+    auto writer = std::move(writer_result.ValueOrDie());
+    
+    // 4. Convert protobuf Arrays to Arrow Arrays
+    std::vector<std::shared_ptr<arrow::Array>> arrays;
+    for (int i = 0; i < num_columns; ++i) {
+      const auto& proto_array = table->arrays(i);
+      auto arrow_type = arrow_schema->field(i)->type();
+      auto arrow_array = protoArrayToArrowArray(proto_array, arrow_type, table->row_count());
+      arrays.push_back(arrow_array);
     }
     
-    auto stream_result = fileSystem_->OpenOutputStream(schema_.paths[0]);
-    if (!stream_result.ok()) {
-      return neug::Status(neug::StatusCode::ERR_IO,
-                          "Failed to open output file: " + stream_result.status().ToString());
-    }
-    outfile_ = std::dynamic_pointer_cast<arrow::io::FileOutputStream>(
-        stream_result.ValueOrDie());
+    // 5. Create Arrow Table and write
+    auto arrow_table = arrow::Table::Make(arrow_schema, arrays);
     
-    // 4. Create FileWriter
-    ARROW_ASSIGN_OR_RAISE(
-        parquet_writer_,
-        parquet::arrow::FileWriter::Open(*arrow_schema,
-                                          arrow::default_memory_pool(),
-                                          outfile_,
-                                          props,
-                                          arrow_props));
-    
-    initialized_ = true;
-    return neug::Status::OK();
-  } catch (const std::exception& e) {
-    return neug::Status(neug::StatusCode::ERR_IO,
-                        std::string("Failed to initialize Parquet writer: ") +
-                            e.what());
-  }
-}
-
-neug::Status ArrowParquetExportWriter::writeTable(
-    const QueryResponse* table) {
-  try {
-    // 1. Initialize on first batch
-    if (!initialized_) {
-      auto status = initializeWriter(table);
-      if (!status.ok()) {
-        return status;
-      }
+    auto write_status = writer->WriteTable(*arrow_table, arrow_table->num_rows());
+    if (!write_status.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to write Parquet table: " + write_status.ToString());
     }
     
-    // 2. Get schema from first initialization
-    // Note: We need to store the schema during initialization
-    // For now, this is a simplified implementation
+    // 6. Close writer to flush and write footer
+    auto close_status = writer->Close();
+    if (!close_status.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to close Parquet writer: " + close_status.ToString());
+    }
     
-    // 3. Convert batch to Arrow Table
-    // TODO: Properly build schema from entry_schema_
-    auto arrow_schema = parquet_writer_->schema();
-    ARROW_ASSIGN_OR_RAISE(auto arrow_table,
-                          convertToArrowTable(table, arrow_schema));
-    
-    // 4. Write Table (creates one row group per batch)
-    ARROW_RETURN_NOT_OK(
-        parquet_writer_->WriteTable(*arrow_table, arrow_table->num_rows()));
+    // 7. Close output stream
+    auto outfile_close_status = outfile->Close();
+    if (!outfile_close_status.ok()) {
+      return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                          "Failed to close output stream: " + outfile_close_status.ToString());
+    }
     
     return neug::Status::OK();
   } catch (const std::exception& e) {
-    return neug::Status(neug::StatusCode::ERR_IO,
-                        std::string("Failed to write Parquet table: ") +
-                            e.what());
-  }
-}
-
-ArrowParquetExportWriter::~ArrowParquetExportWriter() {
-  if (parquet_writer_ && initialized_) {
-    auto status = parquet_writer_->Close();
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to close Parquet writer: " << status.ToString();
-    }
+    return neug::Status(neug::StatusCode::ERR_IO_ERROR,
+                        std::string("Failed to write Parquet table: ") + e.what());
   }
 }
 
@@ -208,7 +334,7 @@ static execution::Context parquetExecFunc(
   if (!status.ok()) {
     THROW_IO_EXCEPTION("Parquet export failed: " + status.ToString());
   }
-  
+  LOG(INFO) << "[Parquet Export] Export completed successfully";
   ctx.clear();
   return ctx;
 }

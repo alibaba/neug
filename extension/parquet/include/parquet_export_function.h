@@ -34,16 +34,9 @@ class ArrowParquetExportWriter : public QueryExportWriter {
       std::shared_ptr<arrow::fs::FileSystem> fileSystem,
       std::shared_ptr<reader::EntrySchema> entry_schema = nullptr)
       : QueryExportWriter(schema, fileSystem, std::move(entry_schema)) {}
-  ~ArrowParquetExportWriter() override;
+  ~ArrowParquetExportWriter() override = default;
 
   neug::Status writeTable(const QueryResponse* table) override;
-
- private:
-  std::shared_ptr<parquet::arrow::FileWriter> parquet_writer_;
-  std::shared_ptr<arrow::io::FileOutputStream> outfile_;
-  bool initialized_ = false;
-
-  neug::Status initializeWriter(const QueryResponse* first_table);
 };
 
 }  // namespace writer
