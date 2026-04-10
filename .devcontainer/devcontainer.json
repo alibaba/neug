@@ -3,7 +3,7 @@
 {
 	"name": "NeuG",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0",
+	"image": "neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {
@@ -29,7 +29,7 @@
 	// Set `remoteUser` to `root` to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "neug",
 	// Use 'postCreateCommand' to run commands before the container is created.
-	"initializeCommand": "sudo docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0",
+	"initializeCommand": "sudo docker pull neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1",
 	// Uncomment this to enable C++ and Rust debugging in containers
 	// "capAdd": ["SYS_PTRACE"],
 	// "securityOpt": ["seccomp=unconfined"],

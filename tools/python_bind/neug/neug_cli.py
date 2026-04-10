@@ -200,7 +200,7 @@ class NeugShell(cmd.Cmd):
 
 
 @click.group(name="neug-cli")
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.1.1")
 def cli():
     """Neug CLI Tool."""
 
