@@ -349,7 +349,13 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (vid_t src : src_set) {
     if (src < vnum) {
-      edge_num_.fetch_sub(sz_arr[src].load(), std::memory_order_relaxed);
+      auto* data = buf_arr[src];
+      auto* end = data + sz_arr[src].load(std::memory_order_relaxed);
+      for (auto* ptr = data; ptr != end; ++ptr) {
+        if (ptr->timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
+      }
       sz_arr[src].store(0, std::memory_order_relaxed);
     }
   }
@@ -373,11 +379,15 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
         }
         ++write_ptr;
       } else {
+        if (read_ptr->timestamp.load() !=
+            std::numeric_limits<timestamp_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
         ++removed;
       }
       ++read_ptr;
     }
-    edge_num_.fetch_sub(removed, std::memory_order_relaxed);
+
     sz_arr[src] -= removed;
   }
 }
@@ -436,9 +446,12 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
       continue;
     }
     for (auto offset : pair.second) {
+      if (write_ptr[offset].timestamp.load() !=
+          std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       write_ptr[offset].timestamp.store(
           std::numeric_limits<timestamp_t>::max());
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
     }
   }
 }
@@ -688,15 +701,20 @@ void SingleMutableCsr<EDATA_T>::batch_delete_vertices(
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (auto src : src_set) {
     if (src < vnum) {
+      if (data[src].timestamp.load() !=
+          std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       data[src].timestamp.store(std::numeric_limits<timestamp_t>::max());
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
     }
   }
   for (vid_t v = 0; v < vnum; ++v) {
     auto& nbr = data[v];
     if (dst_set.find(nbr.neighbor) != dst_set.end()) {
+      if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
     }
   }
 }
@@ -717,8 +735,10 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     }
     auto& nbr = data[src];
     if (nbr.neighbor == dst) {
+      if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
     }
   }
 }
@@ -786,7 +806,7 @@ void SingleMutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr_vid,
   }
   if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     nbr.timestamp.store(ts);
-    edge_num_.fetch_add(1);
+    edge_num_.fetch_add(1, std::memory_order_relaxed);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");

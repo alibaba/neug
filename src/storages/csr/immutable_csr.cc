@@ -215,6 +215,11 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
       continue;
     }
     if (src_set.find(i) != src_set.end()) {
+      for (int j = 0; j < deg; ++j) {
+        if (adj_arr[i][j].neighbor != std::numeric_limits<vid_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
+      }
       removed += deg;
       deg_arr[i] = 0;
     } else {
@@ -228,6 +233,9 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
         } else {
           --deg_arr[i];
           ++removed;
+          if (old_ptr->neighbor != std::numeric_limits<vid_t>::max()) {
+            edge_num_.fetch_sub(1, std::memory_order_relaxed);
+          }
         }
         ++old_ptr;
       }
@@ -240,7 +248,6 @@ void ImmutableCsr<EDATA_T>::batch_delete_vertices(
     adj_arr[i] = ptr;
     ptr += deg_arr[i];
   }
-  edge_num_.fetch_sub(removed, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
@@ -395,6 +402,7 @@ void ImmutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
     meta_file.close();
   } else {
     unsorted_since_ = 0;
+    edge_num_.store(0);
   }
 }
 
@@ -483,8 +491,10 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_vertices(
     if (src >= vnum) {
       continue;
     }
-    nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
-    edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    if (nbr_arr[src].neighbor != std::numeric_limits<vid_t>::max()) {
+      edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
+    }
   }
   for (vid_t i = 0; i < vnum; ++i) {
     auto nbr = nbr_arr[i].neighbor;
@@ -508,8 +518,10 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
     }
     vid_t dst = dst_list[i];
     if (nbr_arr[src].neighbor == dst) {
-      nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
-      edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      if (nbr_arr[src].neighbor != std::numeric_limits<vid_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
+      }
     }
   }
 }
@@ -525,8 +537,10 @@ void SingleImmutableCsr<EDATA_T>::batch_delete_edges(
       continue;
     }
     assert(edge.second == 0);
-    nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
-    edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    if (nbr_arr[src].neighbor != std::numeric_limits<vid_t>::max()) {
+      nbr_arr[src].neighbor = std::numeric_limits<vid_t>::max();
+      edge_num_.fetch_sub(1, std::memory_order_relaxed);
+    }
   }
 }
 
