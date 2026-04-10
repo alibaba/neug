@@ -157,11 +157,7 @@ void FileSharedMMap::Dump(const std::string& path) {
   if (mmap_data_ && mmap_size_ > 0) {
     munmapImpl(mmap_data_, mmap_size_);
   }
-  path_.clear();
-  mmap_data_ = nullptr;
-  mmap_size_ = 0;
-  data_ = nullptr;
-  size_ = 0;
+  Close();
 }
 
 }  // namespace neug

@@ -69,9 +69,6 @@ void MMapContainer::Open(const std::string& path) {
 }
 
 void MMapContainer::Close() {
-  // Flush MD5 header to the backing file before unmapping.
-  // For non-file containers the base Sync() is a no-op, so this is free.
-  Sync();
   if (mmap_data_ && mmap_size_ > 0) {
     munmapImpl(mmap_data_, mmap_size_);
   }
