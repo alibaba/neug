@@ -5,10 +5,11 @@ on:
     # UTC+8 03:00 Wednesday = UTC 19:00 Tuesday
     # UTC+8 03:00 Sunday    = UTC 19:00 Saturday
     - cron: "0 19 * * 2,6"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run:
