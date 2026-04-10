@@ -1,0 +1,70 @@
+name: LDBC SNB Nightly Benchmark
+
+on:
+  schedule:
+    # UTC+8 03:00 Wednesday = UTC 19:00 Tuesday
+    # UTC+8 03:00 Sunday    = UTC 19:00 Saturday
+    - cron: "0 19 * * 2,6"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, daily, ldbc-benchmark]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Clean previous database
+        run: rm -rf ldbc/
+
+      - name: Build NeuG Python package
+        working-directory: tools/python_bind
+        run: |
+          export BUILD_HTTP_SERVER=ON
+          export WITH_MIMALLOC=ON
+          make build
+
+      - name: Load LDBC dataset
+        run: |
+          export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
+          export DATA_PATH=/data/benchmark/social_network-sf100-CsvComposite-StringDateFormatter
+          start=$(date +%s)
+          python3 benchmark/interactive/load_ldbc.py
+          end=$(date +%s)
+          echo "::notice::Load LDBC dataset took $((end - start)) seconds"
+
+      - name: Start NeuG server and run benchmark
+        run: |
+          export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
+          nohup python3 benchmark/interactive/serve_ldbc.py > serve.log 2>&1 &
+          echo $! > serve.pid
+          for i in $(seq 1 2700); do
+            if grep -q "Brpc server started on : 0.0.0.0:57380" serve.log 2>/dev/null; then
+              echo "::notice::NeuG server started (PID $(cat serve.pid))"
+              break
+            fi
+            if ! kill -0 $(cat serve.pid) 2>/dev/null; then
+              echo "::error::NeuG server process exited unexpectedly"
+              cat serve.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if ! grep -q "Brpc server started on : 0.0.0.0:57380" serve.log 2>/dev/null; then
+            echo "::error::NeuG server did not start within 2700 seconds"
+            cat serve.log
+            exit 1
+          fi
+          RESULT_DIR="/data/benchmark-result/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
+          mkdir -p "$RESULT_DIR"
+          /data/benchmark/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/benchmark/flex_ldbc_snb/driver/neug/driver/benchmark-sf10.properties 2>&1 | tee "$RESULT_DIR/benchmark.log"
+          BENCH_EXIT=$?
+          echo "::notice::Benchmark results saved to $RESULT_DIR"
+          kill $(cat serve.pid) 2>/dev/null && echo "NeuG server stopped" || true
+          exit $BENCH_EXIT
