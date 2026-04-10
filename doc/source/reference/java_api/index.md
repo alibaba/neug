@@ -2,17 +2,6 @@
 
 The NeuG Java API provides a Java-native driver for connecting to NeuG servers, executing Cypher queries, and consuming typed query results.
 
-```{toctree}
-:maxdepth: 1
-:hidden:
-
-driver
-config
-session
-result_set
-result_set_metadata
-```
-
 ## Overview
 
 The Java driver is designed for application integration and service-side usage:
@@ -186,7 +175,7 @@ These dependencies are managed automatically by Maven.
 
 ## API Documentation
 
-- <a href="apidocs/index.html">Generated Javadoc</a>
+The generated Javadoc can be built locally. See [Build Javadoc Locally](#build-javadoc-locally) below.
 
 ## Build Javadoc Locally
 
