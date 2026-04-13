@@ -14,6 +14,7 @@
  */
 
 #include "py_database.h"
+#include "neug/main/file_lock.h"
 
 namespace neug {
 
