@@ -4,9 +4,9 @@
 
 ## Schema Requirement
 
-In v0.1, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
+Currently, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
 
-Coming in v0.2, NeuG supports schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets. See [Import without a predefined schema](#import-without-a-predefined-schema) for more usages.
+Since v0.1.2, NeuG supports schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets. See [Import without a predefined schema](#import-without-a-predefined-schema) for more usages.
 
 ---
 
@@ -152,6 +152,8 @@ COPY knows FROM "person_knows_person.csv" (
 - **Remaining columns** are loaded as relationship properties.
 - For a **new** relationship label, you must provide **`from`** and **`to`** to specify endpoint node tables. Both tables must already exist (create or `COPY` them first). The `COPY` target name in `COPY <Label> FROM ...` becomes the new edge label between those two node types.
 
+In addition to CSV, the same schema-flexible import with automatic type inference works for **JSON**, **JSONL**, and **Parquet** once the corresponding reader is available (extensions where needed). See [JSON/JSONL](#jsonjsonl) and [Parquet](#parquet) for more usages.
+
 ## Format Options
 
 ### CSV
@@ -187,7 +189,7 @@ COPY person FROM "person.jsonl";
 
 ### Parquet
 
-Coming in V0.2, Parquet support is provided via the [Parquet Extension](../extensions/load_parquet). After installing and loading the extension, `COPY FROM` can import Parquet files directly — without creating the table first. NeuG infers the schema from the Parquet file metadata.
+Parquet support is provided via the [Parquet Extension](../extensions/load_parquet). After installing and loading the extension, `COPY FROM` can import Parquet files directly — without creating the table first. NeuG infers the schema from the Parquet file metadata.
 
 ```cypher
 INSTALL parquet;
