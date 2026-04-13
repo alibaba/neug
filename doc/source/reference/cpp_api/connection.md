@@ -61,8 +61,8 @@ result = conn->Query("MATCH (p:Person) WHERE p.age > $min_age RETURN p",
 "read", params);
 // Process results
 if (result.has_value()) {
-  for (const auto& record : result.value()) {
-   
+  for (auto& record : result.value()) {
+    // Access columns via record.entries()
   }
 } else {
   std::cerr << "Query failed: " << result.error().message() << std::endl;

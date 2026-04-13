@@ -91,7 +91,7 @@ void ImmutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
 
 template <typename EDATA_T>
 void ImmutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  open_internal(prefix, "", MemoryLevel::kHugePagePrefered);
+  open_internal(prefix, "", MemoryLevel::kHugePagePreferred);
 }
 
 template <typename EDATA_T>
@@ -414,7 +414,7 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::open_with_hugepages(
     const std::string& prefix) {
   nbr_list_buffer_ =
-      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePrefered);
+      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePreferred);
 }
 
 template <typename EDATA_T>

@@ -14,6 +14,7 @@
  */
 
 #include "py_database.h"
+#include "neug/config.h"
 
 namespace neug {
 
@@ -39,8 +40,13 @@ void PyDatabase::initialize(pybind11::handle& m) {
             kwargs.contains("checkpoint_on_close")
                 ? kwargs["checkpoint_on_close"].cast<bool>()
                 : true;
+        std::string memory_level =
+            kwargs.contains("memory_level")
+                ? kwargs["memory_level"].cast<std::string>()
+                : "InMemory";
         return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
-                                            planner, checkpoint_on_close);
+                                            planner, checkpoint_on_close,
+                                            memory_level);
       }))  // "Creating a PyDatabase. Holds a shared pointer to the C++ "
            // "NeugDB object.\n"
       .def("connect", &PyDatabase::connect,
@@ -141,6 +147,21 @@ void PyDatabase::close() {
     VLOG(1) << "Closing database.";
     database->Close();
     database.reset();
+  }
+}
+
+MemoryLevel PyDatabase::parse_buffer_strategy(const std::string& level) {
+  if (level == "InMemory" || level == "inmemory" || level == "in_memory" ||
+      level == "M_FULL") {
+    return MemoryLevel::kInMemory;
+  } else if (level == "SyncToFile" || level == "synctofile" ||
+             level == "sync_to_file" || level == "M_LAZY") {
+    return MemoryLevel::kSyncToFile;
+  } else if (level == "HugePagePreferred" || level == "hugepagepreferred" ||
+             level == "huge_page_preferred" || level == "M_HUGE") {
+    return MemoryLevel::kHugePagePreferred;
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " + level);
   }
 }
 

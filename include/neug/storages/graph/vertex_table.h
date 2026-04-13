@@ -202,7 +202,8 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
 
  private:
-  vid_t insert_vertex_pk(const Property& id, timestamp_t ts);
+  vid_t insert_vertex_pk(const Property& id, timestamp_t ts,
+                         bool insert_safe = false);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
