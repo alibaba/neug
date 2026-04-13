@@ -202,7 +202,8 @@ class VertexTable {
   const VertexTimestamp& get_vertex_timestamp() const { return v_ts_; }
 
  private:
-  vid_t insert_vertex_pk(const Property& id, timestamp_t ts);
+  vid_t insert_vertex_pk(const Property& id, timestamp_t ts,
+                         bool insert_safe = false);
   template <typename PK_T>
   std::vector<vid_t> insert_primary_keys(
       std::shared_ptr<arrow::Array> primary_key_column) {
@@ -287,6 +288,7 @@ class VertexTable {
       }
       EnsureCapacity(cap);
     }
+    std::shared_mutex rw_mutex;
     while (true) {
       auto batch = supplier->GetNextBatch();
       if (batch == nullptr) {
@@ -316,7 +318,7 @@ class VertexTable {
       for (size_t i = 0; i < columns.size(); ++i) {
         auto col = table_->get_column_by_id(i);
         auto chunked_array = std::make_shared<arrow::ChunkedArray>(columns[i]);
-        set_properties_column(col, chunked_array, vids);
+        set_properties_column(col, chunked_array, vids, rw_mutex);
       }
       VLOG(10) << "Inserted " << pk_array->length()
                << " vertices, current vertex num: " << VertexNum();

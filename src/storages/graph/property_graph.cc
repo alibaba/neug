@@ -1008,24 +1008,15 @@ void PropertyGraph::Dump(bool reopen) {
     if (!schema_.vertex_label_valid(src_label_i)) {
       continue;
     }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.vertex_label_valid(dst_label_i)) {
         continue;
       }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label) ||
-            !schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+        if (!schema_.edge_label_valid(e_label_i) ||
+            !schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         size_t index =
@@ -1061,7 +1052,6 @@ void PropertyGraph::DumpSchema() {
   out.flush();
   out.close();
 
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
   std::string filename = get_schema_yaml_path();
   auto schema_res = schema_.to_yaml();
   if (!schema_res) {
@@ -1072,7 +1062,7 @@ void PropertyGraph::DumpSchema() {
   if (!write_yaml_file(schema_res.value(), filename)) {
     THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
   }
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
+  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

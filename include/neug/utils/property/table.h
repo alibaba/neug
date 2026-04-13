@@ -109,8 +109,6 @@ class Table {
 
   void drop();
 
-  void ensure_writable(size_t col_id);
-
   void set_name(const std::string& name);
 
   void set_work_dir(const std::string& work_dir);
