@@ -30,44 +30,39 @@
 #include "neug/compiler/main/metadata_registry.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/types.h"
+#include "neug/utils/writer/writer.h"
 #include "parquet_options.h"
 
 namespace neug {
 namespace writer {
 
-namespace {
-
-// Parse compression option from schema options
-static arrow::Compression::type parseCompressionOption(
+// Parse writer options and build WriterProperties
+static std::shared_ptr<parquet::WriterProperties> buildWriterProperties(
     const common::case_insensitive_map_t<std::string>& options) {
-  auto compression_opt = reader::ParquetExportOptions{}.compression;
-  std::string codec = compression_opt.get(options);
+  reader::ParquetExportOptions export_options;
   
-  // Convert to lowercase
+  // Parse compression
+  std::string codec = export_options.compression.get(options);
   std::transform(codec.begin(), codec.end(), codec.begin(), ::tolower);
   
+  arrow::Compression::type compression;
   if (codec == "none" || codec == "uncompressed") {
-    return arrow::Compression::UNCOMPRESSED;
+    compression = arrow::Compression::UNCOMPRESSED;
   } else if (codec == "snappy") {
-    return arrow::Compression::SNAPPY;
+    compression = arrow::Compression::SNAPPY;
   } else if (codec == "zlib" || codec == "gzip") {
-    return arrow::Compression::GZIP;
+    compression = arrow::Compression::GZIP;
   } else if (codec == "zstd" || codec == "zstandard") {
-    return arrow::Compression::ZSTD;
+    compression = arrow::Compression::ZSTD;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported compression codec: " + codec + 
         ". Supported: none, snappy, zlib, zstd");
   }
-}
-
-// Parse row group size option
-static int64_t parseRowGroupSizeOption(
-    const common::case_insensitive_map_t<std::string>& options) {
-  auto row_group_opt = reader::ParquetExportOptions{}.row_group_size;
-  int64_t row_group_size = row_group_opt.get(options);
   
-  // Warnings for extreme values, but allow them
+  // Parse row group size
+  int64_t row_group_size = export_options.row_group_size.get(options);
+  
   if (row_group_size < 1024) {
     LOG(WARNING) << "Very small row_group_size (" << row_group_size 
                  << ") may result in many small row groups and poor compression.";
@@ -76,14 +71,25 @@ static int64_t parseRowGroupSizeOption(
                  << ") may increase memory usage significantly.";
   }
   
-  return row_group_size;
-}
-
-// Parse dictionary encoding option
-static bool parseDictionaryEncodingOption(
-    const common::case_insensitive_map_t<std::string>& options) {
-  auto dict_opt = reader::ParquetExportOptions{}.dictionary_encoding;
-  return dict_opt.get(options);
+  // Parse dictionary encoding
+  bool dictionary_encoding = export_options.dictionary_encoding.get(options);
+  
+  LOG(INFO) << "Parquet export options: compression=" << compression 
+            << ", row_group_size=" << row_group_size 
+            << ", dictionary_encoding=" << dictionary_encoding;
+  
+  // Build WriterProperties
+  parquet::WriterProperties::Builder builder;
+  builder.compression(compression);
+  builder.max_row_group_length(row_group_size);
+  
+  if (dictionary_encoding) {
+    builder.enable_dictionary();
+  } else {
+    builder.disable_dictionary();
+  }
+  
+  return builder.build();
 }
 
 // Helper function to infer Arrow type from JSON value
@@ -189,7 +195,74 @@ static arrow::Status AppendJsonValueToBuilder(
   }
 }
 
-}  // anonymous namespace
+// Helper function to convert graph JSON array (Vertex/Edge/Path) to Arrow StructArray
+static std::shared_ptr<arrow::Array> convertGraphJsonToArray(
+    const Array& proto_array,
+    const std::shared_ptr<arrow::DataType>& arrow_type,
+    arrow::MemoryPool* pool) {
+  int num_rows = 0;
+  const std::string* validity = nullptr;
+  
+  // Determine which graph type we're dealing with
+  std::function<std::string(int)> get_json;
+  if (proto_array.has_vertex_array()) {
+    const auto& arr = proto_array.vertex_array();
+    num_rows = arr.values_size();
+    validity = &arr.validity();
+    get_json = [&arr](int i) { return arr.values(i); };
+  } else if (proto_array.has_edge_array()) {
+    const auto& arr = proto_array.edge_array();
+    num_rows = arr.values_size();
+    validity = &arr.validity();
+    get_json = [&arr](int i) { return arr.values(i); };
+  } else if (proto_array.has_path_array()) {
+    const auto& arr = proto_array.path_array();
+    num_rows = arr.values_size();
+    validity = &arr.validity();
+    get_json = [&arr](int i) { return arr.values(i); };
+  } else {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Expected vertex/edge/path array for STRUCT type");
+  }
+  
+  if (num_rows == 0) {
+    return std::make_shared<arrow::StructArray>(arrow_type, 0, std::vector<std::shared_ptr<arrow::Array>>{});
+  }
+  
+  // Parse first JSON to infer structure
+  rapidjson::Document first_doc;
+  first_doc.Parse(get_json(0).c_str());
+  auto struct_type = inferArrowTypeFromJsonValue(first_doc);
+  
+  // Build arrays for each row
+  auto builder_result = arrow::MakeBuilder(struct_type, pool);
+  if (!builder_result.ok()) {
+    THROW_RUNTIME_ERROR("Failed to create builder: " + builder_result.status().ToString());
+  }
+  auto& builder = *builder_result;
+  
+  for (int i = 0; i < num_rows; ++i) {
+    if (writer::StringFormatBuffer::validateProtoValue(*validity, i)) {
+      rapidjson::Document doc;
+      doc.Parse(get_json(i).c_str());
+      auto status = AppendJsonValueToBuilder(doc, struct_type, builder.get());
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append JSON: " + status.ToString());
+      }
+    } else {
+      auto status = builder->AppendNull();
+      if (!status.ok()) {
+        THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+      }
+    }
+  }
+  
+  std::shared_ptr<arrow::Array> array;
+  auto status = builder->Finish(&array);
+  if (!status.ok()) {
+    THROW_RUNTIME_ERROR("Failed to finish array: " + status.ToString());
+  }
+  return array;
+}
 
 // Infer Arrow type from protobuf Array structure
 static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
@@ -270,206 +343,61 @@ static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
   }
 }
 
+// Macro for primitive array conversion (simple builder with pool only)
+#define TYPED_PRIMITIVE_ARRAY_TO_ARROW(CASE_TYPE, BUILDER_TYPE, GETTER_METHOD, GETTER_VALUE) \
+  case arrow::Type::CASE_TYPE: { \
+    auto& arr = proto_array.GETTER_METHOD(); \
+    BUILDER_TYPE builder(pool); \
+    for (int i = 0; i < arr.values_size(); ++i) { \
+      if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) { \
+        auto status = builder.Append(arr.GETTER_VALUE(i)); \
+        if (!status.ok()) { \
+          THROW_RUNTIME_ERROR("Failed to append value: " + status.ToString()); \
+        } \
+      } else { \
+        auto status = builder.AppendNull(); \
+        if (!status.ok()) { \
+          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString()); \
+        } \
+      } \
+    } \
+    std::shared_ptr<arrow::Array> result; \
+    auto status = builder.Finish(&result); \
+    if (!status.ok()) { \
+      THROW_RUNTIME_ERROR("Failed to finish array: " + status.ToString()); \
+    } \
+    return result; \
+  }
+
 // Convert protobuf Array to Arrow Array
 static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
     const Array& proto_array, const std::shared_ptr<arrow::DataType>& arrow_type,
     int row_count) {
   arrow::MemoryPool* pool = arrow::default_memory_pool();
   
-  // Handle different array types based on Arrow type
-  if (arrow_type->Equals(arrow::int32())) {
-    arrow::Int32Builder builder(pool);
-    if (proto_array.has_int32_array()) {
-      const auto& arr = proto_array.int32_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append int32 value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish int32 array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::int64())) {
-    arrow::Int64Builder builder(pool);
-    if (proto_array.has_int64_array()) {
-      const auto& arr = proto_array.int64_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append int64 value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish int64 array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::float32())) {
-    arrow::FloatBuilder builder(pool);
-    if (proto_array.has_float_array()) {
-      const auto& arr = proto_array.float_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append float value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish float array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::float64())) {
-    arrow::DoubleBuilder builder(pool);
-    if (proto_array.has_double_array()) {
-      const auto& arr = proto_array.double_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append double value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish double array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::boolean())) {
-    arrow::BooleanBuilder builder(pool);
-    if (proto_array.has_bool_array()) {
-      const auto& arr = proto_array.bool_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append bool value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish bool array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::utf8()) || 
-             arrow_type->Equals(arrow::large_utf8())) {
-    arrow::LargeStringBuilder builder(pool);
-    if (proto_array.has_string_array()) {
-      const auto& arr = proto_array.string_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append string value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish string array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::date64())) {
-    arrow::Date64Builder builder(pool);
-    if (proto_array.has_date_array()) {
-      const auto& arr = proto_array.date_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          // DateArray stores milliseconds since epoch
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append date value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
-        }
-      }
-    }
-    std::shared_ptr<arrow::Array> result;
-    auto status = builder.Finish(&result);
-    if (!status.ok()) {
-      THROW_RUNTIME_ERROR("Failed to finish date array: " + status.ToString());
-    }
-    return result;
-  } else if (arrow_type->Equals(arrow::timestamp(arrow::TimeUnit::MICRO))) {
+  // Handle primitive types using macro
+  switch (arrow_type->id()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(INT32, arrow::Int32Builder, int32_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(INT64, arrow::Int64Builder, int64_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(FLOAT, arrow::FloatBuilder, float_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(DOUBLE, arrow::DoubleBuilder, double_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(BOOL, arrow::BooleanBuilder, bool_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(LARGE_STRING, arrow::LargeStringBuilder, string_array, values)
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW(DATE64, arrow::Date64Builder, date_array, values)
+  
+  case arrow::Type::TIMESTAMP: {
+    auto& arr = proto_array.timestamp_array();
     arrow::TimestampBuilder builder(arrow::timestamp(arrow::TimeUnit::MICRO), pool);
-    if (proto_array.has_timestamp_array()) {
-      const auto& arr = proto_array.timestamp_array();
-      for (int i = 0; i < arr.values_size(); ++i) {
-        if (arr.validity().empty() || 
-            (static_cast<uint8_t>(arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          auto status = builder.Append(arr.values(i));
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append timestamp value: " + status.ToString());
-          }
-        } else {
-          auto status = builder.AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-          }
+    for (int i = 0; i < arr.values_size(); ++i) {
+      if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) {
+        auto status = builder.Append(arr.values(i));
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append timestamp value: " + status.ToString());
+        }
+      } else {
+        auto status = builder.AppendNull();
+        if (!status.ok()) {
+          THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
         }
       }
     }
@@ -479,7 +407,9 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
       THROW_RUNTIME_ERROR("Failed to finish timestamp array: " + status.ToString());
     }
     return result;
-  } else if (arrow_type->id() == arrow::Type::LIST) {
+  }
+    
+  case arrow::Type::LIST: {
     // Handle List type - build native Arrow ListArray
     if (proto_array.has_list_array()) {
       const auto& list_arr = proto_array.list_array();
@@ -514,8 +444,10 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
       return list_array;
     }
     THROW_INVALID_ARGUMENT_EXCEPTION("Expected list_array for LIST type");
-  } else if (arrow_type->id() == arrow::Type::STRUCT) {
-    // Handle Struct type
+  }
+    
+  case arrow::Type::STRUCT: {
+    // Handle StructArray
     if (proto_array.has_struct_array()) {
       const auto& struct_arr = proto_array.struct_array();
       auto struct_type = std::static_pointer_cast<arrow::StructType>(arrow_type);
@@ -550,146 +482,14 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
       return struct_array;
     }
     
-    // Handle Vertex/Edge/Path types - they are stored as JSON strings in protobuf
-    // but we parse them and convert to native Arrow structures
-    if (proto_array.has_vertex_array()) {
-      const auto& vertex_arr = proto_array.vertex_array();
-      int num_rows = vertex_arr.values_size();
-      
-      if (num_rows == 0) {
-        return std::make_shared<arrow::StructArray>(arrow_type, 0, std::vector<std::shared_ptr<arrow::Array>>{});
-      }
-      
-      // Parse first JSON to infer structure
-      rapidjson::Document first_doc;
-      first_doc.Parse(vertex_arr.values(0).c_str());
-      auto struct_type = inferArrowTypeFromJsonValue(first_doc);
-      
-      // Build arrays for each row
-      auto builder_result = arrow::MakeBuilder(struct_type, pool);
-      if (!builder_result.ok()) {
-        THROW_RUNTIME_ERROR("Failed to create builder for vertex: " + builder_result.status().ToString());
-      }
-      auto& builder = *builder_result;
-      
-      for (int i = 0; i < num_rows; ++i) {
-        if (vertex_arr.validity().empty() || 
-            (static_cast<uint8_t>(vertex_arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          rapidjson::Document doc;
-          doc.Parse(vertex_arr.values(i).c_str());
-          auto status = AppendJsonValueToBuilder(doc, struct_type, builder.get());
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append vertex JSON: " + status.ToString());
-          }
-        } else {
-          auto status = builder->AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null for vertex: " + status.ToString());
-          }
-        }
-      }
-      
-      std::shared_ptr<arrow::Array> array;
-      auto status = builder->Finish(&array);
-      if (!status.ok()) {
-        THROW_RUNTIME_ERROR("Failed to finish vertex array: " + status.ToString());
-      }
-      return array;
-      
-    } else if (proto_array.has_edge_array()) {
-      const auto& edge_arr = proto_array.edge_array();
-      int num_rows = edge_arr.values_size();
-      
-      if (num_rows == 0) {
-        return std::make_shared<arrow::StructArray>(arrow_type, 0, std::vector<std::shared_ptr<arrow::Array>>{});
-      }
-      
-      // Parse first JSON to infer structure
-      rapidjson::Document first_doc;
-      first_doc.Parse(edge_arr.values(0).c_str());
-      auto struct_type = inferArrowTypeFromJsonValue(first_doc);
-      
-      // Build arrays for each row
-      auto builder_result = arrow::MakeBuilder(struct_type, pool);
-      if (!builder_result.ok()) {
-        THROW_RUNTIME_ERROR("Failed to create builder for edge: " + builder_result.status().ToString());
-      }
-      auto& builder = *builder_result;
-      
-      for (int i = 0; i < num_rows; ++i) {
-        if (edge_arr.validity().empty() || 
-            (static_cast<uint8_t>(edge_arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          rapidjson::Document doc;
-          doc.Parse(edge_arr.values(i).c_str());
-          auto status = AppendJsonValueToBuilder(doc, struct_type, builder.get());
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append edge JSON: " + status.ToString());
-          }
-        } else {
-          auto status = builder->AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null for edge: " + status.ToString());
-          }
-        }
-      }
-      
-      std::shared_ptr<arrow::Array> array;
-      auto status = builder->Finish(&array);
-      if (!status.ok()) {
-        THROW_RUNTIME_ERROR("Failed to finish edge array: " + status.ToString());
-      }
-      return array;
-      
-    } else if (proto_array.has_path_array()) {
-      const auto& path_arr = proto_array.path_array();
-      int num_rows = path_arr.values_size();
-      
-      if (num_rows == 0) {
-        return std::make_shared<arrow::StructArray>(arrow_type, 0, std::vector<std::shared_ptr<arrow::Array>>{});
-      }
-      
-      // Parse first JSON to infer structure
-      rapidjson::Document first_doc;
-      first_doc.Parse(path_arr.values(0).c_str());
-      auto struct_type = inferArrowTypeFromJsonValue(first_doc);
-      
-      // Build arrays for each row
-      auto builder_result = arrow::MakeBuilder(struct_type, pool);
-      if (!builder_result.ok()) {
-        THROW_RUNTIME_ERROR("Failed to create builder for path: " + builder_result.status().ToString());
-      }
-      auto& builder = *builder_result;
-      
-      for (int i = 0; i < num_rows; ++i) {
-        if (path_arr.validity().empty() || 
-            (static_cast<uint8_t>(path_arr.validity()[i >> 3]) >> (i & 7)) & 1) {
-          rapidjson::Document doc;
-          doc.Parse(path_arr.values(i).c_str());
-          auto status = AppendJsonValueToBuilder(doc, struct_type, builder.get());
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append path JSON: " + status.ToString());
-          }
-        } else {
-          auto status = builder->AppendNull();
-          if (!status.ok()) {
-            THROW_RUNTIME_ERROR("Failed to append null for path: " + status.ToString());
-          }
-        }
-      }
-      
-      std::shared_ptr<arrow::Array> array;
-      auto status = builder->Finish(&array);
-      if (!status.ok()) {
-        THROW_RUNTIME_ERROR("Failed to finish path array: " + status.ToString());
-      }
-      return array;
-    }
-    
-    THROW_INVALID_ARGUMENT_EXCEPTION("Expected struct_array for STRUCT type");
+    // Handle Vertex/Edge/Path types (JSON strings -> native Arrow structures)
+    return convertGraphJsonToArray(proto_array, arrow_type, pool);
   }
   
-  THROW_INVALID_ARGUMENT_EXCEPTION(
-      "Unsupported Arrow type for conversion: " + arrow_type->ToString());
+  default:
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Unsupported Arrow type for conversion: " + arrow_type->ToString());
+  }
 }
 
 neug::Status ArrowParquetExportWriter::writeTable(const QueryResponse* table) {
@@ -731,25 +531,7 @@ neug::Status ArrowParquetExportWriter::writeTable(const QueryResponse* table) {
     auto outfile = result.ValueOrDie();
     
     // 3. Create Parquet writer with options
-    auto compression = parseCompressionOption(schema_.options);
-    auto row_group_size = parseRowGroupSizeOption(schema_.options);
-    auto dict_encoding = parseDictionaryEncodingOption(schema_.options);
-    
-    LOG(INFO) << "Parquet export options: compression=" << compression 
-              << ", row_group_size=" << row_group_size 
-              << ", dictionary_encoding=" << dict_encoding;
-    
-    parquet::WriterProperties::Builder builder;
-    builder.compression(compression);
-    builder.max_row_group_length(row_group_size);
-    
-    if (dict_encoding) {
-      builder.enable_dictionary();
-    } else {
-      builder.disable_dictionary();
-    }
-    
-    auto properties = builder.build();
+    auto properties = buildWriterProperties(schema_.options);
     
     auto writer_result = parquet::arrow::FileWriter::Open(
         *arrow_schema, arrow::default_memory_pool(), outfile, properties);
