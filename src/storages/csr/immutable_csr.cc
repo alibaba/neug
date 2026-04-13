@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <thread>
@@ -605,6 +606,9 @@ void SingleImmutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
   std::string meta_file_path = prefix + ".meta";
   if (std::filesystem::exists(meta_file_path)) {
     std::ifstream meta_file(meta_file_path, std::ios::binary);
+    if (!meta_file.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open meta file: " + meta_file_path);
+    }
     uint64_t edge_num;
     meta_file.read(reinterpret_cast<char*>(&edge_num), sizeof(uint64_t));
     edge_num_.store(edge_num);
@@ -618,6 +622,10 @@ template <typename EDATA_T>
 void SingleImmutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
   std::string meta_file_path = prefix + ".meta";
   std::ofstream meta_file(meta_file_path, std::ios::binary);
+  if (!meta_file.is_open()) {
+    THROW_IO_EXCEPTION("Failed to open meta file for writing: " +
+                       meta_file_path);
+  }
   uint64_t edge_num = edge_num_.load();
   meta_file.write(reinterpret_cast<const char*>(&edge_num), sizeof(uint64_t));
   meta_file.close();

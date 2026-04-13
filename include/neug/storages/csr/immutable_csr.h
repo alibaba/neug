@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <atomic>
 #include <limits>
 #include <set>
 #include <string>

@@ -587,6 +587,9 @@ void MutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
   if (std::filesystem::exists(meta_file_path)) {
     timestamp_t ts;
     std::ifstream meta_in(meta_file_path, std::ios::binary);
+    if (!meta_in.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open meta file: " + meta_file_path);
+    }
     meta_in.read(reinterpret_cast<char*>(&ts), sizeof(ts));
     unsorted_since_ = ts;
     uint64_t edge_num;
@@ -603,6 +606,11 @@ template <typename EDATA_T>
 void MutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
   std::string meta_file_path = prefix + ".meta";
   std::ofstream meta_out(meta_file_path, std::ios::binary);
+  if (!meta_out.is_open()) {
+    THROW_IO_EXCEPTION("Failed to open meta file for writing: " +
+                       meta_file_path);
+  }
+
   timestamp_t ts = unsorted_since_;
   meta_out.write(reinterpret_cast<const char*>(&ts), sizeof(ts));
   uint64_t edge_num = edge_num_.load();
