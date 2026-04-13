@@ -311,8 +311,17 @@ class TypedColumn<std::string_view> : public ColumnBase {
     string_item cur_item;
     size_t offset = 0;
     size_t count_no_empty = 0;
+    string_item pre_item = {0, 0};
     for (size_t i = 0; i < size_; ++i) {
       const auto& item = raw_items[i];
+      if (item.offset == pre_item.offset && item.length == pre_item.length) {
+        // If the current item is the same as the previous one, we can reuse the
+        // offset and length without writing duplicate data.
+        item_out.write(reinterpret_cast<const char*>(&cur_item),
+                       sizeof(cur_item));
+        continue;
+      }
+      pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
       cur_item = {offset, item.length};
       item_out.write(reinterpret_cast<const char*>(&cur_item),

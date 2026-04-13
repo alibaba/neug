@@ -128,7 +128,7 @@ void MMapContainer::Resize(size_t size) {
 
 void MMapContainer::Dump(const std::string& path) {
   FileHeader header;
-  // MD5((unsigned char*) data_, size_, header.data_md5);
+  MD5((unsigned char*) data_, size_, header.data_md5);
   std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(path.c_str(), "wb"),
                                               &fclose);
   if (fp == nullptr) {

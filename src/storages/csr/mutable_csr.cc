@@ -157,14 +157,15 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   FileHeader header{};
   nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
 
-  // MD5_CTX ctx;
-  // MD5_Init(&ctx);
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
   for (size_t i = 0; i < vnum; ++i) {
     const void* data = lists[i];
-    nbr_out.write(reinterpret_cast<const char*>(data), caps[i] * sizeof(nbr_t));
-    // MD5_Update(&ctx, data, len);
+    size_t len = caps[i] * sizeof(nbr_t);
+    nbr_out.write(reinterpret_cast<const char*>(data), len);
+    MD5_Update(&ctx, data, len);
   }
-  // MD5_Final(header.data_md5, &ctx);
+  MD5_Final(header.data_md5, &ctx);
   // Update the header with the correct MD5 after writing all data
   nbr_out.seekp(0);
   nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
