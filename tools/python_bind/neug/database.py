@@ -82,6 +82,7 @@ class Database(object):
         mode: str = "read-write",
         max_thread_num: int = 0,
         checkpoint_on_close: bool = True,
+        buffer_strategy: str = "M_HUGE",
     ):
         """
         Open a database.
@@ -99,6 +100,15 @@ class Database(object):
         checkpoint_on_close : bool
             Whether to automatically create a checkpoint when the database is closed. Default is True.
             If False, no checkpoint is created automatically when close the database.
+        buffer_strategy : str
+            Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
+            or 'HugePagePreferred' (or 'M_HUGE'). Default is 'InMemory'.
+            - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
+              persisted to disk until checkpoint is created.
+            - 'SyncToFile' / 'M_LAZY': The database will be opened in memory on demand, suitable for large databases
+              that cannot fit into memory. Also changes will not be persisted to disk until checkpoint is created.
+            - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but it will try to use huge pages for memory
+              allocation, which may improve performance for large databases.
 
         Raises
         ------
@@ -172,6 +182,7 @@ class Database(object):
             mode=readable(mode),
             planner="gopt",
             checkpoint_on_close=checkpoint_on_close,
+            buffer_strategy=buffer_strategy,
         )
         self._serving = False
         if self._db_path is None or self._db_path.strip() == "":

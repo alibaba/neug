@@ -39,6 +39,23 @@ The session will automatically handle the connection and disconnection to the se
 To stop the NeuG server, user could send terminal signal to the process.
 To close the session, user could call the `close()` method.
 
+<a id="neug.session.Session.__init__"></a>
+
+### \_\_init\_\_
+
+```python
+def __init__(endpoint: str = "http://localhost:10000",
+             timeout: str = "10s",
+             num_threads: int = 1)
+```
+
+Initialize a session with the given endpoint and timeout.
+
+**Arguments**:
+
+- `endpoint`: The endpoint URL for the session.
+- `timeout`: The timeout duration for the session.
+
 <a id="neug.session.Session.open"></a>
 
 ### open

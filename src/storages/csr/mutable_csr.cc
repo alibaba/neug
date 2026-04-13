@@ -61,7 +61,7 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
   }
 
   // For nbr_list: kSyncToFile copies snapshot to tmp and opens with
-  // FileSharedMMap; kInMemory/kHugePagePrefered opens snapshot directly with
+  // FileSharedMMap; kInMemory/kHugePagePreferred opens snapshot directly with
   // the corresponding anonymous/private mapping (same as the original code).
   nbr_list_ =
       OpenContainer(snapshot_prefix + ".nbr", tmp_prefix + ".nbr", mem_level);
@@ -120,7 +120,7 @@ void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  open_internal(prefix, "", MemoryLevel::kHugePagePrefered);
+  open_internal(prefix, "", MemoryLevel::kHugePagePreferred);
 }
 
 template <typename EDATA_T>
@@ -559,7 +559,7 @@ template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
   nbr_list_ =
-      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePrefered);
+      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePreferred);
 }
 
 template <typename EDATA_T>

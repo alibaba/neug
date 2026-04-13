@@ -65,7 +65,7 @@ std::unique_ptr<IDataContainer> OpenDataContainer(
       return ret;
     }
   }
-  case MemoryLevel::kHugePagePrefered: {
+  case MemoryLevel::kHugePagePreferred: {
     auto ret = std::make_unique<AnonHugeMMap>();
     if (std::filesystem::exists(file_name)) {
       ret->Open(file_name);
