@@ -38,34 +38,6 @@ namespace py = pybind11;
 
 namespace neug {
 
-void signal_handler(int signal) {
-  // NOTE:
-  // - SIGKILL cannot be handled.
-  // - Avoid handling crash signals (SIGSEGV/SIGABRT/SIGFPE) here because
-  //   complex cleanup/logging in async signal context is unsafe.
-  if (signal == SIGINT || signal == SIGTERM || signal == SIGQUIT) {
-    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
-    // remove all files in work_dir
-    neug::FileLock::CleanupAllLocks();
-#ifdef NEUG_BACKTRACE
-    cpptrace::generate_trace(1 /*skip this function's frame*/).print();
-#endif
-    std::exit(128 + signal);
-  }
-  LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
-
-  std::exit(1);
-}
-
-void setup_signal_handler(bool is_interactive) {
-  // Register handlers for graceful termination signals only.
-  // SIGKILL cannot be handled.
-  if (is_interactive) {
-    std::signal(SIGINT, signal_handler);
-  }
-  std::signal(SIGTERM, signal_handler);
-  std::signal(SIGQUIT, signal_handler);
-}
 void setup_logging() {
   google::InitGoogleLogging("neug");
   const char* debug = std::getenv("DEBUG");
@@ -88,17 +60,6 @@ void setup_logging() {
 }
 }  // namespace neug
 
-bool get_is_interactive() {
-  try {
-    py::module_ sys = py::module_::import("sys");
-    py::object flags = sys.attr("flags");
-    return py::cast<bool>(flags.attr("interactive"));
-  } catch (const py::error_already_set& e) {
-    PyErr_Print();
-    return false;
-  }
-}
-
 PYBIND11_MODULE(neug_py_bind, m) {
   m.doc() = R"pbdoc(
         
@@ -116,10 +77,6 @@ PYBIND11_MODULE(neug_py_bind, m) {
   neug::PyConnection::initialize(m);
   neug::PyQueryResult::initialize(m);
   neug::PyQueryRequest::initialize(m);
-
-  // Setup signal handling, for cleaning up resources on exit.
-  bool is_interactive = get_is_interactive();
-  neug::setup_signal_handler(is_interactive);
 
   // Register exception translation for Python.
   PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object>
