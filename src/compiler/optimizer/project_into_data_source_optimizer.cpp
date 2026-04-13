@@ -68,24 +68,25 @@ ProjectIntoDataSourceOptimizer::visitOperator(
   for (auto i = 0u; i < op->getNumChildren(); ++i) {
     op->setChild(i, visitOperator(op->getChild(i)));
   }
+  auto visitOp = LogicalOperatorVisitor::visitOperatorReplaceSwitch(op);
   // if there is a non-copy operation after LOAD FROM, batch_read=true will not
   // work, batch_read=true will produce a special ArrowStreamContext, which can
   // only be processed by copy from, other operators do not support it.
-  if (op->getNumChildren() > 0 &&
-      op->getChild(0)->getOperatorType() ==
+  if (visitOp->getNumChildren() > 0 &&
+      visitOp->getChild(0)->getOperatorType() ==
           LogicalOperatorType::TABLE_FUNCTION_CALL) {
-    auto tableFunc = op->getChild(0)->ptrCast<LogicalTableFunctionCall>();
+    auto tableFunc = visitOp->getChild(0)->ptrCast<LogicalTableFunctionCall>();
     auto* scanBindData =
         dynamic_cast<function::ScanFileBindData*>(tableFunc->getBindData());
     if (scanBindData != nullptr) {
       auto& options = scanBindData->fileScanInfo.options;
-      if (op->getOperatorType() != LogicalOperatorType::COPY_FROM) {
+      if (visitOp->getOperatorType() != LogicalOperatorType::COPY_FROM) {
         options.insert_or_assign("BATCH_READ",
                                  common::Value::createValue(false));
       }
     }
   }
-  return LogicalOperatorVisitor::visitOperatorReplaceSwitch(op);
+  return visitOp;
 }
 
 std::shared_ptr<planner::LogicalOperator>
