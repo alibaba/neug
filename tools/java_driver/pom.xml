@@ -11,7 +11,7 @@
 
     <name>NeuG Java Driver</name>
     <description>Java driver for NeuG graph database</description>
-    <url>https://github.com/alibaba/GraphScope</url>
+    <url>https://github.com/alibaba/neug</url>
     <organization>
         <name>Alibaba Group Holding Ltd.</name>
         <url>https://github.com/alibaba</url>
@@ -27,7 +27,7 @@
 
     <developers>
         <developer>
-            <name>GraphScope Team</name>
+            <name>NeuG Team</name>
             <email>graphscope@alibaba-inc.com</email>
             <organization>Alibaba</organization>
         </developer>
@@ -35,9 +35,9 @@
 
     <scm>
         <tag>main</tag>
-        <url>git@github.com:alibaba/graphscope.git</url>
-        <connection>git@github.com:alibaba/graphscope.git</connection>
-        <developerConnection>git@github.com:alibaba/graphscope.git</developerConnection>
+        <url>git@github.com:alibaba/neug.git</url>
+        <connection>git@github.com:alibaba/neug.git</connection>
+        <developerConnection>git@github.com:alibaba/neug.git</developerConnection>
     </scm>
 
 
