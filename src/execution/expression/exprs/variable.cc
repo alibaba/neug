@@ -281,7 +281,7 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
     } else if (prop.has_id()) {
       return VertexAccessor::create_gid_accessor();
     } else {
-      LOG(FATAL) << "unsupported property access: " << prop.DebugString();
+      return VertexAccessor::create_identity_accessor();
     }
   }
   return nullptr;
@@ -297,8 +297,10 @@ static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
       return EdgeAccessor::create_property_accessor(type, prop.key().name());
     } else if (prop.has_label()) {
       return EdgeAccessor::create_label_accessor();
+    } else if (prop.has_id()) {
+      return EdgeAccessor::create_gid_accessor();
     } else {
-      LOG(FATAL) << "unsupported property access: " << prop.DebugString();
+      return EdgeAccessor::create_identity_accessor();
     }
   }
   return nullptr;

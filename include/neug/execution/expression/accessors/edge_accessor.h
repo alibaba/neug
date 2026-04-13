@@ -39,6 +39,15 @@ class EdgeAccessor : public ExprBase {
                                           GraphAccessType::kLabel, "");
   }
 
+  static std::unique_ptr<ExprBase> create_identity_accessor() {
+    return std::make_unique<EdgeAccessor>(DataType::EDGE,
+                                          GraphAccessType::kIdentity, "");
+  }
+  static std::unique_ptr<ExprBase> create_gid_accessor() {
+    return std::make_unique<EdgeAccessor>(DataType::INT64,
+                                          GraphAccessType::kGid, "");
+  }
+
   std::unique_ptr<BindedExprBase> bind(const IStorageInterface* storage,
                                        const ParamsMap& params) const override;
 
@@ -48,6 +57,10 @@ class EdgeAccessor : public ExprBase {
       return "EdgeLabelAccessor";
     case GraphAccessType::kProperty:
       return std::string("EdgePropertyAccessor[") + property_name_ + "]";
+    case GraphAccessType::kGid:
+      return "EdgeGidAccessor";
+    case GraphAccessType::kIdentity:
+      return "EdgeIdentityAccessor";
     default:
       return "UnknownEdgeAccessor";
     }
