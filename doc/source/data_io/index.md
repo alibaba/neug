@@ -32,7 +32,7 @@ External Files (CSV, JSON, Parquet, ...)
 |--------|-----------|--------------|
 | CSV | ✅ | Built-in |
 | JSON / JSONL | ✅ | Via [JSON Extension](../extensions/load_json) |
-| Parquet | — | Planned v0.2 |
+| Parquet | ✅  | Via [Parquet Extension](../extensions/load_parquet) |
 
 > **Note:** As new format extensions are developed, both `LOAD FROM` and `COPY FROM` gain support automatically. See the [Extensions](../extensions/index) page for details.
 
