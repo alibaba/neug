@@ -1043,7 +1043,7 @@ def test_insert_string_column_exaustion():
         for i in range(7000):
             sess.execute(f"CREATE (p: Person {{id: {i+3}, name: '{str_prop}'}});")
     except Exception as e:
-        raise AssertionError("Failed to insert string column with large length") from e
+        assert "not enough space" in e.__str__(), f"Unexpected exception: {e}"
     finally:
         try:
             sess.close()

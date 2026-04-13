@@ -17,10 +17,10 @@
 #include <string_view>
 
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/loader/loader_utils.h"
-#include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -777,12 +777,12 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -931,12 +931,12 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -1018,12 +1018,12 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -1093,12 +1093,12 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -1554,6 +1554,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1562,6 +1563,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   }
 
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);
@@ -1598,6 +1600,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
 
   LFIndexer<vid_t> indexer;
   indexer.init(DataTypeId::kUInt32);
+  indexer.open_in_memory("/tmp");
   indexer.reserve(10);
   for (uint32_t i = 0; i < 10; i++) {
     Property oid;
@@ -1608,6 +1611,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   std::vector<std::string> new_property_name = {"new_property"};
   std::vector<DataType> new_property_type;
   EdgeTable e_table = EdgeTable(edge_schema);
+  e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
   EXPECT_EQ(e_table.Size(), 10);

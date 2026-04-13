@@ -694,7 +694,7 @@ std::string to_string(neug::MemoryLevel level) {
   case neug::MemoryLevel::kInMemory: {
     return "InMemory";
   }
-  case neug::MemoryLevel::kHugePagePrefered: {
+  case neug::MemoryLevel::kHugePagePreferred: {
     return "HugePagePrefered";
   }
   default: {

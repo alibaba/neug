@@ -16,12 +16,19 @@
 
 #include <stdlib.h>
 
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "neug/config.h"
-#include "neug/utils/mmap_array.h"
+#include "neug/storages/container/container_utils.h"
+#include "neug/storages/container/file_header.h"
+#include "neug/storages/container/mmap_container.h"
+#include "neug/utils/file_utils.h"
+#include "neug/utils/property/types.h"
 
 namespace neug {
 
@@ -32,19 +39,12 @@ class ArenaAllocator {
   ArenaAllocator(MemoryLevel strategy, const std::string& prefix)
       : strategy_(strategy),
         prefix_(prefix),
+        cur_buffer_(nullptr),
         cur_loc_(0),
         cur_size_(0),
         allocated_memory_(0),
-        allocated_batches_(0) {
-    if (strategy_ != MemoryLevel::kSyncToFile) {
-      prefix_.clear();
-    }
-  }
-  ~ArenaAllocator() {
-    for (auto ptr : mmap_buffers_) {
-      delete ptr;
-    }
-  }
+        allocated_batches_(0) {}
+  ~ArenaAllocator() {}
 
   void reserve(size_t cap) {
     if (cur_size_ - cur_loc_ >= cap) {
@@ -78,28 +78,22 @@ class ArenaAllocator {
  private:
   void* allocate_batch(size_t size) {
     allocated_batches_ += size;
-    if (prefix_.empty()) {
-      mmap_array<char>* buf = new mmap_array<char>();
-      if (strategy_ == MemoryLevel::kHugePagePrefered) {
-        buf->open_with_hugepages("");
-      } else {
-        buf->open("", false);
+    std::string file_name;
+    if (strategy_ == MemoryLevel::kSyncToFile) {
+      file_name = prefix_ + std::to_string(mmap_buffers_.size());
+      if (!std::filesystem::exists(file_name)) {
+        file_utils::create_file(file_name, sizeof(FileHeader));
       }
-      buf->resize(size);
-      mmap_buffers_.push_back(buf);
-      return static_cast<void*>(buf->data());
-    } else {
-      mmap_array<char>* buf = new mmap_array<char>();
-      buf->open(prefix_ + std::to_string(mmap_buffers_.size()), true);
-      buf->resize(size);
-      mmap_buffers_.push_back(buf);
-      return static_cast<void*>(buf->data());
     }
+    auto buf = OpenContainer("", file_name, strategy_);
+    buf->Resize(size);
+    mmap_buffers_.push_back(std::move(buf));
+    return mmap_buffers_.back()->GetData();
   }
 
   MemoryLevel strategy_;
   std::string prefix_;
-  std::vector<mmap_array<char>*> mmap_buffers_;
+  std::vector<std::unique_ptr<IDataContainer>> mmap_buffers_;
 
   void* cur_buffer_;
   size_t cur_loc_;

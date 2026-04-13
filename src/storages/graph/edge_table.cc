@@ -564,7 +564,7 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   } else if (memory_level == MemoryLevel::kInMemory) {
     in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
     out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
-  } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+  } else if (memory_level == MemoryLevel::kHugePagePreferred) {
     in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
     out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
   } else {
@@ -580,7 +580,7 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
     } else if (memory_level == MemoryLevel::kInMemory) {
       table_->open_in_memory(edata_prefix_path, work_dir_,
                              meta_->property_names, meta_->properties);
-    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
       table_->open_with_hugepages(edata_prefix_path, work_dir_,
                                   meta_->property_names, meta_->properties);
     } else {
@@ -1040,6 +1040,7 @@ void EdgeTable::dropAndCreateNewBundledCSR(
         meta_->default_property_values[0], new_in_csr.get());
   } else {
     auto row_id_col = std::make_shared<ULongColumn>();
+    row_id_col->open_in_memory("");
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());

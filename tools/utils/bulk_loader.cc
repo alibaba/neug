@@ -64,10 +64,6 @@ int main(int argc, char** argv) {
    * option is provided, mmap_vector utilizes mmap to map files, supporting
    * runtime memory swapping to disk.
    *
-   * Constructing the CSR involves random reads and writes, we offer the
-   * `build-csr-in-mem` option, which allows CSR to be built in-memory to
-   * avoid extensive disk random read and write operations
-   *
    */
 
   cxxopts::Options options("bulk_loader",
@@ -79,11 +75,7 @@ int main(int argc, char** argv) {
       "d,data-path", "Data directory path", cxxopts::value<std::string>())(
       "g,graph-config", "Graph schema config file",
       cxxopts::value<std::string>())("l,bulk-load", "Bulk-load config file",
-                                     cxxopts::value<std::string>())(
-      "build-csr-in-mem", "Build CSR in memory",
-      cxxopts::value<bool>()->default_value("false"))(
-      "use-mmap-vector", "Use mmap vector",
-      cxxopts::value<bool>()->default_value("false"));
+                                     cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
@@ -150,17 +142,9 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  // check whether parallelism, build_csr_in_mem, use_mmap_vector are overridden
+  // check whether parallelism, are overridden
   if (vm.count("parallelism")) {
     loading_config_res.value().SetParallelism(vm["parallelism"].as<uint32_t>());
-  }
-  if (vm.count("build-csr-in-mem")) {
-    loading_config_res.value().SetBuildCsrInMem(
-        vm["build-csr-in-mem"].as<bool>());
-  }
-  if (vm.count("use-mmap-vector")) {
-    loading_config_res.value().SetUseMmapVector(
-        vm["use-mmap-vector"].as<bool>());
   }
 
   std::filesystem::path data_dir_path(data_path);

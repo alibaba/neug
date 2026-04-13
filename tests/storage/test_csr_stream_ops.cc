@@ -17,8 +17,8 @@
 #include <thread>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
-#include "neug/utils/allocators.h"
 #include "unittest/utils.h"
 
 using StreamCsrTypes = ::testing::Types<
@@ -109,14 +109,17 @@ class CsrStreamTest : public ::testing::Test {
       int thread_num, neug::timestamp_t start_ts) {
     std::vector<std::thread> threads;
     if (this->allocators.size() < static_cast<size_t>(thread_num)) {
-      this->allocators.resize(
-          thread_num, neug::Allocator(neug::MemoryLevel::kInMemory, ""));
+      this->allocators.resize(thread_num);
+      for (int i = 0; i < thread_num; ++i) {
+        this->allocators[i] =
+            std::make_unique<neug::Allocator>(neug::MemoryLevel::kInMemory, "");
+      }
     }
     std::atomic<size_t> counter(0);
     for (int i = 0; i < thread_num; ++i) {
       threads.emplace_back(
           [this, &counter, &edges, start_ts](int thread_idx) {
-            auto& alloc = this->allocators[thread_idx];
+            auto& alloc = *(this->allocators[thread_idx]);
             while (true) {
               size_t cur = counter.fetch_add(1);
               if (cur >= edges.size()) {
@@ -136,7 +139,7 @@ class CsrStreamTest : public ::testing::Test {
   }
 
   std::unique_ptr<CsrType> csr = nullptr;
-  std::vector<neug::Allocator> allocators;
+  std::vector<std::unique_ptr<neug::Allocator>> allocators;
 
  private:
   std::filesystem::path temp_dir_;

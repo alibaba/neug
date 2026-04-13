@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -29,21 +30,16 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/allocators.h"
+#include "neug/storages/container/i_container.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
-#include "neug/utils/allocators.h"
-#include "neug/utils/mmap_array.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/spinlock.h"
 
 namespace neug {
-
-void read_file(const std::string& filename, void* buffer, size_t size,
-               size_t num);
-
-void write_file(const std::string& filename, const void* buffer, size_t size,
-                size_t num);
 
 template <typename EDATA_T>
 class MutableCsr : public TypedCsrBase<EDATA_T> {
@@ -52,11 +48,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   MutableCsr() : locks_(nullptr) {}
-  ~MutableCsr() {
-    if (locks_ != nullptr) {
-      delete[] locks_;
-    }
-  }
+  ~MutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kMutable; }
 
@@ -65,20 +57,25 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(adj_list_buffer_.data()),
-                       reinterpret_cast<const int*>(adj_list_size_.data()), cfg,
-                       ts, unsorted_since_);
+    return GenericView(
+        reinterpret_cast<const char*>(adj_list_buffer_->GetData()),
+        reinterpret_cast<const int*>(adj_list_size_->GetData()), cfg, ts,
+        unsorted_since_);
   }
 
   timestamp_t unsorted_since() const override { return unsorted_since_; }
 
-  size_t size() const override { return adj_list_size_.size(); }
+  size_t size() const override { return vertex_capacity(); }
 
   size_t edge_num() const override {
     size_t res = 0;
-    for (size_t i = 0; i < adj_list_size_.size(); ++i) {
-      auto begin = adj_list_buffer_[i];
-      for (size_t j = 0; j < adj_list_size_[i].load(); ++j) {
+    auto* adj_lists =
+        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
+    auto* degrees =
+        reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+    for (size_t i = 0; i < vertex_capacity(); ++i) {
+      auto begin = adj_lists[i];
+      for (int j = 0; j < degrees[i].load(); ++j) {
         if (begin[j].timestamp.load() !=
             std::numeric_limits<timestamp_t>::max()) {
           res++;
@@ -131,27 +128,31 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                    Allocator& alloc) override {
-    if (src >= adj_list_size_.size()) {
+    if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
-          " >= " + std::to_string(adj_list_size_.size()));
+          " >= " + std::to_string(vertex_capacity()));
     }
+    auto** buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* sizes =
+        reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+    auto* caps = reinterpret_cast<int*>(adj_list_capacity_->GetData());
     locks_[src].lock();
-    int sz = adj_list_size_[src];
-    int cap = adj_list_capacity_[src];
+    int sz = sizes[src].load(std::memory_order_relaxed);
+    int cap = caps[src];
     if (sz == cap) {
       cap += (cap >> 1);
       cap = std::max(cap, 8);
       nbr_t* new_buffer =
           static_cast<nbr_t*>(alloc.allocate(cap * sizeof(nbr_t)));
       if (sz > 0) {
-        memcpy(new_buffer, adj_list_buffer_[src], sz * sizeof(nbr_t));
+        memcpy(new_buffer, buffers[src], sz * sizeof(nbr_t));
       }
-      adj_list_buffer_[src] = new_buffer;
-      adj_list_capacity_[src] = cap;
+      buffers[src] = new_buffer;
+      caps[src] = cap;
     }
-    int32_t prev_size = adj_list_size_[src].fetch_add(1);
-    auto& nbr = adj_list_buffer_[src][prev_size];
+    int32_t prev_size = sizes[src].fetch_add(1);
+    auto& nbr = buffers[src][prev_size];
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
@@ -163,13 +164,18 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     std::vector<vid_t> src_list, dst_list;
     std::vector<EDATA_T> data_list;
-    for (vid_t src = 0; src < adj_list_size_.size(); ++src) {
-      for (int i = 0; i < adj_list_size_[src]; ++i) {
-        if (adj_list_buffer_[src][i].timestamp.load() !=
-            std::numeric_limits<timestamp_t>::max()) {
+    const nbr_t* const* adjlists =
+        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
+    const std::atomic<int>* degrees =
+        reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
+    for (vid_t src = 0; src < static_cast<vid_t>(vertex_capacity()); ++src) {
+      auto deg = degrees[src].load();
+      for (int i = 0; i < deg; ++i) {
+        const auto& nbr = adjlists[src][i];
+        if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
           src_list.push_back(src);
-          dst_list.push_back(adj_list_buffer_[src][i].neighbor);
-          data_list.push_back(adj_list_buffer_[src][i].data);
+          dst_list.push_back(nbr.neighbor);
+          data_list.push_back(nbr.data);
         }
       }
     }
@@ -193,12 +199,22 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   void dump_meta(const std::string& prefix) const;
 
+  void open_internal(const std::string& snapshot_prefix,
+                     const std::string& tmp_prefix, MemoryLevel mem_level);
+
   SpinLock* locks_;
-  mmap_array<nbr_t*> adj_list_buffer_;
-  mmap_array<std::atomic<int>> adj_list_size_;
-  mmap_array<int> adj_list_capacity_;
-  mmap_array<nbr_t> nbr_list_;
+  std::unique_ptr<IDataContainer> adj_list_buffer_;
+  std::unique_ptr<IDataContainer> adj_list_size_;
+  std::unique_ptr<IDataContainer> adj_list_capacity_;
+  std::unique_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
+
+  size_t vertex_capacity() const {
+    if (!adj_list_size_) {
+      return 0;
+    }
+    return adj_list_size_->GetDataSize() / sizeof(std::atomic<int>);
+  }
 };
 
 template <typename EDATA_T>
@@ -208,7 +224,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = MutableNbr<EDATA_T>;
 
   SingleMutableCsr() {}
-  ~SingleMutableCsr() {}
+  ~SingleMutableCsr() { close(); }
 
   CsrType csr_type() const override { return CsrType::kSingleMutable; }
 
@@ -217,22 +233,22 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     cfg.stride = sizeof(nbr_t);
     cfg.ts_offset = offsetof(nbr_t, timestamp);
     cfg.data_offset = offsetof(nbr_t, data);
-    return GenericView(reinterpret_cast<const char*>(nbr_list_.data()), cfg, ts,
-                       std::numeric_limits<timestamp_t>::max());
+    return GenericView(reinterpret_cast<const char*>(nbr_list_->GetData()), cfg,
+                       ts, std::numeric_limits<timestamp_t>::max());
   }
 
   timestamp_t unsorted_since() const override {
     return std::numeric_limits<timestamp_t>::max();
   }
 
-  size_t size() const override { return nbr_list_.size(); }
+  size_t size() const override { return vertex_capacity(); }
 
   size_t edge_num() const override {
     size_t cnt = 0;
-    for (size_t k = 0; k != nbr_list_.size(); ++k) {
-      if (nbr_list_[k].timestamp.load() !=
-          std::numeric_limits<timestamp_t>::max()) {
-        ++cnt;
+    auto* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
+    for (size_t i = 0; i < vertex_capacity(); ++i) {
+      if (nbrs[i].timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        cnt++;
       }
     }
     return cnt;
@@ -281,15 +297,16 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   int32_t put_edge(vid_t src, vid_t dst, const EDATA_T& data, timestamp_t ts,
                    Allocator& alloc) override {
-    if (src >= nbr_list_.size()) {
+    if (src >= vertex_capacity()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
           "Source vertex id out of range: " + std::to_string(src) +
-          " >= " + std::to_string(nbr_list_.size()));
+          " >= " + std::to_string(vertex_capacity()));
     }
-    nbr_list_[src].neighbor = dst;
-    nbr_list_[src].data = data;
-    CHECK_EQ(nbr_list_[src].timestamp, std::numeric_limits<timestamp_t>::max());
-    nbr_list_[src].timestamp.store(ts);
+    auto* nbrs = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
+    nbrs[src].neighbor = dst;
+    nbrs[src].data = data;
+    CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
+    nbrs[src].timestamp.store(ts);
     return 0;
   }
 
@@ -300,7 +317,14 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
-  mmap_array<nbr_t> nbr_list_;
+  std::unique_ptr<IDataContainer> nbr_list_;
+
+  size_t vertex_capacity() const {
+    if (!nbr_list_) {
+      return 0;
+    }
+    return nbr_list_->GetDataSize() / sizeof(nbr_t);
+  }
 };
 
 template <typename EDATA_T>
