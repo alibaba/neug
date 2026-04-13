@@ -271,7 +271,8 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
 
                                                   DataType type) {
   if (!var.has_property()) {
-    LOG(FATAL) << "vertex variable missing property: " << var.DebugString();
+    return std::make_unique<VertexAccessor>(type, GraphAccessType::kIdentity,
+                                            "");
   } else {
     const auto& prop = var.property();
     if (prop.has_key()) {
@@ -281,7 +282,8 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
     } else if (prop.has_id()) {
       return VertexAccessor::create_gid_accessor();
     } else {
-      return VertexAccessor::create_identity_accessor();
+      LOG(FATAL) << "unsupported vertex variable property access: "
+                 << var.DebugString();
     }
   }
   return nullptr;
@@ -290,7 +292,7 @@ static std::unique_ptr<ExprBase> parse_vertex_var(const common::Variable& var,
 static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
                                                 DataType type) {
   if (!var.has_property()) {
-    LOG(FATAL) << "edge variable missing property: " << var.DebugString();
+    return std::make_unique<EdgeAccessor>(type, GraphAccessType::kIdentity, "");
   } else {
     const auto& prop = var.property();
     if (prop.has_key()) {
@@ -300,7 +302,8 @@ static std::unique_ptr<ExprBase> parse_edge_var(const common::Variable& var,
     } else if (prop.has_id()) {
       return EdgeAccessor::create_gid_accessor();
     } else {
-      return EdgeAccessor::create_identity_accessor();
+      LOG(FATAL) << "unsupported edge variable property access: "
+                 << var.DebugString();
     }
   }
   return nullptr;
