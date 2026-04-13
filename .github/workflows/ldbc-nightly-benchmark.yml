@@ -37,7 +37,7 @@ jobs:
       - name: Load LDBC dataset
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
-          export DATA_PATH=/data/benchmark/social_network-sf10-CsvComposite-StringDateFormatter
+          export DATA_PATH=/data/benchmark/social_network-sf100-CsvComposite-StringDateFormatter
           start=$(date +%s)
           python3 benchmark/interactive/load_ldbc.py
           end=$(date +%s)
@@ -67,7 +67,7 @@ jobs:
           fi
           RESULT_DIR="/data/benchmark-result/$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
           mkdir -p "$RESULT_DIR"
-          /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-sf10.properties 2>&1 | tee "$RESULT_DIR/benchmark.log"
+          /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark.sh /data/neng/actions-runner/flex_ldbc_snb/driver/neug/driver/benchmark-100.properties 2>&1 | tee "$RESULT_DIR/benchmark.log"
           BENCH_EXIT=$?
           echo "::notice::Benchmark results saved to $RESULT_DIR"
           kill $(cat serve.pid) 2>/dev/null && echo "NeuG server stopped" || true
