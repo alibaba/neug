@@ -31,6 +31,20 @@ It has the following methods to iterate over the results.
 
 ```
 
+<a id="neug.query_result.QueryResult.__init__"></a>
+
+### \_\_init\_\_
+
+```python
+def __init__(result)
+```
+
+Initialize the QueryResult.
+
+- **Parameters:**
+  - `result` (PyQueryResult)
+    The result of the query, returned by the query engine. It is a C++ object and is exported to python via pybind.
+
 <a id="neug.query_result.QueryResult.column_names"></a>
 
 ### column\_names

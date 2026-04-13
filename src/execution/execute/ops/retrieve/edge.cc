@@ -505,9 +505,9 @@ neug::result<OpBuildResultT> ExpandCountFuseBuilder::Build(
     return std::make_pair(nullptr, ContextMeta());
   }
   auto edge_opr = plan.plan(op_idx).opr().edge();
-  if (edge_opr.expand_opt() ==
-          physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX ||
-      edge_opr.expand_opt() ==
+  if (edge_opr.expand_opt() !=
+          physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_VERTEX &&
+      edge_opr.expand_opt() !=
           physical::EdgeExpand_ExpandOpt::EdgeExpand_ExpandOpt_EDGE) {
     return std::make_pair(nullptr, ContextMeta());
   }

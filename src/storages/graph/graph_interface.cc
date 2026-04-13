@@ -49,7 +49,8 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
     }
   }
 
-  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
+  auto status =
+      graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }

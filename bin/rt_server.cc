@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
   neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
   config.wal_uri = vm["wal-uri"].as<std::string>();
-  if (config.memory_level == neug::MemoryLevel::kHugePagePrefered) {
+  if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
     config.enable_auto_compaction = true;
   }
   db.Open(config);

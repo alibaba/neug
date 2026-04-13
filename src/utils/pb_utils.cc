@@ -271,8 +271,6 @@ bool common_value_to_value(const DataType& type, const common::Value& value,
       uint16_t max_length =
           str_type_info ? str_type_info->Cast<StringTypeInfo>().max_length
                         : STRING_DEFAULT_MAX_LENGTH;
-      LOG(INFO) << "Setting string value: " << value.str()
-                << " for type: " << type.ToString();
       out_value = execution::Value::VARCHAR(value.str(), max_length);
     }
     break;

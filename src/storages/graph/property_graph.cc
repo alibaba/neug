@@ -765,25 +765,6 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  write_yaml_file(schema_res.value(), filename);
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
-}
-
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
                          MemoryLevel memory_level) {
   schema_ = schema;
@@ -1027,24 +1008,15 @@ void PropertyGraph::Dump(bool reopen) {
     if (!schema_.vertex_label_valid(src_label_i)) {
       continue;
     }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.vertex_label_valid(dst_label_i)) {
         continue;
       }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label) ||
-            !schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+        if (!schema_.edge_label_valid(e_label_i) ||
+            !schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         size_t index =
@@ -1071,6 +1043,26 @@ void PropertyGraph::Dump(bool reopen) {
   if (reopen) {
     Open(work_dir_, memory_level_);
   }
+}
+
+void PropertyGraph::DumpSchema() {
+  auto _schema_path = schema_path(work_dir_);
+  std::ofstream out(_schema_path);
+  schema_.Serialize(out);
+  out.flush();
+  out.close();
+
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.error().error_message();
+    return;
+  }
+  if (!write_yaml_file(schema_res.value(), filename)) {
+    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
+  }
+  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
@@ -1268,20 +1260,6 @@ std::string PropertyGraph::get_statistics_json() const {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   document.Accept(writer);
   return buffer.GetString();
-}
-
-void PropertyGraph::generateStatistics() const {
-  std::string filename = statisticsFilePath();
-
-  {
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-      LOG(ERROR) << "Failed to open file: " << filename;
-      return;
-    }
-    out << get_statistics_json();
-    out.close();
-  }
 }
 
 Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,

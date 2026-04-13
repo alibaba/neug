@@ -48,6 +48,49 @@ When the database is closed, all the connections to the database will be closed 
 
 ```
 
+<a id="neug.database.Database.__init__"></a>
+
+### \_\_init\_\_
+
+```python
+def __init__(db_path: str = None,
+             mode: str = "read-write",
+             max_thread_num: int = 0,
+             checkpoint_on_close: bool = True,
+             buffer_strategy: str = "InMemory")
+```
+
+Open a database.
+
+- **Parameters:**
+  - `db_path` (str)
+    Path to the database file. required. If it is set to empty string, the database will be opened in memory mode.
+    Note that in memory mode, the database will not be persisted to disk, and all data will be
+    lost when the program exits. In this case, the db_path should not contain any illegal characters.
+  - `mode` (str)
+    Mode to open the database, could be 'r', 'read', 'readwrite', 'w', 'rw', 'write'. Default is 'r' for read-only.
+  - `max_thread_num` (int)
+    Maximum number of threads to use. Default is 0, which means no limit.
+  - `checkpoint_on_close` (bool)
+    Whether to automatically create a checkpoint when the database is closed. Default is True.
+    If False, no checkpoint is created automatically when close the database.
+  - `buffer_strategy` (str)
+    Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
+    or 'HugePagePreferred' (or 'M_HUGE'). Default is 'InMemory'.
+    - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
+    persisted to disk until checkpoint is created.
+    - 'SyncToFile' / 'M_LAZY': The database will be opened in memory on demand, suitable for large databases
+    that cannot fit into memory. Also changes will not be persisted to disk until checkpoint is created.
+    - 'HugePagePreferred' / 'M_HUGE': Similar to 'InMemory', but it will try to use huge pages for memory
+    allocation, which may improve performance for large databases.
+
+- **Raises:**
+  - **RuntimeError**
+    If the database file does not exist or the mode is invalid.
+  - **ValueError**
+    If the mode is not one of 'r', 'read', 'w', 'rw', 'write'.
+    If the planner is not 'gopt'.
+
 <a id="neug.database.Database.version"></a>
 
 ### version

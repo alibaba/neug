@@ -35,11 +35,11 @@
 #include "neug/main/file_lock.h"
 #include "neug/main/query_processor.h"
 #include "neug/server/neug_db_session.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/wal/wal.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/result.h"
@@ -105,7 +105,8 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   preprocessConfig();
 
   work_dir_ = config_.data_dir;
-  VLOG(1) << "Opening NeuGDB at " << work_dir_;
+  VLOG(1) << "Opening NeuGDB at " << work_dir_
+          << ", memory level: " << std::to_string(config_.memory_level);
   if (!std::filesystem::exists(work_dir_)) {
     std::filesystem::create_directories(work_dir_);
   }

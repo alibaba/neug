@@ -26,11 +26,11 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -580,10 +580,6 @@ class PropertyGraph {
     return vertex_tables_[label].GetVertexSet(ts);
   }
 
-  inline std::string statisticsFilePath() const {
-    return work_dir_ + "/statistics.json";
-  }
-
   std::string get_statistics_json() const;
 
   inline std::string get_schema_yaml_path() const {
@@ -591,8 +587,6 @@ class PropertyGraph {
   }
 
   inline std::string work_dir() const { return work_dir_; }
-
-  void generateStatistics() const;
 
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,

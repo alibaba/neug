@@ -148,14 +148,19 @@ void QueryProcessor::update_compiler_meta_if_needed(
     const physical::ExecutionFlag& flags, AccessMode mode) {
   YAML::Node schema_yaml;
   std::string statistics_json;
+  bool need_update = false;
   if (flags.schema() || flags.create_temp_table() ||
       mode == AccessMode::kSchema) {
     schema_yaml = g_.schema().to_yaml().value();
+    need_update = true;
   }
   if (flags.batch() || flags.insert() || flags.update()) {
     statistics_json = g_.get_statistics_json();
+    need_update = true;
   }
-  global_query_cache_->clear(schema_yaml, statistics_json);
+  if (need_update) {
+    global_query_cache_->clear(schema_yaml, statistics_json);
+  }
 }
 
 }  // namespace neug
