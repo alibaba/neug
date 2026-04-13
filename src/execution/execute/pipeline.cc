@@ -27,20 +27,6 @@ namespace neug {
 namespace execution {
 class OprTimer;
 
-// Read current process RSS (Resident Set Size) in MB from /proc/self/status
-double get_rss_mb() {
-  std::ifstream status("/proc/self/status");
-  std::string line;
-  while (std::getline(status, line)) {
-    if (line.compare(0, 6, "VmRSS:") == 0) {
-      long kb = 0;
-      std::sscanf(line.c_str(), "VmRSS: %ld kB", &kb);
-      return kb / 1024.0;
-    }
-  }
-  return -1.0;
-}
-
 neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
                                         const ParamsMap& params,
                                         OprTimer* timer) {
@@ -52,7 +38,6 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
     if (NEUG_UNLIKELY(timer != nullptr)) {
       tu.start();
     }
-    double mem0 = get_rss_mb();
     TRY_HANDLE_ALL_WITH_EXCEPTION(
         neug::result<Context>,
         [&]() -> neug::result<Context> {
@@ -80,9 +65,6 @@ neug::result<Context> Pipeline::Execute(IStorageInterface& graph, Context&& ctx,
                                     err.error_message());
         },
         [&ctx](neug::result<Context>&& res) { ctx = std::move(res.value()); });
-    double mem1 = get_rss_mb();
-    LOG(INFO) << "Operator: " << operators_[i]->get_operator_name()
-              << " Memory (RSS): " << mem1 - mem0 << " MB";
     if (!status.ok()) {
       RETURN_ERROR(status);
     }
