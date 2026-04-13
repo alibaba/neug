@@ -35,6 +35,7 @@ NeuG documentation
 
    tutorials/tinysnb_tutorial
    tutorials/codegraph-openclaw-example
+   tutorials/benchmark-neug-dual-mode
 
 .. toctree::
    :maxdepth: 1

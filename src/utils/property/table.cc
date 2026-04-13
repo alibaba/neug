@@ -146,7 +146,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     } else if (memory_level == MemoryLevel::kInMemory) {
       columns_[i]->open_in_memory(tmp_dir(work_dir_) + "/" + name_ + ".col_" +
                                   std::to_string(i));
-    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
       columns_[i]->open_with_hugepages(tmp_dir(work_dir_) + "/" + name_ +
                                        ".col_" + std::to_string(i));
     } else {

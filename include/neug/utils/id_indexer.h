@@ -340,24 +340,26 @@ class LFIndexer {
   size_t size() const { return num_elements_.load(); }
   DataTypeId get_type() const { return keys_->type(); }
 
-  // only for update transaction
-  INDEX_T insert_safe(const Property& oid) {
-    INDEX_T ind = static_cast<INDEX_T>(num_elements_.load());
-    if (ind >= capacity()) {
-      reserve(capacity() + (capacity() >> 2));
-    }
-    return insert(oid);
-  }
-
-  INDEX_T insert(const Property& oid) {
+  INDEX_T insert(const Property& oid, bool insert_safe = false) {
     assert(oid.type() == get_type());
-    INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
-    if (!NEUG_LIKELY(ind >= 0 && ind < capacity())) {
+
+    if (insert_safe) {
+      if (NEUG_UNLIKELY(num_elements_.load(std::memory_order_relaxed) >=
+                        capacity())) {
+        size_t cap = capacity();
+        reserve(cap + (cap >> 2));
+      }
+    }
+    INDEX_T ind = static_cast<INDEX_T>(
+        num_elements_.fetch_add(1, std::memory_order_acq_rel));
+
+    if (!insert_safe && NEUG_UNLIKELY(static_cast<size_t>(ind) >= capacity())) {
       THROW_INTERNAL_EXCEPTION(
           "Reserved size is not enough: " + std::to_string(capacity()) +
           " vs " + std::to_string(ind));
     }
-    keys_->set_any(ind, oid);
+
+    keys_->set_any(ind, oid, insert_safe);
     auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
@@ -456,7 +458,7 @@ class LFIndexer {
     load_meta(name + ".meta");
     keys_->open_with_hugepages(name + ".keys");
     indices_ =
-        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePrefered);
+        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePreferred);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 

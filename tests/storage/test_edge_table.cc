@@ -777,12 +777,12 @@ TEST_F(EdgeTableTest, TestAddEdgeAndDelete) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -931,12 +931,12 @@ TEST_F(EdgeTableTest, TestAddEdgeDeleteUnbundled) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -1018,12 +1018,12 @@ TEST_F(EdgeTableTest, TestEdgeTableCompaction) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
@@ -1093,12 +1093,12 @@ TEST_F(EdgeTableTest, TestUpdateEdgeData) {
       generate_random_vertices<int64_t>(dst_num, edge_num);
   for (auto src_oid : src_oids) {
     neug::vid_t src_lid =
-        this->src_indexer.insert_safe(neug::Property::from_int64(src_oid));
+        this->src_indexer.insert(neug::Property::from_int64(src_oid), true);
     src_lids.push_back(src_lid);
   }
   for (auto dst_oid : dst_oids) {
     neug::vid_t dst_lid =
-        this->dst_indexer.insert_safe(neug::Property::from_int64(dst_oid));
+        this->dst_indexer.insert(neug::Property::from_int64(dst_oid), true);
     dst_lids.push_back(dst_lid);
   }
   this->edge_table->EnsureCapacity(this->src_indexer.size(),
