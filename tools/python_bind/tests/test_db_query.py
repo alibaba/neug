@@ -2853,13 +2853,6 @@ def test_optional_match_on_edge(tmp_path):
 
 
 def test_is_not_null_on_node_variable(tmp_path):
-    """IS NOT NULL on a bound node variable should not abort.
-
-    Reproducer: MATCH (a:Node) WHERE a IS NOT NULL RETURN 1
-    Previously aborted in variable.cc with 'vertex variable missing property'
-    because the physical plan emitted a Variable without a property field
-    for the whole-node null check.
-    """
     db_dir = tmp_path / "is_not_null_node"
     db_dir.mkdir()
     db = Database(db_path=str(db_dir), mode="w")
@@ -2883,11 +2876,6 @@ def test_is_not_null_on_node_variable(tmp_path):
     conn.execute(
         "MATCH (a:person {id: 1}), (b:person {id: 2}) CREATE (a)-[:knows]->(b);"
     )
-    # Current OPTIONAL + WHERE semantics: the planner pushes WHERE into the
-    # OPTIONAL MATCH branch (as part of that optional pattern), rather than
-    # applying it as a filter after the left-outer-join-style row extension.
-    # That differs from Cypher-style semantics where filtering runs after the
-    # optional match, so row counts / null handling may not match a strict LOJ.
     result = conn.execute(
         "MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) "
         "WHERE b IS NULL RETURN a, b;",
