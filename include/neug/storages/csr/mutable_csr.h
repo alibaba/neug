@@ -67,23 +67,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t size() const override { return vertex_capacity(); }
 
-  size_t edge_num() const override {
-    size_t res = 0;
-    auto* adj_lists =
-        reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-    auto* degrees =
-        reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
-    for (size_t i = 0; i < vertex_capacity(); ++i) {
-      auto begin = adj_lists[i];
-      for (int j = 0; j < degrees[i].load(); ++j) {
-        if (begin[j].timestamp.load() !=
-            std::numeric_limits<timestamp_t>::max()) {
-          res++;
-        }
-      }
-    }
-    return res;
-  }
+  size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
@@ -156,6 +140,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
+    edge_num_.fetch_add(1);
     locks_[src].unlock();
     return prev_size;
   }
@@ -208,6 +193,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> adj_list_capacity_;
   std::unique_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
+  std::atomic<uint64_t> edge_num_{0};
 
   size_t vertex_capacity() const {
     if (!adj_list_size_) {
@@ -243,16 +229,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t size() const override { return vertex_capacity(); }
 
-  size_t edge_num() const override {
-    size_t cnt = 0;
-    auto* nbrs = reinterpret_cast<const nbr_t*>(nbr_list_->GetData());
-    for (size_t i = 0; i < vertex_capacity(); ++i) {
-      if (nbrs[i].timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
-        cnt++;
-      }
-    }
-    return cnt;
-  }
+  size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
@@ -307,6 +284,7 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     nbrs[src].data = data;
     CHECK_EQ(nbrs[src].timestamp, std::numeric_limits<timestamp_t>::max());
     nbrs[src].timestamp.store(ts);
+    edge_num_.fetch_add(1, std::memory_order_relaxed);
     return 0;
   }
 
@@ -317,7 +295,11 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  void load_meta(const std::string& prefix);
+  void dump_meta(const std::string& prefix) const;
+
   std::unique_ptr<IDataContainer> nbr_list_;
+  std::atomic<uint64_t> edge_num_{0};
 
   size_t vertex_capacity() const {
     if (!nbr_list_) {
