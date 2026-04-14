@@ -25,6 +25,7 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/module/type_name.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
@@ -36,7 +37,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   ImmutableCsr() {}
-  ~ImmutableCsr() { close(); }
+  ~ImmutableCsr() { Close(); }
 
   CsrType csr_type() const override { return CsrType::kImmutable; }
 
@@ -61,15 +62,10 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -79,7 +75,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -108,14 +104,25 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
+  void fork_vertex(vid_t vid, Allocator& alloc) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "fork_vertex is not supported for immutable csr");
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<ImmutableCsr<EDATA_T>>();
+    fork->adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
+    fork->degree_list_buffer_ = degree_list_buffer_->Fork(ckp, level);
+    fork->nbr_list_buffer_ = nbr_list_buffer_->Fork(ckp, level);
+    fork->unsorted_since_ = unsorted_since_;
+    return fork;
+  }
+
+  std::string ModuleTypeName() const override {
+    return std::string("immutable_csr_") + StorageTypeName<EDATA_T>::value;
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-
-  void dump_meta(const std::string& prefix) const;
-
-  void open_internal(const std::string& snapshot_prefix,
-                     const std::string& tmp_prefix, MemoryLevel mem_level);
-
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_buffer_;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
@@ -130,7 +137,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   using nbr_t = ImmutableNbr<EDATA_T>;
 
   SingleImmutableCsr() {}
-  ~SingleImmutableCsr() { close(); }
+  ~SingleImmutableCsr() { Close(); }
 
   CsrType csr_type() const override { return CsrType::kSingleImmutable; }
 
@@ -156,15 +163,10 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t edge_num() const override { return edge_num_.load(); }
 
-  void open(const std::string& name, const std::string& snapshot_dir,
-            const std::string& work_dir) override;
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level) override;
 
-  void open_in_memory(const std::string& prefix) override;
-
-  void open_with_hugepages(const std::string& prefix) override;
-
-  void dump(const std::string& name,
-            const std::string& new_snapshot_dir) override;
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void reset_timestamp() override;
 
@@ -174,7 +176,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
 
   size_t capacity() const override;
 
-  void close() override;
+  void Close() override;
 
   void batch_sort_by_edge_data(timestamp_t ts) override;
 
@@ -203,9 +205,23 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
+  void fork_vertex(vid_t vid, Allocator& alloc) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "fork_vertex is not supported for single immutable csr");
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<SingleImmutableCsr<EDATA_T>>();
+    fork->nbr_list_buffer_ = nbr_list_buffer_->Fork(ckp, level);
+    return fork;
+  }
+
+  std::string ModuleTypeName() const override {
+    return std::string("single_immutable_csr_") +
+           StorageTypeName<EDATA_T>::value;
+  }
+
  private:
-  void load_meta(const std::string& prefix);
-  void dump_meta(const std::string& prefix) const;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
   std::atomic<uint64_t> edge_num_{0};
 };

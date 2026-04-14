@@ -32,7 +32,11 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
       std::filesystem::remove_all(test_dir_);
     }
     std::filesystem::create_directories(test_dir_);
-    graph_.Open(test_dir_, MemoryLevel::kInMemory);
+
+    ws_.Open(test_dir_);
+    auto ckp_id = ws_.CreateCheckpoint();
+    auto& ckp = ws_.GetCheckpoint(ckp_id);
+    graph_.Open(ckp, MemoryLevel::kInMemory);
   }
 
   void TearDown() override {
@@ -43,6 +47,7 @@ class PropertyGraphLogicalDeleteTest : public ::testing::Test {
 
   PropertyGraph graph_;
   std::string test_dir_;
+  Workspace ws_;
 };
 
 // Test DeleteVertexType - physically removes vertex type and data

@@ -36,6 +36,13 @@ class IVersionManager {
   virtual void release_update_timestamp(uint32_t ts) = 0;
   virtual bool revert_update_timestamp(uint32_t ts) = 0;
   virtual void clear() = 0;
+
+  // COW-mode execute phase interfaces
+  // Non-blocking acquire of a provisional timestamp for execute phase
+  virtual uint32_t begin_update_execute() = 0;
+  // Abandon the provisional timestamp on abort
+  virtual void abandon_execute_timestamp(uint32_t ts) = 0;
+
   virtual ~IVersionManager() {}
 };
 
@@ -62,6 +69,10 @@ class TPVersionManager : public IVersionManager {
   uint32_t acquire_update_timestamp() override;
   void release_update_timestamp(uint32_t ts) override;
   bool revert_update_timestamp(uint32_t ts) override;
+
+  // COW-mode execute phase interfaces
+  uint32_t begin_update_execute() override;
+  void abandon_execute_timestamp(uint32_t ts) override;
 
  private:
   int thread_num_;

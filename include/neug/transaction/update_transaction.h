@@ -19,6 +19,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <set>
 #include <stack>
 #include <string>
 #include <tuple>
@@ -32,8 +33,8 @@
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/module/module_store.h"
 #include "neug/transaction/transaction_utils.h"
-#include "neug/transaction/undo_log.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -239,7 +240,7 @@ class UpdateTransaction {
       uint8_t label, const std::string& col_name) const {
     ENSURE_VERTEX_LABEL_NOT_DELETED(label);
     ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, col_name);
-    return graph_.GetVertexPropertyColumn(label, col_name);
+    return visible_vertex_table(label).GetPropertyColumn(col_name);
   }
 
   Property GetVertexProperty(label_t label, vid_t lid, int col_id) const;
@@ -262,8 +263,7 @@ class UpdateTransaction {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(v_label, neighbor_label, edge_label);
-    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
+    return visible_outgoing_view(v_label, neighbor_label, edge_label);
   }
 
   GenericView GetGenericIncomingGraphView(label_t v_label,
@@ -272,8 +272,7 @@ class UpdateTransaction {
     ENSURE_VERTEX_LABEL_NOT_DELETED(v_label);
     ENSURE_VERTEX_LABEL_NOT_DELETED(neighbor_label);
     ENSURE_EDGE_LABEL_NOT_DELETED(neighbor_label, v_label, edge_label);
-    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
-                                              edge_label, timestamp_);
+    return visible_incoming_view(v_label, neighbor_label, edge_label);
   }
 
   static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
@@ -301,8 +300,8 @@ class UpdateTransaction {
         graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
     ENSURE_EDGE_PROPERTY_NOT_DELETED(index,
                                      edge_schema->property_names[prop_id]);
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_id);
+    return visible_edge_table(src_label, dst_label, edge_label)
+        .get_edge_data_accessor(prop_id);
   }
 
   void CreateCheckpoint();
@@ -345,6 +344,20 @@ class UpdateTransaction {
   }
 
  private:
+  // Lazy-fork dispatchers. Current implementation falls back to live graph;
+  // later commits will materialize fork-on-write behavior behind these entry
+  // points.
+  VertexTable& mutable_vertex_table(label_t label);
+  EdgeTable& mutable_edge_table(label_t src_label, label_t dst_label,
+                                label_t edge_label);
+  const VertexTable& visible_vertex_table(label_t label) const;
+  const EdgeTable& visible_edge_table(label_t src_label, label_t dst_label,
+                                      label_t edge_label) const;
+  GenericView visible_outgoing_view(label_t src_label, label_t dst_label,
+                                    label_t edge_label) const;
+  GenericView visible_incoming_view(label_t dst_label, label_t src_label,
+                                    label_t edge_label) const;
+
   bool IsValidLid(label_t label, vid_t lid) const;
 
   void release();
@@ -359,10 +372,11 @@ class UpdateTransaction {
 
   void invalidate_query_cache_if_needed();
 
-  // Revert all changes made in this transaction.
-  void revert_changes();
+  bool try_publish_fork_tables();
 
   PropertyGraph& graph_;
+  std::shared_ptr<ModuleStore>
+      txn_store_;  // Shared with graph_, forked on write
   Allocator& alloc_;
   IWalWriter& logger_;
   IVersionManager& vm_;
@@ -372,15 +386,44 @@ class UpdateTransaction {
   InArchive arc_;
   int op_num_;
   bool schema_changed_{false};
+  bool fork_publishable_{true};
 
   std::unordered_set<label_t> deleted_vertex_labels_;
   std::unordered_set<std::tuple<label_t, label_t, label_t>,
                      hash_tuple::hash<label_t, label_t, label_t>>
       deleted_edge_labels_;
+
+  // Labels created in this transaction — rolled back on Abort().
+  std::unordered_set<label_t> created_vertex_labels_;
+  std::unordered_set<std::tuple<label_t, label_t, label_t>,
+                     hash_tuple::hash<label_t, label_t, label_t>>
+      created_edge_labels_;
   std::vector<std::unordered_set<std::string>> deleted_vertex_properties_;
   std::unordered_map<uint32_t, std::unordered_set<std::string>>
       deleted_edge_properties_;
-  std::stack<std::unique_ptr<IUndoLog>> undo_logs_;
+
+  // Txn-local fork tables (lazy, created on first write to a label).
+  std::unordered_map<label_t, std::unique_ptr<VertexTable>> fork_vertex_tables_;
+  std::unordered_map<uint32_t, std::unique_ptr<EdgeTable>> fork_edge_tables_;
+
+  // live graph vertex count at the instant each vertex fork was taken;
+  // used to limit rebase to only the newly inserted lids.
+  std::unordered_map<label_t, vid_t> fork_vertex_base_lids_;
+
+  // Per-edge-type rebase watermarks captured at fork creation time.
+  std::unordered_map<uint32_t, EdgeTable::RebaseWatermark>
+      fork_edge_watermarks_;
+
+  // Keys of modules that have been forked in this transaction.
+  // Used to sync changes back to graph.module_store() on commit.
+  std::set<std::string> modified_keys_;
+
+  // Helper: sync forked modules from fork_vertex_tables_/fork_edge_tables_
+  // to txn_store_.
+  void sync_fork_to_txn_store();
+
+  // Helper: sync txn_store_ modifications back to graph.module_store().
+  void sync_txn_store_to_graph();
 };
 
 class StorageTPUpdateInterface : public StorageUpdateInterface {
@@ -478,6 +521,13 @@ class StorageTPUpdateInterface : public StorageUpdateInterface {
                         const std::string& dst_type,
                         const std::string& edge_type,
                         bool error_on_conflict) override;
+  // TODO(zhanglei): Override other read methods in ReadInterface.
+  GenericView GetGenericOutgoingGraphView(label_t v_label,
+                                          label_t neighbor_label,
+                                          label_t edge_label) const {
+    return txn_.GetGenericOutgoingGraphView(v_label, neighbor_label,
+                                            edge_label);
+  }
 
  private:
   UpdateTransaction& txn_;

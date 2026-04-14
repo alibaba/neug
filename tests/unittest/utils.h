@@ -15,7 +15,11 @@
 #ifndef NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_
 #define NEUG_TESTS_UNITTTEST_STORAGES_UTILS_H_
 
+#include <cstdlib>
+#include <filesystem>
 #include <random>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "neug/main/connection.h"
@@ -303,14 +307,53 @@ generate_random_edges(neug::vid_t src_num, neug::vid_t dst_num, size_t len,
 namespace neug {
 namespace test {
 
-inline void load_modern_graph(std::shared_ptr<neug::Connection> conn) {
-  const char* csv_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
-  if (csv_dir_ptr == nullptr) {
-    throw std::runtime_error(
-        "MODERN_GRAPH_DATA_DIR environment variable is not set");
+inline std::string resolve_test_dataset_dir(const char* env_var,
+                                            const std::string& fallback_dir) {
+  if (const char* value = std::getenv(env_var);
+      value != nullptr && value[0] != '\0') {
+    return value;
   }
-  LOG(INFO) << "CSV data dir: " << csv_dir_ptr;
-  std::string csv_dir = csv_dir_ptr;
+
+  std::vector<std::filesystem::path> candidates;
+  candidates.emplace_back(std::filesystem::path(__FILE__)
+                              .parent_path()
+                              .parent_path()
+                              .parent_path() /
+                          "example_dataset" / fallback_dir);
+  candidates.emplace_back(std::filesystem::current_path().parent_path() /
+                          "example_dataset" / fallback_dir);
+  candidates.emplace_back(std::filesystem::current_path() / "example_dataset" /
+                          fallback_dir);
+
+  for (const auto& candidate : candidates) {
+    if (std::filesystem::exists(candidate)) {
+      LOG(INFO) << "Using fallback dataset dir for " << env_var << ": "
+                << candidate;
+      return candidate.string();
+    }
+  }
+
+  throw std::runtime_error(std::string(env_var) +
+                           " environment variable is not set and fallback "
+                           "dataset directory was not found");
+}
+
+inline std::string resolve_modern_graph_dir() {
+  return resolve_test_dataset_dir("MODERN_GRAPH_DATA_DIR", "modern_graph");
+}
+
+inline std::string resolve_flex_data_dir() {
+  return resolve_test_dataset_dir("FLEX_DATA_DIR", "modern_graph");
+}
+
+inline std::string resolve_comprehensive_graph_dir() {
+  return resolve_test_dataset_dir("COMPREHENSIVE_GRAPH_DATA_DIR",
+                                  "comprehensive_graph");
+}
+
+inline void load_modern_graph(std::shared_ptr<neug::Connection> conn) {
+  std::string csv_dir = resolve_modern_graph_dir();
+  LOG(INFO) << "CSV data dir: " << csv_dir;
   auto res = conn->Query(
       "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY "
       "KEY(id));");

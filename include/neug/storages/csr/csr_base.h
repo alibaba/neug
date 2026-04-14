@@ -14,13 +14,18 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/csr/nbr.h"
+#include "neug/storages/module/module.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/property/types.h"
+
+#include <glog/logging.h>
 
 namespace neug {
 
@@ -32,7 +37,7 @@ enum class CsrType {
   kEmpty,
 };
 
-class CsrBase {
+class CsrBase : public Module {
  public:
   static constexpr size_t INFINITE_CAPACITY =
       std::numeric_limits<size_t>::max();
@@ -51,16 +56,6 @@ class CsrBase {
   // space, the reserved space will count as 0.
   virtual size_t edge_num() const = 0;
 
-  virtual void open(const std::string& name, const std::string& snapshot_dir,
-                    const std::string& work_dir) = 0;
-
-  virtual void open_in_memory(const std::string& prefix) = 0;
-
-  virtual void open_with_hugepages(const std::string& prefix) = 0;
-
-  virtual void dump(const std::string& name,
-                    const std::string& new_snapshot_dir) = 0;
-
   virtual void reset_timestamp() = 0;
 
   virtual void compact() = 0;
@@ -68,8 +63,6 @@ class CsrBase {
   virtual void resize(vid_t vnum) = 0;
 
   virtual size_t capacity() const = 0;
-
-  virtual void close() = 0;
 
   virtual void batch_sort_by_edge_data(timestamp_t ts) {
     LOG(FATAL) << "not supported...";
@@ -99,6 +92,8 @@ class CsrBase {
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const = 0;
+
+  virtual void fork_vertex(vid_t vid, Allocator& alloc) = 0;
 };
 
 template <typename EDATA_T>

@@ -15,6 +15,8 @@
 
 #include "neug/storages/csr/mutable_csr.h"
 
+#include "neug/storages/module/module_factory.h"
+
 #include <errno.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -41,47 +43,47 @@
 namespace neug {
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
-                                        const std::string& tmp_prefix,
-                                        MemoryLevel mem_level) {
-  close();
-  load_meta(snapshot_prefix);
+void MutableCsr<EDATA_T>::Open(Checkpoint& ckp,
+                               const ModuleDescriptor& descriptor,
+                               MemoryLevel memory_level) {
+  Close();
+  std::unique_ptr<IDataContainer> degree_list;
+  std::unique_ptr<IDataContainer> cap_list_owned;
+  IDataContainer* cap_list_ptr = nullptr;
 
-  auto degree_file_name = snapshot_prefix + ".deg";
-  auto cap_file_name = snapshot_prefix + ".cap";
-  std::shared_ptr<IDataContainer> degree_list =
-      std::make_shared<FilePrivateMMap>();
-  if (std::filesystem::exists(degree_file_name)) {
-    degree_list->Open(degree_file_name);
-  }
-  std::shared_ptr<IDataContainer> cap_list = degree_list;
-  if (std::filesystem::exists(cap_file_name)) {
-    cap_list = std::make_shared<FilePrivateMMap>();
-    cap_list->Open(cap_file_name);
-  }
-
-  // For nbr_list: kSyncToFile copies snapshot to tmp and opens with
-  // FileSharedMMap; kInMemory/kHugePagePreferred opens snapshot directly with
-  // the corresponding anonymous/private mapping (same as the original code).
-  nbr_list_ =
-      OpenContainer(snapshot_prefix + ".nbr", tmp_prefix + ".nbr", mem_level);
-  auto v_cap = degree_list->GetDataSize() / sizeof(int);
-  if (mem_level == MemoryLevel::kSyncToFile) {
-    adj_list_buffer_ = OpenContainer("", tmp_prefix + ".buf", mem_level);
-    adj_list_size_ = OpenContainer("", tmp_prefix + ".size", mem_level);
-    adj_list_capacity_ = OpenContainer("", tmp_prefix + ".cap", mem_level);
+  unsorted_since_ = descriptor.has("unsorted_since")
+                        ? std::stoull(descriptor.get("unsorted_since").value())
+                        : 0;
+  edge_num_.store(descriptor.has("edge_num")
+                      ? std::stoull(descriptor.get("edge_num").value())
+                      : 0);
+  degree_list =
+      ckp.OpenFile(descriptor.get_sub_module("degree_list").path, memory_level);
+  if (descriptor.has_sub_module("capacity_list")) {
+    cap_list_owned = ckp.OpenFile(
+        descriptor.get_sub_module("capacity_list").path, memory_level);
+    cap_list_ptr = cap_list_owned.get();
+  } else if (descriptor.has_sub_module("cap_list")) {
+    cap_list_owned =
+        ckp.OpenFile(descriptor.get_sub_module("cap_list").path, memory_level);
+    cap_list_ptr = cap_list_owned.get();
   } else {
-    adj_list_buffer_ = OpenContainer("", "", mem_level);
-    adj_list_size_ = OpenContainer("", "", mem_level);
-    adj_list_capacity_ = OpenContainer("", "", mem_level);
+    cap_list_ptr = degree_list.get();
   }
-  adj_list_buffer_->Resize(v_cap * sizeof(nbr_t*));
-  adj_list_size_->Resize(v_cap * sizeof(std::atomic<int>));
-  adj_list_capacity_->Resize(v_cap * sizeof(int));
+  nbr_list_ =
+      ckp.OpenFile(descriptor.get_sub_module("nbr_list").path, memory_level);
+
+  auto v_cap = degree_list->GetDataSize() / sizeof(int);
+  adj_list_buffer_ =
+      ckp.CreateRuntimeContainer(v_cap * sizeof(nbr_t*), memory_level);
+  adj_list_size_ = ckp.CreateRuntimeContainer(v_cap * sizeof(std::atomic<int>),
+                                              memory_level);
+  adj_list_capacity_ =
+      ckp.CreateRuntimeContainer(v_cap * sizeof(int), memory_level);
   locks_ = new SpinLock[v_cap];
 
   const auto* degree_ptr = reinterpret_cast<const int*>(degree_list->GetData());
-  const auto* cap_ptr = reinterpret_cast<const int*>(cap_list->GetData());
+  const auto* cap_ptr = reinterpret_cast<const int*>(cap_list_ptr->GetData());
   auto* adj_lists_ptr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* adj_list_size_ptr =
       reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
@@ -107,43 +109,17 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
         " but degree list implies " + std::to_string(edge_count));
   }
 }
-
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open(const std::string& name,
-                               const std::string& snapshot_dir,
-                               const std::string& work_dir) {
-  // Allow an empty or missing snapshot_dir: the underlying helpers already
-  // handle absent files by falling back to empty containers.  A subsequent
-  // resize() / insert call will allocate storage as needed.
-  std::string snap_prefix =
-      (!snapshot_dir.empty() && std::filesystem::exists(snapshot_dir))
-          ? snapshot_dir + "/" + name
-          : "";
-  auto tmp_prefix = tmp_dir(work_dir) + "/" + name;
-  open_internal(snap_prefix, tmp_prefix, MemoryLevel::kSyncToFile);
-}
-
-template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  open_internal(prefix, "", MemoryLevel::kInMemory);
-}
-
-template <typename EDATA_T>
-void MutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  open_internal(prefix, "", MemoryLevel::kHugePagePreferred);
-}
-
-template <typename EDATA_T>
-void MutableCsr<EDATA_T>::dump(const std::string& name,
-                               const std::string& new_snapshot_dir) {
+ModuleDescriptor MutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+  ModuleDescriptor descriptor;
+  descriptor.module_type = ModuleTypeName();
+  descriptor.set("unsorted_since", std::to_string(unsorted_since_));
   size_t vnum = vertex_capacity();
-  dump_meta(new_snapshot_dir + "/" + name);
 
-  auto degree_list = OpenContainer("", "", MemoryLevel::kInMemory);
-  degree_list->Resize(vnum * sizeof(int));
-  auto cap_list = OpenContainer("", "", MemoryLevel::kInMemory);
-  cap_list->Resize(vnum * sizeof(int));
-  bool need_cap_list = false;
+  auto degree_list =
+      ckp.CreateRuntimeContainer(vnum * sizeof(int), MemoryLevel::kInMemory);
+  auto cap_list =
+      ckp.CreateRuntimeContainer(vnum * sizeof(int), MemoryLevel::kInMemory);
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
   auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
   const auto* sz_arr =
@@ -152,31 +128,24 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   for (size_t i = 0; i < vnum; ++i) {
     degree_ptr[i] = sz_arr[i].load(std::memory_order_relaxed);
     cap_ptr[i] = caps[i];
-    if (degree_ptr[i] != cap_ptr[i]) {
-      need_cap_list = true;
-    }
   }
+  descriptor.set_sub_module("capacity_list", ckp.Commit(*cap_list));
+  descriptor.set_sub_module("degree_list", ckp.Commit(*degree_list));
+  descriptor.set("edge_num", std::to_string(edge_num_.load()));
 
-  auto cap_file = new_snapshot_dir + "/" + name + ".cap";
-  if (need_cap_list) {
-    cap_list->Dump(cap_file);
-  } else if (std::filesystem::exists(cap_file)) {
-    std::filesystem::remove(cap_file);
-  }
-
-  degree_list->Dump(new_snapshot_dir + "/" + name + ".deg");
-
+  auto name = ckp.create_runtime_object();
+  ModuleDescriptor nbr_desc;
+  nbr_desc.path = ckp.runtime_dir() + "/" + name;
   const nbr_t* const* lists =
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
-  const std::string nbr_path = new_snapshot_dir + "/" + name + ".nbr";
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(nbr_path.c_str(), "wb"),
-                                              &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> fp(
+      fopen(nbr_desc.path.c_str(), "wb"), &fclose);
   if (fp == nullptr) {
-    THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
+    THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_desc.path);
   }
   FileHeader header{};
   if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to write header to: " + nbr_path);
+    THROW_IO_EXCEPTION("Failed to write header to: " + nbr_desc.path);
   }
   MD5_CTX ctx;
   MD5_Init(&ctx);
@@ -188,20 +157,23 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
     }
     if (fwrite(data, 1, len, fp.get()) != len) {
       THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
-                         " to: " + nbr_path);
+                         " to: " + nbr_desc.path);
     }
     MD5_Update(&ctx, data, len);
   }
   MD5_Final(header.data_md5, &ctx);
   if (fseek(fp.get(), 0, SEEK_SET) != 0) {
-    THROW_IO_EXCEPTION("Failed to seek in: " + nbr_path);
+    THROW_IO_EXCEPTION("Failed to seek in: " + nbr_desc.path);
   }
   if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to rewrite header in: " + nbr_path);
+    THROW_IO_EXCEPTION("Failed to rewrite header in: " + nbr_desc.path);
   }
   if (fclose(fp.release()) != 0) {
-    THROW_IO_EXCEPTION("Failed to close file: " + nbr_path);
+    THROW_IO_EXCEPTION("Failed to close file: " + nbr_desc.path);
   }
+  ckp.CommitRuntimeObject(name);
+  descriptor.set_sub_module("nbr_list", nbr_desc);
+  return descriptor;
 }
 
 template <typename EDATA_T>
@@ -255,8 +227,9 @@ void MutableCsr<EDATA_T>::compact() {
     total_edge_num += sz_arr[i].load();
   }
   if (total_edge_num != edge_num_.load()) {
-    LOG(WARNING) << "Inconsistent edge count after compaction" << ": expected "
-                 << edge_num_.load() << ", actual " << total_edge_num;
+    LOG(WARNING) << "Inconsistent edge count after compaction"
+                 << ": expected " << edge_num_.load() << ", actual "
+                 << total_edge_num;
     THROW_STORAGE_EXCEPTION(
         "Inconsistent edge count after compaction: expected " +
         std::to_string(edge_num_.load()) + ", actual " +
@@ -301,7 +274,7 @@ size_t MutableCsr<EDATA_T>::capacity() const {
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::close() {
+void MutableCsr<EDATA_T>::Close() {
   if (locks_ != nullptr) {
     delete[] locks_;
     locks_ = nullptr;
@@ -315,9 +288,11 @@ void MutableCsr<EDATA_T>::close() {
   if (adj_list_capacity_) {
     adj_list_capacity_->Close();
   }
-  if (nbr_list_) {
-    nbr_list_->Close();
-  }
+  // Use reset() instead of ->Close() so that shared nbr_list_ (used by COW
+  // forks) is only freed when the last owner releases it.  Calling ->Close()
+  // directly would munmap the underlying memory while other MutableCsr
+  // instances that share the same nbr_list_ still hold pointers into it.
+  nbr_list_.reset();
 }
 
 template <typename EDATA_T>
@@ -582,77 +557,24 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
-  std::string meta_file_path = prefix + ".meta";
-  if (std::filesystem::exists(meta_file_path)) {
-    timestamp_t ts;
-    std::ifstream meta_in(meta_file_path, std::ios::binary);
-    if (!meta_in.is_open()) {
-      THROW_IO_EXCEPTION("Failed to open meta file: " + meta_file_path);
-    }
-    meta_in.read(reinterpret_cast<char*>(&ts), sizeof(ts));
-    unsorted_since_ = ts;
-    uint64_t edge_num;
-    meta_in.read(reinterpret_cast<char*>(&edge_num), sizeof(edge_num));
-    edge_num_.store(edge_num);
-    meta_in.close();
-  } else {
-    unsorted_since_ = 0;
-    edge_num_.store(0);
-  }
+void SingleMutableCsr<EDATA_T>::Open(Checkpoint& ckp,
+                                     const ModuleDescriptor& descriptor,
+                                     MemoryLevel level) {
+  assert(descriptor.module_type.empty() ||
+         descriptor.module_type == ModuleTypeName());
+  nbr_list_ = ckp.OpenFile(descriptor.get_sub_module("nbr_list").path, level);
+  edge_num_.store(descriptor.has("edge_num")
+                      ? std::stoull(descriptor.get("edge_num").value())
+                      : 0);
 }
 
 template <typename EDATA_T>
-void MutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
-  std::string meta_file_path = prefix + ".meta";
-  std::ofstream meta_out(meta_file_path, std::ios::binary);
-  if (!meta_out.is_open()) {
-    THROW_IO_EXCEPTION("Failed to open meta file for writing: " +
-                       meta_file_path);
-  }
-
-  timestamp_t ts = unsorted_since_;
-  meta_out.write(reinterpret_cast<const char*>(&ts), sizeof(ts));
-  uint64_t edge_num = edge_num_.load();
-  meta_out.write(reinterpret_cast<const char*>(&edge_num), sizeof(edge_num));
-  meta_out.close();
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::open(const std::string& name,
-                                     const std::string& snapshot_dir,
-                                     const std::string& work_dir) {
-  close();
-  load_meta(snapshot_dir + "/" + name);
-  nbr_list_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
-                            tmp_dir(work_dir) + "/" + name + ".snbr",
-                            MemoryLevel::kSyncToFile);
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-  nbr_list_ = OpenContainer(prefix + ".snbr", "", MemoryLevel::kInMemory);
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
-  close();
-  load_meta(prefix);
-  nbr_list_ =
-      OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePreferred);
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::dump(const std::string& name,
-                                     const std::string& new_snapshot_dir) {
-  // TODO: opt with mv
-  if (!nbr_list_) {
-    return;
-  }
-  dump_meta(new_snapshot_dir + "/" + name);
-  nbr_list_->Dump(new_snapshot_dir + "/" + name + ".snbr");
+ModuleDescriptor SingleMutableCsr<EDATA_T>::Dump(Checkpoint& ckp) {
+  ModuleDescriptor descriptor;
+  descriptor.module_type = ModuleTypeName();
+  descriptor.set_sub_module("nbr_list", ckp.Commit(*nbr_list_));
+  descriptor.set("edge_num", std::to_string(edge_num_.load()));
+  return descriptor;
 }
 
 template <typename EDATA_T>
@@ -690,7 +612,7 @@ size_t SingleMutableCsr<EDATA_T>::capacity() const {
 }
 
 template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::close() {
+void SingleMutableCsr<EDATA_T>::Close() {
   if (nbr_list_) {
     nbr_list_->Close();
   }
@@ -843,29 +765,6 @@ void SingleMutableCsr<EDATA_T>::batch_put_edges(
   }
 }
 
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
-  std::string meta_file_path = prefix + ".meta";
-  if (std::filesystem::exists(meta_file_path)) {
-    std::ifstream meta_in(meta_file_path, std::ios::binary);
-    uint64_t edge_num;
-    meta_in.read(reinterpret_cast<char*>(&edge_num), sizeof(edge_num));
-    edge_num_.store(edge_num);
-    meta_in.close();
-  } else {
-    edge_num_.store(0);
-  }
-}
-
-template <typename EDATA_T>
-void SingleMutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
-  std::string meta_file_path = prefix + ".meta";
-  std::ofstream meta_out(meta_file_path, std::ios::binary);
-  uint64_t edge_num = edge_num_.load();
-  meta_out.write(reinterpret_cast<const char*>(&edge_num), sizeof(edge_num));
-  meta_out.close();
-}
-
 template class MutableCsr<EmptyType>;
 template class MutableCsr<int32_t>;
 template class MutableCsr<uint32_t>;
@@ -889,5 +788,80 @@ template class SingleMutableCsr<EmptyType>;
 template class SingleMutableCsr<DateTime>;
 template class SingleMutableCsr<Interval>;
 template class SingleMutableCsr<bool>;
+
+// ---------------------------------------------------------------------------
+// ModuleFactory registrations
+// ---------------------------------------------------------------------------
+using MutableCsr_empty = MutableCsr<EmptyType>;
+using MutableCsr_bool = MutableCsr<bool>;
+using MutableCsr_int32 = MutableCsr<int32_t>;
+using MutableCsr_uint32 = MutableCsr<uint32_t>;
+using MutableCsr_int64 = MutableCsr<int64_t>;
+using MutableCsr_uint64 = MutableCsr<uint64_t>;
+using MutableCsr_float = MutableCsr<float>;
+using MutableCsr_double = MutableCsr<double>;
+using MutableCsr_date = MutableCsr<Date>;
+using MutableCsr_datetime = MutableCsr<DateTime>;
+using MutableCsr_interval = MutableCsr<Interval>;
+
+NEUG_REGISTER_MODULE("mutable_csr_empty", MutableCsr_empty);
+NEUG_REGISTER_MODULE("mutable_csr_bool", MutableCsr_bool);
+NEUG_REGISTER_MODULE("mutable_csr_int32", MutableCsr_int32);
+NEUG_REGISTER_MODULE("mutable_csr_uint32", MutableCsr_uint32);
+NEUG_REGISTER_MODULE("mutable_csr_int64", MutableCsr_int64);
+NEUG_REGISTER_MODULE("mutable_csr_uint64", MutableCsr_uint64);
+NEUG_REGISTER_MODULE("mutable_csr_float", MutableCsr_float);
+NEUG_REGISTER_MODULE("mutable_csr_double", MutableCsr_double);
+NEUG_REGISTER_MODULE("mutable_csr_date", MutableCsr_date);
+NEUG_REGISTER_MODULE("mutable_csr_datetime", MutableCsr_datetime);
+NEUG_REGISTER_MODULE("mutable_csr_interval", MutableCsr_interval);
+
+using SingleMutableCsr_empty = SingleMutableCsr<EmptyType>;
+using SingleMutableCsr_bool = SingleMutableCsr<bool>;
+using SingleMutableCsr_int32 = SingleMutableCsr<int32_t>;
+using SingleMutableCsr_uint32 = SingleMutableCsr<uint32_t>;
+using SingleMutableCsr_int64 = SingleMutableCsr<int64_t>;
+using SingleMutableCsr_uint64 = SingleMutableCsr<uint64_t>;
+using SingleMutableCsr_float = SingleMutableCsr<float>;
+using SingleMutableCsr_double = SingleMutableCsr<double>;
+using SingleMutableCsr_date = SingleMutableCsr<Date>;
+using SingleMutableCsr_datetime = SingleMutableCsr<DateTime>;
+using SingleMutableCsr_interval = SingleMutableCsr<Interval>;
+
+NEUG_REGISTER_MODULE("single_mutable_csr_empty", SingleMutableCsr_empty);
+NEUG_REGISTER_MODULE("single_mutable_csr_bool", SingleMutableCsr_bool);
+NEUG_REGISTER_MODULE("single_mutable_csr_int32", SingleMutableCsr_int32);
+NEUG_REGISTER_MODULE("single_mutable_csr_uint32", SingleMutableCsr_uint32);
+NEUG_REGISTER_MODULE("single_mutable_csr_int64", SingleMutableCsr_int64);
+NEUG_REGISTER_MODULE("single_mutable_csr_uint64", SingleMutableCsr_uint64);
+NEUG_REGISTER_MODULE("single_mutable_csr_float", SingleMutableCsr_float);
+NEUG_REGISTER_MODULE("single_mutable_csr_double", SingleMutableCsr_double);
+NEUG_REGISTER_MODULE("single_mutable_csr_date", SingleMutableCsr_date);
+NEUG_REGISTER_MODULE("single_mutable_csr_datetime", SingleMutableCsr_datetime);
+NEUG_REGISTER_MODULE("single_mutable_csr_interval", SingleMutableCsr_interval);
+
+using EmptyCsr_empty = EmptyCsr<EmptyType>;
+using EmptyCsr_bool = EmptyCsr<bool>;
+using EmptyCsr_int32 = EmptyCsr<int32_t>;
+using EmptyCsr_uint32 = EmptyCsr<uint32_t>;
+using EmptyCsr_int64 = EmptyCsr<int64_t>;
+using EmptyCsr_uint64 = EmptyCsr<uint64_t>;
+using EmptyCsr_float = EmptyCsr<float>;
+using EmptyCsr_double = EmptyCsr<double>;
+using EmptyCsr_date = EmptyCsr<Date>;
+using EmptyCsr_datetime = EmptyCsr<DateTime>;
+using EmptyCsr_interval = EmptyCsr<Interval>;
+
+NEUG_REGISTER_MODULE("empty_csr_empty", EmptyCsr_empty);
+NEUG_REGISTER_MODULE("empty_csr_bool", EmptyCsr_bool);
+NEUG_REGISTER_MODULE("empty_csr_int32", EmptyCsr_int32);
+NEUG_REGISTER_MODULE("empty_csr_uint32", EmptyCsr_uint32);
+NEUG_REGISTER_MODULE("empty_csr_int64", EmptyCsr_int64);
+NEUG_REGISTER_MODULE("empty_csr_uint64", EmptyCsr_uint64);
+NEUG_REGISTER_MODULE("empty_csr_float", EmptyCsr_float);
+NEUG_REGISTER_MODULE("empty_csr_double", EmptyCsr_double);
+NEUG_REGISTER_MODULE("empty_csr_date", EmptyCsr_date);
+NEUG_REGISTER_MODULE("empty_csr_datetime", EmptyCsr_datetime);
+NEUG_REGISTER_MODULE("empty_csr_interval", EmptyCsr_interval);
 
 }  // namespace neug

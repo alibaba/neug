@@ -24,6 +24,7 @@
 
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/mmap_container.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/file_utils.h"
 
 #include <glog/logging.h>
@@ -164,6 +165,19 @@ bool MMapContainer::IsDirty() {
   MD5((unsigned char*) data_, size_, md5);
   return memcmp(md5, reinterpret_cast<FileHeader*>(mmap_data_)->data_md5,
                 MD5_DIGEST_LENGTH) != 0;
+}
+
+std::unique_ptr<IDataContainer> MMapContainer::Fork(Checkpoint& checkpoint,
+                                                    MemoryLevel level) {
+  Sync();
+  if (!IsDirty()) {
+    return checkpoint.OpenFile(path_, level);
+  } else {
+    auto ret = checkpoint.CreateRuntimeContainer(this->GetDataSize(), level);
+    memcpy(ret->GetData(), data_, size_);
+    ret->Sync();
+    return ret;
+  }
 }
 
 }  // namespace neug

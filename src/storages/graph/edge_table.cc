@@ -15,6 +15,8 @@
 
 #include "neug/storages/graph/edge_table.h"
 
+#include "neug/storages/module/module_factory.h"
+
 #include <arrow/api.h>
 #include <arrow/array/array_base.h>
 #include <arrow/array/array_binary.h>
@@ -32,11 +34,30 @@
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module_descriptor.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
+
+// ---------------------------------------------------------------------------
+// Key helpers for flat ModuleStore layout
+// ---------------------------------------------------------------------------
+
+// CSR out: "csr_out:{triplet_id}"
+static inline std::string csr_out_key(uint32_t triplet_id) {
+  return "csr_out:" + std::to_string(triplet_id);
+}
+// CSR in: "csr_in:{triplet_id}"
+static inline std::string csr_in_key(uint32_t triplet_id) {
+  return "csr_in:" + std::to_string(triplet_id);
+}
+// Edge column: "ecol:{triplet_id}:{col_id}"
+static inline std::string ecol_key(uint32_t triplet_id, int32_t col_id) {
+  return "ecol:" + std::to_string(triplet_id) + ":" + std::to_string(col_id);
+}
 
 std::tuple<std::vector<vid_t>, std::vector<vid_t>, std::vector<bool>>
 filterInvalidEdges(const std::vector<vid_t>& src_lid,
@@ -495,10 +516,7 @@ EdgeTable::EdgeTable(std::shared_ptr<const EdgeSchema> meta) : meta_(meta) {
 }
 
 EdgeTable::EdgeTable(EdgeTable&& edge_table)
-    : meta_(edge_table.meta_),
-      work_dir_(edge_table.work_dir_),
-      memory_level_(edge_table.memory_level_) {
-  csr_alter_version_ = edge_table.csr_alter_version_.load();
+    : meta_(edge_table.meta_), memory_level_(edge_table.memory_level_) {
   out_csr_ = std::move(edge_table.out_csr_);
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
@@ -508,11 +526,7 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
 
 void EdgeTable::Swap(EdgeTable& edge_table) {
   std::swap(meta_, edge_table.meta_);
-  std::swap(work_dir_, edge_table.work_dir_);
   std::swap(memory_level_, edge_table.memory_level_);
-  auto v = csr_alter_version_.load();
-  csr_alter_version_.store(edge_table.csr_alter_version_.load());
-  edge_table.csr_alter_version_.store(v);
   out_csr_.swap(edge_table.out_csr_);
   in_csr_.swap(edge_table.in_csr_);
   table_.swap(edge_table.table_);
@@ -524,20 +538,205 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   edge_table.capacity_.store(cap);
 }
 
+std::unique_ptr<EdgeTable> EdgeTable::Fork(Checkpoint& ckp,
+                                           MemoryLevel level) const {
+  auto forked = std::make_unique<EdgeTable>();
+  forked->meta_ = meta_;
+  forked->memory_level_ = level;
+
+  if (out_csr_) {
+    auto out_module = out_csr_->Fork(ckp, level);
+    auto* out_csr = dynamic_cast<CsrBase*>(out_module.release());
+    if (out_csr == nullptr) {
+      THROW_INTERNAL_EXCEPTION("EdgeTable::Fork failed to fork out csr");
+    }
+    forked->out_csr_.reset(out_csr);
+  }
+
+  if (in_csr_) {
+    auto in_module = in_csr_->Fork(ckp, level);
+    auto* in_csr = dynamic_cast<CsrBase*>(in_module.release());
+    if (in_csr == nullptr) {
+      THROW_INTERNAL_EXCEPTION("EdgeTable::Fork failed to fork in csr");
+    }
+    forked->in_csr_.reset(in_csr);
+  }
+
+  if (table_) {
+    forked->table_ = table_->Fork(ckp, level);
+  } else {
+    forked->table_ = std::make_unique<Table>();
+  }
+
+  forked->table_idx_.store(table_idx_.load());
+  forked->capacity_.store(capacity_.load());
+  return forked;
+}
+
+EdgeTable::RebaseWatermark EdgeTable::CaptureRebaseWatermark() const {
+  RebaseWatermark wm;
+  wm.table_idx = table_idx_.load();
+  if (out_csr_) {
+    auto out_size = out_csr_->size();
+    wm.out_degree.resize(out_size, 0);
+    auto view = out_csr_->get_generic_view(MAX_TIMESTAMP);
+    for (vid_t src = 0; src < out_size; ++src) {
+      auto edges = view.get_edges(src);
+      wm.out_degree[src] = static_cast<uint32_t>(
+          (reinterpret_cast<const char*>(edges.end_ptr) -
+           reinterpret_cast<const char*>(edges.start_ptr)) /
+          edges.cfg.stride);
+    }
+  }
+  if (in_csr_) {
+    auto in_size = in_csr_->size();
+    wm.in_degree.resize(in_size, 0);
+    auto view = in_csr_->get_generic_view(MAX_TIMESTAMP);
+    for (vid_t dst = 0; dst < in_size; ++dst) {
+      auto edges = view.get_edges(dst);
+      wm.in_degree[dst] = static_cast<uint32_t>(
+          (reinterpret_cast<const char*>(edges.end_ptr) -
+           reinterpret_cast<const char*>(edges.start_ptr)) /
+          edges.cfg.stride);
+    }
+  }
+  return wm;
+}
+
+void EdgeTable::RebaseFromLive(const EdgeTable& live, const RebaseWatermark& wm,
+                               Allocator& alloc) {
+  if (meta_->is_bundled()) {
+    rebase_bundled_out_from(live, wm, alloc);
+    return;
+  }
+
+  // Unbundled: CSR stores uint64 row IDs that index into table_.
+  if (!live.out_csr_) {
+    return;
+  }
+
+  vid_t live_src_num = static_cast<vid_t>(live.out_csr_->size());
+  vid_t live_dst_num =
+      live.in_csr_ ? static_cast<vid_t>(live.in_csr_->size()) : 0;
+  if (live_src_num > static_cast<vid_t>(out_csr_->size())) {
+    out_csr_->resize(live_src_num);
+  }
+  if (in_csr_ && live_dst_num > static_cast<vid_t>(in_csr_->size())) {
+    in_csr_->resize(live_dst_num);
+  }
+
+  auto live_out_view = live.out_csr_->get_generic_view(MAX_TIMESTAMP);
+
+  struct NewEdge {
+    vid_t src;
+    vid_t dst;
+    uint64_t live_row_id;
+    timestamp_t ts;
+  };
+  std::vector<NewEdge> new_edges;
+  new_edges.reserve(64);
+
+  for (vid_t v = 0; v < live_src_num; ++v) {
+    uint32_t wm_deg =
+        (v < static_cast<vid_t>(wm.out_degree.size())) ? wm.out_degree[v] : 0;
+    auto edges = live_out_view.get_edges(v);
+    auto iter = edges.begin();
+    // Skip edges that existed at watermark time (raw-slot skip at MAX_TS).
+    for (uint32_t s = 0; s < wm_deg && iter != edges.end(); ++s, ++iter) {}
+    for (; iter != edges.end(); ++iter) {
+      uint64_t live_row_id =
+          *reinterpret_cast<const uint64_t*>(iter.get_data_ptr());
+      new_edges.push_back(
+          {v, iter.get_vertex(), live_row_id, iter.get_timestamp()});
+    }
+  }
+
+  if (new_edges.empty()) {
+    return;
+  }
+
+  std::vector<uint64_t> live_row_ids;
+  live_row_ids.reserve(new_edges.size());
+  for (auto& e : new_edges) {
+    live_row_ids.push_back(e.live_row_id);
+  }
+
+  uint64_t base_row = rebase_unbundled_table_rows_from(live, live_row_ids);
+
+  for (size_t i = 0; i < new_edges.size(); ++i) {
+    auto& e = new_edges[i];
+    uint64_t new_row_id = base_row + i;
+    Property row_id_prop;
+    row_id_prop.set_uint64(new_row_id);
+    out_csr_->put_generic_edge(e.src, e.dst, row_id_prop, e.ts, alloc);
+    if (in_csr_) {
+      in_csr_->put_generic_edge(e.dst, e.src, row_id_prop, e.ts, alloc);
+    }
+  }
+}
+
+void EdgeTable::rebase_bundled_out_from(const EdgeTable& live,
+                                        const RebaseWatermark& wm,
+                                        Allocator& alloc) {
+  if (!live.out_csr_ || !out_csr_) {
+    return;
+  }
+
+  vid_t live_src_num = static_cast<vid_t>(live.out_csr_->size());
+  vid_t live_dst_num =
+      live.in_csr_ ? static_cast<vid_t>(live.in_csr_->size()) : 0;
+  if (live_src_num > static_cast<vid_t>(out_csr_->size())) {
+    out_csr_->resize(live_src_num);
+  }
+  if (in_csr_ && live_dst_num > static_cast<vid_t>(in_csr_->size())) {
+    in_csr_->resize(live_dst_num);
+  }
+
+  // Bundled means a single inline property per edge (or kEmpty).
+  EdgeDataAccessor accessor = live.get_edge_data_accessor(0);
+  auto live_out_view = live.out_csr_->get_generic_view(MAX_TIMESTAMP);
+
+  for (vid_t v = 0; v < live_src_num; ++v) {
+    uint32_t wm_deg =
+        (v < static_cast<vid_t>(wm.out_degree.size())) ? wm.out_degree[v] : 0;
+    auto edges = live_out_view.get_edges(v);
+    auto iter = edges.begin();
+    for (uint32_t s = 0; s < wm_deg && iter != edges.end(); ++s, ++iter) {}
+    for (; iter != edges.end(); ++iter) {
+      vid_t nbr = iter.get_vertex();
+      timestamp_t ts = iter.get_timestamp();
+      Property data = accessor.get_data(iter);
+      out_csr_->put_generic_edge(v, nbr, data, ts, alloc);
+      if (in_csr_) {
+        in_csr_->put_generic_edge(nbr, v, data, ts, alloc);
+      }
+    }
+  }
+}
+
+uint64_t EdgeTable::rebase_unbundled_table_rows_from(
+    const EdgeTable& live, const std::vector<uint64_t>& live_row_ids) {
+  size_t n = live_row_ids.size();
+  if (n == 0) {
+    return table_idx_.load();
+  }
+  uint64_t base_row = table_idx_.fetch_add(n);
+  EnsureCapacity(base_row + n);
+  for (size_t i = 0; i < n; ++i) {
+    auto row_props = live.table_->get_row(live_row_ids[i]);
+    table_->insert(base_row + i, row_props);
+  }
+  return base_row;
+}
+
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
   meta_ = meta;
 }
 
-void load_statistic_file(const std::string& work_dir,
-                         const std::string& src_label_name,
-                         const std::string& dst_label_name,
-                         const std::string& edge_label_name,
+void load_statistic_file(const std::string& statistic_file_path,
                          std::atomic<uint64_t>& cap_atomic,
                          std::atomic<uint64_t>& table_idx_atomic) {
   size_t cap = 0, size = 0;
-  auto statistic_file_path =
-      checkpoint_dir(work_dir) + "/" +
-      statistics_file_prefix(src_label_name, dst_label_name, edge_label_name);
   if (!std::filesystem::exists(statistic_file_path)) {
     cap_atomic.store(0);
     table_idx_atomic.store(0);
@@ -548,75 +747,109 @@ void load_statistic_file(const std::string& work_dir,
   table_idx_atomic.store(size);
 }
 
-void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
-  work_dir_ = work_dir;
-  memory_level_ = memory_level;
-  auto ckp_dir_path = checkpoint_dir(work_dir);
-  auto ie_prefix_path = ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                                  meta_->edge_label_name);
-  auto oe_prefix_path = oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                                  meta_->edge_label_name);
-  auto edata_prefix_path = edata_prefix(
-      meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
-  if (memory_level == MemoryLevel::kSyncToFile) {
-    in_csr_->open(ie_prefix_path, ckp_dir_path, work_dir);
-    out_csr_->open(oe_prefix_path, ckp_dir_path, work_dir);
-  } else if (memory_level == MemoryLevel::kInMemory) {
-    in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
-  } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-    in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
-    out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION(
-        "unsupported memory level: " +
-        std::to_string(static_cast<int>(memory_level)));
-  }
-
+void EdgeTable::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+                     MemoryLevel level) {
+  memory_level_ = level;
+  assert(desc.module_type.empty() || desc.module_type == "edge_table");
+  in_csr_->Open(ckp, desc.get_sub_module("in_csr"), level);
+  out_csr_->Open(ckp, desc.get_sub_module("out_csr"), level);
   if (!meta_->is_bundled()) {
-    if (memory_level == MemoryLevel::kSyncToFile) {
-      table_->open(edata_prefix_path, work_dir_, meta_->property_names,
-                   meta_->properties);
-    } else if (memory_level == MemoryLevel::kInMemory) {
-      table_->open_in_memory(edata_prefix_path, work_dir_,
-                             meta_->property_names, meta_->properties);
-    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-      table_->open_with_hugepages(edata_prefix_path, work_dir_,
-                                  meta_->property_names, meta_->properties);
-    } else {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "unsupported memory level: " +
-          std::to_string(static_cast<int>(memory_level)));
+    table_->Open(ckp, desc.get_sub_module("property_table"), level,
+                 meta_->property_names, meta_->properties);
+    if (auto cap_str = desc.get("capacity")) {
+      capacity_.store(std::stoull(*cap_str));
     }
-    assert(table_->col_num() > 0);
-    size_t table_cap = table_->get_column_by_id(0)->size();
-    load_statistic_file(work_dir, meta_->src_label_name, meta_->dst_label_name,
-                        meta_->edge_label_name, capacity_, table_idx_);
-    if (table_cap != capacity_.load()) {
+    if (auto size_str = desc.get("size")) {
+      table_idx_.store(std::stoull(*size_str));
+    }
+    if (capacity_.load() > 0 &&
+        table_->get_column_by_id(0)->size() != capacity_.load()) {
       THROW_INVALID_ARGUMENT_EXCEPTION(
-          "capacity in statistic file not match actual table capacity, maybe "
+          "capacity in descriptor not match actual table capacity, maybe "
           "the graph is not dumped properly");
     }
   }
 }
 
-void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
-  in_csr_->dump(ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                          meta_->edge_label_name),
-                checkpoint_dir_path);
-  out_csr_->dump(oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                           meta_->edge_label_name),
-                 checkpoint_dir_path);
+ModuleDescriptor EdgeTable::Dump(Checkpoint& ckp) {
+  ModuleDescriptor desc;
+  desc.module_type = "edge_table";
+  desc.set_sub_module("out_csr", out_csr_->Dump(ckp));
+  desc.set_sub_module("in_csr", in_csr_->Dump(ckp));
   if (!meta_->is_bundled()) {
-    table_->dump(edata_prefix(meta_->src_label_name, meta_->dst_label_name,
-                              meta_->edge_label_name),
-                 checkpoint_dir_path);
-    auto statistc_file_path =
-        checkpoint_dir_path + "/" +
-        statistics_file_prefix(meta_->src_label_name, meta_->dst_label_name,
-                               meta_->edge_label_name);
-    write_statistic_file(statistc_file_path, Capacity(), Size());
+    desc.set_sub_module("property_table", table_->Dump(ckp));
+    desc.set("capacity", std::to_string(Capacity()));
+    desc.set("size", std::to_string(Size()));
   }
+  return desc;
+}
+
+void EdgeTable::From(ModuleStore& store, uint32_t triplet_id) {
+  // ── Out CSR ───────────────────────────────────────────────────────────────
+  auto out_mod = store.get(csr_out_key(triplet_id));
+  if (out_mod) {
+    auto* csr = dynamic_cast<CsrBase*>(out_mod.get());
+    if (csr) {
+      // Share ownership: EdgeTable keeps a shared_ptr to the CSR
+      out_csr_ = std::shared_ptr<CsrBase>(out_mod, csr);
+    }
+  }
+
+  // ── In CSR ────────────────────────────────────────────────────────────────
+  auto in_mod = store.get(csr_in_key(triplet_id));
+  if (in_mod) {
+    auto* csr = dynamic_cast<CsrBase*>(in_mod.get());
+    if (csr) {
+      in_csr_ = std::shared_ptr<CsrBase>(in_mod, csr);
+    }
+  }
+
+  // ── Property columns (unbundled only) ─────────────────────────────────────
+  if (meta_ && !meta_->is_bundled() && table_) {
+    table_->initColumns(meta_->property_names, meta_->properties);
+    auto& cols = table_->columns();
+    for (size_t col = 0; col < cols.size(); ++col) {
+      auto col_mod = store.get(ecol_key(triplet_id, static_cast<int32_t>(col)));
+      if (col_mod) {
+        auto* column = dynamic_cast<ColumnBase*>(col_mod.get());
+        if (column) {
+          cols[col] = std::shared_ptr<ColumnBase>(col_mod, column);
+        }
+      }
+    }
+    table_->buildColumnPtrs();
+  }
+}
+
+void EdgeTable::MoveTo(ModuleStore& store, uint32_t triplet_id) {
+  // ── Out CSR ───────────────────────────────────────────────────────────────
+  if (out_csr_) {
+    store.set(csr_out_key(triplet_id),
+              std::static_pointer_cast<Module>(out_csr_));
+    out_csr_.reset();
+  }
+
+  // ── In CSR ────────────────────────────────────────────────────────────────
+  if (in_csr_) {
+    store.set(csr_in_key(triplet_id),
+              std::static_pointer_cast<Module>(in_csr_));
+    in_csr_.reset();
+  }
+
+  // ── Property columns (unbundled only) ─────────────────────────────────────
+  if (table_ && meta_ && !meta_->is_bundled()) {
+    for (size_t col = 0; col < table_->col_num(); ++col) {
+      auto col_ptr = table_->get_column_by_id(static_cast<int32_t>(col));
+      store.set(ecol_key(triplet_id, static_cast<int32_t>(col)), col_ptr);
+    }
+    table_.reset();
+  }
+}
+
+void EdgeTable::Close() {
+  out_csr_->Close();
+  in_csr_->Close();
+  table_->close();
 }
 
 void EdgeTable::SortByEdgeData(timestamp_t ts) {
@@ -783,7 +1016,8 @@ EdgeDataAccessor EdgeTable::get_edge_data_accessor(
   return get_edge_data_accessor(static_cast<int>(prop_ind));
 }
 
-void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
+void EdgeTable::AddProperties(Checkpoint& ckp,
+                              const std::vector<std::string>& prop_names,
                               const std::vector<DataType>& prop_types,
                               const std::vector<Property>& default_values) {
   if (prop_names.empty()) {
@@ -795,14 +1029,14 @@ void EdgeTable::AddProperties(const std::vector<std::string>& prop_names,
     // is empty.
     if (meta_->properties.size() == 1 &&
         meta_->properties[0].id() != DataTypeId::kVarchar) {
-      dropAndCreateNewBundledCSR(nullptr);
+      dropAndCreateNewBundledCSR(ckp, nullptr);
     } else {
-      dropAndCreateNewUnbundledCSR(false);
+      dropAndCreateNewUnbundledCSR(ckp, false);
     }
   } else {
     size_t property_size = table_->get_column_by_id(0)->size();
-    table_->add_columns(prop_names, prop_types, default_values, property_size,
-                        memory_level_);
+    table_->add_columns(ckp, prop_names, prop_types, default_values,
+                        property_size, memory_level_);
   }
 }
 
@@ -816,7 +1050,8 @@ void EdgeTable::RenameProperties(const std::vector<std::string>& old_names,
   }
 }
 
-void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
+void EdgeTable::DeleteProperties(Checkpoint& ckp,
+                                 const std::vector<std::string>& col_names) {
   if (meta_->is_bundled()) {
     if (meta_->property_names.size() <= 0) {
       return;
@@ -829,7 +1064,7 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
       }
     }
     if (found) {
-      dropAndCreateNewUnbundledCSR(true);
+      dropAndCreateNewUnbundledCSR(ckp, true);
     }
   } else {
     for (const auto& col : col_names) {
@@ -837,11 +1072,11 @@ void EdgeTable::DeleteProperties(const std::vector<std::string>& col_names) {
       VLOG(1) << "delete column " << col;
     }
     if (table_->col_num() == 0) {
-      dropAndCreateNewUnbundledCSR(true);
+      dropAndCreateNewUnbundledCSR(ckp, true);
     } else if (table_->col_num() == 1) {
       auto remaining_col = table_->get_column_by_id(0);
       if (remaining_col->type() != DataTypeId::kVarchar) {
-        dropAndCreateNewBundledCSR(remaining_col);
+        dropAndCreateNewBundledCSR(ckp, remaining_col);
       }
     }
   }
@@ -1004,29 +1239,24 @@ size_t EdgeTable::Capacity() const {
 }
 
 void EdgeTable::dropAndCreateNewBundledCSR(
-    std::shared_ptr<ColumnBase> remaining_col) {
+    Checkpoint& ckp, std::shared_ptr<ColumnBase> remaining_col) {
   DataTypeId property_type = (remaining_col == nullptr)
                                  ? meta_->properties[0].id()
                                  : remaining_col->type();
-  auto suffix = get_next_csr_path_suffix();
-  std::string next_oe_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_ie_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
+  // std::string next_oe_csr_path = ckp.runtime_dir() + generate_uuid();
+  // std::string next_ie_csr_path = ckp.runtime_dir() + generate_uuid();
 
   std::unique_ptr<CsrBase> new_out_csr, new_in_csr;
   new_out_csr =
       create_csr(meta_->oe_mutable, meta_->oe_strategy, property_type);
   new_in_csr = create_csr(meta_->ie_mutable, meta_->ie_strategy, property_type);
+  ModuleDescriptor out_csr_desc;
+  ModuleDescriptor in_csr_desc;
+  // out_csr_desc.path = next_oe_csr_path;
+  // in_csr_desc.path = next_ie_csr_path;
+  new_out_csr->Open(ckp, out_csr_desc, MemoryLevel::kInMemory);
+  new_in_csr->Open(ckp, in_csr_desc, MemoryLevel::kInMemory);
 
-  new_out_csr->open_in_memory(next_oe_csr_path);
-  new_in_csr->open_in_memory(next_ie_csr_path);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
 
@@ -1039,8 +1269,9 @@ void EdgeTable::dropAndCreateNewBundledCSR(
         std::get<1>(edges), std::get<0>(edges), property_type,
         meta_->default_property_values[0], new_in_csr.get());
   } else {
-    auto row_id_col = std::make_shared<ULongColumn>();
-    row_id_col->open_in_memory("");
+    auto row_id_col = std::dynamic_pointer_cast<ULongColumn>(
+        CreateColumn(DataTypeId::kUInt64));
+    row_id_col->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     auto edges = out_csr_->batch_export(row_id_col);
     std::vector<Property> remaining_data;
     remaining_data.reserve(row_id_col->size());
@@ -1061,34 +1292,27 @@ void EdgeTable::dropAndCreateNewBundledCSR(
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
-  out_csr_->close();
-  in_csr_->close();
+  out_csr_->Close();
+  in_csr_->Close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
 }
 
-void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
-  auto suffix = get_next_csr_path_suffix();
-  std::string next_oe_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      oe_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_ie_csr_path =
-      tmp_dir(work_dir_) + "/" +
-      ie_prefix(meta_->src_label_name, meta_->dst_label_name,
-                meta_->edge_label_name) +
-      suffix;
-  std::string next_table_prefix = edata_prefix(
-      meta_->src_label_name, meta_->dst_label_name, meta_->edge_label_name);
+void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
+                                             bool delete_property) {
+  auto next_oe_csr_path = ckp.runtime_dir() + "/" + generate_uuid();
+  auto next_ie_csr_path = ckp.runtime_dir() + "/" + generate_uuid();
+  auto next_table_prefix = ckp.runtime_dir() + "/" + generate_uuid();
   // In this method, the edge table must be bundled, so the table must be
   // opened opened. In open_in_memory method, table will try to read the
   // existing table file from checkpoint_dir, but it must not exist.
   if (!delete_property) {
     LOG(INFO) << "rebuild unbundled edge csr with edge properties: "
               << meta_->property_names.size();
-    table_->open_in_memory(next_table_prefix, work_dir_, meta_->property_names,
-                           meta_->properties);
+    ModuleDescriptor table_desc;
+    table_desc.path = next_table_prefix;
+    table_->Open(ckp, table_desc, MemoryLevel::kInMemory, meta_->property_names,
+                 meta_->properties);
   }
 
   std::shared_ptr<ColumnBase> prev_data_col = nullptr;
@@ -1133,8 +1357,12 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
         create_csr(meta_->ie_mutable, meta_->ie_strategy, DataTypeId::kUInt64);
   }
 
-  new_out_csr->open_in_memory(next_oe_csr_path);
-  new_in_csr->open_in_memory(next_ie_csr_path);
+  ModuleDescriptor out_csr_desc;
+  ModuleDescriptor in_csr_desc;
+  out_csr_desc.path = next_oe_csr_path;
+  in_csr_desc.path = next_ie_csr_path;
+  new_out_csr->Open(ckp, out_csr_desc, MemoryLevel::kInMemory);
+  new_in_csr->Open(ckp, in_csr_desc, MemoryLevel::kInMemory);
   new_out_csr->resize(out_csr_->size());
   new_in_csr->resize(in_csr_->size());
   if (delete_property) {
@@ -1148,14 +1376,10 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(bool delete_property) {
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
   }
-  out_csr_->close();
-  in_csr_->close();
+  out_csr_->Close();
+  in_csr_->Close();
   out_csr_ = std::move(new_out_csr);
   in_csr_ = std::move(new_in_csr);
-}
-
-std::string EdgeTable::get_next_csr_path_suffix() {
-  return std::string("_v_") + std::to_string(csr_alter_version_.fetch_add(1));
 }
 
 }  // namespace neug

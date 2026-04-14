@@ -31,6 +31,7 @@
 #include "neug/storages/loader/loader_utils.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/property/types.h"
+#include "unittest/utils.h"
 
 namespace arrow {
 class DataType;
@@ -266,10 +267,9 @@ void testLoadEdgeBatch(PropertyGraph& graph, std::string src_vertex_type,
       graph.BatchAddEdges(src_label_id, dst_label_id, e_label_id, casted).ok());
 }
 
-void testOpenEmptyGraph(const std::string& graph_dir,
-                        const std::string& data_dir) {
+void testOpenEmptyGraph(neug::Checkpoint& ckp, const std::string& data_dir) {
   PropertyGraph graph;
-  graph.Open(graph_dir, MemoryLevel::kSyncToFile);
+  graph.Open(ckp, MemoryLevel::kSyncToFile);
 
   // Create vertex type PERSON
   {
@@ -390,11 +390,11 @@ TEST(DatabaseTest, TestAlterProperty) {
   }
   // create the directory
   std::filesystem::create_directories(data_path);
-  const char* data_dir = std::getenv("MODERN_GRAPH_DATA_DIR");
-  if (data_dir == nullptr) {
-    throw std::runtime_error(
-        "MODERN_GRAPH_DATA_DIR environment variable is not set");
-  }
+  std::string data_dir = neug::test::resolve_modern_graph_dir();
   LOG(INFO) << "Data directory: " << data_dir;
-  neug::testOpenEmptyGraph(data_path, data_dir);
+  neug::Workspace ws;
+  ws.Open(data_path);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  neug::testOpenEmptyGraph(ckp, data_dir);
 }

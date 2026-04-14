@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "neug/storages/module/module.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/types.h"
@@ -377,7 +378,7 @@ struct EdgeSchema {
  *
  * @since v0.1.0
  */
-class Schema {
+class Schema : public Module {
  public:
   /// @name Plugin ID Constants
   /// @{
@@ -785,6 +786,36 @@ class Schema {
    * @return A new Schema object with the compacted schema.
    */
   Schema Compact() const;
+
+  // ---------------------------------------------------------------------------
+  // Module overrides
+  // ---------------------------------------------------------------------------
+
+  /**
+   * @brief Open / restore the schema from the Checkpoint using the provided
+   * descriptor.  Calls Deserialize() on @p desc.path/schema.
+   */
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel level) override;
+
+  /**
+   * @brief Persist the schema to a UUID directory under ckp.runtime_dir().
+   * Writes both binary (schema) and YAML (schema.yaml).
+   */
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
+
+  std::string ModuleTypeName() const override { return "schema"; }
+
+  /**
+   * @brief No-op for Schema (pure in-memory object).
+   */
+  void Close() override;
+
+  /**
+   * @brief Return a deep copy of this Schema; Checkpoint and MemoryLevel are
+   * ignored because Schema is always in-memory.
+   */
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override;
 
  private:
   // Internal methods that do not check tombstone

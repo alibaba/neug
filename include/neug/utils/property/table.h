@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/storages/module/module.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -33,23 +35,15 @@ class Table {
   Table();
   ~Table();
 
-  void open(const std::string& name, const std::string& work_dir,
-            const std::vector<std::string>& col_name,
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level, const std::vector<std::string>& col_name,
             const std::vector<DataType>& property_types);
 
-  void open_in_memory(const std::string& name, const std::string& work_dir,
-                      const std::vector<std::string>& col_name,
-                      const std::vector<DataType>& property_types);
-
-  void open_with_hugepages(const std::string& name, const std::string& work_dir,
-                           const std::vector<std::string>& col_name,
-                           const std::vector<DataType>& property_types);
-
-  void dump(const std::string& name, const std::string& snapshot_dir);
+  ModuleDescriptor Dump(Checkpoint& ckp);
 
   void reset_header(const std::vector<std::string>& col_name);
 
-  void add_columns(const std::vector<std::string>& col_names,
+  void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
                    const std::vector<Property>& default_property_values,
                    size_t capacity,
@@ -109,26 +103,34 @@ class Table {
 
   void drop();
 
+  /**
+   * @brief Fork all property columns to UUID paths under ckp.runtime_dir(),
+   * returning a new Table that owns the forked columns.
+   */
+  std::unique_ptr<Table> Fork(Checkpoint& ckp, MemoryLevel level) const;
+
   void set_name(const std::string& name);
 
   void set_work_dir(const std::string& work_dir);
 
- private:
-  void mark_column_deleted(const std::string& col_name);
-  void buildColumnPtrs();
+  // ── Direct column assembly (used by VertexTable/EdgeTable From/MoveTo) ────
+
+  /** Initialize column slots by name and type (does NOT create Column objects).
+   */
   void initColumns(const std::vector<std::string>& col_name,
                    const std::vector<DataType>& types);
+
+  /** Rebuild the raw-pointer column_ptrs_ vector from columns_. */
+  void buildColumnPtrs();
+
+ private:
+  void mark_column_deleted(const std::string& col_name);
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
   std::vector<ColumnBase*> column_ptrs_;
-  std::vector<bool> col_deleted_;
-
-  bool touched_;
-  std::string name_;
-  std::string work_dir_, snapshot_dir_;
 };
 
 }  // namespace neug

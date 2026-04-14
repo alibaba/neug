@@ -340,8 +340,25 @@ TEST_F(UpdateTransactionTest, AddEdge) {
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid, software_label, vid2, created_label,
         {neug::Property::from_double(0.9), neug::Property::from_int64(2022)}));
+
+    size_t edge_count = 0;
+    neug::StorageTPUpdateInterface gi(txn);
+    auto view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                               created_label);
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (neug::vid_t vid : vertex_set) {
+      auto oid = gi.GetVertexId(person_label, vid);
+      if (oid.as_int64() == 1) {
+        auto edge_iter = view.get_edges(vid);
+        for (auto it = edge_iter.begin(); it != edge_iter.end(); ++it) {
+          edge_count++;
+        }
+      }
+    }
+    EXPECT_EQ(edge_count, 2);
     EXPECT_TRUE(txn.Commit());
   }
+  LOG(INFO) << "Finish Update txn";
   {
     auto sess = svc->AcquireSession();
     auto txn = sess->GetReadTransaction();
@@ -456,9 +473,24 @@ TEST_F(UpdateTransactionTest, AddVertexEdgeAbort) {
                               {neug::Property::from_string_view("UltraGraph"),
                                neug::Property::from_string_view("Go")},
                               vid4));
+    LOG(INFO) << "Add edge: " << vid5 << " -> " << vid4;
     EXPECT_TRUE(txn.AddEdge(
         person_label, vid5, software_label, vid4, created_label,
         {neug::Property::from_double(0.65), neug::Property::from_int64(2022)}));
+
+    neug::StorageTPUpdateInterface gi(txn);
+    auto oe_view = gi.GetGenericOutgoingGraphView(person_label, software_label,
+                                                  created_label);
+    size_t edge_count = 0;
+    auto vertex_set = gi.GetVertexSet(person_label);
+    for (neug::vid_t vid : vertex_set) {
+      auto edges = oe_view.get_edges(vid);
+      for (auto it = edges.begin(); it != edges.end(); ++it) {
+        edge_count++;
+      }
+    }
+    EXPECT_EQ(edge_count, 2);
+    LOG(INFO) << "edge count: " << edge_count;
     txn.Abort();
   }
   {
@@ -2201,7 +2233,8 @@ TEST_F(UpdateTransactionTest, BatchDeleteEdgesFailure) {
 }
 
 TEST_F(UpdateTransactionTest, TestUpdateStringProperty) {
-  // By default, the string property has max length: STRING_DEFAULT_MAX_LENGTH.
+  // By default, the string property has max length:
+  // STRING_DEFAULT_MAX_LENGTH.
   neug::NeugDB db;
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;

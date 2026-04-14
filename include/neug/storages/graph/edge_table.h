@@ -26,6 +26,9 @@
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/schema.h"
+#include "neug/storages/module/module.h"
+#include "neug/storages/module/module_store.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -39,6 +42,13 @@ class IRecordBatchSupplier;
 
 class EdgeTable {
  public:
+  struct RebaseWatermark {
+    std::vector<uint32_t> out_degree;
+    std::vector<uint32_t> in_degree;
+    uint64_t table_idx{0};
+  };
+
+  EdgeTable() = default;
   EdgeTable(std::shared_ptr<const EdgeSchema> meta);
   EdgeTable(EdgeTable&& edge_table);
 
@@ -47,11 +57,21 @@ class EdgeTable {
 
   void Swap(EdgeTable& other);
 
+  std::unique_ptr<EdgeTable> Fork(Checkpoint& ckp, MemoryLevel level) const;
+
+  RebaseWatermark CaptureRebaseWatermark() const;
+
+  void RebaseFromLive(const EdgeTable& live, const RebaseWatermark& wm,
+                      Allocator& alloc);
+
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
+  // Module interface (Checkpoint-based) — the single public Open.
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level);
+  ModuleDescriptor Dump(Checkpoint& ckp);
 
-  void Dump(const std::string& checkpoint_dir_path);
+  void Close();
 
   void SortByEdgeData(timestamp_t ts);
 
@@ -98,11 +118,12 @@ class EdgeTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  void AddProperties(const std::vector<std::string>& names,
+  void AddProperties(Checkpoint& ckp, const std::vector<std::string>& names,
                      const std::vector<DataType>& types,
                      const std::vector<Property>& default_values = {});
 
-  void DeleteProperties(const std::vector<std::string>& col_names);
+  void DeleteProperties(Checkpoint& ckp,
+                        const std::vector<std::string>& col_names);
 
   void DeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                   int32_t ie_offset, timestamp_t ts);
@@ -128,17 +149,55 @@ class EdgeTable {
 
   size_t Capacity() const;
 
+  CsrBase* get_out_csr() { return out_csr_.get(); }
+  const CsrBase* get_out_csr() const { return out_csr_.get(); }
+  CsrBase* get_in_csr() { return in_csr_.get(); }
+  const CsrBase* get_in_csr() const { return in_csr_.get(); }
+  Table* get_table() { return table_.get(); }
+  const Table* get_table() const { return table_.get(); }
+  std::shared_ptr<const EdgeSchema> get_edge_schema() const { return meta_; }
+
+  /**
+   * @brief Assemble edge table from modules in ModuleStore.
+   *
+   * Retrieves out/in CSR and property columns from the store using keys
+   * derived from the triplet_id, and sets them into this table.
+   * Does NOT call Open on any module – modules must already be opened.
+   */
+  void From(ModuleStore& store, uint32_t triplet_id);
+
+  /**
+   * @brief Transfer ownership of internal modules to ModuleStore.
+   *
+   * Moves out/in CSR and property columns into the store using keys
+   * derived from the triplet_id. After this call the table is empty.
+   */
+  void MoveTo(ModuleStore& store, uint32_t triplet_id);
+
  private:
-  void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
-  void dropAndCreateNewUnbundledCSR(bool delete_property);
-  std::string get_next_csr_path_suffix();
+  void rebase_bundled_out_from(const EdgeTable& live, const RebaseWatermark& wm,
+                               Allocator& alloc);
+
+  // Copies rows from live.table_ at the given live_row_ids into this fork's
+  // table, reserving a contiguous block.  Returns the starting row index.
+  uint64_t rebase_unbundled_table_rows_from(
+      const EdgeTable& live, const std::vector<uint64_t>& live_row_ids);
+
+  void dropAndCreateNewBundledCSR(Checkpoint& ckp,
+                                  std::shared_ptr<ColumnBase> prev_data_col);
+  void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
+
+  /**
+   * @brief Bootstrap/legacy open: initialise from a work_dir that follows
+   * the checkpoint_dir() / tmp_dir() naming convention.  Called internally
+   * by PropertyGraph for non-checkpoint start-up paths.
+   */
+  void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   std::shared_ptr<const EdgeSchema> meta_;
-  std::string work_dir_;
   MemoryLevel memory_level_{MemoryLevel::kSyncToFile};
-  std::atomic<int32_t> csr_alter_version_{0};
-  std::unique_ptr<CsrBase> out_csr_;
-  std::unique_ptr<CsrBase> in_csr_;
+  std::shared_ptr<CsrBase> out_csr_;
+  std::shared_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};

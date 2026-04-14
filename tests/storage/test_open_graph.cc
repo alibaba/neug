@@ -21,6 +21,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 #include <glog/logging.h>
 
@@ -71,13 +72,8 @@ TEST(DatabaseTest, OpenClose) {
 }
 
 TEST(DatabaseTest, TestDangling) {
-  const char* csv_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
-  if (csv_dir_ptr == nullptr) {
-    throw std::runtime_error(
-        "MODERN_GRAPH_DATA_DIR environment variable is not set");
-  }
-  LOG(INFO) << "CSV data dir: " << csv_dir_ptr;
-  std::string csv_dir = csv_dir_ptr;
+  std::string csv_dir = neug::test::resolve_modern_graph_dir();
+  LOG(INFO) << "CSV data dir: " << csv_dir;
   std::string data_path = "/tmp/test_dangling";
   if (std::filesystem::exists(data_path)) {
     std::filesystem::remove_all(data_path);
@@ -206,8 +202,7 @@ TEST(DatabaseTest, TestPersist) {
     neug::NeugDB db;
     db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true);
     auto conn = db.Connect();
-    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
-    EXPECT_FALSE(flex_data_dir.empty());
+    std::string flex_data_dir = neug::test::resolve_flex_data_dir();
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
         "PRIMARY KEY(id));"));
@@ -236,8 +231,7 @@ TEST(DatabaseTest, TestCompaction) {
     db.Open(db_dir, 1, neug::DBMode::READ_WRITE, "gopt", false, false, true,
             true);
     auto conn = db.Connect();
-    std::string flex_data_dir = std::getenv("FLEX_DATA_DIR");
-    EXPECT_FALSE(flex_data_dir.empty());
+    std::string flex_data_dir = neug::test::resolve_flex_data_dir();
     EXPECT_TRUE(conn->Query(
         "CREATE NODE TABLE person(id INT64, name STRING, age INT64, "
         "PRIMARY KEY(id));"));

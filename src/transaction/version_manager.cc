@@ -149,4 +149,16 @@ bool TPVersionManager::revert_update_timestamp(uint32_t ts) {
   return false;
 }
 
+uint32_t TPVersionManager::begin_update_execute() {
+  // Non-blocking: just return the current read timestamp for execute phase.
+  // This allows COW transactions to read without blocking.
+  return read_ts_.load();
+}
+
+void TPVersionManager::abandon_execute_timestamp(uint32_t ts) {
+  // For COW mode, the execute timestamp is just a snapshot read,
+  // so there's nothing to release. This is a no-op.
+  (void) ts;  // Suppress unused parameter warning
+}
+
 }  // namespace neug

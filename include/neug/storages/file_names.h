@@ -114,10 +114,6 @@ inline std::string tmp_dir(const std::string& work_dir) {
   return runtime_dir(work_dir) + "tmp/";
 }
 
-inline std::string temp_checkpoint_dir(const std::string& work_dir) {
-  return runtime_dir(work_dir) + "/temp_checkpoint_dir/";
-}
-
 inline std::string compact_dir(const std::string& work_dir) {
   return runtime_dir(work_dir) + "compact_dir/";
 }

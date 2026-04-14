@@ -66,8 +66,12 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
-    // Open the vertex table
-    table.Open(test_dir_, neug::MemoryLevel::kInMemory);
+    neug::Checkpoint ckp(test_dir_, 0);
+    neug::ModuleDescriptor desc;
+    desc.module_type = "vertex_table";
+    desc.path = test_dir_ + "/vertex_table_checkpoint";
+    ckp.create_dirs();
+    table.Open(ckp, desc, neug::MemoryLevel::kInMemory);
   }
 
   void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
@@ -484,9 +488,9 @@ int main(int argc, char** argv) {
   std::cout << "=== VertexTable Performance Benchmark ===" << std::endl;
   std::cout << "Testing VertexTable with three properties (name, age, score)"
             << std::endl;
-  std::cout
-      << "All operations use random access patterns for realistic benchmarking"
-      << std::endl;
+  std::cout << "All operations use random access patterns for realistic "
+               "benchmarking"
+            << std::endl;
   std::cout << std::endl;
 
   return RUN_ALL_TESTS();

@@ -15,6 +15,8 @@
 
 #include "neug/utils/property/table.h"
 
+#include "neug/storages/module/module_factory.h"
+
 #include <assert.h>
 #include <glog/logging.h>
 
@@ -28,7 +30,7 @@
 
 namespace neug {
 
-Table::Table() : touched_(false) {}
+Table::Table() {}
 Table::~Table() { close(); }
 
 void Table::initColumns(const std::vector<std::string>& col_name,
@@ -49,59 +51,27 @@ void Table::initColumns(const std::vector<std::string>& col_name,
   columns_.resize(col_id_map_.size());
 }
 
-void Table::open(const std::string& name, const std::string& work_dir,
+void Table::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+                 MemoryLevel memory_level,
                  const std::vector<std::string>& col_name,
                  const std::vector<DataType>& property_types) {
-  name_ = name;
-  work_dir_ = work_dir;
-  snapshot_dir_ = checkpoint_dir(work_dir_);
+  LOG(INFO) << "Opening table with columns: " << col_name.size();
   initColumns(col_name, property_types);
   for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
-                      tmp_dir(work_dir));
+    auto sub_module_desc =
+        descriptor.get_sub_module("col_" + std::to_string(i));
+    columns_[i]->Open(ckp, sub_module_desc, memory_level);
   }
-  touched_ = false;
   buildColumnPtrs();
 }
 
-void Table::open_in_memory(const std::string& name, const std::string& work_dir,
-                           const std::vector<std::string>& col_name,
-                           const std::vector<DataType>& property_types) {
-  name_ = name;
-  work_dir_ = work_dir;
-  snapshot_dir_ = checkpoint_dir(work_dir_);
-  initColumns(col_name, property_types);
-  for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
-                                std::to_string(i));
-  }
-  touched_ = true;
-  buildColumnPtrs();
-}
-
-void Table::open_with_hugepages(const std::string& name,
-                                const std::string& work_dir,
-                                const std::vector<std::string>& col_name,
-                                const std::vector<DataType>& property_types) {
-  name_ = name;
-  work_dir_ = work_dir;
-  snapshot_dir_ = checkpoint_dir(work_dir);
-  initColumns(col_name, property_types);
-  for (size_t i = 0; i < columns_.size(); ++i) {
-    columns_[i]->open_with_hugepages(snapshot_dir_ + "/" + name + ".col_" +
-                                     std::to_string(i));
-  }
-  touched_ = true;
-  buildColumnPtrs();
-}
-
-void Table::dump(const std::string& name, const std::string& snapshot_dir) {
+ModuleDescriptor Table::Dump(Checkpoint& ckp) {
   int i = 0;
+  ModuleDescriptor desc;
   for (auto col : columns_) {
-    col->dump(snapshot_dir + "/" + name + ".col_" + std::to_string(i++));
+    desc.set_sub_module("col_" + std::to_string(i++), col->Dump(ckp));
   }
-  columns_.clear();
-  column_ptrs_.clear();
+  return desc;
 }
 
 void Table::reset_header(const std::vector<std::string>& col_name) {
@@ -115,7 +85,8 @@ void Table::reset_header(const std::vector<std::string>& col_name) {
   col_id_map_.swap(new_col_id_map);
 }
 
-void Table::add_columns(const std::vector<std::string>& col_names,
+void Table::add_columns(Checkpoint& ckp,
+                        const std::vector<std::string>& col_names,
                         const std::vector<DataType>& col_types,
                         const std::vector<Property>& default_property_values,
                         size_t capacity, MemoryLevel memory_level) {
@@ -140,20 +111,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     columns_[col_id] = CreateColumn(col_types[i]);
   }
   for (size_t i = old_size; i < columns_.size(); ++i) {
-    if (memory_level == MemoryLevel::kSyncToFile) {
-      columns_[i]->open(name_ + ".col_" + std::to_string(i), "",
-                        tmp_dir(work_dir_));
-    } else if (memory_level == MemoryLevel::kInMemory) {
-      columns_[i]->open_in_memory(tmp_dir(work_dir_) + "/" + name_ + ".col_" +
-                                  std::to_string(i));
-    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
-      columns_[i]->open_with_hugepages(tmp_dir(work_dir_) + "/" + name_ +
-                                       ".col_" + std::to_string(i));
-    } else {
-      THROW_NOT_IMPLEMENTED_EXCEPTION(
-          "Unsupported memory level: " +
-          std::to_string(static_cast<int>(memory_level)));
-    }
+    columns_[i]->Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
     columns_[i]->resize(capacity, default_property_values[i - old_size]);
   }
   buildColumnPtrs();
@@ -177,7 +135,7 @@ void Table::delete_column(const std::string& col_name) {
   if (it != col_id_map_.end()) {
     int col_id = it->second;
     col_id_map_.erase(it);
-    columns_[col_id]->close();
+    columns_[col_id]->Close();
     columns_[col_id].reset();
     columns_.erase(columns_.begin() + col_id);
     col_names_.erase(col_names_.begin() + col_id);
@@ -343,8 +301,46 @@ void Table::drop() {
   // TODO(zhanglei): delete files in work_dir
 }
 
-void Table::set_name(const std::string& name) { name_ = name; }
+std::unique_ptr<Table> Table::Fork(Checkpoint& ckp, MemoryLevel level) const {
+  auto new_table = std::make_unique<Table>();
+  new_table->col_id_map_ = col_id_map_;
+  new_table->col_names_ = col_names_;
 
-void Table::set_work_dir(const std::string& work_dir) { work_dir_ = work_dir; }
+  for (size_t i = 0; i < columns_.size(); ++i) {
+    new_table->columns_.emplace_back(std::shared_ptr<ColumnBase>(
+        static_cast<ColumnBase*>(columns_[i]->Fork(ckp, level).release())));
+  }
+  new_table->buildColumnPtrs();
+  return new_table;
+}
+
+// ---------------------------------------------------------------------------
+// ModuleFactory registrations for TypedColumn
+// ---------------------------------------------------------------------------
+using TypedColumn_empty = TypedColumn<EmptyType>;
+using TypedColumn_bool = TypedColumn<bool>;
+using TypedColumn_int32 = TypedColumn<int32_t>;
+using TypedColumn_uint32 = TypedColumn<uint32_t>;
+using TypedColumn_int64 = TypedColumn<int64_t>;
+using TypedColumn_uint64 = TypedColumn<uint64_t>;
+using TypedColumn_float = TypedColumn<float>;
+using TypedColumn_double = TypedColumn<double>;
+using TypedColumn_date = TypedColumn<Date>;
+using TypedColumn_datetime = TypedColumn<DateTime>;
+using TypedColumn_interval = TypedColumn<Interval>;
+using TypedColumn_string = TypedColumn<std::string_view>;
+
+NEUG_REGISTER_MODULE("column_empty", TypedColumn_empty);
+NEUG_REGISTER_MODULE("column_bool", TypedColumn_bool);
+NEUG_REGISTER_MODULE("column_int32", TypedColumn_int32);
+NEUG_REGISTER_MODULE("column_uint32", TypedColumn_uint32);
+NEUG_REGISTER_MODULE("column_int64", TypedColumn_int64);
+NEUG_REGISTER_MODULE("column_uint64", TypedColumn_uint64);
+NEUG_REGISTER_MODULE("column_float", TypedColumn_float);
+NEUG_REGISTER_MODULE("column_double", TypedColumn_double);
+NEUG_REGISTER_MODULE("column_date", TypedColumn_date);
+NEUG_REGISTER_MODULE("column_datetime", TypedColumn_datetime);
+NEUG_REGISTER_MODULE("column_interval", TypedColumn_interval);
+NEUG_REGISTER_MODULE("column_string", TypedColumn_string);
 
 }  // namespace neug

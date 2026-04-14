@@ -14,14 +14,18 @@
  */
 
 #include "neug/storages/graph/schema.h"
+
 #include <ctype.h>
 #include <glog/logging.h>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/pb_utils.h"
@@ -2270,5 +2274,57 @@ OutArchive& operator>>(OutArchive& archive, EdgeSchema& e_schema) {
                          e_schema.default_property_strings);
   return archive;
 }
+
+// ---------------------------------------------------------------------------
+// Module overrides
+// ---------------------------------------------------------------------------
+
+void Schema::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+                  MemoryLevel level) {
+  // descriptor.path is the directory containing the dumped schema file.
+  assert(descriptor.type.empty() || descriptor.type == "schema");
+  if (!descriptor.path.empty()) {
+    std::ifstream is(descriptor.path, std::ios::binary);
+    Deserialize(is);
+  }
+}
+
+ModuleDescriptor Schema::Dump(Checkpoint& ckp) {
+  std::string uuid = generate_uuid();
+  std::string target_dir = ckp.runtime_dir() + "/" + uuid;
+  std::filesystem::create_directories(target_dir);
+
+  // Write binary representation
+  auto target_path = target_dir + "/schema";
+  std::ofstream os(target_path, std::ios::binary);
+  Serialize(os);
+  os.close();
+
+  // Also write human-readable YAML alongside the binary file
+  auto yaml_result = DumpToYaml(*this);
+  if (yaml_result.has_value()) {
+    std::ofstream yaml_os(target_dir + "/schema.yaml");
+    yaml_os << yaml_result.value();
+  }
+
+  ModuleDescriptor desc;
+  desc.path = target_path;
+  desc.module_type = "schema";
+  desc.version = 1;
+  return desc;
+}
+
+void Schema::Close() {
+  // Schema is a pure in-memory object; nothing to release.
+}
+
+// TODO(zhanglei): Fix me
+std::unique_ptr<Module> Schema::Fork(Checkpoint& /*ckp*/,
+                                     MemoryLevel /*level*/) {
+  // Make a full copy for Schema
+  return std::make_unique<Schema>(*this);
+}
+
+NEUG_REGISTER_MODULE("schema", Schema);
 
 }  // namespace neug

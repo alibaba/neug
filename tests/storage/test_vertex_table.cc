@@ -22,9 +22,9 @@
 #include <vector>
 
 #include "neug/main/neug_db.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/workspace.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/utils/property/types.h"
 #include "unittest/utils.h"
@@ -59,7 +59,11 @@ class VertexTableTest : public ::testing::Test {
                            {std::make_tuple(pk_type_, "id", 0)}, 4096, "",
                            default_prop_values_);
     v_label_id_ = schema_.get_vertex_label_id(v_label_name_);
+    ws.Open(dir_);
   }
+
+  neug::Workspace& Workspace() { return ws; }
+
   void TearDown() override {
     // remove the directory if it exists
     if (std::filesystem::exists(dir_)) {
@@ -103,13 +107,16 @@ class VertexTableTest : public ::testing::Test {
   std::mt19937 generator_;
   neug::Schema schema_;
   neug::label_t v_label_id_ = 0;
+  neug::Workspace ws;
 
   size_t vertex_count_;
 };
 
 TEST_F(VertexTableTest, VertexTableBasicOps) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto ckp_id = Workspace().CreateCheckpoint();
+  auto& ckp = Workspace().GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(vertex_count_);
 
   neug::vid_t lid1, lid2, lid3;
@@ -153,16 +160,13 @@ TEST_F(VertexTableTest, VertexTableBasicOps) {
 }
 
 TEST_F(VertexTableTest, VertexTableDumpAndReload) {
-  std::string dump_dir = "/tmp/test_vertex_table_dump";
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
-  std::filesystem::create_directories(dump_dir);
-  std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  neug::ModuleDescriptor desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    table.Open(dump_dir, memory_level_);
+    table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
     table.EnsureCapacity(vertex_count_);
 
     neug::vid_t lid1, lid2, lid3;
@@ -175,16 +179,12 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
     EXPECT_TRUE(table.AddVertex(oid3, property_values_, lid3, 3));
     LOG(INFO) << "Added vertices with lids: " << lid1 << ", " << lid2 << ", "
               << lid3;
-    table.Dump(neug::temp_checkpoint_dir(dump_dir));
+    desc = table.Dump(ckp);
   }
-
-  std::filesystem::remove_all(neug::checkpoint_dir(dump_dir));
-  std::filesystem::rename(neug::temp_checkpoint_dir(dump_dir),
-                          neug::checkpoint_dir(dump_dir));
 
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    new_table.Open(dump_dir, memory_level_);
+    new_table.Open(ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
     EXPECT_EQ(new_table.VertexNum(2), 3);
@@ -194,18 +194,16 @@ TEST_F(VertexTableTest, VertexTableDumpAndReload) {
 }
 
 TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
-  std::string dump_dir = "/tmp/test_vertex_table_add_delete";
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
-  std::filesystem::create_directories(dump_dir);
-  std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+
   neug::vid_t lid1, lid2, lid3;
   neug::Property oid1, oid2, oid3;
+  neug::ModuleDescriptor desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    table.Open(dump_dir, memory_level_);
+    table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
     table.EnsureCapacity(vertex_count_);
 
     oid1.set_int64(1);
@@ -220,17 +218,13 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     EXPECT_EQ(table.VertexNum(), 3);
     EXPECT_EQ(table.LidNum(), 3);
 
-    table.Dump(neug::temp_checkpoint_dir(dump_dir));
+    desc = table.Dump(ckp);
   }
 
-  std::filesystem::remove_all(neug::checkpoint_dir(dump_dir));
-  std::filesystem::rename(neug::temp_checkpoint_dir(dump_dir),
-                          neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
-
+  neug::ModuleDescriptor desc2;
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    new_table.Open(dump_dir, memory_level_);
+    new_table.Open(ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 3);
     EXPECT_EQ(new_table.LidNum(), 3);
 
@@ -243,17 +237,12 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
     EXPECT_FALSE(new_table.get_index(oid2, tmp_vid));
     EXPECT_TRUE(new_table.get_index(oid3, tmp_vid));
 
-    new_table.Dump(neug::temp_checkpoint_dir(dump_dir));
+    desc2 = new_table.Dump(ckp);
   }
-
-  std::filesystem::remove_all(neug::checkpoint_dir(dump_dir));
-  std::filesystem::rename(neug::temp_checkpoint_dir(dump_dir),
-                          neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
 
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    new_table.Open(dump_dir, memory_level_);
+    new_table.Open(ckp, desc2, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 1);
     EXPECT_EQ(new_table.LidNum(), 3);
 
@@ -266,7 +255,10 @@ TEST_F(VertexTableTest, VertexTableAddAndDeleteAndReload) {
 
 TEST_F(VertexTableTest, AddVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
@@ -305,13 +297,16 @@ TEST_F(VertexTableTest, AddVertexBasic) {
 // Test AddVertex for concurrent scenarios
 TEST_F(VertexTableTest, AddVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
   neug::vid_t tmp_vid;
   EXPECT_FALSE(table.AddVertex(neug::Property::from_int64(1), property_values_,
                                tmp_vid));
 
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
   lids.resize(100);
 
@@ -336,7 +331,10 @@ TEST_F(VertexTableTest, AddVertex) {
 // Test DeleteVertex basic functionality
 TEST_F(VertexTableTest, DeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
@@ -369,7 +367,10 @@ TEST_F(VertexTableTest, DeleteVertexBasic) {
 // Test RevertDeleteVertex basic functionality
 TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid1;
@@ -399,7 +400,10 @@ TEST_F(VertexTableTest, RevertDeleteVertexBasic) {
 // Test complex combination: Add -> Delete -> Revert
 TEST_F(VertexTableTest, AddDeleteRevertCombination) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   std::vector<neug::Property> oids;
@@ -444,7 +448,10 @@ TEST_F(VertexTableTest, AddDeleteRevertCombination) {
 // Test complex combination: Multiple deletes and reverts
 TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid;
@@ -479,7 +486,10 @@ TEST_F(VertexTableTest, MultipleDeletesAndReverts) {
 // Test AddVertex and AddVertexSafe mixed usage
 TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(50);
 
   std::vector<neug::vid_t> lids;
@@ -503,7 +513,10 @@ TEST_F(VertexTableTest, MixedAddVertexAndAddVertexSafe) {
 // Test temporal visibility with add/delete/revert
 TEST_F(VertexTableTest, TemporalVisibilityComplex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid1, oid2, oid3;
@@ -546,7 +559,10 @@ TEST_F(VertexTableTest, TemporalVisibilityComplex) {
 // Test edge cases: Delete already deleted vertex
 TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid;
@@ -569,7 +585,10 @@ TEST_F(VertexTableTest, DeleteAlreadyDeletedVertex) {
 // Test edge cases: Revert non-deleted vertex
 TEST_F(VertexTableTest, RevertNonDeletedVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   neug::Property oid;
@@ -587,22 +606,18 @@ TEST_F(VertexTableTest, RevertNonDeletedVertex) {
 
 // Test complex combination with dump and reload
 TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
-  std::string dump_dir = "/tmp/test_vertex_table_complex";
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
-  std::filesystem::create_directories(dump_dir);
-  std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
-
   std::vector<neug::Property> oids;
   std::vector<neug::vid_t> lids;
   lids.resize(20);
 
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
   // Create complex state
+  neug::ModuleDescriptor desc;
   {
     neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-    table.Open(dump_dir, memory_level_);
+    table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
     table.EnsureCapacity(100);
 
     for (int64_t i = 0; i < 20; ++i) {
@@ -622,17 +637,13 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
 
     EXPECT_EQ(table.VertexNum(), 15);  // 5 + 5 + 5 (0-4, 5-9 reverted, 15-19)
 
-    table.Dump(neug::temp_checkpoint_dir(dump_dir));
+    desc = table.Dump(ckp);
   }
-
-  std::filesystem::remove_all(neug::checkpoint_dir(dump_dir));
-  std::filesystem::rename(neug::temp_checkpoint_dir(dump_dir),
-                          neug::checkpoint_dir(dump_dir));
 
   // Reload and verify
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    new_table.Open(dump_dir, memory_level_);
+    new_table.Open(ckp, desc, memory_level_);
 
     EXPECT_EQ(new_table.VertexNum(), 15);
     EXPECT_EQ(new_table.LidNum(), 20);
@@ -654,16 +665,15 @@ TEST_F(VertexTableTest, ComplexAddDeleteRevertDumpReload) {
       EXPECT_TRUE(new_table.get_index(oids[i], tmp_vid));
     }
   }
-
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
 }
 
 // Test stress: Many add/delete/revert operations
 TEST_F(VertexTableTest, StressAddDeleteRevert) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(1000);
 
   std::vector<neug::Property> oids;
@@ -715,7 +725,10 @@ TEST_F(VertexTableTest, StressAddDeleteRevert) {
 
 TEST_F(VertexTableTest, VertexTableResizeTest) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   auto record_batches = generate_record_batches(10000);
   std::shared_ptr<neug::IRecordBatchSupplier> batch_supplier =
       std::make_shared<GeneratedRecordBatchSupplier>(std::move(record_batches));
@@ -726,22 +739,12 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
   table.Compact(true);
   EXPECT_EQ(table.get_vertex_timestamp().InitVertexNum(), 10000);
 
-  std::string dump_dir = "/tmp/test_vertex_table_resize_dump";
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
-  std::filesystem::create_directories(dump_dir);
-  std::filesystem::create_directories(neug::checkpoint_dir(dump_dir));
-  std::filesystem::create_directories(neug::temp_checkpoint_dir(dump_dir));
-  table.Dump(neug::temp_checkpoint_dir(dump_dir));
+  auto desc = table.Dump(ckp);
   table.Close();
 
-  std::filesystem::remove_all(neug::checkpoint_dir(dump_dir));
-  std::filesystem::rename(neug::temp_checkpoint_dir(dump_dir),
-                          neug::checkpoint_dir(dump_dir));
   {
     neug::VertexTable new_table(schema_.get_vertex_schema(v_label_id_));
-    new_table.Open(dump_dir, memory_level_);
+    new_table.Open(ckp, desc, memory_level_);
     EXPECT_EQ(new_table.VertexNum(), 10000);
     EXPECT_EQ(new_table.LidNum(), 10000);
     EXPECT_EQ(new_table.get_vertex_timestamp().InitVertexNum(), 10000);
@@ -749,13 +752,11 @@ TEST_F(VertexTableTest, VertexTableResizeTest) {
 }
 
 TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
-  std::string dump_dir = "/tmp/test_vertex_timestamp_valid_num";
-  if (std::filesystem::exists(dump_dir)) {
-    std::filesystem::remove_all(dump_dir);
-  }
-  std::filesystem::create_directories(dump_dir);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
   neug::VertexTimestamp vts;
-  vts.Open(dump_dir);
+  vts.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   vts.Init(100, 1000);
   vts.RemoveVertex(12);
   vts.RemoveVertex(0);
@@ -785,7 +786,10 @@ TEST_F(VertexTableTest, VertexTimestampValidVertexNum) {
 
 TEST_F(VertexTableTest, VertexSetForeachVertex) {
   neug::VertexTable table(schema_.get_vertex_schema(v_label_id_));
-  table.Open(dir_, memory_level_);
+  auto& ws = Workspace();
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+  table.Open(ckp, neug::ModuleDescriptor(), memory_level_);
   table.EnsureCapacity(100);
 
   std::vector<neug::Property> oids;

@@ -45,6 +45,32 @@
 
 namespace neug {
 
+// ---------------------------------------------------------------------------
+// Key helpers for ModuleStore (must match vertex_table.cc / edge_table.cc)
+// ---------------------------------------------------------------------------
+
+// Vertex keys
+static inline std::string vidx_key(label_t label) {
+  return "vidx:" + std::to_string(label);
+}
+static inline std::string vcol_key(label_t label, int32_t col_id) {
+  return "vcol:" + std::to_string(label) + ":" + std::to_string(col_id);
+}
+static inline std::string vts_key(label_t label) {
+  return "vts:" + std::to_string(label);
+}
+
+// Edge keys
+static inline std::string csr_out_key(uint32_t triplet_id) {
+  return "csr_out:" + std::to_string(triplet_id);
+}
+static inline std::string csr_in_key(uint32_t triplet_id) {
+  return "csr_in:" + std::to_string(triplet_id);
+}
+static inline std::string ecol_key(uint32_t triplet_id, int32_t col_id) {
+  return "ecol:" + std::to_string(triplet_id) + ":" + std::to_string(col_id);
+}
+
 std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>
 fetch_edges_related_to_vertex_from_view(const std::vector<DataType>& props,
                                         const GenericView& oe,
@@ -142,6 +168,7 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
                                      execution::LocalQueryCache& cache,
                                      timestamp_t timestamp)
     : graph_(graph),
+      txn_store_(graph.module_store()),  // Share ownership, zero-overhead
       alloc_(alloc),
       logger_(logger),
       vm_(vm),
@@ -154,6 +181,86 @@ UpdateTransaction::UpdateTransaction(PropertyGraph& graph, Allocator& alloc,
 UpdateTransaction::~UpdateTransaction() { Abort(); }
 
 timestamp_t UpdateTransaction::timestamp() const { return timestamp_; }
+
+VertexTable& UpdateTransaction::mutable_vertex_table(label_t label) {
+  auto it = fork_vertex_tables_.find(label);
+  if (it != fork_vertex_tables_.end() && it->second) {
+    return *(it->second);
+  }
+  auto& live_vt = graph_.get_vertex_table(label);
+  // Capture the live vertex count as the rebase watermark before forking.
+  fork_vertex_base_lids_.emplace(label, static_cast<vid_t>(live_vt.Size()));
+  auto forked = live_vt.Fork(graph_.checkpoint(), graph_.memory_level());
+
+  // Record all module keys that will be modified when this fork table is used.
+  // The keys are derived from the label.
+  modified_keys_.insert(vidx_key(label));
+  modified_keys_.insert(vts_key(label));
+  // Column keys depend on schema, add them lazily in sync_fork_to_txn_store.
+
+  auto [inserted_it, ok] =
+      fork_vertex_tables_.emplace(label, std::move(forked));
+  (void) ok;
+  return *(inserted_it->second);
+}
+
+EdgeTable& UpdateTransaction::mutable_edge_table(label_t src_label,
+                                                 label_t dst_label,
+                                                 label_t edge_label) {
+  auto index =
+      graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
+  auto it = fork_edge_tables_.find(index);
+  if (it != fork_edge_tables_.end() && it->second) {
+    return *(it->second);
+  }
+  auto& live_et = graph_.get_edge_table(src_label, dst_label, edge_label);
+  // Capture per-vertex degree watermark before forking.
+  fork_edge_watermarks_.emplace(index, live_et.CaptureRebaseWatermark());
+  auto forked = live_et.Fork(graph_.checkpoint(), graph_.memory_level());
+
+  // Record all module keys that will be modified when this fork table is used.
+  modified_keys_.insert(csr_out_key(index));
+  modified_keys_.insert(csr_in_key(index));
+  // Column keys depend on schema, add them lazily in sync_fork_to_txn_store.
+
+  auto [inserted_it, ok] = fork_edge_tables_.emplace(index, std::move(forked));
+  (void) ok;
+  return *(inserted_it->second);
+}
+
+const VertexTable& UpdateTransaction::visible_vertex_table(
+    label_t label) const {
+  auto it = fork_vertex_tables_.find(label);
+  if (it != fork_vertex_tables_.end() && it->second) {
+    return *(it->second);
+  }
+  return graph_.get_vertex_table(label);
+}
+
+const EdgeTable& UpdateTransaction::visible_edge_table(
+    label_t src_label, label_t dst_label, label_t edge_label) const {
+  auto index =
+      graph_.schema().generate_edge_label(src_label, dst_label, edge_label);
+  auto it = fork_edge_tables_.find(index);
+  if (it != fork_edge_tables_.end() && it->second) {
+    return *(it->second);
+  }
+  return graph_.get_edge_table(src_label, dst_label, edge_label);
+}
+
+GenericView UpdateTransaction::visible_outgoing_view(label_t src_label,
+                                                     label_t dst_label,
+                                                     label_t edge_label) const {
+  return visible_edge_table(src_label, dst_label, edge_label)
+      .get_outgoing_view(timestamp_);
+}
+
+GenericView UpdateTransaction::visible_incoming_view(label_t dst_label,
+                                                     label_t src_label,
+                                                     label_t edge_label) const {
+  return visible_edge_table(src_label, dst_label, edge_label)
+      .get_incoming_view(timestamp_);
+}
 
 bool UpdateTransaction::Commit() {
   if (timestamp_ == INVALID_TIMESTAMP) {
@@ -174,28 +281,101 @@ bool UpdateTransaction::Commit() {
     return false;
   }
 
-  // Should delete edge types before vertex types
-  applyEdgeTypeDeletions();
-  applyVertexTypeDeletions();
-  // Apply properties deletions after type deletions
-  applyVertexPropDeletion();
-  applyEdgePropDeletion();
+  if (!schema_changed_ &&
+      (!fork_vertex_tables_.empty() || !fork_edge_tables_.empty()) &&
+      fork_publishable_) {
+    if (!try_publish_fork_tables()) {
+      LOG(WARNING) << "Failed to publish fork tables. Keep live graph state.";
+    }
+  }
+
+  {
+    // TODO(zhanglei): should use one guard.
+    auto commit_guard = graph_.AcquireCommitLock();
+    // Should delete edge types before vertex types
+    applyEdgeTypeDeletions();
+    applyVertexTypeDeletions();
+    // Apply properties deletions after type deletions
+    applyVertexPropDeletion();
+    applyEdgePropDeletion();
+  }
   invalidate_query_cache_if_needed();
+  // Clear created label sets before release() so that release() doesn't
+  // roll them back (they were successfully committed).
+  created_vertex_labels_.clear();
+  created_edge_labels_.clear();
   release();
   return true;
 }
 
-void UpdateTransaction::Abort() {
-  revert_changes();
-  release();
+bool UpdateTransaction::try_publish_fork_tables() {
+  try {
+    auto commit_guard = graph_.AcquireCommitLock();
+
+    // Collect labels/indices for From() reload (before we move the tables).
+    std::vector<label_t> vertex_labels_to_reload;
+    std::vector<uint32_t> edge_indices_to_reload;
+    for (const auto& [label, fork_table] : fork_vertex_tables_) {
+      if (fork_table) {
+        vertex_labels_to_reload.push_back(label);
+      }
+    }
+    for (const auto& [index, fork_table] : fork_edge_tables_) {
+      if (fork_table) {
+        edge_indices_to_reload.push_back(index);
+      }
+    }
+
+    // Sync modified modules to graph's module_store.
+    sync_txn_store_to_graph();
+
+    for (auto& [label, fork_table] : fork_vertex_tables_) {
+      if (!fork_table) {
+        continue;
+      }
+      // Rebase: pick up vertices inserted into live during phase 1.
+      auto base_it = fork_vertex_base_lids_.find(label);
+      if (base_it != fork_vertex_base_lids_.end()) {
+        LOG(INFO) << "For vtable: " << (int) label << ", rebase from "
+                  << base_it->second << " to " << fork_table->Size();
+        fork_table->RebaseFromLive(graph_.get_vertex_table(label),
+                                   base_it->second);
+      }
+      // Swap: graph's table becomes the fork (new data),
+      // fork_table becomes the old graph table.
+      graph_.SwapVertexTable(label, std::move(fork_table));
+    }
+
+    for (auto& [index, fork_table] : fork_edge_tables_) {
+      if (!fork_table) {
+        continue;
+      }
+      // Rebase: pick up edges inserted into live during phase 1.
+      auto wm_it = fork_edge_watermarks_.find(index);
+      auto* live_et = graph_.get_edge_table_by_index(index);
+      if (live_et && wm_it != fork_edge_watermarks_.end()) {
+        fork_table->RebaseFromLive(*live_et, wm_it->second, alloc_);
+      }
+      // Swap: graph's table becomes the fork (new data),
+      // fork_table becomes the old graph table.
+      LOG(INFO) << "Swap for index: " << index;
+      graph_.SwapEdgeTable(index, std::move(fork_table));
+    }
+
+    return true;
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "try_publish_fork_tables exception: " << e.what();
+    return false;
+  } catch (...) {
+    LOG(ERROR) << "try_publish_fork_tables unknown exception";
+    return false;
+  }
 }
 
-void UpdateTransaction::revert_changes() {
-  while (!undo_logs_.empty()) {
-    auto& log = undo_logs_.top();
-    log->Undo(graph_, timestamp_);
-    undo_logs_.pop();
-  }
+void UpdateTransaction::Abort() {
+  // COW mode: just discard the transaction-local state.
+  // fork_vertex_tables_ and fork_edge_tables_ are cleared in release().
+  release();
 }
 
 Status UpdateTransaction::CreateVertexType(
@@ -215,19 +395,19 @@ Status UpdateTransaction::CreateVertexType(
     CreateVertexTypeRedo::Serialize(arc_, name, properties, primary_key_names);
     op_num_ += 1;
   }
-  { undo_logs_.push(std::make_unique<CreateVertexTypeUndo>(name)); }
   auto status = graph_.CreateVertexType(name, properties, primary_key_names,
                                         error_on_conflict);
 
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create vertex type " << name << ": "
                << status.ToString();
-    undo_logs_.pop();
     return status;
   }
   auto label_id = graph_.schema().get_vertex_label_id(name);
   if (deleted_vertex_labels_.find(label_id) != deleted_vertex_labels_.end()) {
     deleted_vertex_labels_.erase(label_id);
+  } else {
+    created_vertex_labels_.insert(label_id);
   }
   schema_changed_ = true;
   return status;
@@ -256,26 +436,21 @@ Status UpdateTransaction::CreateEdgeType(
                                   ie_edge_strategy);
     op_num_ += 1;
   }
-  {
-    undo_logs_.push(
-        std::make_unique<CreateEdgeTypeUndo>(src_type, dst_type, edge_type));
-  }
   auto status = graph_.CreateEdgeType(src_type, dst_type, edge_type, properties,
                                       true, oe_edge_strategy, ie_edge_strategy);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to create edge type " << edge_type << " between "
                << src_type << " and " << dst_type << ": " << status.ToString();
-    undo_logs_.pop();
     return status;
   }
   auto src_label_id = graph_.schema().get_vertex_label_id(src_type);
   auto dst_label_id = graph_.schema().get_vertex_label_id(dst_type);
   auto edge_label_id = graph_.schema().get_edge_label_id(edge_type);
-  if (deleted_edge_labels_.find(
-          std::make_tuple(src_label_id, dst_label_id, edge_label_id)) !=
-      deleted_edge_labels_.end()) {
-    deleted_edge_labels_.erase(
-        std::make_tuple(src_label_id, dst_label_id, edge_label_id));
+  auto triple = std::make_tuple(src_label_id, dst_label_id, edge_label_id);
+  if (deleted_edge_labels_.find(triple) != deleted_edge_labels_.end()) {
+    deleted_edge_labels_.erase(triple);
+  } else {
+    created_edge_labels_.insert(triple);
   }
   schema_changed_ = true;
   return status;
@@ -305,15 +480,12 @@ Status UpdateTransaction::AddVertexProperties(
     for (const auto& prop : add_properties) {
       add_property_names.push_back(std::get<1>(prop));
     }
-    undo_logs_.push(
-        std::make_unique<AddVertexPropUndo>(v_label, add_property_names));
   }
   auto status = graph_.AddVertexProperties(vertex_type_name, add_properties,
                                            error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to add properties to vertex type " << vertex_type_name
                << ": " << status.ToString();
-    undo_logs_.pop();
     return status;
   }
   if (deleted_vertex_properties_.size() > v_label) {
@@ -358,8 +530,6 @@ Status UpdateTransaction::AddEdgeProperties(
     for (const auto& prop : add_properties) {
       add_property_names.push_back(std::get<1>(prop));
     }
-    undo_logs_.push(std::make_unique<AddEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, add_property_names));
   }
   auto status = graph_.AddEdgeProperties(src_type, dst_type, edge_type,
                                          add_properties, error_on_conflict);
@@ -367,7 +537,6 @@ Status UpdateTransaction::AddEdgeProperties(
     LOG(ERROR) << "Failed to add properties to edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
-    undo_logs_.pop();
     return status;
   }
   auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
@@ -407,16 +576,11 @@ Status UpdateTransaction::RenameVertexProperties(
                                           rename_properties);
     op_num_ += 1;
   }
-  {
-    undo_logs_.push(
-        std::make_unique<RenameVertexPropUndo>(v_label, rename_properties));
-  }
   auto status = graph_.RenameVertexProperties(
       vertex_type_name, rename_properties, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of vertex type "
                << vertex_type_name << ": " << status.ToString();
-    undo_logs_.pop();
   }
   schema_changed_ = true;
   return status;
@@ -454,17 +618,12 @@ Status UpdateTransaction::RenameEdgeProperties(
                                         rename_properties);
     op_num_ += 1;
   }
-  {
-    undo_logs_.push(std::make_unique<RenameEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, rename_properties));
-  }
   auto status = graph_.RenameEdgeProperties(
       src_type, dst_type, edge_type, rename_properties, error_on_conflict);
   if (!status.ok()) {
     LOG(ERROR) << "Failed to rename properties of edge type " << edge_type
                << " between " << src_type << " and " << dst_type << ": "
                << status.ToString();
-    undo_logs_.pop();
   }
   schema_changed_ = true;
   return status;
@@ -495,10 +654,6 @@ Status UpdateTransaction::DeleteVertexProperties(
     DeleteVertexPropertiesRedo::Serialize(arc_, vertex_type_name,
                                           delete_properties);
     op_num_ += 1;
-  }
-  {
-    undo_logs_.push(
-        std::make_unique<DeleteVertexPropUndo>(v_label, delete_properties));
   }
   graph_.mutable_schema().DeleteVertexProperties(vertex_type_name,
                                                  delete_properties, true);
@@ -547,10 +702,6 @@ Status UpdateTransaction::DeleteEdgeProperties(
                                         delete_properties);
     op_num_ += 1;
   }
-  {
-    undo_logs_.push(std::make_unique<DeleteEdgePropUndo>(
-        src_label_id, dst_label_id, edge_label_id, delete_properties));
-  }
   graph_.mutable_schema().DeleteEdgeProperties(src_type, dst_type, edge_type,
                                                delete_properties, true);
   auto index = graph_.schema().generate_edge_label(src_label_id, dst_label_id,
@@ -581,7 +732,6 @@ Status UpdateTransaction::DeleteVertexType(const std::string& vertex_type_name,
     DeleteVertexTypeRedo::Serialize(arc_, vertex_type_name);
     op_num_ += 1;
   }
-  { undo_logs_.push(std::make_unique<DeleteVertexTypeUndo>(vertex_type_name)); }
   if (graph_.schema().IsVertexLabelSoftDeleted(v_label)) {
     LOG(ERROR) << "Vertex type " << vertex_type_name
                << " is already deleted (soft delete).";
@@ -639,10 +789,6 @@ Status UpdateTransaction::DeleteEdgeType(const std::string& src_type,
     DeleteEdgeTypeRedo::Serialize(arc_, src_type, dst_type, edge_type);
     op_num_ += 1;
   }
-  {
-    undo_logs_.push(
-        std::make_unique<DeleteEdgeTypeUndo>(src_type, dst_type, edge_type));
-  }
   if (graph_.schema().IsEdgeLabelSoftDeleted(src_label_id, dst_label_id,
                                              edge_label_id)) {
     LOG(ERROR) << "Edge type " << edge_type << " between " << src_type
@@ -680,29 +826,25 @@ bool UpdateTransaction::AddVertex(label_t label, const Property& oid,
     }
   }
 
-  const auto& v_table = graph_.get_vertex_table(label);
+  // Use fork table for COW semantics - abort will discard fork table.
+  auto& v_table = mutable_vertex_table(label);
   if (v_table.Size() >= v_table.Capacity()) {
     size_t new_capacity =
         v_table.Size() < 4096 ? 4096 : v_table.Size() + v_table.Size() / 4;
-    auto status = graph_.EnsureCapacity(label, new_capacity);
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to ensure space for vertex of label "
-                 << graph_.schema().get_vertex_label_name(label) << ": "
-                 << status.ToString();
-      return false;
-    }
+    // Also resize the fork table to match.
+    v_table.EnsureCapacity(new_capacity);
   }
 
   InsertVertexRedo::Serialize(arc_, label, oid, props);
   op_num_ += 1;
-  auto status = graph_.AddVertex(label, oid, props, vid, timestamp_, true);
-  if (!status.ok()) {
+
+  // Add vertex to the fork table directly (COW mode).
+  if (!v_table.AddVertex(oid, props, vid, timestamp_, true)) {
     LOG(ERROR) << "Failed to add vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
-               << status.ToString();
+               << graph_.schema().get_vertex_label_name(label);
     return false;
   }
-  undo_logs_.push(std::make_unique<InsertVertexUndo>(label, vid));
+
   return true;
 }
 
@@ -714,21 +856,41 @@ bool UpdateTransaction::DeleteVertex(label_t label, vid_t lid) {
   auto oid = graph_.GetOid(label, lid, timestamp_);
   RemoveVertexRedo::Serialize(arc_, label, oid);
   op_num_ += 1;
-  // edge_triplet_id: < src, dst, oe_offset, ie_offset>
-  std::unordered_map<uint32_t,
-                     std::vector<std::tuple<vid_t, vid_t, int32_t, int32_t>>>
-      related_edges =
-          fetch_edges_related_to_vertex(*this, label, lid, timestamp_);
-  undo_logs_.push(
-      std::make_unique<RemoveVertexUndo>(label, lid, related_edges));
-  auto status = graph_.DeleteVertex(label, lid, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to delete vertex of label "
-               << graph_.schema().get_vertex_label_name(label) << ": "
-               << status.ToString();
-    undo_logs_.pop();
-    return false;
+
+  // Delete incident edges in COW edge tables, then delete the vertex in the
+  // COW vertex table.  Mirror to graph_ is no longer needed; Abort simply
+  // discards the fork tables.
+  auto vertex_label_num = graph_.schema().vertex_label_frontier();
+  auto edge_label_num = graph_.schema().edge_label_frontier();
+  for (label_t i = 0; i < vertex_label_num; ++i) {
+    if (!graph_.schema().vertex_label_valid(i)) {
+      continue;
+    }
+    for (label_t j = 0; j < edge_label_num; ++j) {
+      if (graph_.schema().has_edge_label(i, label, j)) {
+        auto& et_in = mutable_edge_table(i, label, j);
+        // COW: fork the dst vertex and all its src neighbors before deletion.
+        et_in.get_in_csr()->fork_vertex(lid, alloc_);
+        auto ie_edges = et_in.get_incoming_view(MAX_TIMESTAMP).get_edges(lid);
+        for (auto it = ie_edges.begin(); it != ie_edges.end(); ++it) {
+          et_in.get_out_csr()->fork_vertex(it.get_vertex(), alloc_);
+        }
+        et_in.DeleteVertex(false, lid, timestamp_);
+      }
+      if (graph_.schema().has_edge_label(label, i, j)) {
+        auto& et_out = mutable_edge_table(label, i, j);
+        // COW: fork the src vertex and all its dst neighbors before deletion.
+        et_out.get_out_csr()->fork_vertex(lid, alloc_);
+        auto oe_edges = et_out.get_outgoing_view(MAX_TIMESTAMP).get_edges(lid);
+        for (auto it = oe_edges.begin(); it != oe_edges.end(); ++it) {
+          et_out.get_in_csr()->fork_vertex(it.get_vertex(), alloc_);
+        }
+        et_out.DeleteVertex(true, lid, timestamp_);
+      }
+    }
   }
+  mutable_vertex_table(label).DeleteVertex(lid, timestamp_);
+
   return true;
 }
 
@@ -741,37 +903,24 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
   ENSURE_VERTEX_LABEL_NOT_DELETED(dst_label);
   ENSURE_EDGE_LABEL_NOT_DELETED(src_label, dst_label, edge_label);
 
-  const auto& edge_table =
-      graph_.get_edge_table(src_label, dst_label, edge_label);
+  // Use fork table for COW semantics - abort will discard fork table.
+  auto& edge_table = mutable_edge_table(src_label, dst_label, edge_label);
   if (edge_table.Size() >= edge_table.Capacity()) {
     auto new_capacity = edge_table.Size() < 4096
                             ? 4096
                             : edge_table.Size() + edge_table.Size() / 4;
-    auto status =
-        graph_.EnsureCapacity(src_label, dst_label, edge_label, new_capacity);
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to ensure space before insert edge: "
-                 << status.ToString();
-      return false;
-    }
+    // Also resize the fork table to match.
+    edge_table.EnsureCapacity(new_capacity);
   }
   InsertEdgeRedo::Serialize(arc_, src_label, GetVertexId(src_label, src_lid),
                             dst_label, GetVertexId(dst_label, dst_lid),
                             edge_label, properties);
   op_num_ += 1;
-  auto oe_offset =
-      graph_.AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                     properties, timestamp_, alloc_, true);
-  auto ie_offset = search_other_offset_with_cur_offset(
-      graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label),
-      graph_.GetGenericIncomingGraphView(dst_label, src_label, edge_label),
-      src_lid, dst_lid, oe_offset,
-      graph_.schema()
-          .get_edge_schema(src_label, dst_label, edge_label)
-          ->properties);
-  undo_logs_.push(std::make_unique<InsertEdgeUndo>(src_label, dst_label,
-                                                   edge_label, src_lid, dst_lid,
-                                                   oe_offset, ie_offset));
+  edge_table.get_out_csr()->fork_vertex(src_lid, alloc_);
+  edge_table.get_in_csr()->fork_vertex(dst_lid, alloc_);
+  // Add edge to the fork table directly (COW mode).
+  edge_table.AddEdge(src_lid, dst_lid, properties, timestamp_, alloc_, true);
+
   return true;
 }
 
@@ -805,16 +954,11 @@ bool UpdateTransaction::DeleteEdges(label_t src_label, vid_t src_lid,
             GetVertexId(dst_label, dst_lid), edge_label, oe_offset, ie_offset);
         op_num_ += 1;
       }
-      auto status =
-          graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                            oe_offset, ie_offset, timestamp_);
-      if (!status.ok()) {
-        LOG(ERROR) << "Failed to delete edge: " << status.ToString();
-        return false;
-      }
-      undo_logs_.push(std::make_unique<RemoveEdgeUndo>(
-          src_label, dst_label, edge_label, src_lid, dst_lid, oe_offset,
-          ie_offset));
+      // COW: fork src and dst adjacency lists, then delete in the fork table.
+      auto& et = mutable_edge_table(src_label, dst_label, edge_label);
+      et.get_out_csr()->fork_vertex(src_lid, alloc_);
+      et.get_in_csr()->fork_vertex(dst_lid, alloc_);
+      et.DeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, timestamp_);
     }
     oe_offset++;
   }
@@ -841,15 +985,12 @@ bool UpdateTransaction::DeleteEdge(label_t src_label, vid_t src_lid,
                             edge_label, oe_offset, ie_offset);
   op_num_ += 1;
 
-  auto status = graph_.DeleteEdge(src_label, src_lid, dst_label, dst_lid,
-                                  edge_label, oe_offset, ie_offset, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to delete edge: " << status.ToString();
-    return false;
-  }
-  undo_logs_.push(std::make_unique<RemoveEdgeUndo>(src_label, dst_label,
-                                                   edge_label, src_lid, dst_lid,
-                                                   oe_offset, ie_offset));
+  // COW: fork src and dst adjacency lists, then delete in the fork table.
+  auto& et_del = mutable_edge_table(src_label, dst_label, edge_label);
+  et_del.get_out_csr()->fork_vertex(src_lid, alloc_);
+  et_del.get_in_csr()->fork_vertex(dst_lid, alloc_);
+  et_del.DeleteEdge(src_lid, dst_lid, oe_offset, ie_offset, timestamp_);
+
   return true;
 }
 
@@ -859,8 +1000,9 @@ Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
   auto prop_name =
       graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
   ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name);
-  auto col = graph_.GetVertexPropertyColumn(label, col_id);
-  if (!graph_.IsValidLid(label, lid, timestamp_)) {
+  const auto& v_table = visible_vertex_table(label);
+  auto col = v_table.get_property_column(col_id);
+  if (!v_table.IsValidLid(lid, timestamp_)) {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Vertex lid is not valid in this transaction");
   }
@@ -872,13 +1014,13 @@ Property UpdateTransaction::GetVertexProperty(label_t label, vid_t lid,
 
 Property UpdateTransaction::GetVertexId(label_t label, vid_t lid) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.GetOid(label, lid, timestamp_);
+  return visible_vertex_table(label).GetOid(lid, timestamp_);
 }
 
 bool UpdateTransaction::GetVertexIndex(label_t label, const Property& id,
                                        vid_t& index) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.get_lid(label, id, index, timestamp_);
+  return visible_vertex_table(label).get_index(id, index, timestamp_);
 }
 
 bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
@@ -888,7 +1030,7 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   auto prop_name =
       graph_.schema().get_vertex_schema(label)->get_property_name(col_id);
   ENSURE_VERTEX_PROPERTY_NOT_DELETED(label, prop_name);
-  if (!graph_.IsValidLid(label, lid, timestamp_)) {
+  if (!visible_vertex_table(label).IsValidLid(lid, timestamp_)) {
     LOG(ERROR) << "Vertex lid " << lid << " of label "
                << graph_.schema().get_vertex_label_name(label)
                << " is not valid in this transaction.";
@@ -904,15 +1046,13 @@ bool UpdateTransaction::UpdateVertexProperty(label_t label, vid_t lid,
   UpdateVertexPropRedo::Serialize(arc_, label, GetVertexId(label, lid), col_id,
                                   value);
 
-  auto old_prop = GetVertexProperty(label, lid, col_id);
-  auto status =
-      graph_.UpdateVertexProperty(label, lid, col_id, value, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to update vertex property: " << status.ToString();
+  // Write to the txn-local fork only. The live graph is updated atomically
+  // at commit time by the rebase+swap in try_publish_fork_tables.
+  auto& fork_vt = mutable_vertex_table(label);
+  if (!fork_vt.UpdateProperty(lid, col_id, value, timestamp_)) {
+    LOG(ERROR) << "Failed to update vertex property in txn-local table copy.";
     return false;
   }
-  undo_logs_.push(
-      std::make_unique<UpdateVertexPropUndo>(label, lid, col_id, old_prop));
   op_num_ += 1;
   return true;
 }
@@ -936,12 +1076,12 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
         "Source or destination vertex id is out of range or "
         "already deleted");
   }
-  auto prop_getter =
-      graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label, col_id);
   auto oe_edges = GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
                       .get_edges(src);
   auto ie_edges = GetGenericIncomingGraphView(dst_label, src_label, edge_label)
                       .get_edges(dst);
+  auto prop_getter = visible_edge_table(src_label, dst_label, edge_label)
+                         .get_edge_data_accessor(col_id);
   auto edge_prop_types =
       graph_.schema().get_edge_properties(src_label, dst_label, edge_label);
   assert(col_id >= 0 && static_cast<size_t>(col_id) < edge_prop_types.size());
@@ -952,23 +1092,17 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
       auto ie_offset = fuzzy_search_offset_from_nbr_list(
           ie_edges, src, it.get_data_ptr(), search_prop_type);
       auto old_prop = prop_getter.get_data(it);
-      {
-        UpdateEdgePropRedo::Serialize(arc_, src_label,
-                                      GetVertexId(src_label, src), dst_label,
-                                      GetVertexId(dst_label, dst), edge_label,
-                                      oe_offset, ie_offset, col_id, value);
-        op_num_ += 1;
-      }
-      auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
-                                              edge_label, oe_offset, ie_offset,
-                                              col_id, value, timestamp_);
-      if (!status.ok()) {
-        LOG(ERROR) << "Failed to update edge property: " << status.ToString();
-        return false;
-      }
-      undo_logs_.push(std::make_unique<UpdateEdgePropUndo>(
-          src_label, dst_label, edge_label, src, dst, oe_offset, ie_offset,
-          col_id, old_prop));
+      UpdateEdgePropRedo::Serialize(arc_, src_label,
+                                    GetVertexId(src_label, src), dst_label,
+                                    GetVertexId(dst_label, dst), edge_label,
+                                    oe_offset, ie_offset, col_id, value);
+      op_num_ += 1;
+      // COW: fork src and dst adjacency lists, then update in the fork table.
+      auto& et_upd = mutable_edge_table(src_label, dst_label, edge_label);
+      et_upd.get_out_csr()->fork_vertex(src, alloc_);
+      et_upd.get_in_csr()->fork_vertex(dst, alloc_);
+      et_upd.UpdateEdgeProperty(src, dst, oe_offset, ie_offset, col_id, value,
+                                timestamp_);
     }
     oe_offset += 1;
   }
@@ -997,34 +1131,17 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
         "Source or destination vertex id is out of range or "
         "already deleted");
   }
-  {
-    UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
-                                  dst_label, GetVertexId(dst_label, dst),
-                                  edge_label, oe_offset, ie_offset, col_id,
-                                  value);
-    op_num_ += 1;
-  }
-  auto prop_accessor =
-      graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label, col_id);
-  auto oe_edges =
-      graph_.GetGenericOutgoingGraphView(src_label, dst_label, edge_label)
-          .get_edges(src);
-  auto oe_iter = oe_edges.begin();
-  for (int32_t i = 0; i < oe_offset; ++i) {
-    ++oe_iter;
-  }
-  assert(oe_iter != oe_edges.end());
-  auto old_prop = prop_accessor.get_data(oe_iter);
-  auto status = graph_.UpdateEdgeProperty(src_label, src, dst_label, dst,
-                                          edge_label, oe_offset, ie_offset,
-                                          col_id, value, timestamp_);
-  if (!status.ok()) {
-    LOG(ERROR) << "Failed to update edge property: " << status.ToString();
-    return false;
-  }
-  undo_logs_.push(std::make_unique<UpdateEdgePropUndo>(
-      src_label, dst_label, edge_label, src, dst, oe_offset, ie_offset, col_id,
-      old_prop));
+  UpdateEdgePropRedo::Serialize(arc_, src_label, GetVertexId(src_label, src),
+                                dst_label, GetVertexId(dst_label, dst),
+                                edge_label, oe_offset, ie_offset, col_id,
+                                value);
+  op_num_ += 1;
+  // COW: fork src and dst adjacency lists, then update in the fork table.
+  auto& et_upd2 = mutable_edge_table(src_label, dst_label, edge_label);
+  et_upd2.get_out_csr()->fork_vertex(src, alloc_);
+  et_upd2.get_in_csr()->fork_vertex(dst, alloc_);
+  et_upd2.UpdateEdgeProperty(src, dst, oe_offset, ie_offset, col_id, value,
+                             timestamp_);
   return true;
 }
 
@@ -1162,7 +1279,7 @@ void UpdateTransaction::CreateCheckpoint() {
 
 bool UpdateTransaction::IsValidLid(label_t label, vid_t lid) const {
   ENSURE_VERTEX_LABEL_NOT_DELETED(label);
-  return graph_.IsValidLid(label, lid, timestamp_);
+  return visible_vertex_table(label).IsValidLid(lid, timestamp_);
 }
 
 void UpdateTransaction::release() {
@@ -1173,12 +1290,53 @@ void UpdateTransaction::release() {
 
     op_num_ = 0;
 
-    deleted_vertex_labels_.clear();
-    deleted_edge_labels_.clear();
-    while (!undo_logs_.empty()) {
-      undo_logs_.pop();
+    // Rollback schema changes: revert soft-deleted edge/vertex types.
+    for (auto& triple : deleted_edge_labels_) {
+      const auto& src_name =
+          graph_.schema().get_vertex_label_name(std::get<0>(triple));
+      const auto& dst_name =
+          graph_.schema().get_vertex_label_name(std::get<1>(triple));
+      const auto& edge_name =
+          graph_.schema().get_edge_label_name(std::get<2>(triple));
+      graph_.mutable_schema().RevertDeleteEdgeLabel(src_name, dst_name,
+                                                    edge_name);
     }
+    deleted_edge_labels_.clear();
+    for (auto label : deleted_vertex_labels_) {
+      const auto& label_name = graph_.schema().get_vertex_label_name(label);
+      graph_.mutable_schema().RevertDeleteVertexLabel(label_name);
+    }
+    deleted_vertex_labels_.clear();
+
+    // Rollback schema changes made in this transaction: undo created types.
+    for (auto& triple : created_edge_labels_) {
+      auto status = graph_.DeleteEdgeType(
+          std::get<0>(triple), std::get<1>(triple), std::get<2>(triple));
+      if (!status.ok()) {
+        LOG(ERROR) << "Abort: failed to rollback created edge type: "
+                   << status.ToString();
+      }
+    }
+    created_edge_labels_.clear();
+    for (auto label : created_vertex_labels_) {
+      auto status = graph_.DeleteVertexType(label, true);
+      if (!status.ok()) {
+        LOG(ERROR) << "Abort: failed to rollback created vertex type "
+                   << (int32_t) label << ": " << status.ToString();
+      }
+    }
+    created_vertex_labels_.clear();
   }
+
+  fork_vertex_tables_.clear();
+  fork_edge_tables_.clear();
+  fork_vertex_base_lids_.clear();
+  fork_edge_watermarks_.clear();
+  fork_publishable_ = true;
+
+  // Clear modified keys and reset txn_store_ to share with graph again.
+  modified_keys_.clear();
+  txn_store_ = graph_.module_store();
 }
 
 void UpdateTransaction::applyVertexTypeDeletions() {
@@ -1251,6 +1409,34 @@ void UpdateTransaction::applyEdgePropDeletion() {
 void UpdateTransaction::invalidate_query_cache_if_needed() {
   if (schema_changed_) {
     pipeline_cache_.clearGlobalCache(graph_.schema().to_yaml().value());
+  }
+}
+
+void UpdateTransaction::sync_fork_to_txn_store() {
+  // Move fork table contents into txn_store_ using MoveTo.
+  // This populates txn_store_ with the modified modules.
+
+  for (auto& [label, fork_table] : fork_vertex_tables_) {
+    if (!fork_table)
+      continue;
+    fork_table->MoveTo(*txn_store_, label);
+  }
+
+  for (auto& [index, fork_table] : fork_edge_tables_) {
+    if (!fork_table)
+      continue;
+    fork_table->MoveTo(*txn_store_, index);
+  }
+}
+
+void UpdateTransaction::sync_txn_store_to_graph() {
+  // Copy modified modules from txn_store_ to graph's module_store.
+  auto graph_store = graph_.module_store();
+  for (const auto& key : modified_keys_) {
+    auto mod = txn_store_->get(key);
+    if (mod) {
+      graph_store->set(key, mod);
+    }
   }
 }
 

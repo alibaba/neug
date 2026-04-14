@@ -19,6 +19,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 std::vector<std::string> read_lines_from_file(const std::string& file_path) {
   std::ifstream file(file_path);
@@ -46,12 +47,7 @@ TEST(StorageDDLTest, ExportTest) {
 
   neug::NeugDB db;
   db.Open(data_path);
-  const char* flex_data_dir_ptr = std::getenv("COMPREHENSIVE_GRAPH_DATA_DIR");
-  if (flex_data_dir_ptr == nullptr) {
-    throw std::runtime_error(
-        "COMPREHENSIVE_GRAPH_DATA_DIR environment variable is not set");
-  }
-  std::string flex_data_dir = flex_data_dir_ptr;
+  std::string flex_data_dir = neug::test::resolve_comprehensive_graph_dir();
   LOG(INFO) << "Flex data dir: " << flex_data_dir;
   auto conn = db.Connect();
   EXPECT_TRUE(

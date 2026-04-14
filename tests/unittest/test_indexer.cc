@@ -29,11 +29,11 @@
 #include "neug/common/extra_type_info.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/file_names.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
 
 namespace neug {
-namespace {
 
 class LFIndexerTest : public ::testing::Test {
  protected:
@@ -42,16 +42,10 @@ class LFIndexerTest : public ::testing::Test {
         "/tmp/lf_indexer_test_" +
         std::to_string(
             std::chrono::steady_clock::now().time_since_epoch().count());
-    snapshot_dir_ = test_dir_ + "/snapshot";
-    checkpoint_dir_ = test_dir_ + "/checkpoint";
-    work_dir_ = test_dir_ + "/work";
     if (std::filesystem::exists(test_dir_)) {
       std::filesystem::remove_all(test_dir_);
     }
-
-    std::filesystem::create_directories(snapshot_dir_);
-    std::filesystem::create_directories(checkpoint_dir_);
-    std::filesystem::create_directories(tmp_dir(work_dir_));
+    std::filesystem::create_directories(test_dir_);
   }
 
   void TearDown() override {
@@ -102,23 +96,27 @@ class LFIndexerTest : public ::testing::Test {
   }
 
   std::string test_dir_;
-  std::string snapshot_dir_;
-  std::string checkpoint_dir_;
-  std::string work_dir_;
 };
 
 TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
-  const std::string base_path = test_dir_ + "/core_index";
-  CreateEmptyIndicesFile(base_path);
-
-  LFIndexer<uint32_t> indexer;
   EXPECT_EQ(LFIndexer<uint32_t>::prefix(), "indexer");
 
-  indexer.init(DataTypeId::kInt64);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
+
+  LFIndexer<uint32_t> indexer;
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kInt64)));
+    indexer.init(neug::DataType::INT64);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
   EXPECT_EQ(indexer.get_type(), DataTypeId::kInt64);
   EXPECT_EQ(indexer.get_keys().type(), DataTypeId::kInt64);
-
-  indexer.open_in_memory(base_path);
   EXPECT_EQ(indexer.size(), 0U);
   EXPECT_EQ(indexer.capacity(), 0U);
 
@@ -149,78 +147,110 @@ TEST_F(LFIndexerTest, SupportsCoreMutableInterfacesInMemory) {
   EXPECT_GE(indexer.capacity(), 64U);
   ExpectInt64Values(indexer, values);
 
-  indexer.close();
+  indexer.Close();
 }
 
 TEST_F(LFIndexerTest, DumpsAndOpensAcrossBackends) {
   const std::string name = "persisted_index";
-  const std::string in_memory_base = test_dir_ + "/persisted_seed";
-  CreateEmptyIndicesFile(in_memory_base);
 
-  LFIndexer<uint32_t> writable;
-  writable.init(DataTypeId::kInt64);
-  writable.open_in_memory(in_memory_base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
+  ModuleDescriptor desc;
+  {
+    LFIndexer<uint32_t> writable;
+    {
+      ModuleDescriptor fresh_desc;
+      fresh_desc.module_type = "lf_indexer";
+      fresh_desc.set("type",
+                     std::to_string(static_cast<uint8_t>(DataTypeId::kInt64)));
+      writable.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+    }
+
+    std::vector<int64_t> values = {5, 10, 15, 20};
+    for (const auto& value : values) {
+      writable.insert(Property::from_int64(value), true);
+    }
+
+    desc = writable.Dump(ckp);
+  }
   std::vector<int64_t> values = {5, 10, 15, 20};
-  for (const auto& value : values) {
-    writable.insert(Property::from_int64(value), true);
+  {
+    LFIndexer<uint32_t> readonly;
+    readonly.Open(ckp, desc, MemoryLevel::kInMemory);
+    ExpectInt64Values(readonly, values);
+    EXPECT_EQ(readonly.get_keys().type(), DataTypeId::kInt64);
+    readonly.Close();
+
+    // Verify that sub-module paths were recorded in the descriptor
+    EXPECT_FALSE(desc.get_sub_module("keys").path.empty());
+    EXPECT_TRUE(
+        std::filesystem::exists(desc.get_sub_module("keys").path) ||
+        std::filesystem::exists(desc.get_sub_module("keys").path + ".items"));
+    EXPECT_FALSE(desc.get_sub_module("indices").path.empty());
+    EXPECT_TRUE(std::filesystem::exists(desc.get_sub_module("indices").path));
   }
 
-  writable.dump(name, snapshot_dir_);
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".meta"));
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".keys"));
-  EXPECT_TRUE(std::filesystem::exists(snapshot_dir_ + "/" + name + ".indices"));
-
-  LFIndexer<uint32_t> copied_to_workdir;
-  copied_to_workdir.init(DataTypeId::kInt64);
-  copied_to_workdir.open(name, snapshot_dir_, work_dir_);
-  ExpectInt64Values(copied_to_workdir, values);
-  EXPECT_TRUE(
-      std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".keys"));
-  EXPECT_TRUE(
-      std::filesystem::exists(tmp_dir(work_dir_) + "/" + name + ".indices"));
-  copied_to_workdir.drop();
-
-  LFIndexer<uint32_t> in_memory;
-  in_memory.init(DataTypeId::kInt64);
-  in_memory.open_in_memory(snapshot_dir_ + "/" + name);
-  ExpectInt64Values(in_memory, values);
-  in_memory.close();
-
-  LFIndexer<uint32_t> hugepage_indexer;
-  hugepage_indexer.init(DataTypeId::kInt64);
-  hugepage_indexer.open_with_hugepages(snapshot_dir_ + "/" + name);
-  ExpectInt64Values(hugepage_indexer, values);
-  hugepage_indexer.close();
+  // Verify the data can also be opened using hugepages and sync-to-file modes
+  {
+    LFIndexer<uint32_t> hugepage_idx;
+    hugepage_idx.Open(ckp, desc, MemoryLevel::kHugePagePreferred);
+    ExpectInt64Values(hugepage_idx, values);
+    hugepage_idx.Close();
+  }
+  {
+    LFIndexer<uint32_t> sync_idx;
+    sync_idx.Open(ckp, desc, MemoryLevel::kSyncToFile);
+    ExpectInt64Values(sync_idx, values);
+    sync_idx.Close();
+  }
 }
 
 TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
-  const std::string empty_name = "empty_index";
-  const std::string empty_dir = test_dir_ + "/empty_dir";
-  std::filesystem::create_directories(empty_dir);
-  CreateEmptyIndicesFile(empty_dir + "/" + empty_name);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
+  // Verify that an empty indexer can be initialised and dumped to disk.
   LFIndexer<uint32_t> empty_indexer;
-  empty_indexer.init(DataTypeId::kInt64);
-  empty_indexer.build_empty_LFIndexer(empty_name, "", empty_dir);
-  EXPECT_TRUE(std::filesystem::exists(empty_dir + "/" + empty_name + ".meta"));
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kInt64)));
+    empty_indexer.init(neug::DataType::INT64);
+    empty_indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
+  ModuleDescriptor empty_dump = empty_indexer.Dump(ckp);
+  EXPECT_FALSE(empty_dump.get_sub_module("indices").path.empty());
   EXPECT_TRUE(
-      std::filesystem::exists(empty_dir + "/" + empty_name + ".indices"));
+      std::filesystem::exists(empty_dump.get_sub_module("indices").path));
+  empty_indexer.Close();
 
   const std::string lhs_base = test_dir_ + "/lhs_varchar";
   const std::string rhs_base = test_dir_ + "/rhs_varchar";
-  CreateEmptyIndicesFile(lhs_base);
-  CreateEmptyIndicesFile(rhs_base);
 
-  auto string_type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> lhs;
-  lhs.init(DataTypeId::kVarchar, string_type_info);
-  lhs.open_in_memory(lhs_base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    lhs.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
   lhs.reserve(4);
 
   LFIndexer<uint32_t> rhs;
-  rhs.init(DataTypeId::kVarchar, string_type_info);
-  rhs.open_in_memory(rhs_base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    rhs.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
   rhs.reserve(4);
 
   std::vector<std::string> lhs_values = {"alice", "bob"};
@@ -242,7 +272,7 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
   ExpectStringValues(rhs, lhs_values);
 
   rhs.drop();
-  lhs.close();
+  lhs.Close();
 }
 
 // ---- Tests for the reserve()-then-insert() bug fix on varchar keys ----
@@ -261,13 +291,21 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
 // Corner case 1: reserve(N) then insert() (insert_safe=false) for exactly N
 // varchar strings — the primary bug trigger.
 TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
-  const std::string base = test_dir_ + "/varchar_reserve_non_safe";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    indexer.init(DataTypeId::kVarchar);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
 
   constexpr size_t N = 8;
   indexer.reserve(N);
@@ -281,20 +319,28 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
     indexer.insert(Property::from_string_view(v));
   }
   ExpectStringValues(indexer, values);
-  indexer.close();
+  indexer.Close();
 }
 
 // Corner case 2: reserve(N) then insert N strings each of length == max width.
 // Exercises the tightest possible data buffer requirement: N * width_ bytes.
 TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
-  const std::string base = test_dir_ + "/varchar_max_width";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   constexpr uint16_t kMaxWidth = 16;
   auto type_info = std::make_shared<StringTypeInfo>(kMaxWidth);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    indexer.init(DataTypeId::kVarchar);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
 
   constexpr size_t N = 6;
   indexer.reserve(N);
@@ -310,19 +356,27 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
     indexer.insert(Property::from_string_view(v));
   }
   ExpectStringValues(indexer, values);
-  indexer.close();
+  indexer.Close();
 }
 
 // Corner case 3: two successive reserve() calls; the second must not shrink
 // the data buffer (already-committed bytes at pos_ must be preserved).
 TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
-  const std::string base = test_dir_ + "/varchar_multi_reserve";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    indexer.init(DataTypeId::kVarchar);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
 
   // First batch: reserve 4, insert 4 via insert() (non-safe).
   indexer.reserve(4);
@@ -344,19 +398,27 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   std::vector<std::string> all = {"alice", "bob",   "carol", "dave",
                                   "erin",  "frank", "grace", "heidi"};
   ExpectStringValues(indexer, all);
-  indexer.close();
+  indexer.Close();
 }
 
 // Corner case 4: reserve() with a count smaller than current size must be
 // a no-op (items_ and data_ must not shrink, existing data must be readable).
 TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
-  const std::string base = test_dir_ + "/varchar_reserve_noop";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    indexer.init(DataTypeId::kVarchar);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
 
   indexer.reserve(16);
   EXPECT_GE(indexer.capacity(), 16U);
@@ -369,19 +431,27 @@ TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
   // Shrinking reserve must not corrupt state.
   indexer.reserve(4);
   EXPECT_GE(indexer.capacity(), size_before);
-  indexer.close();
+  indexer.Close();
 }
 
 // Corner case 5: rehash() after inserting varchar strings calls
 // keys_->resize() internally; verify all lookups remain correct.
 TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
-  const std::string base = test_dir_ + "/varchar_rehash";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(base);
+  {
+    ModuleDescriptor fresh_desc;
+    fresh_desc.module_type = "lf_indexer";
+    fresh_desc.set("type",
+                   std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+    indexer.init(DataTypeId::kVarchar);
+    indexer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+  }
 
   std::vector<std::string> values = {"foo",  "bar",   "baz",   "qux",
                                      "quux", "corge", "grault"};
@@ -395,42 +465,49 @@ TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
   indexer.rehash(64);
   EXPECT_GE(indexer.capacity(), 64U);
   ExpectStringValues(indexer, values);
-  indexer.close();
+  indexer.Close();
 }
 
 // Corner case 6: dump and reload a varchar LFIndexer populated via
 // reserve()+insert() (non-safe) to confirm persistence is not affected.
 TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
-  const std::string name = "varchar_persisted";
-  const std::string base = test_dir_ + "/varchar_persisted_seed";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
-  LFIndexer<uint32_t> writable;
-  writable.init(DataTypeId::kVarchar, type_info);
-  writable.open_in_memory(base);
+  ModuleDescriptor dump_desc;
+  {
+    LFIndexer<uint32_t> writable;
+    {
+      ModuleDescriptor fresh_desc;
+      fresh_desc.module_type = "lf_indexer";
+      fresh_desc.set(
+          "type", std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+      writable.init(DataTypeId::kVarchar);
+      writable.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+    }
 
-  constexpr size_t N = 5;
-  writable.reserve(N);
+    constexpr size_t N = 5;
+    writable.reserve(N);
 
-  std::vector<std::string> values = {"one", "two", "three", "four", "five"};
-  for (const auto& v : values) {
-    writable.insert(Property::from_string_view(v));
+    std::vector<std::string> values = {"one", "two", "three", "four", "five"};
+    for (const auto& v : values) {
+      writable.insert(Property::from_string_view(v));
+    }
+    ExpectStringValues(writable, values);
+
+    dump_desc = writable.Dump(ckp);
+    writable.Close();
   }
-  ExpectStringValues(writable, values);
 
-  writable.dump(name, snapshot_dir_);
-  EXPECT_TRUE(
-      std::filesystem::exists(snapshot_dir_ + "/" + name + ".keys.items"));
-  EXPECT_TRUE(
-      std::filesystem::exists(snapshot_dir_ + "/" + name + ".keys.data"));
-
-  // Reload from snapshot and verify all entries survive the round-trip.
+  // Reload from descriptor and verify all entries survive the round-trip.
   LFIndexer<uint32_t> reader;
-  reader.init(DataTypeId::kVarchar, type_info);
-  reader.open_in_memory(snapshot_dir_ + "/" + name);
+  reader.Open(ckp, dump_desc, MemoryLevel::kInMemory);
+  std::vector<std::string> values = {"one", "two", "three", "four", "five"};
   ExpectStringValues(reader, values);
-  reader.close();
+  reader.Close();
 }
 
 // ---- Dump-with-short-strings → reopen → insert-long-strings ----
@@ -443,31 +520,39 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 //   needed = pos_ + new_items * width_
 // but never called data_buffer_->Resize(), leaving no room for long values.
 
-// Path A: open_in_memory + explicit reserve() + insert() (non-safe)
+// Path A: Open + explicit reserve() + insert() (non-safe)
 TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
-  const std::string name = "short_to_long_inmem";
-  const std::string base = test_dir_ + "/short_to_long_seed_inmem";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   constexpr uint16_t kWidth = 64;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  ModuleDescriptor dump_desc;
 
   // Phase 1: populate with short strings (avg 3 chars << kWidth), then dump.
   std::vector<std::string> short_values = {"a", "bb", "ccc"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
-    writer.open_in_memory(base);
+    {
+      ModuleDescriptor fresh_desc;
+      fresh_desc.module_type = "lf_indexer";
+      fresh_desc.set(
+          "type", std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+      writer.init(DataTypeId::kVarchar);
+      writer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+    }
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
     }
-    writer.dump(name, snapshot_dir_);
+    dump_desc = writer.Dump(ckp);
+    writer.Close();
   }
 
   // Phase 2: reopen — data_buffer_ is now tight (= sum of short string bytes).
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(snapshot_dir_ + "/" + name);
+  indexer.Open(ckp, dump_desc, MemoryLevel::kInMemory);
   ExpectStringValues(indexer, short_values);
 
   // reserve() must expand data_buffer_ to accommodate new_items * kWidth bytes
@@ -488,37 +573,45 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
-  indexer.close();
+  indexer.Close();
 }
 
-// Path B: open_in_memory + insert(true) triggers auto-resize internally.
+// Path B: Open + insert(true) triggers auto-resize internally.
 // No explicit reserve — capacity is exhausted and auto-grows via
 // reserve(cap + cap/4) inside insert(..., true).
 TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
-  const std::string name = "short_to_long_safe_inmem";
-  const std::string base = test_dir_ + "/short_to_long_seed_safe_inmem";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   constexpr uint16_t kWidth = 48;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  ModuleDescriptor dump_desc;
 
   // Phase 1: fill to capacity with 1-char strings, then dump.
   std::vector<std::string> short_values = {"x", "y", "z", "w"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
-    writer.open_in_memory(base);
+    {
+      ModuleDescriptor fresh_desc;
+      fresh_desc.module_type = "lf_indexer";
+      fresh_desc.set(
+          "type", std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+      writer.init(DataTypeId::kVarchar);
+      writer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+    }
     writer.reserve(short_values.size());
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v));
     }
-    writer.dump(name, snapshot_dir_);
+    dump_desc = writer.Dump(ckp);
+    writer.Close();
   }
 
   // Phase 2: reopen — capacity == short_values.size(), data_buffer_ tight.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open_in_memory(snapshot_dir_ + "/" + name);
+  indexer.Open(ckp, dump_desc, MemoryLevel::kInMemory);
   EXPECT_EQ(indexer.size(), short_values.size());
 
   // insert(true) with long strings: the first call hits ind >= capacity(),
@@ -534,36 +627,44 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
-  indexer.close();
+  indexer.Close();
 }
 
-// Path C: open() (SyncToFile backend) + explicit reserve() + insert() long.
+// Path C: Open (SyncToFile backend) + explicit reserve() + insert() long.
 // Validates that the SyncToFile container also gets its data_buffer_ extended
 // correctly after a short-string dump.
 TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
-  const std::string name = "short_to_long_sync";
-  const std::string base = test_dir_ + "/short_to_long_seed_sync";
-  CreateEmptyIndicesFile(base);
+  Workspace ws;
+  ws.Open(test_dir_);
+  auto ckp_id = ws.CreateCheckpoint();
+  auto& ckp = ws.GetCheckpoint(ckp_id);
 
   constexpr uint16_t kWidth = 32;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  ModuleDescriptor dump_desc;
 
-  // Phase 1: insert 2-char strings to keep .data file tiny, then dump.
+  // Phase 1: insert 2-char strings to keep data compact, then dump.
   std::vector<std::string> short_values = {"hi", "yo", "ok"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
-    writer.open_in_memory(base);
+    {
+      ModuleDescriptor fresh_desc;
+      fresh_desc.module_type = "lf_indexer";
+      fresh_desc.set(
+          "type", std::to_string(static_cast<uint8_t>(DataTypeId::kVarchar)));
+      writer.init(DataTypeId::kVarchar);
+      writer.Open(ckp, fresh_desc, MemoryLevel::kInMemory);
+    }
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
     }
-    writer.dump(name, snapshot_dir_);
+    dump_desc = writer.Dump(ckp);
+    writer.Close();
   }
 
-  // Phase 2: reopen via SyncToFile — data_buffer_ memory-maps the small file.
+  // Phase 2: reopen via SyncToFile — data_buffer_ memory-maps the small dump.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
-  indexer.open(name, snapshot_dir_, work_dir_);
+  indexer.Open(ckp, dump_desc, MemoryLevel::kSyncToFile);
   ExpectStringValues(indexer, short_values);
 
   constexpr size_t kExtra = 3;
@@ -583,8 +684,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
   std::vector<std::string> all = short_values;
   all.insert(all.end(), long_values.begin(), long_values.end());
   ExpectStringValues(indexer, all);
-  indexer.drop();
+  indexer.Close();
 }
 
-}  // namespace
 }  // namespace neug

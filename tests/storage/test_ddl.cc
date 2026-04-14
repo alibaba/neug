@@ -23,6 +23,7 @@
 #include "neug/main/neug_db.h"
 #include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
+#include "unittest/utils.h"
 
 class DDLTestDBFixture : public ::testing::Test {
  protected:
@@ -194,12 +195,7 @@ TEST(StorageDDLTest, CreateAndAlterTables) {
   neug::NeugDB db;
   db.Open(data_path);
   // Get current directory where the .cc exists
-  const char* flex_data_dir_ptr = std::getenv("MODERN_GRAPH_DATA_DIR");
-  if (flex_data_dir_ptr == nullptr) {
-    throw std::runtime_error(
-        "MODERN_GRAPH_DATA_DIR environment variable is not set");
-  }
-  std::string flex_data_dir = flex_data_dir_ptr;
+  std::string flex_data_dir = neug::test::resolve_modern_graph_dir();
   auto conn = db.Connect();
   EXPECT_TRUE(
       conn->Query("CREATE NODE TABLE person(id INT64, name STRING, age "

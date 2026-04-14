@@ -20,6 +20,8 @@ add_neug_test(test_indexer test_indexer.cc)
 
 add_neug_test(test_connection test_connection.cc)
 
+add_neug_test(test_column test_column.cc)
+
 if (BUILD_HTTP_SERVER)
     add_neug_test(test_http_server test_http_server.cc)
 endif()

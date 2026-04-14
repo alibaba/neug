@@ -31,6 +31,8 @@
 #include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
+#include "neug/storages/module/module_store.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -116,21 +118,13 @@ class PropertyGraph {
   ~PropertyGraph();
 
   /**
-   * @brief Open the property graph from persistent storage.
+   * @brief Open the graph from the given Checkpoint using the Module interface.
    *
-   * @param work_dir Working directory containing graph data files
-   * @param memory_level Memory usage level (controls performance vs memory
-   * tradeoff)
-   *
-   * Implementation: Sets work_dir_ and memory_level_, loads schema from
-   * work_dir, then loads vertex and edge data from snapshot files.
-   *
-   * @since v0.1.0
+   * Reads a SnapshotMeta from @p ckp, then opens each module (Schema,
+   * VertexTable, EdgeTable) via Module::Open.  If the checkpoint contains no
+   * meta the graph starts empty.
    */
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
-
-  void Open(const Schema& schema, const std::string& work_dir,
-            MemoryLevel memory_level);
+  void Open(Checkpoint& ckp, MemoryLevel memory_level);
 
   void Compact(bool compact_csr, float reserve_ratio, timestamp_t ts);
 
@@ -138,14 +132,32 @@ class PropertyGraph {
    * @brief Dump the current graph state to persistent storage.
    * @param reopen If true, reopens the graph after dumping (default: true)
    */
-  void Dump(bool reopen = true);
+  void Dump(Checkpoint& ckp, bool reopen = true);
 
   /**
-   * @brief Dump schema information to a file.
-   *
-   * @since v0.1.0
+   * @brief Dump using the graph's own internal Checkpoint.
+   * Convenience overload for callers that don't hold a Checkpoint reference.
    */
-  void DumpSchema();
+  void Dump(bool reopen = true) { Dump(*ckp_, reopen); }
+
+  Checkpoint& checkpoint() {
+    assert(ckp_ != nullptr);
+    return *ckp_;
+  }
+
+  const Checkpoint& checkpoint() const {
+    assert(ckp_ != nullptr);
+    return *ckp_;
+  }
+
+  MemoryLevel memory_level() const { return memory_level_; }
+
+  std::unique_lock<std::mutex> AcquireCommitLock();
+
+  void SwapVertexTable(label_t label, std::unique_ptr<VertexTable> table);
+
+  void SwapEdgeTable(uint32_t edge_triplet_index,
+                     std::unique_ptr<EdgeTable> table);
 
   /**
    * @brief Get read-only access to the schema.
@@ -370,6 +382,22 @@ class PropertyGraph {
     return edge_tables_.at(index);
   }
 
+  inline EdgeTable* get_edge_table_by_index(uint32_t index) {
+    auto it = edge_tables_.find(index);
+    if (it == edge_tables_.end()) {
+      return nullptr;
+    }
+    return &it->second;
+  }
+
+  inline const EdgeTable* get_edge_table_by_index(uint32_t index) const {
+    auto it = edge_tables_.find(index);
+    if (it == edge_tables_.end()) {
+      return nullptr;
+    }
+    return &it->second;
+  }
+
   vid_t LidNum(label_t vertex_label) const;
 
   vid_t VertexNum(label_t vertex_label, timestamp_t ts = MAX_TIMESTAMP) const;
@@ -582,11 +610,13 @@ class PropertyGraph {
 
   std::string get_statistics_json() const;
 
-  inline std::string get_schema_yaml_path() const {
-    return work_dir_ + "/graph.yaml";
-  }
+  inline std::string work_dir() const { return ckp_->path(); }
 
-  inline std::string work_dir() const { return work_dir_; }
+  /** @brief Get the ModuleStore (shared ownership). */
+  std::shared_ptr<ModuleStore> module_store() { return module_store_; }
+  std::shared_ptr<const ModuleStore> module_store() const {
+    return module_store_;
+  }
 
  private:
   Status delete_vertex_properties_check(const std::string& vertex_type_name,
@@ -613,11 +643,13 @@ class PropertyGraph {
 
   void compact_schema();
 
-  std::string work_dir_;
+  Checkpoint* ckp_;
   Schema schema_;
+  std::shared_ptr<ModuleStore> module_store_;
   std::vector<std::shared_ptr<std::mutex>> v_mutex_;
   std::vector<VertexTable> vertex_tables_;
   std::unordered_map<uint32_t, EdgeTable> edge_tables_;
+  mutable std::mutex commit_mutex_;
 
   size_t vertex_label_total_count_, edge_label_total_count_;
   MemoryLevel memory_level_;

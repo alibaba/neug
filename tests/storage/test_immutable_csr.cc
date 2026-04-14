@@ -14,10 +14,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <chrono>
 #include <iostream>
 #include <string>
 #include "neug/storages/csr/generic_view_utils.h"
 #include "neug/storages/csr/immutable_csr.h"
+#include "neug/storages/workspace.h"
 #include "unittest/utils.h"
 
 namespace neug {
@@ -25,6 +27,169 @@ namespace test {
 using Datatypes =
     ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
+
+namespace {
+
+static const std::vector<vid_t> kForkSrc = {0, 0, 1, 2};
+static const std::vector<vid_t> kForkDst = {1, 2, 3, 4};
+static const std::vector<int32_t> kForkData = {10, 20, 30, 40};
+
+struct CsrForkSignature {
+  size_t edge_num{0};
+  size_t src0_degree{0};
+  int64_t dst_sum{0};
+  int64_t data_sum{0};
+};
+
+template <typename CSR_T>
+CsrForkSignature build_fork_signature(const CSR_T& csr) {
+  CsrForkSignature sig;
+  sig.edge_num = csr.edge_num();
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (src == 0) {
+        ++sig.src0_degree;
+      }
+      sig.dst_sum += it.get_vertex();
+      sig.data_sum += *static_cast<const int32_t*>(it.get_data_ptr());
+    }
+  }
+  return sig;
+}
+
+template <typename CSR_T>
+std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                     reinterpret_cast<const char*>(edges.start_ptr)) /
+                    it.cfg.stride;
+      return {src, it.get_vertex(), static_cast<int32_t>(offset)};
+    }
+  }
+  return {std::numeric_limits<vid_t>::max(), std::numeric_limits<vid_t>::max(),
+          -1};
+}
+
+template <typename CSR_T>
+void apply_fork_mutations(CSR_T& csr) {
+  csr.batch_put_edges({0}, {4}, {111}, 0);
+
+  auto [src, dst, offset] = find_first_edge(csr);
+  ASSERT_NE(offset, -1);
+  csr.delete_edge(src, offset, 0);
+  csr.revert_delete_edge(src, dst, offset, 0);
+
+  csr.batch_put_edges({1}, {0}, {222}, 0);
+}
+
+void expect_signature_eq(const CsrForkSignature& lhs,
+                         const CsrForkSignature& rhs) {
+  EXPECT_EQ(lhs.edge_num, rhs.edge_num);
+  EXPECT_EQ(lhs.src0_degree, rhs.src0_degree);
+  EXPECT_EQ(lhs.dst_sum, rhs.dst_sum);
+  EXPECT_EQ(lhs.data_sum, rhs.data_sum);
+}
+
+template <MemoryLevel OPEN_LEVEL, MemoryLevel FORK_LEVEL>
+struct CsrForkLevelCase {
+  static constexpr MemoryLevel kOpenLevel = OPEN_LEVEL;
+  static constexpr MemoryLevel kForkLevel = FORK_LEVEL;
+};
+
+using ImmutableCsrForkLevelCases = ::testing::Types<
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kSyncToFile>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred,
+                     MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred, MemoryLevel::kSyncToFile>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kSyncToFile>>;
+
+template <typename CASE_T>
+class ImmutableCsrForkTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ =
+        std::filesystem::temp_directory_path() /
+        ("immutable_csr_fork_" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()) +
+         "_" + GetTestName());
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+    std::filesystem::create_directories(temp_dir_);
+    ws_.Open(temp_dir_.string());
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+  }
+
+  Checkpoint& create_checkpoint() {
+    auto ckp_id = ws_.CreateCheckpoint();
+    return ws_.GetCheckpoint(ckp_id);
+  }
+
+ private:
+  std::string GetTestName() const {
+    const testing::TestInfo* const test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
+    return std::string(test_info->name());
+  }
+
+ protected:
+  Workspace ws_;
+  std::filesystem::path temp_dir_;
+};
+
+TYPED_TEST_SUITE(ImmutableCsrForkTest, ImmutableCsrForkLevelCases);
+
+TYPED_TEST(ImmutableCsrForkTest, ForkIsolationAndDumpOpenMatrix) {
+  ImmutableCsr<int32_t> original;
+  auto& base_ckp = this->create_checkpoint();
+  original.Open(base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(5);
+  original.batch_put_edges(kForkSrc, kForkDst, kForkData, 0);
+
+  auto original_before = build_fork_signature(original);
+
+  auto fork_module = original.Fork(base_ckp, TypeParam::kForkLevel);
+  auto* forked = dynamic_cast<ImmutableCsr<int32_t>*>(fork_module.get());
+  ASSERT_NE(forked, nullptr);
+
+  apply_fork_mutations(*forked);
+  auto fork_after = build_fork_signature(*forked);
+
+  auto original_after_fork_mutation = build_fork_signature(original);
+  expect_signature_eq(original_after_fork_mutation, original_before);
+
+  apply_fork_mutations(original);
+  auto original_after_self_mutation = build_fork_signature(original);
+  EXPECT_NE(original_after_self_mutation.edge_num, original_before.edge_num);
+
+  auto fork_after_original_mutation = build_fork_signature(*forked);
+  expect_signature_eq(fork_after_original_mutation, fork_after);
+
+  auto& dump_ckp = this->create_checkpoint();
+  auto fork_desc = forked->Dump(dump_ckp);
+  ImmutableCsr<int32_t> reopened;
+  reopened.Open(dump_ckp, fork_desc, MemoryLevel::kInMemory);
+  auto reopened_sig = build_fork_signature(reopened);
+  expect_signature_eq(reopened_sig, fork_after);
+}
+
+}  // namespace
 
 template <typename EDATA_T>
 class IMMutableCsrTest : public ::testing::Test {
@@ -40,6 +205,7 @@ class IMMutableCsrTest : public ::testing::Test {
     std::filesystem::create_directories(temp_dir_ / "snapshot");
     std::filesystem::create_directories(temp_dir_ / "work");
     std::filesystem::create_directories(temp_dir_ / "work" / "runtime" / "tmp");
+    ws.Open(temp_dir_.string());
   }
 
   void TearDown() override {
@@ -48,10 +214,10 @@ class IMMutableCsrTest : public ::testing::Test {
     }
   }
 
-  void load_csr_data(ImmutableCsr<EDATA_T>& csr) {
-    auto work_dir = this->WorkDirectory();
-    auto snapshot_dir = this->SnapshotDirectory();
-    csr.open("csr", snapshot_dir.string(), work_dir.string());
+  Checkpoint& load_csr_data(ImmutableCsr<EDATA_T>& csr) {
+    auto ckp_id = Workspace().CreateCheckpoint();
+    auto& ckp = Workspace().GetCheckpoint(ckp_id);
+    csr.Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, false);
     csr.resize(500);
@@ -63,12 +229,13 @@ class IMMutableCsrTest : public ::testing::Test {
       edata_list.push_back(std::get<2>(edges[i]));
     }
     csr.batch_put_edges(src_list, dst_list, edata_list, 0);
+    return ckp;
   }
 
-  void load_single_csr_data(SingleImmutableCsr<EDATA_T>& csr) {
-    auto work_dir = this->WorkDirectory();
-    auto snapshot_dir = this->SnapshotDirectory();
-    csr.open("csr", snapshot_dir.string(), work_dir.string());
+  Checkpoint& load_single_csr_data(SingleImmutableCsr<EDATA_T>& csr) {
+    auto ckp_id = Workspace().CreateCheckpoint();
+    auto& ckp = Workspace().GetCheckpoint(ckp_id);
+    csr.Open(ckp, ModuleDescriptor(), MemoryLevel::kInMemory);
 
     auto edges = generate_random_edges<EDATA_T>(500, 1000, 10000, true);
     csr.resize(500);
@@ -80,6 +247,7 @@ class IMMutableCsrTest : public ::testing::Test {
       edata_list.push_back(std::get<2>(edges[i]));
     }
     csr.batch_put_edges(src_list, dst_list, edata_list, 0);
+    return ckp;
   }
 
   bool check_edge_data_ordered(GenericView& generic_view) {
@@ -205,6 +373,7 @@ class IMMutableCsrTest : public ::testing::Test {
     return true;
   }
 
+  neug::Workspace& Workspace() { return ws; }
   std::filesystem::path WorkDirectory() const { return temp_dir_ / "work"; }
   std::filesystem::path SnapshotDirectory() const {
     return temp_dir_ / "snapshot";
@@ -228,6 +397,7 @@ class IMMutableCsrTest : public ::testing::Test {
 
  private:
   std::filesystem::path temp_dir_;
+  neug::Workspace ws;
 
   std::string GetTestName() const {
     const testing::TestInfo* const test_info =
@@ -273,36 +443,32 @@ TYPED_TEST(IMMutableCsrTest, TestBasicFunction) {
 
 TYPED_TEST(IMMutableCsrTest, TestDumpAndOpen) {
   ImmutableCsr<TypeParam> immutable_csr;
-  this->load_csr_data(immutable_csr);
-  immutable_csr.dump("dumped_csr_data", this->WorkDirectory());
-  std::filesystem::create_directories(tmp_dir(this->WorkDirectory()));
+  auto& ckp = this->load_csr_data(immutable_csr);
+  auto desc = immutable_csr.Dump(ckp);
+
   ImmutableCsr<TypeParam> fmap_immutable_csr, memory_immutable_csr,
       hugepage_immutable_csr;
-  fmap_immutable_csr.open("dumped_csr_data", this->WorkDirectory(),
-                          this->WorkDirectory());
+  fmap_immutable_csr.Open(ckp, desc, MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_immutable_csr.edge_num(), 10000);
-  memory_immutable_csr.open_in_memory(std::string(this->WorkDirectory()) +
-                                      "/dumped_csr_data");
-
+  memory_immutable_csr.Open(ckp, desc, MemoryLevel::kInMemory);
   EXPECT_EQ(memory_immutable_csr.edge_num(), 10000);
-  hugepage_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  hugepage_immutable_csr.Open(ckp, desc, MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_immutable_csr.edge_num(), 10000);
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
-  this->load_single_csr_data(single_immutable_csr);
-  single_immutable_csr.dump("dumped_csr_data", this->WorkDirectory());
-  std::filesystem::create_directories(tmp_dir(this->WorkDirectory()));
+  auto& single_ckp = this->load_single_csr_data(single_immutable_csr);
+  auto single_desc = single_immutable_csr.Dump(single_ckp);
+
   SingleImmutableCsr<TypeParam> fmap_single_immutable_csr,
       memory_single_immutable_csr, hugepage_single_immutable_csr;
-  fmap_single_immutable_csr.open("dumped_csr_data", this->WorkDirectory(),
-                                 this->WorkDirectory());
+  fmap_single_immutable_csr.Open(single_ckp, single_desc,
+                                 MemoryLevel::kSyncToFile);
   EXPECT_EQ(fmap_single_immutable_csr.edge_num(), 500);
-  memory_single_immutable_csr.open_in_memory(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  memory_single_immutable_csr.Open(single_ckp, single_desc,
+                                   MemoryLevel::kInMemory);
   EXPECT_EQ(memory_single_immutable_csr.edge_num(), 500);
-  hugepage_single_immutable_csr.open_with_hugepages(
-      std::string(this->WorkDirectory()) + "/dumped_csr_data");
+  hugepage_single_immutable_csr.Open(single_ckp, single_desc,
+                                     MemoryLevel::kHugePagePreferred);
   EXPECT_EQ(hugepage_single_immutable_csr.edge_num(), 500);
 }
 
@@ -311,13 +477,13 @@ TYPED_TEST(IMMutableCsrTest, TestResize) {
   this->load_csr_data(immutable_csr);
   immutable_csr.resize(498);
   EXPECT_EQ(immutable_csr.size(), 498);
-  immutable_csr.close();
+  immutable_csr.Close();
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);
   single_immutable_csr.resize(498);
   EXPECT_EQ(single_immutable_csr.size(), 498);
-  single_immutable_csr.close();
+  single_immutable_csr.Close();
 }
 
 TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
@@ -329,7 +495,7 @@ TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
   GenericView immutable_view = immutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(immutable_view.type(), CsrViewType::kMultipleImmutable);
   EXPECT_TRUE(this->check_edge_data_ordered(immutable_view));
-  immutable_csr.close();
+  immutable_csr.Close();
 
   SingleImmutableCsr<TypeParam> single_immutable_csr;
   this->load_single_csr_data(single_immutable_csr);
@@ -337,7 +503,7 @@ TYPED_TEST(IMMutableCsrTest, TestSortByEdgeData) {
   GenericView single_immutable_view =
       single_immutable_csr.get_generic_view(sort_ts);
   EXPECT_EQ(single_immutable_view.type(), CsrViewType::kSingleImmutable);
-  single_immutable_csr.close();
+  single_immutable_csr.Close();
 }
 
 TYPED_TEST(IMMutableCsrTest, TestBatchDeleteVertices) {

@@ -20,15 +20,17 @@
 #include <memory>
 #include <set>
 
+#include "neug/storages/module/module.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/property/types.h"
 
 namespace neug {
 
-class VertexTimestamp {
+class VertexTimestamp : public Module {
  public:
   static constexpr timestamp_t DELETED_TIMESTAMP =
       std::numeric_limits<timestamp_t>::max();
+  std::string ModuleTypeName() const override { return "vertex_timestamp"; }
   VertexTimestamp() : init_vertex_num_(0), max_vertex_num_(0) {}
   ~VertexTimestamp() { Reset(); }
   VertexTimestamp(VertexTimestamp&& other)
@@ -39,9 +41,11 @@ class VertexTimestamp {
 
   // TODO(zhanglei): VertexTimestamp doesn't necessarily need open from file.
   // Implement the compaction logic
-  void Open(const std::string& tracker_file_prefix);
+  // void Open(const std::string& tracker_file_prefix);
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level) override;
 
-  void Dump(const std::string& tracker_file_prefix);
+  ModuleDescriptor Dump(Checkpoint& ckp) override;
 
   void Init(vid_t init_vertex_num, vid_t max_vertex_num);
 
@@ -153,6 +157,24 @@ class VertexTimestamp {
 
   size_t Capacity() const { return max_vertex_num_; }
 
+  // Returns the raw stored timestamp for vertex v.
+  // For pre-init vertices (v < init_vertex_num_) returns 0 (or
+  // DELETED_TIMESTAMP if the vertex was removed). For post-init vertices
+  // returns the stored inserted_vertices_ value, which may be DELETED_TIMESTAMP
+  // if not yet set.
+  timestamp_t GetRawTimestamp(vid_t v) const {
+    if (v < init_vertex_num_) {
+      if (removed_vertices_ && removed_vertices_->count(v) > 0) {
+        return DELETED_TIMESTAMP;
+      }
+      return 0;
+    }
+    if (v >= max_vertex_num_) {
+      return DELETED_TIMESTAMP;
+    }
+    return inserted_vertices_[v - init_vertex_num_].load();
+  }
+
   // Compact the vertex timestamp storage
   void Compact();
 
@@ -160,6 +182,10 @@ class VertexTimestamp {
   void ResetTimestamps();
 
   const vid_t InitVertexNum() const { return init_vertex_num_; }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override;
+
+  void Close() override;
 
  private:
   void load_meta(const std::string& meta_filename);

@@ -42,6 +42,8 @@ class MMapContainer : public IDataContainer {
   void Dump(const std::string& path) override;
   virtual void Sync() override;
   bool IsDirty() override;
+  std::unique_ptr<IDataContainer> Fork(Checkpoint& checkpoint,
+                                       MemoryLevel level) override;
 
  protected:
   /**
