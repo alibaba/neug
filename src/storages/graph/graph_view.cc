@@ -15,66 +15,299 @@
 
 #include "neug/storages/graph/graph_view.h"
 
+#include "neug/storages/csr/csr_base.h"
+#include "neug/storages/graph/property_graph.h"
+#include "neug/utils/likely.h"
+
 namespace neug {
 
+// ── TableView ──
+
+TableView::TableView(const Table& table) : table_(&table) {}
+
+std::shared_ptr<RefColumnBase> TableView::get_column(int col_id) const {
+  auto ptr = table_ ? table_->get_column_by_id(col_id) : nullptr;
+  if (!ptr) {
+    return nullptr;
+  }
+  return CreateRefColumn(*ptr);
+}
+
+std::shared_ptr<RefColumnBase> TableView::get_column(
+    const std::string& name) const {
+  auto col_id = table_ ? table_->get_column_id_by_name(name) : -1;
+  if (col_id < 0) {
+    return nullptr;
+  }
+  return get_column(col_id);
+}
+
+size_t TableView::column_count() const {
+  return table_ ? table_->col_num() : 0;
+}
+
+// ── VertexTableView ──
+
+VertexTableView::VertexTableView(const VertexTable& table)
+    : indexer_(&table.get_indexer()),
+      v_ts_(&table.get_vertex_timestamp()),
+      table_(&table.get_table()),
+      pk_type_(std::get<0>(table.get_vertex_schema_ptr()->primary_keys[0])),
+      schema_(table.get_vertex_schema_ptr()) {}
+
+VertexTableView::VertexTableView(VertexTable& table, bool)
+    : indexer_(&table.get_indexer()),
+      v_ts_(&table.get_vertex_timestamp()),
+      table_(&table.get_table_mut()),
+      pk_type_(std::get<0>(table.get_vertex_schema_ptr()->primary_keys[0])),
+      schema_(table.get_vertex_schema_ptr()),
+      mut_indexer_(&table.get_indexer_mut()),
+      mut_v_ts_(&table.get_v_ts_mut()),
+      mut_table_(&table.get_table_mut()) {}
+
+bool VertexTableView::get_lid(const execution::Value& oid, vid_t& lid,
+                              timestamp_t ts) const {
+  auto res = indexer_->get_index(oid, lid);
+  if (NEUG_UNLIKELY(res && !v_ts_->IsVertexValid(lid, ts))) {
+    return false;
+  }
+  return res;
+}
+
+vid_t VertexTableView::LidNum() const { return indexer_->size(); }
+
+bool VertexTableView::IsValidLid(vid_t lid, timestamp_t ts) const {
+  return lid < indexer_->size() && v_ts_->IsVertexValid(lid, ts);
+}
+
+execution::Value VertexTableView::GetOid(vid_t lid, timestamp_t ts) const {
+  if (NEUG_UNLIKELY(lid >= indexer_->size())) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                     " is out of range.");
+  }
+  if (NEUG_UNLIKELY(!v_ts_->IsVertexValid(lid, ts))) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Lid " + std::to_string(lid) +
+                                     " has been deleted.");
+  }
+  return indexer_->get_key(lid);
+}
+
+VertexSet VertexTableView::GetVertexSet(timestamp_t ts) const {
+  return VertexSet(indexer_->size(), *v_ts_, ts);
+}
+
+std::shared_ptr<RefColumnBase> VertexTableView::GetPropertyColumn(
+    int col_id) const {
+  auto ptr = table_ ? table_->get_column_by_id(col_id) : nullptr;
+  if (!ptr) {
+    return nullptr;
+  }
+  return CreateRefColumn(*ptr);
+}
+
+std::shared_ptr<RefColumnBase> VertexTableView::GetPropertyColumn(
+    const std::string& prop) const {
+  if (!schema_) {
+    return nullptr;
+  }
+  auto pk = schema_->primary_keys[0];
+  if (prop == std::get<1>(pk)) {
+    return CreateRefColumn(indexer_->get_keys());
+  }
+  auto ptr = table_ ? table_->get_column(prop) : nullptr;
+  if (!ptr) {
+    return nullptr;
+  }
+  return CreateRefColumn(*ptr);
+}
+
+bool VertexTableView::AddVertex(const execution::Value& id,
+                                const std::vector<execution::Value>& props,
+                                vid_t& ret, timestamp_t ts, bool insert_safe) {
+  return internal::AddVertexImpl(*mut_indexer_, *mut_v_ts_, *mut_table_, id,
+                                 props, ret, ts, insert_safe);
+}
+
+// ── EdgeTableView ──
+
+EdgeTableView::EdgeTableView(const EdgeTable& table)
+    : out_csr_(&table.get_out_csr()),
+      in_csr_(&table.get_in_csr()),
+      table_(table.get_table_ptr()),
+      meta_(table.get_edge_schema_ptr()) {}
+
+EdgeTableView::EdgeTableView(EdgeTable& table, bool)
+    : out_csr_(&table.get_out_csr()),
+      in_csr_(&table.get_in_csr()),
+      table_(table.get_table_ptr()),
+      meta_(table.get_edge_schema_ptr()),
+      mut_out_csr_(&table.get_out_csr_mut()),
+      mut_in_csr_(&table.get_in_csr_mut()),
+      mut_table_(table.get_table_ptr_mut()),
+      mut_table_idx_(&table.get_table_idx()) {}
+
+CsrView EdgeTableView::GetOutgoingView(timestamp_t ts) const {
+  return out_csr_->get_generic_view(ts);
+}
+
+CsrView EdgeTableView::GetIncomingView(timestamp_t ts) const {
+  return in_csr_->get_generic_view(ts);
+}
+
+EdgeDataAccessor EdgeTableView::GetDataAccessor(int prop_id) const {
+  if (prop_id < 0 || static_cast<size_t>(prop_id) >= meta_->properties.size()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge property column id out of range: " + std::to_string(prop_id) +
+        " (edge has " + std::to_string(meta_->properties.size()) +
+        " properties)");
+  }
+  if (!meta_->is_bundled()) {
+    return EdgeDataAccessor(
+        meta_->properties[prop_id].id(),
+        const_cast<ColumnBase*>(table_->get_column_by_id(prop_id).get()));
+  } else {
+    if (prop_id != 0) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Bundled edges store a single inline property; expected col_id 0 "
+          "but got " +
+          std::to_string(prop_id));
+    }
+    return EdgeDataAccessor(meta_->properties[0].id(), nullptr);
+  }
+}
+
+EdgeDataAccessor EdgeTableView::GetDataAccessor(
+    const std::string& prop_name) const {
+  auto prop_ind = meta_->get_property_index(prop_name);
+  if (prop_ind == -1) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("property " + prop_name +
+                                     " not found in edge table, or deleted");
+  }
+  return GetDataAccessor(static_cast<int>(prop_ind));
+}
+
+std::pair<int32_t, const void*> EdgeTableView::AddEdge(
+    vid_t src_lid, vid_t dst_lid,
+    const std::vector<execution::Value>& properties, timestamp_t ts,
+    Allocator& alloc, bool insert_safe) {
+  return internal::AddEdgeImpl(*mut_out_csr_, *mut_in_csr_, mut_table_,
+                               *mut_table_idx_, *meta_, src_lid, dst_lid,
+                               properties, ts, alloc, insert_safe);
+}
+
+// ── GraphView ──
+
+GraphView::GraphView(PropertyGraph& storage, bool mutable_access)
+    : schema_(&storage.schema()), pg_(&storage), mutable_(mutable_access) {
+  Rebuild();
+}
+
+void GraphView::Rebuild() {
+  if (!pg_) {
+    return;
+  }
+  schema_ = &pg_->schema();
+  vertex_views_.clear();
+  edge_views_.clear();
+  // Use vertex_label_frontier() (total label-id space) instead of
+  // vertex_label_num() (only live labels) so that vertex_views_ is indexed
+  // by label-id.  Deleted (tombstoned) labels get a default-constructed
+  // (empty) VertexTableView placeholder.
+  size_t v_frontier = schema_->vertex_label_frontier();
+  vertex_views_.resize(v_frontier);
+  for (size_t i = 0; i < v_frontier; ++i) {
+    if (!schema_->is_vertex_label_valid(static_cast<label_t>(i))) {
+      continue;  // keep the default-constructed empty view
+    }
+    if (mutable_) {
+      vertex_views_[i] =
+          VertexTableView(pg_->get_vertex_table(static_cast<label_t>(i)), true);
+    } else {
+      vertex_views_[i] =
+          VertexTableView(pg_->get_vertex_table(static_cast<label_t>(i)));
+    }
+  }
+
+  if (mutable_) {
+    for (auto& [key, edge_table] : pg_->edge_tables_) {
+      edge_views_.emplace(key, EdgeTableView(edge_table, true));
+    }
+  } else {
+    for (const auto& [key, edge_table] : pg_->edge_tables_) {
+      edge_views_.emplace(key, EdgeTableView(edge_table));
+    }
+  }
+}
+
 VertexSet GraphView::GetVertexSet(label_t label, timestamp_t ts) const {
-  return pg_->get_vertex_table(label).GetVertexSet(ts);
+  return vertex_views_[label].GetVertexSet(ts);
 }
 
-bool GraphView::get_lid(label_t label, const execution::Value& oid, vid_t& lid,
-                        timestamp_t ts) const {
-  return pg_->get_lid(label, oid, lid, ts);
-}
-
-execution::Value GraphView::GetOid(label_t label, vid_t lid) const {
-  return pg_->GetOid(label, lid, MAX_TIMESTAMP);
-}
-
-bool GraphView::IsValidLid(label_t label, vid_t lid, timestamp_t ts) const {
-  return pg_->IsValidLid(label, lid, ts);
-}
-
-std::shared_ptr<RefColumnBase> GraphView::GetVertexPropertyColumn(
-    label_t label, const std::string& prop) const {
-  return pg_->GetVertexPropertyColumn(label, prop);
-}
-
-std::shared_ptr<RefColumnBase> GraphView::GetVertexPropertyColumn(
-    label_t label, int col_id) const {
-  return pg_->GetVertexPropertyColumn(label, col_id);
+execution::Value GraphView::GetOid(label_t label, vid_t lid,
+                                   timestamp_t ts) const {
+  return vertex_views_[label].GetOid(lid, ts);
 }
 
 CsrView GraphView::GetGenericOutgoingView(label_t src_label, label_t dst_label,
                                           label_t edge_label,
                                           timestamp_t ts) const {
-  return pg_->GetGenericOutgoingGraphView(src_label, dst_label, edge_label, ts);
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it == edge_views_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge table for edge label triplet not found");
+  }
+  return it->second.GetOutgoingView(ts);
 }
 
 CsrView GraphView::GetGenericIncomingView(label_t src_label, label_t dst_label,
                                           label_t edge_label,
                                           timestamp_t ts) const {
-  return pg_->GetGenericIncomingGraphView(dst_label, src_label, edge_label, ts);
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it == edge_views_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge table for edge label triplet not found");
+  }
+  return it->second.GetIncomingView(ts);
 }
 
 EdgeDataAccessor GraphView::GetEdgeDataAccessor(label_t src_label,
                                                 label_t dst_label,
                                                 label_t edge_label,
                                                 int prop_id) const {
-  return pg_->get_edge_table(src_label, dst_label, edge_label)
-      .get_edge_data_accessor(prop_id);
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it == edge_views_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge table for edge label triplet not found");
+  }
+  return it->second.GetDataAccessor(prop_id);
 }
 
 EdgeDataAccessor GraphView::GetEdgeDataAccessor(
     label_t src_label, label_t dst_label, label_t edge_label,
     const std::string& prop_name) const {
-  return pg_->get_edge_table(src_label, dst_label, edge_label)
-      .get_edge_data_accessor(prop_name);
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it == edge_views_.end()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Edge table for edge label triplet not found");
+  }
+  return it->second.GetDataAccessor(prop_name);
 }
 
 Status GraphView::AddVertex(label_t label, const execution::Value& id,
                             const std::vector<execution::Value>& props,
                             vid_t& vid, timestamp_t ts) {
-  return pg_->AddVertex(label, id, props, vid, ts, false);
+  if (!vertex_views_[label].AddVertex(id, props, vid, ts, false)) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT, "Fail to add vertex.");
+  }
+  return Status::OK();
 }
 
 Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
@@ -82,8 +315,26 @@ Status GraphView::AddEdge(label_t src_label, vid_t src_lid, label_t dst_label,
                           const std::vector<execution::Value>& properties,
                           timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
                           const void*& prop) {
-  return pg_->AddEdge(src_label, src_lid, dst_label, dst_lid, edge_label,
-                      properties, ts, alloc, oe_offset, prop, false);
+  uint32_t index =
+      schema_->generate_edge_label(src_label, dst_label, edge_label);
+  auto it = edge_views_.find(index);
+  if (it == edge_views_.end()) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  "Edge table does not exist for label <" +
+                      std::to_string(src_label) + ", " +
+                      std::to_string(dst_label) + ", " +
+                      std::to_string(edge_label) + ">");
+  }
+  try {
+    auto ret =
+        it->second.AddEdge(src_lid, dst_lid, properties, ts, alloc, false);
+    oe_offset = ret.first;
+    prop = ret.second;
+  } catch (const std::exception& e) {
+    return Status(StatusCode::ERR_INVALID_ARGUMENT,
+                  std::string("Failed to add edge: ") + e.what());
+  }
+  return Status::OK();
 }
 
 }  // namespace neug

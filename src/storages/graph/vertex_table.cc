@@ -17,29 +17,34 @@
 
 #include "neug/storages/checkpoint_manifest.h"
 #include "neug/storages/module/module_broker.h"
+#include "neug/storages/module/module_factory.h"
 #include "neug/storages/module_descriptor.h"
+#include "neug/utils/file_utils.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-void VertexTable::Init(Checkpoint& ckp, MemoryLevel level) {
+void VertexTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   CHECK(vertex_schema_ != nullptr) << "VertexTable::Init requires schema";
-  CHECK(indexer_ != nullptr) << "VertexTable::Init requires indexer slot";
-  CHECK(v_ts_ != nullptr) << "VertexTable::Init requires vertex_timestamp slot";
+  CHECK(static_cast<bool>(indexer_))
+      << "VertexTable::Init requires indexer slot";
+  CHECK(static_cast<bool>(v_ts_))
+      << "VertexTable::Init requires vertex_timestamp slot";
   CHECK(pk_type_.id() != DataTypeId::kUnknown)
       << "VertexTable::Init: pk_type must be set; was the schema-aware "
          "constructor used?";
+  ckp_ = std::move(ckp);
   memory_level_ = level;
   auto keys = CreateColumn(pk_type_);
-  keys->Open(ckp, ModuleDescriptor{}, level);
+  keys->Open(*ckp_, ModuleDescriptor{}, level);
   auto indices = std::make_unique<TypedColumn<vid_t>>();
-  indices->Open(ckp, ModuleDescriptor{}, level);
-  indexer_->Open(ckp, ModuleDescriptor{}, level, std::move(keys),
+  indices->Open(*ckp_, ModuleDescriptor{}, level);
+  indexer_->Open(*ckp_, ModuleDescriptor{}, level, std::move(keys),
                  std::move(indices));
   table_ = std::make_unique<Table>(vertex_schema_->property_names,
                                    vertex_schema_->property_types);
-  table_->Init(ckp, level);
-  v_ts_->Open(ckp, ModuleDescriptor{}, level);
+  table_->Init(*ckp_, level);
+  v_ts_->Open(*ckp_, ModuleDescriptor{}, level);
 }
 
 void VertexTable::insert_vertices(
@@ -67,9 +72,7 @@ void VertexTable::Close() {
   if (table_) {
     table_->close();
   }
-  if (v_ts_) {
-    v_ts_->Clear();
-  }
+  v_ts_.reset();
 }
 
 void VertexTable::SetVertexSchema(
@@ -103,22 +106,41 @@ size_t VertexTable::VertexNum(timestamp_t ts) const {
 
 size_t VertexTable::LidNum() const { return indexer_->size(); }
 
-bool VertexTable::AddVertex(const execution::Value& id,
-                            const std::vector<execution::Value>& props,
-                            vid_t& vid, timestamp_t ts, bool insert_safe) {
-  if (indexer_->capacity() <= indexer_->size()) {
+bool internal::AddVertexImpl(IndexerType& indexer, VertexTimestamp& v_ts,
+                             Table& table, const execution::Value& id,
+                             const std::vector<execution::Value>& props,
+                             vid_t& ret, timestamp_t ts, bool insert_safe) {
+  if (indexer.capacity() <= indexer.size()) {
     return false;
   }
-  vid = insert_vertex_pk(id, ts, insert_safe);
+  vid_t vid;
+  if (NEUG_UNLIKELY(indexer.get_index(id, vid))) {
+    if (NEUG_UNLIKELY(v_ts.IsVertexValid(vid, ts))) {
+      THROW_INVALID_ARGUMENT_EXCEPTION("Vertex with id " + id.to_string() +
+                                       " already exists with lid " +
+                                       std::to_string(vid));
+    }
+  } else {
+    vid = indexer.insert(id, insert_safe);
+  }
+  v_ts.InsertVertex(vid, ts);
+  ret = vid;
   assert([&]() {
-    if (table_->col_num() > 0) {
-      return vid < table_->get_column_by_id(0)->size();
+    if (table.col_num() > 0) {
+      return vid < table.get_column_by_id(0)->size();
     } else {
       return true;
     }
   }());
-  table_->insert(vid, props, insert_safe);
+  table.insert(vid, props, insert_safe);
   return true;
+}
+
+bool VertexTable::AddVertex(const execution::Value& id,
+                            const std::vector<execution::Value>& props,
+                            vid_t& vid, timestamp_t ts, bool insert_safe) {
+  return internal::AddVertexImpl((*indexer_), (*v_ts_), *table_, id, props, vid,
+                                 ts, insert_safe);
 }
 
 bool VertexTable::UpdateProperty(vid_t vid, int32_t prop_id,
@@ -280,12 +302,13 @@ std::string VertexTable::KeyProperty(const std::string& label, size_t index) {
 
 // --- Snapshot orchestration ---
 
-VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
+VertexTable VertexTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
                                   std::shared_ptr<const VertexSchema> vs,
                                   ModuleBroker& store,
                                   const CheckpointManifest& meta,
                                   MemoryLevel level) {
   VertexTable vt(vs);
+  vt.ckp_ = ckp;
   vt.SetMemoryLevel(level);
   const auto& lbl = vs->label_name;
 
@@ -299,15 +322,14 @@ VertexTable VertexTable::OpenFrom(Checkpoint& ckp,
   auto indexer_desc = meta.module(KeyIndexer(lbl));
   CHECK(indexer_desc.has_value())
       << "missing indexer meta entry for vertex " << lbl;
-  idx.Open(ckp, indexer_desc.value(), level,
+  idx.Open(*ckp, indexer_desc.value(), level,
            store.TakeModule<ColumnBase>(KeyKeys(lbl)),
            store.TakeModule<TypedColumn<vid_t>>(KeyIndices(lbl)));
 
   auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
   for (size_t i = 0; i < vs->property_types.size(); ++i) {
     table->SetColumn(static_cast<int>(i),
-                     std::shared_ptr<ColumnBase>(
-                         store.TakeModule<ColumnBase>(KeyProperty(lbl, i))));
+                     store.TakeModule<ColumnBase>(KeyProperty(lbl, i)));
   }
   vt.SetTable(std::move(table));
   vt.SetVertexTimestamp(
@@ -324,8 +346,8 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
   // indexer's three scalars; store it under KeyIndexer so store.Dump's later
   // pass (which writes the columns' own descriptors to KeyKeys / KeyIndices)
   // does not clobber it.
-  std::unique_ptr<ColumnBase> keys_out;
-  std::unique_ptr<TypedColumn<vid_t>> indices_out;
+  std::shared_ptr<ColumnBase> keys_out;
+  std::shared_ptr<TypedColumn<vid_t>> indices_out;
   meta.set_module(KeyIndexer(lbl), idx.Dump(ckp, keys_out, indices_out));
   store.SetModule(KeyKeys(lbl), std::move(keys_out));
   store.SetModule(KeyIndices(lbl), std::move(indices_out));
@@ -335,6 +357,29 @@ void VertexTable::DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
     meta.set_module(KeyProperty(lbl, i), table->get_column_by_id(i)->Dump(ckp));
   }
   store.SetModule(KeyVertexTimestamp(lbl), TakeVertexTimestamp());
+}
+
+VertexTable VertexTable::Fork() const {
+  CHECK(ckp_ != nullptr) << "VertexTable::Fork requires a valid checkpoint";
+  VertexTable forked;
+  forked.ckp_ = ckp_;
+  forked.indexer_ = indexer_;      // shallow shared_ptr copy
+  forked.table_ = table_->Fork();  // shallow shared_ptr copies inside
+  forked.vertex_schema_ = vertex_schema_;
+  forked.v_ts_ = v_ts_;  // shallow shared_ptr copy
+  forked.pk_type_ = pk_type_;
+  forked.memory_level_ = memory_level_;
+  return forked;
+}
+
+void VertexTable::ForkIndexer() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork indexer";
+  indexer_ = indexer_->ForkAsShared(*ckp_, memory_level_);
+}
+
+void VertexTable::ForkVertexTimestamp() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork vertex timestamp";
+  v_ts_ = v_ts_->ForkAsShared(*ckp_, memory_level_);
 }
 
 }  // namespace neug

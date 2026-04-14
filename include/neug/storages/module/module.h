@@ -27,9 +27,9 @@ class Checkpoint;
 /**
  * @brief Abstract interface for persistent graph-storage modules.
  *
- * Provides three lifecycle operations: Open (restore), Dump (persist),
- * Close (release).  Dump writes to a UUID sub-directory under
- * ckp.runtime_dir().
+ * Provides four lifecycle operations: Open (restore), Dump (persist),
+ * Close (release), Fork (copy). Both Dump and Fork generate a UUID
+ * sub-directory under ckp.runtime_dir().
  */
 class Module {
  public:
@@ -47,9 +47,21 @@ class Module {
   virtual ModuleDescriptor Dump(Checkpoint& ckp) = 0;
 
   /**
+   * @brief Create independent copy in UUID sub-directory.
+   */
+  virtual std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) = 0;
+
+  /**
    * @brief Return factory registration key (e.g., "vertex_table").
    */
   virtual std::string ModuleTypeName() const = 0;
+
+ protected:
+  template <typename T>
+  std::shared_ptr<T> ForkShared(Checkpoint& ckp, MemoryLevel level) {
+    auto forked = Fork(ckp, level);
+    return std::shared_ptr<T>(dynamic_cast<T*>(forked.release()));
+  }
 };
 
 }  // namespace neug

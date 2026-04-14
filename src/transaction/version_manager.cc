@@ -16,137 +16,215 @@
 #include "neug/transaction/version_manager.h"
 
 #include <glog/logging.h>
-#include <chrono>
 #include <ostream>
 #include <thread>
 
 #include "neug/utils/bitset.h"
+#include "neug/utils/exception/exception.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-constexpr static uint32_t ring_buf_size = 1024 * 1024;
-constexpr static uint32_t ring_index_mask = ring_buf_size - 1;
+// SLVersionManager implementation
 
-// TPVersionManager implementation
+SLVersionManager::SLVersionManager() {}
 
-TPVersionManager::TPVersionManager() {
-  buf_.resize(ring_buf_size);
-  buf_.reset_all();
-}
+SLVersionManager::~SLVersionManager() {}
 
-TPVersionManager::~TPVersionManager() {}
+void SLVersionManager::init_ts(uint32_t ts, int thread_num) {
+  write_ts_.store(ts + 1, std::memory_order_relaxed);
+  read_ts_.store(ts, std::memory_order_relaxed);
+  active_readers_.store(0, std::memory_order_relaxed);
+  active_inserters_.store(0, std::memory_order_relaxed);
+  update_state_.store(0, std::memory_order_relaxed);
 
-void TPVersionManager::init_ts(uint32_t ts, int thread_num) {
-  write_ts_.store(ts + 1);
-  read_ts_.store(ts);
+  ts_window_.init();
   thread_num_ = thread_num;
 }
 
-void TPVersionManager::clear() {
-  write_ts_.store(1);
-  read_ts_.store(0);
-  pending_reqs_.store(0);
-  buf_.reset_all();
+uint32_t SLVersionManager::acquire_read_timestamp() {
+  // Fast path: optimistically increment counter
+  active_readers_.fetch_add(1, std::memory_order_acq_rel);
+
+  // Single check: only block during update commit phase
+  int state = update_state_.load(std::memory_order_acquire);
+  if (state != 2)
+    [[likely]] { return read_ts_.load(std::memory_order_acquire); }
+
+  // Rollback counter
+  active_readers_.fetch_sub(1, std::memory_order_acq_rel);
+
+  // Slow path
+  return acquire_read_timestamp_slow();
 }
 
-uint32_t TPVersionManager::acquire_read_timestamp() {
-  int pr = pending_reqs_.fetch_add(1);
-  if (NEUG_LIKELY(pr >= 0)) {
-    return read_ts_.load();
-  } else {
-    --pending_reqs_;
-    while (true) {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
-      if (pending_reqs_.load() >= 0) {
-        pr = pending_reqs_.fetch_add(1);
-        if (pr >= 0) {
-          return read_ts_.load();
-        } else {
-          --pending_reqs_;
-        }
-      }
-    }
+uint32_t SLVersionManager::acquire_read_timestamp_slow() {
+  // Spin wait until update commit completes
+  while (update_state_.load(std::memory_order_acquire) == 2) {
+    // Tight spin loop for minimal latency
   }
+
+  // Retry
+  return acquire_read_timestamp();
 }
 
-void TPVersionManager::release_read_timestamp() { pending_reqs_.fetch_sub(1); }
+void SLVersionManager::release_read_timestamp() {
+  active_readers_.fetch_sub(1, std::memory_order_acq_rel);
+}
 
-uint32_t TPVersionManager::acquire_insert_timestamp() {
-  int pr = pending_reqs_.fetch_add(1);
-  if (NEUG_LIKELY(pr >= 0)) {
-    return write_ts_.fetch_add(1);
-  } else {
-    --pending_reqs_;
-    while (true) {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
-      if (pending_reqs_.load() >= 0) {
-        pr = pending_reqs_.fetch_add(1);
-        if (pr >= 0) {
-          return write_ts_.fetch_add(1);
-        } else {
-          --pending_reqs_;
-        }
-      }
-    }
+uint32_t SLVersionManager::acquire_insert_timestamp() {
+  // Check state first (fast path)
+  int state = update_state_.load(std::memory_order_acquire);
+  if (state != 0)
+    [[unlikely]] { return acquire_insert_timestamp_slow(); }
+
+  // Increment counter
+  active_inserters_.fetch_add(1, std::memory_order_acq_rel);
+
+  // Double check: ensure update didn't start between checks
+  state = update_state_.load(std::memory_order_acquire);
+  if (state == 0)
+    [[likely]] { return write_ts_.fetch_add(1, std::memory_order_acq_rel); }
+
+  // Slow path: update just started
+  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
+  return acquire_insert_timestamp_slow();
+}
+
+uint32_t SLVersionManager::acquire_insert_timestamp_slow() {
+  // Spin wait until update completes
+  while (update_state_.load(std::memory_order_acquire) != 0) {
+    // Tight spin loop for minimal latency
   }
+
+  // Retry
+  return acquire_insert_timestamp();
 }
 
-void TPVersionManager::release_insert_timestamp(uint32_t ts) {
+void SLVersionManager::release_insert_timestamp(uint32_t ts) {
+  // Mark completion (lock-free atomic operation)
+  ts_window_.mark_completed(ts);
+
+  // Check under lock: only advance if ts == read_ts + 1
   lock_.lock();
-  if (ts == read_ts_.load() + 1) {
-    while (buf_.atomic_reset_with_ret((ts + 1) & ring_index_mask)) {
-      ++ts;
-    }
-    read_ts_.store(ts);
-  } else {
-    buf_.atomic_set(ts & ring_index_mask);
+  uint32_t current_read_ts = read_ts_.load(std::memory_order_relaxed);
+  if (ts == current_read_ts + 1) {
+    // May need to advance, safe under lock protection
+    advance_read_ts_locked();
   }
   lock_.unlock();
 
-  pending_reqs_.fetch_sub(1);
+  // Decrement active inserter count
+  active_inserters_.fetch_sub(1, std::memory_order_acq_rel);
 }
 
-uint32_t TPVersionManager::acquire_update_timestamp() {
-  int expected_update_reqs = 0;
-  while (
-      !pending_update_reqs_.compare_exchange_strong(expected_update_reqs, 1)) {
-    expected_update_reqs = 0;
-    std::this_thread::sleep_for(std::chrono::microseconds(100));
-  }
+void SLVersionManager::advance_read_ts_locked() {
+  uint32_t current = read_ts_.load(std::memory_order_relaxed);
 
-  int pr = pending_reqs_.fetch_sub(thread_num_);
-  if (pr != 0) {
-    while (pending_reqs_.load() != -thread_num_) {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
+  // Advance read_ts
+  while (true) {
+    uint32_t next_ts = current + 1;
+
+    if (!ts_window_.is_completed(next_ts)) {
+      break;  // Next timestamp not completed
     }
+
+    // Clear the advanced bit
+    ts_window_.clear(next_ts);
+    current = next_ts;
+    read_ts_.store(current, std::memory_order_release);
   }
 
-  return write_ts_.fetch_add(1);
+  // Sliding window maintenance
+  ts_window_.slide_window(current);
 }
-void TPVersionManager::release_update_timestamp(uint32_t ts) {
+
+uint32_t SLVersionManager::acquire_update_timestamp() {
+  // Wait to enter update state (0 -> 1)
+  while (true) {
+    int expected = 0;
+    if (update_state_.compare_exchange_strong(expected, 1,
+                                              std::memory_order_acq_rel,
+                                              std::memory_order_acquire)) {
+      break;  // Successfully entered update execution phase
+    }
+    // Tight spin loop for minimal latency
+  }
+
+  // Wait for all active insert transactions to finish
+  while (active_inserters_.load(std::memory_order_acquire) > 0) {
+    // Tight spin loop for minimal latency
+  }
+
+  return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+}
+
+void SLVersionManager::start_commit_update_timestamp(uint32_t ts) {
+  (void) ts;
+
+  // Enter commit state (1 -> 2) — blocks new reads, does NOT wait for existing
+  // readers
+  update_state_.store(2, std::memory_order_release);
+}
+
+void SLVersionManager::release_update_timestamp(uint32_t ts) {
+  // Mark completion (lock-free atomic operation)
+  ts_window_.mark_completed(ts);
+
+  // Check under lock: only advance if ts == read_ts + 1
   lock_.lock();
-  if (ts == read_ts_.load() + 1) {
-    read_ts_.store(ts);
-  } else {
-    LOG(ERROR) << "read ts is expected to be " << ts - 1 << ", while it is "
-               << read_ts_.load();
-    buf_.atomic_set(ts & ring_index_mask);
+  uint32_t current_read_ts = read_ts_.load(std::memory_order_relaxed);
+  if (ts == current_read_ts + 1) {
+    // May need to advance, safe under lock protection
+    advance_read_ts_locked();
   }
   lock_.unlock();
 
-  pending_reqs_ += thread_num_;
-  pending_update_reqs_.store(0);
+  // Restore to normal state (1 -> 0 or 2 -> 0)
+  update_state_.store(0, std::memory_order_release);
 }
 
-bool TPVersionManager::revert_update_timestamp(uint32_t ts) {
-  uint32_t expected_ts = ts + 1;
-  if (write_ts_.compare_exchange_strong(expected_ts, ts)) {
-    pending_reqs_ += thread_num_;
-    pending_update_reqs_.store(0);
-    return true;
+uint32_t SLVersionManager::acquire_compact_timestamp() {
+  // Wait to enter compact state (0 -> 2)
+  while (true) {
+    int expected = 0;
+    if (update_state_.compare_exchange_strong(expected, 2,
+                                              std::memory_order_acq_rel,
+                                              std::memory_order_acquire)) {
+      break;  // Successfully entered compact phase
+    }
+    // Tight spin loop for minimal latency
   }
-  return false;
+
+  // Wait for all active insert transactions to finish
+  while (active_inserters_.load(std::memory_order_acquire) > 0) {
+    // Tight spin loop for minimal latency
+  }
+
+  // Wait for all active readers to finish — compact resets read_ts_
+  while (active_readers_.load(std::memory_order_acquire) > 0) {
+    // Tight spin loop for minimal latency
+  }
+
+  return write_ts_.fetch_add(1, std::memory_order_acq_rel);
+}
+
+void SLVersionManager::release_compact_timestamp(uint32_t ts) {
+  // Compact must be in state 2
+  if (update_state_.load(std::memory_order_acquire) != 2) {
+    THROW_INTERNAL_EXCEPTION(
+        "release_compact_timestamp called while not in compact state");
+  }
+
+  // Clear all state for compaction (reset to initial state)
+  write_ts_.store(1, std::memory_order_release);
+  read_ts_.store(0, std::memory_order_release);
+  active_readers_.store(0, std::memory_order_release);
+  active_inserters_.store(0, std::memory_order_release);
+  ts_window_.init();
+
+  // Restore to normal state (2 -> 0)
+  update_state_.store(0, std::memory_order_release);
 }
 
 }  // namespace neug

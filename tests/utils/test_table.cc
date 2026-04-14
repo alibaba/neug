@@ -84,8 +84,7 @@ static void OpenTableLegacy(Table& t, Checkpoint& ckp,
   store.Open(ckp, meta, level);
   for (size_t i = 0; i < types.size(); ++i) {
     t.SetColumn(static_cast<int>(i),
-                std::shared_ptr<ColumnBase>(
-                    store.TakeModule<ColumnBase>(TablePropKey(i))));
+                store.TakeModule<ColumnBase>(TablePropKey(i)));
   }
 }
 
@@ -352,7 +351,7 @@ TEST_F(TableTest, TestTableBasic) {
   }
 
   {
-    EXPECT_EQ(disk_table.columns().size(), 11);
+    EXPECT_EQ(disk_table.col_num(), 11);
     EXPECT_EQ(disk_table.column_names().size(), 11);
     EXPECT_EQ(disk_table.column_types().size(), 11);
     EXPECT_EQ(disk_table.column_name(0), "bool_column");

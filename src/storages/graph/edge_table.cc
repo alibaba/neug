@@ -465,9 +465,10 @@ void batch_add_bundled_edges_impl(
   }
 }
 
-void EdgeTable::Init(Checkpoint& ckp, MemoryLevel level) {
+void EdgeTable::Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel level) {
   CHECK(meta_ != nullptr) << "EdgeTable::Init requires schema";
 
+  ckp_ = std::move(ckp);
   memory_level_ = level;
   const ModuleDescriptor empty{};
   if (meta_->is_bundled()) {
@@ -481,14 +482,14 @@ void EdgeTable::Init(Checkpoint& ckp, MemoryLevel level) {
     in_csr_ =
         create_csr(meta_->ie_mutable, meta_->ie_strategy, DataTypeId::kUInt64);
   }
-  in_csr_->Open(ckp, empty, level);
-  out_csr_->Open(ckp, empty, level);
+  in_csr_->Open(*ckp_, empty, level);
+  out_csr_->Open(*ckp_, empty, level);
   if (meta_->is_bundled()) {
     table_ = std::make_unique<Table>();
   } else {
     table_ = std::make_unique<Table>(meta_->property_names, meta_->properties);
   }
-  table_->Init(ckp, level);
+  table_->Init(*ckp_, level);
 }
 
 std::string expectedCsrType(const EdgeSchema& meta, bool is_in) {
@@ -504,9 +505,8 @@ std::string expectedCsrType(const EdgeSchema& meta, bool is_in) {
   return module_naming::CsrTypeName(edata_type, strategy, is_mutable);
 }
 
-void setCsrSlot(std::shared_ptr<const EdgeSchema> meta,
-                std::unique_ptr<CsrBase>& slot, std::unique_ptr<CsrBase> csr,
-                bool is_in) {
+void validateCsrSlot(std::shared_ptr<const EdgeSchema> meta,
+                     const std::shared_ptr<CsrBase>& csr, bool is_in) {
   const char* fn_name = is_in ? "SetInCsr" : "SetOutCsr";
   CHECK(csr != nullptr) << "EdgeTable::" << fn_name << ": csr must not be null";
   auto expected = expectedCsrType(*meta, is_in);
@@ -518,19 +518,22 @@ void setCsrSlot(std::shared_ptr<const EdgeSchema> meta,
         meta->dst_label_name + "; expected '" + expected + "', got '" + actual +
         "'");
   }
-  slot = std::move(csr);
 }
 
-void EdgeTable::SetInCsr(std::unique_ptr<CsrBase> csr) {
-  setCsrSlot(meta_, in_csr_, std::move(csr), /*is_in=*/true);
+void EdgeTable::SetInCsr(std::shared_ptr<CsrBase> csr) {
+  validateCsrSlot(meta_, csr, /*is_in=*/true);
+  in_csr_ = std::move(csr);
 }
 
-void EdgeTable::SetOutCsr(std::unique_ptr<CsrBase> csr) {
-  setCsrSlot(meta_, out_csr_, std::move(csr), /*is_in=*/false);
+void EdgeTable::SetOutCsr(std::shared_ptr<CsrBase> csr) {
+  validateCsrSlot(meta_, csr, /*is_in=*/false);
+  out_csr_ = std::move(csr);
 }
 
 EdgeTable::EdgeTable(EdgeTable&& edge_table)
-    : meta_(edge_table.meta_), memory_level_(edge_table.memory_level_) {
+    : ckp_(std::move(edge_table.ckp_)),
+      meta_(edge_table.meta_),
+      memory_level_(edge_table.memory_level_) {
   out_csr_ = std::move(edge_table.out_csr_);
   in_csr_ = std::move(edge_table.in_csr_);
   table_ = std::move(edge_table.table_);
@@ -539,6 +542,7 @@ EdgeTable::EdgeTable(EdgeTable&& edge_table)
 }
 
 void EdgeTable::Swap(EdgeTable& edge_table) {
+  std::swap(ckp_, edge_table.ckp_);
   std::swap(meta_, edge_table.meta_);
   std::swap(memory_level_, edge_table.memory_level_);
   out_csr_.swap(edge_table.out_csr_);
@@ -550,6 +554,40 @@ void EdgeTable::Swap(EdgeTable& edge_table) {
   auto cap = capacity_.load();
   capacity_.store(edge_table.capacity_.load());
   edge_table.capacity_.store(cap);
+}
+
+EdgeTable EdgeTable::Fork() const {
+  EdgeTable forked(meta_);
+  forked.ckp_ = ckp_;
+  forked.memory_level_ = memory_level_;
+  forked.out_csr_ = out_csr_;  // shallow shared_ptr copy
+  forked.in_csr_ = in_csr_;    // shallow shared_ptr copy
+
+  if (table_) {
+    forked.table_ = table_->Fork();  // shallow shared_ptr copies inside
+  }
+
+  forked.table_idx_ = table_idx_.load();
+  forked.capacity_ = capacity_.load();
+  return forked;
+}
+
+void EdgeTable::ForkOutCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork out CSR";
+  out_csr_ = out_csr_->ForkAsShared(*ckp_, memory_level_);
+}
+
+void EdgeTable::ForkInCsr() {
+  CHECK(ckp_ != nullptr) << "Checkpoint is null, cannot fork in CSR";
+  in_csr_ = in_csr_->ForkAsShared(*ckp_, memory_level_);
+}
+
+void EdgeTable::ForkOutAdjlist(vid_t vid, Allocator& alloc) {
+  out_csr_->ForkAdjlist(vid, alloc);
+}
+
+void EdgeTable::ForkInAdjlist(vid_t vid, Allocator& alloc) {
+  in_csr_->ForkAdjlist(vid, alloc);
 }
 
 void EdgeTable::SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta) {
@@ -631,13 +669,6 @@ void EdgeTable::DeleteVertex(bool is_src, vid_t vid, timestamp_t ts) {
       DeleteEdge(iter.get_vertex(), vid, oe_offset, ie_offset, ts);
     }
   }
-}
-
-void EdgeTable::RevertDeleteEdge(vid_t src_lid, vid_t dst_lid,
-                                 int32_t oe_offset, int32_t ie_offset,
-                                 timestamp_t ts) {
-  out_csr_->revert_delete_edge(src_lid, dst_lid, oe_offset, ts);
-  in_csr_->revert_delete_edge(dst_lid, src_lid, ie_offset, ts);
 }
 
 void EdgeTable::UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid,
@@ -802,39 +833,48 @@ void EdgeTable::DeleteProperties(Checkpoint& ckp,
   }
 }
 
+std::pair<int32_t, const void*> internal::AddEdgeImpl(
+    CsrBase& out_csr, CsrBase& in_csr, Table* table,
+    std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
+    vid_t dst_lid, const std::vector<execution::Value>& edge_data,
+    timestamp_t ts, Allocator& alloc, bool insert_safe) {
+  int32_t oe_offset;
+  const void* data_ptr = nullptr;
+  if (meta.is_bundled()) {
+    assert(
+        edge_data.size() == 1 ||
+        (edge_data.size() == 0 && (meta.properties.empty() ||
+                                   meta.properties[0] == DataTypeId::kEmpty)));
+    execution::Value bundled_data =
+        edge_data.empty() ? execution::Value(DataType::EMPTY) : edge_data[0];
+    in_csr.put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
+    auto out_ret =
+        out_csr.put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
+  } else {
+    if (meta.properties.size() != edge_data.size()) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "edge data size not match edge table property size");
+    }
+    size_t row_id = table_idx.fetch_add(1);
+    execution::Value prop = execution::Value::UINT64(row_id);
+    in_csr.put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
+    auto out_ret = out_csr.put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
+    oe_offset = out_ret.first;
+    data_ptr = out_ret.second;
+    table->insert(row_id, edge_data, insert_safe);
+  }
+  return {oe_offset, data_ptr};
+}
+
 std::pair<int32_t, const void*> EdgeTable::AddEdge(
     vid_t src_lid, vid_t dst_lid,
     const std::vector<execution::Value>& edge_data, timestamp_t ts,
     Allocator& alloc, bool insert_safe) {
-  int32_t oe_offset;
-  const void* data_ptr = nullptr;
-  if (meta_->is_bundled()) {
-    assert(edge_data.size() == 1 ||
-           (edge_data.size() == 0 &&
-            (meta_->properties.empty() ||
-             meta_->properties[0] == DataTypeId::kEmpty)));
-    execution::Value bundled_data =
-        edge_data.empty() ? execution::Value(DataType::EMPTY) : edge_data[0];
-    in_csr_->put_generic_edge(dst_lid, src_lid, bundled_data, ts, alloc);
-    auto out_ret =
-        out_csr_->put_generic_edge(src_lid, dst_lid, bundled_data, ts, alloc);
-    oe_offset = out_ret.first;
-    data_ptr = out_ret.second;
-  } else {
-    if (meta_->properties.size() != edge_data.size()) {
-      THROW_INVALID_ARGUMENT_EXCEPTION(
-          "edge data size not match edge table property size");
-    }
-    size_t row_id = table_idx_.fetch_add(1);
-    execution::Value prop = execution::Value::UINT64(row_id);
-    in_csr_->put_generic_edge(dst_lid, src_lid, prop, ts, alloc);
-    auto out_ret =
-        out_csr_->put_generic_edge(src_lid, dst_lid, prop, ts, alloc);
-    oe_offset = out_ret.first;
-    data_ptr = out_ret.second;
-    table_->insert(row_id, edge_data, insert_safe);
-  }
-  return {oe_offset, data_ptr};
+  return internal::AddEdgeImpl(*out_csr_, *in_csr_, table_.get(), table_idx_,
+                               *meta_, src_lid, dst_lid, edge_data, ts, alloc,
+                               insert_safe);
 }
 
 void EdgeTable::BatchAddEdges(const IndexerType& src_indexer,
@@ -1017,8 +1057,8 @@ void EdgeTable::dropAndCreateNewBundledCSR(
   table_ = std::make_unique<Table>();
   table_idx_.store(0);
   capacity_.store(0);
-  out_csr_ = std::move(new_out_csr);
-  in_csr_ = std::move(new_in_csr);
+  out_csr_ = std::shared_ptr<CsrBase>(new_out_csr.release());
+  in_csr_ = std::shared_ptr<CsrBase>(new_in_csr.release());
 }
 
 void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
@@ -1091,8 +1131,8 @@ void EdgeTable::dropAndCreateNewUnbundledCSR(Checkpoint& ckp,
     dynamic_cast<TypedCsrBase<uint64_t>*>(new_in_csr.get())
         ->batch_put_edges(std::get<1>(edges), std::get<0>(edges), row_ids);
   }
-  out_csr_ = std::move(new_out_csr);
-  in_csr_ = std::move(new_in_csr);
+  out_csr_ = std::shared_ptr<CsrBase>(new_out_csr.release());
+  in_csr_ = std::shared_ptr<CsrBase>(new_in_csr.release());
 }
 
 // --- Static key builders ---
@@ -1129,12 +1169,13 @@ std::string EdgeTable::ScalarKey(const std::string& src,
 
 // --- Snapshot orchestration ---
 
-EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
+EdgeTable EdgeTable::OpenFrom(std::shared_ptr<Checkpoint> ckp,
                               std::shared_ptr<const EdgeSchema> es,
                               ModuleBroker& store,
                               const CheckpointManifest& meta,
                               MemoryLevel level) {
   EdgeTable et(es);
+  et.ckp_ = ckp;
   et.SetMemoryLevel(level);
   const auto& src = es->src_label_name;
   const auto& edge = es->edge_label_name;
@@ -1151,9 +1192,9 @@ EdgeTable EdgeTable::OpenFrom(Checkpoint& ckp,
   if (!es->is_bundled()) {
     auto table = std::make_unique<Table>(es->property_names, es->properties);
     for (size_t i = 0; i < es->properties.size(); ++i) {
-      table->SetColumn(static_cast<int>(i),
-                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
-                           KeyProperty(src, edge, dst, i))));
+      table->SetColumn(
+          static_cast<int>(i),
+          store.TakeModule<ColumnBase>(KeyProperty(src, edge, dst, i)));
     }
     et.SetTable(std::move(table));
     et.SetTableIdx(

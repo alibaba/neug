@@ -100,6 +100,170 @@ using Datatypes =
     ::testing::Types<neug::EmptyType, int32_t, uint32_t, int64_t, uint64_t,
                      double, float, Date, DateTime, Interval>;
 
+namespace {
+
+struct CsrForkSignature {
+  size_t edge_num{0};
+  size_t src0_degree{0};
+  int64_t dst_sum{0};
+  int64_t data_sum{0};
+};
+
+template <typename CSR_T>
+CsrForkSignature build_fork_signature(const CSR_T& csr) {
+  CsrForkSignature sig;
+  sig.edge_num = csr.edge_num();
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      if (src == 0) {
+        ++sig.src0_degree;
+      }
+      sig.dst_sum += it.get_vertex();
+      sig.data_sum += *static_cast<const int32_t*>(it.get_data_ptr());
+    }
+  }
+  return sig;
+}
+
+template <typename CSR_T>
+std::tuple<vid_t, vid_t, int32_t> find_first_edge(const CSR_T& csr) {
+  auto view = csr.get_generic_view(0);
+  for (vid_t src = 0; src < csr.size(); ++src) {
+    auto edges = view.get_edges(src);
+    for (auto it = edges.begin(); it != edges.end(); ++it) {
+      auto offset = (reinterpret_cast<const char*>(it.get_nbr_ptr()) -
+                     reinterpret_cast<const char*>(edges.start_ptr)) /
+                    it.cfg.stride;
+      return {src, it.get_vertex(), static_cast<int32_t>(offset)};
+    }
+  }
+  return {std::numeric_limits<vid_t>::max(), std::numeric_limits<vid_t>::max(),
+          -1};
+}
+
+template <typename CSR_T>
+void apply_fork_mutations(CSR_T& csr, Allocator& alloc) {
+  csr.ForkAdjlist(0, alloc);
+  // csr.batch_put_edges({0}, {1}, {111}, 0);
+  csr.put_edge(0, 0, 111, 0, alloc);
+
+  auto [src, dst, offset] = find_first_edge(csr);
+  ASSERT_NE(offset, -1);
+  csr.ForkAdjlist(src, alloc);
+  csr.delete_edge(src, offset, 0);
+  csr.revert_delete_edge(src, dst, offset, 0);
+
+  csr.ForkAdjlist(2, alloc);
+  // csr.batch_put_edges({2}, {3}, {222}, 0);
+  csr.put_edge(2, 3, 222, 0, alloc);
+}
+
+void expect_signature_eq(const CsrForkSignature& lhs,
+                         const CsrForkSignature& rhs) {
+  EXPECT_EQ(lhs.edge_num, rhs.edge_num);
+  EXPECT_EQ(lhs.src0_degree, rhs.src0_degree);
+  EXPECT_EQ(lhs.dst_sum, rhs.dst_sum);
+  EXPECT_EQ(lhs.data_sum, rhs.data_sum);
+}
+
+template <MemoryLevel OPEN_LEVEL, MemoryLevel FORK_LEVEL>
+struct CsrForkLevelCase {
+  static constexpr MemoryLevel kOpenLevel = OPEN_LEVEL;
+  static constexpr MemoryLevel kForkLevel = FORK_LEVEL;
+};
+
+using MutableCsrForkLevelCases = ::testing::Types<
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kInMemory, MemoryLevel::kSyncToFile>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred,
+                     MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kHugePagePreferred, MemoryLevel::kSyncToFile>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kInMemory>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kHugePagePreferred>,
+    CsrForkLevelCase<MemoryLevel::kSyncToFile, MemoryLevel::kSyncToFile>>;
+
+template <typename CASE_T>
+class MutableCsrForkTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ =
+        std::filesystem::temp_directory_path() /
+        ("mutable_csr_fork_" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()) +
+         "_" + GetTestName());
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+    std::filesystem::create_directories(temp_dir_);
+    ws_.Open(temp_dir_.string());
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(temp_dir_)) {
+      std::filesystem::remove_all(temp_dir_);
+    }
+  }
+
+  std::shared_ptr<Checkpoint> create_checkpoint() {
+    return make_checkpoint(ws_);
+  }
+
+ private:
+  std::string GetTestName() const {
+    const testing::TestInfo* const test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
+    return std::string(test_info->name());
+  }
+
+ protected:
+  CheckpointManager ws_;
+  std::filesystem::path temp_dir_;
+};
+
+TYPED_TEST_SUITE(MutableCsrForkTest, MutableCsrForkLevelCases);
+
+TYPED_TEST(MutableCsrForkTest, ForkIsolationAndDumpOpenMatrix) {
+  MutableCsr<int32_t> original;
+  auto base_ckp = this->create_checkpoint();
+  original.Open(*base_ckp, ModuleDescriptor(), TypeParam::kOpenLevel);
+  original.resize(src_v_num);
+  original.batch_put_edges(src_vid, dst_vid, int32_data, 0);
+
+  auto original_before = build_fork_signature(original);
+
+  auto fork_module = original.Fork(*base_ckp, TypeParam::kForkLevel);
+  auto* forked = dynamic_cast<MutableCsr<int32_t>*>(fork_module.get());
+  ASSERT_NE(forked, nullptr);
+  Allocator alloc(MemoryLevel::kInMemory, "");
+
+  apply_fork_mutations(*forked, alloc);
+  auto fork_after = build_fork_signature(*forked);
+
+  auto original_after_fork_mutation = build_fork_signature(original);
+  expect_signature_eq(original_after_fork_mutation, original_before);
+
+  apply_fork_mutations(original, alloc);
+  auto original_after_self_mutation = build_fork_signature(original);
+  EXPECT_NE(original_after_self_mutation.edge_num, original_before.edge_num);
+
+  auto fork_after_original_mutation = build_fork_signature(*forked);
+  expect_signature_eq(fork_after_original_mutation, fork_after);
+
+  auto dump_ckp = this->create_checkpoint();
+  auto fork_desc = forked->Dump(*dump_ckp);
+  MutableCsr<int32_t> reopened;
+  reopened.Open(*dump_ckp, fork_desc, MemoryLevel::kInMemory);
+  auto reopened_sig = build_fork_signature(reopened);
+  expect_signature_eq(reopened_sig, fork_after);
+}
+
+}  // namespace
+
 template <typename EDATA_T>
 class MutableCsrTest : public ::testing::Test {
  protected:

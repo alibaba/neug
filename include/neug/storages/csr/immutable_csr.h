@@ -104,6 +104,15 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
     return {};
   }
 
+  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "ForkAdjlist is not supported for immutable csr");
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_SUPPORTED_EXCEPTION("Fork is not supported for immutable csr");
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -190,6 +199,16 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     LOG(FATAL) << "not implemented...";
     return {};
+  }
+
+  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "ForkAdjlist is not supported for single immutable csr");
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "Fork is not supported for single immutable csr");
   }
 
   std::string ModuleTypeName() const override { return type_name(); }

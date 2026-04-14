@@ -74,7 +74,7 @@ class ModuleBroker {
    * side (callers move modules in via their TakeXxx() accessor).  Replaces
    * any existing entry under the same name.
    */
-  void SetModule(const std::string& name, std::unique_ptr<Module>&& module);
+  void SetModule(const std::string& name, std::shared_ptr<Module> module);
 
   /**
    * @brief Iterate every owned module, call Module::Dump on each, and write
@@ -94,15 +94,13 @@ class ModuleBroker {
    * Returns nullptr if absent (or if the entry is borrowed — borrowed
    * entries are not transferable).
    */
-  std::unique_ptr<Module> TakeModule(const std::string& name);
+  std::shared_ptr<Module> TakeModule(const std::string& name);
 
   /// Typed overload — `dynamic_cast` the moved-out module to @p T.  When
   /// @p require is true, throws on miss or cast failure (the default; the
-  /// hot path).  When false, returns nullptr in those cases.  On cast
-  /// failure the original Module is destroyed since the store has already
-  /// erased its entry.
+  /// hot path).  When false, returns nullptr in those cases.
   template <typename T>
-  std::unique_ptr<T> TakeModule(const std::string& name, bool require = true) {
+  std::shared_ptr<T> TakeModule(const std::string& name, bool require = true) {
     auto base = TakeModule(name);
     if (!base) {
       if (require) {
@@ -111,13 +109,11 @@ class ModuleBroker {
       }
       return nullptr;
     }
-    Module* raw = base.release();
-    if (auto* casted = dynamic_cast<T*>(raw)) {
-      return std::unique_ptr<T>(casted);
+    auto casted = std::dynamic_pointer_cast<T>(base);
+    if (casted) {
+      return casted;
     }
-    // Not a T — rewrap to preserve correct destruction, then fail.
-    std::string actual_type = raw ? raw->ModuleTypeName() : std::string{};
-    base.reset(raw);  // released via Module's virtual dtor on scope exit
+    std::string actual_type = base ? base->ModuleTypeName() : std::string{};
     if (require) {
       THROW_INVALID_ARGUMENT_EXCEPTION("ModuleBroker::TakeModule: module '" +
                                        name + "' (type='" + actual_type +
@@ -127,7 +123,7 @@ class ModuleBroker {
   }
 
  private:
-  std::map<std::string, std::unique_ptr<Module>> modules_;
+  std::map<std::string, std::shared_ptr<Module>> modules_;
 };
 
 }  // namespace neug

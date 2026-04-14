@@ -88,6 +88,16 @@ class CsrBase : public Module {
 
   virtual std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const = 0;
+
+  /// Fork (deep-copy) the adjacency list of vertex vid so subsequent writes
+  /// are isolated from the parent CSR.  Must only be called on a forked CSR
+  /// for a vertex whose adjlist has not yet been forked.  The caller (e.g.
+  /// ForkBitmap) is responsible for tracking which adjlists have been forked.
+  virtual void ForkAdjlist(vid_t vid, Allocator& alloc) = 0;
+
+  std::shared_ptr<CsrBase> ForkAsShared(Checkpoint& ckp, MemoryLevel level) {
+    return ForkShared<CsrBase>(ckp, level);
+  }
 };
 
 template <typename EDATA_T>

@@ -414,7 +414,8 @@ inline constexpr const char* kVertexNumSlotsMinusOne =
     "vertex/num_slots_minus_one";
 inline constexpr const char* kVertexHashPolicy = "vertex/hash_policy";
 
-inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
+inline void OpenVertexTableLegacy(neug::VertexTable& vt,
+                                  std::shared_ptr<neug::Checkpoint> ckp,
                                   const neug::CheckpointManifest& meta,
                                   neug::MemoryLevel level) {
   vt.SetMemoryLevel(level);
@@ -424,7 +425,7 @@ inline void OpenVertexTableLegacy(neug::VertexTable& vt, neug::Checkpoint& ckp,
   }
   auto vs = vt.get_vertex_schema_ptr();
   neug::ModuleBroker store;
-  store.Open(ckp, meta, level);
+  store.Open(*ckp, meta, level);
   auto& idx = vt.get_indexer();
   idx.SetKeys(store.TakeModule<neug::ColumnBase>(kVertexIndexerKeys));
   idx.SetIndices(
@@ -478,7 +479,8 @@ inline std::string EdgePropKey(size_t i) {
 inline constexpr const char* kEdgeTableIdx = "edge/table_idx";
 inline constexpr const char* kEdgeCapacity = "edge/capacity";
 
-inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
+inline void OpenEdgeTableLegacy(neug::EdgeTable& et,
+                                std::shared_ptr<neug::Checkpoint> ckp,
                                 const neug::CheckpointManifest& meta,
                                 neug::MemoryLevel level) {
   et.SetMemoryLevel(level);
@@ -488,7 +490,7 @@ inline void OpenEdgeTableLegacy(neug::EdgeTable& et, neug::Checkpoint& ckp,
   }
   auto es = et.get_edge_schema_ptr();
   neug::ModuleBroker store;
-  store.Open(ckp, meta, level);
+  store.Open(*ckp, meta, level);
   et.SetInCsr(store.TakeModule<neug::CsrBase>(kEdgeInCsr));
   et.SetOutCsr(store.TakeModule<neug::CsrBase>(kEdgeOutCsr));
   if (es && !es->is_bundled()) {

@@ -23,7 +23,9 @@
 
 #include "neug/config.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/checkpoint_manager.h"
+#include "neug/storages/module/module.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 
@@ -41,6 +43,18 @@ class Table {
   void Init(Checkpoint& ckp, MemoryLevel level);
 
   void SetColumn(int idx, std::shared_ptr<ColumnBase> col);
+
+  void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
+            MemoryLevel memory_level, const std::vector<std::string>& col_name,
+            const std::vector<DataType>& property_types);
+
+  ModuleDescriptor Dump(Checkpoint& ckp);
+
+  std::unique_ptr<Table> Fork() const;
+
+  void ForkColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level);
+
+  void ForkAllColumns(Checkpoint& ckp, MemoryLevel level);
 
   void reset_header(const std::vector<std::string>& col_name);
 
@@ -80,7 +94,6 @@ class Table {
       return columns_[0]->size();
     }
   }
-  std::vector<std::shared_ptr<ColumnBase>>& columns();
 
   void insert(size_t index, const std::vector<execution::Value>& values,
               bool insert_safe);

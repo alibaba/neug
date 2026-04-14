@@ -46,7 +46,7 @@ void ModuleBroker::Open(Checkpoint& checkpoint, const CheckpointManifest& meta,
 }
 
 void ModuleBroker::SetModule(const std::string& name,
-                             std::unique_ptr<Module>&& module) {
+                             std::shared_ptr<Module> module) {
   modules_[name] = std::move(module);
 }
 
@@ -63,7 +63,7 @@ bool ModuleBroker::Contains(const std::string& name) const {
   return modules_.count(name) > 0;
 }
 
-std::unique_ptr<Module> ModuleBroker::TakeModule(const std::string& name) {
+std::shared_ptr<Module> ModuleBroker::TakeModule(const std::string& name) {
   auto it = modules_.find(name);
   if (it == modules_.end()) {
     return nullptr;

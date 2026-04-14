@@ -186,6 +186,36 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  void ForkAdjlist(vid_t vid, Allocator& alloc) override {
+    auto v_cap = vertex_capacity();
+    if (vid >= v_cap) {
+      THROW_INVALID_ARGUMENT_EXCEPTION(
+          "Vertex id out of range: " + std::to_string(vid) +
+          " >= " + std::to_string(v_cap));
+    }
+    locks_[vid].lock();
+    auto* buffers = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
+    auto* caps = reinterpret_cast<int*>(cap_list_->GetData());
+    auto cap = caps[vid];
+    void* new_adj_list = alloc.allocate(sizeof(nbr_t) * cap);
+    memcpy(new_adj_list, buffers[vid], sizeof(nbr_t) * cap);
+    buffers[vid] = static_cast<nbr_t*>(new_adj_list);
+    locks_[vid].unlock();
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<MutableCsr<EDATA_T>>();
+    auto v_cap = vertex_capacity();
+    fork->locks_ = std::make_unique<SpinLock[]>(v_cap);
+    fork->adj_list_buffer_ = adj_list_buffer_->Fork(ckp, level);
+    fork->degree_list_ = degree_list_->Fork(ckp, level);
+    fork->cap_list_ = cap_list_->Fork(ckp, level);
+    fork->nbr_list_ = nbr_list_;
+    fork->unsorted_since_ = unsorted_since_;
+    fork->edge_num_ = edge_num_.load();
+    return fork;
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -197,7 +227,7 @@ class MutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> adj_list_buffer_;
   std::unique_ptr<IDataContainer> degree_list_;
   std::unique_ptr<IDataContainer> cap_list_;
-  std::unique_ptr<IDataContainer> nbr_list_;
+  std::shared_ptr<IDataContainer> nbr_list_;
   timestamp_t unsorted_since_;
   std::atomic<uint64_t> edge_num_{0};
 
@@ -318,6 +348,15 @@ class SingleMutableCsr : public TypedCsrBase<EDATA_T> {
     return std::make_tuple(std::move(src_list), std::move(dst_list));
   }
 
+  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    auto fork = std::make_unique<SingleMutableCsr<EDATA_T>>();
+    fork->nbr_list_ = nbr_list_->Fork(ckp, level);
+    fork->edge_num_ = edge_num_.load();
+    return fork;
+  }
+
   std::string ModuleTypeName() const override { return type_name(); }
 
   static std::string type_name() {
@@ -395,6 +434,8 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
                        const std::vector<EDATA_T>& data_list,
                        timestamp_t ts = 0) override {}
 
+  void ForkAdjlist(vid_t /*vid*/, Allocator& /*alloc*/) override {}
+
   std::pair<int32_t, const void*> put_edge(vid_t src, vid_t dst,
                                            const EDATA_T& data, timestamp_t ts,
                                            Allocator&) override {
@@ -404,6 +445,10 @@ class EmptyCsr : public TypedCsrBase<EDATA_T> {
   std::tuple<std::vector<vid_t>, std::vector<vid_t>> batch_export(
       std::shared_ptr<ColumnBase> prev_data_col) const override {
     return {};
+  }
+
+  std::unique_ptr<Module> Fork(Checkpoint& ckp, MemoryLevel level) override {
+    return std::make_unique<EmptyCsr<EDATA_T>>();
   }
 
   std::string ModuleTypeName() const override { return type_name(); }

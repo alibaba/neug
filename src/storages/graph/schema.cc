@@ -23,10 +23,12 @@
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
+#include "neug/storages/module/module_factory.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/pb_utils.h"
@@ -259,17 +261,6 @@ bool VertexSchema::is_property_soft_deleted(const std::string& prop) const {
   }
 }
 
-void VertexSchema::revert_delete_properties(
-    const std::vector<std::string>& names) {
-  for (size_t i = 0; i < names.size(); i++) {
-    auto it = std::find(property_names.begin(), property_names.end(), names[i]);
-    if (it != property_names.end()) {
-      size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
-      vprop_soft_deleted[j] = false;
-    }
-  }
-}
-
 bool VertexSchema::has_property(const std::string& prop) const {
   assert(primary_keys.size() == 1);
   if (std::get<1>(primary_keys[0]) == prop) {
@@ -437,21 +428,6 @@ bool EdgeSchema::is_property_soft_deleted(const std::string& prop) const {
     return eprop_soft_deleted[idx];
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION("Property not found: " + prop);
-  }
-}
-
-void EdgeSchema::revert_delete_properties(
-    const std::vector<std::string>& names) {
-  for (size_t i = 0; i < names.size(); i++) {
-    auto it = std::find(property_names.begin(), property_names.end(), names[i]);
-    if (it != property_names.end()) {
-      size_t j = static_cast<size_t>(std::distance(property_names.begin(), it));
-      eprop_soft_deleted[j] = false;
-    } else {
-      THROW_RUNTIME_ERROR("Property name " + names[i] +
-                          " does not exist for edge " + edge_label_name +
-                          " from " + src_label_name + " to " + dst_label_name);
-    }
   }
 }
 
@@ -1971,65 +1947,6 @@ void Schema::AddVertexProperties(
                                          properties_default_values);
 }
 
-bool Schema::is_vertex_label_soft_deleted(const std::string& label) const {
-  auto v_label_id = get_vertex_label_id_internal(label);
-  return vlabel_tomb_.get(v_label_id) && !v_schemas_[v_label_id]->empty();
-}
-
-bool Schema::is_vertex_label_soft_deleted(label_t v_label) const {
-  return vlabel_tomb_.get(v_label) && !v_schemas_[v_label]->empty();
-}
-
-bool Schema::is_edge_label_soft_deleted(const std::string& src_label,
-                                        const std::string& dst_label,
-                                        const std::string& edge_label) const {
-  label_t src = get_vertex_label_id_internal(src_label);
-  label_t dst = get_vertex_label_id_internal(dst_label);
-  label_t edge = get_edge_label_id_internal(edge_label);
-  return is_edge_label_soft_deleted(src, dst, edge);
-}
-
-bool Schema::is_edge_label_soft_deleted(label_t src_label, label_t dst_label,
-                                        label_t edge_label) const {
-  assert(is_vertex_label_valid(src_label) ||
-         is_vertex_label_soft_deleted(src_label));
-  assert(is_vertex_label_valid(dst_label) ||
-         is_vertex_label_soft_deleted(dst_label));
-  assert(is_edge_label_valid(edge_label));
-  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
-  return elabel_triplet_tomb_.get(index) && e_schemas_.count(index) > 0;
-}
-
-bool Schema::is_vertex_property_soft_deleted(
-    const std::string& label, const std::string& property_name) const {
-  auto v_label_id = get_vertex_label_id(label);
-  assert(v_label_id < v_schemas_.size());
-  return v_schemas_[v_label_id]->is_property_soft_deleted(property_name);
-}
-
-bool Schema::is_vertex_property_soft_deleted(
-    label_t v_label, const std::string& property_name) const {
-  assert(v_label < v_schemas_.size());
-  return v_schemas_[v_label]->is_property_soft_deleted(property_name);
-}
-
-bool Schema::is_edge_property_soft_deleted(
-    const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label, const std::string& property_name) const {
-  label_t src = get_vertex_label_id(src_label);
-  label_t dst = get_vertex_label_id(dst_label);
-  label_t edge = get_edge_label_id(edge_label);
-  return is_edge_property_soft_deleted(src, dst, edge, property_name);
-}
-
-bool Schema::is_edge_property_soft_deleted(
-    label_t src_label, label_t dst_label, label_t edge_label,
-    const std::string& property_name) const {
-  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
-  assert(e_schemas_.count(index) > 0);
-  return e_schemas_.at(index)->is_property_soft_deleted(property_name);
-}
-
 void Schema::RenameVertexProperties(
     const std::string& label, const std::vector<std::string>& properties_names,
     const std::vector<std::string>& properties_renames) {
@@ -2045,14 +1962,6 @@ void Schema::DeleteVertexProperties(
   auto v_label_id = get_vertex_label_id(label);
   assert(v_label_id < v_schemas_.size());
   v_schemas_[v_label_id]->delete_properties(properties_names, is_soft);
-}
-
-void Schema::RevertDeleteVertexProperties(
-    const std::string& label,
-    const std::vector<std::string>& properties_names) {
-  auto v_label_id = get_vertex_label_id(label);
-  assert(v_label_id < v_schemas_.size());
-  v_schemas_[v_label_id]->revert_delete_properties(properties_names);
 }
 
 void Schema::DeleteVertexLabel(const std::string& label, bool is_soft) {
@@ -2187,24 +2096,6 @@ void Schema::DeleteEdgeProperties(
   e_schemas_.at(index)->delete_properties(properties_names, is_soft);
 }
 
-void Schema::RevertDeleteEdgeProperties(
-    label_t src_label, label_t dst_label, label_t edge_label,
-    const std::vector<std::string>& properties_names) {
-  uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
-  assert(e_schemas_.count(index) > 0);
-  e_schemas_.at(index)->revert_delete_properties(properties_names);
-}
-
-void Schema::RevertDeleteEdgeProperties(
-    const std::string& src_label, const std::string& dst_label,
-    const std::string& edge_label,
-    const std::vector<std::string>& properties_names) {
-  label_t src = get_vertex_label_id(src_label);
-  label_t dst = get_vertex_label_id(dst_label);
-  label_t edge = get_edge_label_id(edge_label);
-  RevertDeleteEdgeProperties(src, dst, edge, properties_names);
-}
-
 std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
                                       label_t edge_label) const {
   uint32_t index = generate_edge_label(src_label, dst_label, edge_label);
@@ -2235,34 +2126,6 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
     }
   } else {
     THROW_RUNTIME_ERROR("oe_strategy should not be none");
-  }
-}
-
-void Schema::RevertDeleteVertexLabel(const std::string& v_label) {
-  label_t v_label_id = get_vertex_label_id_internal(v_label);
-  if (vlabel_tomb_.get(v_label_id)) {
-    vlabel_tomb_.reset(v_label_id);
-  }
-}
-
-void Schema::RevertDeleteEdgeLabel(label_t e_label_id) {
-  if (elabel_tomb_.get(e_label_id)) {
-    elabel_tomb_.reset(e_label_id);
-  }
-}
-
-void Schema::RevertDeleteEdgeLabel(const std::string& src_label,
-                                   const std::string& dst_label,
-                                   const std::string& edge_label) {
-  label_t src = get_vertex_label_id_internal(src_label);
-  label_t dst = get_vertex_label_id_internal(dst_label);
-  label_t edge = get_edge_label_id_internal(edge_label);
-  uint32_t index = generate_edge_label(src, dst, edge);
-  if (index < elabel_triplet_tomb_.size() && elabel_triplet_tomb_.get(index)) {
-    elabel_triplet_tomb_.reset(index);
-  }
-  if (elabel_tomb_.get(edge)) {
-    elabel_tomb_.reset(edge);
   }
 }
 

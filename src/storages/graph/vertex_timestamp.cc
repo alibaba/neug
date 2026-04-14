@@ -290,6 +290,29 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   inserted_vertices_.swap(new_inserted_vertices);
 }
 
+std::unique_ptr<Module> VertexTimestamp::Fork(Checkpoint& ckp,
+                                              MemoryLevel level) {
+  (void) ckp;
+  (void) level;
+  auto new_vertex_ts = std::make_unique<VertexTimestamp>();
+  new_vertex_ts->init_vertex_num_ = init_vertex_num_;
+  new_vertex_ts->max_vertex_num_ = max_vertex_num_;
+  if (inserted_vertices_) {
+    new_vertex_ts->inserted_vertices_ =
+        std::make_unique<std::atomic<timestamp_t>[]>(max_vertex_num_ -
+                                                     init_vertex_num_);
+    vid_t num = max_vertex_num_ - init_vertex_num_;
+    for (vid_t v = 0; v < num; ++v) {
+      new_vertex_ts->inserted_vertices_[v].store(inserted_vertices_[v].load());
+    }
+  }
+  if (removed_vertices_) {
+    new_vertex_ts->removed_vertices_ =
+        std::make_unique<std::set<vid_t>>(*removed_vertices_);
+  }
+  return new_vertex_ts;
+}
+
 void VertexTimestamp::Close() { Reset(); }
 
 NEUG_REGISTER_MODULE(VertexTimestamp);

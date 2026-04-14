@@ -16,11 +16,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_view.h"
-#include "neug/storages/graph/property_graph.h"
+#include "neug/storages/graph/edge_table.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/utils/property/column.h"
@@ -28,9 +29,83 @@
 
 namespace neug {
 
+class PropertyGraph;
+
+class TableView {
+ public:
+  TableView() = default;
+  explicit TableView(const Table& table);
+
+  std::shared_ptr<RefColumnBase> get_column(int col_id) const;
+  std::shared_ptr<RefColumnBase> get_column(const std::string& name) const;
+  size_t column_count() const;
+
+ private:
+  const Table* table_{nullptr};
+};
+
+class VertexTableView {
+ public:
+  VertexTableView() = default;
+  explicit VertexTableView(const VertexTable& table);
+  VertexTableView(VertexTable& table, bool mutable_access);
+
+  bool get_lid(const execution::Value& oid, vid_t& lid, timestamp_t ts) const;
+  vid_t LidNum() const;
+  bool IsValidLid(vid_t lid, timestamp_t ts) const;
+  execution::Value GetOid(vid_t lid, timestamp_t ts) const;
+  VertexSet GetVertexSet(timestamp_t ts) const;
+  std::shared_ptr<RefColumnBase> GetPropertyColumn(int col_id) const;
+  std::shared_ptr<RefColumnBase> GetPropertyColumn(
+      const std::string& prop) const;
+
+  bool AddVertex(const execution::Value& id,
+                 const std::vector<execution::Value>& props, vid_t& ret,
+                 timestamp_t ts, bool insert_safe);
+
+ private:
+  const IndexerType* indexer_{nullptr};
+  const VertexTimestamp* v_ts_{nullptr};
+  const Table* table_{nullptr};
+  DataType pk_type_;
+  std::shared_ptr<const VertexSchema> schema_;
+
+  IndexerType* mut_indexer_{nullptr};
+  VertexTimestamp* mut_v_ts_{nullptr};
+  Table* mut_table_{nullptr};
+};
+
+class EdgeTableView {
+ public:
+  EdgeTableView() = default;
+  explicit EdgeTableView(const EdgeTable& table);
+  EdgeTableView(EdgeTable& table, bool mutable_access);
+
+  CsrView GetOutgoingView(timestamp_t ts) const;
+  CsrView GetIncomingView(timestamp_t ts) const;
+  EdgeDataAccessor GetDataAccessor(int prop_id) const;
+  EdgeDataAccessor GetDataAccessor(const std::string& prop_name) const;
+
+  std::pair<int32_t, const void*> AddEdge(
+      vid_t src_lid, vid_t dst_lid,
+      const std::vector<execution::Value>& properties, timestamp_t ts,
+      Allocator& alloc, bool insert_safe);
+
+ private:
+  const CsrBase* out_csr_{nullptr};
+  const CsrBase* in_csr_{nullptr};
+  const Table* table_{nullptr};
+  std::shared_ptr<const EdgeSchema> meta_;
+
+  CsrBase* mut_out_csr_{nullptr};
+  CsrBase* mut_in_csr_{nullptr};
+  Table* mut_table_{nullptr};
+  std::atomic<uint64_t>* mut_table_idx_{nullptr};
+};
+
 class GraphView {
  public:
-  explicit GraphView(PropertyGraph& storage) : pg_(&storage) {}
+  explicit GraphView(PropertyGraph& storage, bool mutable_access = false);
 
   GraphView() = default;
   ~GraphView() = default;
@@ -40,20 +115,30 @@ class GraphView {
   GraphView& operator=(const GraphView&) = default;
   GraphView& operator=(GraphView&&) = default;
 
-  const Schema& schema() const { return pg_->schema(); }
+  const Schema& schema() const { return *schema_; }
 
-  // Vertex-side read API (keyed by label).
+  inline bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
+                      timestamp_t ts) const {
+    return vertex_views_[label].get_lid(oid, lid, ts);
+  }
+  inline vid_t LidNum(label_t label) const {
+    return vertex_views_[label].LidNum();
+  }
+  inline bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const {
+    return vertex_views_[label].IsValidLid(lid, ts);
+  }
+  inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
+      label_t label, const std::string& prop) const {
+    return vertex_views_[label].GetPropertyColumn(prop);
+  }
+  inline std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
+      label_t label, int col_id) const {
+    return vertex_views_[label].GetPropertyColumn(col_id);
+  }
+
   VertexSet GetVertexSet(label_t label, timestamp_t ts) const;
-  bool get_lid(label_t label, const execution::Value& oid, vid_t& lid,
-               timestamp_t ts) const;
-  execution::Value GetOid(label_t label, vid_t lid) const;
-  bool IsValidLid(label_t label, vid_t lid, timestamp_t ts) const;
-  std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(
-      label_t label, const std::string& prop) const;
-  std::shared_ptr<RefColumnBase> GetVertexPropertyColumn(label_t label,
-                                                         int col_id) const;
+  execution::Value GetOid(label_t label, vid_t lid, timestamp_t ts) const;
 
-  // Edge-side read API (keyed by triplet).
   CsrView GetGenericOutgoingView(label_t src_label, label_t dst_label,
                                  label_t edge_label, timestamp_t ts) const;
   CsrView GetGenericIncomingView(label_t src_label, label_t dst_label,
@@ -64,7 +149,6 @@ class GraphView {
                                        label_t edge_label,
                                        const std::string& prop_name) const;
 
-  // Mutators.
   Status AddVertex(label_t label, const execution::Value& id,
                    const std::vector<execution::Value>& props, vid_t& vid,
                    timestamp_t ts);
@@ -75,8 +159,14 @@ class GraphView {
                  timestamp_t ts, Allocator& alloc, int32_t& oe_offset,
                  const void*& prop);
 
+  void Rebuild();
+
  private:
+  const Schema* schema_{nullptr};
   PropertyGraph* pg_{nullptr};
+  bool mutable_{false};
+  std::vector<VertexTableView> vertex_views_;
+  std::unordered_map<uint32_t, EdgeTableView> edge_views_;
 };
 
 }  // namespace neug

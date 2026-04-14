@@ -20,16 +20,17 @@
 #include <ostream>
 
 #include "neug/storages/graph/property_graph.h"
+#include "neug/storages/storage_store.h"
 #include "neug/transaction/version_manager.h"
 #include "neug/transaction/wal/wal.h"
 
 namespace neug {
 
-CompactTransaction::CompactTransaction(PropertyGraph& graph, IWalWriter& logger,
-                                       IVersionManager& vm, bool compact_csr,
-                                       float reserve_ratio,
+CompactTransaction::CompactTransaction(StorageStore& storage_store,
+                                       IWalWriter& logger, IVersionManager& vm,
+                                       bool compact_csr, float reserve_ratio,
                                        timestamp_t timestamp)
-    : graph_(graph),
+    : guard_(storage_store),
       logger_(logger),
       vm_(vm),
       compact_csr_(compact_csr),
@@ -57,22 +58,25 @@ bool CompactTransaction::Commit() {
     arc_.Clear();
 
     LOG(INFO) << "before compact - " << timestamp_;
-    graph_.Compact(compact_csr_, reserve_ratio_, timestamp_);
+    // In-place compact
+    guard_.get().pg()->Compact(compact_csr_, reserve_ratio_, timestamp_);
+    guard_.get().mutable_view().Rebuild();
     LOG(INFO) << "after compact - " << timestamp_;
 
-    vm_.release_update_timestamp(timestamp_);
-    vm_.clear();
+    vm_.release_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }
+  guard_.release();
   return true;
 }
 
 void CompactTransaction::Abort() {
   if (timestamp_ != INVALID_TIMESTAMP) {
     arc_.Clear();
-    vm_.revert_update_timestamp(timestamp_);
+    vm_.release_compact_timestamp(timestamp_);
     timestamp_ = INVALID_TIMESTAMP;
   }
+  guard_.release();
 }
 
 }  // namespace neug

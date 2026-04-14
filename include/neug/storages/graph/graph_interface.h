@@ -18,6 +18,7 @@
 
 #include "neug/execution/common/columns/container_types.h"
 #include "neug/execution/common/types/value.h"
+#include "neug/storages/graph/graph_view.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/utils/property/types.h"
@@ -147,13 +148,14 @@ class StorageReadInterface : virtual public IStorageInterface {
   static constexpr vid_t kInvalidVid = std::numeric_limits<vid_t>::max();
 
   /**
-   * @brief Construct a read interface for a specific timestamp.
+   * @brief Construct a read interface from a GraphView reference.
    *
-   * @param graph Reference to the PropertyGraph
+   * @param view GraphView for reading graph data (must outlive this object)
    * @param read_ts Timestamp for MVCC visibility
    */
-  explicit StorageReadInterface(const PropertyGraph& graph, timestamp_t read_ts)
-      : graph_(graph), read_ts_(read_ts) {}
+  StorageReadInterface(const GraphView& view, timestamp_t read_ts)
+      : view_(view), read_ts_(read_ts) {}
+
   ~StorageReadInterface() {}
   bool readable() const override { return true; }
   bool writable() const override { return false; }
@@ -170,10 +172,9 @@ class StorageReadInterface : virtual public IStorageInterface {
    *
    * @since v0.1.0
    */
-
-  std::shared_ptr<RefColumnBase> GetVertexPropColumn(
+  virtual std::shared_ptr<RefColumnBase> GetVertexPropColumn(
       label_t label, const std::string& prop_name) const {
-    return graph_.GetVertexPropertyColumn(label, prop_name);
+    return view_.GetVertexPropertyColumn(label, prop_name);
   }
 
   /**
@@ -196,12 +197,12 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @since v0.1.0
    */
   VertexSet GetVertexSet(label_t label) const {
-    return graph_.GetVertexSet(label, read_ts_);
+    return view_.GetVertexSet(label, read_ts_);
   }
 
   bool GetVertexIndex(label_t label, const execution::Value& id,
                       vid_t& index) const override {
-    return graph_.get_lid(label, id, index, read_ts_);
+    return view_.get_lid(label, id, index, read_ts_);
   }
 
   /**
@@ -214,7 +215,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @since v0.1.0
    */
   inline bool IsValidVertex(label_t label, vid_t index) const {
-    return graph_.IsValidLid(label, index, read_ts_);
+    return view_.IsValidLid(label, index, read_ts_);
   }
 
   /**
@@ -227,7 +228,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    * @since v0.1.0
    */
   inline execution::Value GetVertexId(label_t label, vid_t index) const {
-    return graph_.GetOid(label, index, read_ts_);
+    return view_.GetOid(label, index, read_ts_);
   }
 
   /**
@@ -248,8 +249,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    */
   inline execution::Value GetVertexProperty(label_t label, vid_t index,
                                             int prop_id) const {
-    return graph_.get_vertex_table(label).GetPropertyColumn(prop_id)->get_any(
-        index);
+    auto col = view_.GetVertexPropertyColumn(label, prop_id);
+    return col ? col->get_any(index) : execution::Value();
   }
 
   /**
@@ -278,8 +279,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    */
   CsrView GetGenericOutgoingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return graph_.GetGenericOutgoingGraphView(v_label, neighbor_label,
-                                              edge_label, read_ts_);
+    return view_.GetGenericOutgoingView(v_label, neighbor_label, edge_label,
+                                        read_ts_);
   }
 
   /**
@@ -294,8 +295,8 @@ class StorageReadInterface : virtual public IStorageInterface {
    */
   CsrView GetGenericIncomingGraphView(label_t v_label, label_t neighbor_label,
                                       label_t edge_label) const {
-    return graph_.GetGenericIncomingGraphView(v_label, neighbor_label,
-                                              edge_label, read_ts_);
+    return view_.GetGenericIncomingView(neighbor_label, v_label, edge_label,
+                                        read_ts_);
   }
 
   /**
@@ -311,8 +312,7 @@ class StorageReadInterface : virtual public IStorageInterface {
    */
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label, int prop_id) const {
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_id);
+    return view_.GetEdgeDataAccessor(src_label, dst_label, edge_label, prop_id);
   }
 
   /**
@@ -342,14 +342,14 @@ class StorageReadInterface : virtual public IStorageInterface {
   EdgeDataAccessor GetEdgeDataAccessor(label_t src_label, label_t dst_label,
                                        label_t edge_label,
                                        const std::string& prop_name) const {
-    return graph_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
-                                      prop_name);
+    return view_.GetEdgeDataAccessor(src_label, dst_label, edge_label,
+                                     prop_name);
   }
 
-  const Schema& schema() const override { return graph_.schema(); }
+  const Schema& schema() const override { return view_.schema(); }
 
- private:
-  const PropertyGraph& graph_;
+ protected:
+  const GraphView& view_;
   timestamp_t read_ts_;
 };
 
@@ -484,14 +484,21 @@ class StorageUpdateInterface : public StorageReadInterface,
                                public StorageInsertInterface {
  public:
   /**
-   * @brief Construct an update interface with read timestamp.
+   * @brief Construct an update interface with PropertyGraph reference.
    *
-   * @param graph Reference to the PropertyGraph
-   * @param read_ts Timestamp for MVCC visibility
+   * Reads are inherited from StorageReadInterface, borrowing the caller-owned
+   * `view` (which must wrap `graph` and outlive this object — typically the
+   * owning UpdateTransaction's view). Writes go through `graph` directly.
+   *
+   * @param view GraphView over `graph`, owned by the caller
+   * @param graph Reference to the PropertyGraph (mutable for write operations)
+   * @param ts Timestamp for MVCC visibility
    */
-  explicit StorageUpdateInterface(const neug::PropertyGraph& graph,
-                                  timestamp_t read_ts)
-      : StorageReadInterface(graph, read_ts), StorageInsertInterface() {}
+  StorageUpdateInterface(const GraphView& view, PropertyGraph& graph,
+                         timestamp_t ts)
+      : StorageReadInterface(view, ts),
+        StorageInsertInterface(),
+        graph_(graph) {}
   virtual ~StorageUpdateInterface() {}
 
   bool readable() const override { return true; }
@@ -592,14 +599,18 @@ class StorageUpdateInterface : public StorageReadInterface,
                                 const std::string& edge_type) = 0;
 
   virtual void CreateCheckpoint() = 0;
+
+ protected:
+  PropertyGraph& graph_;
 };
 
 class StorageAPUpdateInterface : public StorageUpdateInterface {
  public:
-  explicit StorageAPUpdateInterface(PropertyGraph& graph, timestamp_t timestamp,
+  explicit StorageAPUpdateInterface(PropertyGraph& graph, GraphView& view,
+                                    timestamp_t timestamp,
                                     neug::Allocator& alloc)
-      : StorageUpdateInterface(graph, timestamp),
-        graph_(graph),
+      : StorageUpdateInterface(view, graph, timestamp),
+        mut_view_(view),
         alloc_(alloc),
         timestamp_(timestamp) {}
   ~StorageAPUpdateInterface() {}
@@ -649,7 +660,7 @@ class StorageAPUpdateInterface : public StorageUpdateInterface {
                         const std::string& edge_type) override;
 
  private:
-  PropertyGraph& graph_;
+  GraphView& mut_view_;
   neug::Allocator& alloc_;
   timestamp_t timestamp_;
 };

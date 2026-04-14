@@ -36,7 +36,7 @@ Table::Table(const std::vector<std::string>& col_names,
   columns_.clear();
   col_names_.clear();
   col_id_map_.clear();
-  columns_.resize(col_num, nullptr);
+  columns_.resize(col_num);
 
   for (size_t i = 0; i < col_num; ++i) {
     int col_id = col_names_.size();
@@ -47,6 +47,28 @@ Table::Table(const std::vector<std::string>& col_names,
         std::shared_ptr<ColumnBase>(CreateColumn(property_types[i]));
   }
   columns_.resize(col_id_map_.size());
+}
+std::unique_ptr<Table> Table::Fork() const {
+  auto forked = std::make_unique<Table>();
+  forked->col_names_ = col_names_;
+  forked->col_id_map_ = col_id_map_;
+  forked->columns_.reserve(columns_.size());
+  for (const auto& col : columns_) {
+    forked->columns_.push_back(col);  // shallow copy of shared_ptr
+  }
+  return forked;
+}
+
+void Table::ForkColumn(size_t col_id, Checkpoint& ckp, MemoryLevel level) {
+  if (col_id >= columns_.size())
+    return;
+  columns_[col_id] = columns_[col_id]->ForkAsShared(ckp, level);
+}
+
+void Table::ForkAllColumns(Checkpoint& ckp, MemoryLevel level) {
+  for (size_t i = 0; i < columns_.size(); ++i) {
+    ForkColumn(i, ckp, level);
+  }
 }
 
 void Table::Init(Checkpoint& ckp, MemoryLevel level) {
@@ -86,8 +108,8 @@ void Table::add_columns(
                         std::to_string(col_names.size()) + " but got " +
                         std::to_string(default_property_values.size()));
   }
-  // When add_columns are called, the table is already initialized and col_files
-  // are opened.
+  // When add_columns are called, the table is already initialized and
+  // col_files are opened.
   std::stringstream ss;
   for (const auto& col_name : col_names) {
     ss << col_name << " ";
@@ -214,7 +236,6 @@ const std::shared_ptr<ColumnBase> Table::get_column_by_id(size_t index) const {
 }
 
 size_t Table::col_num() const { return columns_.size(); }
-std::vector<std::shared_ptr<ColumnBase>>& Table::columns() { return columns_; }
 
 void Table::insert(size_t index, const std::vector<execution::Value>& values,
                    bool insert_safe) {

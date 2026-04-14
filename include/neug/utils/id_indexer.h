@@ -35,6 +35,7 @@ limitations under the License.
 #include "neug/execution/common/types/value.h"
 #include "neug/storages/container/container_utils.h"
 #include "neug/storages/container/i_container.h"
+#include "neug/storages/module/module.h"
 #include "neug/utils/bitset.h"
 #include "neug/utils/likely.h"
 #include "neug/utils/pb_utils.h"
@@ -216,9 +217,9 @@ class LFIndexer {
 
   ~LFIndexer() {}
 
-  void SetKeys(std::unique_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
+  void SetKeys(std::shared_ptr<ColumnBase> keys) { keys_ = std::move(keys); }
 
-  void SetIndices(std::unique_ptr<TypedColumn<INDEX_T>> indices) {
+  void SetIndices(std::shared_ptr<TypedColumn<INDEX_T>> indices) {
     indices_ = std::move(indices);
   }
 
@@ -238,8 +239,8 @@ class LFIndexer {
   /// When @p descriptor is empty (no paths/extras), creates a fresh empty
   /// indexer — making this the single entry point for both Init and restore.
   void Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
-            MemoryLevel level, std::unique_ptr<ColumnBase> keys,
-            std::unique_ptr<TypedColumn<INDEX_T>> indices) {
+            MemoryLevel level, std::shared_ptr<ColumnBase> keys,
+            std::shared_ptr<TypedColumn<INDEX_T>> indices) {
     keys_ = std::move(keys);
     indices_ = std::move(indices);
     auto parse = [](const ModuleDescriptor& d, const char* key) -> size_t {
@@ -256,8 +257,8 @@ class LFIndexer {
   /// (since ColumnBase is itself a Module with its own Dump path).
   /// The indices buffer is committed to the checkpoint and its path is
   /// recorded in the returned descriptor.
-  ModuleDescriptor Dump(Checkpoint& ckp, std::unique_ptr<ColumnBase>& keys_out,
-                        std::unique_ptr<TypedColumn<INDEX_T>>& indices_out) {
+  ModuleDescriptor Dump(Checkpoint& ckp, std::shared_ptr<ColumnBase>& keys_out,
+                        std::shared_ptr<TypedColumn<INDEX_T>>& indices_out) {
     ModuleDescriptor descriptor;
     descriptor.set("num_elements", std::to_string(GetNumElements()));
     descriptor.set("num_slots_minus_one",
@@ -269,8 +270,8 @@ class LFIndexer {
     return descriptor;
   }
 
-  std::unique_ptr<ColumnBase> TakeKeys() { return std::move(keys_); }
-  std::unique_ptr<TypedColumn<INDEX_T>> TakeIndices() {
+  std::shared_ptr<ColumnBase> TakeKeys() { return std::move(keys_); }
+  std::shared_ptr<TypedColumn<INDEX_T>> TakeIndices() {
     return std::move(indices_);
   }
 
@@ -290,6 +291,13 @@ class LFIndexer {
     std::swap(pk_type_, other.pk_type_);
     hash_policy_.swap(other.hash_policy_);
     std::swap(hasher_, other.hasher_);
+  }
+
+  std::unique_ptr<LFIndexer<INDEX_T>> Fork(Checkpoint& ckp, MemoryLevel level);
+
+  std::shared_ptr<LFIndexer<INDEX_T>> ForkAsShared(Checkpoint& ckp,
+                                                   MemoryLevel level) {
+    return std::shared_ptr<LFIndexer<INDEX_T>>(Fork(ckp, level).release());
   }
 
   void reserve(size_t size) { rehash(std::max(size, num_elements_.load())); }
@@ -444,10 +452,10 @@ class LFIndexer {
   const ColumnBase& get_keys() const { return *keys_; }
 
  private:
-  std::unique_ptr<TypedColumn<INDEX_T>> indices_;
+  std::shared_ptr<TypedColumn<INDEX_T>> indices_;
   std::atomic<size_t> num_elements_;
   size_t num_slots_minus_one_;
-  std::unique_ptr<ColumnBase> keys_;
+  std::shared_ptr<ColumnBase> keys_;
   /// PK type captured at construction.  Used by Init to size keys_;
   /// runtime queries still go through keys_->type() once SetKeys has run.
   DataType pk_type_;
@@ -920,5 +928,22 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
 
   GHash<KEY_T> hasher_;
 };
+
+template <typename INDEX_T>
+std::unique_ptr<LFIndexer<INDEX_T>> LFIndexer<INDEX_T>::Fork(
+    Checkpoint& ckp, MemoryLevel level) {
+  auto forked = std::make_unique<LFIndexer<INDEX_T>>(pk_type_);
+  auto forked_indices_mod = indices_->Fork(ckp, level);
+  forked->indices_ = std::shared_ptr<TypedColumn<INDEX_T>>(
+      dynamic_cast<TypedColumn<INDEX_T>*>(forked_indices_mod.release()));
+  auto forked_keys_mod = keys_->Fork(ckp, level);
+  forked->keys_ = std::shared_ptr<ColumnBase>(
+      dynamic_cast<ColumnBase*>(forked_keys_mod.release()));
+  forked->num_elements_.store(num_elements_.load());
+  forked->num_slots_minus_one_ = num_slots_minus_one_;
+  forked->hash_policy_ = hash_policy_;
+  forked->hasher_ = hasher_;
+  return forked;
+}
 
 }  // namespace neug

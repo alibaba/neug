@@ -15,31 +15,20 @@
 #pragma once
 
 #include <glog/logging.h>
-#include <stddef.h>
-#include <array>
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <ostream>
 #include <string>
-#include <string_view>
-#include <utility>
-#include <vector>
 
 #include "neug/compiler/planner/graph_planner.h"
 #include "neug/execution/execute/query_cache.h"
-#include "neug/main/query_result.h"
+#include "neug/main/neug_db.h"
 #include "neug/storages/allocators.h"
-#include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/compact_transaction.h"
 #include "neug/transaction/insert_transaction.h"
 #include "neug/transaction/read_transaction.h"
-#include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/update_transaction.h"
-#include "neug/utils/access_mode.h"
-#include "neug/utils/property/column.h"
 #include "neug/utils/result.h"
-#include "neug/utils/service_utils.h"
 
 namespace neug {
 
@@ -51,6 +40,7 @@ class PropertyGraph;
 class RefColumnBase;
 class Schema;
 class AppManager;
+class IVersionManager;
 
 /**
  * @brief Database session for executing queries in high-throughput scenarios.
@@ -102,11 +92,11 @@ class AppManager;
 class NeugDBSession {
  public:
   static constexpr int32_t MAX_RETRY = 3;
-  NeugDBSession(PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+  NeugDBSession(NeugDB& db, std::shared_ptr<IGraphPlanner> planner,
                 std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
                 std::shared_ptr<IVersionManager> vm, Allocator& alloc,
                 IWalWriter& logger, const NeugDBConfig& config_, int thread_id)
-      : graph_(graph),
+      : db_(db),
         planner_(planner),
         pipeline_cache_(global_query_cache),
         version_manager_(vm),
@@ -126,8 +116,6 @@ class NeugDBSession {
 
   CompactTransaction GetCompactTransaction();
 
-  const PropertyGraph& graph() const;
-  PropertyGraph& graph();
   const Schema& schema() const;
 
   /**
@@ -187,7 +175,7 @@ class NeugDBSession {
   int64_t query_num() const;
 
  private:
-  PropertyGraph& graph_;
+  NeugDB& db_;
   std::shared_ptr<IGraphPlanner> planner_;
   execution::LocalQueryCache pipeline_cache_;
   std::shared_ptr<IVersionManager> version_manager_;

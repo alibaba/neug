@@ -52,9 +52,14 @@ class EdgeTable {
 
   void Swap(EdgeTable& other);
 
+  EdgeTable Fork() const;
+
+  void ForkOutCsr();
+  void ForkInCsr();
+
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
-  void Init(Checkpoint& ckp, MemoryLevel memory_level);
+  void Init(std::shared_ptr<Checkpoint> ckp, MemoryLevel memory_level);
 
   // --- Snapshot key builders (flat manifest convention) ---
   static std::string KeyOutCsr(const std::string& src, const std::string& edge,
@@ -69,7 +74,7 @@ class EdgeTable {
                                const std::string& field);
 
   // --- Snapshot orchestration ---
-  static EdgeTable OpenFrom(Checkpoint& ckp,
+  static EdgeTable OpenFrom(std::shared_ptr<Checkpoint> ckp,
                             std::shared_ptr<const EdgeSchema> schema,
                             ModuleBroker& store, const CheckpointManifest& meta,
                             MemoryLevel level);
@@ -77,15 +82,15 @@ class EdgeTable {
   void DisassembleTo(ModuleBroker& store, CheckpointManifest& meta,
                      Checkpoint& ckp);
 
-  void SetInCsr(std::unique_ptr<CsrBase> csr);
-  void SetOutCsr(std::unique_ptr<CsrBase> csr);
+  void SetInCsr(std::shared_ptr<CsrBase> csr);
+  void SetOutCsr(std::shared_ptr<CsrBase> csr);
   void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
   void SetTableIdx(uint64_t n) { table_idx_.store(n); }
   void SetCapacity(uint64_t n) { capacity_.store(n); }
   void SetMemoryLevel(MemoryLevel level) { memory_level_ = level; }
 
-  std::unique_ptr<CsrBase> TakeInCsr() { return std::move(in_csr_); }
-  std::unique_ptr<CsrBase> TakeOutCsr() { return std::move(out_csr_); }
+  std::shared_ptr<CsrBase> TakeInCsr() { return std::move(in_csr_); }
+  std::shared_ptr<CsrBase> TakeOutCsr() { return std::move(out_csr_); }
   std::unique_ptr<Table> TakeTable() { return std::move(table_); }
   uint64_t GetTableIdx() const { return table_idx_.load(); }
   uint64_t GetCapacity() const { return capacity_.load(); }
@@ -93,6 +98,9 @@ class EdgeTable {
   std::shared_ptr<const EdgeSchema> get_edge_schema_ptr() const {
     return meta_;
   }
+
+  Table* table() { return table_.get(); }
+  const Table* table() const { return table_.get(); }
 
   void Close();
 
@@ -161,9 +169,6 @@ class EdgeTable {
    */
   void DeleteVertex(bool is_src, vid_t lid, timestamp_t ts);
 
-  void RevertDeleteEdge(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
-                        int32_t ie_offset, timestamp_t ts);
-
   void UpdateEdgeProperty(vid_t src_lid, vid_t dst_lid, int32_t oe_offset,
                           int32_t ie_offset, int32_t col_id,
                           const execution::Value& new_prop, timestamp_t ts);
@@ -176,19 +181,49 @@ class EdgeTable {
 
   size_t Capacity() const;
 
+  std::shared_ptr<const EdgeSchema> meta() const { return meta_; }
+
+  /// Fork (deep-copy) the outgoing adjlist of vertex vid.
+  /// Called by UpdateTransaction via ForkBitmap when the adjlist has not yet
+  /// been forked in the current transaction.
+  void ForkOutAdjlist(vid_t vid, Allocator& alloc);
+
+  /// Fork (deep-copy) the incoming adjlist of vertex vid.
+  void ForkInAdjlist(vid_t vid, Allocator& alloc);
+
  private:
   void dropAndCreateNewBundledCSR(Checkpoint& ckp,
                                   std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(Checkpoint& ckp, bool delete_property);
 
+  std::shared_ptr<Checkpoint> ckp_;
   std::shared_ptr<const EdgeSchema> meta_;
   MemoryLevel memory_level_{MemoryLevel::kSyncToFile};
-  std::unique_ptr<CsrBase> out_csr_;
-  std::unique_ptr<CsrBase> in_csr_;
+  std::shared_ptr<CsrBase> out_csr_;
+  std::shared_ptr<CsrBase> in_csr_;
   std::unique_ptr<Table> table_;
   std::atomic<uint64_t> table_idx_{0};
   std::atomic<uint64_t> capacity_{0};
 
+  CsrBase& get_out_csr_mut() { return *out_csr_; }
+  CsrBase& get_in_csr_mut() { return *in_csr_; }
+  const CsrBase& get_out_csr() const { return *out_csr_; }
+  const CsrBase& get_in_csr() const { return *in_csr_; }
+  const Table* get_table_ptr() const { return table_.get(); }
+  Table* get_table_ptr_mut() { return table_.get(); }
+  std::atomic<uint64_t>& get_table_idx() { return table_idx_; }
+
   friend class PropertyGraph;
+  friend class EdgeTableView;
+  friend class GraphView;
 };
+
+namespace internal {
+std::pair<int32_t, const void*> AddEdgeImpl(
+    CsrBase& out_csr, CsrBase& in_csr, Table* table,
+    std::atomic<uint64_t>& table_idx, const EdgeSchema& meta, vid_t src_lid,
+    vid_t dst_lid, const std::vector<execution::Value>& properties,
+    timestamp_t ts, Allocator& alloc, bool insert_safe);
+}  // namespace internal
+
 }  // namespace neug

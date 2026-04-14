@@ -29,6 +29,7 @@
 #include "neug/main/query_result.h"
 #include "neug/storages/allocators.h"
 #include "neug/storages/graph/graph_interface.h"
+#include "neug/storages/storage_store.h"
 #include "neug/utils/access_mode.h"
 #include "neug/utils/result.h"
 
@@ -37,10 +38,10 @@ namespace neug {
 class QueryProcessor {
  public:
   QueryProcessor(
-      PropertyGraph& graph, std::shared_ptr<IGraphPlanner> planner,
+      StorageStore& storage_store, std::shared_ptr<IGraphPlanner> planner,
       std::shared_ptr<execution::GlobalQueryCache> global_query_cache,
       Allocator& alloc, int32_t max_num_threads, bool is_read_only = false)
-      : g_(graph),
+      : snapshot_store_(storage_store),
         planner_(planner),
         global_query_cache_(global_query_cache),
         allocator_(alloc),
@@ -59,22 +60,24 @@ class QueryProcessor {
 
  private:
   result<std::pair<AccessMode, std::shared_ptr<execution::CacheValue>>>
-  check_and_retrieve_pipeline(const std::string& query_string,
+  check_and_retrieve_pipeline(const PropertyGraph& pg,
+                              const std::string& query_string,
                               const std::string& access_mode,
                               int32_t num_threads);
 
   result<QueryResult> execute_internal(
-      const std::string& query_string,
+      SlotGuard& guard, const std::string& query_string,
       std::shared_ptr<execution::CacheValue> cache_value,
       AccessMode access_mode, const execution::ParamsMap& parameters = {},
       int32_t num_threads = 0);
 
   bool need_exclusive_lock(AccessMode access_mode);
 
-  void update_compiler_meta_if_needed(const physical::ExecutionFlag& flags,
+  void update_compiler_meta_if_needed(const PropertyGraph& pg,
+                                      const physical::ExecutionFlag& flags,
                                       AccessMode mode);
 
-  PropertyGraph& g_;
+  StorageStore& snapshot_store_;
   std::shared_ptr<IGraphPlanner> planner_;
   std::shared_ptr<execution::GlobalQueryCache> global_query_cache_;
   Allocator& allocator_;

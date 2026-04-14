@@ -320,66 +320,6 @@ TEST(SchemaTest, LogicalDeleteEdgeProperties_HidesProperty) {
   EXPECT_FALSE(schema.edge_has_property("A", "B", "Link", "tag"));
 }
 
-TEST(SchemaTest, RevertDeleteVertexLabel_ClearsTombstone) {
-  neug::Schema schema;
-  auto t = VProps({DataTypeId::kVarchar});
-  auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  schema.AddVertexLabel("City", t, {n.begin(), n.end()}, pk, 100, "");
-  ASSERT_TRUE(schema.is_vertex_label_valid("City"));
-
-  schema.DeleteVertexLabel("City", true);
-  EXPECT_FALSE(schema.is_vertex_label_valid("City"));
-
-  // When implemented, this should restore visibility
-  schema.RevertDeleteVertexLabel("City");
-  EXPECT_TRUE(schema.is_vertex_label_valid("City"));
-}
-
-TEST(SchemaTest, RevertDeleteEdgeLabel_ByName_ClearsTombstone) {
-  neug::Schema schema;
-  auto t = VProps({DataTypeId::kVarchar});
-  auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, 100, "");
-  schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, 100, "");
-
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
-                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, std::nullopt, "");
-  ASSERT_TRUE(schema.is_edge_label_valid("Link"));
-  auto e_label = schema.get_edge_label_id("Link");
-
-  schema.DeleteEdgeLabel("Link", true);
-  EXPECT_FALSE(schema.is_edge_label_valid("Link"));
-
-  schema.RevertDeleteEdgeLabel(e_label);
-  EXPECT_TRUE(schema.is_edge_label_valid("Link"));
-}
-
-TEST(SchemaTest, RevertDeleteEdgeLabel_ByTriplet_ClearsTombstone) {
-  neug::Schema schema;
-  auto t = VProps({DataTypeId::kVarchar});
-  auto n = VNames({"name"});
-  auto pk = VPk(DataTypeId::kInt64, "id", 0);
-  schema.AddVertexLabel("A", t, {n.begin(), n.end()}, pk, 100, "");
-  schema.AddVertexLabel("B", t, {n.begin(), n.end()}, pk, 100, "");
-
-  schema.AddEdgeLabel("A", "B", "Link", {DataTypeId::kInt32}, {"w"},
-                      EdgeStrategy::kMultiple, EdgeStrategy::kMultiple, true,
-                      true, std::nullopt, "");
-  auto src = schema.get_vertex_label_id("A");
-  auto dst = schema.get_vertex_label_id("B");
-  auto el = schema.get_edge_label_id("Link");
-  ASSERT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
-
-  schema.DeleteEdgeLabel(src, dst, el, true);
-  EXPECT_FALSE(schema.is_edge_triplet_valid(src, dst, el));
-
-  schema.RevertDeleteEdgeLabel("A", "B", "Link");
-  EXPECT_TRUE(schema.is_edge_triplet_valid(src, dst, el));
-}
-
 TEST(SchemaDumpTest, SchemaDumpWithMultipleEdgeTriplet) {
   neug::Schema schema;
 
@@ -500,15 +440,6 @@ TEST_F(SchemaDeleteTest, VertexSchemaPropertySoftDelete) {
 
   auto v_prop_names = schema_->get_vertex_property_names(person_label);
   EXPECT_EQ(v_prop_names.size(), 2);
-
-  schema_->RevertDeleteVertexProperties("person", props_to_delete);
-
-  EXPECT_FALSE(vertex_schema->is_property_soft_deleted("age"));
-
-  v_prop_names = schema_->get_vertex_property_names(person_label);
-  EXPECT_EQ(v_prop_names.size(), 3);
-  std::vector<std::string> expected = {"name", "age", "score"};
-  EXPECT_EQ(v_prop_names, expected);
 }
 
 // Test VertexSchema::get_property_index
@@ -554,187 +485,6 @@ TEST_F(SchemaDeleteTest, EdgeSchemaPropertySoftDelete) {
   auto e_prop_names =
       schema_->get_edge_property_names(person_label, person_label, edge_label);
   EXPECT_EQ(e_prop_names.size(), 0);
-
-  // Revert the deletion
-  schema_->RevertDeleteEdgeProperties("person", "person", "knows",
-                                      props_to_delete);
-
-  // Check that "since" is no longer soft deleted
-  EXPECT_FALSE(edge_schema->is_property_soft_deleted("since"));
-  e_prop_names =
-      schema_->get_edge_property_names(person_label, person_label, edge_label);
-  EXPECT_EQ(e_prop_names.size(), 1);
-}
-
-// Test Schema::is_vertex_label_soft_deleted
-TEST_F(SchemaDeleteTest, VertexLabelLogicalDelete) {
-  // Initially, vertex label should not be deleted
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("person"));
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("company"));
-
-  auto person_label = schema_->get_vertex_label_id("person");
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted(person_label));
-
-  // Logically delete "person" vertex label
-  schema_->DeleteVertexLabel("person", true);
-
-  // Check that "person" is now logically deleted
-  EXPECT_TRUE(schema_->is_vertex_label_soft_deleted("person"));
-  EXPECT_TRUE(schema_->is_vertex_label_soft_deleted(person_label));
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("company"));
-
-  // Revert the deletion
-  schema_->RevertDeleteVertexLabel("person");
-
-  // Check that "person" is no longer logically deleted
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted("person"));
-  EXPECT_FALSE(schema_->is_vertex_label_soft_deleted(person_label));
-}
-
-// Test Schema::is_edge_label_soft_deleted
-TEST_F(SchemaDeleteTest, EdgeLabelLogicalDelete) {
-  auto person_label = schema_->get_vertex_label_id("person");
-  auto knows_label = schema_->get_edge_label_id("knows");
-
-  // Initially, edge labels should not be deleted
-  EXPECT_FALSE(
-      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
-  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
-                                                   knows_label));
-
-  // Logically delete "knows" edge label
-  schema_->DeleteEdgeLabel("person", "person", "knows", true);
-
-  // Check that "knows" is now logically deleted
-  EXPECT_TRUE(schema_->is_edge_label_soft_deleted("person", "person", "knows"));
-  EXPECT_TRUE(schema_->is_edge_label_soft_deleted(person_label, person_label,
-                                                  knows_label));
-  EXPECT_FALSE(
-      schema_->is_edge_label_soft_deleted("person", "company", "worksAt"));
-
-  // Revert the deletion
-  schema_->RevertDeleteEdgeLabel("person", "person", "knows");
-
-  // Check that "knows" is no longer logically deleted
-  EXPECT_FALSE(
-      schema_->is_edge_label_soft_deleted("person", "person", "knows"));
-  EXPECT_FALSE(schema_->is_edge_label_soft_deleted(person_label, person_label,
-                                                   knows_label));
-}
-
-// Test Schema::is_vertex_property_soft_deleted
-TEST_F(SchemaDeleteTest, VertexPropertyLogicalDelete) {
-  auto person_label = schema_->get_vertex_label_id("person");
-
-  // Initially, no properties should be logically deleted
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted(person_label, "score"));
-
-  // Logically delete "age" property
-  std::vector<std::string> props_to_delete = {"age"};
-  schema_->DeleteVertexProperties("person", props_to_delete, true);
-
-  // Check that "age" is now logically deleted
-  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "age"));
-  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted(person_label, "age"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "score"));
-
-  // Revert the deletion
-  schema_->RevertDeleteVertexProperties("person", props_to_delete);
-
-  // Check that "age" is no longer logically deleted
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted(person_label, "age"));
-}
-
-// Test Schema::is_edge_property_soft_deleted
-TEST_F(SchemaDeleteTest, EdgePropertyLogicalDelete) {
-  auto person_label = schema_->get_vertex_label_id("person");
-  auto knows_label = schema_->get_edge_label_id("knows");
-
-  // Initially, no properties should be logically deleted
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
-                                                      "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
-      person_label, person_label, knows_label, "since"));
-
-  // Soft delete "since" property
-  std::vector<std::string> props_to_delete = {"since"};
-  schema_->DeleteEdgeProperties("person", "person", "knows", props_to_delete,
-                                true);
-
-  // Check that "since" is now logically deleted
-  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
-                                                     "knows", "since"));
-  EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                     knows_label, "since"));
-
-  // Revert the deletion
-  schema_->RevertDeleteEdgeProperties("person", "person", "knows",
-                                      props_to_delete);
-
-  // Check that "since" is no longer soft deleted
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
-                                                      "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
-      person_label, person_label, knows_label, "since"));
-}
-
-// Test multiple vertex properties deletion and revert
-TEST_F(SchemaDeleteTest, MultipleVertexPropertiesDeletionAndRevert) {
-  // Delete multiple properties
-  std::vector<std::string> props_to_delete = {"name", "score"};
-  schema_->DeleteVertexProperties("person", props_to_delete, true);
-
-  // Verify all are deleted
-  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "name"));
-  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "score"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "age"));
-
-  // Revert one property
-  std::vector<std::string> props_to_revert = {"name"};
-  schema_->RevertDeleteVertexProperties("person", props_to_revert);
-
-  // Verify only "name" is reverted
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
-  EXPECT_TRUE(schema_->is_vertex_property_soft_deleted("person", "score"));
-
-  // Revert the other property
-  std::vector<std::string> props_to_revert2 = {"score"};
-  schema_->RevertDeleteVertexProperties("person", props_to_revert2);
-
-  // Verify both are reverted
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "name"));
-  EXPECT_FALSE(schema_->is_vertex_property_soft_deleted("person", "score"));
-}
-
-// Test edge property operations with label_t overloads
-TEST_F(SchemaDeleteTest, EdgePropertyOperationsWithLabelId) {
-  auto person_label = schema_->get_vertex_label_id("person");
-  auto knows_label = schema_->get_edge_label_id("knows");
-
-  // Delete property using label_t
-  std::vector<std::string> props_to_delete = {"since"};
-  schema_->DeleteEdgeProperties("person", "person", "knows", props_to_delete,
-                                true);
-
-  // Verify using both string and label_t overloads
-  EXPECT_TRUE(schema_->is_edge_property_soft_deleted("person", "person",
-                                                     "knows", "since"));
-  EXPECT_TRUE(schema_->is_edge_property_soft_deleted(person_label, person_label,
-                                                     knows_label, "since"));
-
-  // Revert using label_t overload
-  schema_->RevertDeleteEdgeProperties(person_label, person_label, knows_label,
-                                      props_to_delete);
-
-  // Verify property is reverted
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted("person", "person",
-                                                      "knows", "since"));
-  EXPECT_FALSE(schema_->is_edge_property_soft_deleted(
-      person_label, person_label, knows_label, "since"));
 }
 
 // Test has_property behavior with soft-deleted properties
@@ -755,12 +505,6 @@ TEST_F(SchemaDeleteTest, HasPropertyWithSoftDelete) {
   EXPECT_TRUE(vertex_schema->has_property("name"));
   EXPECT_FALSE(vertex_schema->has_property("age"));
   EXPECT_TRUE(vertex_schema->has_property("score"));
-
-  // Revert deletion
-  schema_->RevertDeleteVertexProperties("person", props_to_delete);
-
-  // has_property should return true again
-  EXPECT_TRUE(vertex_schema->has_property("age"));
 }
 
 // Test edge has_property behavior with soft-deleted properties
@@ -779,13 +523,6 @@ TEST_F(SchemaDeleteTest, EdgeHasPropertyWithSoftDelete) {
 
   // has_property should return false for soft-deleted property
   EXPECT_FALSE(edge_schema->has_property("since"));
-
-  // Revert deletion
-  schema_->RevertDeleteEdgeProperties("person", "person", "knows",
-                                      props_to_delete);
-
-  // has_property should return true again
-  EXPECT_TRUE(edge_schema->has_property("since"));
 }
 
 // Test schema-level vertex_has_property with soft delete
@@ -816,13 +553,6 @@ TEST_F(SchemaDeleteTest, SchemaEdgeHasPropertyWithSoftDelete) {
   // edge_has_property should return false for soft-deleted property
   EXPECT_FALSE(
       schema_->edge_has_property("person", "person", "knows", "since"));
-
-  // Revert deletion
-  schema_->RevertDeleteEdgeProperties("person", "person", "knows",
-                                      props_to_delete);
-
-  // edge_has_property should return true again
-  EXPECT_TRUE(schema_->edge_has_property("person", "person", "knows", "since"));
 }
 
 TEST(VertexSchemaTest, TestVertexSchemaIndex) {
