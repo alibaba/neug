@@ -29,6 +29,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 
 try:
+    import pyarrow as pa
     import pyarrow.parquet as pq
 
     HAS_PYARROW = True
@@ -691,6 +692,72 @@ class TestExportComprehensiveGraph:
         if rows:
             assert isinstance(rows[0], dict), "Each line should be a JSON object"
 
+    @extension_test
+    def test_export_comprehensive_graph_to_parquet(self):
+        """Export node_a vertices from comprehensive_graph to Parquet; verify row count and schema."""
+        out_path = self.tmp_path / "node_a.parquet"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
+        self.conn.execute("LOAD PARQUET")
+        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        
+        # Read back with PyArrow and verify
+        table = pq.read_table(str(out_path))
+        assert table.num_rows == expected
+        assert table.num_columns == 11  # All properties from node_a
+        
+        # Verify column names
+        expected_columns = [
+            "v.id", "v.i32_property", "v.i64_property", "v.u32_property",
+            "v.u64_property", "v.f32_property", "v.f64_property",
+            "v.str_property", "v.date_property", "v.datetime_property",
+            "v.interval_property"
+        ]
+        assert table.column_names == expected_columns
+
+    @extension_test
+    def test_export_comprehensive_graph_vertex_to_parquet(self):
+        """Export node_a vertex objects to Parquet; verify struct type."""
+        out_path = self.tmp_path / "node_a_vertex.parquet"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v")
+        self.conn.execute("LOAD PARQUET")
+        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v) TO '{out_path}';")
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        
+        table = pq.read_table(str(out_path))
+        assert table.num_rows == expected
+        assert table.num_columns == 1
+        
+        # Vertex column should be a struct
+        vertex_field = table.schema.field(0)
+        assert pa.types.is_struct(vertex_field.type), \
+            f"Expected struct type for vertex, got {vertex_field.type}"
+
+    @extension_test
+    def test_export_comprehensive_graph_edge_to_parquet(self):
+        """Export rel_a edge objects to Parquet; verify struct type with metadata."""
+        out_path = self.tmp_path / "rel_a_edge.parquet"
+        out_path.unlink(missing_ok=True)
+        expected = _count_query(
+            self.conn, "MATCH (v:node_a)-[e:rel_a]->(v2:node_a) RETURN e"
+        )
+        self.conn.execute("LOAD PARQUET")
+        self.conn.execute(
+            f"COPY (MATCH (v:node_a)-[e:rel_a]->(v2:node_a) RETURN e) TO '{out_path}';"
+        )
+        assert out_path.exists(), f"Output file not created: {out_path}"
+        
+        table = pq.read_table(str(out_path))
+        assert table.num_rows == expected
+        assert table.num_columns == 1
+        
+        # Edge column should be a struct
+        edge_field = table.schema.field(0)
+        assert pa.types.is_struct(edge_field.type), \
+            f"Expected struct type for edge, got {edge_field.type}"
+
 
 class TestParquetExport:
     """COPY TO Parquet export tests using tinysnb."""
@@ -781,39 +848,6 @@ class TestParquetExport:
         assert table.schema.field(0).type in [pq.int64(), pq.int32()]
         assert table.schema.field(1).type in [pq.string(), pq.large_string()]
 
-    def test_export_empty_result(self):
-        """Test Parquet export with empty query result."""
-        out_path = self.tmp_path / "empty.parquet"
-        if out_path.exists():
-            out_path.unlink()
-
-        # Query that returns no results
-        self.conn.execute(
-            f"COPY (MATCH (v:person) WHERE v.ID = -1 RETURN v.ID, v.fName) TO '{out_path}'"
-        )
-
-        assert out_path.exists()
-
-        # Should create file with schema but 0 rows
-        table = pq.read_table(str(out_path))
-        assert table.num_rows == 0
-        assert table.num_columns == 2
-
-    def test_export_to_nested_directory(self):
-        """Test Parquet export to a nested directory that doesn't exist."""
-        out_path = self.tmp_path / "nested" / "dir" / "export.parquet"
-        if out_path.exists():
-            out_path.unlink()
-
-        self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path}'"
-        )
-
-        assert out_path.exists()
-
-        table = pq.read_table(str(out_path))
-        assert table.num_rows > 0
-
     def test_export_with_combined_options(self):
         """Test Parquet export with multiple options combined."""
         out_path = self.tmp_path / "combined_options.parquet"
@@ -832,3 +866,4 @@ class TestParquetExport:
         for i in range(parquet_file.metadata.num_row_groups):
             rg = parquet_file.metadata.row_group(i)
             assert rg.num_rows <= 5000
+

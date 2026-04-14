@@ -337,20 +337,23 @@ static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
     }
     // Fallback to string if we can't parse
     return arrow::large_utf8();
+  } else if (proto_array.has_interval_array()) {
+    // Interval type: convert to string for Parquet compatibility
+    return arrow::large_utf8();
   } else {
     LOG(WARNING) << "Unknown protobuf array type, defaulting to large_utf8";
     return arrow::large_utf8();
   }
 }
 
-// Macro for primitive array conversion (simple builder with pool only)
-#define TYPED_PRIMITIVE_ARRAY_TO_ARROW(CASE_TYPE, BUILDER_TYPE, GETTER_METHOD, GETTER_VALUE) \
-  case arrow::Type::CASE_TYPE: { \
-    auto& arr = proto_array.GETTER_METHOD(); \
+// Macro for primitive array conversion (proto-type based dispatch)
+#define TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(PROTO_FIELD, BUILDER_TYPE, VALUES_FIELD) \
+  { \
+    auto& arr = proto_array.PROTO_FIELD(); \
     BUILDER_TYPE builder(pool); \
     for (int i = 0; i < arr.values_size(); ++i) { \
       if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) { \
-        auto status = builder.Append(arr.GETTER_VALUE(i)); \
+        auto status = builder.Append(arr.VALUES_FIELD(i)); \
         if (!status.ok()) { \
           THROW_RUNTIME_ERROR("Failed to append value: " + status.ToString()); \
         } \
@@ -375,17 +378,29 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
     int row_count) {
   arrow::MemoryPool* pool = arrow::default_memory_pool();
   
-  // Handle primitive types using macro
-  switch (arrow_type->id()) {
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(INT32, arrow::Int32Builder, int32_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(INT64, arrow::Int64Builder, int64_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(FLOAT, arrow::FloatBuilder, float_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(DOUBLE, arrow::DoubleBuilder, double_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(BOOL, arrow::BooleanBuilder, bool_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(LARGE_STRING, arrow::LargeStringBuilder, string_array, values)
-    TYPED_PRIMITIVE_ARRAY_TO_ARROW(DATE64, arrow::Date64Builder, date_array, values)
-  
-  case arrow::Type::TIMESTAMP: {
+  // First, dispatch based on proto array type
+  if (proto_array.has_int32_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(int32_array, arrow::Int32Builder, values)
+  } else if (proto_array.has_int64_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(int64_array, arrow::Int64Builder, values)
+  } else if (proto_array.has_uint32_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(uint32_array, arrow::UInt32Builder, values)
+  } else if (proto_array.has_uint64_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(uint64_array, arrow::UInt64Builder, values)
+  } else if (proto_array.has_float_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(float_array, arrow::FloatBuilder, values)
+  } else if (proto_array.has_double_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(double_array, arrow::DoubleBuilder, values)
+  } else if (proto_array.has_bool_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(bool_array, arrow::BooleanBuilder, values)
+  } else if (proto_array.has_string_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(string_array, arrow::LargeStringBuilder, values)
+  } else if (proto_array.has_date_array()) {
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(date_array, arrow::Date64Builder, values)
+  } else if (proto_array.has_interval_array()) {
+    // Interval: convert to string for Parquet compatibility
+    TYPED_PRIMITIVE_ARRAY_TO_ARROW_IMPL(interval_array, arrow::LargeStringBuilder, values)
+  } else if (proto_array.has_timestamp_array()) {
     auto& arr = proto_array.timestamp_array();
     arrow::TimestampBuilder builder(arrow::timestamp(arrow::TimeUnit::MICRO), pool);
     for (int i = 0; i < arr.values_size(); ++i) {
@@ -407,88 +422,79 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
       THROW_RUNTIME_ERROR("Failed to finish timestamp array: " + status.ToString());
     }
     return result;
-  }
-    
-  case arrow::Type::LIST: {
+  } else if (proto_array.has_list_array()) {
     // Handle List type - build native Arrow ListArray
-    if (proto_array.has_list_array()) {
-      const auto& list_arr = proto_array.list_array();
-      auto list_type = std::static_pointer_cast<arrow::ListType>(arrow_type);
-      auto element_type = list_type->value_type();
-      
-      // Recursively convert all elements
-      auto elements_array = protoArrayToArrowArray(
-          list_arr.elements(), element_type, 0);
-      
-      // Build offsets buffer
-      int num_rows = list_arr.offsets_size() - 1;
-      
-      // Create offsets buffer directly from protobuf
-      auto offsets_buffer = arrow::Buffer::Wrap(
-          reinterpret_cast<const uint8_t*>(list_arr.offsets().data()),
-          list_arr.offsets_size() * sizeof(int32_t));
-      
-      // For now, don't pass validity buffer to avoid Arrow's limitation
-      // "Lists with non-zero length null components are not supported"
-      // If all values are valid (no nulls), we can safely omit validity buffer
-      std::shared_ptr<arrow::Buffer> validity_buffer = nullptr;
-      
-      // Create ListArray directly
-      auto list_array = std::make_shared<arrow::ListArray>(
-          list_type,
-          num_rows,
-          offsets_buffer,
-          elements_array,
-          validity_buffer);
-      
-      return list_array;
-    }
-    THROW_INVALID_ARGUMENT_EXCEPTION("Expected list_array for LIST type");
-  }
+    const auto& list_arr = proto_array.list_array();
+    auto list_type = std::static_pointer_cast<arrow::ListType>(arrow_type);
+    auto element_type = list_type->value_type();
     
-  case arrow::Type::STRUCT: {
+    // Recursively convert all elements
+    auto elements_array = protoArrayToArrowArray(
+        list_arr.elements(), element_type, 0);
+    
+    // Build offsets buffer
+    int num_rows = list_arr.offsets_size() - 1;
+    
+    // Create offsets buffer directly from protobuf
+    auto offsets_buffer = arrow::Buffer::Wrap(
+        reinterpret_cast<const uint8_t*>(list_arr.offsets().data()),
+        list_arr.offsets_size() * sizeof(int32_t));
+    
+    // For now, don't pass validity buffer to avoid Arrow's limitation
+    // "Lists with non-zero length null components are not supported"
+    // If all values are valid (no nulls), we can safely omit validity buffer
+    std::shared_ptr<arrow::Buffer> validity_buffer = nullptr;
+    
+    // Create ListArray directly
+    auto list_array = std::make_shared<arrow::ListArray>(
+        list_type,
+        num_rows,
+        offsets_buffer,
+        elements_array,
+        validity_buffer);
+    
+    return list_array;
+  } else if (proto_array.has_struct_array()) {
     // Handle StructArray
-    if (proto_array.has_struct_array()) {
-      const auto& struct_arr = proto_array.struct_array();
-      auto struct_type = std::static_pointer_cast<arrow::StructType>(arrow_type);
-      
-      // Recursively convert each field
-      std::vector<std::shared_ptr<arrow::Array>> field_arrays;
-      for (int i = 0; i < struct_arr.fields_size(); ++i) {
-        auto field_type = struct_type->field(i)->type();
-        auto field_array = protoArrayToArrowArray(
-            struct_arr.fields(i), field_type, row_count);
-        field_arrays.push_back(field_array);
-      }
-      
-      // Build validity buffer
-      auto null_bitmap = struct_arr.validity();
-      std::shared_ptr<arrow::Buffer> validity_buffer;
-      if (!null_bitmap.empty()) {
-        validity_buffer = std::make_shared<arrow::Buffer>(
-            reinterpret_cast<const uint8_t*>(null_bitmap.data()),
-            null_bitmap.size());
-      }
-      
-      // Create StructArray - num_rows should match the field arrays' length
-      int num_rows = field_arrays.empty() ? 0 : field_arrays[0]->length();
-      
-      auto struct_array = std::make_shared<arrow::StructArray>(
-          struct_type,
-          num_rows,
-          field_arrays,
-          validity_buffer);
-      
-      return struct_array;
+    const auto& struct_arr = proto_array.struct_array();
+    auto struct_type = std::static_pointer_cast<arrow::StructType>(arrow_type);
+    
+    // Recursively convert each field
+    std::vector<std::shared_ptr<arrow::Array>> field_arrays;
+    for (int i = 0; i < struct_arr.fields_size(); ++i) {
+      auto field_type = struct_type->field(i)->type();
+      auto field_array = protoArrayToArrowArray(
+          struct_arr.fields(i), field_type, row_count);
+      field_arrays.push_back(field_array);
     }
     
+    // Build validity buffer
+    auto null_bitmap = struct_arr.validity();
+    std::shared_ptr<arrow::Buffer> validity_buffer;
+    if (!null_bitmap.empty()) {
+      validity_buffer = std::make_shared<arrow::Buffer>(
+          reinterpret_cast<const uint8_t*>(null_bitmap.data()),
+          null_bitmap.size());
+    }
+    
+    // Create StructArray - num_rows should match the field arrays' length
+    int num_rows = field_arrays.empty() ? 0 : field_arrays[0]->length();
+    
+    auto struct_array = std::make_shared<arrow::StructArray>(
+        struct_type,
+        num_rows,
+        field_arrays,
+        validity_buffer);
+    
+    return struct_array;
+  } else if (proto_array.has_vertex_array() || 
+             proto_array.has_edge_array() || 
+             proto_array.has_path_array()) {
     // Handle Vertex/Edge/Path types (JSON strings -> native Arrow structures)
     return convertGraphJsonToArray(proto_array, arrow_type, pool);
-  }
-  
-  default:
+  } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
-        "Unsupported Arrow type for conversion: " + arrow_type->ToString());
+        "Unsupported protobuf array type for conversion");
   }
 }
 
