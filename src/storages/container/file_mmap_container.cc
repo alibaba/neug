@@ -16,6 +16,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -130,6 +132,7 @@ void FileSharedMMap::Dump(const std::string& path) {
   // If there is no backing file, fall back to the fwrite-based base Dump().
   if (path_.empty()) {
     MMapContainer::Dump(path);
+    Close();
     return;
   }
 
@@ -138,21 +141,29 @@ void FileSharedMMap::Dump(const std::string& path) {
 
   if (path == path_) {
     // Target is the same file; Sync() already ensured it is up-to-date.
+    Close();
     return;
   }
 
-  // Use file_utils::copy_file which tries FICLONE (reflink/COW) first,
-  // then copy_file_range, then falls back to traditional read/write copy.
-  // All three paths produce an independent inode, so a subsequent open()
-  // that copies the snapshot back to a tmp file will never alias the source.
-  try {
-    file_utils::copy_file(path_, path, /*overwrite=*/true);
-  } catch (const std::exception& e) {
-    LOG(WARNING) << "copy_file failed (" << e.what()
-                 << "), falling back to fwrite for " << path;
-    MMapContainer::Dump(path);
+  // Save path before Close() clears it.
+  std::string src_path = std::move(path_);
+  Close();  // munmap; all dirty pages already flushed by Sync() above.
+
+  // Try atomic rename first. On the same filesystem this is O(1) and
+  // involves no data copying — only a directory-entry update.
+  if (::rename(src_path.c_str(), path.c_str()) == 0) {
+    return;
   }
-  Close();
+
+  if (errno != EXDEV) {
+    THROW_IO_EXCEPTION("Failed to rename file: " + src_path + " -> " + path);
+  }
+
+  // Cross-filesystem fallback: copy then remove the source.
+  // copy_file tries copy_file_range (kernel-side, no userspace buffer) first,
+  // then falls back to a 64 KB read/write loop.
+  file_utils::copy_file(src_path, path, /*overwrite=*/true);
+  ::unlink(src_path.c_str());
 }
 
 }  // namespace neug
