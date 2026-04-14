@@ -43,7 +43,7 @@ void PyDatabase::initialize(pybind11::handle& m) {
         std::string buffer_strategy =
             kwargs.contains("buffer_strategy")
                 ? kwargs["buffer_strategy"].cast<std::string>()
-                : "M_HUGE";
+                : "M_FULL";
         return std::make_shared<PyDatabase>(database_path, max_thread_num, mode,
                                             planner, checkpoint_on_close,
                                             buffer_strategy);
