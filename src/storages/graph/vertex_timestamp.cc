@@ -16,22 +16,27 @@
 #include "neug/storages/graph/vertex_timestamp.h"
 #include <filesystem>
 
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/serialization/in_archive.h"
 #include "neug/utils/serialization/out_archive.h"
 
 namespace neug {
 
-void VertexTimestamp::Open(const std::string& tracker_file_prefix) {
-  std::string ts_filename = tracker_file_prefix + ".ts";
-  if (std::filesystem::exists(ts_filename)) {
-    load_ts(ts_filename);
+void VertexTimestamp::Open(Checkpoint& ckp, const ModuleDescriptor& desc,
+                           MemoryLevel level) {
+  assert(desc.module_type.empty() || desc.module_type == ModuleTypeName());
+  auto path = desc.get_path("data");
+  if (!path.empty() && std::filesystem::exists(path)) {
+    load_ts(path);
   } else {
     Init(0, 4096);
   }
 }
 
-void VertexTimestamp::Dump(const std::string& tracker_file_prefix) {
-  std::string ts_filename = tracker_file_prefix + ".ts";
+ModuleDescriptor VertexTimestamp::Dump(Checkpoint& ckp) {
+  auto uuid = ckp.create_runtime_object();
+  std::string ts_filename = ckp.runtime_dir() + "/" + uuid;
   // Before dump, reset the timestamp of modified vertices
   vid_t num = max_vertex_num_ - init_vertex_num_;
   for (vid_t v = 0; v < num; ++v) {
@@ -41,6 +46,10 @@ void VertexTimestamp::Dump(const std::string& tracker_file_prefix) {
   }
   Compact();
   dump_ts(ts_filename);
+  ModuleDescriptor descriptor;
+  descriptor.set_path("data", ckp.CommitRuntimeObject(uuid));
+  descriptor.module_type = ModuleTypeName();
+  return descriptor;
 }
 
 void VertexTimestamp::Init(vid_t init_vertex_num, vid_t max_vertex_num) {
@@ -279,4 +288,9 @@ void VertexTimestamp::resize_inserted_vertices(size_t new_size,
   }
   inserted_vertices_.swap(new_inserted_vertices);
 }
+
+void VertexTimestamp::Close() { Reset(); }
+
+NEUG_REGISTER_MODULE(VertexTimestamp);
+
 }  // namespace neug

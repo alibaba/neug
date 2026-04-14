@@ -14,61 +14,25 @@
  */
 
 #include "neug/storages/graph/vertex_table.h"
-#include "neug/utils/file_utils.h"
+
+#include "neug/storages/module_descriptor.h"
 #include "neug/utils/likely.h"
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
-  openImpl(work_dir, memory_level, checkpoint_dir(work_dir));
-}
-
-void VertexTable::Initialize(const std::string& work_dir,
-                             MemoryLevel memory_level) {
-  openImpl(work_dir, memory_level, "");
-}
-
-void VertexTable::openImpl(const std::string& work_dir,
-                           MemoryLevel memory_level,
-                           const std::string& checkpoint_dir_path) {
-  memory_level_ = memory_level;
-  work_dir_ = work_dir;
-
-  const auto& label_name = vertex_schema_->label_name;
-  std::string vertex_tracker_filename =
-      checkpoint_dir_path.empty()
-          ? ""
-          : checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
-  auto indexer_filename =
-      IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
-  if (memory_level_ == MemoryLevel::kSyncToFile) {
-    indexer_->open(indexer_filename, checkpoint_dir_path, work_dir_);
-    table_->open(vertex_table_prefix(label_name), work_dir_,
-                 vertex_schema_->property_names,
-                 vertex_schema_->property_types);
-
-  } else if (memory_level_ == MemoryLevel::kInMemory) {
-    indexer_->open_in_memory(checkpoint_dir_path.empty()
-                                 ? ""
-                                 : checkpoint_dir_path + "/" +
-                                       indexer_filename);
-    table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
-                           vertex_schema_->property_names,
-                           vertex_schema_->property_types);
-
-  } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
-    indexer_->open_with_hugepages(checkpoint_dir_path.empty()
-                                      ? ""
-                                      : checkpoint_dir_path + "/" +
-                                            indexer_filename);
-    table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
-                                vertex_schema_->property_names,
-                                vertex_schema_->property_types);
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " +
-                                     std::to_string(memory_level_));
-  }
-  v_ts_->Open(vertex_tracker_filename);
+void VertexTable::Init(Checkpoint& ckp, MemoryLevel level) {
+  CHECK(vertex_schema_ != nullptr) << "VertexTable::Init requires schema";
+  CHECK(indexer_ != nullptr) << "VertexTable::Init requires indexer slot";
+  CHECK(v_ts_ != nullptr) << "VertexTable::Init requires vertex_timestamp slot";
+  CHECK(pk_type_.id() != DataTypeId::kUnknown)
+      << "VertexTable::Init: pk_type must be set; was the schema-aware "
+         "constructor used?";
+  memory_level_ = level;
+  indexer_->Init(ckp, level);
+  table_ = std::make_unique<Table>(vertex_schema_->property_names,
+                                   vertex_schema_->property_types);
+  table_->Init(ckp, level);
+  v_ts_->Open(ckp, ModuleDescriptor{}, level);
 }
 
 void VertexTable::insert_vertices(
@@ -91,18 +55,16 @@ void VertexTable::insert_vertices(
   }
 }
 
-void VertexTable::Dump(const std::string& target_dir) {
-  const auto& label_name = vertex_schema_->label_name;
-  indexer_->dump(IndexerType::prefix() + "_" + vertex_map_prefix(label_name),
-                 target_dir);
-  table_->dump(vertex_table_prefix(label_name), target_dir);
-  v_ts_->Dump(target_dir + "/" + vertex_tracker_file(label_name));
-}
-
 void VertexTable::Close() {
-  indexer_->close();
-  table_->close();
-  v_ts_->Clear();
+  if (indexer_) {
+    indexer_->Close();
+  }
+  if (table_) {
+    table_->close();
+  }
+  if (v_ts_) {
+    v_ts_->Clear();
+  }
 }
 
 void VertexTable::SetVertexSchema(
@@ -251,11 +213,12 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   }
 }
 
-void VertexTable::AddProperties(const std::vector<std::string>& properties,
+void VertexTable::AddProperties(Checkpoint& ckp,
+                                const std::vector<std::string>& properties,
                                 const std::vector<DataType>& types,
                                 const std::vector<Property>& default_values) {
-  table_->add_columns(properties, types, default_values, indexer_->capacity(),
-                      memory_level_);
+  table_->add_columns(ckp, properties, types, default_values,
+                      indexer_->capacity(), memory_level_);
 }
 
 void VertexTable::RenameProperties(const std::vector<std::string>& old_names,

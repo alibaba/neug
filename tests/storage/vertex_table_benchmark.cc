@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "neug/execution/common/types/value.h"
-#include "neug/storages/file_names.h"
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_table.h"
 #include "neug/transaction/transaction_utils.h"
@@ -67,8 +65,10 @@ class VertexTableBenchmark : public ::testing::Test {
   }
 
   void CreateAndOpenVertexTable(neug::VertexTable& table) {
-    // Open the vertex table
-    table.Open(test_dir_, neug::MemoryLevel::kInMemory);
+    ws_.Open(test_dir_);
+    auto& ckp = make_checkpoint(ws_);
+    OpenVertexTableLegacy(table, ckp, neug::SnapshotMeta(),
+                          neug::MemoryLevel::kInMemory);
   }
 
   void AddVerticesWithProperties(neug::VertexTable& table, size_t count) {
@@ -156,6 +156,7 @@ class VertexTableBenchmark : public ::testing::Test {
 
  protected:
   std::string test_dir_;
+  neug::Workspace ws_;
   std::string v_label_name_;
   neug::DataTypeId pk_type_;
   std::vector<std::string> property_names_;
@@ -485,9 +486,9 @@ int main(int argc, char** argv) {
   std::cout << "=== VertexTable Performance Benchmark ===" << std::endl;
   std::cout << "Testing VertexTable with three properties (name, age, score)"
             << std::endl;
-  std::cout
-      << "All operations use random access patterns for realistic benchmarking"
-      << std::endl;
+  std::cout << "All operations use random access patterns for realistic "
+               "benchmarking"
+            << std::endl;
   std::cout << std::endl;
 
   return RUN_ALL_TESTS();

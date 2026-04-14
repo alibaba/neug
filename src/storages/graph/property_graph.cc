@@ -27,17 +27,211 @@
 #include <tl/expected.hpp>
 #include <utility>
 
-#include "neug/storages/file_names.h"
+#include "neug/storages/graph/schema.h"
+#include "neug/storages/module/module_factory.h"
+#include "neug/storages/module/module_store.h"
+#include "neug/storages/module/type_name.h"
+#include "neug/storages/snapshot_meta.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/exception/exception.h"
 #include "neug/utils/file_utils.h"
 #include "neug/utils/indexers.h"
+#include "neug/utils/property/column.h"
 #include "neug/utils/property/types.h"
 #include "neug/utils/yaml_utils.h"
 
 namespace neug {
 
+namespace {
+
+// Flat SnapshotMeta key builders.  Modules go in `meta.modules()` under
+// `vertex_<label>_<leaf>` / `edge_<src>_<edge>_<dst>_<leaf>`; scalars live
+// in `meta.scalars()` under `<owner>/<field>`.
+std::string VKeyKeys(const std::string& label) {
+  return "vertex_" + label + "_keys";
+}
+std::string VKeyIndices(const std::string& label) {
+  return "vertex_" + label + "_indices";
+}
+std::string VKeyVTs(const std::string& label) {
+  return "vertex_" + label + "_v_ts";
+}
+std::string VKeyProp(const std::string& label, size_t i) {
+  return "vertex_" + label + "_prop_" + std::to_string(i);
+}
+std::string EKey(const std::string& src, const std::string& edge,
+                 const std::string& dst, const std::string& suffix) {
+  return "edge_" + src + "_" + edge + "_" + dst + "_" + suffix;
+}
+std::string EKeyInCsr(const std::string& src, const std::string& edge,
+                      const std::string& dst) {
+  return EKey(src, edge, dst, "in_csr");
+}
+std::string EKeyOutCsr(const std::string& src, const std::string& edge,
+                       const std::string& dst) {
+  return EKey(src, edge, dst, "out_csr");
+}
+std::string EKeyProp(const std::string& src, const std::string& edge,
+                     const std::string& dst, size_t i) {
+  return EKey(src, edge, dst, "prop_" + std::to_string(i));
+}
+std::string IndexerScalarKey(const std::string& vlabel,
+                             const std::string& field) {
+  return "indexer_" + vlabel + "/" + field;
+}
+std::string EdgeScalarKey(const std::string& src, const std::string& edge,
+                          const std::string& dst, const std::string& field) {
+  return "edge_" + src + "_" + edge + "_" + dst + "/" + field;
+}
+
+// All-or-nothing restore.  If the skeleton key is absent the label has no
+// checkpoint state, so we delegate to Init.  Otherwise every leaf MUST be
+// in the store — TakeModule throws on a miss, surfacing partial dumps.
+VertexTable OpenVertexTable(Checkpoint& ckp,
+                            std::shared_ptr<const VertexSchema> vs,
+                            ModuleStore& store, const SnapshotMeta& meta,
+                            MemoryLevel level) {
+  VertexTable vt(vs);
+  vt.SetMemoryLevel(level);
+  const auto& lbl = vs->label_name;
+
+  if (!store.Contains(VKeyKeys(lbl))) {
+    vt.Init(ckp, level);
+    return vt;
+  }
+
+  auto& idx = vt.get_indexer();
+  idx.SetKeys(store.TakeModule<ColumnBase>(VKeyKeys(lbl)));
+  // indices is a raw IDataContainer — persisted as a path-only stub entry
+  // in meta (empty module_type), so it's not loaded by ModuleStore::Open.
+  // Open the file directly here.
+  auto indices_desc = meta.module(VKeyIndices(lbl));
+  CHECK(indices_desc.has_value())
+      << "missing indices meta entry for vertex " << lbl;
+  idx.SetIndices(ckp.OpenFile(indices_desc->get_path("data"), level));
+  idx.SetNumElements(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_elements"))
+          .value_or(0));
+  idx.SetNumSlotsMinusOne(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "num_slots_minus_one"))
+          .value_or(0));
+  idx.SetHashPolicyIndex(
+      meta.GetScalarAs<size_t>(IndexerScalarKey(lbl, "hash_policy"))
+          .value_or(0));
+
+  auto table = std::make_unique<Table>(vs->property_names, vs->property_types);
+  for (size_t i = 0; i < vs->property_types.size(); ++i) {
+    table->SetColumn(static_cast<int>(i),
+                     std::shared_ptr<ColumnBase>(
+                         store.TakeModule<ColumnBase>(VKeyProp(lbl, i))));
+  }
+  vt.SetTable(std::move(table));
+
+  vt.SetVertexTimestamp(store.TakeModule<VertexTimestamp>(VKeyVTs(lbl)));
+  return vt;
+}
+
+// Hand every leaf of @p vt to @p store (transferring ownership) and write
+// indexer scalars to @p meta.  After this call @p vt is empty; the eventual
+// store.Dump() drives Module::Dump on each leaf, and the ModuleStore (which
+// goes out of scope at the end of PropertyGraph::Dump) cleans up.  Table
+// columns are dumped inline because Table holds shared_ptr<ColumnBase> and
+// can't transfer ownership into a unique_ptr-typed store.
+void DisassembleVertexTable(VertexTable& vt, ModuleStore& store,
+                            SnapshotMeta& meta, Checkpoint& ckp) {
+  const auto& lbl = vt.get_vertex_schema_ptr()->label_name;
+  auto& idx = vt.get_indexer();
+  meta.SetScalar(IndexerScalarKey(lbl, "num_elements"),
+                 std::to_string(idx.GetNumElements()));
+  meta.SetScalar(IndexerScalarKey(lbl, "num_slots_minus_one"),
+                 std::to_string(idx.GetNumSlotsMinusOne()));
+  meta.SetScalar(IndexerScalarKey(lbl, "hash_policy"),
+                 std::to_string(idx.GetHashPolicyIndex()));
+  store.SetModule(VKeyKeys(lbl), idx.TakeKeys());
+  // indices is a raw IDataContainer — Commit it, then record the path on a
+  // stub meta entry (empty module_type) so OpenVertexTable can find it.
+  {
+    auto indices_buf = idx.TakeIndices();
+    ModuleDescriptor indices_desc;
+    indices_desc.set_path("data", ckp.Commit(*indices_buf));
+    meta.set_module(VKeyIndices(lbl), std::move(indices_desc));
+  }
+
+  auto table = vt.TakeTable();
+  for (size_t i = 0; i < table->col_num(); ++i) {
+    meta.set_module(VKeyProp(lbl, i), table->get_column_by_id(i)->Dump(ckp));
+  }
+  store.SetModule(VKeyVTs(lbl), vt.TakeVertexTimestamp());
+}
+
+// Same all-or-nothing rule as OpenVertexTable; out_csr is the skeleton.
+EdgeTable OpenEdgeTable(Checkpoint& ckp, std::shared_ptr<const EdgeSchema> es,
+                        ModuleStore& store, const SnapshotMeta& meta,
+                        MemoryLevel level) {
+  EdgeTable et(es);
+  et.SetMemoryLevel(level);
+  const auto& src = es->src_label_name;
+  const auto& edge = es->edge_label_name;
+  const auto& dst = es->dst_label_name;
+
+  if (!store.Contains(EKeyOutCsr(src, edge, dst))) {
+    et.Init(ckp, level);
+    return et;
+  }
+
+  et.SetInCsr(store.TakeModule<CsrBase>(EKeyInCsr(src, edge, dst)));
+  et.SetOutCsr(store.TakeModule<CsrBase>(EKeyOutCsr(src, edge, dst)));
+
+  if (!es->is_bundled()) {
+    auto table = std::make_unique<Table>(es->property_names, es->properties);
+    for (size_t i = 0; i < es->properties.size(); ++i) {
+      table->SetColumn(static_cast<int>(i),
+                       std::shared_ptr<ColumnBase>(store.TakeModule<ColumnBase>(
+                           EKeyProp(src, edge, dst, i))));
+    }
+    et.SetTable(std::move(table));
+    et.SetTableIdx(
+        meta.GetScalarAs<uint64_t>(EdgeScalarKey(src, edge, dst, "table_idx"))
+            .value_or(0));
+  } else {
+    et.SetTable(std::make_unique<Table>());
+  }
+  et.SetCapacity(
+      meta.GetScalarAs<uint64_t>(EdgeScalarKey(src, edge, dst, "capacity"))
+          .value_or(0));
+  return et;
+}
+
+void DisassembleEdgeTable(EdgeTable& et, ModuleStore& store, SnapshotMeta& meta,
+                          Checkpoint& ckp) {
+  auto es = et.get_edge_schema_ptr();
+  if (!es) {
+    return;
+  }
+  const auto& src = es->src_label_name;
+  const auto& edge = es->edge_label_name;
+  const auto& dst = es->dst_label_name;
+
+  store.SetModule(EKeyOutCsr(src, edge, dst), et.TakeOutCsr());
+  store.SetModule(EKeyInCsr(src, edge, dst), et.TakeInCsr());
+  if (!es->is_bundled()) {
+    auto table = et.TakeTable();
+    for (size_t i = 0; i < table->col_num(); ++i) {
+      meta.set_module(EKeyProp(src, edge, dst, i),
+                      table->get_column_by_id(i)->Dump(ckp));
+    }
+    meta.SetScalar(EdgeScalarKey(src, edge, dst, "table_idx"),
+                   std::to_string(et.GetTableIdx()));
+  }
+  meta.SetScalar(EdgeScalarKey(src, edge, dst, "capacity"),
+                 std::to_string(et.GetCapacity()));
+}
+
+}  // namespace
+
 PropertyGraph::PropertyGraph()
-    : vertex_label_total_count_(0),
+    : ckp_(nullptr),
+      vertex_label_total_count_(0),
       edge_label_total_count_(0),
       memory_level_(MemoryLevel::kInMemory) {}
 
@@ -54,6 +248,7 @@ void PropertyGraph::Clear() {
   vertex_label_total_count_ = 0;
   edge_label_total_count_ = 0;
   schema_.Clear();
+  ckp_ = nullptr;
 }
 
 Status PropertyGraph::EnsureCapacity(label_t v_label, size_t capacity) {
@@ -214,15 +409,14 @@ Status PropertyGraph::CreateVertexType(const CreateVertexTypeParam& config) {
                          primary_keys, Schema::MAX_VNUM, description,
                          default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
+  VertexTable fresh_vt(schema_.get_vertex_schema(vertex_label_id));
+  fresh_vt.Init(*ckp_, memory_level_);
   if (vertex_label_id < vertex_tables_.size()) {
-    auto new_v_table = VertexTable(schema_.get_vertex_schema(vertex_label_id));
-    vertex_tables_[vertex_label_id].Swap(new_v_table);
+    vertex_tables_[vertex_label_id].Swap(fresh_vt);
   } else {
-    vertex_tables_.emplace_back(schema_.get_vertex_schema(vertex_label_id));
+    vertex_tables_.emplace_back(std::move(fresh_vt));
   }
-
   auto& vtable = vertex_tables_[vertex_label_id];
-  vtable.Initialize(work_dir_, memory_level_);
   vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   assert(vertex_tables_.size() == vertex_label_total_count_);
@@ -298,14 +492,15 @@ Status PropertyGraph::CreateEdgeType(const CreateEdgeTypeParam& config) {
   if (edge_tables_.count(index) > 0) {
     return Status(StatusCode::ERR_INVALID_ARGUMENT, "Edge label id conflict.");
   }
-  EdgeTable edge_table(
-      schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-  edge_tables_.emplace(index, std::move(edge_table));
+  auto edge_schema =
+      schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i);
+  EdgeTable fresh_et(edge_schema);
+  fresh_et.Init(*ckp_, memory_level_);  // see CreateVertexType for rationale
+  edge_tables_.emplace(index, std::move(fresh_et));
   auto src_v_capacity = std::max(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).Initialize(work_dir_, memory_level_);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
@@ -342,8 +537,8 @@ Status PropertyGraph::AddVertexProperties(
     add_default_props.emplace_back(execution::value_to_property(val));
   }
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
-  vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
-                                        add_default_props);
+  vertex_tables_[v_label].AddProperties(*ckp_, add_property_names,
+                                        add_property_types, add_default_props);
   return neug::Status::OK();
 }
 
@@ -399,7 +594,7 @@ Status PropertyGraph::AddEdgeProperties(const AddEdgePropertiesParam& config) {
     add_default_props.emplace_back(execution::value_to_property(val));
   }
   auto& edge_table = edge_tables_.at(index);
-  edge_table.AddProperties(add_property_names, add_property_types,
+  edge_table.AddProperties(*ckp_, add_property_names, add_property_types,
                            add_default_props);
 
   return neug::Status::OK();
@@ -560,7 +755,7 @@ Status PropertyGraph::DeleteEdgeProperties(
                       "] to [" + dst_type_name +
                       "] does not exist, cannot delete properties.");
   }
-  edge_tables_.at(index).DeleteProperties(delete_property_names);
+  edge_tables_.at(index).DeleteProperties(*ckp_, delete_property_names);
   schema_.DeleteEdgeProperties(src_type_name, dst_type_name, edge_type_name,
                                delete_property_names);
   return neug::Status::OK();
@@ -728,105 +923,52 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
-                         MemoryLevel memory_level) {
-  schema_ = schema;
-  Open(work_dir, memory_level);
-}
-
-void PropertyGraph::Open(const std::string& work_dir,
-                         MemoryLevel memory_level) {
-  // copy work_dir to work_dir_
+void PropertyGraph::Open(Checkpoint& ckp, MemoryLevel memory_level) {
+  Clear();
   memory_level_ = memory_level;
-  work_dir_.assign(work_dir);
-  std::string schema_file = schema_path(work_dir_);
-  std::string checkpoint_dir_path = checkpoint_dir(work_dir_);
-  if (std::filesystem::exists(schema_file)) {
-    loadSchema(schema_file);
-  } else {
-    LOG(INFO) << "Schema file not found, build empty graph";
-    std::filesystem::create_directories(checkpoint_dir_path);
-  }
+
+  const SnapshotMeta& meta = ckp.GetMeta();
+  schema_ = meta.GetSchema();
   vertex_label_total_count_ = schema_.vertex_label_frontier();
   edge_label_total_count_ = schema_.edge_label_frontier();
-  for (size_t i = 0; i < vertex_label_total_count_; i++) {
-    if (!schema_.is_vertex_label_valid(i)) {
-      // Tombstoned vertex label: keep the slot to preserve label_t -> index
-      // mapping, but leave the VertexTable in a dropped state.
-      vertex_tables_.emplace_back();
-      continue;
-    }
-    vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
-  }
 
-  std::string tmp_dir_path = tmp_dir(work_dir_);
-
-  if (std::filesystem::exists(tmp_dir_path)) {
-    remove_directory(tmp_dir_path);
-  }
-
-  std::filesystem::create_directories(tmp_dir_path);
+  ModuleStore store;
+  store.Open(ckp, memory_level_);
 
   std::vector<size_t> vertex_capacities(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
     if (!schema_.is_vertex_label_valid(i)) {
+      vertex_tables_.emplace_back();
       continue;
     }
-    std::string v_label_name = schema_.get_vertex_label_name(i);
-
-    vertex_tables_[i].Open(work_dir_, memory_level);
-    // Case 1: Open from checkpoint, the capacity should be already reserved and
-    // satisfied.
-    // Case 2: Open from empty, Capacity should be the default minimum
-    // capacity(4096)
+    vertex_tables_.emplace_back(OpenVertexTable(
+        ckp, schema_.get_vertex_schema(i), store, meta, memory_level_));
     auto v_size = vertex_tables_[i].Size();
     vertex_tables_[i].EnsureCapacity(v_size < 4096 ? 4096
                                                    : v_size + v_size / 4);
     vertex_capacities[i] = vertex_tables_[i].Capacity();
   }
 
-  for (size_t src_label_i = 0; src_label_i != vertex_label_total_count_;
-       ++src_label_i) {
-    if (!schema_.is_vertex_label_valid(src_label_i)) {
-      continue;
-    }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
-    for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
-         ++dst_label_i) {
-      if (!schema_.is_vertex_label_valid(dst_label_i)) {
-        continue;
-      }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
-      for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
-           ++e_label_i) {
-        if (!schema_.is_edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.is_edge_triplet_valid(src_label, dst_label, edge_label)) {
-          continue;
-        }
-        size_t index =
-            schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
-
-        EdgeTable edge_table(
-            schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-        edge_table.Open(work_dir_, memory_level_);
-        auto e_size = edge_table.PropTableSize();
-        size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
-        edge_table.EnsureCapacity(vertex_capacities[src_label_i],
-                                  vertex_capacities[dst_label_i], e_capacity);
-        edge_tables_.emplace(index, std::move(edge_table));
-      }
-    }
+  for (const auto& [index, edge_schema] : schema_.get_all_edge_schemas()) {
+    auto [src_label_i, dst_label_i, e_label_i] =
+        schema_.parse_edge_label(index);
+    EdgeTable et = OpenEdgeTable(ckp, edge_schema, store, meta, memory_level_);
+    auto e_size = et.PropTableSize();
+    size_t e_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
+    et.EnsureCapacity(vertex_capacities[src_label_i],
+                      vertex_capacities[dst_label_i], e_cap);
+    edge_tables_.emplace(index, std::move(et));
   }
+
   v_mutex_.resize(vertex_label_total_count_);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
     v_mutex_[i] = std::make_shared<std::mutex>();
   }
+
+  // NOTE: ckp must outlive this PropertyGraph instance. The caller (NeugDB)
+  // is responsible for ensuring the Checkpoint is not destroyed while the
+  // graph holds a reference to it.
+  ckp_ = &ckp;
 }
 
 void PropertyGraph::compact_schema() {
@@ -941,33 +1083,24 @@ void PropertyGraph::Compact(bool compact_csr, float reserve_ratio,
   LOG(INFO) << "Compaction completed.";
 }
 
-void PropertyGraph::Dump(bool reopen) {
-  // First dump to the  temp dir, then move to the checkpoint dir
-  std::string target_dir = temp_checkpoint_dir(work_dir_);
-  if (std::filesystem::exists(target_dir)) {
-    remove_directory(target_dir);
-  } else {
-    std::filesystem::create_directories(target_dir);
+void PropertyGraph::Dump(Checkpoint& ckp, bool reopen) {
+  LOG(INFO) << "Creating checkpoint at " << ckp.path();
+
+  std::string obsolete_wal_dir;
+  if (ckp_ != nullptr && ckp_ != &ckp) {
+    obsolete_wal_dir = ckp_->wal_dir();
   }
 
-  std::error_code errorCode;
-  std::filesystem::create_directories(target_dir, errorCode);
-  if (errorCode) {
-    std::stringstream ss;
-    ss << "Failed to create snapshot directory: " << target_dir << ", "
-       << errorCode.message();
-    LOG(ERROR) << ss.str();
-    THROW_RUNTIME_ERROR(ss.str());
-  }
-  std::vector<size_t> vertex_num(vertex_label_total_count_, 0);
+  SnapshotMeta meta;
+  ModuleStore store;
+
   std::vector<size_t> vertex_capacity(vertex_label_total_count_, 0);
   for (size_t i = 0; i < vertex_label_total_count_; ++i) {
     if (schema_.is_vertex_label_valid(i)) {
-      vertex_num[i] = vertex_tables_[i].LidNum();
-      EnsureCapacity(
-          i, vertex_num[i] < 4096 ? 4096 : vertex_num[i] + vertex_num[i] / 4);
+      auto v_size = vertex_tables_[i].LidNum();
+      EnsureCapacity(i, v_size < 4096 ? 4096 : v_size + v_size / 4);
       vertex_capacity[i] = vertex_tables_[i].Capacity();
-      vertex_tables_[i].Dump(target_dir);
+      DisassembleVertexTable(vertex_tables_[i], store, meta, ckp);
     }
   }
 
@@ -997,41 +1130,27 @@ void PropertyGraph::Dump(bool reopen) {
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
                          vertex_capacity[src_label_i],
                          vertex_capacity[dst_label_i], new_cap);
-          edge_table.Dump(target_dir);
+          DisassembleEdgeTable(edge_table, store, meta, ckp);
         }
       }
     }
   }
-  DumpSchema();
-  copy_directory(target_dir, checkpoint_dir(work_dir_), true, true);
-  remove_directory(target_dir);
-  remove_directory(tmp_dir(work_dir_));
-  remove_directory(wal_dir(work_dir_));
-  LOG(INFO) << "Dump graph to " << checkpoint_dir(work_dir_);
+
+  store.Dump(ckp, meta);
+  meta.SetSchema(schema_);
+  ckp.UpdateMeta(
+      std::move(meta));  // Persist meta and set checkpoint to use this meta.
+  LOG(INFO) << "Dump graph to checkpoint " << ckp.path();
+
+  // Drop the previous checkpoint's WAL now that the new snapshot is durable.
+  if (!obsolete_wal_dir.empty() && std::filesystem::exists(obsolete_wal_dir)) {
+    remove_directory(obsolete_wal_dir);
+  }
+
   Clear();
   if (reopen) {
-    Open(work_dir_, memory_level_);
+    Open(ckp, memory_level_);
   }
-}
-
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  if (!write_yaml_file(schema_res.value(), filename)) {
-    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
-  }
-  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }

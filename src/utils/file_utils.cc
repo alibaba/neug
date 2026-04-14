@@ -382,6 +382,46 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
   return CopyResult::FallbackCopy;
 }
 
+void atomic_write_file(const std::string& path,
+                       const std::function<void(std::ostream&)>& writer) {
+  std::string tmp_path = path + ".tmp";
+  try {
+    {
+      std::ofstream ofs(tmp_path, std::ios::out | std::ios::trunc);
+      if (!ofs.is_open()) {
+        THROW_IO_EXCEPTION("atomic_write_file: cannot open tmp file " +
+                           tmp_path);
+      }
+      writer(ofs);
+      ofs.flush();
+      if (!ofs.good()) {
+        THROW_IO_EXCEPTION("atomic_write_file: write failed for " + tmp_path);
+      }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp_path, path, ec);
+    if (ec) {
+      THROW_IO_EXCEPTION("atomic_write_file: rename " + tmp_path + " -> " +
+                         path + " failed: " + ec.message());
+    }
+  } catch (...) {
+    std::error_code ec;
+    std::filesystem::remove(tmp_path, ec);
+    throw;
+  }
+}
+
+bool link_or_copy(const std::string& src, const std::string& dst) {
+  std::error_code ec;
+  std::filesystem::create_hard_link(src, dst, ec);
+  if (!ec) {
+    return true;
+  }
+  // Cross-device or unsupported FS – fall back to a regular file copy.
+  copy_file(src, dst, /*overwrite=*/false);
+  return false;
+}
+
 void create_file(const std::string& path, size_t size) {
   // get dir
   std::filesystem::path dir = std::filesystem::path(path).parent_path();

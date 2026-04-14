@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "neug/config.h"
+#include "neug/storages/workspace.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -31,25 +32,21 @@ namespace neug {
 class Table {
  public:
   Table();
+
+  Table(const std::vector<std::string>& col_names,
+        const std::vector<DataType>& property_types);
+
   ~Table();
 
-  void open(const std::string& name, const std::string& work_dir,
-            const std::vector<std::string>& col_name,
-            const std::vector<DataType>& property_types);
+  void Init(Checkpoint& ckp, MemoryLevel level);
 
-  void open_in_memory(const std::string& name, const std::string& work_dir,
-                      const std::vector<std::string>& col_name,
-                      const std::vector<DataType>& property_types);
+  void SetColumn(int idx, std::shared_ptr<ColumnBase> col);
 
-  void open_with_hugepages(const std::string& name, const std::string& work_dir,
-                           const std::vector<std::string>& col_name,
-                           const std::vector<DataType>& property_types);
-
-  void dump(const std::string& name, const std::string& snapshot_dir);
+  std::shared_ptr<ColumnBase> TakeColumn(int idx);
 
   void reset_header(const std::vector<std::string>& col_name);
 
-  void add_columns(const std::vector<std::string>& col_names,
+  void add_columns(Checkpoint& ckp, const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
                    const std::vector<Property>& default_property_values,
                    size_t capacity,
@@ -102,22 +99,11 @@ class Table {
 
   void close();
 
-  void set_name(const std::string& name);
-
-  void set_work_dir(const std::string& work_dir);
-
  private:
-  void initColumns(const std::vector<std::string>& col_name,
-                   const std::vector<DataType>& types);
-
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
-  std::vector<bool> col_deleted_;
-
-  std::string name_;
-  std::string work_dir_, snapshot_dir_;
 };
 
 }  // namespace neug

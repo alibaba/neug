@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <stdexcept>
 
+#include "neug/storages/checkpoint.h"
 #include "neug/storages/container/file_header.h"
 #include "neug/storages/container/mmap_container.h"
 #include "neug/utils/file_utils.h"
@@ -107,7 +108,9 @@ void MMapContainer::Resize(size_t size) {
   void* new_mmap_data = mmap(nullptr, size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (new_mmap_data == MAP_FAILED) {
-    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing");
+    int err = errno;
+    THROW_IO_EXCEPTION("Failed to create anonymous mmap for resizing: " +
+                       std::to_string(err) + ", size: " + std::to_string(size));
   }
 
   // Copy existing payload only when there is payload to copy

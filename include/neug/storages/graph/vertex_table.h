@@ -17,6 +17,7 @@
 #include "neug/storages/graph/schema.h"
 #include "neug/storages/graph/vertex_timestamp.h"
 #include "neug/storages/loader/loader_utils.h"
+#include "neug/storages/module/module.h"
 #include "neug/utils/arrow_utils.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/table.h"
@@ -80,22 +81,22 @@ class PropertyGraph;
 class VertexTable {
  public:
   VertexTable()
-      : table_(nullptr),
+      : indexer_(std::make_unique<IndexerType>()),
+        table_(nullptr),
+        pk_type_(DataTypeId::kUnknown),
         vertex_schema_(nullptr),
-        v_ts_(),
-        memory_level_(MemoryLevel::kInMemory),
-        work_dir_("") {}
+        v_ts_(std::make_unique<VertexTimestamp>()),
+        memory_level_(MemoryLevel::kInMemory) {}
 
   VertexTable(std::shared_ptr<const VertexSchema> vertex_schema)
-      : indexer_(std::make_shared<IndexerType>()),
+      : indexer_(std::make_unique<IndexerType>(
+            std::get<0>(vertex_schema->primary_keys[0]))),
         table_(std::make_unique<Table>()),
+        pk_type_(std::get<0>(vertex_schema->primary_keys[0])),
         vertex_schema_(vertex_schema),
-        v_ts_(std::make_shared<VertexTimestamp>()),
-        memory_level_(MemoryLevel::kInMemory),
-        work_dir_("") {
+        v_ts_(std::make_unique<VertexTimestamp>()),
+        memory_level_(MemoryLevel::kInMemory) {
     assert(vertex_schema->primary_keys.size() == 1);
-    pk_type_ = std::get<0>(vertex_schema->primary_keys[0]);
-    indexer_->init(pk_type_.id());
   }
 
   VertexTable(VertexTable&& other)
@@ -104,8 +105,7 @@ class VertexTable {
         pk_type_(other.pk_type_),
         vertex_schema_(other.vertex_schema_),
         v_ts_(std::move(other.v_ts_)),
-        memory_level_(other.memory_level_),
-        work_dir_(other.work_dir_) {}
+        memory_level_(other.memory_level_) {}
 
   VertexTable(const VertexTable&) = delete;
 
@@ -116,20 +116,32 @@ class VertexTable {
     std::swap(vertex_schema_, other.vertex_schema_);
     v_ts_.swap(other.v_ts_);
     std::swap(memory_level_, other.memory_level_);
-    std::swap(work_dir_, other.work_dir_);
   }
 
-  // Restore an existing vertex table from its checkpoint snapshot.
-  void Open(const std::string& work_dir, MemoryLevel memory_level);
+  void Init(Checkpoint& ckp, MemoryLevel memory_level);
 
-  // Bring up a freshly-created vertex table with no checkpoint to read.
-  void Initialize(const std::string& work_dir, MemoryLevel memory_level);
+  void SetIndexer(std::unique_ptr<IndexerType> indexer) {
+    indexer_ = std::move(indexer);
+  }
+  void SetTable(std::unique_ptr<Table> table) { table_ = std::move(table); }
+  void SetVertexTimestamp(std::unique_ptr<VertexTimestamp> v_ts) {
+    v_ts_ = std::move(v_ts);
+  }
+  void SetMemoryLevel(MemoryLevel level) { memory_level_ = level; }
 
-  void Dump(const std::string& target_dir);
+  std::unique_ptr<IndexerType> TakeIndexer() { return std::move(indexer_); }
+  std::unique_ptr<Table> TakeTable() { return std::move(table_); }
+  std::unique_ptr<VertexTimestamp> TakeVertexTimestamp() {
+    return std::move(v_ts_);
+  }
 
   void Close();
 
   void SetVertexSchema(std::shared_ptr<const VertexSchema> vertex_schema);
+
+  std::shared_ptr<const VertexSchema> get_vertex_schema_ptr() const {
+    return vertex_schema_;
+  }
 
   size_t EnsureCapacity(size_t capacity);
 
@@ -194,7 +206,8 @@ class VertexTable {
 
   void RevertDeleteVertex(vid_t lid, timestamp_t ts);
 
-  void AddProperties(const std::vector<std::string>& property_names,
+  void AddProperties(Checkpoint& ckp,
+                     const std::vector<std::string>& property_names,
                      const std::vector<DataType>& property_types,
                      const std::vector<Property>& default_property_values);
 
@@ -203,11 +216,7 @@ class VertexTable {
   void RenameProperties(const std::vector<std::string>& old_names,
                         const std::vector<std::string>& new_names);
 
-  std::string work_dir() const { return work_dir_; }
-
   void Compact(timestamp_t ts = MAX_TIMESTAMP);
-
-  inline std::string& work_dir() { return work_dir_; }
 
   void insert_vertices(std::shared_ptr<IRecordBatchSupplier> suppliers);
 
@@ -339,14 +348,12 @@ class VertexTable {
     }
   }
 
-  std::shared_ptr<IndexerType> indexer_;
+  std::unique_ptr<IndexerType> indexer_;
   std::unique_ptr<Table> table_;
   DataType pk_type_;
   std::shared_ptr<const VertexSchema> vertex_schema_;
-  std::shared_ptr<VertexTimestamp> v_ts_;
+  std::unique_ptr<VertexTimestamp> v_ts_;
   MemoryLevel memory_level_;
-
-  std::string work_dir_;
 
   friend class PropertyGraph;
 };

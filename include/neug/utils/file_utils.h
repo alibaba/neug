@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <functional>
+#include <ostream>
 #include <string>
 
 namespace neug {
@@ -75,6 +77,24 @@ CopyResult copy_file(const std::string& src_path, const std::string& dst_path,
                      bool overwrite);
 
 void create_file(const std::string& path, size_t size);
+
+/**
+ * @brief Atomically replace @p path with content produced by @p writer.
+ *
+ * Writes to `path + ".tmp"` then renames over @p path. POSIX rename is atomic,
+ * so a reader at @p path always sees either the old or new full content, never
+ * a truncated state. On exception the tmp file is removed before rethrowing.
+ */
+void atomic_write_file(const std::string& path,
+                       const std::function<void(std::ostream&)>& writer);
+
+/**
+ * @brief Hardlink @p src to @p dst; if the link fails (cross-device, FS without
+ * hardlink support, …), fall back to a regular file copy.
+ *
+ * Returns true if hardlink succeeded, false if the fallback copy was used.
+ */
+bool link_or_copy(const std::string& src, const std::string& dst);
 
 }  // namespace file_utils
 
