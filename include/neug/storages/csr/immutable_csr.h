@@ -15,6 +15,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <atomic>
 #include <limits>
 #include <set>
 #include <string>
@@ -58,27 +59,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
                : 0;
   }
 
-  size_t edge_num() const override {
-    size_t ret = 0;
-    if (!degree_list_buffer_ || !adj_list_buffer_) {
-      return 0;
-    }
-    const nbr_t** adj_lists_ptr =
-        reinterpret_cast<const nbr_t**>(adj_list_buffer_->GetData());
-    const int* degree_list_ptr =
-        reinterpret_cast<const int*>(degree_list_buffer_->GetData());
-    auto v_cap = size();
-    for (size_t i = 0; i < v_cap; ++i) {
-      auto deg = degree_list_ptr[i];
-      const nbr_t* begin = adj_lists_ptr[i];
-      for (size_t j = 0; j < deg; ++j) {
-        if (begin[j].neighbor != std::numeric_limits<vid_t>::max()) {
-          ret++;
-        }
-      }
-    }
-    return ret;
-  }
+  size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
@@ -139,6 +120,7 @@ class ImmutableCsr : public TypedCsrBase<EDATA_T> {
   std::unique_ptr<IDataContainer> degree_list_buffer_;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
   timestamp_t unsorted_since_;
+  std::atomic<uint64_t> edge_num_{0};
 };
 
 template <typename EDATA_T>
@@ -172,21 +154,7 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
                             : 0;
   }
 
-  size_t edge_num() const override {
-    size_t ret = 0;
-    if (!nbr_list_buffer_) {
-      return 0;
-    }
-    auto v_cap = nbr_list_buffer_->GetDataSize() / sizeof(nbr_t);
-    const auto* nbr_arr =
-        reinterpret_cast<const nbr_t*>(nbr_list_buffer_->GetData());
-    for (size_t i = 0; i < v_cap; ++i) {
-      if (nbr_arr[i].neighbor != std::numeric_limits<vid_t>::max()) {
-        ++ret;
-      }
-    }
-    return ret;
-  }
+  size_t edge_num() const override { return edge_num_.load(); }
 
   void open(const std::string& name, const std::string& snapshot_dir,
             const std::string& work_dir) override;
@@ -236,7 +204,10 @@ class SingleImmutableCsr : public TypedCsrBase<EDATA_T> {
   }
 
  private:
+  void load_meta(const std::string& prefix);
+  void dump_meta(const std::string& prefix) const;
   std::unique_ptr<IDataContainer> nbr_list_buffer_;
+  std::atomic<uint64_t> edge_num_{0};
 };
 
 }  // namespace neug
