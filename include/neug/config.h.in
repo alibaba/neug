@@ -49,7 +49,7 @@ enum class MemoryLevel : uint8_t {
   kUnSet = 0,
   kInMemory = 1,
   kSyncToFile = 2,
-  kHugePagePrefered = 3
+  kHugePagePreferred = 3
 };
 
 /**

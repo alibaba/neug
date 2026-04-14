@@ -53,7 +53,7 @@ cd "$DIR" || exit
 for file in *.whl; do
   # Use pattern matching to insert '-2-' after version number
   # new_name=$(echo "$file" | sed 's/\(neug-[0-9]\+\.[0-9]\+\.[0-9]\+\)-/\1-'"$REVERSION"'-/')
-  # on macos, the file name is like neug-0.1.0-cp310-cp310-macosx_11_0_arm64.whl
+  # on macos, the file name is like neug-0.1.1-cp310-cp310-macosx_11_0_arm64.whl
   new_name=$(echo "$file" | sed -E 's/(neug-[0-9]+\.[0-9]+\.[0-9]+)-/\1-'"$REVERSION"'-/')
 
   # Rename the file

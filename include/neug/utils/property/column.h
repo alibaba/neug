@@ -104,7 +104,7 @@ class TypedColumn : public ColumnBase {
   }
 
   void open_with_hugepages(const std::string& name) override {
-    buffer_ = OpenContainer(name, "", MemoryLevel::kHugePagePrefered);
+    buffer_ = OpenContainer(name, "", MemoryLevel::kHugePagePreferred);
     size_ = buffer_->GetDataSize() / sizeof(T);
   }
 
@@ -269,9 +269,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
 
   void open_with_hugepages(const std::string& prefix) override {
     items_buffer_ =
-        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePrefered);
+        OpenContainer(prefix + ".items", "", MemoryLevel::kHugePagePreferred);
     data_buffer_ =
-        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePrefered);
+        OpenContainer(prefix + ".data", "", MemoryLevel::kHugePagePreferred);
     size_ = items_buffer_->GetDataSize() / sizeof(string_item);
     init_pos(prefix + ".pos");
   }

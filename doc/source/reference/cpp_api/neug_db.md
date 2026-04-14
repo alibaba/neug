@@ -15,7 +15,7 @@ db.Open("/path/to/data", 4);  // 4 threads
 auto conn = db.Connect();
 auto result = conn->Query("MATCH (n:Person) RETURN n LIMIT 10");
 // Process results
-for (const auto& record : result.value()) {
+for (auto& record : result.value()) {
   std::cout << record.ToString() << std::endl;
 }
 // Close database (persists data)
@@ -104,7 +104,7 @@ neug::NeugDBConfig config;
 config.data_dir = "/path/to/graph";
 config.thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
-config.memory_level = 2;  // Use hugepages
+config.memory_level = 1;  // Use memory-mapped virtual memory
 config.enable_auto_compaction = true;
 neug::NeugDB db;
 db.Open(config);
