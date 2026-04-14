@@ -82,7 +82,7 @@ class Database(object):
         mode: str = "read-write",
         max_thread_num: int = 0,
         checkpoint_on_close: bool = True,
-        buffer_strategy: str = "M_HUGE",
+        buffer_strategy: str = "M_FULL",
     ):
         """
         Open a database.
@@ -102,7 +102,7 @@ class Database(object):
             If False, no checkpoint is created automatically when close the database.
         buffer_strategy : str
             Buffer strategy to use for the database, could be 'InMemory' (or 'M_FULL'), 'SyncToFile' (or 'M_LAZY')
-            or 'HugePagePreferred' (or 'M_HUGE'). Default is 'InMemory'.
+            or 'HugePagePreferred' (or 'M_HUGE'). Default is 'M_FULL'.
             - 'InMemory' / 'M_FULL': The database will be opened fully in memory, and the changes will not be
               persisted to disk until checkpoint is created.
             - 'SyncToFile' / 'M_LAZY': The database will be opened in memory on demand, suitable for large databases
