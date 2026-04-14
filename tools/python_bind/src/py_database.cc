@@ -14,42 +14,8 @@
  */
 
 #include "py_database.h"
-#include "neug/main/file_lock.h"
 
 namespace neug {
-
-void signal_handler(int signal) {
-  // NOTE:
-  // - SIGKILL cannot be handled.
-  // - Avoid handling crash signals (SIGSEGV/SIGABRT/SIGFPE) here because
-  //   complex cleanup/logging in async signal context is unsafe.
-  if (signal == SIGINT || signal == SIGTERM || signal == SIGQUIT) {
-    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
-    // remove all files in work_dir
-    neug::FileLock::CleanupAllLocks();
-#ifdef NEUG_BACKTRACE
-    cpptrace::generate_trace(1 /*skip this function's frame*/).print();
-#endif
-    std::exit(128 + signal);
-  }
-  LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
-
-  std::exit(1);
-}
-
-void setup_signal_handler() {
-  // Register handlers for graceful termination signals only.
-  // SIGKILL cannot be handled.
-  std::signal(SIGINT, signal_handler);
-  std::signal(SIGTERM, signal_handler);
-  std::signal(SIGQUIT, signal_handler);
-}
-
-void reset_signal_handler() {
-  std::signal(SIGINT, SIG_DFL);
-  std::signal(SIGTERM, SIG_DFL);
-  std::signal(SIGQUIT, SIG_DFL);
-}
 
 void PyDatabase::initialize(pybind11::handle& m) {
   pybind11::class_<PyDatabase, std::shared_ptr<PyDatabase>>(
@@ -111,10 +77,6 @@ PyConnection PyDatabase::connect() {
 
 std::string PyDatabase::serve(int port, const std::string& host,
                               int32_t num_thread, bool blocking) {
-  // In TP mode, we want to start the server and process queries concurrently.
-  // So we need to set up signal handlers to allow graceful shutdown of the
-  // server and cleanup of resources.
-  setup_signal_handler();
 #ifdef BUILD_HTTP_SERVER
   if (!database) {
     THROW_RUNTIME_ERROR("Database is not initialized.");
@@ -161,8 +123,6 @@ std::string PyDatabase::serve(int port, const std::string& host,
 void PyDatabase::stop_serving() {
   std::lock_guard<std::recursive_mutex> lock(mtx_);
   VLOG(1) << "Stopping server if running.";
-  // Reset signal handlers to default to allow graceful shutdown of the server
-  reset_signal_handler();
 #ifdef BUILD_HTTP_SERVER
   if (!service_) {
     return;

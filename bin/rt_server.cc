@@ -25,26 +25,6 @@
 
 using namespace neug;
 
-void signal_handler(int signal) {
-  LOG(INFO) << "Received signal " << signal << ", exiting...";
-  // support SIGKILL, SIGINT, SIGTERM
-  if (signal == SIGINT || signal == SIGTERM || signal == SIGABRT) {
-    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
-    // remove all files in work_dir
-    neug::FileLock::CleanupAllLocks();
-    exit(signal);
-  } else {
-    LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
-    exit(1);
-  }
-}
-
-void setup_signal_handler() {
-  std::signal(SIGINT, signal_handler);
-  std::signal(SIGTERM, signal_handler);
-  std::signal(SIGABRT, signal_handler);
-}
-
 int main(int argc, char** argv) {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
   options.add_options()("h,help", "Display help message")("v,version",
@@ -68,8 +48,6 @@ int main(int argc, char** argv) {
   FLAGS_logtostderr = true;
 
   cxxopts::ParseResult vm = options.parse(argc, argv);
-
-  setup_signal_handler();
 
   if (vm.count("help")) {
     std::cout << options.help() << std::endl;

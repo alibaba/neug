@@ -110,9 +110,10 @@ bool NeugDB::Open(const NeugDBConfig& config) {
     std::filesystem::create_directories(work_dir_);
   }
   file_lock_ = std::make_unique<FileLock>(work_dir_);
+  std::string error_msg;
 
-  if (!file_lock_->lock(work_dir_, config.mode)) {
-    THROW_IO_EXCEPTION("Failed to lock data directory: " + work_dir_);
+  if (!file_lock_->lock(error_msg, config_.mode)) {
+    THROW_DATABASE_LOCKED_EXCEPTION(error_msg);
   }
   neug::execution::PlanParser::get().init();
   initAllocators();
