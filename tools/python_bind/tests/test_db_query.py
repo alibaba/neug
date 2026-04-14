@@ -2852,6 +2852,43 @@ def test_optional_match_on_edge(tmp_path):
     db.close()
 
 
+def test_is_not_null_on_node_variable(tmp_path):
+    db_dir = tmp_path / "is_not_null_node"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Node(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (a:Node {id: 1});")
+
+    result = conn.execute(
+        "MATCH (a:Node) WHERE a IS NOT NULL RETURN 1;",
+        access_mode="read",
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0] == 1
+
+    conn.execute("CREATE NODE TABLE person(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE knows(FROM person TO person);")
+    conn.execute("CREATE (a:person {id: 1});")
+    conn.execute("CREATE (a:person {id: 2});")
+    conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) CREATE (a)-[:knows]->(b);"
+    )
+    result = conn.execute(
+        "MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) "
+        "WHERE b IS NULL RETURN a, b;",
+        access_mode="read",
+    )
+    records = list(result)
+    ids = sorted(row[0]["id"] for row in records)
+    assert ids == [1, 2]
+
+    conn.close()
+    db.close()
+
+
 def test_drop_and_recreate_table_same_name(tmp_path):
     """Test that dropping node tables with relationships and recreating
     with the same name but different schema does not crash (SIGSEGV)."""
