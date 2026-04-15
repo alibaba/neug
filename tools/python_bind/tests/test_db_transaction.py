@@ -26,6 +26,7 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
@@ -33,7 +34,6 @@ from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
 from neug.proto.error_pb2 import ERR_TX_TIMEOUT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
-from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 
 
 # DB-004-01
