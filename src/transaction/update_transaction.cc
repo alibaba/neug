@@ -1029,10 +1029,8 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   return true;
 }
 
-void UpdateTransaction::IngestWal(PropertyGraph& graph,
-                                  const std::string& work_dir,
-                                  uint32_t timestamp, char* data, size_t length,
-                                  Allocator& alloc) {
+void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
+                                  char* data, size_t length, Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {
