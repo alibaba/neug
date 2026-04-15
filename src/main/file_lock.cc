@@ -30,6 +30,11 @@
 
 namespace neug {
 
+// A helper class to track the databases currently locked by the current
+// process. This is necessary because the file lock is shared across the whole
+// process, and we need to ensure that if the same process tries to open the
+// same database multiple times, it should be allowed if the lock mode is
+// compatible, and should be rejected if the lock mode is incompatible.
 class CurrentHoldDbs {
  public:
   static CurrentHoldDbs& get() {
@@ -47,7 +52,6 @@ class CurrentHoldDbs {
         // Database is already opened in a different mode, which is not allowed
         return false;
       }
-      return false;  // Database is already opened
     }
     opened_dbs_[db_path] = (mode == DBMode::READ_ONLY);
     return true;
@@ -79,9 +83,8 @@ FileLock::FileLock(const std::string& data_dir)
           "Permission denied when creating lock file: " + lock_file_path_ +
           ", please check the permissions of the data directory.");
     }
-    THROW_DATABASE_LOCKED_EXCEPTION(
-        "Failed to create lock file: " + lock_file_path_ +
-        ", error: " + std::string(strerror(errno)));
+    THROW_RUNTIME_ERROR("Failed to create lock file: " + lock_file_path_ +
+                        ", error: " + std::string(strerror(errno)));
   }
 }
 
@@ -93,11 +96,10 @@ FileLock::~FileLock() {
 }
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
-  // If the lock file already exists, it means the current process has already
-  // locked the database, return an error message.
+  // If the current process has already locked the database, check if the lock
+  // mode is compatible. If not, return an error message.
   if (CurrentHoldDbs::get().lock(lock_file_path_, mode)) {
-    // This process is the first one to lock the database, proceed with locking
-    // the file.
+    // Try to acquire the file lock. If it fails, return an error message.
     if (lock(mode == DBMode::READ_ONLY ? F_RDLCK : F_WRLCK, false, error_msg)) {
       locked_ = true;
     } else {
@@ -106,13 +108,22 @@ bool FileLock::lock(std::string& error_msg, DBMode mode) {
     }
     return locked_;
   } else {
-    // The database is already locked by the current process, return an error
-    // message.
+    // The database is already locked by the current process, but in a different
+    // mode, which is not allowed. Return an error message.
     locked_ = false;
-    error_msg = "Lock file is already locked by the current process: " +
-                lock_file_path_ +
-                ", you may have already opened the database in this process, "
-                "please check.";
+    if (mode == DBMode::READ_ONLY) {
+      error_msg =
+          "Lock file is already locked in write mode by the current process: " +
+          lock_file_path_ +
+          ", you can't open the database in read-only mode in the same "
+          "process";
+    } else {
+      error_msg =
+          "Lock file is already locked in read or write mode by the current "
+          "process: " +
+          lock_file_path_ +
+          ", you can't open the database in write mode in the same process";
+    }
     return false;
   }
 }
@@ -122,7 +133,9 @@ void FileLock::unlock() {
     return;  // Not locked, nothing to do
   }
   std::string error_msg;
-  lock(F_UNLCK, true, error_msg);
+  if (!lock(F_UNLCK, true, error_msg)) {
+    LOG(WARNING) << "Failed to unlock file lock: " << error_msg;
+  }
   CurrentHoldDbs::get().unlock(lock_file_path_);
   locked_ = false;
 }

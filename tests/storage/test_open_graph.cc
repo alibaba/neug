@@ -14,8 +14,6 @@
  */
 
 #include <gtest/gtest.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <iostream>
 #include <string>
 #include "column_assertions.h"
@@ -46,9 +44,14 @@ TEST(DatabaseTest, OpenClose) {
   db2.Open(dir, 1, neug::DBMode::READ_ONLY);
 
   LOG(INFO) << "After open db2 in read-only mode";
+  neug::NeugDB db3;
+  db3.Open(dir, 1, neug::DBMode::READ_ONLY);
+  LOG(INFO) << "After open db3 in read-only mode";
 
   db2.Close();
   LOG(INFO) << "After close db2";
+  db3.Close();
+  LOG(INFO) << "After close db3";
 
   {
     neug::NeugDB db4;

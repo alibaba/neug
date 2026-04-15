@@ -78,11 +78,18 @@ NeugDB::~NeugDB() {
   //  starting tp service with database opened in memory mode. In this case,
   //  pydatabase will call close and then reopen, so we need to keep the temp
   //  dir until the db is destructed.
-  if (is_pure_memory_) {
-    VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
-    remove_directory(work_dir_);
-  } else {
-    remove_directory(tmp_dir(work_dir_));
+  try {
+    if (is_pure_memory_) {
+      VLOG(10) << "Removing temp NeugDB at: " << work_dir_;
+      remove_directory(work_dir_);
+    } else {
+      remove_directory(tmp_dir(work_dir_));
+    }
+  } catch (const std::exception& e) {
+    LOG(WARNING) << "Failed to remove temp dir for " << work_dir_ << ": "
+                 << e.what();
+  } catch (...) {
+    LOG(WARNING) << "Failed to remove temp dir for " << work_dir_;
   }
 }
 
