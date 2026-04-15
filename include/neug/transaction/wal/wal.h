@@ -46,7 +46,6 @@ struct UpdateWalUnit {
   size_t size{0};
 };
 
-std::string parse_wal_uri(std::string uri, const std::string& work_dir);
 std::string get_wal_uri_scheme(const std::string& uri);
 std::string get_wal_uri_path(const std::string& uri);
 
