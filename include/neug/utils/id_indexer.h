@@ -195,12 +195,6 @@ class IdIndexer;
 template <typename INDEX_T>
 class LFIndexer;
 
-template <typename KEY_T, typename INDEX_T>
-void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
-                      const std::string& filename, LFIndexer<INDEX_T>& lf,
-                      const std::string& snapshot_dir,
-                      const std::string& work_dir, DataTypeId type);
-
 template <typename INDEX_T>
 class LFIndexer {
   static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
@@ -533,14 +527,6 @@ class LFIndexer {
 
   ska::ska::prime_number_hash_policy hash_policy_;
   GHash<Property> hasher_;
-
-  // _KEY_T is defined in sys/_types/_key_t.h on macos
-  template <typename __KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
-                               const std::string& filename,
-                               LFIndexer<_INDEX_T>& output,
-                               const std::string& snapshot_dir,
-                               const std::string& work_dir, DataTypeId type);
 };
 
 template <typename INDEX_T>
@@ -999,13 +985,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   size_t num_slots_minus_one_ = 0;
 
   GHash<KEY_T> hasher_;
-
-  template <typename __KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
-                               const std::string& filename,
-                               LFIndexer<_INDEX_T>& output,
-                               const std::string& snapshot_dir,
-                               const std::string& work_dir, DataTypeId type);
 };
 
 template <typename KEY_T, typename INDEX_T>
@@ -1030,60 +1009,5 @@ struct _move_data<std::string_view, INDEX_T> {
     }
   }
 };
-
-template <typename KEY_T, typename INDEX_T>
-void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
-                      const std::string& filename, LFIndexer<INDEX_T>& lf,
-                      const std::string& snapshot_dir,
-                      const std::string& work_dir, DataTypeId type) {
-  size_t size = input.keys_.size();
-  lf.init(type);
-  lf.keys_->open(filename + ".keys", "", work_dir);
-  lf.keys_->resize(size);
-  _move_data<KEY_T, INDEX_T>()(input.keys_, *lf.keys_, size);
-  lf.num_elements_.store(size);
-
-  auto indices_path = work_dir + "/" + filename + ".indices";
-  file_utils::create_file(indices_path, sizeof(FileHeader));
-  lf.indices_ = OpenContainer(indices_path,
-                              tmp_dir(work_dir) + "/" + filename + ".indices",
-                              MemoryLevel::kSyncToFile);
-  lf.indices_->Resize((input.num_slots_minus_one_ + 1) * sizeof(INDEX_T));
-  auto* lf_indices_ptr = reinterpret_cast<INDEX_T*>(lf.indices_->GetData());
-  lf.indices_size_ = lf.indices_->GetDataSize() / sizeof(INDEX_T);
-
-  lf.hash_policy_.set_mod_function_by_index(
-      input.hash_policy_.get_mod_function_index());
-  lf.num_slots_minus_one_ = input.num_slots_minus_one_;
-  memcpy(lf_indices_ptr, input.indices_.data(),
-         lf.indices_size_ * sizeof(INDEX_T));
-
-  std::vector<INDEX_T> residuals;
-  for (INDEX_T idx = 0; idx < input.size(); ++idx) {
-    if (input.indices_[idx] != LFIndexer<INDEX_T>::sentinel) {
-      residuals.push_back(input.indices_[idx]);
-    }
-  }
-  for (const auto& lid : residuals) {
-    auto oid = input.keys_[lid];
-    size_t index = input.hash_policy_.index_for_hash(
-        input.hasher_(oid), input.num_slots_minus_one_);
-    while (true) {
-      if (lf_indices_ptr[index] == lid) {
-        break;
-      } else if (lf_indices_ptr[index] == LFIndexer<INDEX_T>::sentinel) {
-        lf_indices_ptr[index] = lid;
-        break;
-      }
-      index = (index + 1) % (input.num_slots_minus_one_ + 1);
-    }
-  }
-  lf.dump_meta(snapshot_dir + "/" + filename + ".meta");
-
-  lf.keys_->dump(snapshot_dir + "/" + filename + ".keys");
-  std::filesystem::remove(work_dir + "/" + filename + ".meta");
-  lf.keys_->close();
-  lf.keys_->open(filename + ".keys", snapshot_dir, work_dir);
-}
 
 }  // namespace neug

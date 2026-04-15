@@ -276,9 +276,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
-                        uint32_t timestamp, char* data, size_t length,
-                        Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+                        size_t length, Allocator& alloc);
   Property GetVertexId(label_t label, vid_t lid) const;
 
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;

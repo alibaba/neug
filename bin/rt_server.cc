@@ -37,10 +37,7 @@ int main(int argc, char** argv) {
       cxxopts::value<int>()->default_value("1"))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
       cxxopts::value<std::string>()->default_value("cooperative"))(
-      "wal-uri", "URI for Write-Ahead Logging storage",
-      cxxopts::value<std::string>()->default_value(
-          "file://{GRAPH_DATA_DIR}/wal"))("host", "Host address",
-                                          cxxopts::value<std::string>());
+      "host", "Host address", cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
@@ -76,7 +73,6 @@ int main(int argc, char** argv) {
   neug::NeugDB db;
   neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
-  config.wal_uri = vm["wal-uri"].as<std::string>();
   if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
     config.enable_auto_compaction = true;
   }

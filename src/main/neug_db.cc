@@ -49,8 +49,8 @@ namespace neug {
 class Connection;
 static void IngestWalRange(PropertyGraph& graph,
                            std::vector<std::shared_ptr<Allocator>>& allocators,
-                           const IWalParser& parser, uint32_t from, uint32_t to,
-                           const std::string& work_dir) {
+                           const IWalParser& parser, uint32_t from,
+                           uint32_t to) {
   if (from >= to) {
     return;
   }
@@ -125,8 +125,7 @@ bool NeugDB::Open(const NeugDBConfig& config) {
   }
   neug::execution::PlanParser::get().init();
   initAllocators();
-  openGraphAndSchema();
-  ingestWals();
+  openGraphAndIngestWals();
   initPlannerAndQueryProcessor();
 
   LOG(INFO) << "NeugDB opened successfully";
@@ -219,7 +218,7 @@ void NeugDB::initAllocators() {
   }
 }
 
-void NeugDB::openGraphAndSchema() {
+void NeugDB::openGraphAndIngestWals() {
   if (!std::filesystem::exists(work_dir_)) {
     std::filesystem::create_directories(work_dir_);
   }
@@ -227,41 +226,36 @@ void NeugDB::openGraphAndSchema() {
   thread_num_ = config_.thread_num;
   try {
     graph_.Open(work_dir_, config_.memory_level);
+    neug::WalParserFactory::Init();
+    auto wal_parser = WalParserFactory::CreateWalParser(wal_dir(work_dir_));
+    ingestWals(*wal_parser);
   } catch (std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what();
     THROW_INTERNAL_EXCEPTION(e.what());
   }
 }
 
-void NeugDB::ingestWals() {
-  auto wal_uri = parse_wal_uri(config_.wal_uri, work_dir_);
-  neug::WalParserFactory::Init();
-  auto wal_parser = WalParserFactory::CreateWalParser(wal_uri);
-  ingestWals(*wal_parser, work_dir_);
-}
-
-void NeugDB::ingestWals(IWalParser& parser, const std::string& work_dir) {
+void NeugDB::ingestWals(IWalParser& parser) {
   uint32_t from_ts = 1;
   LOG(INFO) << "Ingesting update wals size: "
             << parser.get_update_wals().size();
   for (auto& update_wal : parser.get_update_wals()) {
     uint32_t to_ts = update_wal.timestamp;
     if (from_ts < to_ts) {
-      IngestWalRange(graph_, allocators_, parser, from_ts, to_ts, work_dir);
+      IngestWalRange(graph_, allocators_, parser, from_ts, to_ts);
     }
     if (update_wal.size == 0) {
       graph_.Compact(config_.compact_csr, config_.csr_reserve_ratio,
                      update_wal.timestamp);
       last_compaction_ts_ = update_wal.timestamp;
     } else {
-      UpdateTransaction::IngestWal(graph_, work_dir, to_ts, update_wal.ptr,
+      UpdateTransaction::IngestWal(graph_, to_ts, update_wal.ptr,
                                    update_wal.size, *allocators_[0]);
     }
     from_ts = to_ts + 1;
   }
   if (from_ts <= parser.last_ts()) {
-    IngestWalRange(graph_, allocators_, parser, from_ts, parser.last_ts() + 1,
-                   work_dir);
+    IngestWalRange(graph_, allocators_, parser, from_ts, parser.last_ts() + 1);
   }
   LOG(INFO) << "Finish ingesting wals up to timestamp: " << parser.last_ts();
   last_ts_ = parser.last_ts();

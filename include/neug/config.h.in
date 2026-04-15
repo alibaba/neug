@@ -97,7 +97,6 @@ struct NeugDBConfig {
         thread_num(1),
         enable_auto_compaction(false),
         memory_level(MemoryLevel::kInMemory),
-        wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
         checkpoint_on_close(false),
@@ -117,7 +116,6 @@ struct NeugDBConfig {
         thread_num(thread_num_),
         enable_auto_compaction(false),
         memory_level(MemoryLevel::kInMemory),
-        wal_uri("{GRAPH_DATA_DIR}/wal"),
         compact_csr(true),
         compact_on_close(true),
         checkpoint_on_close(false),
@@ -149,9 +147,6 @@ struct NeugDBConfig {
    * - 2: Prefer hugepages
    */
   MemoryLevel memory_level;
-
-  /// WAL (Write-Ahead Log) storage URI. Use {GRAPH_DATA_DIR} as placeholder.
-  std::string wal_uri;
 
   /// Compact CSR structures during compaction
   bool compact_csr;
