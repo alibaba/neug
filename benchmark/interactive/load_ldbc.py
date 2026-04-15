@@ -11,7 +11,7 @@ DATA_PATH = os.environ.get("DATA_PATH", "") or os.getcwd()
 
 def load():
     total_start = time.time()
-    db = neug.Database(DB_DIR)
+    db = neug.Database(DB_DIR, buffer_strategy = "M_LAZY")
     conn = db.connect()
     print(f"DATA_PATH = {DATA_PATH}")
 
