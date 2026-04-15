@@ -33,6 +33,7 @@ from neug.proto.error_pb2 import ERR_SCHEMA_MISMATCH
 from neug.proto.error_pb2 import ERR_TX_STATE_CONFLICT
 from neug.proto.error_pb2 import ERR_TX_TIMEOUT
 from neug.proto.error_pb2 import ERR_TYPE_CONVERSION
+from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 
 
 # DB-004-01
@@ -597,7 +598,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "in read or write mode" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()
@@ -613,7 +614,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "in write mode" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     with pytest.raises(Exception) as excinfo:
         db3 = Database(db_path=str(db_dir), mode="w")
@@ -621,7 +622,7 @@ def test_database_concurrent_lock(tmp_path):
         conn3.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn3.close()
         db3.close()
-    assert "in read or write mode" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()
