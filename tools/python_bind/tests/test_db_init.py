@@ -18,6 +18,7 @@
 
 import multiprocessing
 import os
+import shutil
 import sys
 
 import pytest
