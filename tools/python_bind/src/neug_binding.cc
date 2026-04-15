@@ -15,13 +15,10 @@
 
 #include <pybind11/gil_safe_call_once.h>
 #include <pybind11/pybind11.h>
-#include <csignal>
-#include <cstdlib>
 #include <iostream>
 #include <string>
 
 #include <glog/logging.h>
-#include "neug/main/file_lock.h"
 #include "neug/utils/exception/exception.h"
 #include "py_connection.h"
 #include "py_database.h"

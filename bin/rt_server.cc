@@ -19,7 +19,6 @@
 
 #include <glog/logging.h>
 #include <chrono>
-#include <csignal>
 #include "cxxopts/cxxopts.hpp"
 
 using namespace neug;

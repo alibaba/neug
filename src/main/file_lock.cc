@@ -21,19 +21,67 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <cstring>
 #include <fstream>
+#include <map>
+#include <mutex>
+#include <string>
 
 #include "neug/utils/exception/exception.h"
 
 namespace neug {
 
+class CurrentHoldDbs {
+ public:
+  static CurrentHoldDbs& get() {
+    static CurrentHoldDbs instance;
+    return instance;
+  }
+
+  bool lock(const std::string& db_path, DBMode mode) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (opened_dbs_.find(db_path) != opened_dbs_.end()) {
+      if (opened_dbs_[db_path] > 0 && mode == DBMode::READ_ONLY) {
+        opened_dbs_[db_path] += 1;
+        return true;  // Database is already opened in the same mode
+      } else {
+        // Database is already opened in a different mode, which is not allowed
+        return false;
+      }
+      return false;  // Database is already opened
+    }
+    opened_dbs_[db_path] = (mode == DBMode::READ_ONLY);
+    return true;
+  }
+
+  void unlock(const std::string& db_path) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (opened_dbs_.find(db_path) != opened_dbs_.end()) {
+      opened_dbs_[db_path] -= 1;
+      if (opened_dbs_[db_path] <= 0) {
+        opened_dbs_.erase(db_path);
+      }
+    }
+  }
+
+ private:
+  std::mutex mutex_;
+  std::map<std::string, int> opened_dbs_;
+};
+
 FileLock::FileLock(const std::string& data_dir)
-    : lock_file_path_(data_dir + "/" + LOCK_FILE_NAME), fd_(-1) {
-  fd_ = ::open(lock_file_path_.c_str(), O_RDWR | O_CREAT, 0666);
+    : lock_file_path_(data_dir + "/" + LOCK_FILE_NAME),
+      fd_(-1),
+      locked_(false) {
+  fd_ = ::open(lock_file_path_.c_str(), O_RDWR | O_CREAT, 0600);
   if (fd_ == -1) {
-    throw std::runtime_error("Failed to create lock file: " + lock_file_path_ +
-                             ", error: " + std::string(strerror(errno)));
+    if (errno == EACCES) {
+      THROW_PERMISSION_DENIED(
+          "Permission denied when creating lock file: " + lock_file_path_ +
+          ", please check the permissions of the data directory.");
+    }
+    THROW_DATABASE_LOCKED_EXCEPTION(
+        "Failed to create lock file: " + lock_file_path_ +
+        ", error: " + std::string(strerror(errno)));
   }
 }
 
@@ -45,18 +93,38 @@ FileLock::~FileLock() {
 }
 
 bool FileLock::lock(std::string& error_msg, DBMode mode) {
-  // If the lock file already exists, it means another process is using the
-  // database.
-  if (mode == DBMode::READ_ONLY) {
-    return lock(F_RDLCK, false, error_msg);
+  // If the lock file already exists, it means the current process has already
+  // locked the database, return an error message.
+  if (CurrentHoldDbs::get().lock(lock_file_path_, mode)) {
+    // This process is the first one to lock the database, proceed with locking
+    // the file.
+    if (lock(mode == DBMode::READ_ONLY ? F_RDLCK : F_WRLCK, false, error_msg)) {
+      locked_ = true;
+    } else {
+      locked_ = false;
+      CurrentHoldDbs::get().unlock(lock_file_path_);
+    }
+    return locked_;
   } else {
-    return lock(F_WRLCK, false, error_msg);
+    // The database is already locked by the current process, return an error
+    // message.
+    locked_ = false;
+    error_msg = "Lock file is already locked by the current process: " +
+                lock_file_path_ +
+                ", you may have already opened the database in this process, "
+                "please check.";
+    return false;
   }
 }
 
 void FileLock::unlock() {
+  if (!locked_) {
+    return;  // Not locked, nothing to do
+  }
   std::string error_msg;
   lock(F_UNLCK, true, error_msg);
+  CurrentHoldDbs::get().unlock(lock_file_path_);
+  locked_ = false;
 }
 
 bool FileLock::lock(short type, bool wait, std::string& error_msg) {
@@ -75,8 +143,7 @@ bool FileLock::lock(short type, bool wait, std::string& error_msg) {
       // The file is already locked by another process
       error_msg =
           "Lock file is already locked by another process: " + lock_file_path_ +
-          ", if you are sure you want to proceed(in case the process "
-          "has already died), please remove the lock file manually.";
+          ", please check if another instance of the database is running.";
       return false;
     } else if (errno == EINTR) {
       // Interrupted by a signal, retry
