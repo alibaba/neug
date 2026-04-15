@@ -21,6 +21,7 @@ import sys
 
 
 import pytest
+import multiprocessing
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
@@ -32,7 +33,6 @@ from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_PATH
 from neug.proto.error_pb2 import ERR_PERMISSION
 from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
-import multiprocessing
 
 
 # DB-001-01 & DB-001-02
