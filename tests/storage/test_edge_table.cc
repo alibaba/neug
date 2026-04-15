@@ -90,22 +90,23 @@ class EdgeTableTest : public ::testing::Test {
     return WorkDirectory() / "checkpoint";
   }
 
+  void build_indexer(neug::LFIndexer<neug::vid_t>& indexer, neug::vid_t num,
+                     const std::string& name, const std::string& snapshot_dir,
+                     const std::string& work_dir) {
+    indexer.drop();
+    indexer.init(DataTypeId::kInt64);
+    indexer.open(name, snapshot_dir, work_dir);
+    indexer.reserve(num);
+    for (neug::vid_t i = 0; i < num; ++i) {
+      indexer.insert(PropUtils<int64_t>::to_prop(i), i);
+    }
+  }
+
   void InitIndexers(neug::vid_t src_num, neug::vid_t dst_num) {
-    neug::IdIndexer<int64_t, neug::vid_t> src_input, dst_input;
-    for (neug::vid_t i = 0; i < src_num; ++i) {
-      neug::vid_t lid;
-      src_input.add(static_cast<int64_t>(i), lid);
-    }
-    for (neug::vid_t i = 0; i < dst_num; ++i) {
-      neug::vid_t lid;
-      dst_input.add(static_cast<int64_t>(i), lid);
-    }
-    neug::build_lf_indexer<int64_t, neug::vid_t>(
-        src_input, "src_indexer", src_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), neug::DataTypeId::kInt64);
-    neug::build_lf_indexer<int64_t, neug::vid_t>(
-        dst_input, "dst_indexer", dst_indexer, SnapshotDirectory().string(),
-        WorkDirectory().string(), neug::DataTypeId::kInt64);
+    build_indexer(src_indexer, src_num, "src_indexer",
+                  SnapshotDirectory().string(), WorkDirectory().string());
+    build_indexer(dst_indexer, dst_num, "dst_indexer",
+                  SnapshotDirectory().string(), WorkDirectory().string());
   }
 
   void ConstructEdgeTable(neug::label_t src_label, neug::label_t dst_label,
