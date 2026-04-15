@@ -52,6 +52,7 @@ jobs:
         run: |
           export PYTHONPATH=${{ github.workspace }}/tools/python_bind:${{ github.workspace }}/tools/python_bind/build/lib:$PYTHONPATH
           RESULT_DIR=$(cat ${{ github.workspace }}/.benchmark_result_dir)
+          export DEBUG=ON
           nohup python3 benchmark/interactive/serve_ldbc.py > serve.log 2>&1 &
           echo $! > serve.pid
           for i in $(seq 1 2700); do
