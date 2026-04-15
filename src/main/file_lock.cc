@@ -134,7 +134,7 @@ void FileLock::unlock() {
   }
   std::string error_msg;
   if (!lock(F_UNLCK, true, error_msg)) {
-    LOG(WARNING) << "Failed to unlock file lock: " << error_msg;
+    LOG(ERROR) << "Failed to unlock file lock: " << error_msg;
   }
   CurrentHoldDbs::get().unlock(lock_file_path_);
   locked_ = false;

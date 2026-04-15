@@ -31,6 +31,7 @@ from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_PATH
 from neug.proto.error_pb2 import ERR_PERMISSION
 from neug.proto.error_pb2 import ERR_VERSION_MISMATCHED
+import multiprocessing
 
 
 # DB-001-01 & DB-001-02
@@ -267,6 +268,42 @@ def test_open_dir_not_exist(tmp_path):
         assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
+
+
+def open_db(db_path, mode):
+    db = Database(db_path=str(db_path), mode=mode)
+    db.close()
+
+
+def test_open_with_multiple_process(tmp_path):
+    db_dir = tmp_path / "multi_process_db"
+    shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
+    db_dir.mkdir()
+    with multiprocessing.Pool(processes=2) as pool:
+        results = [
+            pool.apply_async(open_db, (str(db_dir), "r")),
+            pool.apply_async(open_db, (str(db_dir), "r")),
+        ]
+        for result in results:
+            result.get()
+
+
+def test_open_with_multiple_process_fail(tmp_path):
+    db_dir = tmp_path / "multi_process_fail_db"
+    shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
+    db_dir.mkdir()
+    with multiprocessing.Pool(processes=2) as pool:
+        results = [
+            pool.apply_async(open_db, (str(db_dir), "w")),
+            pool.apply_async(open_db, (str(db_dir), "w")),
+        ]
+        # First process should succeed, second should fail with ERR_DATABASE_LOCKED
+        first_result = results[0]
+        first_result.get()  # Should succeed
+
+        with pytest.raises(Exception) as excinfo:
+            results[1].get()
+        assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
 
 # DB-001-15
