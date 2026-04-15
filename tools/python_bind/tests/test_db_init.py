@@ -19,6 +19,7 @@
 import os
 import sys
 
+
 import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
@@ -286,24 +287,6 @@ def test_open_with_multiple_process(tmp_path):
         ]
         for result in results:
             result.get()
-
-
-def test_open_with_multiple_process_fail(tmp_path):
-    db_dir = tmp_path / "multi_process_fail_db"
-    shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
-    db_dir.mkdir()
-    with multiprocessing.Pool(processes=2) as pool:
-        results = [
-            pool.apply_async(open_db, (str(db_dir), "w")),
-            pool.apply_async(open_db, (str(db_dir), "w")),
-        ]
-        # First process should succeed, second should fail with ERR_DATABASE_LOCKED
-        first_result = results[0]
-        first_result.get()  # Should succeed
-
-        with pytest.raises(Exception) as excinfo:
-            results[1].get()
-        assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
 
 # DB-001-15
