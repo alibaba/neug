@@ -14,8 +14,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <thread>
+#include <vector>
 
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
