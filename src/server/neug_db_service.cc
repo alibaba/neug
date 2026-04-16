@@ -26,13 +26,12 @@ void NeugDBService::init(const ServiceConfig& config) {
   if (db_.IsClosed()) {
     THROW_RUNTIME_ERROR("NeugDB instance is not ready for serving!");
   }
-  if (initialized_.load(std::memory_order_relaxed)) {
-    std::cerr << "NeugDB service has been already initialized!" << std::endl;
-    return;
-  }
-
   if (hdl_mgr_) {
     LOG(ERROR) << "NeugDB service has already been initialized!";
+    return;
+  }
+  if (running_.load(std::memory_order_relaxed)) {
+    LOG(ERROR) << "NeugDB service is already running!";
     return;
   }
 
@@ -46,19 +45,17 @@ void NeugDBService::init(const ServiceConfig& config) {
 
   hdl_mgr_ = std::make_unique<BrpcServiceManager>(db_, *session_pool_);
   hdl_mgr_->Init(config);
-
-  initialized_.store(true);
   service_config_ = config;
 }
 
 NeugDBService::~NeugDBService() {
-  if (hdl_mgr_) {
-    hdl_mgr_->Stop();
-    hdl_mgr_.reset();
-  }
   if (compact_thread_running_) {
     compact_thread_running_ = false;
     compact_thread_.join();
+  }
+  if (hdl_mgr_) {
+    hdl_mgr_->Stop();
+    hdl_mgr_.reset();
   }
 }
 
@@ -70,17 +67,14 @@ neug::SessionGuard NeugDBService::AcquireSession() {
   return session_pool_->AcquireSession();
 }
 
-bool NeugDBService::IsInitialized() const {
-  return initialized_.load(std::memory_order_relaxed);
-}
-
 bool NeugDBService::IsRunning() const {
   return running_.load(std::memory_order_relaxed);
 }
 
 neug::result<std::string> NeugDBService::service_status() {
-  if (!IsInitialized()) {
-    return neug::result<std::string>("NeugDB service has not been inited!");
+  if (!hdl_mgr_ || !session_pool_) {
+    return neug::result<std::string>(
+        "NeugDB service has not been initialized!");
   }
   if (!IsRunning()) {
     return neug::result<std::string>("NeugDB service has not been started!");
@@ -90,14 +84,18 @@ neug::result<std::string> NeugDBService::service_status() {
 
 void NeugDBService::run_and_wait_for_exit() {
   startCompactThreadIfNeeded();
-  if (!IsInitialized()) {
-    THROW_RUNTIME_ERROR("NeugDB service has not been inited!");
-  }
   if (IsRunning()) {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
   if (hdl_mgr_) {
-    hdl_mgr_->RunAndWaitForExit();
+    running_.store(true, std::memory_order_relaxed);
+    try {
+      hdl_mgr_->RunAndWaitForExit();
+      running_.store(false, std::memory_order_relaxed);
+    } catch (...) {
+      running_.store(false, std::memory_order_relaxed);
+      throw;
+    }
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
@@ -105,17 +103,14 @@ void NeugDBService::run_and_wait_for_exit() {
 }
 
 void NeugDBService::Stop() {
-  if (!IsInitialized()) {
-    std::cerr << "NeugDB service has not been inited!" << std::endl;
-    return;
-  }
+  std::unique_lock<std::mutex> lock(mtx_);
   if (!IsRunning()) {
     std::cerr << "NeugDB service has not been started!" << std::endl;
     return;
   }
-  std::unique_lock<std::mutex> lock(mtx_);
   if (hdl_mgr_) {
     hdl_mgr_->Stop();
+    running_.store(false, std::memory_order_relaxed);
     return;
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
@@ -123,15 +118,14 @@ void NeugDBService::Stop() {
 }
 
 std::string NeugDBService::Start() {
-  if (!IsInitialized()) {
-    THROW_RUNTIME_ERROR("NeugDB service has not been inited!");
-  }
+  std::unique_lock<std::mutex> lock(mtx_);
   if (IsRunning()) {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
-  std::unique_lock<std::mutex> lock(mtx_);
   if (hdl_mgr_) {
-    return hdl_mgr_->Start();
+    auto ret = hdl_mgr_->Start();
+    running_.store(true, std::memory_order_relaxed);
+    return ret;
   } else {
     THROW_RUNTIME_ERROR("Query handler has not been inited!");
   }
