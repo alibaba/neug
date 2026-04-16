@@ -276,6 +276,7 @@ def open_db(db_path, mode):
     db.close()
 
 
+@pytest.mark.skip(reason="https://github.com/alibaba/neug/issues/233")
 def test_open_with_multiple_process(tmp_path):
     db_dir = tmp_path / "multi_process_db"
     shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
