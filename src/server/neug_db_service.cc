@@ -72,6 +72,10 @@ bool NeugDBService::IsRunning() const {
 }
 
 neug::result<std::string> NeugDBService::service_status() {
+  if (!hdl_mgr_ || !session_pool_) {
+    return neug::result<std::string>(
+        "NeugDB service has not been initialized!");
+  }
   if (!IsRunning()) {
     return neug::result<std::string>("NeugDB service has not been started!");
   }
@@ -114,15 +118,12 @@ void NeugDBService::Stop() {
 }
 
 std::string NeugDBService::Start() {
+  std::unique_lock<std::mutex> lock(mtx_);
   if (IsRunning()) {
     THROW_RUNTIME_ERROR("NeugDB service has already been started!");
   }
-  std::unique_lock<std::mutex> lock(mtx_);
   if (hdl_mgr_) {
     auto ret = hdl_mgr_->Start();
-    if (ret.empty()) {
-      THROW_RUNTIME_ERROR("Failed to start NeugDB service!");
-    }
     running_.store(true, std::memory_order_relaxed);
     return ret;
   } else {

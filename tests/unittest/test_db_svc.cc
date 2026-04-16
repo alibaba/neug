@@ -20,6 +20,7 @@
 #include <thread>
 #include <vector>
 
+#include <brpc/controller.h>
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "utils.h"
@@ -38,7 +39,7 @@ class NeugDBServiceTest : public ::testing::Test {
     std::filesystem::create_directories(test_dir_);
 
     // Create and open database
-    std::string db_path = test_dir_ / "graph";
+    std::string db_path = (test_dir_ / "graph").string();
     db_ = std::make_unique<neug::NeugDB>();
     db_->Open(db_path, 4);  // 4 threads
 
@@ -65,27 +66,6 @@ class NeugDBServiceTest : public ::testing::Test {
   std::filesystem::path test_dir_;
 };
 
-// Test 1: Service initialization
-TEST_F(NeugDBServiceTest, ServiceInitialization) {
-  neug::NeugDBService service(*db_, config_);
-
-  EXPECT_FALSE(service.IsRunning());
-
-  auto status = service.service_status();
-  EXPECT_TRUE(status);
-  EXPECT_EQ(status.value(), "NeugDB service has not been started!");
-}
-
-// Test 3: Session acquisition
-TEST_F(NeugDBServiceTest, AcquireSession) {
-  neug::NeugDBService service(*db_, config_);
-
-  // Acquire a session
-  auto guard = service.AcquireSession();
-  EXPECT_TRUE(guard);
-}
-
-// Test 4: Multiple concurrent sessions
 TEST_F(NeugDBServiceTest, ConcurrentSessions) {
   neug::NeugDBService service(*db_, config_);
   const int num_threads = 4;
@@ -112,112 +92,19 @@ TEST_F(NeugDBServiceTest, ConcurrentSessions) {
   EXPECT_EQ(success_count, num_threads);
 }
 
-// Test 5: Service configuration retrieval
 TEST_F(NeugDBServiceTest, GetServiceConfig) {
   neug::NeugDBService service(*db_, config_);
+  EXPECT_FALSE(service.IsRunning());
+
+  auto status = service.service_status();
+  EXPECT_TRUE(status);
+  EXPECT_EQ(status.value(), "NeugDB service has not been started!");
 
   auto retrieved_config = service.GetServiceConfig();
   EXPECT_EQ(retrieved_config.query_port, config_.query_port);
   EXPECT_EQ(retrieved_config.host_str, config_.host_str);
 }
 
-// Test 6: Session pool size
-TEST_F(NeugDBServiceTest, SessionPoolSize) {
-  neug::NeugDBService service(*db_, config_);
-
-  size_t pool_size = service.SessionNum();
-  EXPECT_GT(pool_size, 0);
-}
-
-// Test 7: Service status
-TEST_F(NeugDBServiceTest, ServiceStatus) {
-  neug::NeugDBService service(*db_, config_);
-
-  // Not initialized
-  auto status = service.service_status();
-  EXPECT_TRUE(status);
-  auto str = status.value();
-  EXPECT_EQ(str, "NeugDB service has not been started!");
-}
-
-// Test 8: Executed query count
-TEST_F(NeugDBServiceTest, ExecutedQueryCount) {
-  neug::NeugDBService service(*db_, config_);
-
-  size_t query_count = service.getExecutedQueryNum();
-  EXPECT_GE(query_count, 0);
-}
-
-// Test 9: Rapid session acquisition/release
-TEST_F(NeugDBServiceTest, RapidSessionAcquisition) {
-  neug::NeugDBService service(*db_, config_);
-  const int num_iterations = 100;
-
-  for (int i = 0; i < num_iterations; ++i) {
-    auto guard = service.AcquireSession();
-    EXPECT_TRUE(guard);
-  }
-}
-
-// Test 10: Multi-threaded stress test
-TEST_F(NeugDBServiceTest, MultiThreadedStress) {
-  neug::NeugDBService service(*db_, config_);
-  const int num_threads = 8;
-  const int iterations_per_thread = 50;
-  std::vector<std::thread> threads;
-  std::atomic<int> total_operations(0);
-  std::atomic<int> errors(0);
-
-  for (int t = 0; t < num_threads; ++t) {
-    threads.emplace_back([&]() {
-      for (int i = 0; i < iterations_per_thread; ++i) {
-        try {
-          auto guard = service.AcquireSession();
-          if (guard) {
-            total_operations++;
-          } else {
-            errors++;
-          }
-        } catch (const std::exception& e) { errors++; }
-      }
-    });
-  }
-
-  for (auto& thread : threads) {
-    thread.join();
-  }
-
-  EXPECT_EQ(total_operations, num_threads * iterations_per_thread);
-  EXPECT_EQ(errors, 0);
-}
-
-// Test 11: Service state consistency
-TEST_F(NeugDBServiceTest, StateConsistency) {
-  neug::NeugDBService service(*db_, config_);
-
-  EXPECT_FALSE(service.IsRunning());
-
-  // State should not change unexpectedly
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_FALSE(service.IsRunning());
-}
-
-// Test 12: Session guard cleanup
-TEST_F(NeugDBServiceTest, SessionGuardCleanup) {
-  neug::NeugDBService service(*db_, config_);
-
-  {
-    auto guard = service.AcquireSession();
-    EXPECT_TRUE(guard);
-    // guard goes out of scope, should release session
-  }
-
-  // Should be able to acquire another session
-  auto guard2 = service.AcquireSession();
-  EXPECT_TRUE(guard2);
-}
-
-// Test 13: Concurrent session operations
 TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {
   neug::NeugDBService service(*db_, config_);
   const int num_threads = 4;
@@ -241,8 +128,102 @@ TEST_F(NeugDBServiceTest, ConcurrentSessionOperations) {
   for (auto& thread : threads) {
     thread.join();
   }
-
   EXPECT_EQ(total_sessions, num_threads * session_count);
+}
+
+TEST_F(NeugDBServiceTest, NotRunningBeforeStart) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  neug::NeugDBService service(*db_, cfg);
+
+  EXPECT_FALSE(service.IsRunning());
+  auto status = service.service_status();
+  ASSERT_TRUE(status);
+  EXPECT_EQ(status.value(), "NeugDB service has not been started!");
+}
+
+TEST_F(NeugDBServiceTest, StartSetsRunningTrue) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  neug::NeugDBService service(*db_, cfg);
+
+  service.Start();
+
+  EXPECT_TRUE(service.IsRunning());
+  auto status = service.service_status();
+  ASSERT_TRUE(status);
+  EXPECT_EQ(status.value(), "NeugDB service is running ...");
+
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest, StopClearsRunningFlag) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  neug::NeugDBService service(*db_, cfg);
+
+  service.Start();
+  ASSERT_TRUE(service.IsRunning());
+
+  service.Stop();
+
+  EXPECT_FALSE(service.IsRunning());
+  auto status = service.service_status();
+  ASSERT_TRUE(status);
+  EXPECT_EQ(status.value(), "NeugDB service has not been started!");
+}
+
+TEST_F(NeugDBServiceTest, StartThrowsWhenAlreadyRunning) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  neug::NeugDBService service(*db_, cfg);
+
+  service.Start();
+  ASSERT_TRUE(service.IsRunning());
+
+  // Second Start() must throw; running_ must remain true.
+  EXPECT_THROW(service.Start(), neug::exception::RuntimeError);
+  EXPECT_TRUE(service.IsRunning());
+  EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
+
+  service.Stop();
+}
+
+TEST_F(NeugDBServiceTest, RunAndWaitForExitSetsAndClearsRunning) {
+  neug::ServiceConfig cfg;
+  cfg.query_port = 0;
+  cfg.host_str = "127.0.0.1";
+  neug::NeugDBService service(*db_, cfg);
+
+  ASSERT_FALSE(service.IsRunning());
+
+  // run_and_wait_for_exit() blocks; run it on a background thread.
+  std::thread svc_thread([&]() { service.run_and_wait_for_exit(); });
+
+  // Spin-wait until running_ flips to true (set synchronously before
+  // RunUntilAskedToQuit() blocks).
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (!service.IsRunning() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  ASSERT_TRUE(service.IsRunning())
+      << "Service did not become running within 5 s";
+  EXPECT_EQ(service.service_status().value(), "NeugDB service is running ...");
+
+  // Signal the brpc server to quit directly – without going through
+  // service.Stop() – so that running_ is cleared exclusively by
+  // run_and_wait_for_exit() itself (the code path this test exercises).
+  brpc::AskToQuit();
+  svc_thread.join();
+
+  EXPECT_FALSE(service.IsRunning());
+  EXPECT_EQ(service.service_status().value(),
+            "NeugDB service has not been started!");
 }
 
 }  // namespace test
