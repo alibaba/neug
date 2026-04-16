@@ -143,14 +143,14 @@ class EdgeTableTest : public ::testing::Test {
 
   void ExpectBundledStats(size_t expected_size) const {
     ASSERT_NE(edge_table, nullptr);
-    EXPECT_EQ(edge_table->Size(), expected_size);
+    EXPECT_EQ(edge_table->PropTableSize(), 0);
     EXPECT_EQ(edge_table->Capacity(), neug::CsrBase::INFINITE_CAPACITY);
   }
 
   void ExpectUnbundledStats(size_t expected_size,
                             size_t expected_capacity) const {
     ASSERT_NE(edge_table, nullptr);
-    EXPECT_EQ(edge_table->Size(), expected_size);
+    EXPECT_EQ(edge_table->PropTableSize(), expected_size);
     EXPECT_EQ(edge_table->Capacity(), expected_capacity);
   }
 
@@ -1567,7 +1567,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
-  EXPECT_EQ(e_table.Size(), 10);
+  EXPECT_EQ(e_table.PropTableSize(), 0);
   EXPECT_EQ(e_table.Capacity(), neug::CsrBase::INFINITE_CAPACITY);
 
   std::vector<std::string> new_property_name = {"new_property"};
@@ -1575,7 +1575,7 @@ TYPED_TEST(EdgeTableToolsTest, TestBatchAddEdges) {
   edge_schema->add_properties(new_property_name, new_property_type);
   e_table.AddProperties(new_property_name, new_property_type);
   EXPECT_EQ(e_table.PropertyNum(), 2);
-  EXPECT_EQ(e_table.Size(), 10);
+  EXPECT_EQ(e_table.PropTableSize(), 10);
 }
 
 TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
@@ -1615,7 +1615,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
   e_table.Open("/tmp/", MemoryLevel::kInMemory);
   e_table.BatchAddEdges(indexer, indexer, suppliers[0]);
   EXPECT_EQ(e_table.EdgeNum(), 10);
-  EXPECT_EQ(e_table.Size(), 10);
+  EXPECT_EQ(e_table.PropTableSize(), 0);
   EXPECT_EQ(e_table.Capacity(), neug::CsrBase::INFINITE_CAPACITY);
   if constexpr (std::is_same_v<EdType, int32_t>) {
     new_property_type = {DataTypeId::kInt32};
@@ -1641,7 +1641,7 @@ TYPED_TEST(EdgeTableToolsTest, TestAddProperties) {
 
   edge_schema->add_properties(new_property_name, new_property_type);
   e_table.AddProperties(new_property_name, new_property_type);
-  EXPECT_EQ(e_table.Size(), 10);
+  EXPECT_EQ(e_table.PropTableSize(), 0);
   EXPECT_EQ(e_table.Capacity(), neug::CsrBase::INFINITE_CAPACITY);
 }
 

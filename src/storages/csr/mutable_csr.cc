@@ -141,27 +141,18 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
   auto degree_list = OpenContainer("", "", MemoryLevel::kInMemory);
   degree_list->Resize(vnum * sizeof(int));
-  auto cap_list = OpenContainer("", "", MemoryLevel::kInMemory);
-  cap_list->Resize(vnum * sizeof(int));
+
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
   const auto* sz_arr =
       reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
   const int* caps = reinterpret_cast<const int*>(adj_list_capacity_->GetData());
   for (size_t i = 0; i < vnum; ++i) {
     degree_ptr[i] = sz_arr[i].load(std::memory_order_relaxed);
-    cap_ptr[i] = caps[i];
-    if (degree_ptr[i] != cap_ptr[i]) {
+
+    if (degree_ptr[i] != caps[i]) {
       need_cap_list = true;
     }
-  }
-
-  auto cap_file = new_snapshot_dir + "/" + name + ".cap";
-  if (need_cap_list) {
-    cap_list->Dump(cap_file);
-  } else if (std::filesystem::exists(cap_file)) {
-    std::filesystem::remove(cap_file);
   }
 
   degree_list->Dump(new_snapshot_dir + "/" + name + ".deg");
@@ -169,38 +160,30 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   const nbr_t* const* lists =
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
   const std::string nbr_path = new_snapshot_dir + "/" + name + ".nbr";
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(nbr_path.c_str(), "wb"),
-                                              &fclose);
-  if (fp == nullptr) {
+  std::ofstream nbr_out(nbr_path, std::ios::binary);
+  if (!nbr_out.is_open()) {
     THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
   }
   FileHeader header{};
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to write header to: " + nbr_path);
-  }
+  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+
   MD5_CTX ctx;
   MD5_Init(&ctx);
   for (size_t i = 0; i < vnum; ++i) {
     const void* data = lists[i];
-    size_t len = static_cast<size_t>(caps[i]) * sizeof(nbr_t);
-    if (len == 0 || data == nullptr) {
-      continue;
-    }
-    if (fwrite(data, 1, len, fp.get()) != len) {
-      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
-                         " to: " + nbr_path);
-    }
+    size_t len = caps[i] * sizeof(nbr_t);
+    nbr_out.write(reinterpret_cast<const char*>(data), len);
     MD5_Update(&ctx, data, len);
   }
   MD5_Final(header.data_md5, &ctx);
-  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
-    THROW_IO_EXCEPTION("Failed to seek in: " + nbr_path);
-  }
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to rewrite header in: " + nbr_path);
-  }
-  if (fclose(fp.release()) != 0) {
-    THROW_IO_EXCEPTION("Failed to close file: " + nbr_path);
+  // Update the header with the correct MD5 after writing all data
+  nbr_out.seekp(0);
+  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+  nbr_out.flush();
+  nbr_out.close();
+  auto cap_file = new_snapshot_dir + "/" + name + ".cap";
+  if (need_cap_list) {
+    adj_list_capacity_->Dump(cap_file);
   }
 }
 
