@@ -4,7 +4,7 @@
 
 ## Schema Requirement
 
-Currently, `COPY FROM` requires a **predefined schema** — you must create node/relationship tables before importing data. The columns in the external file must match the table properties.
+You can create a **predefined schema** — that is, define node/relationship tables before importing data — where the columns in the external file must match the table properties.
 
 Since v0.1.2, NeuG supports schema-flexible persistent import — allowing `COPY FROM` to leverage the capability of type inference of `LOAD FROM`, without requiring a predefined schema. This will make it much easier to quickly onboard new datasets. See [Import without a predefined schema](#import-without-a-predefined-schema) for more usages.
 
