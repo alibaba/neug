@@ -743,10 +743,11 @@ bool UpdateTransaction::AddEdge(label_t src_label, vid_t src_lid,
 
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
-  if (edge_table.Size() >= edge_table.Capacity()) {
-    auto new_capacity = edge_table.Size() < 4096
-                            ? 4096
-                            : edge_table.Size() + edge_table.Size() / 4;
+  if (edge_table.PropTableSize() >= edge_table.Capacity()) {
+    auto new_capacity =
+        edge_table.PropTableSize() < 4096
+            ? 4096
+            : edge_table.PropTableSize() + edge_table.PropTableSize() / 4;
     auto status =
         graph_.EnsureCapacity(src_label, dst_label, edge_label, new_capacity);
     if (!status.ok()) {
@@ -1028,10 +1029,8 @@ bool UpdateTransaction::UpdateEdgeProperty(label_t src_label, vid_t src,
   return true;
 }
 
-void UpdateTransaction::IngestWal(PropertyGraph& graph,
-                                  const std::string& work_dir,
-                                  uint32_t timestamp, char* data, size_t length,
-                                  Allocator& alloc) {
+void UpdateTransaction::IngestWal(PropertyGraph& graph, uint32_t timestamp,
+                                  char* data, size_t length, Allocator& alloc) {
   OutArchive arc;
   arc.SetSlice(data, length);
   while (!arc.Empty()) {

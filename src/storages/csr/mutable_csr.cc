@@ -88,13 +88,23 @@ void MutableCsr<EDATA_T>::open_internal(const std::string& snapshot_prefix,
   auto* adj_list_cap_ptr =
       reinterpret_cast<int*>(adj_list_capacity_->GetData());
   auto* nbr_list_ptr = reinterpret_cast<nbr_t*>(nbr_list_->GetData());
+  uint64_t edge_count = 0;
   for (size_t i = 0; i < v_cap; ++i) {
     int deg = degree_ptr[i];
+    edge_count += deg;
     int cap = cap_ptr[i];
     adj_lists_ptr[i] = nbr_list_ptr;
     adj_list_size_ptr[i].store(deg);
     adj_list_cap_ptr[i] = cap;
     nbr_list_ptr += cap;
+  }
+  if (edge_num_.load() != edge_count) {
+    LOG(WARNING) << "Edge count from meta (" << edge_num_.load()
+                 << ") does not match count computed from degree list ("
+                 << edge_count << "). Using computed count.";
+    THROW_STORAGE_EXCEPTION(
+        "Edge count mismatch: meta has " + std::to_string(edge_num_.load()) +
+        " but degree list implies " + std::to_string(edge_count));
   }
 }
 
@@ -131,27 +141,18 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
 
   auto degree_list = OpenContainer("", "", MemoryLevel::kInMemory);
   degree_list->Resize(vnum * sizeof(int));
-  auto cap_list = OpenContainer("", "", MemoryLevel::kInMemory);
-  cap_list->Resize(vnum * sizeof(int));
+
   bool need_cap_list = false;
   auto degree_ptr = reinterpret_cast<int*>(degree_list->GetData());
-  auto cap_ptr = reinterpret_cast<int*>(cap_list->GetData());
   const auto* sz_arr =
       reinterpret_cast<const std::atomic<int>*>(adj_list_size_->GetData());
   const int* caps = reinterpret_cast<const int*>(adj_list_capacity_->GetData());
   for (size_t i = 0; i < vnum; ++i) {
     degree_ptr[i] = sz_arr[i].load(std::memory_order_relaxed);
-    cap_ptr[i] = caps[i];
-    if (degree_ptr[i] != cap_ptr[i]) {
+
+    if (degree_ptr[i] != caps[i]) {
       need_cap_list = true;
     }
-  }
-
-  auto cap_file = new_snapshot_dir + "/" + name + ".cap";
-  if (need_cap_list) {
-    cap_list->Dump(cap_file);
-  } else if (std::filesystem::exists(cap_file)) {
-    std::filesystem::remove(cap_file);
   }
 
   degree_list->Dump(new_snapshot_dir + "/" + name + ".deg");
@@ -159,38 +160,30 @@ void MutableCsr<EDATA_T>::dump(const std::string& name,
   const nbr_t* const* lists =
       reinterpret_cast<const nbr_t* const*>(adj_list_buffer_->GetData());
   const std::string nbr_path = new_snapshot_dir + "/" + name + ".nbr";
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(nbr_path.c_str(), "wb"),
-                                              &fclose);
-  if (fp == nullptr) {
+  std::ofstream nbr_out(nbr_path, std::ios::binary);
+  if (!nbr_out.is_open()) {
     THROW_IO_EXCEPTION("Failed to open file for writing: " + nbr_path);
   }
   FileHeader header{};
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to write header to: " + nbr_path);
-  }
+  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+
   MD5_CTX ctx;
   MD5_Init(&ctx);
   for (size_t i = 0; i < vnum; ++i) {
     const void* data = lists[i];
-    size_t len = static_cast<size_t>(caps[i]) * sizeof(nbr_t);
-    if (len == 0 || data == nullptr) {
-      continue;
-    }
-    if (fwrite(data, 1, len, fp.get()) != len) {
-      THROW_IO_EXCEPTION("Failed to write segment " + std::to_string(i) +
-                         " to: " + nbr_path);
-    }
+    size_t len = caps[i] * sizeof(nbr_t);
+    nbr_out.write(reinterpret_cast<const char*>(data), len);
     MD5_Update(&ctx, data, len);
   }
   MD5_Final(header.data_md5, &ctx);
-  if (fseek(fp.get(), 0, SEEK_SET) != 0) {
-    THROW_IO_EXCEPTION("Failed to seek in: " + nbr_path);
-  }
-  if (fwrite(&header, sizeof(FileHeader), 1, fp.get()) != 1) {
-    THROW_IO_EXCEPTION("Failed to rewrite header in: " + nbr_path);
-  }
-  if (fclose(fp.release()) != 0) {
-    THROW_IO_EXCEPTION("Failed to close file: " + nbr_path);
+  // Update the header with the correct MD5 after writing all data
+  nbr_out.seekp(0);
+  nbr_out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+  nbr_out.flush();
+  nbr_out.close();
+  auto cap_file = new_snapshot_dir + "/" + name + ".cap";
+  if (need_cap_list) {
+    adj_list_capacity_->Dump(cap_file);
   }
 }
 
@@ -220,6 +213,7 @@ void MutableCsr<EDATA_T>::compact() {
   size_t vnum = vertex_capacity();
   auto** buf_arr = reinterpret_cast<nbr_t**>(adj_list_buffer_->GetData());
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
+  size_t total_edge_num = 0;
   for (size_t i = 0; i != vnum; ++i) {
     int sz = sz_arr[i];
     nbr_t* read_ptr = buf_arr[i];
@@ -241,6 +235,15 @@ void MutableCsr<EDATA_T>::compact() {
       ++read_ptr;
     }
     sz_arr[i] -= removed;
+    total_edge_num += sz_arr[i].load();
+  }
+  if (total_edge_num != edge_num_.load()) {
+    LOG(WARNING) << "Inconsistent edge count after compaction" << ": expected "
+                 << edge_num_.load() << ", actual " << total_edge_num;
+    THROW_STORAGE_EXCEPTION(
+        "Inconsistent edge count after compaction: expected " +
+        std::to_string(edge_num_.load()) + ", actual " +
+        std::to_string(total_edge_num));
   }
 }
 
@@ -329,6 +332,13 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
   auto* sz_arr = reinterpret_cast<std::atomic<int>*>(adj_list_size_->GetData());
   for (vid_t src : src_set) {
     if (src < vnum) {
+      auto* data = buf_arr[src];
+      auto* end = data + sz_arr[src].load(std::memory_order_relaxed);
+      for (auto* ptr = data; ptr != end; ++ptr) {
+        if (ptr->timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
+      }
       sz_arr[src].store(0, std::memory_order_relaxed);
     }
   }
@@ -352,10 +362,15 @@ void MutableCsr<EDATA_T>::batch_delete_vertices(
         }
         ++write_ptr;
       } else {
+        if (read_ptr->timestamp.load() !=
+            std::numeric_limits<timestamp_t>::max()) {
+          edge_num_.fetch_sub(1, std::memory_order_relaxed);
+        }
         ++removed;
       }
       ++read_ptr;
     }
+
     sz_arr[src] -= removed;
   }
 }
@@ -385,6 +400,7 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
     while (write_ptr != read_end) {
       if (pair.second.find(write_ptr->neighbor) != pair.second.end()) {
         write_ptr->timestamp.store(std::numeric_limits<timestamp_t>::max());
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
       }
       ++write_ptr;
     }
@@ -413,6 +429,10 @@ void MutableCsr<EDATA_T>::batch_delete_edges(
       continue;
     }
     for (auto offset : pair.second) {
+      if (write_ptr[offset].timestamp.load() !=
+          std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       write_ptr[offset].timestamp.store(
           std::numeric_limits<timestamp_t>::max());
     }
@@ -435,6 +455,7 @@ void MutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   auto old_ts = nbrs[offset].timestamp.load();
   if (old_ts <= ts) {
     nbrs[offset].timestamp.store(std::numeric_limits<timestamp_t>::max());
+    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   } else if (old_ts == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Attempting to delete already deleted edge.";
   } else {
@@ -463,6 +484,7 @@ void MutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr,
   if (old_ts == std::numeric_limits<timestamp_t>::max()) {
     assert(nbrs[offset].neighbor == nbr);
     nbrs[offset].timestamp.store(ts);
+    edge_num_.fetch_add(1, std::memory_order_relaxed);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
@@ -524,7 +546,7 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     buf_arr[i] = new_buffer;
     sz_arr[i].store(old_deg, std::memory_order_relaxed);
   }
-
+  size_t added_edge_num = 0;
   for (size_t i = 0; i < src_list.size(); ++i) {
     vid_t src = src_list[i];
     if (src >= vnum) {
@@ -537,23 +559,46 @@ void MutableCsr<EDATA_T>::batch_put_edges(const std::vector<vid_t>& src_list,
     nbr.neighbor = dst;
     nbr.data = data;
     nbr.timestamp.store(ts);
+    added_edge_num++;
   }
+  edge_num_.fetch_add(added_edge_num, std::memory_order_relaxed);
 }
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
   std::string meta_file_path = prefix + ".meta";
   if (std::filesystem::exists(meta_file_path)) {
-    read_file(meta_file_path, &unsorted_since_, sizeof(timestamp_t), 1);
+    timestamp_t ts;
+    std::ifstream meta_in(meta_file_path, std::ios::binary);
+    if (!meta_in.is_open()) {
+      THROW_IO_EXCEPTION("Failed to open meta file: " + meta_file_path);
+    }
+    meta_in.read(reinterpret_cast<char*>(&ts), sizeof(ts));
+    unsorted_since_ = ts;
+    uint64_t edge_num;
+    meta_in.read(reinterpret_cast<char*>(&edge_num), sizeof(edge_num));
+    edge_num_.store(edge_num);
+    meta_in.close();
   } else {
     unsorted_since_ = 0;
+    edge_num_.store(0);
   }
 }
 
 template <typename EDATA_T>
 void MutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
   std::string meta_file_path = prefix + ".meta";
-  write_file(meta_file_path, &unsorted_since_, sizeof(timestamp_t), 1);
+  std::ofstream meta_out(meta_file_path, std::ios::binary);
+  if (!meta_out.is_open()) {
+    THROW_IO_EXCEPTION("Failed to open meta file for writing: " +
+                       meta_file_path);
+  }
+
+  timestamp_t ts = unsorted_since_;
+  meta_out.write(reinterpret_cast<const char*>(&ts), sizeof(ts));
+  uint64_t edge_num = edge_num_.load();
+  meta_out.write(reinterpret_cast<const char*>(&edge_num), sizeof(edge_num));
+  meta_out.close();
 }
 
 template <typename EDATA_T>
@@ -561,6 +606,7 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
                                      const std::string& snapshot_dir,
                                      const std::string& work_dir) {
   close();
+  load_meta(snapshot_dir + "/" + name);
   nbr_list_ = OpenContainer(snapshot_dir + "/" + name + ".snbr",
                             tmp_dir(work_dir) + "/" + name + ".snbr",
                             MemoryLevel::kSyncToFile);
@@ -569,12 +615,14 @@ void SingleMutableCsr<EDATA_T>::open(const std::string& name,
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_in_memory(const std::string& prefix) {
   close();
+  load_meta(prefix);
   nbr_list_ = OpenContainer(prefix + ".snbr", "", MemoryLevel::kInMemory);
 }
 
 template <typename EDATA_T>
 void SingleMutableCsr<EDATA_T>::open_with_hugepages(const std::string& prefix) {
   close();
+  load_meta(prefix);
   nbr_list_ =
       OpenContainer(prefix + ".snbr", "", MemoryLevel::kHugePagePreferred);
 }
@@ -586,6 +634,7 @@ void SingleMutableCsr<EDATA_T>::dump(const std::string& name,
   if (!nbr_list_) {
     return;
   }
+  dump_meta(new_snapshot_dir + "/" + name);
   nbr_list_->Dump(new_snapshot_dir + "/" + name + ".snbr");
 }
 
@@ -643,12 +692,19 @@ void SingleMutableCsr<EDATA_T>::batch_delete_vertices(
   vid_t vnum = static_cast<vid_t>(vertex_capacity());
   for (auto src : src_set) {
     if (src < vnum) {
+      if (data[src].timestamp.load() !=
+          std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       data[src].timestamp.store(std::numeric_limits<timestamp_t>::max());
     }
   }
   for (vid_t v = 0; v < vnum; ++v) {
     auto& nbr = data[v];
     if (dst_set.find(nbr.neighbor) != dst_set.end()) {
+      if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     }
   }
@@ -670,6 +726,9 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     }
     auto& nbr = data[src];
     if (nbr.neighbor == dst) {
+      if (nbr.timestamp.load() != std::numeric_limits<timestamp_t>::max()) {
+        edge_num_.fetch_sub(1, std::memory_order_relaxed);
+      }
       nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
     }
   }
@@ -691,6 +750,7 @@ void SingleMutableCsr<EDATA_T>::batch_delete_edges(
     auto& nbr = data[src];
     assert(edge.second == 0);
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
+    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   }
 }
 
@@ -711,6 +771,7 @@ void SingleMutableCsr<EDATA_T>::delete_edge(vid_t src, int32_t offset,
   assert(offset == 0);
   if (nbr.timestamp.load() <= ts) {
     nbr.timestamp.store(std::numeric_limits<timestamp_t>::max());
+    edge_num_.fetch_sub(1, std::memory_order_relaxed);
   } else if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     LOG(ERROR) << "Fail to delete edge, already deleted.";
   } else {
@@ -736,6 +797,7 @@ void SingleMutableCsr<EDATA_T>::revert_delete_edge(vid_t src, vid_t nbr_vid,
   }
   if (nbr.timestamp.load() == std::numeric_limits<timestamp_t>::max()) {
     nbr.timestamp.store(ts);
+    edge_num_.fetch_add(1, std::memory_order_relaxed);
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Attempting to revert delete on edge that is not deleted.");
@@ -760,7 +822,31 @@ void SingleMutableCsr<EDATA_T>::batch_put_edges(
     nbr.neighbor = dst_list[i];
     nbr.data = data_list[i];
     nbr.timestamp.store(ts);
+    edge_num_.fetch_add(1, std::memory_order_relaxed);
   }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::load_meta(const std::string& prefix) {
+  std::string meta_file_path = prefix + ".meta";
+  if (std::filesystem::exists(meta_file_path)) {
+    std::ifstream meta_in(meta_file_path, std::ios::binary);
+    uint64_t edge_num;
+    meta_in.read(reinterpret_cast<char*>(&edge_num), sizeof(edge_num));
+    edge_num_.store(edge_num);
+    meta_in.close();
+  } else {
+    edge_num_.store(0);
+  }
+}
+
+template <typename EDATA_T>
+void SingleMutableCsr<EDATA_T>::dump_meta(const std::string& prefix) const {
+  std::string meta_file_path = prefix + ".meta";
+  std::ofstream meta_out(meta_file_path, std::ios::binary);
+  uint64_t edge_num = edge_num_.load();
+  meta_out.write(reinterpret_cast<const char*>(&edge_num), sizeof(edge_num));
+  meta_out.close();
 }
 
 template class MutableCsr<EmptyType>;

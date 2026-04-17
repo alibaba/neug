@@ -95,6 +95,39 @@ class BindedEdgeLabelAccessor : public EdgeExprBase {
   const Schema& schema_;
 };
 
+class BindedEdgeGIdAccessor : public EdgeExprBase {
+ public:
+  explicit BindedEdgeGIdAccessor() { type_ = DataType(DataTypeId::kInt64); }
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void*) const override {
+    int64_t gid = encode_unique_edge_id(
+        generate_edge_label_id(label.src_label, label.dst_label,
+                               label.edge_label),
+        src, dst);
+    return Value::CreateValue<int64_t>(gid);
+  }
+
+  const DataType& type() const override { return type_; }
+
+ private:
+  DataType type_;
+};
+
+class BindedEdgeIdentityAccessor : public EdgeExprBase {
+ public:
+  explicit BindedEdgeIdentityAccessor() { type_ = DataType::EDGE; }
+
+  Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
+                  const void* data) const override {
+    return Value::EDGE(edge_t{label, src, dst, data, Direction::kOut});
+  }
+  const DataType& type() const override { return type_; }
+
+ private:
+  DataType type_;
+};
+
 std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   switch (access_type_) {
@@ -105,6 +138,12 @@ std::unique_ptr<BindedExprBase> EdgeAccessor::bind(
   }
   case GraphAccessType::kLabel: {
     return std::make_unique<BindedEdgeLabelAccessor>(*storage);
+  }
+  case GraphAccessType::kGid: {
+    return std::make_unique<BindedEdgeGIdAccessor>();
+  }
+  case GraphAccessType::kIdentity: {
+    return std::make_unique<BindedEdgeIdentityAccessor>();
   }
   default:
     LOG(FATAL) << "Unknown GraphAccessorType: "

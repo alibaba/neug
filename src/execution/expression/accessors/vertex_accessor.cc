@@ -85,6 +85,19 @@ class VertexGIdVertexAccessor : public VertexExprBase {
   DataType type_;
 };
 
+class BindedVertexIdentityAccessor : public VertexExprBase {
+ public:
+  explicit BindedVertexIdentityAccessor() : type_(DataType::VERTEX) {}
+
+  Value eval_vertex(label_t v_label, vid_t v_id) const override {
+    return Value::VERTEX(vertex_t{v_label, v_id});
+  }
+  const DataType& type() const override { return type_; }
+
+ private:
+  DataType type_;
+};
+
 std::unique_ptr<BindedExprBase> VertexAccessor::bind(
     const IStorageInterface* storage, const ParamsMap& params) const {
   switch (access_type_) {
@@ -98,6 +111,9 @@ std::unique_ptr<BindedExprBase> VertexAccessor::bind(
   }
   case GraphAccessType::kGid: {
     return std::make_unique<VertexGIdVertexAccessor>();
+  }
+  case GraphAccessType::kIdentity: {
+    return std::make_unique<BindedVertexIdentityAccessor>();
   }
   default:
     LOG(FATAL) << "Unknown GraphAccessType: " << static_cast<int>(access_type_);

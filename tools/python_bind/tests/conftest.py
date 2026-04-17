@@ -18,6 +18,8 @@
 
 import pytest
 
+from neug.session import Session
+
 
 def ensure_result_cnt_gt_zero(result):
     """
@@ -63,3 +65,29 @@ def submit_cypher_query(conn, query, lambda_func=None):
 
     if lambda_func:
         lambda_func(result)
+
+
+def wait_for_server_ready(uri, timeout=10):
+    """
+    Wait until the service at the given URI is ready, or until the timeout is reached.
+    """
+    import time
+
+    session = None
+    last_error = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            session = Session(uri, timeout="10s")
+            session.execute("MATCH (n) RETURN 1;")
+            return
+        except Exception as exc:
+            last_error = exc
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+                session = None
+        time.sleep(1)
+    pytest.fail(f"Timed out waiting for read-only server readiness: {last_error}")

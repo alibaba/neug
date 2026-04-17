@@ -27,6 +27,8 @@ import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
+from conftest import wait_for_server_ready
+
 from neug.database import Database
 from neug.session import Session
 
@@ -1055,3 +1057,57 @@ def test_insert_string_column_exaustion():
                 e,
             )
         logging.disable(logging.NOTSET)
+
+
+def test_readonly_db_rejects_write_queries_via_session():
+    """A database opened in read-only mode must reject INSERT/UPDATE queries
+    submitted through a Session, while still serving read queries correctly."""
+    db_dir = "/tmp/test_readonly_db_rejects_write_queries_via_session"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    os.makedirs(db_dir, exist_ok=True)
+
+    # Step 1: create the database and populate it in write mode.
+    db = Database(db_dir, "w")
+    conn = db.connect()
+    conn.execute(
+        "CREATE NODE TABLE person(id INT64, name STRING, age INT64, PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE knows(FROM person TO person, weight DOUBLE);")
+    conn.execute("CREATE (p:person {id: 1, name: 'marko', age: 29});")
+    conn.execute("CREATE (p:person {id: 2, name: 'vadas', age: 27});")
+    conn.execute(
+        "MATCH (a:person), (b:person) WHERE a.id = 1 AND b.id = 2"
+        " CREATE (a)-[:knows {weight: 0.5}]->(b);"
+    )
+    conn.close()
+    db.close()
+
+    # Step 2: reopen in read-only mode and start serving.
+    db_ro = Database(db_dir, "r")
+    uri = db_ro.serve(10006, "localhost", False)
+    wait_for_server_ready(uri)
+
+    session = Session(uri, timeout="10s")
+
+    # Read queries must succeed.
+    res = session.execute("MATCH (n:person) WHERE n.id = 1 RETURN n.name;")
+    assert len(res) == 1
+    assert res[0][0] == "marko"
+
+    # INSERT must be rejected by the server.
+    with pytest.raises(Exception):
+        session.execute("CREATE (p:person {id: 3, name: 'josh', age: 32});")
+
+    # UPDATE must be rejected by the server.
+    with pytest.raises(Exception):
+        session.execute("MATCH (n:person) WHERE n.id = 1 SET n.age = 99;")
+
+    # The read-only data must be unchanged after the failed writes.
+    res = session.execute("MATCH (n:person) RETURN n.id ORDER BY n.id;")
+    assert len(res) == 2
+    assert res[0][0] == 1
+    assert res[1][0] == 2
+
+    session.close()
+    db_ro.stop_serving()
+    db_ro.close()

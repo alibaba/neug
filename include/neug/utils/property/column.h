@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <ostream>
@@ -286,42 +287,71 @@ class TypedColumn<std::string_view> : public ColumnBase {
   }
 
   void dump(const std::string& filename) override {
-    // Compact before dumping.  StringColumn uses an append-only strategy for
-    // updates, leaving stale copies in data_buffer_.  When there is reused
-    // data we stream the compacted bytes directly to the output file in a
-    // single forward pass, computing MD5 on-the-fly, which avoids:
-    //   1. A temporary buffer allocation (effective_size bytes).
-    //   2. The memcpy from temp_buf → data_buffer_.
-    //   3. The subsequent container Dump() copy.
-    // When there is nothing to compact we fall through and let the container
-    // handle the write as usual (e.g. reflink / copy_file_range via
-    // FileSharedMMap::Dump, or a single fwrite via MMapContainer::Dump).
     if (!items_buffer_ || !data_buffer_) {
       THROW_RUNTIME_ERROR("Buffers not initialized for dumping");
     }
-    resize(size_);  // Resize the string column with avg size to shrink or
-                    // expand data buffer
-    size_t pos_val;
-    if (size_ > 0) {
-      auto plan = prepare_compaction_plan();
-      if (plan.reused_size > 0) {
-        // Stream path: source (data_buffer_) and destination (snapshot file)
-        // are always different files, so there is no aliasing hazard.
-        pos_val = stream_compact_and_dump(plan, filename + ".data");
-        write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
-        items_buffer_->Dump(filename + ".items");
-        items_buffer_->Close();
-        data_buffer_->Close();
-        return;
+    auto data_file = filename + ".data";
+    std::ofstream data_out(data_file, std::ios::binary);
+    if (!data_out) {
+      THROW_IO_EXCEPTION("Failed to open file for dumping: " + data_file);
+    }
+    FileHeader header;
+    data_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    auto item_file = filename + ".items";
+    std::ofstream item_out(item_file, std::ios::binary);
+    if (!item_out) {
+      THROW_IO_EXCEPTION("Failed to open file for dumping: " + item_file);
+    }
+    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    auto raw_items =
+        reinterpret_cast<const string_item*>(items_buffer_->GetData());
+    auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
+    string_item cur_item;
+    size_t offset = 0;
+    size_t count_no_empty = 0;
+    string_item pre_item = {0, 0};
+    for (size_t i = 0; i < size_; ++i) {
+      const auto& item = raw_items[i];
+      if (item.offset == pre_item.offset && item.length == pre_item.length) {
+        // If the current item is the same as the previous one, we can reuse the
+        // offset and length without writing duplicate data.
+        item_out.write(reinterpret_cast<const char*>(&cur_item),
+                       sizeof(cur_item));
+        continue;
+      }
+      pre_item = item;
+      data_out.write(raw_data + item.offset, item.length);
+      cur_item = {offset, item.length};
+      item_out.write(reinterpret_cast<const char*>(&cur_item),
+                     sizeof(cur_item));
+      offset += item.length;
+      if (item.length > 0) {
+        count_no_empty++;
       }
     }
-    pos_val = pos_.load();
+    // TODO: filled in md5 header after writing data, currently we skip md5
+    // verification, so it is not critical.
+    data_out.flush();
+    item_out.flush();
+    data_out.close();
+    item_out.close();
+
+    size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
+    size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
+    size_t truncated_size = avg_size * count;
+    int rt = truncate(data_file.c_str(), truncated_size);
+    if (rt != 0) {
+      std::stringstream ss;
+      ss << "Failed to truncate file: " << data_file
+         << " to size: " << truncated_size << ", error: " << strerror(errno);
+      LOG(ERROR) << ss.str();
+      THROW_IO_EXCEPTION(ss.str());
+    }
+    size_t pos_val = pos_.load();
     // No-compaction path: dump containers as-is.
     write_file(filename + ".pos", &pos_val, sizeof(pos_val), 1);
-    items_buffer_->Dump(filename + ".items");
-    data_buffer_->Dump(filename + ".data");
-    items_buffer_->Close();
-    data_buffer_->Close();
   }
 
   size_t size() const override { return size_; }
@@ -472,128 +502,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
       }
     }
     return non_zero_count > 0 ? total_length / non_zero_count : 0;
-  }
-
-  // Descriptor of a single live string entry used during compaction.
-  struct CompactionPlan {
-    struct Entry {
-      size_t index;     // position in items array
-      uint64_t offset;  // current byte offset in the data buffer
-      uint32_t length;  // byte length of the string
-    };
-    std::vector<Entry> entries;
-    size_t total_size = 0;   // sum of all entry lengths (includes duplicates)
-    size_t reused_size = 0;  // bytes shared by entries that point to the same
-                             // offset (i.e. slots updated with the same value)
-  };
-
-  // Scan items and build a compaction plan that records which offsets are
-  // shared across multiple item slots (those are stale copies from updates).
-  CompactionPlan prepare_compaction_plan() const {
-    CompactionPlan plan;
-    plan.entries.reserve(size_);
-    std::unordered_set<uint64_t> seen_offsets;
-    for (size_t i = 0; i < size_; ++i) {
-      const auto item = get_string_item(i);
-      plan.total_size += item.length;
-      plan.entries.push_back(
-          {i, item.offset, static_cast<uint32_t>(item.length)});
-      if (item.length > 0) {
-        if (seen_offsets.count(item.offset)) {
-          // This offset is already referenced by an earlier slot: the current
-          // slot was set via resize(default) and shares the same backing bytes.
-          plan.reused_size += item.length;
-        } else {
-          seen_offsets.insert(item.offset);
-        }
-      }
-    }
-    return plan;
-  }
-
-  // Remove stale string data produced by update operations (which append a new
-  // copy without reclaiming the old one) by streaming compacted bytes directly
-  // to data_filename.
-  //   * Iterates plan.entries in order; unique offsets are fwrite'd once.
-  //   * MD5 is accumulated in a single forward pass and written into the
-  //     FileHeader at position 0 via fseek after all data is written.
-  //   * item offsets in items_buffer_ are updated to match the new layout.
-  //   * pos_ is updated to effective_size for future appends.
-  // Returns the effective (compacted) data size.
-  size_t stream_compact_and_dump(const CompactionPlan& plan,
-                                 const std::string& data_filename) {
-    auto parent_dir = std::filesystem::path(data_filename).parent_path();
-    if (!parent_dir.empty()) {
-      std::filesystem::create_directories(parent_dir);
-    }
-    FILE* fout = fopen(data_filename.c_str(), "wb");
-    if (!fout) {
-      THROW_IO_EXCEPTION("Failed to open output for stream compaction: " +
-                         data_filename);
-    }
-
-    // Write a placeholder header; will be overwritten after MD5 is finalised.
-    FileHeader header{};
-    if (fwrite(&header, sizeof(header), 1, fout) != 1) {
-      fclose(fout);
-      THROW_IO_EXCEPTION("Failed to write placeholder header: " +
-                         data_filename);
-    }
-
-    const auto* raw_data =
-        reinterpret_cast<const char*>(data_buffer_->GetData());
-    size_t write_offset = 0;
-    std::unordered_map<uint64_t, uint64_t> old_offset_to_new;
-    MD5_CTX md5_ctx;
-    MD5_Init(&md5_ctx);
-
-    for (const auto& entry : plan.entries) {
-      if (entry.length > 0) {
-        auto it = old_offset_to_new.find(entry.offset);
-        if (it != old_offset_to_new.end()) {
-          // Duplicate offset: already written; just remap the item.
-          set_string_item(entry.index,
-                          {it->second, static_cast<uint32_t>(entry.length)});
-          continue;
-        }
-        old_offset_to_new.emplace(entry.offset, write_offset);
-        const char* src = raw_data + entry.offset;
-        if (fwrite(src, 1, entry.length, fout) != entry.length) {
-          fclose(fout);
-          THROW_IO_EXCEPTION("Failed to fwrite compacted data to: " +
-                             data_filename);
-        }
-        MD5_Update(&md5_ctx, src, entry.length);
-      }
-      set_string_item(entry.index,
-                      {write_offset, static_cast<uint32_t>(entry.length)});
-      write_offset += entry.length;
-    }
-
-    // Seek back and stamp the real MD5 into the file header.
-    MD5_Final(header.data_md5, &md5_ctx);
-    if (fseek(fout, 0, SEEK_SET) != 0) {
-      fclose(fout);
-      THROW_IO_EXCEPTION("Failed to seek to header in: " + data_filename);
-    }
-    if (fwrite(&header, sizeof(header), 1, fout) != 1) {
-      fclose(fout);
-      THROW_IO_EXCEPTION("Failed to write final header to: " + data_filename);
-    }
-
-    if (fflush(fout) != 0) {
-      fclose(fout);
-      THROW_IO_EXCEPTION("Failed to fflush: " + data_filename);
-    }
-    if (fclose(fout) != 0) {
-      THROW_IO_EXCEPTION("Failed to fclose: " + data_filename);
-    }
-
-    size_t effective_size = plan.total_size - plan.reused_size;
-    pos_.store(effective_size);
-    VLOG(1) << "StringColumn stream compaction: " << plan.total_size << " -> "
-            << effective_size << " bytes saved to " << data_filename;
-    return effective_size;
   }
 
   std::unique_ptr<IDataContainer> items_buffer_;

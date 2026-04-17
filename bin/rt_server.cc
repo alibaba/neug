@@ -13,37 +13,15 @@
  * limitations under the License.
  */
 
-#include "neug/main/file_lock.h"
 #include "neug/main/neug_db.h"
 #include "neug/server/neug_db_service.h"
 #include "neug/utils/service_utils.h"
 
 #include <glog/logging.h>
 #include <chrono>
-#include <csignal>
 #include "cxxopts/cxxopts.hpp"
 
 using namespace neug;
-
-void signal_handler(int signal) {
-  LOG(INFO) << "Received signal " << signal << ", exiting...";
-  // support SIGKILL, SIGINT, SIGTERM
-  if (signal == SIGINT || signal == SIGTERM || signal == SIGABRT) {
-    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
-    // remove all files in work_dir
-    neug::FileLock::CleanupAllLocks();
-    exit(signal);
-  } else {
-    LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
-    exit(1);
-  }
-}
-
-void setup_signal_handler() {
-  std::signal(SIGINT, signal_handler);
-  std::signal(SIGTERM, signal_handler);
-  std::signal(SIGABRT, signal_handler);
-}
 
 int main(int argc, char** argv) {
   cxxopts::Options options("rt_server", "Real-time graph server for NeuG");
@@ -59,17 +37,12 @@ int main(int argc, char** argv) {
       cxxopts::value<int>()->default_value("1"))(
       "sharding-mode", "Sharding mode (exclusive or cooperative)",
       cxxopts::value<std::string>()->default_value("cooperative"))(
-      "wal-uri", "URI for Write-Ahead Logging storage",
-      cxxopts::value<std::string>()->default_value(
-          "file://{GRAPH_DATA_DIR}/wal"))("host", "Host address",
-                                          cxxopts::value<std::string>());
+      "host", "Host address", cxxopts::value<std::string>());
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_logtostderr = true;
 
   cxxopts::ParseResult vm = options.parse(argc, argv);
-
-  setup_signal_handler();
 
   if (vm.count("help")) {
     std::cout << options.help() << std::endl;
@@ -100,7 +73,6 @@ int main(int argc, char** argv) {
   neug::NeugDB db;
   neug::NeugDBConfig config(data_path, shard_num);
   config.memory_level = memory_level;
-  config.wal_uri = vm["wal-uri"].as<std::string>();
   if (config.memory_level == neug::MemoryLevel::kHugePagePreferred) {
     config.enable_auto_compaction = true;
   }
