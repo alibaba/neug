@@ -18,7 +18,7 @@
 /**
 * @brief Class for subgraph pattern
 */
-#include "../DataStructure/Graph.h"
+#include "../DataStructure/graph.h"
 #include "../../../sampled_match_data_graph_meta.h"
 
 // Use types from neug namespace

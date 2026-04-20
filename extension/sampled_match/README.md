@@ -4,7 +4,7 @@ This extension implements subgraph matching cardinality estimation based on the 
 
 **Cardinality Estimation of Subgraph Matching: A Filtering-Sampling Approach** (VLDB 2024)
 
-See the original project note in `include/FaSTest/README.md`:
+See the original project note in `include/fastest_lib/README.md`:
 - `Fastest [VLDB 2024]`
 - `Cardinality Estimation of Subgraph Matching: A Filtering-Sampling Approach`
 

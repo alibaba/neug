@@ -16,7 +16,7 @@
 
 #pragma once
 #include <boost/math/distributions.hpp>
-#include "../SubgraphMatching/CandidateSpace.h"
+#include "../SubgraphMatching/candidate_space.h"
 #include "sampled_match_data_graph_meta.h"
 
 // Use DataGraphMeta from neug namespace

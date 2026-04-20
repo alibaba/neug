@@ -16,16 +16,16 @@
 
 #include <iostream>
 #include <set>
-#include "Base/Metrics.h"
-#include "Base/Timer.h"
-#include "DataStructure/Graph.h"
-#include "SpecialSubgraphs/SmallCycle.h"
-#include "SubgraphMatching/DataGraph.h"
-#include "SubgraphMatching/PatternGraph.h"
-#include "SubgraphMatching/CandidateSpace.h"
-#include "SubgraphMatching/CandidateFilter.h"
-#include "SubgraphCounting/Option.h"
-#include "SubgraphCounting/CardinalityEstimation.h"
+#include "Base/metrics.h"
+#include "Base/timer.h"
+#include "DataStructure/graph.h"
+#include "SpecialSubgraphs/small_cycle.h"
+#include "SubgraphMatching/data_graph.h"
+#include "SubgraphMatching/pattern_graph.h"
+#include "SubgraphMatching/candidate_space.h"
+#include "SubgraphMatching/candidate_filter.h"
+#include "SubgraphCounting/option.h"
+#include "SubgraphCounting/cardinality_estimation.h"
 
 using namespace std;
 using namespace GraphLib;

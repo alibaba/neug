@@ -15,12 +15,12 @@
  */
 
 #pragma once
-#include "../SubgraphMatching/DataGraph.h"
-#include "../SubgraphMatching/PatternGraph.h"
-#include "../DataStructure/Graph.h"
-#include "../Base/Base.h"
-#include "../Base/BasicAlgorithms.h"
-#include "../Base/Timer.h"
+#include "../SubgraphMatching/data_graph.h"
+#include "../SubgraphMatching/pattern_graph.h"
+#include "../DataStructure/graph.h"
+#include "../Base/base.h"
+#include "../Base/basic_algorithms.h"
+#include "../Base/timer.h"
 #include "sampled_match_data_graph_meta.h"
 #include "sampled_match_value.h"  // Value with comparison operators (>, <, >=, <=)
 #include <algorithm>

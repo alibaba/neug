@@ -41,8 +41,8 @@
 #include "neug/storages/graph/property_graph.h"
 
 #include "sampled_match_data_graph_meta.h"
-#include "FaSTest/src/SubgraphMatching/PatternGraph.h"
-#include "FaSTest/src/SubgraphCounting/CardinalityEstimation.h"
+#include "fastest_lib/src/SubgraphMatching/pattern_graph.h"
+#include "fastest_lib/src/SubgraphCounting/cardinality_estimation.h"
 
 namespace neug {
 namespace function {

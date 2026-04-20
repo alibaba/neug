@@ -18,7 +18,7 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
-#include "Base/Base.h"
+#include "Base/base.h"
 
 double identity(double x) {return x;}
 double square(double x) {return x*x;}

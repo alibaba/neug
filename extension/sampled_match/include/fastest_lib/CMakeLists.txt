@@ -34,7 +34,7 @@ if(FASTEST_LIB_SOURCES OR FASTEST_LIB_HEADERS)
     )
     
     # 安装头文件
-    install(DIRECTORY src/ DESTINATION include/fastest
+    install(DIRECTORY src/ DESTINATION include/fastest_lib
         FILES_MATCHING PATTERN "*.hpp"
                      PATTERN "*.h"
     )

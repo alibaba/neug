@@ -19,10 +19,10 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../SubgraphCounting/Option.h"
-#include "../SubgraphMatching/CandidateSpace.h"
-#include "../SubgraphCounting/CandidateTreeSampling.h"
-#include "../SubgraphCounting/CandidateGraphSampling.h"
+#include "../SubgraphCounting/option.h"
+#include "../SubgraphMatching/candidate_space.h"
+#include "../SubgraphCounting/candidate_tree_sampling.h"
+#include "../SubgraphCounting/candidate_graph_sampling.h"
 #include "sampled_match_data_graph_meta.h"
 // #include "SubgraphCounting/TreeRejectionSampling.h"
 /**

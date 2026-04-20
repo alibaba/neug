@@ -4,7 +4,7 @@ find_package(GSL REQUIRED)
 
 # Collect FaSTest source files (header-only library with some cpp files)
 file(GLOB_RECURSE FASTEST_LIB_SOURCES 
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/FaSTest/src/**/*.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src/**/*.cpp")
 
 # Collect sampled_match extension source files
 file(GLOB SAMPLED_MATCH_EXTENSION_SOURCES
@@ -27,7 +27,7 @@ endif ()
 target_include_directories(neug_sampled_match_extension PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/FaSTest/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/fastest_lib/src
     ${CMAKE_CURRENT_BINARY_DIR}
     ${Boost_INCLUDE_DIRS}
     ${GSL_INCLUDE_DIRS})

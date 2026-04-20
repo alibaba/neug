@@ -15,7 +15,7 @@
  */
 
 #pragma once
-#include "Base.h"
+#include "base.h"
 
 struct UnionFind {
     std::vector<int> par, sz;

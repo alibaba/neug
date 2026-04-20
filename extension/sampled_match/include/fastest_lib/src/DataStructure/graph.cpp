@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Graph.h"
+#include "graph.h"
 
 namespace GraphLib {
 

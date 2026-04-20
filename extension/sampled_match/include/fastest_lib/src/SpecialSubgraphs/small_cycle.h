@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../DataStructure/Graph.h"
+#include "../DataStructure/graph.h"
 
 namespace GraphLib {
 

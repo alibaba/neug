@@ -21,7 +21,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "../Base/Base.h"
+#include "../Base/base.h"
 #include "json.hpp"
 
 // Include neug types
@@ -651,4 +651,4 @@ namespace GraphLib {
     }
 }
 
-// 实现在Graph.cpp中，因为需要访问GraphStorage的完整定义
+// 实现在graph.cpp中，因为需要访问GraphStorage的完整定义
