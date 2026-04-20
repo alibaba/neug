@@ -103,8 +103,8 @@ Usage: neug-cli connect [OPTIONS] DB_URI
 
   Connect to a remote database.
 
-  Start an interactive shell connected to a remote NeuG server. DB_URI should
-  be in the format host:port or http://host:port.
+  Start an interactive shell connected to a remote NeuG server. DB_URI should be
+  in the format host:port or http://host:port.
 
   Examples:
 
