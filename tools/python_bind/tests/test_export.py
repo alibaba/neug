@@ -799,6 +799,7 @@ class TestParquetExport:
         self.db.close()
         shutil.rmtree(self.tmp_path, ignore_errors=True)
 
+    @extension_test
     def test_export_person_to_parquet(self):
         """Test basic Parquet export of person vertices."""
         out_path = self.tmp_path / "person.parquet"
@@ -820,6 +821,7 @@ class TestParquetExport:
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
 
+    @extension_test
     def test_export_edge_to_parquet(self):
         """Test Parquet export of edges."""
         out_path = self.tmp_path / "knows.parquet"
@@ -836,6 +838,7 @@ class TestParquetExport:
         # so we only verify the file was created successfully
         # TODO: Enable LOAD FROM verification when Struct type reading is supported
 
+    @extension_test
     def test_export_with_scalar_types(self):
         """Test Parquet export with various scalar types."""
         out_path = self.tmp_path / "scalar_types.parquet"
@@ -856,6 +859,7 @@ class TestParquetExport:
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
 
+    @extension_test
     def test_export_with_combined_options(self):
         """Test Parquet export with multiple options combined."""
         out_path = self.tmp_path / "combined_options.parquet"
