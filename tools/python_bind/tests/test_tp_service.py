@@ -1111,3 +1111,10 @@ def test_readonly_db_rejects_write_queries_via_session():
     session.close()
     db_ro.stop_serving()
     db_ro.close()
+
+
+def test_in_memory_service_start_and_stop():
+    db = Database("", "w")
+    db.serve(19001, "127.0.0.1", False)
+    db.stop_serving()
+    db.close()
