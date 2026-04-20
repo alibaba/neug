@@ -54,6 +54,10 @@ Options:
 Commands:
   connect  Connect to a remote database.
   open     Open a local database.
+
+  Run 'neug-cli COMMAND --help' for more information on a command.
+
+  e.g. neug-cli open --help
 """
     assert expected_output.strip() == result.output.strip()
 
@@ -98,6 +102,15 @@ def test_connect_help_option(monkeypatch, runner):
 Usage: neug-cli connect [OPTIONS] DB_URI
 
   Connect to a remote database.
+
+  Start an interactive shell connected to a remote NeuG server. DB_URI should be
+  in the format host:port or http://host:port.
+
+  Examples:
+
+    neug-cli connect localhost:8182
+
+    neug-cli connect http://192.168.1.1:8182 --timeout 60
 
 Options:
   --timeout INTEGER  Connection timeout in seconds.  [default: 300]
