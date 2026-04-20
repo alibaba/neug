@@ -2254,6 +2254,7 @@ TEST_F(UpdateTransactionTest, TestUpdateEdgeStringPropertyCompact) {
   neug::NeugDBConfig config(db_dir);
   config.memory_level = neug::MemoryLevel::kInMemory;
   config.checkpoint_on_close = true;
+  config.compact_on_close = true;
   db.Open(config);
   auto svc = std::make_shared<neug::NeugDBService>(db);
   std::vector<std::string> reviews;
