@@ -338,6 +338,24 @@ class TypedColumn<std::string_view> : public ColumnBase {
       }
     }
 
+    size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
+    size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
+    size_t truncated_size = avg_size * count + sizeof(FileHeader);
+    size_t payload_size = truncated_size - sizeof(FileHeader);
+    DCHECK_GE(payload_size, offset)
+        << "payload_size=" << payload_size << " < offset=" << offset
+        << "; would truncate written data";
+    if (payload_size > offset) {
+      // Include the zero-padding bytes in the checksum calculation
+      static constexpr char kZeros[4096] = {};
+      size_t remaining = payload_size - offset;
+      while (remaining > 0) {
+        size_t chunk = std::min(remaining, sizeof(kZeros));
+        MD5_Update(&data_ctx, kZeros, chunk);
+        remaining -= chunk;
+      }
+    }
+
     MD5_Final(header.data_md5, &data_ctx);
 
     data_out.seekp(0);
@@ -353,9 +371,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
     data_out.close();
     item_out.close();
 
-    size_t avg_size = count_no_empty > 0 ? offset / count_no_empty : width_;
-    size_t count = std::max(size_ + (size_ + 3) / 4, 4096UL);
-    size_t truncated_size = avg_size * count;
     int rt = truncate(data_file.c_str(), truncated_size);
     if (rt != 0) {
       std::stringstream ss;
