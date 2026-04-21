@@ -437,7 +437,9 @@ def test_memory_growth(tmp_path):
 
     ITERATIONS = 100
     PORT_BASE = 10020  # avoid collision with other tests' ports
-    TOLERANCE_MB = 15  # empirical: ~7.82 MB observed over 100 rounds; 15 MB covers jitter
+    TOLERANCE_MB = (
+        15  # empirical: ~7.82 MB observed over 100 rounds; 15 MB covers jitter
+    )
 
     def rss_mb() -> float:
         ru = resource.getrusage(resource.RUSAGE_SELF)
