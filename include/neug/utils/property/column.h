@@ -308,6 +308,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
     auto raw_items =
         reinterpret_cast<const string_item*>(items_buffer_->GetData());
     auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
+    MD5_CTX data_ctx, item_ctx;
+    MD5_Init(&data_ctx);
+    MD5_Init(&item_ctx);
     string_item cur_item;
     size_t offset = 0;
     size_t count_no_empty = 0;
@@ -317,6 +320,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
         // If the current item is the same as the previous one, we can reuse the
         // offset and length without writing duplicate data.
+        MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
                        sizeof(cur_item));
         continue;
@@ -324,6 +328,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
       cur_item = {offset, item.length};
+      MD5_Update(&data_ctx, raw_data + item.offset, item.length);
+      MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
                      sizeof(cur_item));
       offset += item.length;
@@ -331,8 +337,17 @@ class TypedColumn<std::string_view> : public ColumnBase {
         count_no_empty++;
       }
     }
-    // TODO: filled in md5 header after writing data, currently we skip md5
-    // verification, so it is not critical.
+
+    MD5_Final(header.data_md5, &data_ctx);
+
+    data_out.seekp(0);
+    data_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    MD5_Final(header.data_md5, &item_ctx);
+    item_out.seekp(0);
+    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+
     data_out.flush();
     item_out.flush();
     data_out.close();
