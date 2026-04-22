@@ -47,8 +47,8 @@ enum ScalarType {
   LABEL,
   PATTERN_EXTRACT,  // startNode, endNode, nodes, rels
   PROPERTIES,       // properties(nodes(), 'name')
-  TO_LIST,          // 不固定长度数组，数组元素类型一致
-  TO_TUPLE,         // tuple类型，元素类型不一致
+  TO_LIST,          // unfix length array, all elements have the same type
+  TO_TUPLE,         // tuple, elements have different types
   UPPER,
   LOWER,
   REVERSE,
