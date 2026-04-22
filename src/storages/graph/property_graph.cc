@@ -125,10 +125,6 @@ Status PropertyGraph::EnsureCapacity(label_t src_label, label_t dst_label,
         StatusCode::ERR_INVALID_ARGUMENT,
         "Edge table for the given edge label triplet does not exist.");
   }
-  size_t old_cap = edge_tables_.at(index).Capacity();
-  if (capacity <= old_cap) {
-    return neug::Status::OK();
-  }
   edge_tables_.at(index).EnsureCapacity(src_v_cap, dst_v_cap, capacity);
   return neug::Status::OK();
 }
