@@ -104,7 +104,7 @@ endforeach()
 add_definitions(-DNEUG_CMAKE_VERSION="${CMAKE_PROJECT_VERSION}")
 
 include(CheckCXXCompilerFlag)
-
+include(cmake/neug_symbol_visibility.cmake)
 
 set(DEFAULT_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)

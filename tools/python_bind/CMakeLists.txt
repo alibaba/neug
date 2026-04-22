@@ -17,10 +17,4 @@ target_link_libraries(neug_py_bind PRIVATE ${NEUG_LIBRARIES} ${GLOG_LIBRARIES} $
 
 # Hide protobuf/abseil/arrow symbols from neug_py_bind.so as well, so they
 # don't leak into the Python process and conflict with pyarrow's copies.
-if(APPLE)
-    target_link_options(neug_py_bind PRIVATE
-        "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/cmake/neug_unexported.sym")
-elseif(NOT WIN32)
-    target_link_options(neug_py_bind PRIVATE
-        "LINKER:--version-script=${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-endif()
+neug_apply_symbol_visibility(neug_py_bind)

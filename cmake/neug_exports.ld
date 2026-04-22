@@ -39,11 +39,6 @@
     _ZTV*4absl*;
     _ZTS*4absl*;
 
-    /* utf8_range symbols may be exported with C++ mangled names such as
-     * _ZN10utf8_range..., so hide both mangled and unmangled forms. */
-    _ZN10utf8_range*;
-    _ZNK10utf8_range*;
-    _ZTI*10utf8_range*;
-    _ZTV*10utf8_range*;
-    _ZTS*10utf8_range*;
+    /* utf8_range (protobuf dependency) */
+    utf8_range*;
 };

@@ -52,15 +52,7 @@ function(build_extension_lib ext_name)
         target_compile_options(neug_${ext_name}_extension PRIVATE --coverage)
         target_link_options(neug_${ext_name}_extension PRIVATE --coverage)
     endif()
-    # Hide Arrow (and other internal) symbols from the extension's dynamic
-    # symbol table to avoid conflicts with pyarrow in the same process.
-    # On Linux, apply the same linker version script used by libneug.
-    if(NOT APPLE AND NOT WIN32)
-        target_link_options(neug_${ext_name}_extension PRIVATE
-            "LINKER:--version-script=${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-        set_target_properties(neug_${ext_name}_extension PROPERTIES LINK_DEPENDS
-            "${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-    endif()
+    neug_apply_symbol_visibility(neug_${ext_name}_extension)
     SET(EXTENSION_LIB_NAME "${ext_name}" PARENT_SCOPE)
     SET(EXTENSION_LIB_NAME "${ext_name}")
     set_extension_properties(neug_${EXTENSION_LIB_NAME}_extension ${EXTENSION_LIB_NAME} ${ext_name})

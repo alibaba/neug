@@ -56,21 +56,7 @@ endif()
 target_include_directories(neug PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/compiler>
     $<INSTALL_INTERFACE:include/neug/compiler>)
 
-# Hide Arrow, protobuf, and abseil symbols from the dynamic symbol table to
-# prevent conflicts with pyarrow (which bundles its own Arrow/protobuf/abseil).
-if(APPLE)
-    # macOS: use -unexported_symbols_list to hide specific symbol patterns.
-    target_link_options(neug PRIVATE
-        "LINKER:-unexported_symbols_list,${CMAKE_SOURCE_DIR}/cmake/neug_unexported.sym")
-    set_target_properties(neug PROPERTIES LINK_DEPENDS
-        "${CMAKE_SOURCE_DIR}/cmake/neug_unexported.sym")
-elseif(NOT WIN32)
-    # Linux: use a version script (global: export all, local: hide arrow/protobuf).
-    target_link_options(neug PRIVATE
-        "LINKER:--version-script=${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-    set_target_properties(neug PROPERTIES LINK_DEPENDS
-        "${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-endif()
+neug_apply_symbol_visibility(neug)
 
 install_neug_target(neug)
 if (ENABLE_BACKTRACES)
