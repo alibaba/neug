@@ -2923,3 +2923,24 @@ def test_drop_and_recreate_table_same_name(tmp_path):
     finally:
         conn.close()
         db.close()
+
+
+def test_duplicate_project_column(tmp_path):
+    """Duplicate `RETURN` of the same property, including ORDER BY output alias cases."""
+
+    # ORDER BY output alias with duplicate project columns and parameters
+    db_dir_l0 = tmp_path / "order_alias_dup_project"
+    shutil.rmtree(db_dir_l0, ignore_errors=True)
+    db_dir_l0.mkdir()
+    db_l0 = Database(db_path=str(db_dir_l0), mode="w")
+    conn_l0 = db_l0.connect()
+    conn_l0.execute("CREATE NODE TABLE L0(id INT64, p0_2 INT64, PRIMARY KEY(id))")
+    conn_l0.execute("CREATE (:L0 {id: 1, p0_2: 643})")
+    parameters = {"v": 643}
+    failing_query = (
+        "MATCH (n:L0) "
+        "WHERE n.p0_2 = $v "
+        "RETURN n.id AS node_id, n.id AS selected_id "
+        "ORDER BY node_id LIMIT 100"
+    )
+    assert list(conn_l0.execute(failing_query, parameters=parameters)) == [[1, 1]]
