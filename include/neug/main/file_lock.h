@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <set>
 #include <string>
+
 #include "neug/config.h"
 
 namespace neug {
@@ -31,30 +32,19 @@ corruption or inconsistencies.
 class FileLock {
  public:
   static constexpr const char* LOCK_FILE_NAME = "neugdb.lock";
-  explicit FileLock(const std::string& data_dir)
-      : data_dir_(data_dir), lock_file_path_(data_dir + "/" + LOCK_FILE_NAME) {}
+  explicit FileLock(const std::string& data_dir);
 
-  static void CleanupAllLocks() {
-    for (const auto& lock_file : allLockFiles) {
-      if (std::filesystem::exists(lock_file)) {
-        std::remove(lock_file.c_str());
-      }
-    }
-    allLockFiles.clear();
-  }
-
-  ~FileLock() { unlock(); }
+  ~FileLock();
 
   bool lock(std::string& error_msg, DBMode mode);
 
   void unlock();
 
  private:
-  std::string data_dir_;
+  bool lock(short type, bool wait, std::string& error_msg);
   std::string lock_file_path_;
+  int fd_;
   bool locked_ = false;
-
-  static std::set<std::string> allLockFiles;
 };
 
 }  // namespace neug

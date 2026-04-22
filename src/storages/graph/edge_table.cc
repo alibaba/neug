@@ -564,7 +564,7 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   } else if (memory_level == MemoryLevel::kInMemory) {
     in_csr_->open_in_memory(ckp_dir_path + "/" + ie_prefix_path);
     out_csr_->open_in_memory(ckp_dir_path + "/" + oe_prefix_path);
-  } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+  } else if (memory_level == MemoryLevel::kHugePagePreferred) {
     in_csr_->open_with_hugepages(ckp_dir_path + "/" + ie_prefix_path);
     out_csr_->open_with_hugepages(ckp_dir_path + "/" + oe_prefix_path);
   } else {
@@ -580,7 +580,7 @@ void EdgeTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
     } else if (memory_level == MemoryLevel::kInMemory) {
       table_->open_in_memory(edata_prefix_path, work_dir_,
                              meta_->property_names, meta_->properties);
-    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
       table_->open_with_hugepages(edata_prefix_path, work_dir_,
                                   meta_->property_names, meta_->properties);
     } else {
@@ -615,7 +615,7 @@ void EdgeTable::Dump(const std::string& checkpoint_dir_path) {
         checkpoint_dir_path + "/" +
         statistics_file_prefix(meta_->src_label_name, meta_->dst_label_name,
                                meta_->edge_label_name);
-    write_statistic_file(statistc_file_path, Capacity(), Size());
+    write_statistic_file(statistc_file_path, Capacity(), PropTableSize());
   }
 }
 
@@ -975,15 +975,9 @@ void EdgeTable::Compact(bool compact_csr, bool sort_on_compaction,
   in_csr_->reset_timestamp();
 }
 
-size_t EdgeTable::Size() const {
+size_t EdgeTable::PropTableSize() const {
   if (meta_->is_bundled()) {
-    if (out_csr_) {
-      return out_csr_->edge_num();
-    } else if (in_csr_) {
-      return in_csr_->edge_num();
-    } else {
-      THROW_RUNTIME_ERROR("both csr are null");
-    }
+    return 0;
   }
   // TODO(zhanglei): the size may be inaccurate if some edges are deleted but
   // not compacted yet.

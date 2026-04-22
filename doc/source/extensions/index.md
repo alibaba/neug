@@ -10,18 +10,18 @@ The Extension framework in database systems is a mechanism that allows dynamical
 
 The following extensions are currently supported or planned to be supported in NeuG:
 
-| Category | Extension | Description | Since Version |
-|----------|-----------|-------------|---------------|
-| Data Source | [JSON](load_json.md) | Import & export  data from JSON file format | v0.1 |
-| Data Source| PARQUET | Import & Export data from PARQUET format files | planned v0.2 |
-| VFS | HTTP/HTTPS/S3/OSS | Provide data source based on HTTP/HTTPS/S3/OSS protocol | planned v0.2 |
-| Graph Algorithm | K-Core | Find all subgraphs with core number ≥ k. Returns `(node, core_number)` | planned v0.2 |
-| Graph Algorithm | PageRank | Calculate node importance scores. Returns `(node, rank)` | planned v0.2 |
-| Graph Algorithm | Shortest Path (Dijkstra) | Single-source shortest path algorithm | planned v0.2 |
-| Graph Algorithm | Connected Components | Weakly connected components detection | planned v0.2 |
-| Graph Algorithm | Leiden | Community detection algorithm for finding communities in networks | planned v0.2 |
-| Graph Algorithm | Label Propagation | Community detection algorithm that propagates labels through the network | planned v0.2 |
-| Graph Algorithm | Subgraph Matching (Estimator) | Unbiased estimation of subgraph matching | planned v0.2 |
+| Category        | Extension                     | Description                                                              | Since Version |
+| --------------- | ----------------------------- | ------------------------------------------------------------------------ | ------------- |
+| Data Source     | [JSON](load_json.md)          | Import & export  data from JSON file format                              | v0.1          |
+| Data Source     | [PARQUET](load_parquet.md)                      | Import & Export data from PARQUET format files                           | v0.1.1  |
+| VFS             | HTTP/HTTPS/S3/OSS             | Provide data source based on HTTP/HTTPS/S3/OSS protocol                  | planned v0.2  |
+| Graph Algorithm | K-Core                        | Find all subgraphs with core number ≥ k. Returns`(node, core_number)`   | planned v0.2  |
+| Graph Algorithm | PageRank                      | Calculate node importance scores. Returns`(node, rank)`                  | planned v0.2  |
+| Graph Algorithm | Shortest Path (Dijkstra)      | Single-source shortest path algorithm                                    | planned v0.2  |
+| Graph Algorithm | Connected Components          | Weakly connected components detection                                    | planned v0.2  |
+| Graph Algorithm | Leiden                        | Community detection algorithm for finding communities in networks        | planned v0.2  |
+| Graph Algorithm | Label Propagation             | Community detection algorithm that propagates labels through the network | planned v0.2  |
+| Graph Algorithm | Subgraph Matching (Estimator) | Unbiased estimation of subgraph matching                                 | planned v0.2  |
 
 ## Using Extensions
 
@@ -29,9 +29,10 @@ The following sections detail how to install and use the extensions listed above
 
 ### Install Extension
 
-The `INSTALL` command downloads official extensions from the NeuG Official Repository to your local machine. NeuG automatically downloads the appropriate platform-specific dynamic library based on your current operating system. 
+The `INSTALL` command downloads official extensions from the NeuG Official Repository to your local machine. NeuG automatically downloads the appropriate platform-specific dynamic library based on your current operating system.
 
 Regarding the local download path, please note the following:
+
 - By default, extensions are downloaded to `<python_wheel_install_home>/extension/<extension_name>`.
 - You can set the `EXTENSION_HOME` environment variable to specify a custom download directory. When set, extensions will be downloaded to `$EXTENSION_HOME/extension/<extension_name>`.
 
@@ -71,9 +72,9 @@ CALL SHOW_LOADED_EXTENSIONS() RETURN *;
 
 Example output:
 
-| Extension Name | Description |
-|----------------|-------------|
-| JSON | Provides functions to read and write JSON files. |
+| Extension Name | Description                                      |
+| -------------- | ------------------------------------------------ |
+| JSON           | Provides functions to read and write JSON files. |
 
 ### Uninstall Extensions
 
@@ -98,3 +99,4 @@ The typical lifecycle of an extension follows these steps:
 3. **Use**: Execute queries that utilize the extension's functionality
 4. **Unload**: Extensions are automatically unloaded when the database closes
 5. **Uninstall**: Remove the extension files from your local system when no longer needed
+

@@ -28,7 +28,7 @@
 
 namespace neug {
 
-Table::Table() : touched_(false) {}
+Table::Table() {}
 Table::~Table() { close(); }
 
 void Table::initColumns(const std::vector<std::string>& col_name,
@@ -60,7 +60,6 @@ void Table::open(const std::string& name, const std::string& work_dir,
     columns_[i]->open(name + ".col_" + std::to_string(i), snapshot_dir_,
                       tmp_dir(work_dir));
   }
-  touched_ = false;
   buildColumnPtrs();
 }
 
@@ -75,7 +74,6 @@ void Table::open_in_memory(const std::string& name, const std::string& work_dir,
     columns_[i]->open_in_memory(snapshot_dir_ + "/" + name + ".col_" +
                                 std::to_string(i));
   }
-  touched_ = true;
   buildColumnPtrs();
 }
 
@@ -91,7 +89,6 @@ void Table::open_with_hugepages(const std::string& name,
     columns_[i]->open_with_hugepages(snapshot_dir_ + "/" + name + ".col_" +
                                      std::to_string(i));
   }
-  touched_ = true;
   buildColumnPtrs();
 }
 
@@ -146,7 +143,7 @@ void Table::add_columns(const std::vector<std::string>& col_names,
     } else if (memory_level == MemoryLevel::kInMemory) {
       columns_[i]->open_in_memory(tmp_dir(work_dir_) + "/" + name_ + ".col_" +
                                   std::to_string(i));
-    } else if (memory_level == MemoryLevel::kHugePagePrefered) {
+    } else if (memory_level == MemoryLevel::kHugePagePreferred) {
       columns_[i]->open_with_hugepages(tmp_dir(work_dir_) + "/" + name_ +
                                        ".col_" + std::to_string(i));
     } else {

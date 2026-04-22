@@ -195,12 +195,6 @@ class IdIndexer;
 template <typename INDEX_T>
 class LFIndexer;
 
-template <typename KEY_T, typename INDEX_T>
-void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
-                      const std::string& filename, LFIndexer<INDEX_T>& lf,
-                      const std::string& snapshot_dir,
-                      const std::string& work_dir, DataTypeId type);
-
 template <typename INDEX_T>
 class LFIndexer {
   static constexpr INDEX_T sentinel = std::numeric_limits<INDEX_T>::max();
@@ -340,24 +334,26 @@ class LFIndexer {
   size_t size() const { return num_elements_.load(); }
   DataTypeId get_type() const { return keys_->type(); }
 
-  // only for update transaction
-  INDEX_T insert_safe(const Property& oid) {
-    INDEX_T ind = static_cast<INDEX_T>(num_elements_.load());
-    if (ind >= capacity()) {
-      reserve(capacity() + (capacity() >> 2));
-    }
-    return insert(oid);
-  }
-
-  INDEX_T insert(const Property& oid) {
+  INDEX_T insert(const Property& oid, bool insert_safe = false) {
     assert(oid.type() == get_type());
-    INDEX_T ind = static_cast<INDEX_T>(num_elements_.fetch_add(1));
-    if (!NEUG_LIKELY(ind >= 0 && ind < capacity())) {
+
+    if (insert_safe) {
+      if (NEUG_UNLIKELY(num_elements_.load(std::memory_order_relaxed) >=
+                        capacity())) {
+        size_t cap = capacity();
+        reserve(cap + (cap >> 2));
+      }
+    }
+    INDEX_T ind = static_cast<INDEX_T>(
+        num_elements_.fetch_add(1, std::memory_order_acq_rel));
+
+    if (!insert_safe && NEUG_UNLIKELY(static_cast<size_t>(ind) >= capacity())) {
       THROW_INTERNAL_EXCEPTION(
           "Reserved size is not enough: " + std::to_string(capacity()) +
           " vs " + std::to_string(ind));
     }
-    keys_->set_any(ind, oid);
+
+    keys_->set_any(ind, oid, insert_safe);
     auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);
@@ -456,7 +452,7 @@ class LFIndexer {
     load_meta(name + ".meta");
     keys_->open_with_hugepages(name + ".keys");
     indices_ =
-        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePrefered);
+        OpenContainer(name + ".indices", "", MemoryLevel::kHugePagePreferred);
     indices_size_ = indices_->GetDataSize() / sizeof(INDEX_T);
   }
 
@@ -531,14 +527,6 @@ class LFIndexer {
 
   ska::ska::prime_number_hash_policy hash_policy_;
   GHash<Property> hasher_;
-
-  // _KEY_T is defined in sys/_types/_key_t.h on macos
-  template <typename __KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
-                               const std::string& filename,
-                               LFIndexer<_INDEX_T>& output,
-                               const std::string& snapshot_dir,
-                               const std::string& work_dir, DataTypeId type);
 };
 
 template <typename INDEX_T>
@@ -997,91 +985,6 @@ class IdIndexer : public IdIndexerBase<INDEX_T> {
   size_t num_slots_minus_one_ = 0;
 
   GHash<KEY_T> hasher_;
-
-  template <typename __KEY_T, typename _INDEX_T>
-  friend void build_lf_indexer(const IdIndexer<__KEY_T, _INDEX_T>& input,
-                               const std::string& filename,
-                               LFIndexer<_INDEX_T>& output,
-                               const std::string& snapshot_dir,
-                               const std::string& work_dir, DataTypeId type);
 };
-
-template <typename KEY_T, typename INDEX_T>
-struct _move_data {
-  using key_buffer_t = typename id_indexer_impl::KeyBuffer<KEY_T>::type;
-  void operator()(const key_buffer_t& input, ColumnBase& col, size_t size) {
-    auto& keys = dynamic_cast<TypedColumn<KEY_T>&>(col);
-    for (size_t idx = 0; idx < size; ++idx) {
-      keys.set_value(idx, input[idx]);
-    }
-  }
-};
-
-template <typename INDEX_T>
-struct _move_data<std::string_view, INDEX_T> {
-  using key_buffer_t =
-      typename id_indexer_impl::KeyBuffer<std::string_view>::type;
-  void operator()(const key_buffer_t& input, ColumnBase& col, size_t size) {
-    auto& keys = dynamic_cast<StringColumn&>(col);
-    for (size_t idx = 0; idx < size; ++idx) {
-      keys.set_value(idx, input[idx]);
-    }
-  }
-};
-
-template <typename KEY_T, typename INDEX_T>
-void build_lf_indexer(const IdIndexer<KEY_T, INDEX_T>& input,
-                      const std::string& filename, LFIndexer<INDEX_T>& lf,
-                      const std::string& snapshot_dir,
-                      const std::string& work_dir, DataTypeId type) {
-  size_t size = input.keys_.size();
-  lf.init(type);
-  lf.keys_->open(filename + ".keys", "", work_dir);
-  lf.keys_->resize(size);
-  _move_data<KEY_T, INDEX_T>()(input.keys_, *lf.keys_, size);
-  lf.num_elements_.store(size);
-
-  auto indices_path = work_dir + "/" + filename + ".indices";
-  file_utils::create_file(indices_path, sizeof(FileHeader));
-  lf.indices_ = OpenContainer(indices_path,
-                              tmp_dir(work_dir) + "/" + filename + ".indices",
-                              MemoryLevel::kSyncToFile);
-  lf.indices_->Resize((input.num_slots_minus_one_ + 1) * sizeof(INDEX_T));
-  auto* lf_indices_ptr = reinterpret_cast<INDEX_T*>(lf.indices_->GetData());
-  lf.indices_size_ = lf.indices_->GetDataSize() / sizeof(INDEX_T);
-
-  lf.hash_policy_.set_mod_function_by_index(
-      input.hash_policy_.get_mod_function_index());
-  lf.num_slots_minus_one_ = input.num_slots_minus_one_;
-  memcpy(lf_indices_ptr, input.indices_.data(),
-         lf.indices_size_ * sizeof(INDEX_T));
-
-  std::vector<INDEX_T> residuals;
-  for (INDEX_T idx = 0; idx < input.size(); ++idx) {
-    if (input.indices_[idx] != LFIndexer<INDEX_T>::sentinel) {
-      residuals.push_back(input.indices_[idx]);
-    }
-  }
-  for (const auto& lid : residuals) {
-    auto oid = input.keys_[lid];
-    size_t index = input.hash_policy_.index_for_hash(
-        input.hasher_(oid), input.num_slots_minus_one_);
-    while (true) {
-      if (lf_indices_ptr[index] == lid) {
-        break;
-      } else if (lf_indices_ptr[index] == LFIndexer<INDEX_T>::sentinel) {
-        lf_indices_ptr[index] = lid;
-        break;
-      }
-      index = (index + 1) % (input.num_slots_minus_one_ + 1);
-    }
-  }
-  lf.dump_meta(snapshot_dir + "/" + filename + ".meta");
-
-  lf.keys_->dump(snapshot_dir + "/" + filename + ".keys");
-  std::filesystem::remove(work_dir + "/" + filename + ".meta");
-  lf.keys_->close();
-  lf.keys_->open(filename + ".keys", snapshot_dir, work_dir);
-}
 
 }  // namespace neug

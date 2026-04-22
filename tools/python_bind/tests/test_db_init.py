@@ -16,7 +16,9 @@
 # limitations under the License.
 #
 
+import multiprocessing
 import os
+import shutil
 import sys
 
 import pytest
@@ -269,6 +271,25 @@ def test_open_dir_not_exist(tmp_path):
         os.chmod(db_dir, 0o700)
 
 
+def open_db(db_path, mode):
+    db = Database(db_path=str(db_path), mode=mode)
+    db.close()
+
+
+@pytest.mark.skip(reason="https://github.com/alibaba/neug/issues/233")
+def test_open_with_multiple_process(tmp_path):
+    db_dir = tmp_path / "multi_process_db"
+    shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
+    db_dir.mkdir()
+    with multiprocessing.Pool(processes=2) as pool:
+        results = [
+            pool.apply_async(open_db, (str(db_dir), "r")),
+            pool.apply_async(open_db, (str(db_dir), "r")),
+        ]
+        for result in results:
+            result.get()
+
+
 # DB-001-15
 @pytest.mark.skip(reason="planned in stress test issues #524")
 def test_disk_space_exhausted(monkeypatch, tmp_path):
@@ -313,3 +334,87 @@ def test_db_default_mode(tmp_path):
     db = Database(db_path=str(db_dir))
     assert db is not None
     assert db.mode == "read-write"
+
+
+# DB-001-18
+def test_memory_level_default(tmp_path):
+    """Verify that the default memory_level ('InMemory') is accepted and the database opens successfully."""
+    db_dir = tmp_path / "default_memory_level_db"
+    db = Database(db_path=str(db_dir), mode="w")
+    assert db is not None
+    db.close()
+
+
+# DB-001-19
+def test_memory_level_in_memory(tmp_path):
+    """Verify that all aliases for 'InMemory' memory level are accepted."""
+    db_dir = tmp_path / "in_memory_level_db"
+    # canonical form
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="InMemory")
+    assert db is not None
+    db.close()
+    # lowercase alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="inmemory")
+    assert db is not None
+    db.close()
+    # underscore alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="in_memory")
+    assert db is not None
+    db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="M_FULL")
+    assert db is not None
+    db.close()
+
+
+# DB-001-20
+def test_memory_level_sync_to_file(tmp_path):
+    """Verify that all aliases for 'SyncToFile' memory level are accepted."""
+    db_dir = tmp_path / "sync_to_file_level_db"
+    # canonical form
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="SyncToFile")
+    assert db is not None
+    db.close()
+    # lowercase alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="synctofile")
+    assert db is not None
+    db.close()
+    # underscore alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="sync_to_file")
+    assert db is not None
+    db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="M_LAZY")
+    assert db is not None
+    db.close()
+
+
+# DB-001-21
+def test_memory_level_huge_page_preferred(tmp_path):
+    """Verify that all aliases for 'HugePagePreferred' memory level are accepted."""
+    db_dir = tmp_path / "huge_page_preferred_level_db"
+    # canonical form
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="HugePagePreferred")
+    assert db is not None
+    db.close()
+    # lowercase alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="hugepagepreferred")
+    assert db is not None
+    db.close()
+    # underscore alias
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="huge_page_preferred")
+    assert db is not None
+    db.close()
+    # short literal
+    db = Database(db_path=str(db_dir), mode="w", buffer_strategy="M_HUGE")
+    assert db is not None
+    db.close()
+
+
+# DB-001-22
+def test_memory_level_invalid(tmp_path):
+    """Verify that an invalid memory_level raises ERR_INVALID_ARGUMENT."""
+    db_dir = tmp_path / "invalid_memory_level_db"
+    with pytest.raises(Exception) as excinfo:
+        Database(db_path=str(db_dir), mode="w", buffer_strategy="invalid_level")
+        assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)

@@ -2005,13 +2005,13 @@ std::string Schema::get_edge_strategy(label_t src_label, label_t dst_label,
     if (ie_strategy == EdgeStrategy::kMultiple) {
       return "MANY_TO_MANY";
     } else if (ie_strategy == EdgeStrategy::kSingle) {
-      return "MANY_TO_ONE";
+      return "ONE_TO_MANY";
     } else {
       THROW_RUNTIME_ERROR("ie_strategy should not be none");
     }
   } else if (oe_strategy == EdgeStrategy::kSingle) {
     if (ie_strategy == EdgeStrategy::kMultiple) {
-      return "ONE_TO_MANY";
+      return "MANY_TO_ONE";
     } else if (ie_strategy == EdgeStrategy::kSingle) {
       return "ONE_TO_ONE";
     } else {

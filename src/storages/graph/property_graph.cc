@@ -849,7 +849,7 @@ void PropertyGraph::Open(const std::string& work_dir,
         EdgeTable edge_table(
             schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
         edge_table.Open(work_dir_, memory_level_);
-        auto e_size = edge_table.Size();
+        auto e_size = edge_table.PropTableSize();
         size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
         edge_table.EnsureCapacity(vertex_capacities[src_label_i],
                                   vertex_capacities[dst_label_i], e_capacity);
@@ -1023,7 +1023,7 @@ void PropertyGraph::Dump(bool reopen) {
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (edge_tables_.count(index) > 0) {
           auto& edge_table = edge_tables_.at(index);
-          auto e_size = edge_table.Size();
+          auto e_size = edge_table.PropTableSize();
           auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
                          vertex_capacity[src_label_i],
