@@ -106,8 +106,8 @@ def test_project_graph_with_predicates(tmp_path):
             len(rel_rows) >= 1
         ), "expected at least one relationship row in PROJECTED_GRAPH_INFO"
         assert any(
-            ("2021" in label_to_pred[l]) or ("Date" in label_to_pred[l])
-            for l in rel_rows
+            ("2021" in label_to_pred[rel_lbl]) or ("Date" in label_to_pred[rel_lbl])
+            for rel_lbl in rel_rows
         ), "relationship predicate must be preserved"
 
         conn.execute("CALL drop_projected_graph('my_subgraph');")
