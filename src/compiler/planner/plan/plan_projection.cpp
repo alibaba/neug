@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <string>
 #include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/binder/expression/expression_util.h"
@@ -47,9 +46,6 @@ void Planner::planProjectionBody(const BoundProjectionBody* projectionBody,
     return;
   }
   resetExprUniqueNames(expressionsToProject);
-  for (auto expr : expressionsToProject) {
-    LOG(INFO) << expr->getUniqueName();
-  }
   if (plan.isEmpty()) {  // e.g. RETURN 1, COUNT(2)
     // if the pre query is not null, we set updateClause as true to skip the
     // dummy scan in physical plan convertor
