@@ -162,6 +162,8 @@ class GQueryConvertor {
                        ::physical::PhysicalPlan* plan);
   void convertProcedureCall(const planner::LogicalTableFunctionCall& funcCall,
                             ::physical::PhysicalPlan* plan);
+  void convertGDSFunction(const planner::LogicalTableFunctionCall& funcCall,
+                          ::physical::PhysicalPlan* plan);
 
   void convertUnwind(const planner::LogicalUnwind& unwind,
                      ::physical::PhysicalPlan* plan);

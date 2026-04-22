@@ -303,6 +303,28 @@ message ProcedureCall {
   procedure.Query query = 1; 
 }
 
+// Graph Data Science algorithm call: projected subgraph + string options.
+message Subgraph {
+  message VertexEntry {
+    int32 label_id = 1;
+    common.Expression predicate = 2;
+  }
+  message EdgeEntry {
+    int32 src_label_id = 1;
+    int32 edge_label_id = 2;
+    int32 dst_label_id = 3;
+    common.Expression predicate = 4;
+  }
+  repeated VertexEntry vertex_entries = 1;
+  repeated EdgeEntry edge_entries = 2;
+}
+
+message GDSAlgo {
+  string algo_name = 1;
+  Subgraph sub_graph = 2;
+  map<string, string> options = 3;
+}
+
 message ExtensionInstall {
   string extension_name = 1;
 }
@@ -342,6 +364,7 @@ message PhysicalOpr {
       EdgeExpand edge = 31;
       PathExpand path = 32;
       ProcedureCall procedure_call = 33;
+      GDSAlgo gds_algo = 75;
 
       // DML operators
       DataSource source = 37; // tag, 0(id),1(name),2(age)
@@ -396,6 +419,7 @@ message ExecutionFlag {
   bool create_temp_table = 6; // create temporary table
   bool checkpoint = 7;
   bool procedure_call = 8;
+  // todo: add a new flag for gds_algo ?
 }
 
 // A single Cypher query ending with a semicolon (;)

@@ -31,24 +31,36 @@
 #include "neug/compiler/common/types/types.h"
 
 namespace neug {
+namespace main {
+class ClientContext;
+}
 namespace planner {
 class Schema;
 }
 namespace graph {
 
-struct GraphEntryTableInfo {
+struct ParsedGraphEntryTableInfo {
+  std::string srcTableName;
   std::string tableName;
+  std::string dstTableName;
   std::string predicate;
 
-  GraphEntryTableInfo(std::string tableName, std::string predicate)
+  ParsedGraphEntryTableInfo(std::string tableName, std::string predicate)
       : tableName{std::move(tableName)}, predicate{std::move(predicate)} {}
+
+  ParsedGraphEntryTableInfo(std::string srcTableName, std::string tableName,
+                            std::string dstTableName, std::string predicate)
+      : srcTableName{std::move(srcTableName)},
+        tableName{std::move(tableName)},
+        dstTableName{std::move(dstTableName)},
+        predicate{std::move(predicate)} {}
 
   std::string toString() const;
 };
 
 struct ParsedGraphEntry {
-  std::vector<GraphEntryTableInfo> nodeInfos;
-  std::vector<GraphEntryTableInfo> relInfos;
+  std::vector<ParsedGraphEntryTableInfo> nodeInfos;
+  std::vector<ParsedGraphEntryTableInfo> relInfos;
 };
 
 struct BoundGraphEntryTableInfo {
@@ -123,6 +135,11 @@ class GraphEntrySet {
   }
   void dropGraph(const std::string& name) { nameToEntry.erase(name); }
 
+  /// @throws BinderException if a graph with `name` already exists.
+  void validateGraphNotExist(const std::string& name) const;
+  /// @throws BinderException if no graph is registered under `name`.
+  void validateGraphExist(const std::string& name) const;
+
   using iterator = std::unordered_map<std::string, ParsedGraphEntry>::iterator;
   using const_iterator =
       std::unordered_map<std::string, ParsedGraphEntry>::const_iterator;
@@ -136,6 +153,23 @@ class GraphEntrySet {
 
  private:
   std::unordered_map<std::string, ParsedGraphEntry> nameToEntry;
+};
+
+/// Validates `ParsedGraphEntry` against the catalog and returns a bound
+/// [`GraphEntry`] (predicates are accepted as strings; expression binding is
+/// deferred).
+class NEUG_API GDSFunction {
+ public:
+  static GraphEntry bindGraphEntry(main::ClientContext& clientContext,
+                                   const ParsedGraphEntry& entry);
+
+  static BoundGraphEntryTableInfo bindNodeEntry(
+      main::ClientContext& clientContext, const std::string& tableName,
+      const std::string& predicate);
+
+  static BoundGraphEntryTableInfo bindRelEntry(
+      main::ClientContext& clientContext,
+      const std::vector<std::string>& triplets, const std::string& predicate);
 };
 
 }  // namespace graph

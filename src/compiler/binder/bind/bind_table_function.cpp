@@ -24,9 +24,13 @@
 #include "neug/compiler/binder/bound_table_scan_info.h"
 #include "neug/compiler/binder/expression/expression_util.h"
 #include "neug/compiler/binder/expression/literal_expression.h"
+#include "neug/compiler/binder/expression/scalar_function_expression.h"
 #include "neug/compiler/catalog/catalog.h"
 #include "neug/compiler/function/built_in_function_utils.h"
+#include "neug/compiler/function/list/vector_list_functions.h"
 #include "neug/compiler/function/neug_call_function.h"
+#include "neug/compiler/function/table/bind_input.h"
+#include "neug/compiler/function/table/table_function.h"
 #include "neug/compiler/main/client_context.h"
 
 using namespace neug::common;
@@ -34,6 +38,31 @@ using namespace neug::function;
 
 namespace neug {
 namespace binder {
+
+static bool needFold(binder::Expression& expr) {
+  if (expr.expressionType == common::ExpressionType::FUNCTION) {
+    auto& funcExpr = expr.constCast<binder::ScalarFunctionExpression>();
+    if (funcExpr.getFunction().name == function::ListCreationFunction::name) {
+      auto children = funcExpr.getChildren();
+      for (auto child : children) {
+        if (child->expressionType != common::ExpressionType::LITERAL &&
+            !needFold(*child)) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+std::shared_ptr<Expression> Binder::convertParam(
+    const std::shared_ptr<Expression>& expr) const {
+  if (needFold(*expr)) {
+    return expressionBinder.foldExpression(expr);
+  }
+  return expr;
+}
 
 BoundTableScanInfo Binder::bindTableFunc(
     const std::string& tableFuncName, const parser::ParsedExpression& expr,
@@ -48,6 +77,7 @@ BoundTableScanInfo Binder::bindTableFunc(
   for (auto i = 0u; i < expr.getNumChildren(); i++) {
     auto& childExpr = *expr.getChild(i);
     auto param = expressionBinder.bindExpression(childExpr);
+    param = convertParam(param);
     if (!childExpr.hasAlias()) {
       ExpressionUtil::validateExpressionType(
           *param, {ExpressionType::LITERAL, ExpressionType::PARAMETER});
@@ -81,6 +111,17 @@ BoundTableScanInfo Binder::bindTableFunc(
       positionalParams[i] = expressionBinder.foldExpression(
           expressionBinder.implicitCastIfNecessary(positionalParams[i],
                                                    inputTypes[i]));
+    }
+  }
+  const auto& tableFunc = callFunc->constPtrCast<TableFunction>();
+  const auto& bindFunc = tableFunc->bindFunc;
+  if (bindFunc) {
+    TableFuncBindInput tableBindInput;
+    tableBindInput.binder = this;
+    tableBindInput.params = positionalParams;
+    tableBindInput.yieldVariables = yieldVariables;
+    if (auto customBindData = bindFunc(clientContext, &tableBindInput)) {
+      return BoundTableScanInfo{*callFunc, std::move(customBindData)};
     }
   }
   expression_vector outputColumns;
