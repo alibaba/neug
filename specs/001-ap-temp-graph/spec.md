@@ -529,6 +529,232 @@
 
 ---
 
+### Module 13: Copy From With No Schema (Priority: P2)
+
+**设计细化（Binder / TableInfo）**: [`table-info-copy-from-design.md`](./table-info-copy-from-design.md)
+
+**用户说明（英文）**: [`doc/source/data_io/import_data.md`](../../doc/source/data_io/import_data.md) 中「COPY FROM without a predefined schema」一节。
+
+#### 目标与范围
+
+在目标点类型或边类型**尚未存在于 catalog** 时，仍可通过 `COPY ... FROM` 完成「推断列结构 → 可选自动建表 → 批量写入」；用户无需先手写 `CREATE NODE/REL TABLE`。本模块描述该路径下的**用户面语法、流水线阶段与物理计划形态**；与「已有 Schema 的 COPY」共用同一套 DML 读取与 `BatchInsert*` 写入语义，差异主要在 Binder 是否产出补充 DDL 与元数据。
+
+#### 端到端流水线
+
+1. **收集（Sniff / Scan）**：对外部数据源执行 sniff 或绑定扫描，得到列名与逻辑类型（`EntrySchema` / 等价结构）。
+2. **组装（Infer）**：将列映射为点或边的属性列表；推断主键列（默认第一列或与选项一致）；边需同时确定 **边标签 + 源/宿点标签** 三元组。
+3. **自动 DDL（可选）**：当 `auto_detect`（或等价策略）为真且类型不存在时，在物理计划中**前置** `CreateVertexSchema` / `CreateEdgeSchema`，在执行期先于 DML 应用。
+4. **数据导入（DML）**：`DataSource`（及可能的 `Project` 等关系算子）读出行批，**`BatchInsertVertex` / `BatchInsertEdge`** 将列绑定到属性并调用存储批量写入。
+
+#### Cypher 接口（当前聚焦形态）
+
+**从文件载入点**
+
+```cypher
+COPY person FROM 'person.csv';
+```
+
+**从文件载入边**（需显式给出端点类型；边类型为单一三元组，暂不支持一次 COPY 声明多种 `(src,dst)` 组合）
+
+```cypher
+COPY knows FROM 'knows.csv' (from='person', to='person');
+```
+
+**从子查询载入点**
+
+```cypher
+COPY person FROM (LOAD FROM 'person.csv' RETURN id, name, age);
+```
+
+**从子查询载入边**
+
+```cypher
+COPY knows FROM (LOAD FROM 'knows.csv' RETURN src_id, dst_id, weight) (from='person', to='person');
+```
+
+上述四种用法均可配合 **schema 自动推断**：当目标类型尚不存在时，由编译与执行路径插入 DDL 再导入。用户可通过选项显式控制：
+
+| 名称 | 含义 | 默认值 |
+|------|------|--------|
+| `auto_detect` | 当目标类型在 catalog 中不存在时，是否根据 sniff/扫描结果自动创建点/边类型 | `true` |
+
+示例：
+
+```cypher
+COPY person FROM 'person.csv' (auto_detect=true);
+COPY knows FROM 'knows.csv' (from='person', to='person') (auto_detect=true);
+COPY person FROM (LOAD FROM 'person.csv' RETURN id, name, age) (auto_detect=true);
+COPY knows FROM (LOAD FROM 'knows.csv' RETURN src_id, dst_id, weight) (from='person', to='person', auto_detect=true);
+```
+
+#### 技术实现要点
+
+引擎与存储已提供 DDL、DML 及文件 sniff/read 能力；本功能主要在**查询编译链路**中组合算子，生成可下发的 Physical Plan。
+
+**Sniff / Read 表函数（概念接口）**
+
+```c++
+using read_exec_func_t = std::function<execution::Context(
+    std::shared_ptr<reader::ReadSharedState> state)>;
+
+// 从外部数据源推断列名与列类型
+using read_sniff_func_t = std::function<std::shared_ptr<reader::EntrySchema>(
+    const reader::FileSchema& schema)>;
+
+struct ReadFunction : public TableFunction {
+  read_exec_func_t execFunc = nullptr;
+  read_sniff_func_t sniffFunc = nullptr;
+
+  ReadFunction(std::string name, std::vector<common::LogicalTypeID> inputTypes)
+      : TableFunction{std::move(name), std::move(inputTypes)} {}
+};
+```
+
+**Physical Plan 中的 DDL 算子（节选）**
+
+```proto
+message CreateVertexSchema {
+    common.NameOrId vertex_type = 1;
+    repeated PropertyDef properties = 2;
+    repeated string primary_key = 3;
+    ConflictAction conflict_action = 4;
+}
+
+message CreateEdgeSchema {
+    enum Multiplicity { ONE_TO_ONE = 0; ONE_TO_MANY = 1; MANY_TO_ONE = 2; MANY_TO_MANY = 3; }
+    message TypeInfo {
+        EdgeType edge_type = 1;
+        Multiplicity multiplicity = 2;
+    }
+    repeated TypeInfo type_info = 1;
+    repeated PropertyDef properties = 2;
+    repeated string primary_key = 3;
+    ConflictAction conflict_action = 4;
+}
+```
+
+**Physical Plan 中的 COPY DML 算子（节选）**
+
+```proto
+// COPY User FROM 'user.csv'
+message BatchInsertVertex {
+    common.NameOrId vertex_type = 1;
+    repeated PropertyMapping property_mappings = 2;
+}
+
+// COPY Knows FROM 'knows_user_user.csv' (from='User', to='User');
+message BatchInsertEdge {
+    EdgeType edge_type = 1;
+    repeated PropertyMapping source_vertex_binding = 2;
+    repeated PropertyMapping destination_vertex_binding = 3;
+    repeated PropertyMapping property_mappings = 4;
+}
+```
+
+**执行期解析标签（与无 Schema COPY 强相关）**
+
+`BatchInsertVertex` 携带 `common.NameOrId`，`BatchInsertEdge` 携带完整 `EdgeType`（边名 + 源/宿 `NameOrId`）。**Build 阶段不把名称解析为数值 label_id**；在 **`Eval` 阶段**根据**当前图上的 `Schema`** 解析 id 或 name。这样在同一物理计划中「先 `Create*Schema`、后 `BatchInsert*`」时，插入算子总能看到已注册的类型，避免计划构建时刻 catalog 尚未刷新的问题。
+
+#### 编译侧：Binder 与 Planner
+
+- **Binder**：`bindCopyFrom` 在「需要从无推断建表」时，构造 `BoundCopyFromInfo`，并填充 **`ddlTableInfo`**（如 `DDLVertexInfo` / `DDLEdgeInfo`），内含可下发为 `CreateVertexSchema` / `CreateEdgeSchema` 的 `BoundCreateTableInfo` 及临时 `TableCatalogEntry`；扫描源绑定与列表达式与常规 COPY 一致。
+- **Planner / GOPT / `plan_copy`**：若存在 `ddlTableInfo`，在 COPY 子计划前插入对应 **Create*Schema** 物理算子，再衔接 **DataSource →（可选 Project）→ BatchInsert***。
+
+（具体字段与分支以 `bound_copy_from.h`、`bind_copy_from.cpp`、`plan_copy.cpp`、`g_query_converter.cpp` 为准。）
+
+#### 示例：点 COPY + 自动建表
+
+数据文件 `/data/legacy_users.csv`：
+
+```csv
+user_id,user_name,total_spent
+1,user1,20.0
+2,user2,21.2
+3,user3,21.4
+```
+
+```cypher
+COPY ExtLegacyUser FROM '/data/legacy_users.csv' (auto_detect=true);
+```
+
+典型 Physical Plan 形态（示意；谓词下推等到 Reader 的细节以实现为准）：
+
+```yaml
+CreateVertexSchema:
+  entry_schema:
+    label: "ExtLegacyUser"
+    primary_col: "user_id"
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+
+DataSource:
+  entry_schema:
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+  file_schema:
+    file_path:
+      - "/data/legacy_users.csv"
+    format_type: "csv"
+    format_opts:
+      header: true
+      delimiter: "|"
+
+BatchInsertVertex:
+  vertex_type: { name: "ExtLegacyUser" }   # 执行期解析为 label_id
+  property_mappings: # 列下标 → 属性名，以实现为准
+    ...
+```
+
+#### 示例：列顺序与主键列 — 经子查询重排
+
+同一数据若文件中 **主键不是第一列**，可通过 `LOAD ... RETURN` 重排后再 COPY，使推断的主键与属性顺序一致：
+
+```csv
+user_name,user_id,total_spent
+user1,1,20.0
+user2,2,21.2
+user3,3,21.4
+```
+
+```cypher
+COPY ExtLegacyUser FROM (
+  LOAD FROM '/data/legacy_users.csv' RETURN user_id, user_name, total_spent
+) (auto_detect=true);
+```
+
+典型 Physical Plan 在 `DataSource` 与 `BatchInsertVertex` 之间增加 **Project**，将扫描列投影为 `user_id, user_name, total_spent`；`CreateVertexSchema` 与 `BatchInsertVertex` 所见的逻辑列序一致，`BatchInsertVertex` 仍通过 **name 或 id** 在执行期绑定到已创建的 `ExtLegacyUser`。
+
+```yaml
+CreateVertexSchema:
+  entry_schema:
+    label: "ExtLegacyUser"
+    primary_col: "user_id"
+    column_names: ["user_id", "user_name", "total_spent"]
+    column_types: ["uint64_t", "string", "double"]
+
+DataSource:
+  entry_schema:
+    column_names: ["user_name", "user_id", "total_spent"]
+    column_types: ["string", "uint64_t", "double"]
+  file_schema:
+    file_path:
+      - "/data/legacy_users.csv"
+    format_type: "csv"
+    format_opts:
+      header: true
+      delimiter: "|"
+
+Project:
+  column_names: ["user_id", "user_name", "total_spent"]
+  column_types: ["uint64_t", "string", "double"]
+
+BatchInsertVertex:
+  vertex_type: { name: "ExtLegacyUser" }
+  property_mappings: ...
+```
+
+---
+
 ## Edge Cases
 
 - **文件不存在**：返回 "File not found: <path>" 错误

@@ -16,6 +16,10 @@ void Planner::appendTableFunctionCall(const BoundTableScanInfo& info,
   std::shared_ptr<LogicalTableFunctionCall> call =
       std::make_shared<LogicalTableFunctionCall>(info.func,
                                                  info.bindData->copy());
+  auto lastOp = plan.getLastOperator();
+  if (lastOp) {
+    call->addChild(std::move(lastOp));
+  }
   call->computeFactorizedSchema();
   plan.setLastOperator(std::move(call));
 }

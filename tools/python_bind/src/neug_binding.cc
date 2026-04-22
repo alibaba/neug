@@ -15,12 +15,10 @@
 
 #include <pybind11/gil_safe_call_once.h>
 #include <pybind11/pybind11.h>
-#include <csignal>
 #include <iostream>
 #include <string>
 
 #include <glog/logging.h>
-#include "neug/main/file_lock.h"
 #include "neug/utils/exception/exception.h"
 #include "py_connection.h"
 #include "py_database.h"
@@ -37,39 +35,6 @@ namespace py = pybind11;
 
 namespace neug {
 
-void signal_handler(int signal) {
-  LOG(INFO) << "Received signal " << signal << ", exiting...";
-  // support SIGKILL, SIGINT, SIGTERM
-  if (signal == SIGKILL || signal == SIGINT || signal == SIGTERM ||
-      signal == SIGSEGV || signal == SIGABRT) {
-    LOG(ERROR) << "Received signal " << signal << ", Remove all filelocks";
-    // remove all files in work_dir
-    neug::FileLock::CleanupAllLocks();
-#ifdef NEUG_BACKTRACE
-    cpptrace::generate_trace(1 /*skip this function's frame*/).print();
-#endif
-    exit(signal);
-  } else {
-    LOG(ERROR) << "Received unexpected signal " << signal << ", exiting...";
-    exit(1);
-  }
-}
-
-void setup_signal_handler(bool is_interactive) {
-  // Register handlers for SIGKILL, SIGINT, SIGTERM, SIGSEGV, SIGABRT
-  // LOG(FATAL) cause SIGABRT
-  if (is_interactive) {
-    std::signal(SIGINT, signal_handler);
-  }
-  std::signal(SIGTERM, signal_handler);
-  std::signal(SIGKILL, signal_handler);
-  std::signal(SIGSEGV, signal_handler);
-  std::signal(SIGABRT, signal_handler);
-  std::signal(SIGFPE, signal_handler);
-  std::signal(SIGQUIT, signal_handler);
-  std::signal(SIGKILL, signal_handler);
-  std::signal(SIGHUP, signal_handler);
-}
 void setup_logging() {
   google::InitGoogleLogging("neug");
   const char* debug = std::getenv("DEBUG");
@@ -92,17 +57,6 @@ void setup_logging() {
 }
 }  // namespace neug
 
-bool get_is_interactive() {
-  try {
-    py::module_ sys = py::module_::import("sys");
-    py::object flags = sys.attr("flags");
-    return py::cast<bool>(flags.attr("interactive"));
-  } catch (const py::error_already_set& e) {
-    PyErr_Print();
-    return false;
-  }
-}
-
 PYBIND11_MODULE(neug_py_bind, m) {
   m.doc() = R"pbdoc(
         
@@ -120,10 +74,6 @@ PYBIND11_MODULE(neug_py_bind, m) {
   neug::PyConnection::initialize(m);
   neug::PyQueryResult::initialize(m);
   neug::PyQueryRequest::initialize(m);
-
-  // Setup signal handling, for cleaning up resources on exit.
-  bool is_interactive = get_is_interactive();
-  neug::setup_signal_handler(is_interactive);
 
   // Register exception translation for Python.
   PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object>

@@ -124,7 +124,7 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
-  size_t Size() const;
+  size_t PropTableSize() const;
 
   size_t Capacity() const;
 

@@ -16,7 +16,9 @@
 # limitations under the License.
 #
 
+import multiprocessing
 import os
+import shutil
 import sys
 
 import pytest
@@ -267,6 +269,25 @@ def test_open_dir_not_exist(tmp_path):
         assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
         os.chmod(db_dir, 0o700)
+
+
+def open_db(db_path, mode):
+    db = Database(db_path=str(db_path), mode=mode)
+    db.close()
+
+
+@pytest.mark.skip(reason="https://github.com/alibaba/neug/issues/233")
+def test_open_with_multiple_process(tmp_path):
+    db_dir = tmp_path / "multi_process_db"
+    shutil.rmtree(db_dir, ignore_errors=True)  # Ensure clean state
+    db_dir.mkdir()
+    with multiprocessing.Pool(processes=2) as pool:
+        results = [
+            pool.apply_async(open_db, (str(db_dir), "r")),
+            pool.apply_async(open_db, (str(db_dir), "r")),
+        ]
+        for result in results:
+            result.get()
 
 
 # DB-001-15

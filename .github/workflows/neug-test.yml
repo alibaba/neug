@@ -230,6 +230,7 @@ jobs:
         ctest -R test_request -V
         ctest -R sink_test -V
         ctest -R test_indexer -V
+        ctest -R test_db_svc -V
 
     # ========================================
     # Phase 2: Bulk load test data
@@ -324,6 +325,12 @@ jobs:
         cd ${GITHUB_WORKSPACE}/tools/python_bind/
         export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
         python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_data_io_docs.py
+
+    - name: Run LOAD FROM sniffer tests (CSV)
+      if: steps.scope.outputs.extension_only != 'true'
+      run: |
+        cd ${GITHUB_WORKSPACE}/tools/python_bind/
+        python3 -m pytest --cov=neug --cov-report=term --exitfirst --cov-append --cov-config=.coveragerc -sv tests/test_sniffer.py -k "csv"
 
     - name: Run Complex Query Test
       if: steps.scope.outputs.extension_only != 'true'

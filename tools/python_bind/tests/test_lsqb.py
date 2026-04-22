@@ -60,7 +60,6 @@ class TestLsqb(unittest.TestCase):
             self.db.close()
 
     def test_queries(self):
-
         submit_cypher_query(
             conn=self.conn,
             query="MATCH (n:Country) return n limit 10;",

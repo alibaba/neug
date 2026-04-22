@@ -124,6 +124,8 @@ jobs:
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_export.py -k "json"
         NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_load.py -k "parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_db_import_export.py -k "copy_from_json or copy_from_jsonl or copy_from_parquet"
+        NEUG_RUN_EXTENSION_TESTS=true python3 -m pytest -sv tests/test_sniffer.py -k "json or parquet"
 
   extension_tests_wheel_linux_x86_64:
     runs-on: [self-hosted, daily, linux, x64]
