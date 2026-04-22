@@ -140,9 +140,9 @@ class GraphEntrySet {
     return nameToEntry;
   }
 
-  /// @throws BinderException if a graph with `name` already exists.
+  // @throws BinderException if a graph with `name` already exists.
   void validateGraphNotExist(const std::string& name) const;
-  /// @throws BinderException if no graph is registered under `name`.
+  // @throws BinderException if no graph is registered under `name`.
   void validateGraphExist(const std::string& name) const;
 
   using iterator = std::unordered_map<std::string, ParsedGraphEntry>::iterator;
@@ -160,9 +160,9 @@ class GraphEntrySet {
   std::unordered_map<std::string, ParsedGraphEntry> nameToEntry;
 };
 
-/// Validates `ParsedGraphEntry` against the catalog and returns a bound
-/// [`GraphEntry`] (predicates are accepted as strings; expression binding is
-/// deferred).
+// Validates `ParsedGraphEntry` against the catalog and returns a bound
+// [`GraphEntry`] (predicates are accepted as strings; expression binding is
+// deferred).
 class NEUG_API GDSFunction {
  public:
   static GraphEntry bindGraphEntry(main::ClientContext& clientContext,
