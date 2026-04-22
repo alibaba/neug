@@ -120,15 +120,6 @@ auto result = guard->Eval(R"({"query": "MATCH (n) RETURN count(n)"})");
 
 - **Returns:** `SessionGuard` managing the acquired session
 
-#### `IsInitialized() const`
-
-Checks if the service has been initialized.
-
-- **Notes:**
-  - This is a thread-safe atomic operation
-
-- **Returns:** `true` if init() was successfully called, `false` otherwise
-
 #### `IsRunning() const`
 
 Checks if the HTTP server is currently running.
@@ -253,7 +244,7 @@ auto param_result = guard->Eval(query);
 - **Parameters:**
   - `query`: JSON string containing query, access_mode, and parameters
 
-- **Returns:** Result containing CollectiveResults on success, or error status
+- **Returns:** Result containing `QueryResult` on success, or error status
 
 
 ---

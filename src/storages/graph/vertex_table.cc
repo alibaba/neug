@@ -19,7 +19,7 @@
 
 namespace neug {
 
-void VertexTable::Open(const std::string& work_dir, int memory_level) {
+void VertexTable::Open(const std::string& work_dir, MemoryLevel memory_level) {
   memory_level_ = memory_level;
   work_dir_ = work_dir;
   std::string tmp_dir_path = tmp_dir(work_dir_);
@@ -30,32 +30,26 @@ void VertexTable::Open(const std::string& work_dir, int memory_level) {
       checkpoint_dir_path + "/" + vertex_tracker_file(label_name);
   auto indexer_filename =
       IndexerType::prefix() + "_" + vertex_map_prefix(label_name);
-  if (memory_level_ == 0) {
+  if (memory_level_ == MemoryLevel::kSyncToFile) {
     indexer_.open(indexer_filename, checkpoint_dir_path, work_dir_);
     table_->open(vertex_table_prefix(label_name), work_dir_,
-                 vertex_schema_->property_names, vertex_schema_->property_types,
-                 vertex_schema_->default_property_values,
-                 vertex_schema_->storage_strategies);
+                 vertex_schema_->property_names,
+                 vertex_schema_->property_types);
 
-  } else if (memory_level_ == 1) {
+  } else if (memory_level_ == MemoryLevel::kInMemory) {
     indexer_.open_in_memory(checkpoint_dir_path + "/" + indexer_filename);
     table_->open_in_memory(vertex_table_prefix(label_name), work_dir_,
                            vertex_schema_->property_names,
-                           vertex_schema_->property_types,
-                           vertex_schema_->default_property_values,
-                           vertex_schema_->storage_strategies);
+                           vertex_schema_->property_types);
 
-  } else if (memory_level_ >= 2) {
-    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename,
-                                 (memory_level_ > 2));
-    table_->open_with_hugepages(
-        vertex_table_prefix(label_name), work_dir_,
-        vertex_schema_->property_names, vertex_schema_->property_types,
-        vertex_schema_->default_property_values,
-        vertex_schema_->storage_strategies, (memory_level_ > 2));
+  } else if (memory_level_ == MemoryLevel::kHugePagePreferred) {
+    indexer_.open_with_hugepages(checkpoint_dir_path + "/" + indexer_filename);
+    table_->open_with_hugepages(vertex_table_prefix(label_name), work_dir_,
+                                vertex_schema_->property_names,
+                                vertex_schema_->property_types);
   } else {
-    THROW_INTERNAL_EXCEPTION("Invalid memory level: " +
-                             std::to_string(memory_level_));
+    THROW_INVALID_ARGUMENT_EXCEPTION("Invalid memory level: " +
+                                     std::to_string(memory_level_));
   }
   v_ts_.Open(vertex_tracker_filename);
 }
@@ -128,11 +122,10 @@ size_t VertexTable::LidNum() const { return indexer_.size(); }
 bool VertexTable::AddVertex(const Property& id,
                             const std::vector<Property>& props, vid_t& vid,
                             timestamp_t ts, bool insert_safe) {
-  indexer_.ensure_writable(work_dir_);
   if (indexer_.capacity() <= indexer_.size()) {
     return false;
   }
-  vid = insert_vertex_pk(id, ts);
+  vid = insert_vertex_pk(id, ts, insert_safe);
   assert([&]() {
     if (table_->col_num() > 0) {
       return vid < table_->get_column_by_id(0)->size();
@@ -188,14 +181,13 @@ size_t VertexTable::EnsureCapacity(size_t capacity) {
     indexer_.reserve(capacity);
   }
   if (table_ && table_->size() < capacity) {
-    table_->resize(capacity);
+    table_->resize(capacity, vertex_schema_->default_property_values);
   }
   v_ts_.Reserve(capacity);
   return indexer_.capacity();
 }
 
 void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
-  indexer_.ensure_writable(work_dir_);
   size_t delete_cnt = 0;
   for (auto v : vids) {
     if (v < indexer_.size() && v_ts_.IsVertexValid(v, MAX_TIMESTAMP)) {
@@ -207,7 +199,6 @@ void VertexTable::BatchDeleteVertices(const std::vector<vid_t>& vids) {
 }
 
 void VertexTable::DeleteVertex(const Property& id, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   vid_t vid;
   if (!get_index(id, vid, ts)) {
     LOG(WARNING) << "Vertex with id " << id.to_string() << " not found.";
@@ -217,7 +208,6 @@ void VertexTable::DeleteVertex(const Property& id, timestamp_t ts) {
 }
 
 void VertexTable::DeleteVertex(vid_t lid, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   if (lid >= indexer_.size()) {
     LOG(WARNING) << "Lid " << lid << " is out of range.";
     return;
@@ -230,7 +220,6 @@ void VertexTable::DeleteVertex(vid_t lid, timestamp_t ts) {
 }
 
 void VertexTable::RevertDeleteVertex(vid_t lid, timestamp_t ts) {
-  indexer_.ensure_writable(work_dir_);
   assert(lid < indexer_.size());
   if (v_ts_.IsRemoved(lid)) {
     v_ts_.RevertRemoveVertex(lid, ts);
@@ -245,13 +234,11 @@ void VertexTable::DeleteProperties(const std::vector<std::string>& properties) {
   }
 }
 
-void VertexTable::AddProperties(
-    const std::vector<std::string>& properties,
-    const std::vector<DataType>& types,
-    const std::vector<Property>& default_values,
-    const std::vector<StorageStrategy>& strategies) {
+void VertexTable::AddProperties(const std::vector<std::string>& properties,
+                                const std::vector<DataType>& types,
+                                const std::vector<Property>& default_values) {
   table_->add_columns(properties, types, default_values, indexer_.capacity(),
-                      strategies, memory_level_);
+                      memory_level_);
 }
 
 void VertexTable::Drop() {
@@ -276,7 +263,8 @@ void VertexTable::Compact(timestamp_t ts) {
   // TODO(zhanglei): Support compact unused lid in indexer_ and table
 }
 
-vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts) {
+vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts,
+                                    bool insert_safe) {
   vid_t vid;
   if (NEUG_UNLIKELY(indexer_.get_index(id, vid))) {
     if (NEUG_UNLIKELY(v_ts_.IsVertexValid(vid, ts))) {
@@ -285,7 +273,7 @@ vid_t VertexTable::insert_vertex_pk(const Property& id, timestamp_t ts) {
                                        std::to_string(vid));
     }
   } else {
-    vid = indexer_.insert(id);
+    vid = indexer_.insert(id, insert_safe);
   }
   v_ts_.InsertVertex(vid, ts);
   return vid;

@@ -17,9 +17,11 @@
 #include "neug/execution/common/context.h"
 #include "neug/execution/execute/ops/batch/batch_update_utils.h"
 #include "neug/storages/graph/graph_interface.h"
-#include "neug/utils/exception/exception.h"
-#include "neug/utils/pb_utils.h"
-#include "neug/utils/property/property.h"
+#include "neug/utils/result.h"
+
+#include <glog/logging.h>
+#include <string>
+#include <utility>
 
 namespace neug {
 
@@ -31,9 +33,10 @@ namespace ops {
 class BatchInsertVertexOpr : public IOperator {
  public:
   BatchInsertVertexOpr(
-      const label_t& vertex_label_id,
-      const std::vector<std::pair<int32_t, std::string>>& prop_mappings)
-      : vertex_label_id_(vertex_label_id), prop_mappings_(prop_mappings) {}
+      common::NameOrId vertex_type,
+      std::vector<std::pair<int32_t, std::string>> prop_mappings)
+      : vertex_type_(std::move(vertex_type)),
+        prop_mappings_(std::move(prop_mappings)) {}
 
   std::string get_operator_name() const override {
     return "BatchInsertVertexOpr";
@@ -43,18 +46,39 @@ class BatchInsertVertexOpr : public IOperator {
                              Context&& ctx, OprTimer* timer) override;
 
  private:
-  label_t vertex_label_id_;
+  common::NameOrId vertex_type_;
   std::vector<std::pair<int32_t, std::string>> prop_mappings_;
 };
 
 neug::result<Context> BatchInsertVertexOpr::Eval(
     IStorageInterface& graph_interface, const ParamsMap& params, Context&& ctx,
     OprTimer* timer) {
-  auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
+  (void) params;
+  (void) timer;
   auto& graph = dynamic_cast<StorageUpdateInterface&>(graph_interface);
+  label_t vertex_label_id = 0;
+  switch (vertex_type_.item_case()) {
+  case common::NameOrId::kId:
+    vertex_label_id = vertex_type_.id();
+    break;
+  case common::NameOrId::kName: {
+    const auto& name = vertex_type_.name();
+    if (!graph.schema().contains_vertex_label(name)) {
+      LOG(ERROR) << "Unknown vertex type: " << vertex_type_.DebugString();
+      RETURN_STATUS_ERROR(StatusCode::ERR_INVALID_ARGUMENT,
+                          "Unknown vertex type: " + name);
+    }
+    vertex_label_id = graph.schema().get_vertex_label_id(name);
+    break;
+  }
+  default:
+    LOG(FATAL) << "BatchInsertVertexOpr: invalid vertex_type: "
+               << vertex_type_.DebugString();
+  }
+  auto suppliers = create_record_batch_supplier(ctx, prop_mappings_);
   for (auto supplier : suppliers) {
     RETURN_STATUS_ERROR_IF_NOT_OK(
-        graph.BatchAddVertices(vertex_label_id_, supplier));
+        graph.BatchAddVertices(vertex_label_id, supplier));
   }
   return neug::result<Context>(std::move(ctx));
 }
@@ -62,34 +86,21 @@ neug::result<Context> BatchInsertVertexOpr::Eval(
 neug::result<OpBuildResultT> BatchInsertVertexOprBuilder::Build(
     const Schema& schema, const ContextMeta& ctx_meta,
     const physical::PhysicalPlan& plan, int op_idx) {
+  (void) schema;
   ContextMeta ret_meta = ctx_meta;
   const auto& opr = plan.plan(op_idx).opr().load_vertex();
-  // before BatchInsertVertexOpr, we assume the raw data has already been loaded
-  // into memory, with each tag points to a column.
 
   if (!opr.has_vertex_type()) {
     LOG(FATAL) << "BatchInsertVertexOpr must have vertex type";
   }
-  label_t vertex_label_id = 0;
-  switch (opr.vertex_type().item_case()) {
-  case common::NameOrId::kId: {
-    vertex_label_id = opr.vertex_type().id();
-    break;
-  }
-  case common::NameOrId::kName: {
-    vertex_label_id = schema.get_vertex_label_id(opr.vertex_type().name());
-    break;
-  }
-  default:
-    LOG(FATAL) << "Unknown vertex type: " << opr.vertex_type().DebugString();
-  }
-  // <tag_id, property_name>
   std::vector<std::pair<int32_t, std::string>> prop_mappings;
   parse_property_mappings(opr.property_mappings(), prop_mappings);
 
-  return std::make_pair(
-      std::make_unique<BatchInsertVertexOpr>(vertex_label_id, prop_mappings),
-      ret_meta);
+  common::NameOrId vertex_type;
+  vertex_type.CopyFrom(opr.vertex_type());
+  return std::make_pair(std::make_unique<BatchInsertVertexOpr>(
+                            std::move(vertex_type), std::move(prop_mappings)),
+                        ret_meta);
 }
 
 }  // namespace ops

@@ -242,10 +242,35 @@ CSVStreamRecordBatchSupplier::CSVStreamRecordBatchSupplier(
     : file_path_(file_path) {
   auto read_result = arrow::io::ReadableFile::Open(file_path);
   if (!read_result.ok()) {
-    LOG(FATAL) << "Failed to open file: " << file_path
+    LOG(ERROR) << "Failed to open file: " << file_path
                << " error: " << read_result.status().message();
+    THROW_IO_EXCEPTION("Failed to open file: " + file_path +
+                       " error: " + read_result.status().message());
   }
   auto file = read_result.ValueOrDie();
+  auto count_file_result = arrow::io::ReadableFile::Open(file_path);
+  if (count_file_result.ok()) {
+    auto count_file = count_file_result.ValueOrDie();
+    auto future = arrow::csv::CountRowsAsync(
+        arrow::io::default_io_context(), count_file,
+        arrow::internal::GetCpuThreadPool(), read_options, parse_options);
+    future.Wait();
+
+    auto count_result = future.result();
+    if (count_result.ok()) {
+      row_num_ = count_result.ValueUnsafe();
+    } else {
+      LOG(WARNING) << "Failed to count rows for " << file_path << ": "
+                   << count_result.status().message();
+      THROW_IO_EXCEPTION("Failed to count rows for " + file_path + ": " +
+                         count_result.status().message());
+    }
+  } else {
+    LOG(WARNING) << "Failed to reopen file for counting: "
+                 << count_file_result.status().message();
+    THROW_IO_EXCEPTION("Failed to reopen file for counting: " +
+                       count_file_result.status().message());
+  }
   auto res = arrow::csv::StreamingReader::Make(arrow::io::default_io_context(),
                                                file, read_options,
                                                parse_options, convert_options);
@@ -763,6 +788,7 @@ void set_interval_column_from_string_array(
 void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
                                   std::shared_ptr<arrow::ChunkedArray> array,
                                   const std::vector<vid_t>& vids,
+                                  std::shared_mutex& rw_mutex,
                                   bool enable_resize = false) {
   auto type = array->type();
   auto typed_col =
@@ -792,7 +818,15 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           Property any_val = Property::From(sw);
           col->set_any(vids[k], any_val);
         } else {
-          typed_col->set_value_safe(vids[k], std::move(sw));
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
+          if (typed_col->available_space() <= sw.size()) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
+            typed_col->resize(typed_col->size());
+            w_lock.unlock();
+            lock.lock();
+          }
+          typed_col->set_value(vids[k], std::move(sw));
         }
       }
     }
@@ -811,7 +845,15 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
           Property any_val = Property::From(sw);
           col->set_any(vids[k], std::move(any_val));
         } else {
-          typed_col->set_value_safe(vids[k], std::move(sw));
+          std::shared_lock<std::shared_mutex> lock(rw_mutex);
+          if (typed_col->available_space() <= sw.size()) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> w_lock(rw_mutex);
+            typed_col->resize(typed_col->size());
+            w_lock.unlock();
+            lock.lock();
+          }
+          typed_col->set_value(vids[k], std::move(sw));
         }
       }
     }
@@ -820,7 +862,8 @@ void set_column_from_string_array(std::shared_ptr<neug::ColumnBase> col,
 
 void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
                            std::shared_ptr<arrow::ChunkedArray> array,
-                           const std::vector<vid_t>& vids) {
+                           const std::vector<vid_t>& vids,
+                           std::shared_mutex& mutex) {
   auto type = array->type();
   auto col_type = col->type();
 
@@ -842,7 +885,7 @@ void set_properties_column(std::shared_ptr<neug::ColumnBase> col,
     set_interval_column_from_string_array(col, array, vids);
     break;
   case DataTypeId::kVarchar:
-    set_column_from_string_array(col, array, vids, true);
+    set_column_from_string_array(col, array, vids, mutex, true);
     break;
   default:
     LOG(FATAL) << "Not support type: " << type->ToString();

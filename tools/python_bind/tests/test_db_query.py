@@ -1326,6 +1326,21 @@ def test_count():
     assert len(res) == 1
     assert res[0][0] == 60
 
+    res = conn.execute("""MATCH ()-[e]-()-[]-()-[]-() RETURN COUNT(*)""")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 4120
+
+    res = conn.execute("""MATCH (a)-[]->(b) return count(*)""")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 30
+
+    res = conn.execute("""MATCH (a)<-[]-(b)-[]->() return count(*)""")
+    assert res is not None
+    assert len(res) == 1
+    assert res[0][0] == 144
+
 
 def test_list_return_basic(tmp_path):
     """Test basic list return functionality: RETURN [p.name, p.value]"""
@@ -1485,6 +1500,45 @@ def test_tinysnb_path_expand():
     records = list(result)
     assert len(records) == 1
     assert records[0][0] == 13
+
+
+def test_path_expand_count_on_typed_rel_table(tmp_path):
+    db_dir = tmp_path / "path_expand_typed_rel"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    setup_queries = [
+        ("CREATE NODE TABLE A(id STRING, p INT32, PRIMARY KEY(id));", "schema"),
+        ("CREATE NODE TABLE B(id STRING, q INT32, PRIMARY KEY(id));", "schema"),
+        ("CREATE REL TABLE R(FROM A TO B, w INT32);", "schema"),
+        ("CREATE (a:A {id:'a1', p:1});", "update"),
+        ("CREATE (a:A {id:'a2', p:2});", "update"),
+        ("CREATE (b:B {id:'b1', q:1});", "update"),
+        (
+            "MATCH (a:A {id:'a1'}), (b:B {id:'b1'}) CREATE (a)-[:R {w:1}]->(b);",
+            "update",
+        ),
+        (
+            "MATCH (a:A {id:'a2'}), (b:B {id:'b1'}) CREATE (a)-[:R {w:2}]->(b);",
+            "update",
+        ),
+    ]
+
+    for query, access_mode in setup_queries:
+        conn.execute(query, access_mode=access_mode)
+
+    result = conn.execute(
+        "MATCH (a:A)-[:R*1..2]->(b:B) RETURN count(*) AS c",
+        access_mode="read",
+    )
+    records = list(result)
+
+    assert len(records) == 1
+    assert records[0][0] == 2
+
+    conn.close()
+    db.close()
 
 
 def test_path_expand_with_filter():
@@ -1915,6 +1969,53 @@ def test_where_subquery():
     )
     records = list(res)
     assert records == [[1]]
+
+
+def test_exists_correlated_pattern_order(tmp_path):
+    """Correlated EXISTS: two comma-separated patterns, same semantics, different order.
+
+    Both queries must compile and return the same start_id; covers NODE_LABEL_FILTER
+    folded into GetV via FilterPushDownPattern.
+    """
+    db_dir = tmp_path / "exists_pattern_order"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE L0 (id STRING PRIMARY KEY);")
+    conn.execute("CREATE NODE TABLE L2 (id STRING PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE T2 (FROM L2 TO L0);")
+    conn.execute("CREATE REL TABLE T0 (FROM L0 TO L2);")
+
+    conn.execute("CREATE (n:L2 {id: 'a'});")
+    conn.execute("CREATE (n:L0 {id: 'b'});")
+    conn.execute("CREATE (n:L2 {id: 'c'});")
+    conn.execute(
+        "MATCH (n1:L2), (n2:L0) WHERE n1.id = 'a' AND n2.id = 'b' "
+        "CREATE (n1)-[:T2]->(n2);"
+    )
+    conn.execute(
+        "MATCH (n2:L0), (n3:L2) WHERE n2.id = 'b' AND n3.id = 'c' "
+        "CREATE (n2)-[:T0]->(n3);"
+    )
+
+    q10 = (
+        "MATCH (n1) WHERE EXISTS { MATCH (n1:L2)-[r1:T2]->(n2:L0), "
+        "(n2:L0)-[r2:T0]->(n3:L2) } RETURN n1.id AS start_id"
+    )
+    q11 = (
+        "MATCH (n1) WHERE EXISTS { MATCH (n2)-[r2:T0]->(n3:L2), "
+        "(n1:L2)-[r1:T2]->(n2:L0) } RETURN n1.id AS start_id"
+    )
+
+    rows10 = list(conn.execute(q10))
+    rows11 = list(conn.execute(q11))
+    assert rows10 == [["a"]], f"STEP10 expected [['a']], got {rows10!r}"
+    assert rows11 == [["a"]], f"STEP11 expected [['a']], got {rows11!r}"
+
+    conn.close()
+    db.close()
 
 
 def aggregate_dependent_key_1():
@@ -2690,3 +2791,135 @@ def test_insert_string_column_exhaustion():
         raise AssertionError(f"Test failed with exception: {e}")
     finally:
         logging.disable(logging.NOTSET)
+
+
+def test_edge_default_value():
+    db_dir = "/tmp/test_edge_default_value"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    try:
+        conn.execute(
+            """
+                CREATE NODE TABLE IF NOT EXISTS TestNode(
+                    id INT64 PRIMARY KEY,
+                    thread_id INT64
+                )
+            """
+        )
+        conn.execute(
+            """
+                CREATE REL TABLE IF NOT EXISTS TestEdge(
+                    FROM TestNode TO TestNode
+                )
+            """
+        )
+        conn.execute('ALTER TABLE TestEdge ADD description STRING DEFAULT "unknown"')
+        conn.execute(
+            "CREATE (n1: TestNode {id: 1, thread_id: 1}), (n2: TestNode {id: 2, thread_id: 1}) CREATE (n1)-[:TestEdge]->(n2);"
+        )
+        res = conn.execute("MATCH ()-[e: TestEdge]->() RETURN e.description;")
+        records = list(res)
+        assert records == [["unknown"]], f"Expected value [['unknown']], got {records}"
+    finally:
+        conn.close()
+        db.close()
+
+
+def test_optional_match_on_edge(tmp_path):
+    db_dir = str(tmp_path / "test_optional_match_on_edge")
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db = Database(db_path=db_dir, mode="w")
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE SRC_INFRA(id STRING PRIMARY KEY, finder STRING);")
+    conn.execute("CREATE NODE TABLE SRC_LOGGING(id STRING PRIMARY KEY, finder STRING);")
+    conn.execute("CREATE REL TABLE CALLS_NEW (FROM SRC_INFRA TO SRC_INFRA);")
+
+    conn.execute("CREATE (u: SRC_INFRA {id: '1', finder: 'finder'});")
+    conn.execute("CREATE (u: SRC_INFRA {id: '2', finder: 'finder'});")
+    conn.execute("CREATE (u: SRC_LOGGING {id: '1', finder: 'finder'});")
+
+    result = conn.execute(
+        """
+    MATCH (u) WHERE u.finder = 'finder'
+    OPTIONAL MATCH (u)-[e:CALLS_NEW]-(v)
+    RETURN u, e, v;
+    """
+    )
+    length = len(list(result))
+    assert length == 3, f"Expected value 3, got {length}"
+    conn.close()
+    db.close()
+
+
+def test_is_not_null_on_node_variable(tmp_path):
+    db_dir = tmp_path / "is_not_null_node"
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Node(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (a:Node {id: 1});")
+
+    result = conn.execute(
+        "MATCH (a:Node) WHERE a IS NOT NULL RETURN 1;",
+        access_mode="read",
+    )
+    records = list(result)
+    assert len(records) == 1
+    assert records[0][0] == 1
+
+    conn.execute("CREATE NODE TABLE person(id INT64 PRIMARY KEY);")
+    conn.execute("CREATE REL TABLE knows(FROM person TO person);")
+    conn.execute("CREATE (a:person {id: 1});")
+    conn.execute("CREATE (a:person {id: 2});")
+    conn.execute(
+        "MATCH (a:person {id: 1}), (b:person {id: 2}) CREATE (a)-[:knows]->(b);"
+    )
+    result = conn.execute(
+        "MATCH (a:person) OPTIONAL MATCH (a)-[:knows]->(b:person) "
+        "WHERE b IS NULL RETURN a, b;",
+        access_mode="read",
+    )
+    records = list(result)
+    ids = sorted(row[0]["id"] for row in records)
+    assert ids == [1, 2]
+
+    conn.close()
+    db.close()
+
+
+def test_drop_and_recreate_table_same_name(tmp_path):
+    """Test that dropping node tables with relationships and recreating
+    with the same name but different schema does not crash (SIGSEGV)."""
+    db_dir = tmp_path / "drop_recreate"
+    shutil.rmtree(db_dir, ignore_errors=True)
+    db_dir.mkdir()
+    db = Database(db_path=str(db_dir), mode="w")
+    conn = db.connect()
+    try:
+        queries = [
+            "CREATE NODE TABLE Y0(id STRING, p0 INT32, PRIMARY KEY(id));",
+            "CREATE NODE TABLE Y1(id STRING, p1 STRING, PRIMARY KEY(id));",
+            "CREATE REL TABLE YR0(FROM Y0 TO Y1, rp0 DOUBLE);",
+            'CREATE (a:Y0 {id: "a", p0: 1});',
+            'CREATE (b:Y1 {id: "b", p1: "x"});',
+            'MATCH (a:Y0 {id: "a"}), (b:Y1 {id: "b"}) CREATE (a)-[:YR0 {rp0: 1.5}]->(b);',
+            "DROP TABLE IF EXISTS Y1;",
+            "DROP TABLE IF EXISTS Y0;",
+            "CREATE NODE TABLE Y0(id STRING, q DOUBLE, PRIMARY KEY(id));",
+        ]
+
+        for query in queries:
+            conn.execute(query)
+
+        # Verify the recreated table works correctly
+        conn.execute('CREATE (c:Y0 {id: "c", q: 3.14});')
+        result = conn.execute("MATCH (n:Y0) RETURN n.id, n.q;")
+        rows = list(result)
+        assert len(rows) == 1
+        assert rows[0][0] == "c"
+        assert rows[0][1] == pytest.approx(3.14, abs=1e-6)
+    finally:
+        conn.close()
+        db.close()

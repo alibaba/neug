@@ -17,7 +17,7 @@ jobs:
   docs:
     runs-on: [ubuntu-22.04]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.0
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-dev:v0.1.1
       # options: --user root
 
     steps:
@@ -32,7 +32,6 @@ jobs:
       with:
         python-version: '3.10'
 
-
     - name: Build Documentation
       run: |
         sudo apt update
@@ -44,4 +43,3 @@ jobs:
         . /home/neug/.neug_env
         make dependencies
         make html
-

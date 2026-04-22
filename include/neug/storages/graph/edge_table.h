@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/csr_base.h"
 #include "neug/storages/csr/generic_view.h"
 #include "neug/storages/graph/schema.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/indexers.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -49,11 +49,7 @@ class EdgeTable {
 
   void SetEdgeSchema(std::shared_ptr<const EdgeSchema> meta);
 
-  void Open(const std::string& work_dir);
-
-  void OpenInMemory(const std::string& work_dir);
-
-  void OpenWithHugepages(const std::string& work_dir);
+  void Open(const std::string& work_dir, MemoryLevel memory_level);
 
   void Dump(const std::string& checkpoint_dir_path);
 
@@ -104,8 +100,7 @@ class EdgeTable {
 
   void AddProperties(const std::vector<std::string>& names,
                      const std::vector<DataType>& types,
-                     const std::vector<Property>& default_values = {},
-                     const std::vector<StorageStrategy>& strategies = {});
+                     const std::vector<Property>& default_values = {});
 
   void DeleteProperties(const std::vector<std::string>& col_names);
 
@@ -129,18 +124,18 @@ class EdgeTable {
 
   void Compact(bool compact_csr, bool sort_on_compaction, timestamp_t ts);
 
-  size_t Size() const;
+  size_t PropTableSize() const;
 
   size_t Capacity() const;
 
  private:
-  void dropAndCreateNewBundledCSR();
+  void dropAndCreateNewBundledCSR(std::shared_ptr<ColumnBase> prev_data_col);
   void dropAndCreateNewUnbundledCSR(bool delete_property);
   std::string get_next_csr_path_suffix();
 
   std::shared_ptr<const EdgeSchema> meta_;
   std::string work_dir_;
-  int memory_level_{0};
+  MemoryLevel memory_level_{MemoryLevel::kSyncToFile};
   std::atomic<int32_t> csr_alter_version_{0};
   std::unique_ptr<CsrBase> out_csr_;
   std::unique_ptr<CsrBase> in_csr_;

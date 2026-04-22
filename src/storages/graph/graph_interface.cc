@@ -49,7 +49,8 @@ bool StorageAPUpdateInterface::AddVertex(label_t label, const Property& id,
     }
   }
 
-  auto status = graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0));
+  auto status =
+      graph_.AddVertex(label, id, props, vid, neug::timestamp_t(0), true);
   if (!status.ok()) {
     LOG(ERROR) << "AddVertex failed: " << status.ToString();
   }
@@ -61,8 +62,8 @@ bool StorageAPUpdateInterface::AddEdge(
     label_t edge_label, const std::vector<Property>& properties) {
   const auto& edge_table =
       graph_.get_edge_table(src_label, dst_label, edge_label);
-  if (edge_table.Size() >= edge_table.Capacity()) {
-    size_t cur_size = edge_table.Size();
+  if (edge_table.PropTableSize() >= edge_table.Capacity()) {
+    size_t cur_size = edge_table.PropTableSize();
     auto new_cap = cur_size < 4096 ? 4096 : cur_size + cur_size / 4;
     auto status =
         graph_.EnsureCapacity(src_label, dst_label, edge_label, new_cap);

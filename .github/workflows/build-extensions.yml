@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       extensions:
-        description: 'Semicolon-separated list of extensions to build (e.g., json)'
+        description: 'Semicolon-separated list of extensions to build (e.g., json;parquet)'
         required: false
-        default: 'json'
+        default: 'json;parquet'
       version:
-        description: 'Version tag for the extensions (e.g., 0.1.0)'
+        description: 'Version tag for the extensions (e.g., 0.1.1)'
         required: false
-        default: '0.1.0'
+        default: '0.1.1'
   push:
     branches:
       - main
@@ -51,7 +51,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             EXTENSIONS="${{ github.event.inputs.extensions }}"
           else
-            EXTENSIONS="json"
+            EXTENSIONS="json;parquet"
           fi
           echo "extensions=$EXTENSIONS" >> $GITHUB_OUTPUT
           echo "Building extensions: $EXTENSIONS"
@@ -64,8 +64,8 @@ jobs:
           elif [ -n "${{ github.ref }}" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            # Default to 0.1.0 if no version is specified
-            VERSION="0.1.0"
+            # Default to 0.1.1 if no version is specified
+            VERSION="0.1.1"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
@@ -74,9 +74,9 @@ jobs:
   build_linux_x86_64:
     needs: prepare
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    runs-on: [self-hosted, X64]
+    runs-on: [self-hosted, daily, X64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-x86_64
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-x86_64
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -125,6 +125,10 @@ jobs:
           sudo chmod -R 777 /etc/security/*
           echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
 
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -153,9 +157,9 @@ jobs:
   build_linux_arm64:
     needs: prepare
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    runs-on: [self-hosted, ARM64]
+    runs-on: [self-hosted, daily, ARM64]
     container:
-      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.0-arm64
+      image: neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.1-arm64
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -204,6 +208,10 @@ jobs:
           ulimit -n 65535
           sudo chmod -R 777 /etc/security/*
           echo "*   soft  nofile  1048576" | tee -a /etc/security/limits.conf
+
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
 
       - name: Setup Python
         uses: actions/setup-python@v5

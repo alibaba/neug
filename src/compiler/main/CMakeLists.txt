@@ -2,6 +2,7 @@ add_library(neug_compiler_main
         OBJECT
         client_context.cpp
         metadata_manager.cpp
+        metadata_registry.cpp
         plan_printer.cpp
         prepared_statement.cpp
         query_summary.cpp

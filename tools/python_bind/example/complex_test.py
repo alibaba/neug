@@ -25,6 +25,7 @@ Tests based on official documentation:
   - tutorials      : tinysnb builtin dataset exploration
 """
 
+import json
 import os
 import shutil
 import sys
@@ -72,6 +73,9 @@ JSON_ARRAY_FILE = os.path.join(
 JSONL_FILE = os.path.join(
     REPO_ROOT, "example_dataset", "tinysnb", "json", "vPerson.jsonl"
 )
+PARQUET_FILE = os.path.join(
+    REPO_ROOT, "example_dataset", "tinysnb", "parquet", "vPerson.parquet"
+)
 
 
 def run_statement(conn, desc, statement):
@@ -110,7 +114,7 @@ def verify_json_extension_loaded(conn_json):
         fail("SHOW_LOADED_EXTENSIONS", e)
 
 
-def run_json_array_tests(conn_json):
+def run_json_array_tests(conn_json, export_dir=None):
     if not os.path.isfile(JSON_ARRAY_FILE):
         fail(f"JSON Array file not found: {JSON_ARRAY_FILE}")
         return
@@ -155,8 +159,27 @@ def run_json_array_tests(conn_json):
         _alias,
     )
 
+    # Export test: COPY LOAD result to JSON array file and verify
+    if export_dir:
+        export_path = os.path.join(export_dir, "export_array.json")
+        try:
+            conn_json.execute(
+                f'COPY (LOAD FROM "{JSON_ARRAY_FILE}" RETURN fName, age) TO '
+                f"'{export_path}';"
+            )
+            with open(export_path, encoding="utf-8") as f:
+                data = json.load(f)
+            assert isinstance(data, list), "Expected JSON array"
+            assert len(data) > 0, "Expected at least one exported row"
+            if data:
+                first = data[0]
+                assert isinstance(first, dict), "Each row should be a JSON object"
+            ok(f"Export to JSON array: {len(data)} rows written to {export_path}")
+        except Exception as e:
+            fail("Export LOAD result to JSON array", e)
 
-def run_jsonl_tests(conn_json):
+
+def run_jsonl_tests(conn_json, export_dir=None):
     if not os.path.isfile(JSONL_FILE):
         fail(f"JSONL file not found: {JSONL_FILE}")
         return
@@ -171,7 +194,7 @@ def run_jsonl_tests(conn_json):
     run_query_with_handler(
         conn_json,
         "LOAD FROM JSONL file",
-        f'LOAD FROM "{JSONL_FILE}" (newline_delimited=true) RETURN *;',
+        f'LOAD FROM "{JSONL_FILE}" RETURN *;',
         _load_all,
         print_traceback=True,
     )
@@ -183,14 +206,93 @@ def run_jsonl_tests(conn_json):
     run_query_with_handler(
         conn_json,
         "JSONL column projection",
-        f'LOAD FROM "{JSONL_FILE}" (newline_delimited=true) RETURN fName, age;',
+        f'LOAD FROM "{JSONL_FILE}" RETURN fName, age;',
         _projection,
     )
+
+    # Export test: COPY LOAD result to JSONL file and verify
+    if export_dir:
+        export_path = os.path.join(export_dir, "export_lines.jsonl")
+        try:
+            conn_json.execute(
+                f'COPY (LOAD FROM "{JSONL_FILE}" RETURN fName, age) TO '
+                f"'{export_path}';"
+            )
+            with open(export_path, encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip()]
+            data = [json.loads(line) for line in lines]
+            assert len(data) > 0, "Expected at least one exported line"
+            if data:
+                first = data[0]
+                assert isinstance(first, dict), "Each line should be a JSON object"
+            ok(f"Export to JSONL: {len(data)} lines written to {export_path}")
+        except Exception as e:
+            fail("Export LOAD result to JSONL", e)
+
+
+def run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet):
+    statements = [
+        ("LOAD PARQUET succeeded", "LOAD PARQUET;"),
+    ]
+
+    for desc, stmt in statements:
+        run_statement(conn_parquet, desc, stmt)
+
+    if not os.path.isfile(PARQUET_FILE):
+        fail(f"Parquet file not found: {PARQUET_FILE}")
+    else:
+
+        def _load_all(rows):
+            print(f"       Parquet: loaded {len(rows)} rows from vPerson.parquet")
+            if rows:
+                print(f"       First row sample: {rows[0]}")
+            assert len(rows) > 0, "Expected at least 1 row"
+            return f"LOAD FROM Parquet file returned {len(rows)} rows"
+
+        run_query_with_handler(
+            conn_parquet,
+            "LOAD FROM Parquet file",
+            f'LOAD FROM "{PARQUET_FILE}" RETURN *;',
+            _load_all,
+            print_traceback=True,
+        )
+
+        def _projection(rows):
+            print(f"       Column projection (fName, age): {len(rows)} rows")
+            if rows:
+                print(f"       Sample: {rows[0]}")
+            assert len(rows) > 0, "Expected at least 1 row"
+            assert len(rows[0]) == 2, "Should return only 2 columns"
+            return "Parquet column projection"
+
+        run_query_with_handler(
+            conn_parquet,
+            "Parquet column projection",
+            f'LOAD FROM "{PARQUET_FILE}" RETURN fName, age;',
+            _projection,
+        )
+
+        def _filter(rows):
+            print(f"       WHERE age > 30: {len(rows)} rows")
+            for row in rows:
+                assert row[1] > 30, f"age {row[1]} should be > 30"
+            return f"Parquet WHERE filter returned {len(rows)} rows"
+
+        run_query_with_handler(
+            conn_parquet,
+            "Parquet WHERE filter (age > 30)",
+            f'LOAD FROM "{PARQUET_FILE}" WHERE age > 30 RETURN fName, age;',
+            _filter,
+        )
+
+    conn_parquet.close()
+    db_parquet.close()
+    ok("Closed Parquet extension test database")
+    shutil.rmtree(db_path_parquet, ignore_errors=True)
 
 
 def run_json_extension_suite(db_json, conn_json, db_path_json):
     statements = [
-        ("INSTALL JSON succeeded", "INSTALL JSON;"),
         ("LOAD JSON succeeded", "LOAD JSON;"),
     ]
 
@@ -198,8 +300,8 @@ def run_json_extension_suite(db_json, conn_json, db_path_json):
         run_statement(conn_json, desc, stmt)
 
     verify_json_extension_loaded(conn_json)
-    run_json_array_tests(conn_json)
-    run_jsonl_tests(conn_json)
+    run_json_array_tests(conn_json, export_dir=db_path_json)
+    run_jsonl_tests(conn_json, export_dir=db_path_json)
 
     conn_json.close()
     db_json.close()
@@ -532,18 +634,50 @@ if db_snb is not None:
 # ================================================================
 section("5. Extensions — JSON Extension (Install / Load / Query)")
 
-conn_json = None
-db_path_json = tempfile.mkdtemp(prefix="neug_json_ext_")
-try:
-    db_json = neug.Database(db_path_json)
-    conn_json = db_json.connect()
-    ok(f"Created persistent database for JSON extension test at {db_path_json}")
-except Exception as e:
-    fail("Create database for JSON extension", e)
-    db_json = None
+_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
+_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
 
-if db_json is not None and conn_json is not None:
-    run_json_extension_suite(db_json, conn_json, db_path_json)
+if not _run_ext_tests:
+    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
+else:
+    conn_json = None
+    db_path_json = tempfile.mkdtemp(prefix="neug_json_ext_")
+    try:
+        db_json = neug.Database(db_path_json)
+        conn_json = db_json.connect()
+        ok(f"Created persistent database for JSON extension test at {db_path_json}")
+    except Exception as e:
+        fail("Create database for JSON extension", e)
+        db_json = None
+
+    if db_json is not None and conn_json is not None:
+        run_json_extension_suite(db_json, conn_json, db_path_json)
+
+# ================================================================
+#  6. Extensions — Parquet Extension
+# ================================================================
+section("6. Extensions — Parquet Extension (Install / Load / Query)")
+
+_run_ext_tests = os.environ.get("NEUG_RUN_EXTENSION_TESTS", "").strip().lower()
+_run_ext_tests = _run_ext_tests in ("1", "true", "on", "yes")
+
+if not _run_ext_tests:
+    print("  (skipped: set NEUG_RUN_EXTENSION_TESTS=1 to run extension tests)")
+else:
+    conn_parquet = None
+    db_path_parquet = tempfile.mkdtemp(prefix="neug_parquet_ext_")
+    try:
+        db_parquet = neug.Database(db_path_parquet)
+        conn_parquet = db_parquet.connect()
+        ok(
+            f"Created persistent database for Parquet extension test at {db_path_parquet}"
+        )
+    except Exception as e:
+        fail("Create database for Parquet extension", e)
+        db_parquet = None
+
+    if db_parquet is not None and conn_parquet is not None:
+        run_parquet_extension_suite(db_parquet, conn_parquet, db_path_parquet)
 
 # ================================================================
 #  Summary

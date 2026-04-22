@@ -34,6 +34,8 @@ NeuG documentation
    :caption: Tutorials
 
    tutorials/tinysnb_tutorial
+   tutorials/codegraph-openclaw-example
+   tutorials/benchmark-neug-dual-mode
 
 .. toctree::
    :maxdepth: 1
@@ -80,6 +82,7 @@ NeuG documentation
 
    Python API <reference/python_api/index>
    C++ API <reference/cpp_api/index>
+   Java API <reference/java_api/index>
 
 .. toctree::
    :maxdepth: 1

@@ -73,17 +73,6 @@ static std::unordered_set<table_id_t> getNbrNodeTableIDSet(
   return result;
 }
 
-std::vector<common::table_id_t> Planner::transformRelTableIds(
-    const binder::RelExpression& relExpr) {
-  auto transformType = optimizer::ExpandGetVFusion::transformExpandType(
-      gopt::GRelType(relExpr), clientContext->getCatalog());
-  std::vector<common::table_id_t> tableIds;
-  for (auto relEntry : transformType.relTables) {
-    tableIds.emplace_back(relEntry->getTableID());
-  }
-  return tableIds;
-}
-
 void Planner::appendNonRecursiveExtend(
     const std::shared_ptr<NodeExpression>& boundNode,
     const std::shared_ptr<NodeExpression>& nbrNode,

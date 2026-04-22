@@ -28,12 +28,12 @@
 #include "flat_hash_map/flat_hash_map.hpp"
 #include "neug/common/extra_type_info.h"
 #include "neug/execution/execute/query_cache.h"
+#include "neug/storages/allocators.h"
 #include "neug/storages/csr/mutable_csr.h"
 #include "neug/storages/graph/graph_interface.h"
 #include "neug/storages/graph/property_graph.h"
 #include "neug/transaction/transaction_utils.h"
 #include "neug/transaction/undo_log.h"
-#include "neug/utils/allocators.h"
 #include "neug/utils/id_indexer.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/table.h"
@@ -276,9 +276,8 @@ class UpdateTransaction {
                                               edge_label, timestamp_);
   }
 
-  static void IngestWal(PropertyGraph& graph, const std::string& work_dir,
-                        uint32_t timestamp, char* data, size_t length,
-                        Allocator& alloc);
+  static void IngestWal(PropertyGraph& graph, uint32_t timestamp, char* data,
+                        size_t length, Allocator& alloc);
   Property GetVertexId(label_t label, vid_t lid) const;
 
   bool GetVertexIndex(label_t label, const Property& id, vid_t& index) const;

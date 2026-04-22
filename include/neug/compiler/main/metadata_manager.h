@@ -31,6 +31,7 @@
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/storage/buffer_manager/memory_manager.h"
 #include "neug/utils/api.h"
+#include "neug/utils/file_sys/file_system.h"
 
 namespace neug {
 namespace common {
@@ -84,6 +85,8 @@ class MetadataManager {
 
   NEUG_API catalog::Catalog* getCatalog() { return catalog.get(); }
 
+  NEUG_API neug::fsys::FileSystemRegistry* getVFS() const { return vfs.get(); }
+
   void updateSchema(const std::filesystem::path& schemaPath);
 
   void updateSchema(const std::string& schema);
@@ -103,7 +106,7 @@ class MetadataManager {
   mutable std::atomic_flag statsManagerLock = ATOMIC_FLAG_INIT;
   std::shared_ptr<storage::StatsManager> statsManager;
   std::unique_ptr<storage::MemoryManager> memoryManager;
-  std::unique_ptr<common::VirtualFileSystem> vfs;
+  std::unique_ptr<neug::fsys::FileSystemRegistry> vfs;
   std::unique_ptr<extension::ExtensionManager> extensionManager;
 };
 

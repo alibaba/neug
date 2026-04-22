@@ -75,9 +75,25 @@ class TCOprBuilder : public IOperatorBuilder {
             physical::PhysicalOpr_Operator::OpKindCase::kGroupBy,
             physical::PhysicalOpr_Operator::OpKindCase::kProject,
             physical::PhysicalOpr_Operator::OpKindCase::kEdge,
-            physical::PhysicalOpr_Operator::OpKindCase::kVertex,
             physical::PhysicalOpr_Operator::OpKindCase::kEdge,
             physical::PhysicalOpr_Operator::OpKindCase::kSelect};
+  }
+};
+
+class ExpandCountFuseBuilder : public IOperatorBuilder {
+ public:
+  ExpandCountFuseBuilder() = default;
+  ~ExpandCountFuseBuilder() = default;
+
+  neug::result<OpBuildResultT> Build(const neug::Schema& schema,
+                                     const ContextMeta& ctx_meta,
+                                     const physical::PhysicalPlan& plan,
+                                     int op_idx) override;
+
+  std::vector<physical::PhysicalOpr_Operator::OpKindCase> GetOpKinds()
+      const override {
+    return {physical::PhysicalOpr_Operator::OpKindCase::kEdge,
+            physical::PhysicalOpr_Operator::OpKindCase::kGroupBy};
   }
 };
 

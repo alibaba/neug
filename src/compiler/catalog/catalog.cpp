@@ -32,8 +32,6 @@
 #include "neug/compiler/catalog/catalog_entry/scalar_macro_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/sequence_catalog_entry.h"
 #include "neug/compiler/catalog/catalog_entry/type_catalog_entry.h"
-#include "neug/compiler/common/file_system/virtual_file_system.h"
-#include "neug/compiler/common/serializer/buffered_file.h"
 #include "neug/compiler/common/serializer/deserializer.h"
 #include "neug/compiler/common/serializer/serializer.h"
 #include "neug/compiler/common/string_format.h"

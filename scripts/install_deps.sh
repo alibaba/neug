@@ -225,14 +225,15 @@ install_arrow_from_source() {
     -DARROW_HDFS=OFF \
     -DARROW_ORC=OFF \
     -DARROW_JSON=ON \
-    -DARROW_PARQUET=OFF \
+    -DARROW_PARQUET=ON \
     -DARROW_PLASMA=OFF \
     -DARROW_PYTHON=OFF \
     -DARROW_S3=OFF \
     -DARROW_WITH_BZ2=OFF \
     -DARROW_WITH_LZ4=OFF \
-    -DARROW_WITH_SNAPPY=OFF \
-    -DARROW_WITH_ZSTD=OFF \
+    -DARROW_WITH_SNAPPY=ON \
+    -DARROW_WITH_ZLIB=ON \
+    -DARROW_WITH_ZSTD=ON \
     -DARROW_WITH_BROTLI=OFF \
     -DARROW_IPC=ON \
     -DARROW_BUILD_BENCHMARKS=OFF \
@@ -319,7 +320,7 @@ install_openssl() {
   export OPENSSL_ROOT_DIR="${install_prefix}"
 }
 
-INTERACTIVE_MACOS=("xsimd", "cmake")
+INTERACTIVE_MACOS=("xsimd" "cmake")
 INTERACTIVE_UBUNTU=("cmake" "libssl-dev") # levedb for brpc
 
 install_neug_dependencies() {
@@ -356,7 +357,9 @@ write_env_config() {
     echo "export DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH}:\${DYLD_LIBRARY_PATH}"
   } >> "${OUTPUT_ENV_FILE}"
   {
-    if [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
+    if [[ "${OS_PLATFORM}" == *"Darwin"* ]]; then
+      echo "export OPENSSL_ROOT_DIR=${HOMEBREW_PREFIX}/opt/openssl@3"
+    elif [[ "${OS_PLATFORM}" == *"CentOS"* || "${OS_PLATFORM}" == *"Aliyun"* ]]; then
       if [[ "${OS_VERSION}" -eq "7" ]]; then
         echo "source /opt/rh/devtoolset-10/enable"
         echo "source /opt/rh/rh-python38/enable"

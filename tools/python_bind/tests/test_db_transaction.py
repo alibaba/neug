@@ -26,6 +26,7 @@ import pytest
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from neug.database import Database
 from neug.proto.error_pb2 import ERR_COMPILATION
+from neug.proto.error_pb2 import ERR_DATABASE_LOCKED
 from neug.proto.error_pb2 import ERR_INVALID_ARGUMENT
 from neug.proto.error_pb2 import ERR_INVALID_SCHEMA
 from neug.proto.error_pb2 import ERR_QUERY_SYNTAX
@@ -597,7 +598,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "locked for read-only access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()
@@ -613,7 +614,7 @@ def test_database_concurrent_lock(tmp_path):
         conn2.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn2.close()
         db2.close()
-    assert "locked for write access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     with pytest.raises(Exception) as excinfo:
         db3 = Database(db_path=str(db_dir), mode="w")
@@ -621,7 +622,7 @@ def test_database_concurrent_lock(tmp_path):
         conn3.execute("MATCH (p:person) RETURN p.id, p.name, p.age ORDER BY p.id;")
         conn3.close()
         db3.close()
-    assert "locked for write access" in str(excinfo.value)
+    assert str(ERR_DATABASE_LOCKED) in str(excinfo.value)
 
     conn1.close()
     db1.close()

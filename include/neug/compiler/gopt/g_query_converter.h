@@ -112,12 +112,12 @@ class GQueryConvertor {
   void convertCopyFrom(const planner::LogicalCopyFrom& copyFrom,
                        ::physical::PhysicalPlan* plan);
   void convertBatchInsertVertex(
-      catalog::NodeTableCatalogEntry* nodeEntry,
+      const binder::BoundCopyFromInfo* info,
       const binder::expression_vector& columnExprs,
       const std::vector<common::alias_id_t>& columnIdMap,
       ::physical::PhysicalPlan* plan);
   void convertBatchInsertEdge(
-      catalog::GRelTableCatalogEntry* relEntry,
+      const binder::BoundCopyFromInfo* info,
       const binder::expression_vector& columnExprs,
       const std::vector<common::alias_id_t>& columnIdMap,
       ::physical::PhysicalPlan* plan);

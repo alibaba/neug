@@ -18,8 +18,7 @@ It has the following methods to iterate over the results.
     - `hasNext()`: Returns True if there are more results to iterate over.
     - `getNext()`: Returns the next result as a list.
     - `length()`: Returns the total number of results.
-    - `get_result_schema()`: Returns the schema of the result, which is a
-        yaml string describing the structure of the result.
+    - `column_names()`: Returns the projected column names as strings.
 
 ```python
 
@@ -32,19 +31,29 @@ It has the following methods to iterate over the results.
 
 ```
 
-<a id="neug.query_result.QueryResult.get_result_schema"></a>
+<a id="neug.query_result.QueryResult.__init__"></a>
 
-### get\_result\_schema
+### \_\_init\_\_
 
 ```python
-def get_result_schema() -> str
+def __init__(result)
 ```
 
-Get the schema of the result.
+Initialize the QueryResult.
 
-- **Returns:**
-  - **str**
-    The schema of the result, which is a yaml string describing the structure of the result.
+- **Parameters:**
+  - `result` (PyQueryResult)
+    The result of the query, returned by the query engine. It is a C++ object and is exported to python via pybind.
+
+<a id="neug.query_result.QueryResult.column_names"></a>
+
+### column\_names
+
+```python
+def column_names()
+```
+
+Return the projected column names as a list of strings.
 
 <a id="neug.query_result.QueryResult.get_bolt_response"></a>
 
@@ -55,6 +64,7 @@ def get_bolt_response() -> str
 ```
 
 Get the result in Bolt response format.
+TODO(zhanglei,xiaoli): Make sure the format consistency with neo4j bolt response.
 
 - **Returns:**
   - **str**

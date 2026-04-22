@@ -15,7 +15,7 @@ set -e
 
 # Default values
 EXTENSIONS="json"
-VERSION="0.1.0"
+VERSION="0.1.1"
 PLATFORM="linux_x86_64"
 WORKSPACE_DIR="$(pwd)"
 SKIP_BUILD=false
@@ -78,10 +78,10 @@ Environment variables required for OSS upload:
 
 Examples:
     # Build json extension and upload
-    $0 --extensions json --version v0.1.0 --platform linux-x86_64
+    $0 --extensions json --version v0.1.1 --platform linux-x86_64
 
     # Build multiple extensions
-    $0 --extensions "json;csv" --version v0.1.0
+    $0 --extensions "json;csv" --version v0.1.1
 
     # Only package and upload (skip build)
     $0 --extensions json --skip-build
@@ -157,7 +157,7 @@ EXT_FILES=""
 for ext in $(echo ${EXTENSIONS} | tr ';' ' '); do
     EXT_PATH="${EXT_DIR}"
     if [ -d "${EXT_PATH}" ]; then
-        EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" -o -name "*.neug_extension" | head -1)
+        EXT_FILE=$(find "${EXT_PATH}" -name "lib${ext}.neug_extension" | head -1)
         if [ -n "${EXT_FILE}" ] && [ -f "${EXT_FILE}" ]; then
             EXT_FILES="${EXT_FILES} ${EXT_FILE}"
             echo "Found extension file: ${EXT_FILE}"
@@ -261,7 +261,7 @@ for ext_file in extension_files:
         # Fallback: try to extract from filename
         ext_name = filename.replace('.neug_extension', '').replace('lib', '')
     # Construct OSS path: neug/extensions/v{version}/{platform}/{extension_name}/{filename}
-    # Example: neug/extensions/v0.1.0/linux-x86_64/json/libjson.neug_extension
+    # Example: neug/extensions/v0.1.1/linux-x86_64/json/libjson.neug_extension
     oss_path = f"neug/extensions/v{version}/{platform}/{ext_name}/{filename}"
     
     print(f"Uploading {filename} to oss://{bucket_name}/{oss_path}")

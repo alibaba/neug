@@ -80,32 +80,9 @@ TEST(TableTest, TestTableBasic) {
       {DataTypeId::kTimestampMs}, {DataTypeId::kInterval},
       {DataTypeId::kVarchar}};
 
-  std::vector<Property> default_values = {
-      Property::from_bool(false),
-      Property::from_int32(0),
-      Property::from_uint32(0),
-      Property::from_int64(0),
-      Property::from_uint64(0),
-      Property::from_float(0.0),
-      Property::from_double(0.0),
-      Property::from_date(Date(0)),
-      Property::from_datetime(DateTime(0)),
-      Property::from_interval(Interval(std::string(""))),
-      Property::from_string_view("")};
-
-  std::vector<StorageStrategy> disk_strategies(col_name.size(),
-                                               StorageStrategy::kDisk);
-  std::vector<StorageStrategy> mem_strategies(col_name.size(),
-                                              StorageStrategy::kMem);
-  std::vector<StorageStrategy> none_strategies(col_name.size(),
-                                               StorageStrategy::kNone);
-
-  disk_table.init("test_dist", TEST_DIR, col_name, property_types,
-                  default_values, disk_strategies);
-  mem_table.init("test_dist", TEST_DIR, col_name, property_types,
-                 default_values, mem_strategies);
-  none_table.init("test_dist", TEST_DIR, col_name, property_types,
-                  default_values, none_strategies);
+  disk_table.open("test_dist", TEST_DIR, col_name, property_types);
+  mem_table.open("test_dist", TEST_DIR, col_name, property_types);
+  none_table.open("test_dist", TEST_DIR, col_name, property_types);
 
   disk_table.resize(10);
   mem_table.resize(10);
@@ -315,8 +292,8 @@ TEST(TableTest, TestTableBasic) {
   disk_table.drop();
   mem_table.drop();
 
-  disk_table.open("disk_table", std::string(TEST_DIR), col_name, property_types,
-                  default_values, disk_strategies);
+  disk_table.open("disk_table", std::string(TEST_DIR), col_name,
+                  property_types);
   EXPECT_EQ(disk_table.col_num(), 11);
   EXPECT_EQ(disk_table.get_column_by_id(0)->size(), 10);
   disk_table.reset_header(col_name);
@@ -324,19 +301,55 @@ TEST(TableTest, TestTableBasic) {
   EXPECT_EQ(disk_table.get_column_id_by_name("renamed_bool_column"), 0);
   disk_table.delete_column("renamed_bool_column");
   EXPECT_EQ(disk_table.col_num(), 10);
-  disk_table.copy_to_tmp("disk_table", std::string(TEST_DIR) + "/checkpoint",
-                         std::string(TEST_DIR));
   disk_table.set_work_dir(std::string(TEST_DIR));
   disk_table.drop();
 
   mem_table.open_in_memory("disk_table", std::string(TEST_DIR), col_name,
-                           property_types, default_values, mem_strategies);
+                           property_types);
   EXPECT_EQ(mem_table.col_num(), 11);
   EXPECT_EQ(mem_table.get_column_by_id(0)->size(), 10);
   const Table& mem_table_ref = mem_table;
   EXPECT_EQ(mem_table_ref.get_column("bool_column")->type(),
             DataTypeId::kBoolean);
   EXPECT_EQ(mem_table_ref.get_column_by_id(0)->type(), DataTypeId::kBoolean);
+}
+
+TEST(TableTest, StringColumnDistinguishesUnsetFromEmptyString) {
+  if (std::filesystem::exists(TEST_DIR)) {
+    std::filesystem::remove_all(TEST_DIR);
+  }
+  std::filesystem::create_directories(TEST_DIR);
+  std::filesystem::create_directories(std::string(TEST_DIR) + "/checkpoint");
+  std::filesystem::create_directories(std::string(TEST_DIR) + "/runtime/tmp");
+
+  Table table;
+  std::vector<std::string> col_name = {"string_column"};
+  std::vector<DataType> property_types = {{DataTypeId::kVarchar}};
+
+  table.open("test_string_validity", TEST_DIR, col_name, property_types);
+  table.resize(2, {Property::from_string_view("default_value")});
+
+  auto string_column = std::dynamic_pointer_cast<StringColumn>(
+      table.get_column("string_column"));
+  ASSERT_NE(string_column, nullptr);
+
+  EXPECT_EQ(string_column->get_prop(0).as_string_view(), "default_value");
+
+  string_column->set_prop(1, Property::from_string_view(""));
+  EXPECT_TRUE(string_column->get_prop(1).as_string_view().empty());
+  EXPECT_EQ(string_column->get_prop(1).type(), DataTypeId::kVarchar);
+  string_column->set_prop(
+      1, Property::from_string_view("new value new value new value"));
+  EXPECT_EQ(string_column->get_prop(1).as_string_view(),
+            "new value new value new value");
+  std::string path = std::string(TEST_DIR) + "/string_column";
+  string_column->dump(path);
+
+  StringColumn new_string_column;
+  new_string_column.open_in_memory(path);
+  EXPECT_EQ(new_string_column.get_prop(0).as_string_view(), "default_value");
+  EXPECT_EQ(new_string_column.get_prop(1).as_string_view(),
+            "new value new value new value");
 }
 
 }  // namespace test

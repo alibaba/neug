@@ -25,7 +25,6 @@
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/gopt/g_catalog.h"
 #include "neug/compiler/main/client_context.h"
-#include "neug/utils/yaml_utils.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -33,9 +32,6 @@
 #include <unistd.h>
 #endif
 
-#include "neug/compiler/common/file_system/virtual_file_system.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
-#include "neug/compiler/gopt/g_vfs_holder.h"
 #include "neug/compiler/storage/stats_manager.h"
 
 using namespace neug::catalog;
@@ -47,14 +43,11 @@ namespace neug {
 namespace main {
 
 MetadataManager::MetadataManager() {
-  this->vfs = std::make_unique<VirtualFileSystem>();
-  common::VFSHolder::setVFS(this->vfs.get());
+  this->vfs = std::make_unique<neug::fsys::FileSystemRegistry>();
   this->extensionManager = std::make_unique<extension::ExtensionManager>();
   this->memoryManager = std::make_unique<neug::storage::MemoryManager>();
   // the catalog is initialized only once and is empty before data loading
   this->catalog = std::make_unique<neug::catalog::GCatalog>();
-  catalog::GCatalogHolder::setGCatalog(
-      this->catalog->ptrCast<catalog::GCatalog>());
   std::string emptyStats = "";
   auto statsManager = std::make_shared<neug::storage::StatsManager>(
       emptyStats, this, *this->memoryManager);

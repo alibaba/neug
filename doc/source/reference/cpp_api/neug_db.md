@@ -104,7 +104,7 @@ neug::NeugDBConfig config;
 config.data_dir = "/path/to/graph";
 config.thread_num = 8;
 config.mode = neug::DBMode::READ_WRITE;
-config.memory_level = 2;  // Use hugepages
+config.memory_level = 1;  // Use memory-mapped virtual memory
 config.enable_auto_compaction = true;
 neug::NeugDB db;
 db.Open(config);
@@ -187,4 +187,11 @@ Remove a connection from the database.
 - **Notes:**
   - This method is used to remove a connection when it is closed, to remove the handle from the database.
   - This method is not thread-safe, so it should be called only when the connection is closed. And should be only called internally.
+
+#### `CloseAllConnection()`
+
+Remove all connection from the database.
+
+- **Notes:**
+  - This method is used to remove all connection when tp svc created, to remove the handle from the database.
 

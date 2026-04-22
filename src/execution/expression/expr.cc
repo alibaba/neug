@@ -18,7 +18,7 @@
 
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/scalar_function.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
+#include "neug/compiler/main/metadata_registry.h"
 #include "neug/execution/expression/accessors/const_accessor.h"
 #include "neug/execution/expression/exprs/arith_expr.h"
 #include "neug/execution/expression/exprs/case_when.h"
@@ -138,7 +138,7 @@ static std::unique_ptr<ExprBase> build_expr(
       const std::string& signature = op.unique_name();
       neug::execution::neug_func_exec_t fn = nullptr;
 
-      auto gCatalog = catalog::GCatalogHolder::getGCatalog();
+      auto gCatalog = neug::main::MetadataRegistry::getCatalog();
       auto func = gCatalog->getFunctionWithSignature(
           &neug::transaction::DUMMY_TRANSACTION, signature);
       if (!func) {

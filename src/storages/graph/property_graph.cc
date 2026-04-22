@@ -39,7 +39,7 @@ namespace neug {
 PropertyGraph::PropertyGraph()
     : vertex_label_total_count_(0),
       edge_label_total_count_(0),
-      memory_level_(1) {}
+      memory_level_(MemoryLevel::kInMemory) {}
 
 PropertyGraph::~PropertyGraph() { Clear(); }
 
@@ -154,7 +154,6 @@ Status PropertyGraph::BatchAddEdges(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateVertexType(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<DataType, std::string, Property>>& properties,
@@ -219,12 +218,11 @@ Status PropertyGraph::CreateVertexType(
     default_property_values.erase(default_property_values.begin() +
                                   primary_key_inds[i]);
   }
-  std::vector<StorageStrategy> strategies(property_types.size(),
-                                          StorageStrategy::kMem);
+
   std::string description;
   schema_.AddVertexLabel(vertex_type_name, property_types, property_names,
-                         primary_keys, strategies, Schema::MAX_VNUM,
-                         description, default_property_values);
+                         primary_keys, Schema::MAX_VNUM, description,
+                         default_property_values);
   label_t vertex_label_id = schema_.get_vertex_label_id(vertex_type_name);
   if (vertex_label_id < vertex_tables_.size()) {
     auto& vtable = vertex_tables_[vertex_label_id];
@@ -242,7 +240,7 @@ Status PropertyGraph::CreateVertexType(
     vertex_tables_.emplace_back(schema_.get_vertex_schema(vertex_label_id));
   }
 
-  auto& vtable = vertex_tables_.back();
+  auto& vtable = vertex_tables_[vertex_label_id];
   vtable.Open(work_dir_, memory_level_);
   vtable.EnsureCapacity(4096);
   vertex_label_total_count_ = schema_.vertex_label_frontier();
@@ -260,7 +258,6 @@ Status PropertyGraph::CreateVertexType(
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): support extra_type_info
 Status PropertyGraph::CreateEdgeType(
     const std::string& src_vertex_type, const std::string& dst_vertex_type,
     const std::string& edge_type_name,
@@ -311,7 +308,7 @@ Status PropertyGraph::CreateEdgeType(
   bool cur_sort_on_compaction = false;
   std::string description;
   schema_.AddEdgeLabel(src_vertex_type, dst_vertex_type, edge_type_name,
-                       property_types, property_names, {}, cur_oe, cur_ie,
+                       property_types, property_names, cur_oe, cur_ie,
                        oe_mutable, ie_mutable, cur_sort_on_compaction,
                        description, default_property_values);
   edge_label_total_count_ = schema_.edge_label_frontier();
@@ -332,13 +329,12 @@ Status PropertyGraph::CreateEdgeType(
       vertex_tables_[src_label_i].get_indexer().capacity(), (size_t) 4096);
   auto dst_v_capacity = std::max(
       vertex_tables_[dst_label_i].get_indexer().capacity(), (size_t) 4096);
-  edge_tables_.at(index).OpenInMemory(work_dir_);
+  edge_tables_.at(index).Open(work_dir_, memory_level_);
   edge_tables_.at(index).EnsureCapacity(src_v_capacity, dst_v_capacity, 4096);
 
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddVertexProperties(
     const std::string& vertex_type_name,
     const std::vector<std::tuple<DataType, std::string, Property>>&
@@ -348,7 +344,6 @@ Status PropertyGraph::AddVertexProperties(
                             error_on_conflict);
   std::vector<std::string> add_property_names;
   std::vector<DataType> add_property_types;
-  std::vector<StorageStrategy> add_property_storages;
   std::vector<Property> add_default_property_values;
   for (size_t i = 0; i < add_properties.size(); i++) {
     auto [property_type, property_name, default_value] = add_properties[i];
@@ -368,25 +363,16 @@ Status PropertyGraph::AddVertexProperties(
     }
     add_property_names.emplace_back(property_name);
     add_property_types.emplace_back(property_type);
-    if (memory_level_ == 0) {
-      add_property_storages.emplace_back(StorageStrategy::kDisk);
-    } else if (memory_level_ >= 1) {
-      add_property_storages.emplace_back(StorageStrategy::kMem);
-    } else {
-      add_property_storages.emplace_back(StorageStrategy::kNone);
-    }
     add_default_property_values.emplace_back(default_value);
   }
   schema_.AddVertexProperties(vertex_type_name, add_property_names,
-                              add_property_types, add_property_storages,
-                              add_default_property_values);
+                              add_property_types, add_default_property_values);
   label_t v_label = schema_.get_vertex_label_id(vertex_type_name);
   vertex_tables_[v_label].AddProperties(add_property_names, add_property_types,
                                         add_default_property_values);
   return neug::Status::OK();
 }
 
-// TODO(zhanglei): Support extra_type_info
 Status PropertyGraph::AddEdgeProperties(
     const std::string& src_type_name, const std::string& dst_type_name,
     const std::string& edge_type_name,
@@ -779,32 +765,14 @@ Status PropertyGraph::BatchDeleteEdges(
   return Status::OK();
 }
 
-void PropertyGraph::DumpSchema() {
-  auto _schema_path = schema_path(work_dir_);
-  std::ofstream out(_schema_path);
-  schema_.Serialize(out);
-  out.flush();
-  out.close();
-
-  LOG(INFO) << "Dump schema to file: " << get_schema_yaml_path();
-  std::string filename = get_schema_yaml_path();
-  auto schema_res = schema_.to_yaml();
-  if (!schema_res) {
-    LOG(ERROR) << "Failed to dump schema to yaml: "
-               << schema_res.error().error_message();
-    return;
-  }
-  write_yaml_file(schema_res.value(), filename);
-  LOG(INFO) << "Dump schema to yaml file: " << filename;
-}
-
 void PropertyGraph::Open(const Schema& schema, const std::string& work_dir,
-                         int memory_level) {
+                         MemoryLevel memory_level) {
   schema_ = schema;
   Open(work_dir, memory_level);
 }
 
-void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
+void PropertyGraph::Open(const std::string& work_dir,
+                         MemoryLevel memory_level) {
   // copy work_dir to work_dir_
   memory_level_ = memory_level;
   work_dir_.assign(work_dir);
@@ -822,11 +790,6 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
     if (!schema_.vertex_label_valid(i)) {
       THROW_INTERNAL_EXCEPTION("Invalid vertex label id: " + std::to_string(i));
     }
-    std::string v_label_name = schema_.get_vertex_label_name(i);
-    auto properties = schema_.get_vertex_properties(i);
-    auto property_names = schema_.get_vertex_property_names(i);
-    auto property_strategies =
-        schema_.get_vertex_storage_strategies(v_label_name);
     vertex_tables_.emplace_back(schema_.get_vertex_schema(i));
   }
 
@@ -885,14 +848,8 @@ void PropertyGraph::Open(const std::string& work_dir, int memory_level) {
 
         EdgeTable edge_table(
             schema_.get_edge_schema(src_label_i, dst_label_i, e_label_i));
-        if (memory_level == 0) {
-          edge_table.Open(work_dir_);
-        } else if (memory_level >= 2) {
-          edge_table.OpenWithHugepages(work_dir_);
-        } else {
-          edge_table.OpenInMemory(work_dir_);
-        }
-        auto e_size = edge_table.Size();
+        edge_table.Open(work_dir_, memory_level_);
+        auto e_size = edge_table.PropTableSize();
         size_t e_capacity = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
         edge_table.EnsureCapacity(vertex_capacities[src_label_i],
                                   vertex_capacities[dst_label_i], e_capacity);
@@ -1051,31 +1008,22 @@ void PropertyGraph::Dump(bool reopen) {
     if (!schema_.vertex_label_valid(src_label_i)) {
       continue;
     }
-    std::string src_label =
-        schema_.get_vertex_label_name(static_cast<label_t>(src_label_i));
     for (size_t dst_label_i = 0; dst_label_i != vertex_label_total_count_;
          ++dst_label_i) {
       if (!schema_.vertex_label_valid(dst_label_i)) {
         continue;
       }
-      std::string dst_label =
-          schema_.get_vertex_label_name(static_cast<label_t>(dst_label_i));
       for (size_t e_label_i = 0; e_label_i != edge_label_total_count_;
            ++e_label_i) {
-        if (!schema_.edge_label_valid(e_label_i)) {
-          continue;
-        }
-        std::string edge_label =
-            schema_.get_edge_label_name(static_cast<label_t>(e_label_i));
-        if (!schema_.exist(src_label, dst_label, edge_label) ||
-            !schema_.edge_triplet_valid(src_label_i, dst_label_i, e_label_i)) {
+        if (!schema_.edge_label_valid(e_label_i) ||
+            !schema_.exist(src_label_i, dst_label_i, e_label_i)) {
           continue;
         }
         size_t index =
             schema_.generate_edge_label(src_label_i, dst_label_i, e_label_i);
         if (edge_tables_.count(index) > 0) {
           auto& edge_table = edge_tables_.at(index);
-          auto e_size = edge_table.Size();
+          auto e_size = edge_table.PropTableSize();
           auto new_cap = e_size < 4096 ? 4096 : e_size + (e_size + 4) / 5;
           EnsureCapacity(src_label_i, dst_label_i, e_label_i,
                          vertex_capacity[src_label_i],
@@ -1095,6 +1043,26 @@ void PropertyGraph::Dump(bool reopen) {
   if (reopen) {
     Open(work_dir_, memory_level_);
   }
+}
+
+void PropertyGraph::DumpSchema() {
+  auto _schema_path = schema_path(work_dir_);
+  std::ofstream out(_schema_path);
+  schema_.Serialize(out);
+  out.flush();
+  out.close();
+
+  std::string filename = get_schema_yaml_path();
+  auto schema_res = schema_.to_yaml();
+  if (!schema_res) {
+    LOG(ERROR) << "Failed to dump schema to yaml: "
+               << schema_res.error().error_message();
+    return;
+  }
+  if (!write_yaml_file(schema_res.value(), filename)) {
+    THROW_IO_EXCEPTION("Failed to write schema yaml file: " + filename);
+  }
+  VLOG(1) << "Dump schema to yaml file: " << filename;
 }
 
 const Schema& PropertyGraph::schema() const { return schema_; }
@@ -1292,20 +1260,6 @@ std::string PropertyGraph::get_statistics_json() const {
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   document.Accept(writer);
   return buffer.GetString();
-}
-
-void PropertyGraph::generateStatistics() const {
-  std::string filename = statisticsFilePath();
-
-  {
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-      LOG(ERROR) << "Failed to open file: " << filename;
-      return;
-    }
-    out << get_statistics_json();
-    out.close();
-  }
 }
 
 Status PropertyGraph::edge_triplet_check(const std::string& src_type_name,

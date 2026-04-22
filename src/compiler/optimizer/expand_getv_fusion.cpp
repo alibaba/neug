@@ -123,36 +123,15 @@ bool ExpandGetVFusion::hasGetVFiltering(
                            expandOp->getDirection(), catalog);
 }
 
-// the expand_edge in physical pb only support filtering edge labels by edge
-// type itself, we need to lookup the catalog to match all triplets <src, edge,
-// dst> by the expandType, thus can determine whether label filtering in getV is
-// necessary or not.
-gopt::GRelType ExpandGetVFusion::transformExpandType(
-    const gopt::GRelType& expandType, catalog::Catalog* catalog) {
-  auto& transaction = Constants::DEFAULT_TRANSACTION;
-  std::vector<common::table_id_t> targetLabels =
-      std::move(expandType.getLabelIds());
-  std::vector<catalog::GRelTableCatalogEntry*> transformEntries;
-  for (auto& entry : catalog->getTableEntries(&transaction)) {
-    if (entry->getType() == catalog::CatalogEntryType::REL_TABLE_ENTRY) {
-      auto edgeEntry = entry->ptrCast<catalog::GRelTableCatalogEntry>();
-      if (std::find(targetLabels.begin(), targetLabels.end(),
-                    edgeEntry->getLabelId()) != targetLabels.end()) {
-        // if the edge label is in the expand type, we keep it
-        transformEntries.emplace_back(edgeEntry);
-      }
-    }
-  }
-  return gopt::GRelType(std::move(transformEntries));
-}
-
 bool ExpandGetVFusion::hasLabelFiltering(const gopt::GNodeType& getVType,
                                          const gopt::GRelType& expandType,
                                          const gopt::GNodeType& sourceType,
                                          common::ExtendDirection direction,
                                          catalog::Catalog* catalog) {
   std::vector<common::table_id_t> targetLabels;
-  auto transformType = transformExpandType(expandType, catalog);
+  // NeuG can support getting edge data directly by triplet type, so we can use
+  // the triplet type as transform type.
+  auto transformType = expandType;
   for (auto& edge : transformType.relTables) {
     for (auto& node : sourceType.nodeTables) {
       if (direction != common::ExtendDirection::BWD &&

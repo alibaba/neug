@@ -40,6 +40,14 @@ class GeneratedRecordBatchSupplier : public neug::IRecordBatchSupplier {
     }
   }
 
+  int64_t RowNum() const override {
+    int64_t total_rows = 0;
+    for (const auto& batch : batches_) {
+      total_rows += batch->num_rows();
+    }
+    return total_rows;
+  }
+
  private:
   std::vector<std::shared_ptr<arrow::RecordBatch>> batches_;
 };

@@ -28,19 +28,6 @@
 
 namespace neug {
 
-std::string parse_wal_uri(std::string wal_uri, const std::string& work_dir) {
-  if (wal_uri.empty()) {
-    VLOG(1) << "wal_uri is not set, use default wal_uri";
-    wal_uri = wal_dir(work_dir);
-  } else if (wal_uri.find("{GRAPH_DATA_DIR}") != std::string::npos) {
-    VLOG(1) << "Template {GRAPH_DATA_DIR} found in wal_uri, replace it with "
-               "data_dir";
-    wal_uri = std::regex_replace(wal_uri, std::regex("\\{GRAPH_DATA_DIR\\}"),
-                                 work_dir);
-  }
-  return wal_uri;
-}
-
 std::string get_wal_uri_scheme(const std::string& uri) {
   std::string scheme;
   auto pos = uri.find("://");

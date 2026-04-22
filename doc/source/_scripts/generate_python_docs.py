@@ -96,7 +96,7 @@ def clean_generated_docs(output_dir: Path, scripts_dir: Path):
 def generate_docs():
     """Generate documentation for all modules using pydoc-markdown."""
     # Script is now in source/_scripts/
-    scripts_dir = Path(__file__).parent
+    scripts_dir = Path(__file__).resolve().parent
     doc_dir = scripts_dir.parent.parent  # from source/_scripts/ -> source/ -> doc/
     output_dir = scripts_dir.parent / 'reference' / 'python_api'  # source/reference/python_api
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -150,7 +150,7 @@ def _run_single_module_generation(scripts_dir: Path, doc_dir: Path, output_dir: 
             {
                 'type': 'filter',
                 'expression': '''not (
-                    name.startswith("_") or 
+                    (name.startswith("_") and name != "__init__") or
                     name in ["logging", "os", "json", "requests", "adapters"] or
                     name.startswith("ERR_") or
                     name in ["logger", "cur_file_path", "cur_dir_path", "resource_dir", "readable", "OK", "Code"]
@@ -435,7 +435,7 @@ def main():
 def generate_docs_no_clean():
     """Generate documentation without cleaning first."""
     # Script is now in source/_scripts/
-    scripts_dir = Path(__file__).parent
+    scripts_dir = Path(__file__).resolve().parent
     doc_dir = scripts_dir.parent.parent  # from source/_scripts/ -> source/ -> doc/
     output_dir = scripts_dir.parent / 'reference' / 'python_api'  # source/reference/python_api
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -4,9 +4,16 @@ on:
   # Trigger the workflow on push or pull request,
   # but only for the main branch
   workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'Python version (e.g. 3.9) or range (e.g. 3.8-3.14) to build'
+        required: false
+        default: ''
   push:
     branches:
       - main
+    tags:
+      - 'v*'
     paths: &wheel_paths
       - 'cmake/**'
       - 'src/**'
@@ -16,8 +23,10 @@ on:
       - 'tools/python_bind/**'
       - 'tools/shell/**'
       - '.github/workflows/build-wheel.yml'
+      - '.github/workflows/wheels-common.yml'
       - 'scripts/install_deps.sh'
       - 'CMakeLists.txt'
+      - 'NEUG_VERSION'
   pull_request:
     branches:
       - main
@@ -28,390 +37,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_wheels_linux_x86_64:
-    runs-on: [self-hosted, linux, x64]
-    steps:
-      - name: checkout
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+  format_check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/format-check.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
 
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
-
-      - name: Prepare for linux
-        run: |
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
-
-      - name: Limit builds to CPython 3.13 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
-
-      - name: Build wheels
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
-          export BUILD_TYPE=RELEASE
-          export PYBIND11_FINDPYTHON=OFF
-          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
-
-      - name: Upload wheel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-x86_64-${{ github.run_id }}
-          path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
-          # update it manually
-
-      - name: Clean all installed python packages
-        run: |
-          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-    
-      - name: Run simple and complex tests
-        env:
-          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
-          rm -rf ${TMP_DIR}/test_example
-          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
-          python3 tools/python_bind/example/complex_test.py
-
-      - name: Run NeuG-Cli test
-        run: |
-          neug-cli --help
-          neug-cli --version
-
-  build_wheels_linux_arm64:
-    runs-on: [self-hosted, linux, arm64]
-    if: true
-    steps:
-      - name: checkout
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Python 3.13
-        if: runner.name != 'arm64-1'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
-
-      - name: Prepare for linux
-        run: |
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
-
-      - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
-
-      - name: Build wheels
-        run: |
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
-          export BUILD_TYPE=RELEASE
-          export PYBIND11_FINDPYTHON=OFF
-          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
-
-      - name: Upload wheel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-arm64-${{ github.run_id }}
-          path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
-          # update it manually
-
-      - name: Clean all installed python packages
-        run: |
-          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-    
-      - name: Run simple and complex tests
-        env:
-          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
-          rm -rf ${TMP_DIR}/test_example
-          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
-          python3 tools/python_bind/example/complex_test.py
-
-      - name: Run NeuG-Cli test
-        run: |
-          neug-cli --help
-          neug-cli --version
-
-  build_wheels_macos_x86_64:
-    runs-on: macos-13
-    if: false
-    steps:
-      - name: checkout
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      # Only run install_dep.sh on macos system
-      - name: Install dependencies
-        run: |
-          bash scripts/install_deps.sh
-
-      - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
-
-      - name: Prepare for macos
-        run: |
-          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
-          source ~/.neug_env
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
-
-      - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
-
-      - name: Build wheels
-        run: |
-          source ~/.neug_env
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
-          export BUILD_TYPE=RELEASE
-          export PYBIND11_FINDPYTHON=OFF
-          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
-
-      - name: Upload wheel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-x86_64-${{ github.run_id }}
-          path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
-          # update it manually
-
-      - name: Clean all installed python packages
-        run: |
-          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-    
-      - name: Run simple test
-        env:
-          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
-          rm -rf ${TMP_DIR}/test_example
-          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
-
-      - name: Run NeuG-Cli test
-        run: |
-          neug-cli --help
-          neug-cli --version
-
-  build_wheels_macos_aarch64:
-    runs-on: macos-14
-    if: false
-    steps:
-      - name: checkout
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      # Only run install_dep.sh on macos system
-      - name: Install dependencies
-        run: |
-          bash scripts/install_deps.sh
-
-      - name: Install cibuildwheel
-        run: python3 -m pip install cibuildwheel==2.23.3
-
-      - name: Prepare for macos
-        run: |
-          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET={{ env.MACOSX_DEPLOYMENT_TARGET }}"
-          source ~/.neug_env
-          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
-
-      - name: Limit builds to CPython 3.8 on PRs
-        if: github.event_name == 'pull_request'
-        run: echo "CIBW_BUILD=cp313-*" >> $GITHUB_ENV
-
-      - name: Build wheels
-        run: |
-          source ~/.neug_env
-          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
-          export BUILD_TYPE=RELEASE
-          export PYBIND11_FINDPYTHON=OFF
-          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
-
-      - name: Upload wheel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-arm64-${{ github.run_id }}
-          path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
-      - name: Publish distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.4.2
-        if: (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_PASSWORD }}
-          packages_dir: wheelhouse/
-          verbose: true
-          skip_existing: true # Skip existing wheels to avoid errors if the same wheel is already published, to update the wheel for a specific version, add -{number} to the filename and
-          # update it manually
-
-      - name: Clean all installed python packages
-        run: |
-          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
-
-      - name: Run simple test
-        env:
-          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
-          for i in $(ls wheelhouse/*.whl); do
-            python3 -m pip install $i || echo "Failed to install $i"
-          done
-          rm -rf ${TMP_DIR}/test_example
-          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
-
-      - name: Run NeuG-Cli test
-        run: |
-          neug-cli --help
-          neug-cli --version
-
-  test_wheels_macos_x86_64:
-    needs: build_wheels_macos_x86_64
-    if: needs.build_wheels_macos_x86_64.result == 'success'
-    runs-on: macos-13
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.13']
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Download wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-x86_64-${{ github.run_id }}
-          path: wheelhouse
-
-      - name: Install wheel and run complex test
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip uninstall -y neug || true
-          PY_VERSION="${{ matrix.python-version }}"
-          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
-          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
-          if [ -z "$TARGET" ]; then
-            echo "No wheel found for tag ${PY_TAG}"
-            ls -R wheelhouse
-            exit 1
-          fi
-          echo "Installing $TARGET"
-          python -m pip install "$TARGET"
-          python tools/python_bind/example/complex_test.py
-
-  test_wheels_macos_aarch64:
-    needs: build_wheels_macos_aarch64
-    if: needs.build_wheels_macos_aarch64.result == 'success'
-    runs-on: macos-14
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.13']
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Download wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels-macos-arm64-${{ github.run_id }}
-          path: wheelhouse
-
-      - name: Install wheel and run complex test
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip uninstall -y neug || true
-          PY_VERSION="${{ matrix.python-version }}"
-          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
-          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
-          if [ -z "$TARGET" ]; then
-            echo "No wheel found for tag ${PY_TAG}"
-            ls -R wheelhouse
-            exit 1
-          fi
-          echo "Installing $TARGET"
-          python -m pip install "$TARGET"
-          python tools/python_bind/example/complex_test.py
+  build_wheels:
+    needs:
+      - format_check
+    uses: ./.github/workflows/wheels-common.yml
+    with:
+      python_versions: ${{ inputs.python_versions }}
+      mode: release
+      set_nightly_version: false
+      pybind11_findpython_off: true
+      linux_x86_python: '3.13'
+      linux_arm_python: '3.13'
+      mac_python: '3.13'
+      cibuildwheel_version: '3.4.0'
+      enable_macos_x86: false
+      caller_event_name: ${{ github.event_name }}
+    secrets: inherit

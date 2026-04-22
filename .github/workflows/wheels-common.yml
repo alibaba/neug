@@ -1,0 +1,726 @@
+name: Wheels Build (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      python_versions:
+        type: string
+        required: false
+        default: ''
+      mode:
+        type: string
+        required: false
+        default: 'release'
+      set_nightly_version:
+        type: boolean
+        required: false
+        default: false
+      pybind11_findpython_off:
+        type: boolean
+        required: false
+        default: false
+      linux_x86_python:
+        type: string
+        required: false
+        default: '3.14'
+      linux_arm_python:
+        type: string
+        required: false
+        default: '3.13'
+      mac_python:
+        type: string
+        required: false
+        default: '3.14'
+      cibuildwheel_version:
+        type: string
+        required: false
+        default: '3.4.0'
+      enable_macos_x86:
+        type: boolean
+        required: false
+        default: false
+      caller_event_name:
+        type: string
+        required: false
+        default: 'workflow_call'
+    secrets:
+      PYPI_PASSWORD:
+        required: false
+
+jobs:
+  determine_python_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      cibw_build: ${{ steps.compute.outputs.cibw_build }}
+    env:
+      WORKFLOW_PYTHON_VERSIONS: ${{ inputs.python_versions }}
+      CALLER_EVENT_NAME: ${{ inputs.caller_event_name }}
+    steps:
+      - name: Compute Python build selection
+        id: compute
+        run: |
+          set -euo pipefail
+
+          EVENT_NAME="${CALLER_EVENT_NAME:-workflow_call}"
+          INPUT="${WORKFLOW_PYTHON_VERSIONS:-}"
+          CIBW=""
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            CIBW="cp313-*"
+          elif [[ -n "$INPUT" ]]; then
+            SPEC="${INPUT//[[:space:]]/}"
+
+            if [[ "$SPEC" =~ ^3\.[0-9]+-3\.[0-9]+$ ]]; then
+              START="${SPEC%%-*}"
+              END="${SPEC##*-}"
+            elif [[ "$SPEC" =~ ^3\.[0-9]+$ ]]; then
+              START="$SPEC"
+              END="$SPEC"
+            else
+              echo "Invalid python_versions input: $INPUT" >&2
+              exit 1
+            fi
+
+            START_MINOR="${START#3.}"
+            END_MINOR="${END#3.}"
+
+            if (( 10#$START_MINOR > 10#$END_MINOR )); then
+              echo "Invalid python_versions range: $START -> $END" >&2
+              exit 1
+            fi
+
+            patterns=()
+            for (( minor=10#$START_MINOR; minor<=10#$END_MINOR; minor++ )); do
+              patterns+=("cp3${minor}-*")
+            done
+
+            CIBW="${patterns[*]}"
+          fi
+
+          echo "Using CIBW_BUILD pattern: ${CIBW:-<default>}"
+          echo "cibw_build=$CIBW" >> "$GITHUB_OUTPUT"
+
+  build_wheels_linux_x86_64:
+    needs:
+      - determine_python_versions
+    runs-on: [self-hosted, daily, linux, x64]
+    if: ${{
+          (
+            inputs.mode == 'release' &&
+            (
+              startsWith(github.ref, 'refs/tags/v') ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              inputs.caller_event_name == 'pull_request' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
+            )
+          ) ||
+          (
+            inputs.mode == 'nightly' &&
+            github.repository == 'alibaba/neug' &&
+            (inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'pull_request' || (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main'))
+          )
+        }}
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
+      - name: Setup Python for linux x86_64
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.linux_x86_python }}
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==${{ inputs.cibuildwheel_version }}
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Set nightly wheel version
+        if: inputs.set_nightly_version
+        run: |
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
+          short_sha=$(git rev-parse --short HEAD)
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
+
+      - name: Force Pybind11 FindPython off
+        if: inputs.pybind11_findpython_off
+        run: |
+          echo "PYBIND11_FINDPYTHON=OFF" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload wheel artifacts
+        if: ${{
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+            }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-linux-x86_64-{0}', github.sha) || format('wheels-linux-x86_64-{0}', github.run_id) }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: ${{
+              (
+                inputs.mode == 'release' &&
+                (
+                  (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
+                  (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+                )
+              ) ||
+              (
+                inputs.mode == 'nightly' &&
+                inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
+              )
+            }}
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple and complex tests
+        if: inputs.mode == 'release'
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          python3 tools/python_bind/example/complex_test.py
+
+      - name: Run NeuG-Cli test
+        if: inputs.mode == 'release'
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+      - name: Run nightly sanity test
+        if: ${{ inputs.mode == 'nightly' && inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' }}
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+      - name: Run nightly NeuG-Cli test
+        if: ${{ inputs.mode == 'nightly' && inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' }}
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+  build_wheels_linux_arm64:
+    needs:
+      - determine_python_versions
+    runs-on: [self-hosted, daily, linux, arm64]
+    if: ${{
+          (
+            inputs.mode == 'release' &&
+            (
+              startsWith(github.ref, 'refs/tags/v') ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
+            )
+          ) ||
+          (
+            inputs.mode == 'nightly' &&
+            github.repository == 'alibaba/neug' &&
+            (inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch' || inputs.caller_event_name == 'pull_request')
+          )
+        }}
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Clean the tool directory for self-hosted runner
+        run: |
+          rm -rf /__w/_tool/Python
+
+      - name: Setup Python for linux arm64
+        if: runner.name != 'arm64-1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.linux_arm_python }}
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==${{ inputs.cibuildwheel_version }}
+
+      - name: Prepare for linux
+        run: |
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)" >> $GITHUB_ENV
+
+      - name: Set nightly wheel version
+        if: inputs.set_nightly_version
+        run: |
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
+          short_sha=$(git rev-parse --short HEAD)
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
+
+      - name: Force Pybind11 FindPython off
+        if: inputs.pybind11_findpython_off
+        run: |
+          echo "PYBIND11_FINDPYTHON=OFF" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload wheel artifacts
+        if: ${{
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+            }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-linux-arm64-{0}', github.sha) || format('wheels-linux-arm64-{0}', github.run_id) }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: ${{
+              (
+                inputs.mode == 'release' &&
+                (
+                  (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
+                  (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+                )
+              ) ||
+              (
+                inputs.mode == 'nightly' &&
+                inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
+              )
+            }}
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PASSWORD }}
+          packages_dir: wheelhouse/
+          verbose: true
+          skip_existing: true
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple and complex tests
+        if: inputs.mode == 'release'
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+          python3 tools/python_bind/example/complex_test.py
+
+      - name: Run NeuG-Cli test
+        if: inputs.mode == 'release'
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+      - name: Run nightly sanity test
+        if: ${{ inputs.mode == 'nightly' && inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' }}
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+      - name: Run nightly NeuG-Cli test
+        if: ${{ inputs.mode == 'nightly' && inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug' }}
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+  build_wheels_macos_x86_64:
+    needs:
+      - determine_python_versions
+    runs-on: macos-15-intel
+    if: inputs.enable_macos_x86
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python for macos x86_64
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.mac_python }}
+
+      - name: Cache cibuildwheel downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/cibuildwheel
+          key: ${{ runner.os }}-${{ runner.arch }}-cibw-cache-v1
+
+      - name: Pre-download virtualenv.pyz (retry on 429)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/Caches/cibuildwheel
+          VENV_PYZ=~/Library/Caches/cibuildwheel/virtualenv-20.32.0.pyz
+          if [ -s "$VENV_PYZ" ]; then
+            echo "Using cached virtualenv.pyz: $VENV_PYZ"
+            exit 0
+          fi
+          URL_PRIMARY="https://raw.githubusercontent.com/pypa/get-virtualenv/20.32.0/public/virtualenv.pyz"
+          URL_FALLBACK="https://github.com/pypa/get-virtualenv/blob/20.32.0/public/virtualenv.pyz?raw=true"
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_PRIMARY" || \
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_FALLBACK"
+          test -s "$VENV_PYZ"
+
+      - name: Install dependencies
+        run: |
+          bash scripts/install_deps.sh
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==${{ inputs.cibuildwheel_version }}
+
+      - name: Prepare for macos
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15"
+          source ~/.neug_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
+      - name: Set nightly wheel version
+        if: inputs.set_nightly_version
+        run: |
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
+          short_sha=$(git rev-parse --short HEAD)
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
+
+      - name: Force Pybind11 FindPython off
+        if: inputs.pybind11_findpython_off
+        run: |
+          echo "PYBIND11_FINDPYTHON=OFF" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          source ~/.neug_env
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload wheel artifacts
+        if: ${{ inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/'))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-x86_64-${{ github.run_id }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+      # Action only supported on linux, skipped
+      # - name: Publish distribution to PyPI
+      #   uses: pypa/gh-action-pypi-publish@v1.4.2
+      #   if: ${{ inputs.mode == 'release' && ((github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')) }}
+      #   with:
+      #     user: __token__
+      #     password: ${{ secrets.PYPI_PASSWORD }}
+      #     packages_dir: wheelhouse/
+      #     verbose: true
+      #     skip_existing: true
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple test
+        if: inputs.mode == 'release'
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+      - name: Run NeuG-Cli test
+        if: inputs.mode == 'release'
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+  build_wheels_macos_aarch64:
+    needs:
+      - determine_python_versions
+    runs-on: macos-15
+    if: ${{
+          (
+            inputs.mode == 'release' &&
+            (
+              startsWith(github.ref, 'refs/tags/v') ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              inputs.caller_event_name == 'pull_request' ||
+              (inputs.caller_event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug')
+            )
+          ) ||
+          (
+            inputs.mode == 'nightly' &&
+            (
+              inputs.caller_event_name == 'schedule' ||
+              inputs.caller_event_name == 'workflow_dispatch' ||
+              (inputs.caller_event_name == 'pull_request' && github.repository == 'alibaba/neug')
+            )
+          )
+        }}
+    env:
+      CIBW_BUILD: ${{ needs.determine_python_versions.outputs.cibw_build }}
+    steps:
+      - name: checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python for macos aarch64
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.mac_python }}
+
+      - name: Cache cibuildwheel downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/cibuildwheel
+          key: ${{ runner.os }}-${{ runner.arch }}-cibw-cache-v1
+
+      - name: Pre-download virtualenv.pyz (retry on 429)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/Caches/cibuildwheel
+          VENV_PYZ=~/Library/Caches/cibuildwheel/virtualenv-20.32.0.pyz
+          if [ -s "$VENV_PYZ" ]; then
+            echo "Using cached virtualenv.pyz: $VENV_PYZ"
+            exit 0
+          fi
+          URL_PRIMARY="https://raw.githubusercontent.com/pypa/get-virtualenv/20.32.0/public/virtualenv.pyz"
+          URL_FALLBACK="https://github.com/pypa/get-virtualenv/blob/20.32.0/public/virtualenv.pyz?raw=true"
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_PRIMARY" || \
+          curl -fL --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 300 -o "$VENV_PYZ" "$URL_FALLBACK"
+          test -s "$VENV_PYZ"
+
+      - name: Install dependencies
+        run: |
+          bash scripts/install_deps.sh
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==${{ inputs.cibuildwheel_version }}
+
+      - name: Prepare for macos
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0"
+          source ~/.neug_env
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
+
+      - name: Set nightly wheel version
+        if: inputs.set_nightly_version
+        run: |
+          version=$(cat ${GITHUB_WORKSPACE}/NEUG_VERSION)
+          short_sha=$(git rev-parse --short HEAD)
+          echo "${version}+${short_sha}" > ${GITHUB_WORKSPACE}/NEUG_VERSION
+
+      - name: Force Pybind11 FindPython off
+        if: inputs.pybind11_findpython_off
+        run: |
+          echo "PYBIND11_FINDPYTHON=OFF" >> $GITHUB_ENV
+
+      - name: Build wheels
+        run: |
+          source ~/.neug_env
+          export CMAKE_BUILD_PARALLEL_LEVEL=$(sysctl -n hw.ncpu)
+          export BUILD_TYPE=RELEASE
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload wheel artifacts
+        if: ${{
+              (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+              (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+            }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.mode == 'nightly' && format('cibw-wheels-macos-arm64-{0}', github.sha) || format('wheels-macos-arm64-{0}', github.run_id) }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+      # - name: Publish distribution to PyPI
+      #   uses: pypa/gh-action-pypi-publish@v1.4.2
+      #   if: ${{
+      #         (
+      #           inputs.mode == 'release' &&
+      #           (
+      #             (github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug') ||
+      #             (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'alibaba/neug')
+      #           )
+      #         ) ||
+      #         (
+      #           inputs.mode == 'nightly' &&
+      #           inputs.caller_event_name == 'schedule' && github.ref == 'refs/heads/main' && github.repository == 'alibaba/neug'
+      #         )
+      #       }}
+      #   with:
+      #     user: __token__
+      #     password: ${{ secrets.PYPI_PASSWORD }}
+      #     packages_dir: wheelhouse/
+      #     verbose: true
+      #     skip_existing: true
+
+      - name: Clean all installed python packages
+        run: |
+          python3 -m pip freeze | xargs python3 -m pip uninstall -y || true
+    
+      - name: Run simple test
+        if: inputs.mode == 'release'
+        env:
+          TMP_DIR: ${{ github.workspace }}/${{ github.run_id }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip uninstall -y neug || echo "Uninstalled neug if it was installed"
+          for i in $(ls wheelhouse/*.whl); do
+            python3 -m pip install "$i" || echo "Failed to install $i"
+          done
+          rm -rf ${TMP_DIR}/test_example
+          GLOG_v=10 python3 tools/python_bind/example/simple_example.py example_dataset/modern_graph ${TMP_DIR}/test_example
+
+      - name: Run NeuG-Cli test
+        if: inputs.mode == 'release'
+        run: |
+          neug-cli --help
+          neug-cli --version
+
+  test_wheels_macos_x86_64:
+    needs: build_wheels_macos_x86_64
+    if: ${{
+          inputs.enable_macos_x86 &&
+          ((inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+          (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug'))
+        }}    
+    runs-on: macos-15-intel
+    strategy:
+      matrix:
+        python-version: ['3.14']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-x86_64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py
+
+  test_wheels_macos_aarch64:
+    needs: build_wheels_macos_aarch64
+    if: ${{
+          (inputs.mode == 'release' && (inputs.caller_event_name == 'workflow_dispatch' || (inputs.caller_event_name == 'push' && startsWith(github.ref, 'refs/tags/')))) ||
+          (inputs.mode == 'nightly' && inputs.caller_event_name == 'workflow_dispatch' && github.repository == 'alibaba/neug')
+        }}
+    runs-on: macos-15
+    strategy:
+      matrix:
+        python-version: ['3.14']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-macos-arm64-${{ github.run_id }}
+          path: wheelhouse
+
+      - name: Install wheel and run complex test
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip uninstall -y neug || true
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_TAG="cp$(echo "$PY_VERSION" | tr -d '.')"
+          TARGET=$(ls wheelhouse/*${PY_TAG}*.whl | head -n 1 || true)
+          if [ -z "$TARGET" ]; then
+            echo "No wheel found for tag ${PY_TAG}"
+            ls -R wheelhouse
+            exit 1
+          fi
+          echo "Installing $TARGET"
+          python -m pip install "$TARGET"
+          python tools/python_bind/example/complex_test.py

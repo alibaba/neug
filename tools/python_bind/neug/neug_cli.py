@@ -18,6 +18,7 @@
 
 import atexit
 import cmd
+import errno
 import logging
 import os
 import re
@@ -70,6 +71,13 @@ class NeugShell(cmd.Cmd):
                 readline.read_history_file(self._histfile)
             except FileNotFoundError:
                 pass
+            except OSError as e:
+                # OSError (errno 22/EINVAL): libedit (macOS) cannot parse a
+                # GNU readline history file. Safe to ignore.
+                # Re-raise for any other OS error (e.g. EPERM) so unexpected
+                # problems still surface to the user.
+                if e.errno != errno.EINVAL:
+                    raise
             atexit.register(self._save_history, self._histfile)
         else:
             logger.info("Command history disabled; readline support not detected.")
@@ -191,8 +199,11 @@ class NeugShell(cmd.Cmd):
         )
 
 
-@click.group(name="neug-cli")
-@click.version_option(version="0.1.0")
+@click.group(
+    name="neug-cli",
+    epilog="Run 'neug-cli COMMAND --help' for more information on a command.\n\n  e.g. neug-cli open --help",
+)
+@click.version_option(version="0.1.1")
 def cli():
     """Neug CLI Tool."""
 
@@ -206,7 +217,19 @@ def cli():
     help="Database mode: read-only or read-write (default: read-write).",
 )
 def open(db_uri, mode):
-    """Open a local database."""
+    """Open a local database.
+
+    Start an interactive shell with a local NeuG database.
+    If DB_URI is omitted, an in-memory database is used.
+
+    Examples:
+
+      neug-cli open /path/to/db
+
+      neug-cli open /path/to/db -m read-only
+
+      neug-cli open
+    """
     if len(db_uri) > 0:
         click.echo(f"Opened database at {db_uri} in {mode} mode")
     else:
@@ -223,7 +246,17 @@ def open(db_uri, mode):
     "--timeout", default=300, show_default=True, help="Connection timeout in seconds."
 )
 def connect(db_uri, timeout):
-    """Connect to a remote database."""
+    """Connect to a remote database.
+
+    Start an interactive shell connected to a remote NeuG server.
+    DB_URI should be in the format host:port or http://host:port.
+
+    Examples:
+
+      neug-cli connect localhost:8182
+
+      neug-cli connect http://192.168.1.1:8182 --timeout 60
+    """
     click.echo(f"{db_uri}")
     pattern_http = re.compile(r"^http://([a-zA-Z0-9.-_]+):(\d+)$")
     pattern_plain = re.compile(r"^([a-zA-Z0-9.-_]+):(\d+)$")

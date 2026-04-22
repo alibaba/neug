@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "neug/config.h"
 #include "neug/utils/property/column.h"
 #include "neug/utils/property/property.h"
 #include "neug/utils/property/types.h"
@@ -32,33 +33,17 @@ class Table {
   Table();
   ~Table();
 
-  void init(const std::string& name, const std::string& work_dir,
-            const std::vector<std::string>& col_name,
-            const std::vector<DataType>& types,
-            const std::vector<Property>& default_property_values,
-            const std::vector<StorageStrategy>& strategies_);
-
   void open(const std::string& name, const std::string& work_dir,
             const std::vector<std::string>& col_name,
-            const std::vector<DataType>& property_types,
-            const std::vector<Property>& default_property_values,
-            const std::vector<StorageStrategy>& strategies_);
+            const std::vector<DataType>& property_types);
 
   void open_in_memory(const std::string& name, const std::string& work_dir,
                       const std::vector<std::string>& col_name,
-                      const std::vector<DataType>& property_types,
-                      const std::vector<Property>& default_property_values,
-                      const std::vector<StorageStrategy>& strategies_);
+                      const std::vector<DataType>& property_types);
 
   void open_with_hugepages(const std::string& name, const std::string& work_dir,
                            const std::vector<std::string>& col_name,
-                           const std::vector<DataType>& property_types,
-                           const std::vector<Property>& default_property_values,
-                           const std::vector<StorageStrategy>& strategies_,
-                           bool force = false);
-
-  void copy_to_tmp(const std::string& name, const std::string& snapshot_dir,
-                   const std::string& work_dir);
+                           const std::vector<DataType>& property_types);
 
   void dump(const std::string& name, const std::string& snapshot_dir);
 
@@ -67,9 +52,8 @@ class Table {
   void add_columns(const std::vector<std::string>& col_names,
                    const std::vector<DataType>& col_types,
                    const std::vector<Property>& default_property_values,
-                   size_t column_size,
-                   const std::vector<StorageStrategy>& strategies_ = {},
-                   int memory_level = 0);
+                   size_t capacity,
+                   MemoryLevel memory_level = MemoryLevel::kInMemory);
 
   const std::vector<std::string>& column_names() const;
 
@@ -108,6 +92,12 @@ class Table {
               bool insert_safe = false);
 
   void resize(size_t row_num);
+  /**
+   * @brief Resize the table to row_num, and fill the new rows with default
+   * values. Assume it is safe to insert the default value even if it is
+   * reserving, since user could always override.
+   */
+  void resize(size_t row_num, const std::vector<Property>& default_values);
 
   inline Property at(size_t row_id, size_t col_id) const {
     return column_ptrs_[col_id]->get_prop(row_id);
@@ -119,29 +109,22 @@ class Table {
 
   void drop();
 
-  void ensure_writable(size_t col_id);
-
   void set_name(const std::string& name);
 
   void set_work_dir(const std::string& work_dir);
 
  private:
-  void mark_column_deleted(const std::string& col_name);
   void buildColumnPtrs();
   void initColumns(const std::vector<std::string>& col_name,
-                   const std::vector<DataType>& types,
-                   const std::vector<Property>& default_property_values,
-                   const std::vector<StorageStrategy>& strategies_);
+                   const std::vector<DataType>& types);
 
   std::unordered_map<std::string, int> col_id_map_;
   std::vector<std::string> col_names_;
-  std::vector<Property> col_default_values_;
 
   std::vector<std::shared_ptr<ColumnBase>> columns_;
   std::vector<ColumnBase*> column_ptrs_;
   std::vector<bool> col_deleted_;
 
-  bool touched_;
   std::string name_;
   std::string work_dir_, snapshot_dir_;
 };

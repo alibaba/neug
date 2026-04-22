@@ -23,7 +23,6 @@
 #include "neug/compiler/extension/extension_manager.h"
 
 #include "generated_extension_loader.h"
-#include "neug/compiler/common/file_system/virtual_file_system.h"
 #include "neug/compiler/common/string_utils.h"
 #include "neug/compiler/extension/extension.h"
 

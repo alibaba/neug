@@ -1,6 +1,9 @@
+#include <memory>
 #include "neug/compiler/binder/copy/bound_copy_from.h"
 #include "neug/compiler/binder/copy/bound_copy_to.h"
+#include "neug/compiler/binder/expression/expression.h"
 #include "neug/compiler/catalog/catalog_entry/rel_table_catalog_entry.h"
+#include "neug/compiler/planner/operator/ddl/logical_create_table.h"
 #include "neug/compiler/planner/operator/logical_partitioner.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_from.h"
 #include "neug/compiler/planner/operator/persistent/logical_copy_to.h"
@@ -68,6 +71,16 @@ std::unique_ptr<LogicalPlan> Planner::planCopyFrom(
 std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
     const BoundCopyFromInfo* info, expression_vector results) {
   auto plan = std::make_unique<LogicalPlan>();
+  if (info && info->ddlTableInfo) {
+    // get CreateTableInfo from info->extraTableInfo
+    // create LogicalCreateTable operation as the first operator in plan
+    const auto& ddlTable = info->ddlTableInfo->getCreateInfo();
+    const auto& ddlOutput =
+        BoundStatementResult::createSingleStringColumnResult();
+    auto ddlTableOp = std::make_shared<LogicalCreateTable>(
+        ddlTable.copy(), ddlOutput.getSingleColumnExpr());
+    plan->setLastOperator(std::move(ddlTableOp));
+  }
   switch (info->source->type) {
   case ScanSourceType::FILE:
   case ScanSourceType::OBJECT: {
@@ -76,7 +89,12 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();
-    plan = getBestPlan(planQuery(*querySource.statement));
+    auto subquery = getBestPlan(planQuery(*querySource.statement));
+    auto lastOp = plan->getLastOperator();
+    if (lastOp) {
+      subquery->getLastOperator()->addChild(std::move(lastOp));
+    }
+    plan = std::move(subquery);
     if (plan->getSchema()->getNumGroups() > 1) {
       // Copy operator assumes all input are in the same data chunk. If this is
       // not the case, we first materialize input in flat form into a factorized
@@ -96,6 +114,14 @@ std::unique_ptr<LogicalPlan> Planner::planCopyNodeFrom(
 std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
     const BoundCopyFromInfo* info, expression_vector results) {
   auto plan = std::make_unique<LogicalPlan>();
+  if (info && info->ddlTableInfo) {
+    const auto& ddlTable = info->ddlTableInfo->getCreateInfo();
+    const auto& ddlOutput =
+        BoundStatementResult::createSingleStringColumnResult();
+    auto createTableOp = std::make_shared<LogicalCreateTable>(
+        ddlTable.copy(), ddlOutput.getSingleColumnExpr());
+    plan->setLastOperator(std::move(createTableOp));
+  }
   switch (info->source->type) {
   case ScanSourceType::FILE:
   case ScanSourceType::OBJECT: {
@@ -104,7 +130,12 @@ std::unique_ptr<LogicalPlan> Planner::planCopyRelFrom(
   } break;
   case ScanSourceType::QUERY: {
     auto& querySource = info->source->constCast<BoundQueryScanSource>();
-    plan = getBestPlan(planQuery(*querySource.statement));
+    auto subquery = getBestPlan(planQuery(*querySource.statement));
+    auto lastOp = plan->getLastOperator();
+    if (lastOp) {
+      subquery->getLastOperator()->addChild(std::move(lastOp));
+    }
+    plan = std::move(subquery);
     if (plan->getSchema()->getNumGroups() == 1 &&
         !plan->getSchema()->getGroup(0)->isFlat()) {
       break;

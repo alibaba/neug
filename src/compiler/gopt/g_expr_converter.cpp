@@ -42,7 +42,6 @@
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
 #include "neug/compiler/gopt/g_alias_name.h"
-#include "neug/compiler/gopt/g_catalog_holder.h"
 #include "neug/compiler/gopt/g_scalar_type.h"
 #include "neug/compiler/parser/expression/parsed_expression.h"
 #include "neug/compiler/parser/expression/parsed_function_expression.h"

@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   build-neug-image:
-    runs-on: [ubuntu-22.04]
+    runs-on: ubuntu-22.04
 
     steps:
     - name: checkout
@@ -38,9 +38,9 @@ jobs:
         cd ${GITHUB_WORKSPACE}/
         cd docker && make neug-release
         ARCH=$(uname -m)
-        docker image inspect graphscope/neug:${ARCH}
+        docker image inspect neug/neug:${ARCH}
 
     - name: Remove Image
       run: |
         ARCH=$(uname -m)
-        docker rmi graphscope/neug:${ARCH}
+        docker rmi neug/neug:${ARCH}
