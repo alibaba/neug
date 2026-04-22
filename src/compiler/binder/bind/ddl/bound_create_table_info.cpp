@@ -135,7 +135,9 @@ BoundExtraCreateRelTableInfo::BoundExtraCreateRelTableInfo(
       dstMultiplicity{other.dstMultiplicity},
       storageDirection{other.storageDirection},
       srcTableID{other.srcTableID},
-      dstTableID{other.dstTableID} {}
+      dstTableID{other.dstTableID} {
+  options = other.options;
+}
 
 }  // namespace binder
 }  // namespace neug

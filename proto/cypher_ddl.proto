@@ -70,6 +70,8 @@ message CreateEdgeSchema {
     repeated PropertyDef properties = 2;
     repeated string primary_key = 3;
     ConflictAction conflict_action = 4;
+    // support extra options on edge type, i.e. {"sort_key", "creationDate"}
+    map<string, string> options = 5;
 }
 
 // Example:
