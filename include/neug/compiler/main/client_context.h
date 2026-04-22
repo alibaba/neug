@@ -61,10 +61,6 @@ class ImportDB;
 class TableFunctionCall;
 }  // namespace processor
 
-namespace graph {
-class GraphEntrySet;
-}
-
 namespace main {
 struct DBConfig;
 class MetadataManager;
@@ -135,10 +131,6 @@ class NEUG_API ClientContext {
     return clientConfig.enableInternalCatalog ? true : useInternalCatalogEntry_;
   }
 
-  graph::GraphEntrySet& getGraphEntrySetUnsafe();
-
-  const graph::GraphEntrySet& getGraphEntrySet() const;
-
   void cleanUp();
 
   // Query.
@@ -170,8 +162,6 @@ class NEUG_API ClientContext {
   MetadataManager* localDatabase;
   // Warning information
   processor::WarningContext warningContext;
-  // Graph entries
-  std::unique_ptr<graph::GraphEntrySet> graphEntrySet;
   std::mutex mtx;
   // Whether the query can access internal tables/sequences or not.
   bool useInternalCatalogEntry_ = false;

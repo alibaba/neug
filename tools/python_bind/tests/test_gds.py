@@ -30,6 +30,20 @@ from conftest import ensure_result_cnt_gt_zero
 from neug.database import Database
 
 
+def _shown_projected_graph_names(conn):
+    """Return graph names reported by CALL SHOW_PROJECTED_GRAPHS() RETURN *."""
+    rows = list(conn.execute("CALL SHOW_PROJECTED_GRAPHS() RETURN *;"))
+    return [row[0] for row in rows]
+
+
+def _projected_graph_info_rows(conn, graph_name):
+    """Rows from CALL PROJECTED_GRAPH_INFO(graph_name) RETURN * (label, predicate)."""
+    escaped = graph_name.replace("\\", "\\\\").replace('"', '\\"')
+    return list(
+        conn.execute('CALL PROJECTED_GRAPH_INFO("{}") RETURN *;'.format(escaped))
+    )
+
+
 @contextmanager
 def tinysnb_connection(tmp_path):
     """Open a writable DB with builtin tinysnb loaded; always closes conn + db."""
@@ -47,6 +61,8 @@ def tinysnb_connection(tmp_path):
 def test_project_graph_and_drop_roundtrip(tmp_path):
     """Register a projected graph alias, then drop it (happy path)."""
     with tinysnb_connection(tmp_path) as conn:
+        assert _shown_projected_graph_names(conn) == []
+
         conn.execute(
             "CALL project_graph("
             "'my_subgraph', "
@@ -54,7 +70,22 @@ def test_project_graph_and_drop_roundtrip(tmp_path):
             "{'[person, knows, person]': ''}"
             ");"
         )
+        names = _shown_projected_graph_names(conn)
+        assert (
+            "my_subgraph" in names
+        ), "SHOW_PROJECTED_GRAPHS must list the registered alias"
+
+        info_rows = _projected_graph_info_rows(conn, "my_subgraph")
+        labels = {row[0] for row in info_rows}
+        assert "person" in labels, "PROJECTED_GRAPH_INFO must expose node tables"
+        assert "[person,knows,person]" in labels or any(
+            "person" in lbl and "knows" in lbl for lbl in labels
+        ), "PROJECTED_GRAPH_INFO must expose relationship triplets"
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
+        assert "my_subgraph" not in _shown_projected_graph_names(
+            conn
+        ), "SHOW_PROJECTED_GRAPHS must not list a dropped alias"
 
 
 def test_project_graph_with_predicates(tmp_path):
@@ -67,7 +98,20 @@ def test_project_graph_with_predicates(tmp_path):
             "{'[person, knows, person]': 'r.date > Date(\"2021-01-01\")'}"
             ");"
         )
+        rows = _projected_graph_info_rows(conn, "my_subgraph")
+        label_to_pred = {row[0]: row[1] for row in rows}
+        assert label_to_pred.get("person") == "n.age > 20"
+        rel_rows = [lbl for lbl in label_to_pred if "[" in lbl or "knows" in lbl]
+        assert (
+            len(rel_rows) >= 1
+        ), "expected at least one relationship row in PROJECTED_GRAPH_INFO"
+        assert any(
+            ("2021" in label_to_pred[l]) or ("Date" in label_to_pred[l])
+            for l in rel_rows
+        ), "relationship predicate must be preserved"
+
         conn.execute("CALL drop_projected_graph('my_subgraph');")
+        assert "my_subgraph" not in _shown_projected_graph_names(conn)
 
 
 def test_run_label_propagation(tmp_path):
@@ -82,6 +126,6 @@ def test_run_label_propagation(tmp_path):
         )
         conn.execute("LOAD gds;")
 
-        res = conn.execute(
+        conn.execute(
             "CALL label_propagation('my_subgraph', {concurrency: 10}) RETURN node, label;"
         )

@@ -135,6 +135,11 @@ class GraphEntrySet {
   }
   void dropGraph(const std::string& name) { nameToEntry.erase(name); }
 
+  const std::unordered_map<std::string, ParsedGraphEntry>& getNameToEntryMap()
+      const {
+    return nameToEntry;
+  }
+
   /// @throws BinderException if a graph with `name` already exists.
   void validateGraphNotExist(const std::string& name) const;
   /// @throws BinderException if no graph is registered under `name`.

@@ -32,13 +32,11 @@
 #include "neug/compiler/extension/extension.h"
 #include "neug/compiler/extension/extension_manager.h"
 #include "neug/compiler/gopt/g_constants.h"
-#include "neug/compiler/graph/graph_entry.h"
 #include "neug/compiler/main/metadata_manager.h"
 #include "neug/compiler/main/option_config.h"
 #include "neug/compiler/main/plan_printer.h"
 #include "neug/compiler/optimizer/optimizer.h"
 #include "neug/compiler/parser/parser.h"
-#include "neug/compiler/parser/visitor/standalone_call_rewriter.h"
 #include "neug/compiler/parser/visitor/statement_read_write_analyzer.h"
 #include "neug/compiler/planner/planner.h"
 #include "neug/compiler/storage/stats_manager.h"
@@ -67,7 +65,6 @@ void ActiveQuery::reset() {
 
 ClientContext::ClientContext(MetadataManager* database)
     : localDatabase{database}, warningContext(&clientConfig) {
-  graphEntrySet = std::make_unique<graph::GraphEntrySet>();
 #if defined(_WIN32)
   clientConfig.homeDirectory = getEnvVariable("USERPROFILE");
 #else
@@ -169,14 +166,6 @@ std::string ClientContext::getEnvVariable(const std::string& name) {
 
 bool ClientContext::hasDefaultDatabase() const { return false; }
 
-graph::GraphEntrySet& ClientContext::getGraphEntrySetUnsafe() {
-  return *graphEntrySet;
-}
-
-const graph::GraphEntrySet& ClientContext::getGraphEntrySet() const {
-  return *graphEntrySet;
-}
-
 void ClientContext::cleanUp() {}
 
 std::unique_ptr<PreparedStatement> ClientContext::prepare(
@@ -218,33 +207,9 @@ std::vector<std::shared_ptr<Statement>> ClientContext::parseQuery(
   parserTimer.stop();
   const auto avgParsingTime =
       parserTimer.getElapsedTimeMS() / parsedStatements.size() / 1.0;
-  // StandaloneCallRewriter standaloneCallAnalyzer{this,
-  //                                               parsedStatements.size() ==
-  //                                               1};
   for (auto i = 0u; i < parsedStatements.size(); i++) {
-    // auto rewriteQuery =
-    //     standaloneCallAnalyzer.getRewriteQuery(*parsedStatements[i]);
-    // if (rewriteQuery.empty()) {
     parsedStatements[i]->setParsingTime(avgParsingTime);
     statements.push_back(std::move(parsedStatements[i]));
-    // } else {
-    //   parserTimer.start();
-    //   auto rewrittenStatements = Parser::parseQuery(rewriteQuery);
-    //   parserTimer.stop();
-    //   const auto avgRewriteParsingTime =
-    //       parserTimer.getElapsedTimeMS() / rewrittenStatements.size() / 1.0;
-    //   NEUG_ASSERT(rewrittenStatements.size() >= 1);
-    //   for (auto j = 0u; j < rewrittenStatements.size() - 1; j++) {
-    //     rewrittenStatements[j]->setParsingTime(avgParsingTime +
-    //                                            avgRewriteParsingTime);
-    //     rewrittenStatements[j]->setToInternal();
-    //     statements.push_back(std::move(rewrittenStatements[j]));
-    //   }
-    //   auto lastRewrittenStatement = rewrittenStatements.back();
-    //   lastRewrittenStatement->setParsingTime(avgParsingTime +
-    //                                          avgRewriteParsingTime);
-    //   statements.push_back(std::move(lastRewrittenStatement));
-    // }
   }
   return statements;
 }

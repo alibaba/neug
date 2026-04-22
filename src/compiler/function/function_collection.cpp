@@ -151,6 +151,8 @@ FunctionCollection* FunctionCollection::getFunctions() {
       SCALAR_FUNCTION(ReverseFunction),
 
       TABLE_FUNCTION(ShowLoadedExtensionsFunction),
+      TABLE_FUNCTION(ShowProjectedGraphsFunction),
+      TABLE_FUNCTION(ProjectedGraphInfoFunction),
       TABLE_FUNCTION(ProjectGraphFunction),
       TABLE_FUNCTION(DropProjectedGraphFunction),
       TABLE_FUNCTION(CSVReadFunction),
