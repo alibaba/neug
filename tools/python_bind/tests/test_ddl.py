@@ -504,21 +504,21 @@ def _get_edge_pair_relations_by_type_name(schema_text: str):
 
 def test_create_rel_table_edge_multiplicity(tmp_path):
     """
-    `CREATE REL TABLE` with a multiplicity token (e.g. MANY_ONE) is compiled to
+    `CREATE REL TABLE` with a multiplicity token (e.g. MANY_TO_ONE) is compiled to
     a physical `CreateEdgeSchema` with a matching `multiplicity` value. The Python
     API does not return raw physical plan text; the persisted graph schema from
     `get_schema()` exposes the same information per triplet as the ``relation``
     field (MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, MANY_TO_MANY).
 
-    Example: ``CREATE REL TABLE LivesIn(FROM User TO City, MANY_ONE);`` — use
+    Example: ``CREATE REL TABLE LivesIn(FROM User TO City, MANY_TO_ONE);`` — use
     ``pytest -s`` to see the printed lines.
     """
     cases = [
         # (edge_table, Cypher token) -> same labels as CreateEdgeSchema::Multiplicity
-        ("LivesIn", "MANY_ONE", "MANY_TO_ONE"),
-        ("Serves", "ONE_MANY", "ONE_TO_MANY"),
-        ("Tie", "ONE_ONE", "ONE_TO_ONE"),
-        ("Social", "MANY_MANY", "MANY_TO_MANY"),
+        ("LivesIn", "MANY_TO_ONE", "MANY_TO_ONE"),
+        ("Serves", "ONE_TO_MANY", "ONE_TO_MANY"),
+        ("Tie", "ONE_TO_ONE", "ONE_TO_ONE"),
+        ("Social", "MANY_TO_MANY", "MANY_TO_MANY"),
     ]
     for rel_name, mul_token, expect_relation in cases:
         db_dir = str(tmp_path / f"test_edge_mul_{rel_name}")
@@ -545,7 +545,7 @@ def test_create_rel_table_edge_multiplicity(tmp_path):
         db.close()
 
 
-def test_create_rel_table_with_options_execute_only(tmp_path):
+def test_create_rel_table_with_options(tmp_path):
     """
     `CREATE REL TABLE` may include a trailing ``WITH (k=v, ...)`` clause; only
     checks that the DDL runs without error (no return-value assertions).

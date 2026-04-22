@@ -52,6 +52,37 @@ CREATE REL TABLE IF NOT EXISTS knows (
 );
 ```
 
+**Multiplicity**
+
+Optionally, you can add exactly one *multiplicity* token after the last column definition (and a comma), before the closing `)` of the `CREATE REL TABLE` header. It describes cardinality along the forward direction (from source to target). Allowed values are `ONE_TO_ONE`, `ONE_TO_MANY`, `MANY_TO_ONE`, and `MANY_TO_MANY`. If you omit it, the edge type uses `MANY_TO_MANY` by default.
+
+For example, on the same `person` / `knows` / `weight` shape as above:
+
+```
+CREATE REL TABLE IF NOT EXISTS knows (
+    FROM person TO person,
+    weight DOUBLE,
+    MANY_TO_MANY
+);
+```
+
+**Table options (`WITH`)**
+
+You can append a `WITH ( … )` clause *after* the closing `)` of the table header. Inside the parentheses, pass one or more options as `name = value`, where values are literals. A common key is `sort_key`, whose value is typically a string literal naming an edge property used for ordering. The clause is optional.
+
+Example, still with `person`, `knows`, and `weight` only—here `weight` is used as the sort column name:
+
+```
+CREATE REL TABLE IF NOT EXISTS knows (
+    FROM person TO person,
+    weight DOUBLE
+) WITH (sort_key = 'weight');
+```
+
+**Where multiplicity and options apply**
+
+Multiplicity and `WITH` options are defined at **edge type** scope (the edge name and its shared column definitions), not at the level of an individual source–edge–target triplet. When a rel table declares multiple `FROM … TO …` entries for the same edge type, a single multiplicity value and a single option set apply uniformly to every such pair; per-pair multiplicity or option bindings are not supported.
+
 ## Drop Node Type
 
 Delete a specified Node type. Use IF EXISTS to avoid errors when the type doesn't exist.
