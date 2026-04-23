@@ -92,7 +92,7 @@ jobs:
     name: Cleanup NeuG Server
     needs: [start-server, run-benchmark]
     if: always()
-    runs-on: [self-hosted, ldbc-benchmark]
+    runs-on: [self-hosted, ldbc-benchmark-server]
     timeout-minutes: 10
     steps:
       - name: Stop NeuG server and save logs
