@@ -21,6 +21,6 @@ add_neug_test(test_indexer test_indexer.cc)
 add_neug_test(test_connection test_connection.cc)
 
 if (BUILD_HTTP_SERVER)
-    add_neug_test(test_http_server test_http_server.cc)
-    add_neug_test(test_db_svc test_db_svc.cc)
+    add_neug_svc_test(test_http_server test_http_server.cc)
+    add_neug_svc_test(test_db_svc test_db_svc.cc)
 endif()

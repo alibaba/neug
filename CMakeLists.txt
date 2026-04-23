@@ -427,7 +427,7 @@ function(add_neug_test TEST_NAME)
     add_executable(${TEST_NAME} ${SRCS})
     target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug   
         ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
-        ${CRYPTO_LIB})
+        ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
     if (ENABLE_GCOV)
         target_compile_options(${TEST_NAME} PRIVATE --coverage)
         target_link_options(${TEST_NAME} PRIVATE --coverage)
@@ -435,6 +435,11 @@ function(add_neug_test TEST_NAME)
     include(GoogleTest)
 	add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 	gtest_add_tests(TARGET ${TEST_NAME} TEST_LIST ${TEST_NAME}_tests)
+endfunction()
+
+function(add_neug_svc_test TEST_NAME)
+    add_neug_test(${TEST_NAME} ${ARGN})
+    target_link_libraries(${TEST_NAME} PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
 endfunction()
 
 
@@ -738,6 +743,14 @@ if(NEUG_USE_SYSTEM_ARROW)
             list(APPEND ARROW_LIB ${ARROW_PARQUET_LIB})
             message(STATUS "Found system parquet lib: ${ARROW_PARQUET_LIB}")
         endif()
+    endif()
+
+    # GNU ld scans static archives left-to-right in a single pass.  Sub-libs
+    # (dataset, acero, parquet …) reference symbols from the base arrow lib,
+    # so we append it again at the end to let ld resolve those back-references
+    # without requiring --start-group/--end-group.
+    if(NOT APPLE)
+        list(APPEND ARROW_LIB ${_ARROW_BASE_TARGET})
     endif()
 else()
     include(cmake/BuildArrowAsThirdParty.cmake)

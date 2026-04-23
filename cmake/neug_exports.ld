@@ -1,3 +1,14 @@
+/* Linker version-script for libneug.so and other neug binaries.
+ *
+ * Strategy: export everything by default, then selectively hide third-party
+ * symbols that would conflict with pyarrow's bundled copies.
+ *
+ * NOTE: we intentionally do NOT use "local: *" (hide-everything-by-default)
+ * because GNU ld applies local binding to UNDEF entries too.  Arrow's static
+ * sub-libraries (dataset, acero, csv, io, parquet) contain cross-references
+ * that remain as UNDEF in the .so; marking them local causes downstream
+ * executables to fail with "undefined reference" errors.
+ */
 {
   global:
     /* Export everything by default */

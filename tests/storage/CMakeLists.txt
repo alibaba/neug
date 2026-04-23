@@ -9,6 +9,9 @@ if (BUILD_HTTP_SERVER)
     list(APPEND storage_test_src test_recovery.cc test_checkpoint.cc)
 endif()
 add_neug_test(storage_test ${storage_test_src})
+if (BUILD_HTTP_SERVER)
+    target_link_libraries(storage_test PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
+endif()
 
 add_neug_test(csr_test test_csr_stream_ops.cc 
                        test_csr_batch_ops.cc

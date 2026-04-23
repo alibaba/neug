@@ -25,9 +25,9 @@ macro(neug_apply_symbol_visibility target)
         set_target_properties(${target} PROPERTIES LINK_DEPENDS
             "${CMAKE_SOURCE_DIR}/cmake/neug_unexported.sym")
     else()
-        target_link_options(${target} PRIVATE
-            "LINKER:--version-script=${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
-        set_target_properties(${target} PROPERTIES LINK_DEPENDS
-            "${CMAKE_SOURCE_DIR}/cmake/neug_exports.ld")
+        # --exclude-libs ALL hides every defined symbol that was pulled in from
+        # any static archive (.a).  Symbols defined in the target's own object
+        # files (compiled with -fvisibility=default via NEUG_API) remain exported.
+        target_link_options(${target} PRIVATE "LINKER:--exclude-libs,ALL")
     endif()
 endmacro()
