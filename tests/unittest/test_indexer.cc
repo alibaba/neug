@@ -596,5 +596,48 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
   indexer.drop();
 }
 
+// Test: String overflow handling when inserting strings exceeding max length.
+TEST_F(LFIndexerTest, VarcharStringOverflow) {
+  const std::string base = test_dir_ + "/varchar_string_overflow";
+  CreateEmptyIndicesFile(base);
+
+  // Create indexer with max string length of 32
+  auto type_info = std::make_shared<StringTypeInfo>(32);
+  LFIndexer<uint32_t> indexer;
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
+  indexer.open_in_memory(base);
+  indexer.reserve(4);
+  // Insert valid strings within the limit
+  std::vector<std::string> valid_strings = {
+      "short",                 // 5 chars
+      "medium_length_string",  // 21 chars
+      std::string(32, 'a'),    // exactly 32 chars (max length)
+      "boundary"               // 8 chars, to test boundary condition
+  };
+
+  for (const auto& v : valid_strings) {
+    indexer.insert(Property::from_string_view(v), false);
+  }
+  ExpectStringValues(indexer, valid_strings);
+  indexer.reserve(8);
+
+  // Test: Insert additional strings of 32 characters
+  std::string overflow_string = std::string(31, 'a');  // 31 chars
+  for (size_t i = 0; i < 2; ++i) {
+    std::string test_string =
+        overflow_string + std::to_string(i);  // 31 chars + 1 char = 32 chars
+    indexer.insert(Property::from_string_view(test_string), false);
+    valid_strings.push_back(test_string);
+  }
+  ExpectStringValues(indexer, valid_strings);
+
+  EXPECT_THROW(
+      indexer.insert(Property::from_string_view(overflow_string), false),
+      neug::exception::StorageException);
+
+  indexer.close();
+}
+
 }  // namespace
 }  // namespace neug
