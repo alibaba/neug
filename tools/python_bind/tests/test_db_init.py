@@ -418,3 +418,59 @@ def test_memory_level_invalid(tmp_path):
     with pytest.raises(Exception) as excinfo:
         Database(db_path=str(db_dir), mode="w", buffer_strategy="invalid_level")
         assert str(ERR_INVALID_ARGUMENT) in str(excinfo.value)
+
+
+def test_memory_growth(tmp_path):
+    """Verify that repeated serve/stop_serving cycles do not leak memory.
+
+    Strategy:
+    - Read RSS via resource.getrusage after each stop_serving.
+    - The last measurement must not exceed the first by more than a fixed
+      allowance (TOLERANCE_MB).  A constant offset is acceptable because
+      the first iteration may still be warming up (JIT, internal caches
+      that stabilise after the first cycle); what we guard against is
+      unbounded growth across many cycles.
+    """
+    import platform
+    import resource
+    import time
+
+    ITERATIONS = 100
+    PORT_BASE = 10020  # avoid collision with other tests' ports
+    TOLERANCE_MB = (
+        15  # empirical: ~7.82 MB observed over 100 rounds; 15 MB covers jitter
+    )
+
+    def rss_mb() -> float:
+        ru = resource.getrusage(resource.RUSAGE_SELF)
+        if platform.system() == "Darwin":
+            return ru.ru_maxrss / (1024 * 1024)  # macOS: bytes → MB
+        return ru.ru_maxrss / 1024  # Linux: KB → MB
+
+    db_dir = tmp_path / "memory_growth_db"
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    db = Database(db_path=str(db_dir), mode="w")
+
+    rss_samples = []
+
+    for i in range(ITERATIONS):
+        port = PORT_BASE + i
+        db.serve(port, "localhost", False)
+        time.sleep(0.5)  # let the server thread stabilise
+        db.stop_serving()
+        time.sleep(0.2)  # allow OS to reclaim resources
+        rss_samples.append(rss_mb())
+
+    db.close()
+
+    first = rss_samples[0]
+    last = rss_samples[-1]
+    growth = last - first
+    print(rss_samples)
+
+    assert growth <= TOLERANCE_MB, (
+        f"Memory grew by {growth:.1f} MB across {ITERATIONS} serve/stop cycles "
+        f"(samples: {[f'{v:.1f}' for v in rss_samples]} MB). "
+        f"Tolerance is {TOLERANCE_MB} MB."
+    )
