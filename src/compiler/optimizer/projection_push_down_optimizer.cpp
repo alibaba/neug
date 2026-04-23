@@ -281,18 +281,22 @@ void ProjectionPushDownOptimizer::visitTableFunctionCall(LogicalOperator* op) {
       }
     }
   }
-  std::vector<bool> columnSkips;
-  for (auto& column : scanBindData->columns) {
-    columnSkips.push_back(!variablesInUse.contains(column));
+  std::vector<std::string> projectColumns;
+  const auto& allColumns = scanBindData->columns;
+  projectColumns.reserve(allColumns.size());
+  for (auto& column : allColumns) {
+    if (variablesInUse.contains(column)) {
+      projectColumns.push_back(column->rawName());
+    }
   }
   // Keep at least one column to handle the query like 'LOAD FROM "file.csv"
   // RETURN count(*)'.
-  if (!columnSkips.empty() &&
-      std::all_of(columnSkips.begin(), columnSkips.end(),
-                  [](bool skip) { return skip; })) {
-    columnSkips[0] = false;
+  if (!allColumns.empty() && projectColumns.empty()) {
+    projectColumns.push_back(allColumns[0]->rawName());
   }
-  tableFunctionCall.setColumnSkips(std::move(columnSkips));
+  if (projectColumns.size() < allColumns.size()) {
+    tableFunctionCall.setProjectColumns(std::move(projectColumns));
+  }
 }
 
 void ProjectionPushDownOptimizer::visitSetInfo(
