@@ -720,6 +720,31 @@ std::unique_ptr<::common::Expression> GExprConverter::convertToTupleFunc(
   return exprPB;
 }
 
+std::unique_ptr<::common::Expression> GExprConverter::convertToListFunc(
+    const binder::Expression& expr,
+    const std::vector<std::string>& schemaAlias) {
+  if (expr.getChildren().empty()) {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Array function should have at least one child");
+  }
+  auto listPB = std::make_unique<::common::ToList>();
+  for (auto child : expr.getChildren()) {
+    auto exprPB = convert(*child, schemaAlias);
+    if (exprPB->operators_size() == 0) {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "convert child of array function failed, empty expression");
+    }
+    auto fieldPB = listPB->add_fields();
+    *fieldPB = std::move(*exprPB);
+  }
+  auto exprPB = std::make_unique<::common::Expression>();
+  auto opr = exprPB->add_operators();
+  opr->set_allocated_to_list(listPB.release());
+  opr->set_allocated_node_type(
+      typeConverter.convertLogicalType(expr.getDataType().copy()).release());
+  return exprPB;
+}
+
 std::unique_ptr<::common::Expression> GExprConverter::convertCaseExpression(
     const binder::CaseExpression& expr,
     const std::vector<std::string>& schemaAlias) {
@@ -763,7 +788,9 @@ std::unique_ptr<::common::Expression> GExprConverter::convertScalarFunc(
     return convertPatternExtractFunc(expr, schemaAlias);
   } else if (scalarType.getType() == PROPERTIES) {
     return convertPropertiesFunc(expr, schemaAlias);
-  } else if (scalarType.getType() == TO_ARRAY) {
+  } else if (scalarType.getType() == TO_LIST) {
+    return convertToListFunc(expr, schemaAlias);
+  } else if (scalarType.getType() == TO_TUPLE) {
     return convertToTupleFunc(expr, schemaAlias);
   } else if (scalarType.getType() == STARTS_WITH ||
              scalarType.getType() == ENDS_WITH ||
