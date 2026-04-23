@@ -42,6 +42,9 @@ struct OwnedSchema {
 };
 
 struct OwnedArray {
+  // keeps protobuf memory alive for zero-copy buffers (validity
+  //  bitmaps and numeric RepeatedField data).
+  std::shared_ptr<const neug::QueryResponse> response;
   std::vector<std::vector<uint8_t>> owned_buffers;
   std::vector<const void*> buffer_ptrs;
   std::vector<ArrowArray> children;
@@ -76,29 +79,22 @@ static int64_t count_nulls(const std::string& validity, int64_t length) {
   return nulls;
 }
 
-static std::vector<uint8_t> copy_validity(const std::string& validity,
-                                          int64_t length) {
-  if (validity.empty()) {
-    return {};
-  }
-  size_t nbytes = (length + 7) / 8;
-  std::vector<uint8_t> buf(nbytes, 0);
-  std::memcpy(buf.data(), validity.data(), std::min(nbytes, validity.size()));
-  return buf;
-}
-
 // ---- Common ArrowArray initializer ----------------------------------------
-// Creates an OwnedArray, pushes the validity buffer, and fills arr fields.
+// Creates an OwnedArray, sets the validity buffer pointer (zero-copy: points
+// directly into the protobuf bytes field), and fills arr fields.
+// The caller must ensure `response` is non-null so that the validity memory
+// stays alive until the ArrowArray is released.
 // Returns the OwnedArray* so callers can add more buffers / children.
-static OwnedArray* init_arrow_array(ArrowArray& arr,
-                                    const std::string& validity, int64_t length,
-                                    int n_buffers, int n_children = 0) {
+static OwnedArray* init_arrow_array(
+    ArrowArray& arr, const std::string& validity, int64_t length, int n_buffers,
+    std::shared_ptr<const neug::QueryResponse> response, int n_children = 0) {
   auto* holder = new OwnedArray();
-  holder->owned_buffers.push_back(copy_validity(validity, length));
+  holder->response = std::move(response);
   holder->buffer_ptrs.resize(n_buffers, nullptr);
-  holder->buffer_ptrs[0] = holder->owned_buffers[0].empty()
+  // Zero-copy: point directly into the protobuf validity bytes.
+  holder->buffer_ptrs[0] = validity.empty()
                                ? nullptr
-                               : holder->owned_buffers[0].data();
+                               : reinterpret_cast<const void*>(validity.data());
 
   std::memset(&arr, 0, sizeof(arr));
   arr.length = length;
@@ -130,8 +126,9 @@ static void init_schema(ArrowSchema& s, const char* format, const char* name) {
 static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
                                 const neug::Array& pb_col,
                                 const char* col_name);
-static void build_column_array(ArrowArray& arr, const neug::Array& pb_col,
-                               int64_t length);
+static void build_column_array(
+    ArrowArray& arr, const neug::Array& pb_col, int64_t length,
+    std::shared_ptr<const neug::QueryResponse> response);
 
 // ---- Schema builder -------------------------------------------------------
 static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
@@ -193,23 +190,24 @@ static void build_column_schema(OwnedSchema& root, ArrowSchema& col,
 
 // ---- Array builders -------------------------------------------------------
 
+// Zero-copy for numeric types: directly reference RepeatedField<T>::data().
 template <typename CType, typename PBArray>
-static void build_numeric_array(ArrowArray& arr, const PBArray& pb,
-                                const std::string& validity, int64_t length) {
-  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/2);
-  std::vector<uint8_t> data(length * sizeof(CType));
-  auto* dst = reinterpret_cast<CType*>(data.data());
-  for (int64_t i = 0; i < length; ++i) {
-    dst[i] = static_cast<CType>(pb.values(i));
-  }
-  h->owned_buffers.push_back(std::move(data));
-  h->buffer_ptrs[1] = h->owned_buffers.back().data();
+static void build_numeric_array(
+    ArrowArray& arr, const PBArray& pb, const std::string& validity,
+    int64_t length, std::shared_ptr<const neug::QueryResponse> response) {
+  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/2,
+                             std::move(response));
+  // Data buffer – zero-copy: point directly into protobuf RepeatedField.
+  h->buffer_ptrs[1] = reinterpret_cast<const void*>(pb.values().data());
   arr.buffers = h->buffer_ptrs.data();
 }
 
-static void build_bool_array(ArrowArray& arr, const neug::BoolArray& pb,
-                             const std::string& validity, int64_t length) {
-  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/2);
+// Bool requires bit-packing (protobuf stores 1-byte-per-bool).
+static void build_bool_array(
+    ArrowArray& arr, const neug::BoolArray& pb, const std::string& validity,
+    int64_t length, std::shared_ptr<const neug::QueryResponse> response) {
+  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/2,
+                             std::move(response));
   std::vector<uint8_t> data((length + 7) / 8, 0);
   for (int64_t i = 0; i < length; ++i) {
     if (pb.values(i)) {
@@ -221,10 +219,13 @@ static void build_bool_array(ArrowArray& arr, const neug::BoolArray& pb,
   arr.buffers = h->buffer_ptrs.data();
 }
 
+// String types require offsets+data concatenation (layout incompatible).
 template <typename PBArray>
-static void build_string_array(ArrowArray& arr, const PBArray& pb,
-                               const std::string& validity, int64_t length) {
-  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/3);
+static void build_string_array(
+    ArrowArray& arr, const PBArray& pb, const std::string& validity,
+    int64_t length, std::shared_ptr<const neug::QueryResponse> response) {
+  auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/3,
+                             std::move(response));
 
   // Offsets
   std::vector<uint8_t> offsets_buf((length + 1) * sizeof(int32_t));
@@ -255,55 +256,63 @@ static void build_string_array(ArrowArray& arr, const PBArray& pb,
   arr.buffers = h->buffer_ptrs.data();
 }
 
-static void build_column_array(ArrowArray& arr, const neug::Array& col,
-                               int64_t length) {
-  // Numeric types
+static void build_column_array(
+    ArrowArray& arr, const neug::Array& col, int64_t length,
+    std::shared_ptr<const neug::QueryResponse> response) {
+  // Numeric types – zero-copy
   if (col.has_int32_array()) {
-    return build_numeric_array<int32_t>(arr, col.int32_array(),
-                                        col.int32_array().validity(), length);
+    return build_numeric_array<int32_t>(
+        arr, col.int32_array(), col.int32_array().validity(), length, response);
   } else if (col.has_uint32_array()) {
     return build_numeric_array<uint32_t>(arr, col.uint32_array(),
-                                         col.uint32_array().validity(), length);
+                                         col.uint32_array().validity(), length,
+                                         response);
   } else if (col.has_int64_array()) {
-    return build_numeric_array<int64_t>(arr, col.int64_array(),
-                                        col.int64_array().validity(), length);
+    return build_numeric_array<int64_t>(
+        arr, col.int64_array(), col.int64_array().validity(), length, response);
   } else if (col.has_uint64_array()) {
     return build_numeric_array<uint64_t>(arr, col.uint64_array(),
-                                         col.uint64_array().validity(), length);
+                                         col.uint64_array().validity(), length,
+                                         response);
   } else if (col.has_float_array()) {
-    return build_numeric_array<float>(arr, col.float_array(),
-                                      col.float_array().validity(), length);
+    return build_numeric_array<float>(
+        arr, col.float_array(), col.float_array().validity(), length, response);
   } else if (col.has_double_array()) {
     return build_numeric_array<double>(arr, col.double_array(),
-                                       col.double_array().validity(), length);
+                                       col.double_array().validity(), length,
+                                       response);
   } else if (col.has_timestamp_array()) {
-    return build_numeric_array<int64_t>(
-        arr, col.timestamp_array(), col.timestamp_array().validity(), length);
+    return build_numeric_array<int64_t>(arr, col.timestamp_array(),
+                                        col.timestamp_array().validity(),
+                                        length, response);
   } else if (col.has_date_array()) {
-    return build_numeric_array<int64_t>(arr, col.date_array(),
-                                        col.date_array().validity(), length);
+    return build_numeric_array<int64_t>(
+        arr, col.date_array(), col.date_array().validity(), length, response);
+    // Bool – bit-pack conversion required
   } else if (col.has_bool_array()) {
     return build_bool_array(arr, col.bool_array(), col.bool_array().validity(),
-                            length);
+                            length, response);
+    // String-like types – offsets+data copy required
   } else if (col.has_string_array()) {
     return build_string_array(arr, col.string_array(),
-                              col.string_array().validity(), length);
+                              col.string_array().validity(), length, response);
   } else if (col.has_interval_array()) {
     return build_string_array(arr, col.interval_array(),
-                              col.interval_array().validity(), length);
+                              col.interval_array().validity(), length,
+                              response);
   } else if (col.has_vertex_array()) {
     return build_string_array(arr, col.vertex_array(),
-                              col.vertex_array().validity(), length);
+                              col.vertex_array().validity(), length, response);
   } else if (col.has_edge_array()) {
     return build_string_array(arr, col.edge_array(),
-                              col.edge_array().validity(), length);
+                              col.edge_array().validity(), length, response);
   } else if (col.has_path_array()) {
     return build_string_array(arr, col.path_array(),
-                              col.path_array().validity(), length);
+                              col.path_array().validity(), length, response);
   } else if (col.has_list_array()) {
     const auto& la = col.list_array();
     auto* h = init_arrow_array(arr, la.validity(), length, /*n_buffers=*/2,
-                               /*n_children=*/1);
+                               response, /*n_children=*/1);
     // Offsets
     std::vector<uint8_t> offsets_buf((length + 1) * sizeof(int32_t));
     auto* offsets = reinterpret_cast<uint32_t*>(offsets_buf.data());
@@ -313,34 +322,50 @@ static void build_column_array(ArrowArray& arr, const neug::Array& col,
     h->owned_buffers.push_back(std::move(offsets_buf));
     h->buffer_ptrs[1] = h->owned_buffers.back().data();
     arr.buffers = h->buffer_ptrs.data();
-    // Child
+    // Child – pass response for potential zero-copy in nested numeric columns
     h->children.resize(1);
     h->child_ptrs = {&h->children[0]};
-    build_column_array(h->children[0], la.elements(), offsets[length]);
+    build_column_array(h->children[0], la.elements(), offsets[length],
+                       response);
     arr.children = h->child_ptrs.data();
   } else if (col.has_struct_array()) {
     const auto& sa = col.struct_array();
     int nf = sa.fields_size();
     auto* h = init_arrow_array(arr, sa.validity(), length, /*n_buffers=*/1,
-                               /*n_children=*/nf);
+                               response, /*n_children=*/nf);
     arr.buffers = h->buffer_ptrs.data();
     h->children.resize(nf);
     h->child_ptrs.resize(nf);
     for (int i = 0; i < nf; ++i) {
-      build_column_array(h->children[i], sa.fields(i), length);
+      build_column_array(h->children[i], sa.fields(i), length, response);
       h->child_ptrs[i] = &h->children[i];
     }
     arr.children = h->child_ptrs.data();
   } else {
-    std::string validity((length + 7) / 8, '\0');
-    auto* h = init_arrow_array(arr, validity, length, /*n_buffers=*/3);
+    // Fallback: all-null utf8 column
+    std::string null_validity((length + 7) / 8, '\0');
+    // For the fallback we cannot zero-copy the validity because it is a local
+    // string, so we allocate a copy.
+    auto* h = new OwnedArray();
+    h->response = response;
+    std::vector<uint8_t> val_buf(null_validity.begin(), null_validity.end());
+    h->owned_buffers.push_back(std::move(val_buf));
+    h->buffer_ptrs.resize(3, nullptr);
+    h->buffer_ptrs[0] = h->owned_buffers[0].data();
     std::vector<uint8_t> offsets_buf((length + 1) * sizeof(int32_t), 0);
     h->owned_buffers.push_back(std::move(offsets_buf));
     h->buffer_ptrs[1] = h->owned_buffers.back().data();
     std::vector<uint8_t> data_buf;
     h->owned_buffers.push_back(std::move(data_buf));
-    h->buffer_ptrs[2] = h->owned_buffers.back().data();
+    h->buffer_ptrs[2] = nullptr;
+
+    std::memset(&arr, 0, sizeof(arr));
+    arr.length = length;
+    arr.null_count = length;
+    arr.n_buffers = 3;
     arr.buffers = h->buffer_ptrs.data();
+    arr.private_data = h;
+    arr.release = release_arrow_array;
   }
 }
 
@@ -668,9 +693,11 @@ std::string PyQueryResult::get_bolt_response() const {
 }
 
 pybind11::object PyQueryResult::to_arrow() const {
-  const auto& response = query_result_.response();
-  int64_t n_rows = static_cast<int64_t>(response.row_count());
-  int n_cols = response.arrays_size();
+  // Zero-copy: share ownership of the QueryResponse protobuf.
+  auto response = query_result_.shared_response();
+
+  int64_t n_rows = static_cast<int64_t>(response->row_count());
+  int n_cols = response->arrays_size();
 
   if (n_cols == 0) {
     // Return an empty pyarrow.Table
@@ -693,7 +720,7 @@ pybind11::object PyQueryResult::to_arrow() const {
     schema_holder->child_ptrs[i] = &schema_holder->children[i];
     const char* cname = dup_string(*schema_holder, names[i]);
     build_column_schema(*schema_holder, schema_holder->children[i],
-                        response.arrays(i), cname);
+                        response->arrays(i), cname);
   }
 
   ArrowSchema root_schema;
@@ -710,13 +737,15 @@ pybind11::object PyQueryResult::to_arrow() const {
 
   // --- Build the top-level ArrowArray (struct of column arrays) -------------
   auto array_holder = new OwnedArray();
+  array_holder->response = response;  // root also holds a reference
   // Struct root has 1 buffer (validity – nullptr means all-valid).
   array_holder->buffer_ptrs = {nullptr};
   array_holder->children.resize(n_cols);
   array_holder->child_ptrs.resize(n_cols);
 
   for (int i = 0; i < n_cols; ++i) {
-    build_column_array(array_holder->children[i], response.arrays(i), n_rows);
+    build_column_array(array_holder->children[i], response->arrays(i), n_rows,
+                       response);
     array_holder->child_ptrs[i] = &array_holder->children[i];
   }
 

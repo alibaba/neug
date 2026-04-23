@@ -425,7 +425,7 @@ function(add_neug_test TEST_NAME)
     find_package(OpenSSL REQUIRED)
     set(SRCS ${ARGN})
     add_executable(${TEST_NAME} ${SRCS})
-    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug   
+    target_link_libraries(${TEST_NAME} PUBLIC neug::GTest neug
         ${Protobuf_LIBRARIES} ${GLOG_LIBRARIES} ${ARROW_LIB} ${OPENSSL_LIBRARIES} 
         ${CRYPTO_LIB} ${YAML_CPP_LIBRARIES})
     if (ENABLE_GCOV)
