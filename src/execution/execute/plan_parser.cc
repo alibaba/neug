@@ -38,6 +38,7 @@
 
 #include "neug/execution/execute/ops/retrieve/dedup.h"
 #include "neug/execution/execute/ops/retrieve/edge.h"
+#include "neug/execution/execute/ops/retrieve/gds_algo.h"
 #include "neug/execution/execute/ops/retrieve/group_by.h"
 #include "neug/execution/execute/ops/retrieve/intersect.h"
 #include "neug/execution/execute/ops/retrieve/join.h"
@@ -132,6 +133,7 @@ void PlanParser::init() {
   register_operator_builder(std::make_unique<ops::UpdateEdgeOprBuilder>());
   // TODO: Review which pipeline should procedureCall be put.
   register_operator_builder(std::make_unique<ops::ProcedureCallOprBuilder>());
+  register_operator_builder(std::make_unique<ops::GDSAlgoOprBuilder>());
 
   // ---------------------- DDL Operators ----------------------
   register_operator_builder(
@@ -250,6 +252,9 @@ static std::string get_opr_name(
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kProcedureCall: {
     return "procedure_call";
+  }
+  case physical::PhysicalOpr_Operator::OpKindCase::kGdsAlgo: {
+    return "gds_algo";
   }
   case physical::PhysicalOpr_Operator::OpKindCase::kCheckpoint: {
     return "checkpoint";

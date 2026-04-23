@@ -126,5 +126,7 @@ endfunction()
 add_extension_if_enabled("json")
 # Add parquet extension
 add_extension_if_enabled("parquet")
+# Add gds (graph data science) extension
+add_extension_if_enabled("gds")
 
 message(STATUS "=== Extension configuration complete ===")

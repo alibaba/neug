@@ -482,8 +482,19 @@ std::unique_ptr<ParsedExpression> Transformer::transformListLiteral(
 
 std::unique_ptr<ParsedExpression> Transformer::transformStructLiteral(
     CypherParser::NEUG_StructLiteralContext& ctx) {
-  THROW_EXCEPTION_WITH_FILE_LINE("Unsupported struct literal: " +
-                                 ctx.getText());
+  auto structPack = std::make_unique<ParsedFunctionExpression>(
+      StructPackFunctions::name, ctx.getText());
+  for (auto& structField : ctx.nEUG_StructField()) {
+    auto structExpr = transformExpression(*structField->oC_Expression());
+    std::string paramName;
+    if (structField->oC_SymbolicName()) {
+      paramName = transformSymbolicName(*structField->oC_SymbolicName());
+    } else {
+      paramName = transformStringLiteral(*structField->StringLiteral());
+    }
+    structPack->addOptionalParams(std::move(paramName), std::move(structExpr));
+  }
+  return structPack;
 }
 
 std::unique_ptr<ParsedExpression> Transformer::transformParameterExpression(
