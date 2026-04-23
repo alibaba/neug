@@ -21,6 +21,7 @@ target_include_directories(neug_json_extension PRIVATE SYSTEM ${CMAKE_SOURCE_DIR
 target_link_libraries(neug_json_extension PRIVATE
     neug
     ${ARROW_LIB}
+    ${Protobuf_LIBRARIES}
 )
 
 # Build test by compiling extension sources directly (no link to neug_json_extension)

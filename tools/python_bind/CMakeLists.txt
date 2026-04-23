@@ -22,6 +22,9 @@ endif()
 # libneug.dylib hides these symbols to avoid conflicts with pyarrow, so
 # neug_py_bind must link its own copy.
 target_link_libraries(neug_py_bind PRIVATE ${NEUG_LIBRARIES} ${GLOG_LIBRARIES} ${Protobuf_LIBRARIES})
+if (BUILD_HTTP_SERVER)
+    target_link_libraries(neug_py_bind PRIVATE ${BRPC_LIB} ${LEVELDB_LIB})
+endif()
 
 # Hide protobuf/abseil/arrow symbols from neug_py_bind.so as well, so they
 # don't leak into the Python process and conflict with pyarrow's copies.
