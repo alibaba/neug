@@ -92,179 +92,6 @@ static std::shared_ptr<parquet::WriterProperties> buildWriterProperties(
   return builder.build();
 }
 
-// Helper function to infer Arrow type from JSON value
-static std::shared_ptr<arrow::DataType> inferArrowTypeFromJsonValue(
-    const rapidjson::Value& json_val) {
-  if (json_val.IsNull()) {
-    return arrow::null();
-  } else if (json_val.IsBool()) {
-    return arrow::boolean();
-  } else if (json_val.IsInt64()) {
-    return arrow::int64();
-  } else if (json_val.IsUint64()) {
-    // Uint64 values should be uint64, not int64
-    return arrow::uint64();
-  } else if (json_val.IsInt()) {
-    return arrow::int64();
-  } else if (json_val.IsUint()) {
-    return arrow::uint64();
-  } else if (json_val.IsDouble()) {
-    return arrow::float64();
-  } else if (json_val.IsString()) {
-    return arrow::utf8();
-  } else if (json_val.IsArray()) {
-    // For arrays, infer from first element
-    if (json_val.Empty()) {
-      return arrow::list(arrow::null());
-    }
-    auto elem_type = inferArrowTypeFromJsonValue(json_val[0]);
-    return arrow::list(elem_type);
-  } else if (json_val.IsObject()) {
-    // For objects, create struct type
-    std::vector<std::shared_ptr<arrow::Field>> fields;
-    for (auto it = json_val.MemberBegin(); it != json_val.MemberEnd(); ++it) {
-      std::string field_name = it->name.GetString();
-      auto field_type = inferArrowTypeFromJsonValue(it->value);
-      fields.push_back(arrow::field(field_name, field_type));
-    }
-    return arrow::struct_(fields);
-  }
-  return arrow::null();
-}
-
-// Helper function to convert JSON value to Arrow array element
-static arrow::Status AppendJsonValueToBuilder(
-    const rapidjson::Value& json_val,
-    arrow::ArrayBuilder* builder) {
-  
-  if (json_val.IsNull()) {
-    return builder->AppendNull();
-  } else if (json_val.IsBool()) {
-    auto* bool_builder = static_cast<arrow::BooleanBuilder*>(builder);
-    return bool_builder->Append(json_val.GetBool());
-  } else if (json_val.IsInt64()) {
-    auto* int_builder = static_cast<arrow::Int64Builder*>(builder);
-    return int_builder->Append(json_val.GetInt64());
-  } else if (json_val.IsUint64()) {
-    auto* uint_builder = static_cast<arrow::UInt64Builder*>(builder);
-    return uint_builder->Append(json_val.GetUint64());
-  } else if (json_val.IsInt()) {
-    auto* int_builder = static_cast<arrow::Int64Builder*>(builder);
-    return int_builder->Append(static_cast<int64_t>(json_val.GetInt()));
-  } else if (json_val.IsUint()) {
-    auto* uint_builder = static_cast<arrow::UInt64Builder*>(builder);
-    return uint_builder->Append(static_cast<uint64_t>(json_val.GetUint()));
-  } else if (json_val.IsDouble()) {
-    auto* double_builder = static_cast<arrow::DoubleBuilder*>(builder);
-    return double_builder->Append(json_val.GetDouble());
-  } else if (json_val.IsString()) {
-    auto* string_builder = static_cast<arrow::StringBuilder*>(builder);
-    return string_builder->Append(json_val.GetString());
-  } else if (json_val.IsObject()) {
-    // Handle as struct
-    auto* struct_builder = static_cast<arrow::StructBuilder*>(builder);
-    
-    for (auto it = json_val.MemberBegin(); it != json_val.MemberEnd(); ++it) {
-      // Find field index by name
-      std::string field_name = it->name.GetString();
-      int field_idx = -1;
-      auto struct_type = std::static_pointer_cast<arrow::StructType>(builder->type());
-      for (int i = 0; i < struct_type->num_fields(); ++i) {
-        if (struct_type->field(i)->name() == field_name) {
-          field_idx = i;
-          break;
-        }
-      }
-      
-      if (field_idx >= 0) {
-        auto field_builder = struct_builder->field_builder(field_idx);
-        ARROW_RETURN_NOT_OK(AppendJsonValueToBuilder(it->value, field_builder));
-      }
-    }
-    return struct_builder->Append();
-  } else if (json_val.IsArray()) {
-    auto* list_builder = static_cast<arrow::ListBuilder*>(builder);
-    auto elem_builder = list_builder->value_builder();
-    
-    for (size_t i = 0; i < json_val.Size(); ++i) {
-      ARROW_RETURN_NOT_OK(AppendJsonValueToBuilder(json_val[i], elem_builder));
-    }
-    return list_builder->Append();
-  } else {
-    return arrow::Status::NotImplemented(
-        "Unsupported JSON value type");
-  }
-}
-
-// Helper function to convert graph JSON array (Vertex/Edge/Path) to Arrow StructArray
-static std::shared_ptr<arrow::Array> convertGraphJsonToArray(
-    const Array& proto_array,
-    const std::shared_ptr<arrow::DataType>& arrow_type,
-    arrow::MemoryPool* pool) {
-  int num_rows = 0;
-  const std::string* validity = nullptr;
-  
-  // Determine which graph type we're dealing with
-  std::function<std::string(int)> get_json;
-  if (proto_array.has_vertex_array()) {
-    const auto& arr = proto_array.vertex_array();
-    num_rows = arr.values_size();
-    validity = &arr.validity();
-    get_json = [&arr](int i) { return arr.values(i); };
-  } else if (proto_array.has_edge_array()) {
-    const auto& arr = proto_array.edge_array();
-    num_rows = arr.values_size();
-    validity = &arr.validity();
-    get_json = [&arr](int i) { return arr.values(i); };
-  } else if (proto_array.has_path_array()) {
-    const auto& arr = proto_array.path_array();
-    num_rows = arr.values_size();
-    validity = &arr.validity();
-    get_json = [&arr](int i) { return arr.values(i); };
-  } else {
-    THROW_INVALID_ARGUMENT_EXCEPTION("Expected vertex/edge/path array for STRUCT type");
-  }
-  
-  if (num_rows == 0) {
-    return std::make_shared<arrow::StructArray>(arrow_type, 0, std::vector<std::shared_ptr<arrow::Array>>{});
-  }
-  
-  // Parse first JSON to infer structure
-  rapidjson::Document first_doc;
-  first_doc.Parse(get_json(0).c_str());
-  auto struct_type = inferArrowTypeFromJsonValue(first_doc);
-  
-  // Build arrays for each row
-  auto builder_result = arrow::MakeBuilder(struct_type, pool);
-  if (!builder_result.ok()) {
-    THROW_RUNTIME_ERROR("Failed to create builder: " + builder_result.status().ToString());
-  }
-  auto& builder = *builder_result;
-  
-  for (int i = 0; i < num_rows; ++i) {
-    if (writer::StringFormatBuffer::validateProtoValue(*validity, i)) {
-      rapidjson::Document doc;
-      doc.Parse(get_json(i).c_str());
-      auto status = AppendJsonValueToBuilder(doc, builder.get());
-      if (!status.ok()) {
-        THROW_RUNTIME_ERROR("Failed to append JSON: " + status.ToString());
-      }
-    } else {
-      auto status = builder->AppendNull();
-      if (!status.ok()) {
-        THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
-      }
-    }
-  }
-  
-  std::shared_ptr<arrow::Array> array;
-  auto status = builder->Finish(&array);
-  if (!status.ok()) {
-    THROW_RUNTIME_ERROR("Failed to finish array: " + status.ToString());
-  }
-  return array;
-}
-
 // Infer Arrow type from protobuf Array structure
 static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
     const Array& proto_array) {
@@ -308,35 +135,7 @@ static std::shared_ptr<arrow::DataType> inferArrowTypeFromArray(
   } else if (proto_array.has_vertex_array() || 
              proto_array.has_edge_array() || 
              proto_array.has_path_array()) {
-    // Vertex/Edge/Path are JSON strings in protobuf, but we parse them
-    // and convert to native Arrow structures
-    // Parse the first JSON value to infer the structure
-    std::string first_json;
-    if (proto_array.has_vertex_array()) {
-      const auto& arr = proto_array.vertex_array();
-      if (arr.values_size() > 0) {
-        first_json = arr.values(0);
-      }
-    } else if (proto_array.has_edge_array()) {
-      const auto& arr = proto_array.edge_array();
-      if (arr.values_size() > 0) {
-        first_json = arr.values(0);
-      }
-    } else if (proto_array.has_path_array()) {
-      const auto& arr = proto_array.path_array();
-      if (arr.values_size() > 0) {
-        first_json = arr.values(0);
-      }
-    }
-    
-    if (!first_json.empty()) {
-      rapidjson::Document doc;
-      doc.Parse(first_json.c_str());
-      if (!doc.HasParseError()) {
-        return inferArrowTypeFromJsonValue(doc);
-      }
-    }
-    // Fallback to string if we can't parse
+    // Vertex/Edge/Path are exported as JSON strings (not StructArray)
     return arrow::large_utf8();
   } else if (proto_array.has_interval_array()) {
     // Interval type: convert to string for Parquet compatibility
@@ -489,8 +288,47 @@ static std::shared_ptr<arrow::Array> protoArrayToArrowArray(
   } else if (proto_array.has_vertex_array() || 
              proto_array.has_edge_array() || 
              proto_array.has_path_array()) {
-    // Handle Vertex/Edge/Path types (JSON strings -> native Arrow structures)
-    return convertGraphJsonToArray(proto_array, arrow_type, pool);
+    // Vertex/Edge/Path are stored as JSON strings in protobuf.
+    // We export them directly as JSON strings (not StructArray).
+    //
+    // NOTE: Why not convert to StructArray?
+    // Parquet StructArray has columnar advantages (compression, predicate pushdown, etc.),
+    // but requires ALL rows to have the SAME schema. Mixed-type vertices/edges have different
+    // properties, causing schema conflicts and sparse data.
+    
+    // Extract JSON strings from the appropriate field
+    arrow::LargeStringBuilder builder(pool);
+    
+    auto append_json_strings = [&](const auto& arr) {
+      for (int i = 0; i < arr.values_size(); ++i) {
+        if (writer::StringFormatBuffer::validateProtoValue(arr.validity(), i)) {
+          auto status = builder.Append(arr.values(i));
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append JSON string: " + status.ToString());
+          }
+        } else {
+          auto status = builder.AppendNull();
+          if (!status.ok()) {
+            THROW_RUNTIME_ERROR("Failed to append null: " + status.ToString());
+          }
+        }
+      }
+    };
+    
+    if (proto_array.has_vertex_array()) {
+      append_json_strings(proto_array.vertex_array());
+    } else if (proto_array.has_edge_array()) {
+      append_json_strings(proto_array.edge_array());
+    } else {
+      append_json_strings(proto_array.path_array());
+    }
+    
+    std::shared_ptr<arrow::Array> result;
+    auto status = builder.Finish(&result);
+    if (!status.ok()) {
+      THROW_RUNTIME_ERROR("Failed to finish JSON string array: " + status.ToString());
+    }
+    return result;
   } else {
     THROW_INVALID_ARGUMENT_EXCEPTION(
         "Unsupported protobuf array type for conversion");
