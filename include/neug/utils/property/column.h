@@ -75,7 +75,7 @@ class ColumnBase {
   // value is fixed length, we should already have enough space allocated, so
   // insert_safe can be false.
   virtual void set_any(size_t index, const Property& value,
-                       bool insert_safe = false) = 0;
+                       bool insert_safe) = 0;
 
   virtual Property get_prop(size_t index) const = 0;
 
@@ -308,6 +308,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
     auto raw_items =
         reinterpret_cast<const string_item*>(items_buffer_->GetData());
     auto raw_data = reinterpret_cast<const char*>(data_buffer_->GetData());
+    MD5_CTX data_ctx, item_ctx;
+    MD5_Init(&data_ctx);
+    MD5_Init(&item_ctx);
     string_item cur_item;
     size_t offset = 0;
     size_t count_no_empty = 0;
@@ -317,6 +320,7 @@ class TypedColumn<std::string_view> : public ColumnBase {
       if (item.offset == pre_item.offset && item.length == pre_item.length) {
         // If the current item is the same as the previous one, we can reuse the
         // offset and length without writing duplicate data.
+        MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
         item_out.write(reinterpret_cast<const char*>(&cur_item),
                        sizeof(cur_item));
         continue;
@@ -324,6 +328,8 @@ class TypedColumn<std::string_view> : public ColumnBase {
       pre_item = item;
       data_out.write(raw_data + item.offset, item.length);
       cur_item = {offset, item.length};
+      MD5_Update(&data_ctx, raw_data + item.offset, item.length);
+      MD5_Update(&item_ctx, &cur_item, sizeof(cur_item));
       item_out.write(reinterpret_cast<const char*>(&cur_item),
                      sizeof(cur_item));
       offset += item.length;
@@ -331,8 +337,17 @@ class TypedColumn<std::string_view> : public ColumnBase {
         count_no_empty++;
       }
     }
-    // TODO: filled in md5 header after writing data, currently we skip md5
-    // verification, so it is not critical.
+
+    MD5_Final(header.data_md5, &data_ctx);
+
+    data_out.seekp(0);
+    data_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+    MD5_Final(header.data_md5, &item_ctx);
+    item_out.seekp(0);
+    item_out.write(reinterpret_cast<const char*>(&header.data_md5),
+                   sizeof(header.data_md5));
+
     data_out.flush();
     item_out.flush();
     data_out.close();
@@ -428,10 +443,20 @@ class TypedColumn<std::string_view> : public ColumnBase {
     }
     auto dst_value = value.as_string_view();
     if (pos_.load() + dst_value.size() > data_buffer_->GetDataSize()) {
-      size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
-      size_t new_len =
-          std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
-      data_buffer_->Resize(new_len);
+      if (insert_safe) {
+        size_t new_avg_width = (pos_.load() + idx) / (idx + 1);
+        size_t new_len =
+            std::max(size_ * new_avg_width, pos_.load() + dst_value.size());
+        data_buffer_->Resize(new_len);
+      } else {
+        std::stringstream ss;
+        ss << "Not enough space in buffer for new value, and insert_safe is "
+              "false. "
+           << "Current buffer size: " << data_buffer_->GetDataSize()
+           << ", current position: " << pos_.load()
+           << ", new value size: " << dst_value.size();
+        THROW_STORAGE_EXCEPTION(ss.str());
+      }
     }
     set_value(idx, dst_value);
   }
@@ -501,7 +526,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
         non_zero_count++;
       }
     }
-    return non_zero_count > 0 ? total_length / non_zero_count : 0;
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
   }
 
   std::unique_ptr<IDataContainer> items_buffer_;
