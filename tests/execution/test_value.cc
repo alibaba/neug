@@ -479,9 +479,8 @@ TEST_F(ValueTest, EdgeCases) {
   // LOG(FATAL) calls abort(); EXPECT_DEATH is unreliable under sanitizers.
 #if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \
     !defined(UNDEFINED_SANITIZER)
-  EXPECT_DEATH(
-      { ValueConverter<bool>::typed_from_string("invalid"); },
-      "Invalid boolean string");
+  EXPECT_DEATH({ ValueConverter<bool>::typed_from_string("invalid"); },
+               "Invalid boolean string");
 #endif
 }
 
