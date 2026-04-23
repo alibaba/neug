@@ -11,7 +11,8 @@ build_extension_lib("parquet")
 target_include_directories(neug_parquet_extension PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR})
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/rapidjson/include)
 
 if(ARROW_INCLUDE_DIRS)
     target_include_directories(neug_parquet_extension PRIVATE SYSTEM ${ARROW_INCLUDE_DIRS})
