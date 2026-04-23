@@ -341,15 +341,12 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   // written string bytes are not lost.
   indexer.reserve(8);
   std::vector<std::string> batch2 = {"erin", "frank", "grace", "heidi"};
-  for (size_t i = 0; i + 1 < batch2.size(); ++i) {
-    indexer.insert(Property::from_string_view(batch2[i]), false);
+  for (const auto& v : batch2) {
+    indexer.insert(Property::from_string_view(v), false);
   }
 
-  EXPECT_THROW(indexer.insert(Property::from_string_view(batch2.back()), false),
-               neug::exception::StorageException);
-
   std::vector<std::string> all = {"alice", "bob",   "carol", "dave",
-                                  "erin",  "frank", "grace"};
+                                  "erin",  "frank", "grace", "heidi"};
   ExpectStringValues(indexer, all);
   indexer.close();
 }

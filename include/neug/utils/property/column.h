@@ -526,7 +526,9 @@ class TypedColumn<std::string_view> : public ColumnBase {
         non_zero_count++;
       }
     }
-    return non_zero_count > 0 ? total_length / non_zero_count : 0;
+    return non_zero_count > 0
+               ? (total_length + non_zero_count - 1) / non_zero_count
+               : 0;
   }
 
   std::unique_ptr<IDataContainer> items_buffer_;
