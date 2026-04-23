@@ -455,7 +455,6 @@ class TypedColumn<std::string_view> : public ColumnBase {
            << "Current buffer size: " << data_buffer_->GetDataSize()
            << ", current position: " << pos_.load()
            << ", new value size: " << dst_value.size();
-        LOG(ERROR) << ss.str();
         THROW_STORAGE_EXCEPTION(ss.str());
       }
     }

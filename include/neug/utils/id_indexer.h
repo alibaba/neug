@@ -236,10 +236,9 @@ class LFIndexer {
     std::swap(hasher_, other.hasher_);
   }
 
-  void init(const DataTypeId& type,
-            std::shared_ptr<ExtraTypeInfo> extra_type_info = nullptr) {
+  void init(const DataType& type) {
     keys_ = nullptr;
-    switch (type) {
+    switch (type.id()) {
 #define TYPE_DISPATCHER(enum_val, T)            \
   case DataTypeId::enum_val: {                  \
     keys_ = std::make_shared<TypedColumn<T>>(); \
@@ -252,9 +251,10 @@ class LFIndexer {
 #undef TYPE_DISPATCHER
     case DataTypeId::kVarchar: {
       uint16_t max_length = STRING_DEFAULT_MAX_LENGTH;
+      auto extra_type_info = type.RawExtraTypeInfo();
       if (extra_type_info) {
         auto str_type_info =
-            std::dynamic_pointer_cast<StringTypeInfo>(extra_type_info);
+            dynamic_cast<const StringTypeInfo*>(extra_type_info);
         if (str_type_info) {
           max_length = str_type_info->max_length;
         }
@@ -266,7 +266,7 @@ class LFIndexer {
       THROW_NOT_SUPPORTED_EXCEPTION(
           "Only (u)int64/32 and string_view types for pk are supported, but "
           "got: " +
-          std::to_string(type));
+          type.ToString());
     }
     }
   }
@@ -344,16 +344,16 @@ class LFIndexer {
         reserve(cap + (cap >> 2));
       }
     }
-    INDEX_T ind = static_cast<INDEX_T>(
-        num_elements_.fetch_add(1, std::memory_order_acq_rel));
-
+    INDEX_T ind = num_elements_.load();
     if (!insert_safe && NEUG_UNLIKELY(static_cast<size_t>(ind) >= capacity())) {
       THROW_INTERNAL_EXCEPTION(
           "Reserved size is not enough: " + std::to_string(capacity()) +
           " vs " + std::to_string(ind));
     }
-
+    // may throw when insert_safe is false
     keys_->set_any(ind, oid, insert_safe);
+
+    num_elements_.fetch_add(1, std::memory_order_acq_rel);
     auto* indices_ptr = reinterpret_cast<INDEX_T*>(indices_->GetData());
     size_t index =
         hash_policy_.index_for_hash(hasher_(oid), num_slots_minus_one_);

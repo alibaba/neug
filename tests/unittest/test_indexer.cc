@@ -214,12 +214,13 @@ TEST_F(LFIndexerTest, SupportsBuildEmptySwapAndVarcharKeys) {
 
   auto string_type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> lhs;
-  lhs.init(DataTypeId::kVarchar, string_type_info);
+  DataType string_type(DataTypeId::kVarchar, string_type_info);
+  lhs.init(string_type);
   lhs.open_in_memory(lhs_base);
   lhs.reserve(4);
 
   LFIndexer<uint32_t> rhs;
-  rhs.init(DataTypeId::kVarchar, string_type_info);
+  rhs.init(string_type);
   rhs.open_in_memory(rhs_base);
   rhs.reserve(4);
 
@@ -266,7 +267,8 @@ TEST_F(LFIndexerTest, VarcharReserveEnablesNonSafeInsert) {
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   constexpr size_t N = 8;
@@ -293,7 +295,8 @@ TEST_F(LFIndexerTest, VarcharReserveMaxWidthStrings) {
   constexpr uint16_t kMaxWidth = 16;
   auto type_info = std::make_shared<StringTypeInfo>(kMaxWidth);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   constexpr size_t N = 6;
@@ -321,7 +324,8 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   // First batch: reserve 4, insert 4 via insert() (non-safe).
@@ -337,12 +341,15 @@ TEST_F(LFIndexerTest, VarcharMultipleReservesAccumulateDataSpace) {
   // written string bytes are not lost.
   indexer.reserve(8);
   std::vector<std::string> batch2 = {"erin", "frank", "grace", "heidi"};
-  for (const auto& v : batch2) {
-    indexer.insert(Property::from_string_view(v), false);
+  for (size_t i = 0; i + 1 < batch2.size(); ++i) {
+    indexer.insert(Property::from_string_view(batch2[i]), false);
   }
 
+  EXPECT_THROW(indexer.insert(Property::from_string_view(batch2.back()), false),
+               neug::exception::StorageException);
+
   std::vector<std::string> all = {"alice", "bob",   "carol", "dave",
-                                  "erin",  "frank", "grace", "heidi"};
+                                  "erin",  "frank", "grace"};
   ExpectStringValues(indexer, all);
   indexer.close();
 }
@@ -355,7 +362,8 @@ TEST_F(LFIndexerTest, VarcharReserveSmallerThanCapacityIsNoop) {
 
   auto type_info = std::make_shared<StringTypeInfo>(32);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  DataType string_type(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   indexer.reserve(16);
@@ -379,8 +387,9 @@ TEST_F(LFIndexerTest, VarcharRehashPreservesData) {
   CreateEmptyIndicesFile(base);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
+  DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(base);
 
   std::vector<std::string> values = {"foo",  "bar",   "baz",   "qux",
@@ -406,8 +415,9 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
   CreateEmptyIndicesFile(base);
 
   auto type_info = std::make_shared<StringTypeInfo>(64);
+  DataType string_type(DataTypeId::kVarchar, type_info);
   LFIndexer<uint32_t> writable;
-  writable.init(DataTypeId::kVarchar, type_info);
+  writable.init(string_type);
   writable.open_in_memory(base);
 
   constexpr size_t N = 5;
@@ -427,7 +437,7 @@ TEST_F(LFIndexerTest, VarcharReserveInsertDumpReload) {
 
   // Reload from snapshot and verify all entries survive the round-trip.
   LFIndexer<uint32_t> reader;
-  reader.init(DataTypeId::kVarchar, type_info);
+  reader.init(string_type);
   reader.open_in_memory(snapshot_dir_ + "/" + name);
   ExpectStringValues(reader, values);
   reader.close();
@@ -451,12 +461,13 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
 
   constexpr uint16_t kWidth = 64;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: populate with short strings (avg 3 chars << kWidth), then dump.
   std::vector<std::string> short_values = {"a", "bb", "ccc"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -466,7 +477,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
 
   // Phase 2: reopen — data_buffer_ is now tight (= sum of short string bytes).
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(snapshot_dir_ + "/" + name);
   ExpectStringValues(indexer, short_values);
 
@@ -482,7 +493,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_InMemory) {
     long_values.push_back(std::string(60, static_cast<char>('d' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(Property::from_string_view(v), true);
   }
 
   std::vector<std::string> all = short_values;
@@ -501,12 +512,13 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
 
   constexpr uint16_t kWidth = 48;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: fill to capacity with 1-char strings, then dump.
   std::vector<std::string> short_values = {"x", "y", "z", "w"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     writer.reserve(short_values.size());
     for (const auto& v : short_values) {
@@ -517,7 +529,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenInsertSafeLong_InMemory) {
 
   // Phase 2: reopen — capacity == short_values.size(), data_buffer_ tight.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open_in_memory(snapshot_dir_ + "/" + name);
   EXPECT_EQ(indexer.size(), short_values.size());
 
@@ -547,12 +559,13 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
 
   constexpr uint16_t kWidth = 32;
   auto type_info = std::make_shared<StringTypeInfo>(kWidth);
+  DataType string_type(DataTypeId::kVarchar, type_info);
 
   // Phase 1: insert 2-char strings to keep .data file tiny, then dump.
   std::vector<std::string> short_values = {"hi", "yo", "ok"};
   {
     LFIndexer<uint32_t> writer;
-    writer.init(DataTypeId::kVarchar, type_info);
+    writer.init(string_type);
     writer.open_in_memory(base);
     for (const auto& v : short_values) {
       writer.insert(Property::from_string_view(v), true);
@@ -562,7 +575,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
 
   // Phase 2: reopen via SyncToFile — data_buffer_ memory-maps the small file.
   LFIndexer<uint32_t> indexer;
-  indexer.init(DataTypeId::kVarchar, type_info);
+  indexer.init(string_type);
   indexer.open(name, snapshot_dir_, work_dir_);
   ExpectStringValues(indexer, short_values);
 
@@ -577,7 +590,7 @@ TEST_F(LFIndexerTest, VarcharShortDumpReopenReserveThenInsertLong_SyncToFile) {
     long_values.push_back(std::string(30, static_cast<char>('p' + i)));
   }
   for (const auto& v : long_values) {
-    indexer.insert(Property::from_string_view(v), false);
+    indexer.insert(Property::from_string_view(v), true);
   }
 
   std::vector<std::string> all = short_values;
